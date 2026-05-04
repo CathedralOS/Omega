@@ -1,0 +1,9 @@
+[package]
+name = "omega"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega"
+path = "src/lib.rs"
