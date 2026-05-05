@@ -113,6 +113,7 @@ fn validate_data_field_types(
 ) {
     for data_definition in &program.data_definitions {
         validate_data_member_names(data_definition, diagnostics);
+        validate_data_shape(data_definition, diagnostics);
 
         for member in &data_definition.members {
             let DataMember::Field(field) = member else {
@@ -142,6 +143,27 @@ fn validate_data_field_types(
                 );
             }
         }
+    }
+}
+
+fn validate_data_shape(
+    data_definition: &crate::ir::data::DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let has_fields = data_definition
+        .members
+        .iter()
+        .any(|member| matches!(member, DataMember::Field(_)));
+    let has_variants = data_definition
+        .members
+        .iter()
+        .any(|member| matches!(member, DataMember::Variant(_)));
+
+    if has_fields && has_variants {
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` mixes fields and variants; split record data from enum-like data",
+            data_definition.name
+        )));
     }
 }
 

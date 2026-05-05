@@ -255,6 +255,36 @@ mod tests {
     }
 
     #[test]
+    fn rejects_mixed_data_shapes() {
+        let tokens = Lexer::new(
+            r#"
+            data Confused {
+                Ready,
+                value: i32;
+            }
+
+            machine main {
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("mixes fields and variants"))
+        );
+    }
+
+    #[test]
     fn rejects_machine_type_as_owned_data() {
         let tokens = Lexer::new(
             r#"
