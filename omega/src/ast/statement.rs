@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Stmt {
+pub enum Statement {
     CommandCall(CommandCall),
     Transition(String),
 }
@@ -8,5 +8,5 @@ pub enum Stmt {
 pub struct CommandCall {
     pub receiver: String,
     pub command: String,
-    pub args: Vec<crate::ast::expression::Expression>,
+    pub arguments: Vec<crate::ast::expression::Expression>,
 }

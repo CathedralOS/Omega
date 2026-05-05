@@ -19,40 +19,40 @@ impl<'source> Lexer<'source> {
     pub fn tokenize(mut self) -> Result<Vec<Token>, LexError> {
         let mut tokens = Vec::new();
 
-        while let Some((start, ch)) = self.chars.next() {
-            if ch.is_whitespace() {
+        while let Some((start, character)) = self.chars.next() {
+            if character.is_whitespace() {
                 continue;
             }
 
-            if ch == '/' && self.peek_char() == Some('/') {
+            if character == '/' && self.peek_character() == Some('/') {
                 self.skip_line_comment();
                 continue;
             }
 
-            if ch.is_ascii_alphabetic() || ch == '_' {
-                tokens.push(self.lex_identifier(start, ch));
+            if character.is_ascii_alphabetic() || character == '_' {
+                tokens.push(self.lex_identifier(start, character));
                 continue;
             }
 
-            if ch.is_ascii_digit() {
-                tokens.push(self.lex_integer(start, ch));
+            if character.is_ascii_digit() {
+                tokens.push(self.lex_integer(start, character));
                 continue;
             }
 
-            if ch == '"' {
+            if character == '"' {
                 tokens.push(self.lex_string(start)?);
                 continue;
             }
 
-            tokens.push(self.lex_symbol(start, ch));
+            tokens.push(self.lex_symbol(start, character));
         }
 
         Ok(tokens)
     }
 
     fn skip_line_comment(&mut self) {
-        for (_, ch) in self.chars.by_ref() {
-            if ch == '\n' {
+        for (_, character) in self.chars.by_ref() {
+            if character == '\n' {
                 break;
             }
         }
@@ -99,16 +99,16 @@ impl<'source> Lexer<'source> {
     fn lex_string(&mut self, start: usize) -> Result<Token, LexError> {
         let mut lexeme = String::new();
 
-        while let Some((index, ch)) = self.chars.next() {
-            if ch == '"' {
+        while let Some((index, character)) = self.chars.next() {
+            if character == '"' {
                 return Ok(Token {
                     kind: TokenKind::String,
                     lexeme,
-                    span: Span::new(start, index + ch.len_utf8()),
+                    span: Span::new(start, index + character.len_utf8()),
                 });
             }
 
-            if ch == '\\' {
+            if character == '\\' {
                 let Some((_, escaped)) = self.chars.next() else {
                     return Err(LexError::new(
                         "unterminated string escape",
@@ -129,7 +129,7 @@ impl<'source> Lexer<'source> {
                     }
                 }
             } else {
-                lexeme.push(ch);
+                lexeme.push(character);
             }
         }
 
@@ -142,8 +142,8 @@ impl<'source> Lexer<'source> {
     fn lex_symbol(&mut self, start: usize, first: char) -> Token {
         let mut end = start + first.len_utf8();
 
-        if (first == ':' && self.peek_char() == Some(':'))
-            || (first == '-' && self.peek_char() == Some('>'))
+        if (first == ':' && self.peek_character() == Some(':'))
+            || (first == '-' && self.peek_character() == Some('>'))
         {
             if let Some((next_index, next)) = self.chars.next() {
                 end = next_index + next.len_utf8();
@@ -157,7 +157,7 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    fn peek_char(&mut self) -> Option<char> {
-        self.chars.peek().map(|(_, ch)| *ch)
+    fn peek_character(&mut self) -> Option<char> {
+        self.chars.peek().map(|(_, character)| *character)
     }
 }

@@ -1,6 +1,6 @@
 use crate::ast::expression::Expression;
 use crate::ast::item::{CommandSignature, Contains, Item, Machine, Platform, State, UseItem};
-use crate::ast::stmt::{CommandCall, Stmt};
+use crate::ast::statement::{CommandCall, Statement};
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
 
@@ -124,17 +124,17 @@ impl Parser<'_> {
         Ok(State { name, statements })
     }
 
-    fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         let receiver = self.expect_identifier()?;
         self.expect(".")?;
         let command = self.expect_identifier()?;
         self.expect("(")?;
 
-        let mut args = Vec::new();
+        let mut arguments = Vec::new();
 
         if !self.check(")") {
             loop {
-                args.push(self.parse_expr()?);
+                arguments.push(self.parse_expression()?);
 
                 if !self.consume(",") {
                     break;
@@ -145,14 +145,14 @@ impl Parser<'_> {
         self.expect(")")?;
         self.expect(";")?;
 
-        Ok(Stmt::CommandCall(CommandCall {
+        Ok(Statement::CommandCall(CommandCall {
             receiver,
             command,
-            args,
+            arguments,
         }))
     }
 
-    fn parse_expr(&mut self) -> Result<Expression, ParseError> {
+    fn parse_expression(&mut self) -> Result<Expression, ParseError> {
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token

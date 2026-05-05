@@ -1,24 +1,24 @@
 use std::collections::HashMap;
 
-use crate::ast::expression::Expression;
-use crate::ast::item::{Item, Machine, Platform};
-use crate::ast::stmt::Stmt;
 use crate::diagnostics::Diagnostic;
+use crate::ir::Program;
+use crate::ir::expression::Expression;
+use crate::ir::machine::Machine;
+use crate::ir::platform::Platform;
+use crate::ir::statement::Statement;
 
-pub fn emit_c_host_source(items: &[Item]) -> Result<String, Diagnostic> {
-    let main = find_main_machine(items)?;
+pub fn emit_c_host_source(program: &Program) -> Result<String, Diagnostic> {
+    let main = find_main_machine(program)?;
     let main_state = main
         .states
         .iter()
         .find(|state| state.name == "Main")
         .ok_or_else(|| Diagnostic::error("machine main is missing state Main"))?;
 
-    let platforms = items
+    let platforms = program
+        .platforms
         .iter()
-        .filter_map(|item| match item {
-            Item::Platform(platform) => Some((platform.name.as_str(), platform)),
-            _ => None,
-        })
+        .map(|platform| (platform.name.as_str(), platform))
         .collect::<HashMap<_, _>>();
 
     let contains = main
@@ -33,9 +33,7 @@ pub fn emit_c_host_source(items: &[Item]) -> Result<String, Diagnostic> {
     output.push_str("int main(void) {\n");
 
     for statement in &main_state.statements {
-        let Stmt::CommandCall(call) = statement else {
-            continue;
-        };
+        let Statement::CommandCall(call) = statement;
 
         let Some(receiver_type) = contains.get(call.receiver.as_str()) else {
             return Err(Diagnostic::error(format!(
@@ -54,13 +52,13 @@ pub fn emit_c_host_source(items: &[Item]) -> Result<String, Diagnostic> {
 
         match (receiver_type.to_owned(), call.command.as_str()) {
             ("Console", "WriteLine") => {
-                let text = expect_string_arg(&call.args, "WriteLine")?;
+                let text = expect_string_arg(&call.arguments, "WriteLine")?;
                 output.push_str("    puts(\"");
                 output.push_str(&escape_c_string(text));
                 output.push_str("\");\n");
             }
             ("Console", "ExitProcess") => {
-                let code = expect_integer_arg(&call.args, "ExitProcess")?;
+                let code = expect_integer_arg(&call.arguments, "ExitProcess")?;
                 output.push_str(&format!("    return {code};\n"));
                 returns_from_main = true;
             }
@@ -82,13 +80,11 @@ pub fn emit_c_host_source(items: &[Item]) -> Result<String, Diagnostic> {
     Ok(output)
 }
 
-fn find_main_machine(items: &[Item]) -> Result<&Machine, Diagnostic> {
-    items
+fn find_main_machine(program: &Program) -> Result<&Machine, Diagnostic> {
+    program
+        .machines
         .iter()
-        .find_map(|item| match item {
-            Item::Machine(machine) if machine.name == "main" => Some(machine),
-            _ => None,
-        })
+        .find(|machine| machine.name == "main")
         .ok_or_else(|| Diagnostic::error("missing machine main"))
 }
 
@@ -107,8 +103,11 @@ fn ensure_platform_command(platform: &Platform, command_name: &str) -> Result<()
     }
 }
 
-fn expect_string_arg<'a>(args: &'a [Expression], command: &str) -> Result<&'a str, Diagnostic> {
-    match args {
+fn expect_string_arg<'a>(
+    arguments: &'a [Expression],
+    command: &str,
+) -> Result<&'a str, Diagnostic> {
+    match arguments {
         [Expression::String(value)] => Ok(value),
         _ => Err(Diagnostic::error(format!(
             "{command} expects one string argument"
@@ -116,8 +115,8 @@ fn expect_string_arg<'a>(args: &'a [Expression], command: &str) -> Result<&'a st
     }
 }
 
-fn expect_integer_arg(args: &[Expression], command: &str) -> Result<i64, Diagnostic> {
-    match args {
+fn expect_integer_arg(arguments: &[Expression], command: &str) -> Result<i64, Diagnostic> {
+    match arguments {
         [Expression::Integer(value)] => Ok(*value),
         _ => Err(Diagnostic::error(format!(
             "{command} expects one integer argument"

@@ -6,6 +6,7 @@ use crate::ast::item::{Item, UseItem};
 use crate::backend;
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
+use crate::ir::lowering::lower_program;
 use crate::lexer::Lexer;
 use crate::parser::parser::parse_file;
 use crate::source::{Resolver, SourceFile};
@@ -48,8 +49,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         items.extend(ast_file.items);
     }
 
+    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
     let c_source =
-        backend::c_host::emit_c_host_source(&items).map_err(|diagnostic| vec![diagnostic])?;
+        backend::c_host::emit_c_host_source(&program).map_err(|diagnostic| vec![diagnostic])?;
     let output_dir = PathBuf::from("target/omega");
     std::fs::create_dir_all(&output_dir).map_err(|error| {
         vec![Diagnostic::error(format!(

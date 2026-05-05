@@ -1,4 +1,4 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Command {
+pub struct CommandSignature {
     pub name: String,
 }

@@ -1,7 +1,10 @@
 pub mod command;
+pub mod expression;
+pub mod lowering;
 pub mod machine;
 pub mod platform;
 pub mod state;
+pub mod statement;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
