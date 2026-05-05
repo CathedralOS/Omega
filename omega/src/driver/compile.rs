@@ -91,7 +91,7 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
     let mut loaded_files = Vec::new();
 
     while let Some(path) = pending.pop() {
-        let normalized = path.clone();
+        let normalized = normalize_path(&path)?;
 
         if !seen.insert(normalized.clone()) {
             continue;
@@ -148,4 +148,13 @@ fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
 
     path.set_extension("omg");
     path
+}
+
+fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
+    path.canonicalize().map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "failed to resolve {}: {error}",
+            path.display()
+        ))]
+    })
 }
