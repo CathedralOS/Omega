@@ -9,6 +9,7 @@ use crate::driver::CompileOptions;
 use crate::ir::lowering::lower_program;
 use crate::lexer::Lexer;
 use crate::parser::parser::parse_file;
+use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +51,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     }
 
     let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
+    validate_program(&program)?;
     let c_source =
         backend::c_host::emit_c_host_source(&program).map_err(|diagnostic| vec![diagnostic])?;
     let output_dir = PathBuf::from("target/omega");

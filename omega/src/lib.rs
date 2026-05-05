@@ -6,7 +6,7 @@ pub mod hir;
 pub mod ir;
 pub mod lexer;
 pub mod parser;
-pub mod sema;
+pub mod semantic;
 pub mod source;
 pub mod syntax;
 
