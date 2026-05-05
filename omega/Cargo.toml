@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "omega"
 path = "src/lib.rs"
+
+[dependencies]
+arc-swap = "1.7"
