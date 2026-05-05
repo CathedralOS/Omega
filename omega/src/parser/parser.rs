@@ -22,10 +22,6 @@ pub fn parse_file(tokens: &[Token]) -> Result<AstFile, ParseError> {
     Parser { tokens, index: 0 }.parse_file()
 }
 
-pub fn parse_items(tokens: &[Token]) -> Result<Vec<Item>, ParseError> {
-    parse_file(tokens).map(|file| file.items)
-}
-
 struct Parser<'a> {
     tokens: &'a [Token],
     index: usize,
