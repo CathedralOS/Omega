@@ -240,7 +240,7 @@ fn validate_type_reference(
 fn is_primitive_type(name: &str) -> bool {
     matches!(
         name,
-        "String" | "bool" | "i32" | "u32" | "usize" | "f32" | "f64"
+        "String" | "bool" | "i32" | "u32" | "u64" | "usize" | "f32" | "f64"
     )
 }
 
@@ -415,7 +415,11 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
         TypeReference::Named(type_name) => {
             matches!(
                 (argument, type_name.as_str()),
-                (Expression::String(_), "String") | (Expression::Integer(_), "i32")
+                (Expression::String(_), "String")
+                    | (Expression::Integer(_), "i32")
+                    | (Expression::Integer(_), "u32")
+                    | (Expression::Integer(_), "u64")
+                    | (Expression::Integer(_), "usize")
             ) || matches!(argument, Expression::Name(_))
         }
     }

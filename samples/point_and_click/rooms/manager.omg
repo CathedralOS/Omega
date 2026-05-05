@@ -5,43 +5,41 @@ use rooms::foyer;
 machine RoomManager {
     contains foyer: FoyerRoom;
     contains cellar: CellarRoom;
-    contains inventory: Inventory;
 
+    owns inventory: Inventory;
     owns active_room: RoomId = RoomId::Foyer;
-
-    state Running;
 
     invariant OneActiveRoom {
         active_room in [RoomId::Foyer, RoomId::Cellar];
     }
 
-    command Tick(frame: FrameInput) in Running {
+    command Tick(frame: FrameInput) {
         TickFoyer(frame);
         TickCellar(frame);
     }
 
-    command TickFoyer(frame: FrameInput) in Running when active_room == RoomId::Foyer {
+    command TickFoyer(frame: FrameInput) when active_room == RoomId::Foyer {
         foyer.Tick(frame, mut inventory, mut active_room);
     }
 
-    command TickCellar(frame: FrameInput) in Running when active_room == RoomId::Cellar {
+    command TickCellar(frame: FrameInput) when active_room == RoomId::Cellar {
         cellar.Tick(frame, mut inventory, mut active_room);
     }
 
-    query WriteActiveRoomView(mut out_view: RoomView) in Running {
+    command WriteActiveRoomView(mut out_view: RoomView) {
         WriteFoyerView(mut out_view);
         WriteCellarView(mut out_view);
     }
 
-    query WriteFoyerView(mut out_view: RoomView) in Running when active_room == RoomId::Foyer {
+    command WriteFoyerView(mut out_view: RoomView) when active_room == RoomId::Foyer {
         foyer.WriteView(mut out_view);
     }
 
-    query WriteCellarView(mut out_view: RoomView) in Running when active_room == RoomId::Cellar {
+    command WriteCellarView(mut out_view: RoomView) when active_room == RoomId::Cellar {
         cellar.WriteView(mut out_view);
     }
 
-    query WriteInventory(mut out_inventory: Inventory) in Running {
+    command WriteInventory(mut out_inventory: Inventory) {
         out_inventory = inventory;
     }
 }

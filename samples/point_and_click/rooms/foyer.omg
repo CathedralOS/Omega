@@ -4,9 +4,7 @@ machine FoyerRoom {
     owns chest_open: bool = false;
     owns door_unlocked: bool = false;
 
-    state Idle;
-
-    command Tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) in Idle {
+    command Tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
         let clicked: ClickTarget;
         HitTest(frame.mouse_x, frame.mouse_y, mut clicked);
         CollectKey(frame, clicked, mut inventory);
@@ -14,26 +12,26 @@ machine FoyerRoom {
         OpenChest(frame, clicked);
     }
 
-    command CollectKey(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory) in Idle
+    command CollectKey(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory)
         when frame.left_pressed && clicked == ClickTarget::Key
     {
         inventory.has_key = true;
     }
 
-    command UnlockDoor(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId) in Idle
+    command UnlockDoor(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId)
         when frame.left_pressed && clicked == ClickTarget::Door && inventory.has_key
     {
         door_unlocked = true;
         active_room = RoomId::Cellar;
     }
 
-    command OpenChest(frame: FrameInput, clicked: ClickTarget) in Idle
+    command OpenChest(frame: FrameInput, clicked: ClickTarget)
         when frame.left_pressed && clicked == ClickTarget::Chest
     {
         chest_open = true;
     }
 
-    query WriteView(mut out_view: RoomView) in Idle {
+    command WriteView(mut out_view: RoomView) {
         out_view.room_name = "Foyer";
         out_view.hotspots = [
             Hotspot { target: ClickTarget::Door, x: 420, y: 80, width: 80, height: 180 },
@@ -43,7 +41,7 @@ machine FoyerRoom {
         out_view.hotspot_count = 3;
     }
 
-    query HitTest(x: i32, y: i32, mut out_target: ClickTarget) in Idle {
+    command HitTest(x: i32, y: i32, mut out_target: ClickTarget) {
         // Long term this likely lowers into a SIMD-friendly scan across
         // hotspot bounds owned by the room.
         out_target = ClickTarget::None;

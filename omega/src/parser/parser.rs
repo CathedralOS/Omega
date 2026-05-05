@@ -174,6 +174,9 @@ impl Parser<'_> {
                 states.push(self.parse_state()?);
             } else if self.consume("command") {
                 commands.push(self.parse_command_definition()?);
+            } else if self.consume("invariant") {
+                self.expect_identifier()?;
+                self.skip_balanced_braces()?;
             } else {
                 return Err(self.error_here("expected machine item"));
             }
