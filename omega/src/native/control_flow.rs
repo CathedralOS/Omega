@@ -33,7 +33,13 @@ pub struct StateFlow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Operation {
+pub struct Operation {
+    pub statement_index: usize,
+    pub kind: OperationKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OperationKind {
     Assignment,
     CommandCall,
     LocalData,
@@ -110,10 +116,20 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
 fn statements_to_operations(statements: &[Statement]) -> Result<Vec<Operation>, Diagnostic> {
     statements
         .iter()
-        .map(|statement| match statement {
-            Statement::Assignment(_) => Ok(Operation::Assignment),
-            Statement::CommandCall(_) => Ok(Operation::CommandCall),
-            Statement::LocalData(_) => Ok(Operation::LocalData),
+        .enumerate()
+        .map(|(statement_index, statement)| match statement {
+            Statement::Assignment(_) => Ok(Operation {
+                statement_index,
+                kind: OperationKind::Assignment,
+            }),
+            Statement::CommandCall(_) => Ok(Operation {
+                statement_index,
+                kind: OperationKind::CommandCall,
+            }),
+            Statement::LocalData(_) => Ok(Operation {
+                statement_index,
+                kind: OperationKind::LocalData,
+            }),
             Statement::Transition(_) => Err(Diagnostic::error(
                 "command bodies cannot contain state transitions",
             )),
@@ -130,28 +146,37 @@ fn split_state_statements(
     let mut transitions = Vec::new();
     let mut transition_section_started = false;
 
-    for statement in statements {
+    for (statement_index, statement) in statements.iter().enumerate() {
         match statement {
             Statement::Assignment(_) => {
                 if transition_section_started {
                     return Err(non_trailing_transition_error(machine));
                 }
 
-                operations.push(Operation::Assignment);
+                operations.push(Operation {
+                    statement_index,
+                    kind: OperationKind::Assignment,
+                });
             }
             Statement::CommandCall(_) => {
                 if transition_section_started {
                     return Err(non_trailing_transition_error(machine));
                 }
 
-                operations.push(Operation::CommandCall);
+                operations.push(Operation {
+                    statement_index,
+                    kind: OperationKind::CommandCall,
+                });
             }
             Statement::LocalData(_) => {
                 if transition_section_started {
                     return Err(non_trailing_transition_error(machine));
                 }
 
-                operations.push(Operation::LocalData);
+                operations.push(Operation {
+                    statement_index,
+                    kind: OperationKind::LocalData,
+                });
             }
             Statement::Transition(transition) => {
                 transition_section_started = true;

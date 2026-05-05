@@ -459,7 +459,11 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
+                owns return_code: i32 = 0;
+
                 state Main {
+                    let temp: i32;
+                    return_code = 1;
                     -> Running;
                 }
 
@@ -478,6 +482,14 @@ mod tests {
         let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
             .expect("control-flow planning should pass");
 
+        assert_eq!(
+            control_flow.machines[0].states[0].operations[0].statement_index,
+            0
+        );
+        assert_eq!(
+            control_flow.machines[0].states[0].operations[1].statement_index,
+            1
+        );
         assert_eq!(control_flow.machines[0].states[0].transitions.len(), 1);
         assert_eq!(control_flow.machines[0].states[1].transitions.len(), 1);
     }
