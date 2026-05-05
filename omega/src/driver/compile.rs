@@ -41,9 +41,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         build_native_plan(&program, NativeTarget::host()).map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; planned {} data layout(s), {} machine layout(s), entry {}.{}",
+        "native object emission is not implemented yet; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), entry {}.{}",
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
+        native_plan.control_flow.machines.len(),
         native_plan.entry_machine,
         native_plan.entry_state
     ))])

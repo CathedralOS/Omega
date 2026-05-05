@@ -372,4 +372,32 @@ mod tests {
         assert_eq!(machine.commands[0].signature.name, "Write");
         assert_eq!(machine.commands[0].statements.len(), 3);
     }
+
+    #[test]
+    fn plans_state_control_flow() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state Main {
+                    -> Running;
+                }
+
+                state Running {
+                    -> self;
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
+            .expect("control-flow planning should pass");
+
+        assert_eq!(control_flow.machines[0].states[0].transitions.len(), 1);
+        assert_eq!(control_flow.machines[0].states[1].transitions.len(), 1);
+    }
 }
