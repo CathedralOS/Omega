@@ -1,0 +1,25 @@
+use data/game_types.omg;
+use machines/room_manager.omg;
+
+machine MainMachine {
+    contains rooms: RoomManager;
+    owns view: MainView;
+
+    state Running;
+
+    command RunIteration(frame: FrameInput) in Running {
+        rooms.Tick(frame);
+        ComposeView(mut view);
+    }
+
+    command ComposeView(mut out_view: MainView) in Running {
+        let inventory_snapshot: Inventory;
+        rooms.WriteActiveRoomView(mut out_view.room);
+        rooms.WriteInventory(mut inventory_snapshot);
+        out_view.hud.has_key = inventory_snapshot.has_key;
+    }
+
+    query WriteView(mut out_view: MainView) in Running {
+        out_view = view;
+    }
+}

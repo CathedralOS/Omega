@@ -1,0 +1,53 @@
+data ClickTarget {
+    None,
+    Door,
+    Key,
+    Chest,
+}
+
+data FrameInput {
+    dt_ms: u32;
+    mouse_x: i32;
+    mouse_y: i32;
+    left_pressed: bool;
+    close_requested: bool;
+}
+
+data Inventory {
+    has_key: bool;
+}
+
+data MainView {
+    room: RoomView;
+    hud: HudView;
+}
+
+data RoomId {
+    Foyer,
+    Cellar,
+}
+
+data RoomView {
+    room_name: String;
+    hotspots: [Hotspot; 16];
+    hotspot_count: u32;
+}
+
+data HudView {
+    has_key: bool;
+}
+
+data Hotspot {
+    target: ClickTarget;
+    x: i32;
+    y: i32;
+    width: i32;
+    height: i32;
+}
+
+data WindowHandle {
+    id: u64;
+    width: u32;
+    height: u32;
+    title: String;
+}

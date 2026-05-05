@@ -1,0 +1,42 @@
+use data/game_types.omg;
+use machines/main.omg;
+use machines/room_manager.omg;
+use machines/rooms/cellar.omg;
+use machines/rooms/foyer.omg;
+use platform/desktop.omg;
+
+machine main {
+    contains platform: DesktopPlatform;
+    contains game: MainMachine;
+
+    owns main_window: WindowHandle;
+    owns frame_input: FrameInput;
+    owns frame_view: MainView;
+    owns is_terminated: bool = false;
+    owns return_code: i32 = 0;
+
+    state Main {
+        platform.CreateWindow(mut main_window, 1920, 1080, "Point and Click");
+
+        -> Running;
+    }
+
+    state Running {
+        platform.PollFrame(main_window, mut frame_input);
+        game.RunIteration(frame_input);
+        game.WriteView(mut frame_view);
+        platform.DrawRoom(frame_view.room);
+        platform.DrawHud(frame_view.hud);
+        platform.PresentBackbuffer(main_window);
+
+        -> Shutdown when frame_input.close_requested;
+        -> self;
+    }
+
+    state Shutdown {
+        is_terminated = true;
+        return_code = 0;
+        platform.DestroyWindow(main_window);
+        platform.ExitProcess(return_code);
+    }
+}

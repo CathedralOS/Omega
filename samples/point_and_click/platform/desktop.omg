@@ -1,0 +1,11 @@
+use data/game_types.omg;
+
+platform machine DesktopPlatform {
+    command CreateWindow(mut window: WindowHandle, width: u32, height: u32, title: String);
+    command PollFrame(window: WindowHandle, mut frame: FrameInput);
+    command DrawRoom(room: RoomView);
+    command DrawHud(hud: HudView);
+    command PresentBackbuffer(window: WindowHandle);
+    command DestroyWindow(window: WindowHandle);
+    command ExitProcess(return_code: i32);
+}

@@ -1,0 +1,21 @@
+use data/game_types.omg;
+
+machine CellarRoom {
+    owns intro_seen: bool = false;
+
+    state Idle;
+
+    command Tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) in Idle {
+        MarkIntroSeen(frame);
+    }
+
+    command MarkIntroSeen(frame: FrameInput) in Idle when frame.left_pressed {
+        intro_seen = true;
+    }
+
+    query WriteView(mut out_view: RoomView) in Idle {
+        out_view.room_name = "Cellar";
+        out_view.hotspots = [];
+        out_view.hotspot_count = 0;
+    }
+}
