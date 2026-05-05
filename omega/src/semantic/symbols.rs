@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::DataDefinition;
-use crate::ir::machine::Machine;
+use crate::ir::machine::{CommandDefinition, Machine};
 use crate::ir::platform::Platform;
 
 #[derive(Debug)]
@@ -103,5 +103,84 @@ impl<'program> ProgramSymbols<'program> {
 
     pub fn is_command_receiver_type(&self, name: &str) -> bool {
         self.machines.contains_key(name) || self.platforms.contains_key(name)
+    }
+}
+
+#[derive(Debug)]
+pub struct MachineSymbols<'program> {
+    commands: HashMap<&'program str, &'program CommandDefinition>,
+    contained_types: HashMap<&'program str, &'program str>,
+    state_names: HashSet<&'program str>,
+}
+
+impl<'program> MachineSymbols<'program> {
+    pub fn build(machine: &'program Machine, diagnostics: &mut Vec<Diagnostic>) -> Self {
+        let mut commands = HashMap::new();
+        let mut contained_types = HashMap::new();
+        let mut owned_data_names = HashSet::new();
+        let mut state_names = HashSet::new();
+
+        for command in &machine.commands {
+            if commands
+                .insert(command.signature.name.as_str(), command)
+                .is_some()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate command `{}`",
+                    machine.name, command.signature.name
+                )));
+            }
+        }
+
+        for contained_object in &machine.contains {
+            if contained_types
+                .insert(
+                    contained_object.name.as_str(),
+                    contained_object.type_name.as_str(),
+                )
+                .is_some()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate contained object `{}`",
+                    machine.name, contained_object.name
+                )));
+            }
+        }
+
+        for owned_data in &machine.owned_data {
+            if !owned_data_names.insert(owned_data.name.as_str()) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate owned data `{}`",
+                    machine.name, owned_data.name
+                )));
+            }
+        }
+
+        for state in &machine.states {
+            if !state_names.insert(state.name.as_str()) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate state `{}`",
+                    machine.name, state.name
+                )));
+            }
+        }
+
+        Self {
+            commands,
+            contained_types,
+            state_names,
+        }
+    }
+
+    pub fn command(&self, name: &str) -> Option<&'program CommandDefinition> {
+        self.commands.get(name).copied()
+    }
+
+    pub fn contained_type(&self, name: &str) -> Option<&'program str> {
+        self.contained_types.get(name).copied()
+    }
+
+    pub fn has_state(&self, name: &str) -> bool {
+        self.state_names.contains(name)
     }
 }

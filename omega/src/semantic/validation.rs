@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::CommandSignature;
@@ -7,7 +5,7 @@ use crate::ir::data::DataMember;
 use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
 use crate::ir::types::{PrimitiveType, TypeReference};
-use crate::semantic::symbols::ProgramSymbols;
+use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -18,21 +16,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     validate_entry_point(program, &mut diagnostics);
 
     for machine in &program.machines {
-        let contained_types = machine
-            .contains
-            .iter()
-            .map(|contained_object| {
-                (
-                    contained_object.name.as_str(),
-                    contained_object.type_name.as_str(),
-                )
-            })
-            .collect::<HashMap<_, _>>();
-        let state_names = machine
-            .states
-            .iter()
-            .map(|state| state.name.as_str())
-            .collect::<HashSet<_>>();
+        let machine_symbols = MachineSymbols::build(machine, &mut diagnostics);
 
         validate_contained_types(machine, &symbols, &mut diagnostics);
         validate_owned_data(machine, &symbols, &mut diagnostics);
@@ -44,7 +28,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                     Statement::CommandCall(command_call) => validate_command_call(
                         command_call,
                         machine,
-                        &contained_types,
+                        &machine_symbols,
                         &symbols,
                         &mut diagnostics,
                     ),
@@ -60,16 +44,14 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                     Statement::Transition(transition) => {
                         validate_transition_target(
                             &transition.target,
-                            &contained_types,
-                            &state_names,
+                            &machine_symbols,
                             &mut diagnostics,
                         );
 
                         if let Some(continuation) = &transition.continuation {
                             validate_transition_target(
                                 continuation,
-                                &contained_types,
-                                &state_names,
+                                &machine_symbols,
                                 &mut diagnostics,
                             );
                         }
@@ -218,16 +200,7 @@ fn validate_owned_data(
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut names = HashSet::new();
-
     for owned_data in &machine.owned_data {
-        if !names.insert(owned_data.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has duplicate owned data `{}`",
-                machine.name, owned_data.name
-            )));
-        }
-
         validate_type_reference(
             &owned_data.type_reference,
             symbols,
@@ -270,16 +243,12 @@ fn validate_initial_value(
 fn validate_command_call(
     command_call: &crate::ir::statement::CommandCall,
     current_machine: &crate::ir::machine::Machine,
-    contained_types: &HashMap<&str, &str>,
+    machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(receiver) = command_call.receiver.as_deref() else {
-        let Some(command_signature) = current_machine
-            .commands
-            .iter()
-            .find(|command| command.signature.name == command_call.command)
-        else {
+        let Some(command_definition) = machine_symbols.command(&command_call.command) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local command `{}`",
                 current_machine.name, command_call.command
@@ -287,11 +256,11 @@ fn validate_command_call(
             return;
         };
 
-        validate_command_arguments(command_call, &command_signature.signature, diagnostics);
+        validate_command_arguments(command_call, &command_definition.signature, diagnostics);
         return;
     };
 
-    let Some(receiver_type) = contained_types.get(receiver) else {
+    let Some(receiver_type) = machine_symbols.contained_type(receiver) else {
         diagnostics.push(Diagnostic::error(format!(
             "unknown command receiver `{}`",
             receiver
@@ -439,8 +408,7 @@ fn expression_type_name(argument: &Expression) -> &'static str {
 
 fn validate_transition_target(
     target: &TransitionTarget,
-    contained_types: &HashMap<&str, &str>,
-    state_names: &HashSet<&str>,
+    machine_symbols: &MachineSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let TransitionTarget::Named(path) = target else {
@@ -448,7 +416,7 @@ fn validate_transition_target(
     };
 
     if path.len() == 1 {
-        if !state_names.contains(path[0].as_str()) {
+        if !machine_symbols.has_state(path[0].as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "unknown state transition target `{}`",
                 path[0]
@@ -458,7 +426,7 @@ fn validate_transition_target(
         return;
     }
 
-    if !contained_types.contains_key(path[0].as_str()) {
+    if machine_symbols.contained_type(path[0].as_str()).is_none() {
         diagnostics.push(Diagnostic::error(format!(
             "unknown nested transition receiver `{}`",
             path[0]
