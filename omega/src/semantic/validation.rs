@@ -3,13 +3,16 @@ use std::collections::{HashMap, HashSet};
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::CommandSignature;
+use crate::ir::data::DataMember;
 use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
+use crate::ir::types::TypeReference;
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
     validate_top_level_names(program, &mut diagnostics);
+    validate_data_field_types(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
     let platforms = program
@@ -77,13 +80,30 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
 }
 
 fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+    let mut data_names = HashSet::new();
     let mut machine_names = HashSet::new();
     let mut platform_names = HashSet::new();
+
+    for data_definition in &program.data_definitions {
+        if !data_names.insert(data_definition.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "duplicate data `{}`",
+                data_definition.name
+            )));
+        }
+    }
 
     for machine in &program.machines {
         if !machine_names.insert(machine.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "duplicate machine `{}`",
+                machine.name
+            )));
+        }
+
+        if data_names.contains(machine.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}` is declared as both data and a machine",
                 machine.name
             )));
         }
@@ -97,6 +117,13 @@ fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>
             )));
         }
 
+        if data_names.contains(platform.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}` is declared as both data and a platform",
+                platform.name
+            )));
+        }
+
         if machine_names.contains(platform.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}` is declared as both a machine and a platform",
@@ -104,6 +131,80 @@ fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>
             )));
         }
     }
+}
+
+fn validate_data_field_types(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+    for data_definition in &program.data_definitions {
+        for member in &data_definition.members {
+            let DataMember::Field(field) = member else {
+                continue;
+            };
+
+            validate_type_reference(
+                &field.type_reference,
+                program,
+                diagnostics,
+                format!("data `{}` field `{}`", data_definition.name, field.name),
+            );
+        }
+    }
+
+    for platform in &program.platforms {
+        for command in &platform.commands {
+            for parameter in &command.parameters {
+                validate_type_reference(
+                    &parameter.type_reference,
+                    program,
+                    diagnostics,
+                    format!(
+                        "platform `{}` command `{}` parameter `{}`",
+                        platform.name, command.name, parameter.name
+                    ),
+                );
+            }
+        }
+    }
+}
+
+fn validate_type_reference(
+    type_reference: &TypeReference,
+    program: &Program,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    match type_reference {
+        TypeReference::FixedArray { element_type, .. } => {
+            validate_type_reference(element_type, program, diagnostics, owner);
+        }
+        TypeReference::Named(name) => {
+            if is_primitive_type(name) {
+                return;
+            }
+
+            let exists = program
+                .data_definitions
+                .iter()
+                .any(|data_definition| data_definition.name == *name)
+                || program.machines.iter().any(|machine| machine.name == *name)
+                || program
+                    .platforms
+                    .iter()
+                    .any(|platform| platform.name == *name);
+
+            if !exists {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown type `{name}`"
+                )));
+            }
+        }
+    }
+}
+
+fn is_primitive_type(name: &str) -> bool {
+    matches!(
+        name,
+        "String" | "bool" | "i32" | "u32" | "usize" | "f32" | "f64"
+    )
 }
 
 fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
@@ -218,27 +319,34 @@ fn validate_command_arguments(
             continue;
         }
 
-        if !argument_matches_type(argument, parameter.type_name.as_str()) {
+        let expected_type = parameter.type_reference.display_name();
+
+        if !argument_matches_type(argument, &parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for command `{}` expects `{}`, got `{}`",
                 parameter.name,
                 command_call.command,
-                parameter.type_name,
+                expected_type,
                 expression_type_name(argument)
             )));
         }
     }
 }
 
-fn argument_matches_type(argument: &Expression, type_name: &str) -> bool {
+fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) -> bool {
     if let Expression::Mutable(inner_expression) = argument {
-        return argument_matches_type(inner_expression, type_name);
+        return argument_matches_type(inner_expression, type_reference);
     }
 
-    matches!(
-        (argument, type_name),
-        (Expression::String(_), "String") | (Expression::Integer(_), "i32")
-    ) || matches!(argument, Expression::Name(_))
+    match type_reference {
+        TypeReference::FixedArray { .. } => matches!(argument, Expression::Name(_)),
+        TypeReference::Named(type_name) => {
+            matches!(
+                (argument, type_name.as_str()),
+                (Expression::String(_), "String") | (Expression::Integer(_), "i32")
+            ) || matches!(argument, Expression::Name(_))
+        }
+    }
 }
 
 fn expression_type_name(argument: &Expression) -> &'static str {

@@ -2,28 +2,62 @@ use crate::ast;
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::{CommandParameter, CommandSignature};
+use crate::ir::data::{DataDefinition, DataField, DataMember, DataVariant};
 use crate::ir::expression::Expression;
 use crate::ir::machine::{ContainedObject, Machine};
 use crate::ir::platform::Platform;
 use crate::ir::state::State;
 use crate::ir::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
+use crate::ir::types::TypeReference;
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     let mut program = Program::default();
 
     for item in items {
         match item {
+            ast::item::Item::Data(data_definition) => {
+                program
+                    .data_definitions
+                    .push(lower_data_definition(data_definition)?);
+            }
             ast::item::Item::Use(_) => {}
             ast::item::Item::Machine(machine) => {
                 program.machines.push(lower_machine(machine)?);
             }
             ast::item::Item::Platform(platform) => {
-                program.platforms.push(lower_platform(platform));
+                program.platforms.push(lower_platform(platform)?);
             }
         }
     }
 
     Ok(program)
+}
+
+fn lower_data_definition(
+    data_definition: &ast::item::DataDefinition,
+) -> Result<DataDefinition, Diagnostic> {
+    let members = data_definition
+        .members
+        .iter()
+        .map(lower_data_member)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(DataDefinition {
+        name: data_definition.name.clone(),
+        members,
+    })
+}
+
+fn lower_data_member(member: &ast::item::DataMember) -> Result<DataMember, Diagnostic> {
+    match member {
+        ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
+            name: field.name.clone(),
+            type_reference: lower_type_reference(&field.type_reference)?,
+        })),
+        ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
+            name: variant.name.clone(),
+        })),
+    }
 }
 
 fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
@@ -49,27 +83,46 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
     })
 }
 
-fn lower_platform(platform: &ast::item::Platform) -> Platform {
+fn lower_platform(platform: &ast::item::Platform) -> Result<Platform, Diagnostic> {
     let commands = platform
         .commands
         .iter()
-        .map(|command| CommandSignature {
-            name: command.name.clone(),
-            parameters: command
-                .parameters
-                .iter()
-                .map(|parameter| CommandParameter {
-                    name: parameter.name.clone(),
-                    type_name: parameter.type_reference.name.clone(),
-                    is_mutable: parameter.is_mutable,
-                })
-                .collect(),
+        .map(|command| {
+            Ok(CommandSignature {
+                name: command.name.clone(),
+                parameters: command
+                    .parameters
+                    .iter()
+                    .map(|parameter| {
+                        Ok(CommandParameter {
+                            name: parameter.name.clone(),
+                            type_reference: lower_type_reference(&parameter.type_reference)?,
+                            is_mutable: parameter.is_mutable,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-    Platform {
+    Ok(Platform {
         name: platform.name.clone(),
         commands,
+    })
+}
+
+fn lower_type_reference(
+    type_reference: &ast::types::TypeReference,
+) -> Result<TypeReference, Diagnostic> {
+    match type_reference {
+        ast::types::TypeReference::FixedArray {
+            element_type,
+            length,
+        } => Ok(TypeReference::FixedArray {
+            element_type: Box::new(lower_type_reference(element_type)?),
+            length: *length,
+        }),
+        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
     }
 }
 

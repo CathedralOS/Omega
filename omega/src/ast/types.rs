@@ -1,4 +1,14 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypeReference {
-    pub name: String,
+pub enum TypeReference {
+    FixedArray {
+        element_type: Box<TypeReference>,
+        length: usize,
+    },
+    Named(String),
+}
+
+impl TypeReference {
+    pub fn named(name: impl Into<String>) -> Self {
+        Self::Named(name.into())
+    }
 }

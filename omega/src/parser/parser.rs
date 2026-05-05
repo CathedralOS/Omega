@@ -1,6 +1,7 @@
 use crate::ast::expression::Expression;
 use crate::ast::item::{
-    CommandParameter, CommandSignature, Contains, Item, Machine, Platform, State, UseItem,
+    CommandParameter, CommandSignature, Contains, DataDefinition, DataField, DataMember,
+    DataVariant, Item, Machine, Platform, State, UseItem,
 };
 use crate::ast::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
 use crate::ast::types::TypeReference;
@@ -32,6 +33,8 @@ impl Parser<'_> {
         while !self.is_at_end() {
             if self.consume("use") {
                 items.push(Item::Use(self.parse_use()?));
+            } else if self.consume("data") {
+                items.push(Item::Data(self.parse_data_definition()?));
             } else if self.consume("platform") {
                 items.push(Item::Platform(self.parse_platform()?));
             } else if self.consume("machine") {
@@ -54,6 +57,34 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(UseItem { path })
+    }
+
+    fn parse_data_definition(&mut self) -> Result<DataDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut members = Vec::new();
+
+        while !self.consume("}") {
+            let member_name = self.expect_identifier()?;
+
+            if self.consume(":") {
+                let type_reference = self.parse_type_reference()?;
+                self.expect(";")?;
+                members.push(DataMember::Field(DataField {
+                    name: member_name,
+                    type_reference,
+                }));
+            } else {
+                members.push(DataMember::Variant(DataVariant { name: member_name }));
+
+                if !self.check("}") {
+                    self.expect(",")?;
+                }
+            }
+        }
+
+        Ok(DataDefinition { name, members })
     }
 
     fn parse_platform(&mut self) -> Result<Platform, ParseError> {
@@ -86,9 +117,7 @@ impl Parser<'_> {
             let is_mutable = self.consume("mut");
             let name = self.expect_identifier()?;
             self.expect(":")?;
-            let type_reference = TypeReference {
-                name: self.expect_identifier()?,
-            };
+            let type_reference = self.parse_type_reference()?;
 
             parameters.push(CommandParameter {
                 name,
@@ -104,6 +133,22 @@ impl Parser<'_> {
         }
 
         Ok(parameters)
+    }
+
+    fn parse_type_reference(&mut self) -> Result<TypeReference, ParseError> {
+        if self.consume("[") {
+            let element_type = self.parse_type_reference()?;
+            self.expect(";")?;
+            let length = self.expect_integer_literal()?;
+            self.expect("]")?;
+
+            return Ok(TypeReference::FixedArray {
+                element_type: Box::new(element_type),
+                length,
+            });
+        }
+
+        Ok(TypeReference::named(self.expect_identifier()?))
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {
@@ -408,6 +453,21 @@ impl Parser<'_> {
         } else {
             Err(ParseError::new("expected identifier"))
         }
+    }
+
+    fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {
+        let token = self
+            .advance()
+            .ok_or_else(|| ParseError::new("expected integer literal"))?;
+
+        if token.kind != TokenKind::Integer {
+            return Err(ParseError::new("expected integer literal"));
+        }
+
+        token
+            .lexeme
+            .parse::<usize>()
+            .map_err(|_| ParseError::new("invalid integer literal"))
     }
 
     fn advance(&mut self) -> Option<&Token> {

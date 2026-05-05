@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
+    Data(DataDefinition),
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
@@ -8,6 +9,29 @@ pub enum Item {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseItem {
     pub path: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataDefinition {
+    pub name: String,
+    pub members: Vec<DataMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DataMember {
+    Field(DataField),
+    Variant(DataVariant),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataField {
+    pub name: String,
+    pub type_reference: crate::ast::types::TypeReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataVariant {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

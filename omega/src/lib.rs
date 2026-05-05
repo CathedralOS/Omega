@@ -17,6 +17,7 @@ mod tests {
     use crate::Lexer;
     use crate::ast::item::Item;
     use crate::ast::statement::{Statement, TransitionTarget};
+    use crate::ast::types::TypeReference;
     use crate::parser::parser::parse_file;
 
     #[test]
@@ -81,14 +82,45 @@ mod tests {
         assert_eq!(platform.commands[0].name, "ReadLine");
         assert_eq!(platform.commands[0].parameters[0].name, "out_line");
         assert_eq!(
-            platform.commands[0].parameters[0].type_reference.name,
-            "ConsoleLine"
+            platform.commands[0].parameters[0].type_reference,
+            TypeReference::named("ConsoleLine")
         );
         assert!(platform.commands[0].parameters[0].is_mutable);
         assert_eq!(
-            platform.commands[1].parameters[0].type_reference.name,
-            "i32"
+            platform.commands[1].parameters[0].type_reference,
+            TypeReference::named("i32")
         );
+    }
+
+    #[test]
+    fn parses_data_variants_and_fields() {
+        let tokens = Lexer::new(
+            r#"
+            data CellId {
+                Empty,
+                A1,
+            }
+
+            data Level {
+                rooms: [Room; 16];
+                room_count: u32;
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Data(cell_id) = &parsed.items[0] else {
+            panic!("expected data definition");
+        };
+        let Item::Data(level) = &parsed.items[1] else {
+            panic!("expected data definition");
+        };
+
+        assert_eq!(cell_id.name, "CellId");
+        assert_eq!(cell_id.members.len(), 2);
+        assert_eq!(level.name, "Level");
+        assert_eq!(level.members.len(), 2);
     }
 
     #[test]
