@@ -1,4 +1,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
-    Word,
+    Identifier,
+    Integer,
+    String,
+    Symbol,
 }

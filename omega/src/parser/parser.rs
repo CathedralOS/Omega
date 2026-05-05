@@ -1,6 +1,286 @@
-use crate::ast::item::Item;
-use crate::lexer::Token;
+use crate::ast::expr::Expr;
+use crate::ast::item::{CommandSignature, Contains, Item, Machine, Platform, State, UseItem};
+use crate::ast::stmt::{CommandCall, Stmt};
+use crate::lexer::{Token, TokenKind};
+use crate::parser::parse_error::ParseError;
 
-pub fn parse_items(_tokens: &[Token]) -> Vec<Item> {
-    Vec::new()
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AstFile {
+    pub items: Vec<Item>,
+}
+
+pub fn parse_file(tokens: &[Token]) -> Result<AstFile, ParseError> {
+    Parser { tokens, index: 0 }.parse_file()
+}
+
+pub fn parse_items(tokens: &[Token]) -> Result<Vec<Item>, ParseError> {
+    parse_file(tokens).map(|file| file.items)
+}
+
+struct Parser<'a> {
+    tokens: &'a [Token],
+    index: usize,
+}
+
+impl Parser<'_> {
+    fn parse_file(&mut self) -> Result<AstFile, ParseError> {
+        let mut items = Vec::new();
+
+        while !self.is_at_end() {
+            if self.consume("use") {
+                items.push(Item::Use(self.parse_use()?));
+            } else if self.consume("platform") {
+                items.push(Item::Platform(self.parse_platform()?));
+            } else if self.consume("machine") {
+                items.push(Item::Machine(self.parse_machine()?));
+            } else {
+                return Err(self.error_here("expected top-level item"));
+            }
+        }
+
+        Ok(AstFile { items })
+    }
+
+    fn parse_use(&mut self) -> Result<UseItem, ParseError> {
+        let mut path = vec![self.expect_identifier()?];
+
+        while self.consume("::") {
+            path.push(self.expect_identifier()?);
+        }
+
+        self.expect(";")?;
+
+        Ok(UseItem { path })
+    }
+
+    fn parse_platform(&mut self) -> Result<Platform, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut commands = Vec::new();
+
+        while !self.consume("}") {
+            self.expect("command")?;
+            let name = self.expect_identifier()?;
+            self.skip_balanced_parens()?;
+            self.expect(";")?;
+            commands.push(CommandSignature { name });
+        }
+
+        Ok(Platform { name, commands })
+    }
+
+    fn parse_machine(&mut self) -> Result<Machine, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut contains = Vec::new();
+        let mut states = Vec::new();
+
+        while !self.consume("}") {
+            if self.consume("contains") {
+                contains.push(self.parse_contains()?);
+            } else if self.consume("owns") {
+                self.skip_until_semicolon()?;
+            } else if self.consume("state") {
+                states.push(self.parse_state()?);
+            } else if self.consume("command") {
+                self.skip_command_declaration()?;
+            } else {
+                return Err(self.error_here("expected machine item"));
+            }
+        }
+
+        Ok(Machine {
+            name,
+            contains,
+            states,
+        })
+    }
+
+    fn parse_contains(&mut self) -> Result<Contains, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect(":")?;
+        let type_name = self.expect_identifier()?;
+        self.expect(";")?;
+
+        Ok(Contains { name, type_name })
+    }
+
+    fn parse_state(&mut self) -> Result<State, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut statements = Vec::new();
+
+        while !self.consume("}") {
+            if self.consume("->") {
+                self.skip_until_semicolon()?;
+            } else {
+                statements.push(self.parse_statement()?);
+            }
+        }
+
+        Ok(State { name, statements })
+    }
+
+    fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+        let receiver = self.expect_identifier()?;
+        self.expect(".")?;
+        let command = self.expect_identifier()?;
+        self.expect("(")?;
+
+        let mut args = Vec::new();
+
+        if !self.check(")") {
+            loop {
+                args.push(self.parse_expr()?);
+
+                if !self.consume(",") {
+                    break;
+                }
+            }
+        }
+
+        self.expect(")")?;
+        self.expect(";")?;
+
+        Ok(Stmt::CommandCall(CommandCall {
+            receiver,
+            command,
+            args,
+        }))
+    }
+
+    fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+        if let Some(token) = self.advance() {
+            match token.kind {
+                TokenKind::Integer => token
+                    .lexeme
+                    .parse::<i64>()
+                    .map(Expr::Integer)
+                    .map_err(|_| ParseError::new("invalid integer literal")),
+                TokenKind::String => Ok(Expr::String(token.lexeme.clone())),
+                _ => Err(ParseError::new("expected expression")),
+            }
+        } else {
+            Err(ParseError::new("expected expression"))
+        }
+    }
+
+    fn skip_command_declaration(&mut self) -> Result<(), ParseError> {
+        self.expect_identifier()?;
+        self.skip_balanced_parens()?;
+
+        if self.consume(";") {
+            return Ok(());
+        }
+
+        if self.consume("when") {
+            while !self.check("{") {
+                self.advance()
+                    .ok_or_else(|| ParseError::new("unterminated command guard"))?;
+            }
+        }
+
+        self.skip_balanced_braces()
+    }
+
+    fn skip_balanced_parens(&mut self) -> Result<(), ParseError> {
+        self.expect("(")?;
+        let mut depth = 1;
+
+        while depth > 0 {
+            let token = self
+                .advance()
+                .ok_or_else(|| ParseError::new("unterminated parentheses"))?;
+
+            if token.lexeme == "(" {
+                depth += 1;
+            } else if token.lexeme == ")" {
+                depth -= 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn skip_balanced_braces(&mut self) -> Result<(), ParseError> {
+        self.expect("{")?;
+        let mut depth = 1;
+
+        while depth > 0 {
+            let token = self
+                .advance()
+                .ok_or_else(|| ParseError::new("unterminated block"))?;
+
+            if token.lexeme == "{" {
+                depth += 1;
+            } else if token.lexeme == "}" {
+                depth -= 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn skip_until_semicolon(&mut self) -> Result<(), ParseError> {
+        while !self.consume(";") {
+            self.advance()
+                .ok_or_else(|| ParseError::new("expected semicolon"))?;
+        }
+
+        Ok(())
+    }
+
+    fn consume(&mut self, lexeme: &str) -> bool {
+        if self.check(lexeme) {
+            self.index += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn check(&self, lexeme: &str) -> bool {
+        self.peek().is_some_and(|token| token.lexeme == lexeme)
+    }
+
+    fn expect(&mut self, lexeme: &str) -> Result<(), ParseError> {
+        if self.consume(lexeme) {
+            Ok(())
+        } else {
+            Err(self.error_here(format!("expected `{lexeme}`")))
+        }
+    }
+
+    fn expect_identifier(&mut self) -> Result<String, ParseError> {
+        let token = self
+            .advance()
+            .ok_or_else(|| ParseError::new("expected identifier"))?;
+
+        if token.kind == TokenKind::Identifier {
+            Ok(token.lexeme.clone())
+        } else {
+            Err(ParseError::new("expected identifier"))
+        }
+    }
+
+    fn advance(&mut self) -> Option<&Token> {
+        let token = self.tokens.get(self.index)?;
+        self.index += 1;
+        Some(token)
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.index)
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.index >= self.tokens.len()
+    }
+
+    fn error_here(&self, message: impl Into<String>) -> ParseError {
+        ParseError::new(message)
+    }
 }
