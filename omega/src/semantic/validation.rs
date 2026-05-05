@@ -44,6 +44,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
             .collect::<HashSet<_>>();
 
         validate_contained_types(machine, program, &mut diagnostics);
+        validate_owned_data(machine, program, &mut diagnostics);
 
         for state in &machine.states {
             for statement in &state.statements {
@@ -280,6 +281,60 @@ fn validate_contained_types(
                 machine.name, contained_object.name, contained_object.type_name
             )));
         }
+    }
+}
+
+fn validate_owned_data(
+    machine: &crate::ir::machine::Machine,
+    program: &Program,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut names = HashSet::new();
+
+    for owned_data in &machine.owned_data {
+        if !names.insert(owned_data.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has duplicate owned data `{}`",
+                machine.name, owned_data.name
+            )));
+        }
+
+        validate_type_reference(
+            &owned_data.type_reference,
+            program,
+            diagnostics,
+            format!(
+                "machine `{}` owned data `{}`",
+                machine.name, owned_data.name
+            ),
+        );
+
+        if let Some(initial_value) = &owned_data.initial_value {
+            validate_initial_value(
+                &owned_data.type_reference,
+                initial_value,
+                diagnostics,
+                format!(
+                    "machine `{}` owned data `{}`",
+                    machine.name, owned_data.name
+                ),
+            );
+        }
+    }
+}
+
+fn validate_initial_value(
+    type_reference: &TypeReference,
+    initial_value: &Expression,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    if !argument_matches_type(initial_value, type_reference) {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} initializer expects `{}`, got `{}`",
+            type_reference.display_name(),
+            expression_type_name(initial_value)
+        )));
     }
 }
 

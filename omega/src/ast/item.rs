@@ -39,6 +39,7 @@ pub struct Machine {
     pub name: String,
     pub contains: Vec<Contains>,
     pub commands: Vec<CommandDefinition>,
+    pub owned_data: Vec<OwnedData>,
     pub states: Vec<State>,
 }
 
@@ -46,6 +47,13 @@ pub struct Machine {
 pub struct Contains {
     pub name: String,
     pub type_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnedData {
+    pub name: String,
+    pub type_reference: crate::ast::types::TypeReference,
+    pub initial_value: Option<crate::ast::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

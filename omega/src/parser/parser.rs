@@ -1,7 +1,7 @@
 use crate::ast::expression::Expression;
 use crate::ast::item::{
     CommandDefinition, CommandParameter, CommandSignature, Contains, DataDefinition, DataField,
-    DataMember, DataVariant, Item, Machine, Platform, State, UseItem,
+    DataMember, DataVariant, Item, Machine, OwnedData, Platform, State, UseItem,
 };
 use crate::ast::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
 use crate::ast::types::TypeReference;
@@ -163,13 +163,14 @@ impl Parser<'_> {
 
         let mut contains = Vec::new();
         let mut commands = Vec::new();
+        let mut owned_data = Vec::new();
         let mut states = Vec::new();
 
         while !self.consume("}") {
             if self.consume("contains") {
                 contains.push(self.parse_contains()?);
             } else if self.consume("owns") {
-                self.skip_until_semicolon()?;
+                owned_data.push(self.parse_owned_data()?);
             } else if self.consume("state") {
                 states.push(self.parse_state()?);
             } else if self.consume("command") {
@@ -186,6 +187,7 @@ impl Parser<'_> {
             name,
             contains,
             commands,
+            owned_data,
             states,
         })
     }
@@ -216,6 +218,24 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(Contains { name, type_name })
+    }
+
+    fn parse_owned_data(&mut self) -> Result<OwnedData, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect(":")?;
+        let type_reference = self.parse_type_reference()?;
+        let initial_value = if self.consume("=") {
+            Some(self.parse_expression()?)
+        } else {
+            None
+        };
+        self.expect(";")?;
+
+        Ok(OwnedData {
+            name,
+            type_reference,
+            initial_value,
+        })
     }
 
     fn parse_state(&mut self) -> Result<State, ParseError> {
@@ -384,15 +404,6 @@ impl Parser<'_> {
             } else if token.lexeme == "}" {
                 depth -= 1;
             }
-        }
-
-        Ok(())
-    }
-
-    fn skip_until_semicolon(&mut self) -> Result<(), ParseError> {
-        while !self.consume(";") {
-            self.advance()
-                .ok_or_else(|| ParseError::new("expected semicolon"))?;
         }
 
         Ok(())

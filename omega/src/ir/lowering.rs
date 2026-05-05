@@ -4,7 +4,7 @@ use crate::ir::Program;
 use crate::ir::command::{CommandParameter, CommandSignature};
 use crate::ir::data::{DataDefinition, DataField, DataMember, DataVariant};
 use crate::ir::expression::Expression;
-use crate::ir::machine::{ContainedObject, Machine};
+use crate::ir::machine::{ContainedObject, Machine, OwnedData};
 use crate::ir::platform::Platform;
 use crate::ir::state::State;
 use crate::ir::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
@@ -76,6 +76,12 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
         .map(|command| lower_command_signature(&command.signature))
         .collect::<Result<Vec<_>, _>>()?;
 
+    let owned_data = machine
+        .owned_data
+        .iter()
+        .map(lower_owned_data)
+        .collect::<Result<Vec<_>, _>>()?;
+
     let states = machine
         .states
         .iter()
@@ -86,7 +92,20 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
         name: machine.name.clone(),
         commands,
         contains,
+        owned_data,
         states,
+    })
+}
+
+fn lower_owned_data(owned_data: &ast::item::OwnedData) -> Result<OwnedData, Diagnostic> {
+    Ok(OwnedData {
+        name: owned_data.name.clone(),
+        type_reference: lower_type_reference(&owned_data.type_reference)?,
+        initial_value: owned_data
+            .initial_value
+            .as_ref()
+            .map(lower_expression)
+            .transpose()?,
     })
 }
 

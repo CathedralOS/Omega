@@ -273,4 +273,30 @@ mod tests {
         assert_eq!(command_call.command, "WriteCurrentCell");
         assert_eq!(command_call.arguments.len(), 3);
     }
+
+    #[test]
+    fn parses_owned_machine_data() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                owns return_code: i32 = 0;
+                owns current_cell: CellId = CellId::Empty;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+
+        assert_eq!(machine.owned_data[0].name, "return_code");
+        assert_eq!(machine.owned_data[1].name, "current_cell");
+        assert!(machine.owned_data[0].initial_value.is_some());
+        assert!(machine.owned_data[1].initial_value.is_some());
+    }
 }
