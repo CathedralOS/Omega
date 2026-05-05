@@ -2,8 +2,15 @@ use crate::ir::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
+    Assignment(Assignment),
     CommandCall(CommandCall),
     Transition(Transition),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Assignment {
+    pub target: Vec<String>,
+    pub value: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

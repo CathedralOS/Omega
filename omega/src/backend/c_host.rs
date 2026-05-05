@@ -35,7 +35,7 @@ pub fn emit_c_host_source(program: &Program) -> Result<String, Diagnostic> {
     for statement in &main_state.statements {
         let Statement::CommandCall(call) = statement else {
             return Err(Diagnostic::error(
-                "the C-host MVP can only lower straight-line command calls for now",
+                "the C-host MVP can only lower straight-line command calls in state Main for now",
             ));
         };
 

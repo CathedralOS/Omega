@@ -40,6 +40,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         for state in &machine.states {
             for statement in &state.statements {
                 match statement {
+                    Statement::Assignment(_) => {}
                     Statement::CommandCall(command_call) => validate_command_call(
                         command_call,
                         &contained_types,

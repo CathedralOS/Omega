@@ -6,7 +6,7 @@ use crate::ir::expression::Expression;
 use crate::ir::machine::{ContainedObject, Machine};
 use crate::ir::platform::Platform;
 use crate::ir::state::State;
-use crate::ir::statement::{CommandCall, Statement, Transition, TransitionTarget};
+use crate::ir::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     let mut program = Program::default();
@@ -88,6 +88,12 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
 
 fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, Diagnostic> {
     match statement {
+        ast::statement::Statement::Assignment(assignment) => {
+            Ok(Statement::Assignment(Assignment {
+                target: assignment.target.clone(),
+                value: lower_expression(&assignment.value)?,
+            }))
+        }
         ast::statement::Statement::CommandCall(command_call) => {
             Ok(Statement::CommandCall(CommandCall {
                 receiver: command_call.receiver.clone(),

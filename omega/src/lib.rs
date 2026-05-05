@@ -184,4 +184,36 @@ mod tests {
 
         assert_eq!(path, &vec!["input".to_owned(), "line".to_owned()]);
     }
+
+    #[test]
+    fn parses_assignment_statement() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state Main {
+                    return_code = 0;
+                    player.position = next_position;
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+        let Statement::Assignment(first_assignment) = &machine.states[0].statements[0] else {
+            panic!("expected assignment");
+        };
+        let Statement::Assignment(second_assignment) = &machine.states[0].statements[1] else {
+            panic!("expected assignment");
+        };
+
+        assert_eq!(first_assignment.target, vec!["return_code".to_owned()]);
+        assert_eq!(
+            second_assignment.target,
+            vec!["player".to_owned(), "position".to_owned()]
+        );
+    }
 }

@@ -2,7 +2,7 @@ use crate::ast::expression::Expression;
 use crate::ast::item::{
     CommandParameter, CommandSignature, Contains, Item, Machine, Platform, State, UseItem,
 };
-use crate::ast::statement::{CommandCall, Statement, Transition, TransitionTarget};
+use crate::ast::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
 use crate::ast::types::TypeReference;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
@@ -200,9 +200,33 @@ impl Parser<'_> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
-        let receiver = self.expect_identifier()?;
+        let first_name = self.expect_identifier()?;
+
+        if self.consume("=") {
+            let value = self.parse_expression()?;
+            self.expect(";")?;
+            return Ok(Statement::Assignment(Assignment {
+                target: vec![first_name],
+                value,
+            }));
+        }
+
         self.expect(".")?;
-        let command = self.expect_identifier()?;
+        let second_name = self.expect_identifier()?;
+
+        if !self.check("(") {
+            let mut target = vec![first_name, second_name];
+
+            while self.consume(".") {
+                target.push(self.expect_identifier()?);
+            }
+
+            self.expect("=")?;
+            let value = self.parse_expression()?;
+            self.expect(";")?;
+            return Ok(Statement::Assignment(Assignment { target, value }));
+        }
+
         self.expect("(")?;
 
         let mut arguments = Vec::new();
@@ -221,8 +245,8 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(Statement::CommandCall(CommandCall {
-            receiver,
-            command,
+            receiver: first_name,
+            command: second_name,
             arguments,
         }))
     }
