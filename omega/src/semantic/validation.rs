@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::CommandSignature;
@@ -91,15 +89,14 @@ fn validate_local_data_names(
     reserved_names: &[&str],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut local_names = HashSet::new();
-    let reserved_names = reserved_names.iter().copied().collect::<HashSet<_>>();
+    let mut local_names = Vec::new();
 
     for statement in statements {
         let Statement::LocalData(local_data) = statement else {
             continue;
         };
 
-        if reserved_names.contains(local_data.name.as_str()) {
+        if reserved_names.contains(&local_data.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} local data `{}` conflicts with an existing name",
                 local_data.name
@@ -107,12 +104,14 @@ fn validate_local_data_names(
             continue;
         }
 
-        if !local_names.insert(local_data.name.as_str()) {
+        if local_names.contains(&local_data.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} has duplicate local data `{}`",
                 local_data.name
             )));
         }
+
+        local_names.push(local_data.name.as_str());
     }
 }
 
@@ -229,15 +228,17 @@ fn validate_platform_command_names(
     platform: &crate::ir::platform::Platform,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut command_names = HashSet::new();
+    let mut command_names = Vec::new();
 
     for command in &platform.commands {
-        if !command_names.insert(command.name.as_str()) {
+        if command_names.contains(&command.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "platform `{}` has duplicate command `{}`",
                 platform.name, command.name
             )));
         }
+
+        command_names.push(command.name.as_str());
     }
 }
 
@@ -246,15 +247,17 @@ fn validate_command_parameter_names(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut parameter_names = HashSet::new();
+    let mut parameter_names = Vec::new();
 
     for parameter in &command.parameters {
-        if !parameter_names.insert(parameter.name.as_str()) {
+        if parameter_names.contains(&parameter.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} command `{}` has duplicate parameter `{}`",
                 command.name, parameter.name
             )));
         }
+
+        parameter_names.push(parameter.name.as_str());
     }
 }
 
@@ -303,7 +306,7 @@ fn validate_data_member_names(
     data_definition: &crate::ir::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut member_names = HashSet::new();
+    let mut member_names = Vec::new();
 
     for member in &data_definition.members {
         let member_name = match member {
@@ -311,12 +314,14 @@ fn validate_data_member_names(
             DataMember::Variant(variant) => variant.name.as_str(),
         };
 
-        if !member_names.insert(member_name) {
+        if member_names.contains(&member_name) {
             diagnostics.push(Diagnostic::error(format!(
                 "data `{}` has duplicate member `{member_name}`",
                 data_definition.name
             )));
         }
+
+        member_names.push(member_name);
     }
 }
 

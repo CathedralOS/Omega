@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::ast::item::{Item, UseItem};
@@ -85,7 +84,7 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let mut seen = HashSet::<PathBuf>::new();
+    let mut seen = Vec::<PathBuf>::new();
     let mut pending = vec![options.root_path.clone()];
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
@@ -93,9 +92,11 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
     while let Some(path) = pending.pop() {
         let normalized = normalize_path(&path)?;
 
-        if !seen.insert(normalized.clone()) {
+        if seen.contains(&normalized) {
             continue;
         }
+
+        seen.push(normalized.clone());
 
         let file = resolver
             .load_root(&normalized)
