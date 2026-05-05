@@ -23,42 +23,29 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         validate_contained_types(machine, &symbols, &mut diagnostics);
         validate_owned_data(machine, &symbols, &mut diagnostics);
 
+        for command in &machine.commands {
+            for statement in &command.statements {
+                validate_command_body_statement(
+                    machine,
+                    &command.signature.name,
+                    &machine_symbols,
+                    &symbols,
+                    statement,
+                    &mut diagnostics,
+                );
+            }
+        }
+
         for state in &machine.states {
             for statement in &state.statements {
-                match statement {
-                    Statement::Assignment(_) => {}
-                    Statement::CommandCall(command_call) => validate_command_call(
-                        command_call,
-                        machine,
-                        &machine_symbols,
-                        &symbols,
-                        &mut diagnostics,
-                    ),
-                    Statement::LocalData(local_data) => validate_type_reference(
-                        &local_data.type_reference,
-                        &symbols,
-                        &mut diagnostics,
-                        format!(
-                            "machine `{}` local data `{}`",
-                            machine.name, local_data.name
-                        ),
-                    ),
-                    Statement::Transition(transition) => {
-                        validate_transition_target(
-                            &transition.target,
-                            &machine_symbols,
-                            &mut diagnostics,
-                        );
-
-                        if let Some(continuation) = &transition.continuation {
-                            validate_transition_target(
-                                continuation,
-                                &machine_symbols,
-                                &mut diagnostics,
-                            );
-                        }
-                    }
-                }
+                validate_state_statement(
+                    machine,
+                    &state.name,
+                    &machine_symbols,
+                    &symbols,
+                    statement,
+                    &mut diagnostics,
+                );
             }
         }
     }
@@ -67,6 +54,67 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn validate_command_body_statement(
+    machine: &crate::ir::machine::Machine,
+    command_name: &str,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &ProgramSymbols<'_>,
+    statement: &Statement,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match statement {
+        Statement::Assignment(_) => {}
+        Statement::CommandCall(command_call) => {
+            validate_command_call(command_call, machine, machine_symbols, symbols, diagnostics)
+        }
+        Statement::LocalData(local_data) => validate_type_reference(
+            &local_data.type_reference,
+            symbols,
+            diagnostics,
+            format!(
+                "machine `{}` command `{command_name}` local data `{}`",
+                machine.name, local_data.name
+            ),
+        ),
+        Statement::Transition(_) => diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` command `{command_name}` cannot contain state transitions",
+            machine.name
+        ))),
+    }
+}
+
+fn validate_state_statement(
+    machine: &crate::ir::machine::Machine,
+    state_name: &str,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &ProgramSymbols<'_>,
+    statement: &Statement,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match statement {
+        Statement::Assignment(_) => {}
+        Statement::CommandCall(command_call) => {
+            validate_command_call(command_call, machine, machine_symbols, symbols, diagnostics)
+        }
+        Statement::LocalData(local_data) => validate_type_reference(
+            &local_data.type_reference,
+            symbols,
+            diagnostics,
+            format!(
+                "machine `{}` state `{state_name}` local data `{}`",
+                machine.name, local_data.name
+            ),
+        ),
+        Statement::Transition(transition) => {
+            validate_transition_target(&transition.target, machine_symbols, diagnostics);
+
+            if let Some(continuation) = &transition.continuation {
+                validate_transition_target(continuation, machine_symbols, diagnostics);
+            }
+        }
     }
 }
 
@@ -332,15 +380,9 @@ fn validate_command_call(
         return;
     };
 
-    let Some(receiver_type) = machine_symbols.contained_type(receiver) else {
-        diagnostics.push(Diagnostic::error(format!(
-            "unknown command receiver `{}`",
-            receiver
-        )));
-        return;
-    };
+    let receiver_type = machine_symbols.contained_type(receiver);
 
-    if let Some(platform) = symbols.platform(receiver_type) {
+    if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
         let Some(command_signature) = platform
             .commands
             .iter()
@@ -357,7 +399,10 @@ fn validate_command_call(
         return;
     }
 
-    if let Some(machine) = symbols.machine(receiver_type) {
+    if let Some(machine) = receiver_type
+        .and_then(|type_name| symbols.machine(type_name))
+        .or_else(|| symbols.machine(receiver))
+    {
         let Some(command_signature) = machine
             .commands
             .iter()
@@ -375,7 +420,7 @@ fn validate_command_call(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "`{receiver_type}` is not a known command receiver type"
+        "unknown command receiver `{receiver}`"
     )));
 }
 

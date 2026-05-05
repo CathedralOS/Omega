@@ -177,6 +177,42 @@ mod tests {
     }
 
     #[test]
+    fn rejects_wrong_command_body_argument_count() {
+        let tokens = Lexer::new(
+            r#"
+            data Value {
+                raw: i32;
+            }
+
+            machine main {
+                command NeedsValue(value: Value) {
+                }
+
+                command BadCall() {
+                    NeedsValue();
+                }
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
+        );
+    }
+
+    #[test]
     fn rejects_duplicate_platform_commands_and_parameters() {
         let tokens = Lexer::new(
             r#"
