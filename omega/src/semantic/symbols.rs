@@ -93,6 +93,10 @@ impl<'program> ProgramSymbols<'program> {
             || self.platforms.contains_key(name)
     }
 
+    pub fn has_data_definition(&self, name: &str) -> bool {
+        self.data_definitions.contains_key(name)
+    }
+
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
         self.machines.get(name).copied()
     }

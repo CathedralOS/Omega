@@ -181,9 +181,9 @@ fn validate_type_reference(
                 return;
             }
 
-            if !symbols.has_type(name) {
+            if !symbols.has_data_definition(name) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown type `{name}`"
+                    "{owner} references unknown data type `{name}`"
                 )));
             }
         }

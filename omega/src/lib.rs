@@ -255,6 +255,38 @@ mod tests {
     }
 
     #[test]
+    fn rejects_machine_type_as_owned_data() {
+        let tokens = Lexer::new(
+            r#"
+            machine Worker {
+                state Main {
+                }
+            }
+
+            machine main {
+                owns worker: Worker;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("unknown data type `Worker`"))
+        );
+    }
+
+    #[test]
     fn parses_named_and_mutable_command_arguments() {
         let tokens = Lexer::new(
             r#"
