@@ -38,6 +38,7 @@ pub struct DataVariant {
 pub struct Machine {
     pub name: String,
     pub contains: Vec<Contains>,
+    pub commands: Vec<CommandDefinition>,
     pub states: Vec<State>,
 }
 
@@ -51,6 +52,11 @@ pub struct Contains {
 pub struct State {
     pub name: String,
     pub statements: Vec<crate::ast::statement::Statement>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandDefinition {
+    pub signature: CommandSignature,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

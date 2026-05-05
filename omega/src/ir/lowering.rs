@@ -70,6 +70,12 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
         })
         .collect();
 
+    let commands = machine
+        .commands
+        .iter()
+        .map(|command| lower_command_signature(&command.signature))
+        .collect::<Result<Vec<_>, _>>()?;
+
     let states = machine
         .states
         .iter()
@@ -78,6 +84,7 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
 
     Ok(Machine {
         name: machine.name.clone(),
+        commands,
         contains,
         states,
     })
@@ -87,27 +94,31 @@ fn lower_platform(platform: &ast::item::Platform) -> Result<Platform, Diagnostic
     let commands = platform
         .commands
         .iter()
-        .map(|command| {
-            Ok(CommandSignature {
-                name: command.name.clone(),
-                parameters: command
-                    .parameters
-                    .iter()
-                    .map(|parameter| {
-                        Ok(CommandParameter {
-                            name: parameter.name.clone(),
-                            type_reference: lower_type_reference(&parameter.type_reference)?,
-                            is_mutable: parameter.is_mutable,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Diagnostic>>()?,
-            })
-        })
+        .map(lower_command_signature)
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
         name: platform.name.clone(),
         commands,
+    })
+}
+
+fn lower_command_signature(
+    command: &ast::item::CommandSignature,
+) -> Result<CommandSignature, Diagnostic> {
+    Ok(CommandSignature {
+        name: command.name.clone(),
+        parameters: command
+            .parameters
+            .iter()
+            .map(|parameter| {
+                Ok(CommandParameter {
+                    name: parameter.name.clone(),
+                    type_reference: lower_type_reference(&parameter.type_reference)?,
+                    is_mutable: parameter.is_mutable,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?,
     })
 }
 

@@ -1,7 +1,7 @@
 use crate::ast::expression::Expression;
 use crate::ast::item::{
-    CommandParameter, CommandSignature, Contains, DataDefinition, DataField, DataMember,
-    DataVariant, Item, Machine, Platform, State, UseItem,
+    CommandDefinition, CommandParameter, CommandSignature, Contains, DataDefinition, DataField,
+    DataMember, DataVariant, Item, Machine, Platform, State, UseItem,
 };
 use crate::ast::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
 use crate::ast::types::TypeReference;
@@ -95,13 +95,19 @@ impl Parser<'_> {
 
         while !self.consume("}") {
             self.expect("command")?;
-            let name = self.expect_identifier()?;
-            let parameters = self.parse_command_parameters()?;
+            let signature = self.parse_command_signature()?;
             self.expect(";")?;
-            commands.push(CommandSignature { name, parameters });
+            commands.push(signature);
         }
 
         Ok(Platform { name, commands })
+    }
+
+    fn parse_command_signature(&mut self) -> Result<CommandSignature, ParseError> {
+        let name = self.expect_identifier()?;
+        let parameters = self.parse_command_parameters()?;
+
+        Ok(CommandSignature { name, parameters })
     }
 
     fn parse_command_parameters(&mut self) -> Result<Vec<CommandParameter>, ParseError> {
@@ -156,6 +162,7 @@ impl Parser<'_> {
         self.expect("{")?;
 
         let mut contains = Vec::new();
+        let mut commands = Vec::new();
         let mut states = Vec::new();
 
         while !self.consume("}") {
@@ -166,7 +173,7 @@ impl Parser<'_> {
             } else if self.consume("state") {
                 states.push(self.parse_state()?);
             } else if self.consume("command") {
-                self.skip_command_declaration()?;
+                commands.push(self.parse_command_definition()?);
             } else {
                 return Err(self.error_here("expected machine item"));
             }
@@ -175,8 +182,28 @@ impl Parser<'_> {
         Ok(Machine {
             name,
             contains,
+            commands,
             states,
         })
+    }
+
+    fn parse_command_definition(&mut self) -> Result<CommandDefinition, ParseError> {
+        let signature = self.parse_command_signature()?;
+
+        if self.consume(";") {
+            return Ok(CommandDefinition { signature });
+        }
+
+        if self.consume("when") {
+            while !self.check("{") {
+                self.advance()
+                    .ok_or_else(|| ParseError::new("unterminated command guard"))?;
+            }
+        }
+
+        self.skip_balanced_braces()?;
+
+        Ok(CommandDefinition { signature })
     }
 
     fn parse_contains(&mut self) -> Result<Contains, ParseError> {
@@ -338,43 +365,6 @@ impl Parser<'_> {
         } else {
             Err(ParseError::new("expected expression"))
         }
-    }
-
-    fn skip_command_declaration(&mut self) -> Result<(), ParseError> {
-        self.expect_identifier()?;
-        self.skip_balanced_parens()?;
-
-        if self.consume(";") {
-            return Ok(());
-        }
-
-        if self.consume("when") {
-            while !self.check("{") {
-                self.advance()
-                    .ok_or_else(|| ParseError::new("unterminated command guard"))?;
-            }
-        }
-
-        self.skip_balanced_braces()
-    }
-
-    fn skip_balanced_parens(&mut self) -> Result<(), ParseError> {
-        self.expect("(")?;
-        let mut depth = 1;
-
-        while depth > 0 {
-            let token = self
-                .advance()
-                .ok_or_else(|| ParseError::new("unterminated parentheses"))?;
-
-            if token.lexeme == "(" {
-                depth += 1;
-            } else if token.lexeme == ")" {
-                depth -= 1;
-            }
-        }
-
-        Ok(())
     }
 
     fn skip_balanced_braces(&mut self) -> Result<(), ParseError> {

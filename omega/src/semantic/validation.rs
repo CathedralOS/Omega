@@ -20,6 +20,11 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         .iter()
         .map(|platform| (platform.name.as_str(), platform))
         .collect::<HashMap<_, _>>();
+    let machines = program
+        .machines
+        .iter()
+        .map(|machine| (machine.name.as_str(), machine))
+        .collect::<HashMap<_, _>>();
 
     for machine in &program.machines {
         let contained_types = machine
@@ -46,7 +51,9 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                     Statement::Assignment(_) => {}
                     Statement::CommandCall(command_call) => validate_command_call(
                         command_call,
+                        machine,
                         &contained_types,
+                        &machines,
                         &platforms,
                         &mut diagnostics,
                     ),
@@ -129,6 +136,36 @@ fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>
                 "`{}` is declared as both a machine and a platform",
                 platform.name
             )));
+        }
+    }
+
+    for machine in &program.machines {
+        validate_command_signature_types(
+            machine.commands.iter(),
+            program,
+            diagnostics,
+            format!("machine `{}`", machine.name),
+        );
+    }
+}
+
+fn validate_command_signature_types<'a>(
+    signatures: impl Iterator<Item = &'a CommandSignature>,
+    program: &Program,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    for command in signatures {
+        for parameter in &command.parameters {
+            validate_type_reference(
+                &parameter.type_reference,
+                program,
+                diagnostics,
+                format!(
+                    "{owner} command `{}` parameter `{}`",
+                    command.name, parameter.name
+                ),
+            );
         }
     }
 }
@@ -248,11 +285,26 @@ fn validate_contained_types(
 
 fn validate_command_call(
     command_call: &crate::ir::statement::CommandCall,
+    current_machine: &crate::ir::machine::Machine,
     contained_types: &HashMap<&str, &str>,
+    machines: &HashMap<&str, &crate::ir::machine::Machine>,
     platforms: &HashMap<&str, &crate::ir::platform::Platform>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(receiver) = command_call.receiver.as_deref() else {
+        let Some(command_signature) = current_machine
+            .commands
+            .iter()
+            .find(|command| command.name == command_call.command)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has no local command `{}`",
+                current_machine.name, command_call.command
+            )));
+            return;
+        };
+
+        validate_command_arguments(command_call, command_signature, diagnostics);
         return;
     };
 
@@ -264,23 +316,43 @@ fn validate_command_call(
         return;
     };
 
-    let Some(platform) = platforms.get(receiver_type) else {
-        return;
-    };
+    if let Some(platform) = platforms.get(receiver_type) {
+        let Some(command_signature) = platform
+            .commands
+            .iter()
+            .find(|command| command.name == command_call.command)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "platform `{}` has no command `{}`",
+                platform.name, command_call.command
+            )));
+            return;
+        };
 
-    let Some(command_signature) = platform
-        .commands
-        .iter()
-        .find(|command| command.name == command_call.command)
-    else {
-        diagnostics.push(Diagnostic::error(format!(
-            "platform `{}` has no command `{}`",
-            platform.name, command_call.command
-        )));
+        validate_command_arguments(command_call, command_signature, diagnostics);
         return;
-    };
+    }
 
-    validate_command_arguments(command_call, command_signature, diagnostics);
+    if let Some(machine) = machines.get(receiver_type) {
+        let Some(command_signature) = machine
+            .commands
+            .iter()
+            .find(|command| command.name == command_call.command)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has no command `{}`",
+                machine.name, command_call.command
+            )));
+            return;
+        };
+
+        validate_command_arguments(command_call, command_signature, diagnostics);
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error(format!(
+        "`{receiver_type}` is not a known command receiver type"
+    )));
 }
 
 fn validate_command_arguments(
