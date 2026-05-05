@@ -158,6 +158,44 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_platform_commands_and_parameters() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                command WriteLine(text: String);
+                command WriteLine(mut text: String);
+                command Echo(text: String, text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("duplicate command"))
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("duplicate parameter"))
+        );
+    }
+
+    #[test]
     fn rejects_unknown_contained_type() {
         let tokens = Lexer::new(
             r#"

@@ -83,6 +83,16 @@ fn validate_top_level_command_signatures(
             format!("machine `{}`", machine.name),
         );
     }
+
+    for platform in &program.platforms {
+        validate_platform_command_names(platform, diagnostics);
+        validate_command_signature_types(
+            platform.commands.iter(),
+            symbols,
+            diagnostics,
+            format!("platform `{}`", platform.name),
+        );
+    }
 }
 
 fn validate_command_signature_types<'a>(
@@ -92,6 +102,8 @@ fn validate_command_signature_types<'a>(
     owner: String,
 ) {
     for command in signatures {
+        validate_command_parameter_names(command, &owner, diagnostics);
+
         for parameter in &command.parameters {
             validate_type_reference(
                 &parameter.type_reference,
@@ -102,6 +114,39 @@ fn validate_command_signature_types<'a>(
                     command.name, parameter.name
                 ),
             );
+        }
+    }
+}
+
+fn validate_platform_command_names(
+    platform: &crate::ir::platform::Platform,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut command_names = HashSet::new();
+
+    for command in &platform.commands {
+        if !command_names.insert(command.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "platform `{}` has duplicate command `{}`",
+                platform.name, command.name
+            )));
+        }
+    }
+}
+
+fn validate_command_parameter_names(
+    command: &CommandSignature,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut parameter_names = HashSet::new();
+
+    for parameter in &command.parameters {
+        if !parameter_names.insert(parameter.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} command `{}` has duplicate parameter `{}`",
+                command.name, parameter.name
+            )));
         }
     }
 }
@@ -126,22 +171,6 @@ fn validate_data_field_types(
                 diagnostics,
                 format!("data `{}` field `{}`", data_definition.name, field.name),
             );
-        }
-    }
-
-    for platform in &program.platforms {
-        for command in &platform.commands {
-            for parameter in &command.parameters {
-                validate_type_reference(
-                    &parameter.type_reference,
-                    symbols,
-                    diagnostics,
-                    format!(
-                        "platform `{}` command `{}` parameter `{}`",
-                        platform.name, command.name, parameter.name
-                    ),
-                );
-            }
         }
     }
 }
