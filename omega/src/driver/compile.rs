@@ -110,11 +110,16 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
             ))]
         })?;
         let ast_file = parse_file(&tokens).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: {}",
-                file.path.display(),
-                error.message
-            ))]
+            vec![Diagnostic::error(match error.span {
+                Some(span) => format!(
+                    "{}: {} at {}..{}",
+                    file.path.display(),
+                    error.message,
+                    span.start,
+                    span.end
+                ),
+                None => format!("{}: {}", file.path.display(), error.message),
+            })]
         })?;
         let first_item = items.len();
         let item_count = ast_file.items.len();

@@ -416,7 +416,7 @@ impl Parser<'_> {
                     .lexeme
                     .parse::<i64>()
                     .map(Expression::Integer)
-                    .map_err(|_| ParseError::new("invalid integer literal")),
+                    .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
                 TokenKind::Identifier => {
                     let mut path = vec![token.lexeme.clone()];
 
@@ -431,10 +431,10 @@ impl Parser<'_> {
                     }
                 }
                 TokenKind::String => Ok(Expression::String(token.lexeme.clone())),
-                _ => Err(ParseError::new("expected expression")),
+                _ => Err(ParseError::at_span("expected expression", token.span)),
             }
         } else {
-            Err(ParseError::new("expected expression"))
+            Err(self.error_here("expected expression"))
         }
     }
 
@@ -458,7 +458,7 @@ impl Parser<'_> {
                         Expression::Name(path)
                     }
                     _ => {
-                        return Err(ParseError::new(
+                        return Err(self.error_here(
                             "field access after a complex expression is not supported yet",
                         ));
                     }
@@ -536,9 +536,9 @@ impl Parser<'_> {
         let mut depth = 1;
 
         while depth > 0 {
-            let token = self
-                .advance()
-                .ok_or_else(|| ParseError::new("unterminated block"))?;
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("unterminated block"));
+            };
 
             if token.lexeme == "{" {
                 depth += 1;
@@ -554,9 +554,9 @@ impl Parser<'_> {
         let mut parts = Vec::new();
 
         while !self.check(lexeme) {
-            let token = self
-                .advance()
-                .ok_or_else(|| ParseError::new(format!("expected `{lexeme}`")))?;
+            let Some(token) = self.advance() else {
+                return Err(self.error_here(format!("expected `{lexeme}`")));
+            };
             parts.push(token.lexeme.clone());
         }
 
@@ -567,14 +567,14 @@ impl Parser<'_> {
         let mut parts = Vec::new();
 
         while !self.consume(";") {
-            let token = self
-                .advance()
-                .ok_or_else(|| ParseError::new("expected transition condition"))?;
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("expected transition condition"));
+            };
             parts.push(token.lexeme.clone());
         }
 
         if parts.is_empty() {
-            Err(ParseError::new("expected transition condition"))
+            Err(self.error_here("expected transition condition"))
         } else {
             Ok(parts.join(" "))
         }
@@ -602,30 +602,30 @@ impl Parser<'_> {
     }
 
     fn expect_identifier(&mut self) -> Result<String, ParseError> {
-        let token = self
-            .advance()
-            .ok_or_else(|| ParseError::new("expected identifier"))?;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected identifier"));
+        };
 
         if token.kind == TokenKind::Identifier {
             Ok(token.lexeme.clone())
         } else {
-            Err(ParseError::new("expected identifier"))
+            Err(ParseError::at_span("expected identifier", token.span))
         }
     }
 
     fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {
-        let token = self
-            .advance()
-            .ok_or_else(|| ParseError::new("expected integer literal"))?;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected integer literal"));
+        };
 
         if token.kind != TokenKind::Integer {
-            return Err(ParseError::new("expected integer literal"));
+            return Err(ParseError::at_span("expected integer literal", token.span));
         }
 
         token
             .lexeme
             .parse::<usize>()
-            .map_err(|_| ParseError::new("invalid integer literal"))
+            .map_err(|_| ParseError::at_span("invalid integer literal", token.span))
     }
 
     fn advance(&mut self) -> Option<&Token> {
@@ -643,6 +643,10 @@ impl Parser<'_> {
     }
 
     fn error_here(&self, message: impl Into<String>) -> ParseError {
-        ParseError::new(message)
+        if let Some(token) = self.peek() {
+            ParseError::at_span(message, token.span)
+        } else {
+            ParseError::new(message)
+        }
     }
 }

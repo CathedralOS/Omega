@@ -34,6 +34,25 @@ mod tests {
     }
 
     #[test]
+    fn parse_errors_carry_token_spans() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state Main {
+                    let value i32;
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let error = parse_file(&tokens).expect_err("parse should fail");
+
+        assert_eq!(error.message, "expected `:`");
+        assert!(error.span.is_some());
+    }
+
+    #[test]
     fn parses_nested_transition_continuation() {
         let tokens = Lexer::new(
             r#"

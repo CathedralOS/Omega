@@ -27,7 +27,7 @@ fn main() {
             }
             Err(diagnostics) => {
                 for diagnostic in diagnostics {
-                    eprintln!("{}", diagnostic.message);
+                    eprintln!("{diagnostic}");
                 }
 
                 std::process::exit(1);
@@ -40,7 +40,7 @@ fn main() {
             }
             Err(diagnostics) => {
                 for diagnostic in diagnostics {
-                    eprintln!("{}", diagnostic.message);
+                    eprintln!("{diagnostic}");
                 }
 
                 std::process::exit(1);
