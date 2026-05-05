@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use crate::ast::expr::Expr;
+use crate::ast::expression::Expression;
 use crate::ast::item::{Item, Machine, Platform};
 use crate::ast::stmt::Stmt;
 use crate::diagnostics::Diagnostic;
 
-pub fn emit_c(items: &[Item]) -> Result<String, Diagnostic> {
+pub fn emit_c_host_source(items: &[Item]) -> Result<String, Diagnostic> {
     let main = find_main_machine(items)?;
     let main_state = main
         .states
@@ -107,18 +107,18 @@ fn ensure_platform_command(platform: &Platform, command_name: &str) -> Result<()
     }
 }
 
-fn expect_string_arg<'a>(args: &'a [Expr], command: &str) -> Result<&'a str, Diagnostic> {
+fn expect_string_arg<'a>(args: &'a [Expression], command: &str) -> Result<&'a str, Diagnostic> {
     match args {
-        [Expr::String(value)] => Ok(value),
+        [Expression::String(value)] => Ok(value),
         _ => Err(Diagnostic::error(format!(
             "{command} expects one string argument"
         ))),
     }
 }
 
-fn expect_integer_arg(args: &[Expr], command: &str) -> Result<i64, Diagnostic> {
+fn expect_integer_arg(args: &[Expression], command: &str) -> Result<i64, Diagnostic> {
     match args {
-        [Expr::Integer(value)] => Ok(*value),
+        [Expression::Integer(value)] => Ok(*value),
         _ => Err(Diagnostic::error(format!(
             "{command} expects one integer argument"
         ))),

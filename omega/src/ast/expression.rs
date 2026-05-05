@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Expr {
+pub enum Expression {
     Integer(i64),
     String(String),
 }

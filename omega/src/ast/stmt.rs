@@ -8,5 +8,5 @@ pub enum Stmt {
 pub struct CommandCall {
     pub receiver: String,
     pub command: String,
-    pub args: Vec<crate::ast::expr::Expr>,
+    pub args: Vec<crate::ast::expression::Expression>,
 }

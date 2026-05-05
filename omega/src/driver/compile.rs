@@ -40,7 +40,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         items.extend(ast_file.items);
     }
 
-    let c_source = backend::c::emit_c(&items).map_err(|diagnostic| vec![diagnostic])?;
+    let c_source =
+        backend::c_host::emit_c_host_source(&items).map_err(|diagnostic| vec![diagnostic])?;
     let output_dir = PathBuf::from("target/omega");
     std::fs::create_dir_all(&output_dir).map_err(|error| {
         vec![Diagnostic::error(format!(

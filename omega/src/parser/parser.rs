@@ -1,4 +1,4 @@
-use crate::ast::expr::Expr;
+use crate::ast::expression::Expression;
 use crate::ast::item::{CommandSignature, Contains, Item, Machine, Platform, State, UseItem};
 use crate::ast::stmt::{CommandCall, Stmt};
 use crate::lexer::{Token, TokenKind};
@@ -152,15 +152,15 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_expr(&mut self) -> Result<Expr, ParseError> {
+    fn parse_expr(&mut self) -> Result<Expression, ParseError> {
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token
                     .lexeme
                     .parse::<i64>()
-                    .map(Expr::Integer)
+                    .map(Expression::Integer)
                     .map_err(|_| ParseError::new("invalid integer literal")),
-                TokenKind::String => Ok(Expr::String(token.lexeme.clone())),
+                TokenKind::String => Ok(Expression::String(token.lexeme.clone())),
                 _ => Err(ParseError::new("expected expression")),
             }
         } else {
