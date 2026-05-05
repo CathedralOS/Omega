@@ -82,7 +82,9 @@ Some repo-level taste:
 - Keep compiler stages honest. Parse syntax, lower meaning, validate semantics, then emit code.
 - Prefer small checkpoint commits after a working improvement.
 - Samples should reveal language pressure, not hide it in giant `main` files.
-- Prefer ZII (Zero-is-initialization). Null handles (id 0) instead of optionals and literal nulls. Generational arenas over tiny allocations everywhere.
+- Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.
+- Prefer ZII (Zero-is-initialization). Null handles (index 0) instead of optionals and literal nulls.
+- Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 
 If a name or abstraction makes the compiler feel like a high-school project or a PL paper cosplay, it probably needs another pass.
 
