@@ -1,6 +1,17 @@
+pub mod ast;
+pub mod backend;
+pub mod diagnostics;
+pub mod driver;
+pub mod hir;
+pub mod ir;
+pub mod lexer;
+pub mod parser;
+pub mod sema;
+pub mod source;
 pub mod syntax;
 
-pub use syntax::{Module, Token, tokenize};
+pub use lexer::{Token, TokenKind, tokenize};
+pub use syntax::Module;
 
 #[cfg(test)]
 mod tests {

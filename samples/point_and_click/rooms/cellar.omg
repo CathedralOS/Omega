@@ -1,4 +1,4 @@
-use data/game_types.omg;
+use data::game_types;
 
 machine CellarRoom {
     owns intro_seen: bool = false;

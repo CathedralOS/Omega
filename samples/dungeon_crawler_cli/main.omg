@@ -1,0 +1,23 @@
+use data::dungeon_types;
+use dungeon::dungeon;
+
+machine main {
+    contains dungeon: Dungeon;
+
+    owns return_code: i32 = 0;
+
+    state Main {
+        dungeon.Start();
+
+        -> Running;
+    }
+
+    state Running {
+        -> dungeon.Main -> Shutdown;
+    }
+
+    state Shutdown {
+        return_code = 0;
+        dungeon.Exit(return_code);
+    }
+}

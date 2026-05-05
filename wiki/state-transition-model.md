@@ -92,6 +92,16 @@ If multiple transitions leave the same state, they appear as trailing `-> Target
 
 `-> self;` is a self-transition. It re-enters the current state without repeating the state name.
 
+Nested machine flow can be sketched as two arrows:
+
+```omega
+state Running {
+    -> dungeon.Main -> Shutdown;
+}
+```
+
+This means the parent transitions into the child machine's `Main` state, and when that child reaches `-> return;`, parent control resumes at `Shutdown`. This avoids a special `.finished` property on every machine while keeping the continuation visible in source.
+
 `command`
 
 Callable behavior that mutates explicit context. This is useful for platform operations, room ticks, and other effects that are not state handoffs.

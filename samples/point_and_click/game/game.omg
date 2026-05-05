@@ -1,7 +1,7 @@
-use data/game_types.omg;
-use machines/room_manager.omg;
+use data::game_types;
+use rooms::manager;
 
-machine MainMachine {
+machine Game {
     contains rooms: RoomManager;
     owns view: MainView;
 

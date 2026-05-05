@@ -1,7 +1,4 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token {
-    pub lexeme: String,
-}
+use crate::lexer::{Token, tokenize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Module {
@@ -16,13 +13,4 @@ impl Module {
             tokens: tokenize(source),
         }
     }
-}
-
-pub fn tokenize(source: &str) -> Vec<Token> {
-    source
-        .split_whitespace()
-        .map(|lexeme| Token {
-            lexeme: lexeme.to_owned(),
-        })
-        .collect()
 }

@@ -1,6 +1,6 @@
-use data/game_types.omg;
-use machines/rooms/cellar.omg;
-use machines/rooms/foyer.omg;
+use data::game_types;
+use rooms::cellar;
+use rooms::foyer;
 
 machine RoomManager {
     contains foyer: FoyerRoom;

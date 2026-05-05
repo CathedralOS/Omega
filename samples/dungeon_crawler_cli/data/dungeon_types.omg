@@ -1,0 +1,40 @@
+data CellId {
+    Empty,
+    A1,
+    A2,
+    B1,
+    B2,
+}
+
+data NavigationChoice {
+    Quit,
+    Move,
+    Invalid,
+}
+
+data ConsoleLine {
+    text: String;
+}
+
+data Exit {
+    command: String;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    label: String;
+    exits: [Exit; 4];
+    exit_count: u32;
+}
+
+data Level {
+    rooms: [Room; 16];
+    room_count: u32;
+    start_cell: CellId;
+}
+
+data Navigation {
+    choice: NavigationChoice;
+    destination: CellId;
+}

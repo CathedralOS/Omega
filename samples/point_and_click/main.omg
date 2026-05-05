@@ -1,13 +1,10 @@
-use data/game_types.omg;
-use machines/main.omg;
-use machines/room_manager.omg;
-use machines/rooms/cellar.omg;
-use machines/rooms/foyer.omg;
-use platform/desktop.omg;
+use data::game_types;
+use game::game;
+use platform::desktop;
 
 machine main {
     contains platform: DesktopPlatform;
-    contains game: MainMachine;
+    contains game: Game;
 
     owns main_window: WindowHandle;
     owns frame_input: FrameInput;

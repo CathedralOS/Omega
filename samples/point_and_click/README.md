@@ -22,7 +22,7 @@ Current sketch:
 - `main` owns `Window::create(...)`, frame polling, presentation sequencing, and the top-level handoff states
 - `main.return_code` models OS process result as mutable owned data, then `ExitProcess` hands it to the platform
 - `DesktopPlatform` is a platform boundary machine
-- `MainMachine` owns frame-level composition and a persistent `MainView`
+- `Game` owns frame-level composition and a persistent `MainView`
 - `RoomManager` owns active-room selection, inventory, and room dispatch
 - `FoyerRoom` and `CellarRoom` keep room-specific state local
 - `state` is executable code, `command` mutates context, `query` fills read views, and trailing `-> Target` lines declare exits
@@ -33,9 +33,8 @@ Sample layout:
 
 - `main.omg`: top-level machine wiring
 - `data/`: shared data structures and enums
-- `machines/`: gameplay machines
-- `machines/room_manager.omg`: room ownership and dispatch
-- `machines/rooms/`: room-specific machines
+- `game/`: frame-level game orchestration
+- `rooms/`: room ownership, dispatch, and room-specific behavior
 - `platform/`: explicit platform boundary machines
 
 Questions this sample should help answer next:

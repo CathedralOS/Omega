@@ -1,4 +1,4 @@
-use data/game_types.omg;
+use data::game_types;
 
 platform machine DesktopPlatform {
     command CreateWindow(mut window: WindowHandle, width: u32, height: u32, title: String);

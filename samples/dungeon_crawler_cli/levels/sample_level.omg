@@ -1,0 +1,44 @@
+use data::dungeon_types;
+
+machine SampleLevel {
+    command Write(mut out_level: Level) {
+        out_level.start_cell = CellId::A1;
+        out_level.room_count = 4;
+        WriteRoomA1(mut out_level.rooms[0]);
+        WriteRoomA2(mut out_level.rooms[1]);
+        WriteRoomB1(mut out_level.rooms[2]);
+        WriteRoomB2(mut out_level.rooms[3]);
+    }
+
+    command WriteRoomA1(mut room: Room) {
+        room.cell = CellId::A1;
+        room.label = "You are in A1.";
+        room.exit_count = 2;
+        room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+        room.exits[1] = Exit { command: "east", destination: CellId::B1 };
+    }
+
+    command WriteRoomA2(mut room: Room) {
+        room.cell = CellId::A2;
+        room.label = "You are in A2.";
+        room.exit_count = 2;
+        room.exits[0] = Exit { command: "south", destination: CellId::A1 };
+        room.exits[1] = Exit { command: "east", destination: CellId::B2 };
+    }
+
+    command WriteRoomB1(mut room: Room) {
+        room.cell = CellId::B1;
+        room.label = "You are in B1.";
+        room.exit_count = 2;
+        room.exits[0] = Exit { command: "north", destination: CellId::B2 };
+        room.exits[1] = Exit { command: "west", destination: CellId::A1 };
+    }
+
+    command WriteRoomB2(mut room: Room) {
+        room.cell = CellId::B2;
+        room.label = "You are in B2.";
+        room.exit_count = 2;
+        room.exits[0] = Exit { command: "south", destination: CellId::B1 };
+        room.exits[1] = Exit { command: "west", destination: CellId::A2 };
+    }
+}
