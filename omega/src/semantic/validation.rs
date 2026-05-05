@@ -150,6 +150,14 @@ fn validate_data_shape(
     data_definition: &crate::ir::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    if data_definition.members.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "data `{}` must declare at least one field or variant",
+            data_definition.name
+        )));
+        return;
+    }
+
     let has_fields = data_definition
         .members
         .iter()

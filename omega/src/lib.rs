@@ -285,6 +285,34 @@ mod tests {
     }
 
     #[test]
+    fn rejects_empty_data_definition() {
+        let tokens = Lexer::new(
+            r#"
+            data Empty {
+            }
+
+            machine main {
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("must declare at least one"))
+        );
+    }
+
+    #[test]
     fn rejects_machine_type_as_owned_data() {
         let tokens = Lexer::new(
             r#"
