@@ -115,6 +115,10 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
 fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
     match expression {
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
+        ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
+            Box::new(lower_expression(inner_expression)?),
+        )),
+        ast::expression::Expression::Name(path) => Ok(Expression::Name(path.clone())),
         ast::expression::Expression::String(value) => Ok(Expression::String(value.clone())),
     }
 }

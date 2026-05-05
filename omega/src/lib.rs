@@ -149,4 +149,39 @@ mod tests {
                 .any(|diagnostic| diagnostic.message.contains("unknown type"))
         );
     }
+
+    #[test]
+    fn parses_named_and_mutable_command_arguments() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                contains console: Console;
+
+                state Main {
+                    console.ReadLine(mut input.line);
+                    console.ExitProcess(return_code);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+
+        let Statement::CommandCall(read_line) = &machine.states[0].statements[0] else {
+            panic!("expected command call");
+        };
+        let crate::ast::expression::Expression::Mutable(inner_expression) = &read_line.arguments[0]
+        else {
+            panic!("expected mutable argument");
+        };
+        let crate::ast::expression::Expression::Name(path) = inner_expression.as_ref() else {
+            panic!("expected named mutable argument");
+        };
+
+        assert_eq!(path, &vec!["input".to_owned(), "line".to_owned()]);
+    }
 }

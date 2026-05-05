@@ -228,6 +228,10 @@ impl Parser<'_> {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError> {
+        if self.consume("mut") {
+            return Ok(Expression::Mutable(Box::new(self.parse_expression()?)));
+        }
+
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token
@@ -235,6 +239,15 @@ impl Parser<'_> {
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::new("invalid integer literal")),
+                TokenKind::Identifier => {
+                    let mut path = vec![token.lexeme.clone()];
+
+                    while self.consume(".") || self.consume("::") {
+                        path.push(self.expect_identifier()?);
+                    }
+
+                    Ok(Expression::Name(path))
+                }
                 TokenKind::String => Ok(Expression::String(token.lexeme.clone())),
                 _ => Err(ParseError::new("expected expression")),
             }

@@ -197,6 +197,22 @@ fn validate_command_arguments(
         .iter()
         .zip(command_signature.parameters.iter())
     {
+        if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for command `{}` must be passed with `mut`",
+                parameter.name, command_call.command
+            )));
+            continue;
+        }
+
+        if !parameter.is_mutable && matches!(argument, Expression::Mutable(_)) {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for command `{}` is not mutable",
+                parameter.name, command_call.command
+            )));
+            continue;
+        }
+
         if !argument_matches_type(argument, parameter.type_name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for command `{}` expects `{}`, got `{}`",
@@ -210,15 +226,21 @@ fn validate_command_arguments(
 }
 
 fn argument_matches_type(argument: &Expression, type_name: &str) -> bool {
+    if let Expression::Mutable(inner_expression) = argument {
+        return argument_matches_type(inner_expression, type_name);
+    }
+
     matches!(
         (argument, type_name),
         (Expression::String(_), "String") | (Expression::Integer(_), "i32")
-    )
+    ) || matches!(argument, Expression::Name(_))
 }
 
 fn expression_type_name(argument: &Expression) -> &'static str {
     match argument {
         Expression::Integer(_) => "integer literal",
+        Expression::Mutable(inner_expression) => expression_type_name(inner_expression),
+        Expression::Name(_) => "named value",
         Expression::String(_) => "String",
     }
 }
