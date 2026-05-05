@@ -1,6 +1,6 @@
 use data::dungeon_types;
 
-platform machine ConsolePlatform {
+platform ConsolePlatform {
     command Write(text: String);
     command WriteLine(text: String);
     command ReadLine(mut out_line: ConsoleLine);

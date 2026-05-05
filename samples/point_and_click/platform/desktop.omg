@@ -1,6 +1,6 @@
 use data::game_types;
 
-platform machine DesktopPlatform {
+platform DesktopPlatform {
     command CreateWindow(mut window: WindowHandle, width: u32, height: u32, title: String);
     command PollFrame(window: WindowHandle, mut frame: FrameInput);
     command DrawRoom(room: RoomView);
