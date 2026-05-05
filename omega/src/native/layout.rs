@@ -1,5 +1,3 @@
-use std::collections::{HashMap, HashSet};
-
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::{DataDefinition, DataMember, DataShapeKind};
@@ -68,63 +66,51 @@ pub fn build_layout_plan(
 }
 
 struct LayoutBuilder<'program> {
-    data_definitions: HashMap<&'program str, &'program DataDefinition>,
-    data_layout_indexes: HashMap<String, usize>,
+    data_definitions: &'program [DataDefinition],
     data_layouts: Vec<DataLayout>,
-    data_visiting: HashSet<String>,
-    machine_definitions: HashMap<&'program str, &'program Machine>,
-    machine_layout_indexes: HashMap<String, usize>,
+    data_visiting: Vec<String>,
+    machine_definitions: &'program [Machine],
     machine_layouts: Vec<MachineLayout>,
-    machine_visiting: HashSet<String>,
+    machine_visiting: Vec<String>,
     target: NativeTarget,
 }
 
 impl<'program> LayoutBuilder<'program> {
     fn new(program: &'program Program, target: NativeTarget) -> Self {
         Self {
-            data_definitions: program
-                .data_definitions
-                .iter()
-                .map(|definition| (definition.name.as_str(), definition))
-                .collect(),
-            data_layout_indexes: HashMap::new(),
+            data_definitions: &program.data_definitions,
             data_layouts: Vec::new(),
-            data_visiting: HashSet::new(),
-            machine_definitions: program
-                .machines
-                .iter()
-                .map(|machine| (machine.name.as_str(), machine))
-                .collect(),
-            machine_layout_indexes: HashMap::new(),
+            data_visiting: Vec::new(),
+            machine_definitions: &program.machines,
             machine_layouts: Vec::new(),
-            machine_visiting: HashSet::new(),
+            machine_visiting: Vec::new(),
             target,
         }
     }
 
     fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
-        if let Some(index) = self.data_layout_indexes.get(name) {
-            return Ok(self.data_layouts[*index].layout);
+        if let Some(data_layout) = self
+            .data_layouts
+            .iter()
+            .find(|data_layout| data_layout.name == name)
+        {
+            return Ok(data_layout.layout);
         }
 
-        if !self.data_visiting.insert(name.to_owned()) {
+        if self.data_visiting.iter().any(|visiting| visiting == name) {
             return Err(Diagnostic::error(format!(
                 "recursive data layout is not supported yet for `{name}`"
             )));
         }
 
-        let definition = self
-            .data_definitions
-            .get(name)
-            .ok_or_else(|| Diagnostic::error(format!("unknown data type `{name}`")))?;
+        self.data_visiting.push(name.to_owned());
+
+        let definition = self.data_definition(name)?;
         let data_layout = self.compute_data_layout(definition)?;
         let layout = data_layout.layout;
-        let layout_index = self.data_layouts.len();
 
         self.data_layouts.push(data_layout);
-        self.data_layout_indexes
-            .insert(name.to_owned(), layout_index);
-        self.data_visiting.remove(name);
+        self.data_visiting.pop();
 
         Ok(layout)
     }
@@ -179,28 +165,32 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn layout_machine(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
-        if let Some(index) = self.machine_layout_indexes.get(name) {
-            return Ok(self.machine_layouts[*index].layout);
+        if let Some(machine_layout) = self
+            .machine_layouts
+            .iter()
+            .find(|machine_layout| machine_layout.name == name)
+        {
+            return Ok(machine_layout.layout);
         }
 
-        if !self.machine_visiting.insert(name.to_owned()) {
+        if self
+            .machine_visiting
+            .iter()
+            .any(|visiting| visiting == name)
+        {
             return Err(Diagnostic::error(format!(
                 "recursive machine layout is not supported yet for `{name}`"
             )));
         }
 
-        let machine = self
-            .machine_definitions
-            .get(name)
-            .ok_or_else(|| Diagnostic::error(format!("unknown machine `{name}`")))?;
+        self.machine_visiting.push(name.to_owned());
+
+        let machine = self.machine_definition(name)?;
         let machine_layout = self.compute_machine_layout(machine)?;
         let layout = machine_layout.layout;
-        let layout_index = self.machine_layouts.len();
 
         self.machine_layouts.push(machine_layout);
-        self.machine_layout_indexes
-            .insert(name.to_owned(), layout_index);
-        self.machine_visiting.remove(name);
+        self.machine_visiting.pop();
 
         Ok(layout)
     }
@@ -217,10 +207,7 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         for contained_object in &machine.contains {
-            if self
-                .machine_definitions
-                .contains_key(contained_object.type_name.as_str())
-            {
+            if self.machine_definition(&contained_object.type_name).is_ok() {
                 fields.push(PlannedField {
                     name: contained_object.name.clone(),
                     type_name: contained_object.type_name.clone(),
@@ -289,6 +276,20 @@ impl<'program> LayoutBuilder<'program> {
                 alignment: self.target.pointer_alignment,
             },
         }
+    }
+
+    fn data_definition(&self, name: &str) -> Result<&'program DataDefinition, Diagnostic> {
+        self.data_definitions
+            .iter()
+            .find(|definition| definition.name == name)
+            .ok_or_else(|| Diagnostic::error(format!("unknown data type `{name}`")))
+    }
+
+    fn machine_definition(&self, name: &str) -> Result<&'program Machine, Diagnostic> {
+        self.machine_definitions
+            .iter()
+            .find(|machine| machine.name == name)
+            .ok_or_else(|| Diagnostic::error(format!("unknown machine `{name}`")))
     }
 }
 
