@@ -24,6 +24,15 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         validate_owned_data(machine, &symbols, &mut diagnostics);
 
         for command in &machine.commands {
+            validate_local_data_names(
+                &command.statements,
+                format!(
+                    "machine `{}` command `{}`",
+                    machine.name, command.signature.name
+                ),
+                &mut diagnostics,
+            );
+
             for statement in &command.statements {
                 validate_command_body_statement(
                     machine,
@@ -37,6 +46,12 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         }
 
         for state in &machine.states {
+            validate_local_data_names(
+                &state.statements,
+                format!("machine `{}` state `{}`", machine.name, state.name),
+                &mut diagnostics,
+            );
+
             for statement in &state.statements {
                 validate_state_statement(
                     machine,
@@ -54,6 +69,27 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn validate_local_data_names(
+    statements: &[Statement],
+    owner: String,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut local_names = HashSet::new();
+
+    for statement in statements {
+        let Statement::LocalData(local_data) = statement else {
+            continue;
+        };
+
+        if !local_names.insert(local_data.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} has duplicate local data `{}`",
+                local_data.name
+            )));
+        }
     }
 }
 
