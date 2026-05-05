@@ -6,7 +6,7 @@ use crate::ast::item::{Item, UseItem};
 use crate::backend;
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
-use crate::lexer::tokenize;
+use crate::lexer::Lexer;
 use crate::parser::parser::parse_file;
 use crate::source::{Resolver, SourceFile};
 
@@ -28,7 +28,15 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let mut items = Vec::new();
 
     for file in files {
-        let tokens = tokenize(&file.source);
+        let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "{}: {} at {}..{}",
+                file.path.display(),
+                error.message,
+                error.span.start,
+                error.span.end
+            ))]
+        })?;
         let ast_file = parse_file(&tokens).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "{}: {}",
@@ -103,7 +111,15 @@ fn load_reachable_files(
         let file = resolver
             .load_root(&normalized)
             .map_err(|diagnostic| vec![diagnostic])?;
-        let tokens = tokenize(&file.source);
+        let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "{}: {} at {}..{}",
+                file.path.display(),
+                error.message,
+                error.span.start,
+                error.span.end
+            ))]
+        })?;
         let ast_file = parse_file(&tokens).map_err(|error| {
             vec![Diagnostic::error(format!(
                 "{}: {}",

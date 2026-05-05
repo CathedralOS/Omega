@@ -10,16 +10,18 @@ pub mod sema;
 pub mod source;
 pub mod syntax;
 
-pub use lexer::{Token, TokenKind, tokenize};
+pub use lexer::{Lexer, Token, TokenKind};
 pub use syntax::Module;
 
 #[cfg(test)]
 mod tests {
-    use crate::tokenize;
+    use crate::Lexer;
 
     #[test]
     fn tokenizes_simple_source() {
-        let tokens = tokenize("let answer = 42");
+        let tokens = Lexer::new("let answer = 42")
+            .tokenize()
+            .expect("tokenization should succeed");
 
         assert_eq!(tokens.len(), 4);
         assert_eq!(tokens[0].lexeme, "let");
