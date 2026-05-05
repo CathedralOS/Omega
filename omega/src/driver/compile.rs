@@ -10,7 +10,7 @@ use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
 use crate::semantic::validation::validate_program;
-use crate::source::{Resolver, SourceFile};
+use crate::source::Resolver;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
@@ -24,8 +24,9 @@ pub struct CheckOutput {
 }
 
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
-    let items = load_items(&options)?;
-    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
+    let loaded_program = load_program_sources(&options)?;
+    debug_assert!(loaded_program.file_ranges_are_valid());
+    let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
 
     Ok(CheckOutput {
@@ -34,8 +35,9 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
 }
 
 pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
-    let items = load_items(&options)?;
-    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
+    let loaded_program = load_program_sources(&options)?;
+    debug_assert!(loaded_program.file_ranges_are_valid());
+    let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
     let native_plan =
         build_native_plan(&program, NativeTarget::host()).map_err(|diagnostic| vec![diagnostic])?;
@@ -52,7 +54,30 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     ))])
 }
 
-fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
+#[derive(Debug)]
+struct LoadedProgram {
+    items: Vec<Item>,
+    files: Vec<LoadedFile>,
+}
+
+#[derive(Debug)]
+struct LoadedFile {
+    path: PathBuf,
+    first_item: usize,
+    item_count: usize,
+}
+
+impl LoadedProgram {
+    fn file_ranges_are_valid(&self) -> bool {
+        self.files.iter().all(|file| {
+            !file.path.as_os_str().is_empty()
+                && file.first_item <= self.items.len()
+                && file.first_item + file.item_count <= self.items.len()
+        })
+    }
+}
+
+fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<Diagnostic>> {
     let mut resolver = Resolver::default();
     let root_dir = options
         .root_path
@@ -60,41 +85,10 @@ fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let files = load_reachable_files(&mut resolver, &options.root_path, &root_dir)?;
-    let mut items = Vec::new();
-
-    for file in files {
-        let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: {} at {}..{}",
-                file.path.display(),
-                error.message,
-                error.span.start,
-                error.span.end
-            ))]
-        })?;
-        let ast_file = parse_file(&tokens).map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: {}",
-                file.path.display(),
-                error.message
-            ))]
-        })?;
-
-        items.extend(ast_file.items);
-    }
-
-    Ok(items)
-}
-
-fn load_reachable_files(
-    resolver: &mut Resolver,
-    root_path: &Path,
-    root_dir: &Path,
-) -> Result<Vec<SourceFile>, Vec<Diagnostic>> {
     let mut seen = HashSet::<PathBuf>::new();
-    let mut pending = vec![root_path.to_path_buf()];
-    let mut files = Vec::new();
+    let mut pending = vec![options.root_path.clone()];
+    let mut items = Vec::new();
+    let mut loaded_files = Vec::new();
 
     while let Some(path) = pending.pop() {
         let normalized = path.clone();
@@ -122,17 +116,27 @@ fn load_reachable_files(
                 error.message
             ))]
         })?;
+        let first_item = items.len();
+        let item_count = ast_file.items.len();
 
         for item in &ast_file.items {
             if let Item::Use(use_item) = item {
-                pending.push(resolve_use(root_dir, use_item));
+                pending.push(resolve_use(&root_dir, use_item));
             }
         }
 
-        files.push(file);
+        loaded_files.push(LoadedFile {
+            path: file.path,
+            first_item,
+            item_count,
+        });
+        items.extend(ast_file.items);
     }
 
-    Ok(files)
+    Ok(LoadedProgram {
+        items,
+        files: loaded_files,
+    })
 }
 
 fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
