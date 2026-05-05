@@ -1,6 +1,6 @@
 use crate::ast::expression::Expression;
 use crate::ast::item::{CommandSignature, Contains, Item, Machine, Platform, State, UseItem};
-use crate::ast::statement::{CommandCall, Statement};
+use crate::ast::statement::{CommandCall, Statement, Transition, TransitionTarget};
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
 
@@ -115,13 +115,52 @@ impl Parser<'_> {
 
         while !self.consume("}") {
             if self.consume("->") {
-                self.skip_until_semicolon()?;
+                statements.push(self.parse_transition()?);
             } else {
                 statements.push(self.parse_statement()?);
             }
         }
 
         Ok(State { name, statements })
+    }
+
+    fn parse_transition(&mut self) -> Result<Statement, ParseError> {
+        let target = self.parse_transition_target()?;
+        let continuation = if self.consume("->") {
+            Some(self.parse_transition_target()?)
+        } else {
+            None
+        };
+        let condition = if self.consume("when") {
+            Some(self.collect_condition_until_semicolon()?)
+        } else {
+            self.expect(";")?;
+            None
+        };
+
+        Ok(Statement::Transition(Transition {
+            target,
+            continuation,
+            condition,
+        }))
+    }
+
+    fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
+        if self.consume("self") {
+            return Ok(TransitionTarget::SelfTarget);
+        }
+
+        if self.consume("return") {
+            return Ok(TransitionTarget::ReturnToCaller);
+        }
+
+        let mut path = vec![self.expect_identifier()?];
+
+        while self.consume(".") {
+            path.push(self.expect_identifier()?);
+        }
+
+        Ok(TransitionTarget::Named(path))
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
@@ -231,6 +270,23 @@ impl Parser<'_> {
         }
 
         Ok(())
+    }
+
+    fn collect_condition_until_semicolon(&mut self) -> Result<String, ParseError> {
+        let mut parts = Vec::new();
+
+        while !self.consume(";") {
+            let token = self
+                .advance()
+                .ok_or_else(|| ParseError::new("expected transition condition"))?;
+            parts.push(token.lexeme.clone());
+        }
+
+        if parts.is_empty() {
+            Err(ParseError::new("expected transition condition"))
+        } else {
+            Ok(parts.join(" "))
+        }
     }
 
     fn consume(&mut self, lexeme: &str) -> bool {

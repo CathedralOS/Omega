@@ -33,7 +33,11 @@ pub fn emit_c_host_source(program: &Program) -> Result<String, Diagnostic> {
     output.push_str("int main(void) {\n");
 
     for statement in &main_state.statements {
-        let Statement::CommandCall(call) = statement;
+        let Statement::CommandCall(call) = statement else {
+            return Err(Diagnostic::error(
+                "the C-host MVP can only lower straight-line command calls for now",
+            ));
+        };
 
         let Some(receiver_type) = contains.get(call.receiver.as_str()) else {
             return Err(Diagnostic::error(format!(

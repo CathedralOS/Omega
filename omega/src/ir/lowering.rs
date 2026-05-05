@@ -6,7 +6,7 @@ use crate::ir::expression::Expression;
 use crate::ir::machine::{ContainedObject, Machine};
 use crate::ir::platform::Platform;
 use crate::ir::state::State;
-use crate::ir::statement::{CommandCall, Statement};
+use crate::ir::statement::{CommandCall, Statement, Transition, TransitionTarget};
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     let mut program = Program::default();
@@ -90,9 +90,16 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
                     .collect::<Result<Vec<_>, _>>()?,
             }))
         }
-        ast::statement::Statement::Transition(_) => Err(Diagnostic::error(
-            "explicit transition lowering is not wired into the MVP executable path yet",
-        )),
+        ast::statement::Statement::Transition(transition) => {
+            Ok(Statement::Transition(Transition {
+                target: lower_transition_target(&transition.target),
+                continuation: transition
+                    .continuation
+                    .as_ref()
+                    .map(lower_transition_target),
+                condition: transition.condition.clone(),
+            }))
+        }
     }
 }
 
@@ -100,5 +107,13 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
     match expression {
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
         ast::expression::Expression::String(value) => Ok(Expression::String(value.clone())),
+    }
+}
+
+fn lower_transition_target(target: &ast::statement::TransitionTarget) -> TransitionTarget {
+    match target {
+        ast::statement::TransitionTarget::Named(path) => TransitionTarget::Named(path.clone()),
+        ast::statement::TransitionTarget::SelfTarget => TransitionTarget::SelfTarget,
+        ast::statement::TransitionTarget::ReturnToCaller => TransitionTarget::ReturnToCaller,
     }
 }
