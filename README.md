@@ -82,14 +82,11 @@ Notable samples:
 Omega is allowed to be strange, but the codebase should not be sloppy.
 
 Some repo-level taste:
-
 - Use real words in code. Prefer `character`, `statement`, `expression`, and `arguments` over `ch`, `stmt`, `expr`, and `args`.
-- Do not add fake layers. A placeholder architecture is worse than no architecture.
 - Keep compiler stages honest. Parse syntax, lower meaning, validate semantics, then emit code.
 - Prefer small checkpoint commits after a working improvement.
 - Samples should reveal language pressure, not hide it in giant `main` files.
-- Avoid C++-style ambient magic. Ownership, mutation, platform boundaries, and control flow should be visible.
-- Write code for the human who has to debug it at 2 AM.
+- Prefer ZII (Zero-is-initialization). Null handles (id 0) instead of optionals and literal nulls. Generational arenas over tiny allocations everywhere.
 
 If a name or abstraction makes the compiler feel like a high-school project or a PL paper cosplay, it probably needs another pass.
 
