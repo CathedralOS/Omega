@@ -9,6 +9,7 @@ use crate::ir::statement::{Statement, TransitionTarget};
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
+    validate_top_level_names(program, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
     let platforms = program
@@ -33,6 +34,8 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
             .iter()
             .map(|state| state.name.as_str())
             .collect::<HashSet<_>>();
+
+        validate_contained_types(machine, program, &mut diagnostics);
 
         for state in &machine.states {
             for statement in &state.statements {
@@ -72,6 +75,36 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
+fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+    let mut machine_names = HashSet::new();
+    let mut platform_names = HashSet::new();
+
+    for machine in &program.machines {
+        if !machine_names.insert(machine.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "duplicate machine `{}`",
+                machine.name
+            )));
+        }
+    }
+
+    for platform in &program.platforms {
+        if !platform_names.insert(platform.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "duplicate platform `{}`",
+                platform.name
+            )));
+        }
+
+        if machine_names.contains(platform.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}` is declared as both a machine and a platform",
+                platform.name
+            )));
+        }
+    }
+}
+
 fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
     let Some(main_machine) = program
         .machines
@@ -84,6 +117,30 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
 
     if !main_machine.states.iter().any(|state| state.name == "Main") {
         diagnostics.push(Diagnostic::error("machine main is missing state Main"));
+    }
+}
+
+fn validate_contained_types(
+    machine: &crate::ir::machine::Machine,
+    program: &Program,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for contained_object in &machine.contains {
+        let type_exists = program
+            .machines
+            .iter()
+            .any(|machine| machine.name == contained_object.type_name)
+            || program
+                .platforms
+                .iter()
+                .any(|platform| platform.name == contained_object.type_name);
+
+        if !type_exists {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` contains `{}` with unknown type `{}`",
+                machine.name, contained_object.name, contained_object.type_name
+            )));
+        }
     }
 }
 

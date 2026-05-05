@@ -122,4 +122,31 @@ mod tests {
                 .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
         );
     }
+
+    #[test]
+    fn rejects_unknown_contained_type() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                contains console: MissingConsole;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("unknown type"))
+        );
+    }
 }
