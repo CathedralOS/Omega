@@ -1,5 +1,4 @@
 pub mod ast;
-pub mod backend;
 pub mod diagnostics;
 pub mod driver;
 pub mod ir;

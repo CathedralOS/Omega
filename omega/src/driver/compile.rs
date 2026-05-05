@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use crate::ast::item::{Item, UseItem};
-use crate::backend;
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
 use crate::ir::lowering::lower_program;
@@ -37,9 +35,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let items = load_items(&options)?;
     let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
-    let c_source =
-        backend::c_host::emit_c_host_source(&program).map_err(|diagnostic| vec![diagnostic])?;
-    emit_c_host_binary(&options, c_source)
+
+    Err(vec![Diagnostic::error(
+        "native binary emission is not implemented yet; use `omega --check <root.omg>` for the current compiler pipeline",
+    )])
 }
 
 fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
@@ -75,52 +74,6 @@ fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
     }
 
     Ok(items)
-}
-
-fn emit_c_host_binary(
-    options: &CompileOptions,
-    c_source: String,
-) -> Result<CompileOutput, Vec<Diagnostic>> {
-    let output_dir = PathBuf::from("target/omega");
-    std::fs::create_dir_all(&output_dir).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "failed to create target/omega: {error}"
-        ))]
-    })?;
-
-    let stem = options
-        .root_path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or("omega_program");
-    let c_path = output_dir.join(format!("{stem}.c"));
-    let executable_path = output_dir.join(stem);
-
-    std::fs::write(&c_path, c_source).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "failed to write {}: {error}",
-            c_path.display()
-        ))]
-    })?;
-
-    let status = Command::new("cc")
-        .arg(&c_path)
-        .arg("-o")
-        .arg(&executable_path)
-        .status()
-        .map_err(|error| vec![Diagnostic::error(format!("failed to run cc: {error}"))])?;
-
-    if !status.success() {
-        return Err(vec![Diagnostic::error(format!(
-            "cc failed while compiling {}",
-            c_path.display()
-        ))]);
-    }
-
-    Ok(CompileOutput {
-        summary: format!("built {}", executable_path.display()),
-        executable_path,
-    })
 }
 
 fn load_reachable_files(

@@ -48,22 +48,18 @@ The Rust compiler is intentionally small, but it now has real pipeline seams:
 - parser for top-level items, machines, platforms, states, command calls, and transition arrows
 - AST-to-IR lowering
 - semantic validation for entry point, receivers, platform commands, and transition targets
-- temporary C-host backend for the smallest CLI executable path
 
-The current MVP can compile `samples/cli_mvp/main.omg` into a native executable through the host C compiler:
+Omega does not currently emit a native binary. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
+
+The current MVP can check all samples through the real front-end pipeline:
 
 ```bash
-cargo run -p omega -- samples/cli_mvp/main.omg
-./target/omega/main
+cargo run -p omega -- --check samples/cli_mvp/main.omg
+cargo run -p omega -- --check samples/dungeon_crawler_cli/main.omg
+cargo run -p omega -- --check samples/point_and_click/main.omg
 ```
 
-Expected output:
-
-```text
-Hello, Omega.
-```
-
-The C-host backend is scaffolding, not the endgame. It exists so we can keep making executable progress while the language semantics and IR harden.
+Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 
 ## Repository Layout
 
@@ -98,22 +94,17 @@ Run tests:
 cargo test
 ```
 
-Build the CLI MVP sample:
+Check the CLI MVP sample:
 
 ```bash
-cargo run -p omega -- samples/cli_mvp/main.omg
+cargo run -p omega -- --check samples/cli_mvp/main.omg
 ```
 
-Check a richer sample without requiring C-host code generation:
+Check richer samples:
 
 ```bash
 cargo run -p omega -- --check samples/dungeon_crawler_cli/main.omg
-```
-
-Run the generated executable:
-
-```bash
-./target/omega/main
+cargo run -p omega -- --check samples/point_and_click/main.omg
 ```
 
 ## Design Notes
