@@ -4,13 +4,20 @@ use crate::ir::expression::Expression;
 pub enum Statement {
     Assignment(Assignment),
     CommandCall(CommandCall),
+    LocalData(LocalData),
     Transition(Transition),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
-    pub target: Vec<String>,
+    pub target: Expression,
     pub value: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalData {
+    pub name: String,
+    pub type_reference: crate::ir::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

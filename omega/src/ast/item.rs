@@ -65,6 +65,8 @@ pub struct State {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandDefinition {
     pub signature: CommandSignature,
+    pub guard: Option<String>,
+    pub statements: Vec<crate::ast::statement::Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -3,11 +3,16 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::{CommandParameter, CommandSignature};
 use crate::ir::data::{DataDefinition, DataField, DataMember, DataVariant};
-use crate::ir::expression::Expression;
-use crate::ir::machine::{ContainedObject, Machine, OwnedData};
+use crate::ir::expression::{
+    BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
+    StructLiteralField,
+};
+use crate::ir::machine::{CommandDefinition, ContainedObject, Machine, OwnedData};
 use crate::ir::platform::Platform;
 use crate::ir::state::State;
-use crate::ir::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
+use crate::ir::statement::{
+    Assignment, CommandCall, LocalData, Statement, Transition, TransitionTarget,
+};
 use crate::ir::types::TypeReference;
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
@@ -73,7 +78,7 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
     let commands = machine
         .commands
         .iter()
-        .map(|command| lower_command_signature(&command.signature))
+        .map(lower_command_definition)
         .collect::<Result<Vec<_>, _>>()?;
 
     let owned_data = machine
@@ -94,6 +99,20 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
         contains,
         owned_data,
         states,
+    })
+}
+
+fn lower_command_definition(
+    command: &ast::item::CommandDefinition,
+) -> Result<CommandDefinition, Diagnostic> {
+    Ok(CommandDefinition {
+        signature: lower_command_signature(&command.signature)?,
+        guard: command.guard.clone(),
+        statements: command
+            .statements
+            .iter()
+            .map(lower_statement)
+            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -173,7 +192,7 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
     match statement {
         ast::statement::Statement::Assignment(assignment) => {
             Ok(Statement::Assignment(Assignment {
-                target: assignment.target.clone(),
+                target: lower_expression(&assignment.target)?,
                 value: lower_expression(&assignment.value)?,
             }))
         }
@@ -188,6 +207,10 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
                     .collect::<Result<Vec<_>, _>>()?,
             }))
         }
+        ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
+            name: local_data.name.clone(),
+            type_reference: lower_type_reference(&local_data.type_reference)?,
+        })),
         ast::statement::Statement::Transition(transition) => {
             Ok(Statement::Transition(Transition {
                 target: lower_transition_target(&transition.target),
@@ -203,12 +226,52 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
 
 fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
     match expression {
+        ast::expression::Expression::ArrayLiteral(values) => Ok(Expression::ArrayLiteral(
+            values
+                .iter()
+                .map(lower_expression)
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        ast::expression::Expression::Binary(binary) => {
+            Ok(Expression::Binary(Box::new(BinaryExpression {
+                left: lower_expression(&binary.left)?,
+                operator: lower_binary_operator(binary.operator),
+                right: lower_expression(&binary.right)?,
+            })))
+        }
+        ast::expression::Expression::Indexed(indexed) => {
+            Ok(Expression::Indexed(Box::new(IndexedExpression {
+                collection: lower_expression(&indexed.collection)?,
+                index: lower_expression(&indexed.index)?,
+            })))
+        }
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
         ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
             Box::new(lower_expression(inner_expression)?),
         )),
         ast::expression::Expression::Name(path) => Ok(Expression::Name(path.clone())),
+        ast::expression::Expression::StructLiteral(struct_literal) => {
+            Ok(Expression::StructLiteral(StructLiteral {
+                type_name: struct_literal.type_name.clone(),
+                fields: struct_literal
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        Ok(StructLiteralField {
+                            name: field.name.clone(),
+                            value: lower_expression(&field.value)?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            }))
+        }
         ast::expression::Expression::String(value) => Ok(Expression::String(value.clone())),
+    }
+}
+
+fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOperator {
+    match operator {
+        ast::expression::BinaryOperator::Add => BinaryOperator::Add,
     }
 }
 

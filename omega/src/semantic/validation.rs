@@ -58,6 +58,15 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                         &platforms,
                         &mut diagnostics,
                     ),
+                    Statement::LocalData(local_data) => validate_type_reference(
+                        &local_data.type_reference,
+                        program,
+                        &mut diagnostics,
+                        format!(
+                            "machine `{}` local data `{}`",
+                            machine.name, local_data.name
+                        ),
+                    ),
                     Statement::Transition(transition) => {
                         validate_transition_target(
                             &transition.target,
@@ -142,7 +151,7 @@ fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>
 
     for machine in &program.machines {
         validate_command_signature_types(
-            machine.commands.iter(),
+            machine.commands.iter().map(|command| &command.signature),
             program,
             diagnostics,
             format!("machine `{}`", machine.name),
@@ -350,7 +359,7 @@ fn validate_command_call(
         let Some(command_signature) = current_machine
             .commands
             .iter()
-            .find(|command| command.name == command_call.command)
+            .find(|command| command.signature.name == command_call.command)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local command `{}`",
@@ -359,7 +368,7 @@ fn validate_command_call(
             return;
         };
 
-        validate_command_arguments(command_call, command_signature, diagnostics);
+        validate_command_arguments(command_call, &command_signature.signature, diagnostics);
         return;
     };
 
@@ -392,7 +401,7 @@ fn validate_command_call(
         let Some(command_signature) = machine
             .commands
             .iter()
-            .find(|command| command.name == command_call.command)
+            .find(|command| command.signature.name == command_call.command)
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no command `{}`",
@@ -401,7 +410,7 @@ fn validate_command_call(
             return;
         };
 
-        validate_command_arguments(command_call, command_signature, diagnostics);
+        validate_command_arguments(command_call, &command_signature.signature, diagnostics);
         return;
     }
 
@@ -466,7 +475,10 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
     }
 
     match type_reference {
-        TypeReference::FixedArray { .. } => matches!(argument, Expression::Name(_)),
+        TypeReference::FixedArray { .. } => matches!(
+            argument,
+            Expression::ArrayLiteral(_) | Expression::Indexed(_) | Expression::Name(_)
+        ),
         TypeReference::Named(type_name) => {
             matches!(
                 (argument, type_name.as_str()),
@@ -475,16 +487,26 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
                     | (Expression::Integer(_), "u32")
                     | (Expression::Integer(_), "u64")
                     | (Expression::Integer(_), "usize")
-            ) || matches!(argument, Expression::Name(_))
+            ) || matches!(
+                argument,
+                Expression::Binary(_)
+                    | Expression::Indexed(_)
+                    | Expression::Name(_)
+                    | Expression::StructLiteral(_)
+            )
         }
     }
 }
 
 fn expression_type_name(argument: &Expression) -> &'static str {
     match argument {
+        Expression::ArrayLiteral(_) => "array literal",
+        Expression::Binary(_) => "binary expression",
+        Expression::Indexed(_) => "indexed value",
         Expression::Integer(_) => "integer literal",
         Expression::Mutable(inner_expression) => expression_type_name(inner_expression),
         Expression::Name(_) => "named value",
+        Expression::StructLiteral(_) => "struct literal",
         Expression::String(_) => "String",
     }
 }

@@ -2,13 +2,20 @@
 pub enum Statement {
     Assignment(Assignment),
     CommandCall(CommandCall),
+    LocalData(LocalData),
     Transition(Transition),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
-    pub target: Vec<String>,
+    pub target: crate::ast::expression::Expression,
     pub value: crate::ast::expression::Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalData {
+    pub name: String,
+    pub type_reference: crate::ast::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,9 +1,14 @@
-use crate::ast::expression::Expression;
+use crate::ast::expression::{
+    BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
+    StructLiteralField,
+};
 use crate::ast::item::{
     CommandDefinition, CommandParameter, CommandSignature, Contains, DataDefinition, DataField,
     DataMember, DataVariant, Item, Machine, OwnedData, Platform, State, UseItem,
 };
-use crate::ast::statement::{Assignment, CommandCall, Statement, Transition, TransitionTarget};
+use crate::ast::statement::{
+    Assignment, CommandCall, LocalData, Statement, Transition, TransitionTarget,
+};
 use crate::ast::types::TypeReference;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
@@ -196,19 +201,26 @@ impl Parser<'_> {
         let signature = self.parse_command_signature()?;
 
         if self.consume(";") {
-            return Ok(CommandDefinition { signature });
+            return Ok(CommandDefinition {
+                signature,
+                guard: None,
+                statements: Vec::new(),
+            });
         }
 
-        if self.consume("when") {
-            while !self.check("{") {
-                self.advance()
-                    .ok_or_else(|| ParseError::new("unterminated command guard"))?;
-            }
-        }
+        let guard = if self.consume("when") {
+            Some(self.collect_until("{")?)
+        } else {
+            None
+        };
 
-        self.skip_balanced_braces()?;
+        let statements = self.parse_statement_block()?;
 
-        Ok(CommandDefinition { signature })
+        Ok(CommandDefinition {
+            signature,
+            guard,
+            statements,
+        })
     }
 
     fn parse_contains(&mut self) -> Result<Contains, ParseError> {
@@ -295,13 +307,17 @@ impl Parser<'_> {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
+        if self.consume("let") {
+            return self.parse_local_data();
+        }
+
         let first_name = self.expect_identifier()?;
 
         if self.consume("=") {
             let value = self.parse_expression()?;
             self.expect(";")?;
             return Ok(Statement::Assignment(Assignment {
-                target: vec![first_name],
+                target: Expression::Name(vec![first_name]),
                 value,
             }));
         }
@@ -320,11 +336,8 @@ impl Parser<'_> {
         let second_name = self.expect_identifier()?;
 
         if !self.check("(") {
-            let mut target = vec![first_name, second_name];
-
-            while self.consume(".") {
-                target.push(self.expect_identifier()?);
-            }
+            let target =
+                self.parse_reference_tail(Expression::Name(vec![first_name, second_name]))?;
 
             self.expect("=")?;
             let value = self.parse_expression()?;
@@ -339,6 +352,18 @@ impl Parser<'_> {
             receiver: Some(first_name),
             command: second_name,
             arguments,
+        }))
+    }
+
+    fn parse_local_data(&mut self) -> Result<Statement, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect(":")?;
+        let type_reference = self.parse_type_reference()?;
+        self.expect(";")?;
+
+        Ok(Statement::LocalData(LocalData {
+            name,
+            type_reference,
         }))
     }
 
@@ -362,8 +387,31 @@ impl Parser<'_> {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError> {
+        self.parse_add_expression()
+    }
+
+    fn parse_add_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_primary_expression()?;
+
+        while self.consume("+") {
+            let right = self.parse_primary_expression()?;
+            expression = Expression::Binary(Box::new(BinaryExpression {
+                left: expression,
+                operator: BinaryOperator::Add,
+                right,
+            }));
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_primary_expression(&mut self) -> Result<Expression, ParseError> {
         if self.consume("mut") {
             return Ok(Expression::Mutable(Box::new(self.parse_expression()?)));
+        }
+
+        if self.consume("[") {
+            return self.parse_array_literal();
         }
 
         if let Some(token) = self.advance() {
@@ -380,7 +428,11 @@ impl Parser<'_> {
                         path.push(self.expect_identifier()?);
                     }
 
-                    Ok(Expression::Name(path))
+                    if self.check("{") && path.len() == 1 {
+                        self.parse_struct_literal(path.remove(0))
+                    } else {
+                        self.parse_reference_tail(Expression::Name(path))
+                    }
                 }
                 TokenKind::String => Ok(Expression::String(token.lexeme.clone())),
                 _ => Err(ParseError::new("expected expression")),
@@ -388,6 +440,99 @@ impl Parser<'_> {
         } else {
             Err(ParseError::new("expected expression"))
         }
+    }
+
+    fn parse_reference_tail(
+        &mut self,
+        mut expression: Expression,
+    ) -> Result<Expression, ParseError> {
+        loop {
+            if self.consume("[") {
+                let index = self.parse_expression()?;
+                self.expect("]")?;
+                expression = Expression::Indexed(Box::new(IndexedExpression {
+                    collection: expression,
+                    index,
+                }));
+            } else if self.consume(".") {
+                let name = self.expect_identifier()?;
+                expression = match expression {
+                    Expression::Name(mut path) => {
+                        path.push(name);
+                        Expression::Name(path)
+                    }
+                    _ => {
+                        return Err(ParseError::new(
+                            "field access after a complex expression is not supported yet",
+                        ));
+                    }
+                };
+            } else {
+                break;
+            }
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_array_literal(&mut self) -> Result<Expression, ParseError> {
+        let mut values = Vec::new();
+
+        if self.consume("]") {
+            return Ok(Expression::ArrayLiteral(values));
+        }
+
+        loop {
+            values.push(self.parse_expression()?);
+
+            if self.consume("]") {
+                break;
+            }
+
+            self.expect(",")?;
+
+            if self.consume("]") {
+                break;
+            }
+        }
+
+        Ok(Expression::ArrayLiteral(values))
+    }
+
+    fn parse_struct_literal(&mut self, type_name: String) -> Result<Expression, ParseError> {
+        self.expect("{")?;
+        let mut fields = Vec::new();
+
+        while !self.consume("}") {
+            let name = self.expect_identifier()?;
+            self.expect(":")?;
+            let value = self.parse_expression()?;
+            fields.push(StructLiteralField { name, value });
+
+            if !self.check("}") {
+                self.expect(",")?;
+            }
+        }
+
+        Ok(Expression::StructLiteral(StructLiteral {
+            type_name,
+            fields,
+        }))
+    }
+
+    fn parse_statement_block(&mut self) -> Result<Vec<Statement>, ParseError> {
+        self.expect("{")?;
+        let mut statements = Vec::new();
+
+        while !self.consume("}") {
+            if self.consume("->") {
+                statements.push(self.parse_transition()?);
+            } else {
+                statements.push(self.parse_statement()?);
+            }
+        }
+
+        Ok(statements)
     }
 
     fn skip_balanced_braces(&mut self) -> Result<(), ParseError> {
@@ -407,6 +552,19 @@ impl Parser<'_> {
         }
 
         Ok(())
+    }
+
+    fn collect_until(&mut self, lexeme: &str) -> Result<String, ParseError> {
+        let mut parts = Vec::new();
+
+        while !self.check(lexeme) {
+            let token = self
+                .advance()
+                .ok_or_else(|| ParseError::new(format!("expected `{lexeme}`")))?;
+            parts.push(token.lexeme.clone());
+        }
+
+        Ok(parts.join(" "))
     }
 
     fn collect_condition_until_semicolon(&mut self) -> Result<String, ParseError> {

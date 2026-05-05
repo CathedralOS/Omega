@@ -15,6 +15,7 @@ pub use syntax::Module;
 #[cfg(test)]
 mod tests {
     use crate::Lexer;
+    use crate::ast::expression::Expression;
     use crate::ast::item::Item;
     use crate::ast::statement::{Statement, TransitionTarget};
     use crate::ast::types::TypeReference;
@@ -242,10 +243,13 @@ mod tests {
             panic!("expected assignment");
         };
 
-        assert_eq!(first_assignment.target, vec!["return_code".to_owned()]);
+        assert_eq!(
+            first_assignment.target,
+            Expression::Name(vec!["return_code".to_owned()])
+        );
         assert_eq!(
             second_assignment.target,
-            vec!["player".to_owned(), "position".to_owned()]
+            Expression::Name(vec!["player".to_owned(), "position".to_owned()])
         );
     }
 
@@ -343,5 +347,29 @@ mod tests {
 
         assert_eq!(main_layout.fields[0].name, "player");
         assert!(main_layout.layout.size >= 8);
+    }
+
+    #[test]
+    fn parses_command_body_statements() {
+        let tokens = Lexer::new(
+            r#"
+            machine Sample {
+                command Write(mut out_level: Level) {
+                    let room: Room;
+                    out_level.rooms[0] = Room { cell: CellId::A1 };
+                    out_level.name = "A" + "1";
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+
+        assert_eq!(machine.commands[0].signature.name, "Write");
+        assert_eq!(machine.commands[0].statements.len(), 3);
     }
 }
