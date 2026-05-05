@@ -351,6 +351,46 @@ mod tests {
     }
 
     #[test]
+    fn plans_native_layout_for_primitive_widths() {
+        let tokens = Lexer::new(
+            r#"
+            data Counters {
+                slot: usize;
+                label: String;
+            }
+
+            machine main {
+                owns counters: Counters;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let target = crate::native::target::NativeTarget::host();
+        let native_plan = crate::native::plan::build_native_plan(&program, target)
+            .expect("native planning should pass");
+        let counters_layout = native_plan
+            .layouts
+            .data_layouts
+            .iter()
+            .find(|layout| layout.name == "Counters")
+            .expect("Counters layout should exist");
+        let crate::native::layout::DataShape::Record { fields } = &counters_layout.shape else {
+            panic!("expected record layout");
+        };
+
+        assert_eq!(fields[0].layout.size, target.pointer_size);
+        assert_eq!(fields[1].layout.size, target.pointer_size * 2);
+    }
+
+    #[test]
     fn parses_command_body_statements() {
         let tokens = Lexer::new(
             r#"

@@ -4,7 +4,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::{DataDefinition, DataMember};
 use crate::ir::machine::Machine;
-use crate::ir::types::TypeReference;
+use crate::ir::types::{PrimitiveType, TypeReference};
 use crate::native::target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -253,24 +253,35 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn layout_named_type(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
-        match name {
-            "bool" => Ok(TypeLayout {
+        if let Some(primitive_type) = PrimitiveType::from_name(name) {
+            return Ok(self.layout_primitive_type(primitive_type));
+        }
+
+        self.layout_data_definition(name)
+    }
+
+    fn layout_primitive_type(&self, primitive_type: PrimitiveType) -> TypeLayout {
+        match primitive_type {
+            PrimitiveType::Bool => TypeLayout {
                 size: 1,
                 alignment: 1,
-            }),
-            "i32" | "u32" => Ok(TypeLayout {
+            },
+            PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
                 size: 4,
                 alignment: 4,
-            }),
-            "u64" => Ok(TypeLayout {
+            },
+            PrimitiveType::F64 | PrimitiveType::U64 => TypeLayout {
                 size: 8,
                 alignment: 8,
-            }),
-            "usize" | "String" => Ok(TypeLayout {
+            },
+            PrimitiveType::Usize => TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            },
+            PrimitiveType::String => TypeLayout {
                 size: self.target.pointer_size * 2,
                 alignment: self.target.pointer_alignment,
-            }),
-            _ => self.layout_data_definition(name),
+            },
         }
     }
 }

@@ -7,6 +7,18 @@ pub enum TypeReference {
     Named(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrimitiveType {
+    Bool,
+    F32,
+    F64,
+    I32,
+    String,
+    U32,
+    U64,
+    Usize,
+}
+
 impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
@@ -18,5 +30,46 @@ impl TypeReference {
             }
             TypeReference::Named(name) => name.clone(),
         }
+    }
+
+    pub fn primitive_type(&self) -> Option<PrimitiveType> {
+        let TypeReference::Named(name) = self else {
+            return None;
+        };
+
+        PrimitiveType::from_name(name)
+    }
+}
+
+impl PrimitiveType {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "bool" => Some(Self::Bool),
+            "f32" => Some(Self::F32),
+            "f64" => Some(Self::F64),
+            "i32" => Some(Self::I32),
+            "String" => Some(Self::String),
+            "u32" => Some(Self::U32),
+            "u64" => Some(Self::U64),
+            "usize" => Some(Self::Usize),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Bool => "bool",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
+            Self::I32 => "i32",
+            Self::String => "String",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::Usize => "usize",
+        }
+    }
+
+    pub fn accepts_integer_literal(self) -> bool {
+        matches!(self, Self::I32 | Self::U32 | Self::U64 | Self::Usize)
     }
 }

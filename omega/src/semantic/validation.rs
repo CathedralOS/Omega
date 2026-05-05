@@ -6,7 +6,7 @@ use crate::ir::command::CommandSignature;
 use crate::ir::data::DataMember;
 use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
-use crate::ir::types::TypeReference;
+use crate::ir::types::{PrimitiveType, TypeReference};
 use crate::semantic::symbols::ProgramSymbols;
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
@@ -170,7 +170,7 @@ fn validate_type_reference(
             validate_type_reference(element_type, symbols, diagnostics, owner);
         }
         TypeReference::Named(name) => {
-            if is_primitive_type(name) {
+            if PrimitiveType::from_name(name).is_some() {
                 return;
             }
 
@@ -181,13 +181,6 @@ fn validate_type_reference(
             }
         }
     }
-}
-
-fn is_primitive_type(name: &str) -> bool {
-    matches!(
-        name,
-        "String" | "bool" | "i32" | "u32" | "u64" | "usize" | "f32" | "f64"
-    )
 }
 
 fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
@@ -406,14 +399,21 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
             Expression::ArrayLiteral(_) | Expression::Indexed(_) | Expression::Name(_)
         ),
         TypeReference::Named(type_name) => {
+            if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+                return matches!(argument, Expression::String(_))
+                    && primitive_type == PrimitiveType::String
+                    || matches!(argument, Expression::Integer(_))
+                        && primitive_type.accepts_integer_literal()
+                    || matches!(
+                        argument,
+                        Expression::Binary(_)
+                            | Expression::Indexed(_)
+                            | Expression::Name(_)
+                            | Expression::StructLiteral(_)
+                    );
+            }
+
             matches!(
-                (argument, type_name.as_str()),
-                (Expression::String(_), "String")
-                    | (Expression::Integer(_), "i32")
-                    | (Expression::Integer(_), "u32")
-                    | (Expression::Integer(_), "u64")
-                    | (Expression::Integer(_), "usize")
-            ) || matches!(
                 argument,
                 Expression::Binary(_)
                     | Expression::Indexed(_)
