@@ -5,12 +5,12 @@ use crate::ast::item::{Item, UseItem};
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
 use crate::ir::lowering::lower_program;
-use crate::lexer::Lexer;
+use crate::lexer::{Lexer, Span};
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
 use crate::semantic::validation::validate_program;
-use crate::source::Resolver;
+use crate::source::{Resolver, SourceFile};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
@@ -101,23 +101,15 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
             .load_root(&normalized)
             .map_err(|diagnostic| vec![diagnostic])?;
         let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: {} at {}..{}",
-                file.path.display(),
-                error.message,
-                error.span.start,
-                error.span.end
+            vec![Diagnostic::error(format_source_span(
+                file,
+                error.span,
+                &error.message,
             ))]
         })?;
         let ast_file = parse_file(&tokens).map_err(|error| {
             vec![Diagnostic::error(match error.span {
-                Some(span) => format!(
-                    "{}: {} at {}..{}",
-                    file.path.display(),
-                    error.message,
-                    span.start,
-                    span.end
-                ),
+                Some(span) => format_source_span(file, span, &error.message),
                 None => format!("{}: {}", file.path.display(), error.message),
             })]
         })?;
@@ -162,4 +154,19 @@ fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
             path.display()
         ))]
     })
+}
+
+fn format_source_span(file: &SourceFile, span: Span, message: &str) -> String {
+    let start = file.position_at(span.start);
+    let end = file.position_at(span.end);
+
+    format!(
+        "{}:{}:{}-{}:{}: {}",
+        file.path.display(),
+        start.line,
+        start.column,
+        end.line,
+        end.column,
+        message
+    )
 }

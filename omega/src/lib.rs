@@ -53,6 +53,20 @@ mod tests {
     }
 
     #[test]
+    fn source_files_map_offsets_to_line_columns() {
+        let file = crate::source::SourceFile {
+            id: crate::source::FileId(0),
+            path: "sample.omg".into(),
+            source: "alpha\nbeta".to_owned(),
+        };
+
+        assert_eq!(file.position_at(0).line, 1);
+        assert_eq!(file.position_at(0).column, 1);
+        assert_eq!(file.position_at(6).line, 2);
+        assert_eq!(file.position_at(6).column, 1);
+    }
+
+    #[test]
     fn parses_nested_transition_continuation() {
         let tokens = Lexer::new(
             r#"
