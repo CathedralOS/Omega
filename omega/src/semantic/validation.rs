@@ -24,12 +24,23 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         validate_owned_data(machine, &symbols, &mut diagnostics);
 
         for command in &machine.commands {
+            let reserved_names = machine_symbols
+                .member_names()
+                .chain(
+                    command
+                        .signature
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.name.as_str()),
+                )
+                .collect::<Vec<_>>();
             validate_local_data_names(
                 &command.statements,
                 format!(
                     "machine `{}` command `{}`",
                     machine.name, command.signature.name
                 ),
+                &reserved_names,
                 &mut diagnostics,
             );
 
@@ -46,9 +57,11 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         }
 
         for state in &machine.states {
+            let reserved_names = machine_symbols.member_names().collect::<Vec<_>>();
             validate_local_data_names(
                 &state.statements,
                 format!("machine `{}` state `{}`", machine.name, state.name),
+                &reserved_names,
                 &mut diagnostics,
             );
 
@@ -75,14 +88,24 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
 fn validate_local_data_names(
     statements: &[Statement],
     owner: String,
+    reserved_names: &[&str],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut local_names = HashSet::new();
+    let reserved_names = reserved_names.iter().copied().collect::<HashSet<_>>();
 
     for statement in statements {
         let Statement::LocalData(local_data) = statement else {
             continue;
         };
+
+        if reserved_names.contains(local_data.name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} local data `{}` conflicts with an existing name",
+                local_data.name
+            )));
+            continue;
+        }
 
         if !local_names.insert(local_data.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(

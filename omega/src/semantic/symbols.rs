@@ -114,6 +114,7 @@ impl<'program> ProgramSymbols<'program> {
 pub struct MachineSymbols<'program> {
     commands: HashMap<&'program str, &'program CommandDefinition>,
     contained_types: HashMap<&'program str, &'program str>,
+    member_names: HashSet<&'program str>,
     state_names: HashSet<&'program str>,
 }
 
@@ -187,6 +188,7 @@ impl<'program> MachineSymbols<'program> {
         Self {
             commands,
             contained_types,
+            member_names,
             state_names,
         }
     }
@@ -197,6 +199,10 @@ impl<'program> MachineSymbols<'program> {
 
     pub fn contained_type(&self, name: &str) -> Option<&'program str> {
         self.contained_types.get(name).copied()
+    }
+
+    pub fn member_names(&self) -> impl Iterator<Item = &'program str> + '_ {
+        self.member_names.iter().copied()
     }
 
     pub fn has_state(&self, name: &str) -> bool {
