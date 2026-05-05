@@ -216,4 +216,30 @@ mod tests {
             vec!["player".to_owned(), "position".to_owned()]
         );
     }
+
+    #[test]
+    fn parses_local_command_call_without_receiver() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state Main {
+                    WriteCurrentCell(level, current_cell, mut command_line);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+        let Statement::CommandCall(command_call) = &machine.states[0].statements[0] else {
+            panic!("expected command call");
+        };
+
+        assert_eq!(command_call.receiver, None);
+        assert_eq!(command_call.command, "WriteCurrentCell");
+        assert_eq!(command_call.arguments.len(), 3);
+    }
 }

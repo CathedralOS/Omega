@@ -211,6 +211,16 @@ impl Parser<'_> {
             }));
         }
 
+        if self.check("(") {
+            self.expect("(")?;
+            let arguments = self.parse_call_arguments()?;
+            return Ok(Statement::CommandCall(CommandCall {
+                receiver: None,
+                command: first_name,
+                arguments,
+            }));
+        }
+
         self.expect(".")?;
         let second_name = self.expect_identifier()?;
 
@@ -228,7 +238,16 @@ impl Parser<'_> {
         }
 
         self.expect("(")?;
+        let arguments = self.parse_call_arguments()?;
 
+        Ok(Statement::CommandCall(CommandCall {
+            receiver: Some(first_name),
+            command: second_name,
+            arguments,
+        }))
+    }
+
+    fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParseError> {
         let mut arguments = Vec::new();
 
         if !self.check(")") {
@@ -244,11 +263,7 @@ impl Parser<'_> {
         self.expect(")")?;
         self.expect(";")?;
 
-        Ok(Statement::CommandCall(CommandCall {
-            receiver: first_name,
-            command: second_name,
-            arguments,
-        }))
+        Ok(arguments)
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError> {

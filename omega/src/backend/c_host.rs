@@ -39,10 +39,17 @@ pub fn emit_c_host_source(program: &Program) -> Result<String, Diagnostic> {
             ));
         };
 
-        let Some(receiver_type) = contains.get(call.receiver.as_str()) else {
+        let Some(receiver) = call.receiver.as_deref() else {
+            return Err(Diagnostic::error(format!(
+                "the C-host MVP cannot lower local command `{}` yet",
+                call.command
+            )));
+        };
+
+        let Some(receiver_type) = contains.get(receiver) else {
             return Err(Diagnostic::error(format!(
                 "unknown command receiver `{}`",
-                call.receiver
+                receiver
             )));
         };
 

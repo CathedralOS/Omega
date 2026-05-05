@@ -151,10 +151,14 @@ fn validate_command_call(
     platforms: &HashMap<&str, &crate::ir::platform::Platform>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(receiver_type) = contained_types.get(command_call.receiver.as_str()) else {
+    let Some(receiver) = command_call.receiver.as_deref() else {
+        return;
+    };
+
+    let Some(receiver_type) = contained_types.get(receiver) else {
         diagnostics.push(Diagnostic::error(format!(
             "unknown command receiver `{}`",
-            command_call.receiver
+            receiver
         )));
         return;
     };

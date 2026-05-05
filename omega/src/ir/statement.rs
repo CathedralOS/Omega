@@ -15,7 +15,7 @@ pub struct Assignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandCall {
-    pub receiver: String,
+    pub receiver: Option<String>,
     pub command: String,
     pub arguments: Vec<Expression>,
 }
