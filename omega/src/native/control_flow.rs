@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::machine::Machine;
@@ -76,7 +74,7 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
         .iter()
         .enumerate()
         .map(|(index, state)| (state.name.as_str(), index))
-        .collect::<HashMap<_, _>>();
+        .collect::<Vec<_>>();
 
     let commands = machine
         .commands
@@ -139,7 +137,7 @@ fn statements_to_operations(statements: &[Statement]) -> Result<Vec<Operation>, 
 
 fn split_state_statements(
     machine: &Machine,
-    state_indexes: &HashMap<&str, usize>,
+    state_indexes: &[(&str, usize)],
     statements: &[Statement],
 ) -> Result<(Vec<Operation>, Vec<TransitionFlow>), Diagnostic> {
     let mut operations = Vec::new();
@@ -189,7 +187,7 @@ fn split_state_statements(
 }
 
 fn plan_transition(
-    state_indexes: &HashMap<&str, usize>,
+    state_indexes: &[(&str, usize)],
     transition: &Transition,
 ) -> Result<TransitionFlow, Diagnostic> {
     Ok(TransitionFlow {
@@ -204,15 +202,19 @@ fn plan_transition(
 }
 
 fn plan_transition_target(
-    state_indexes: &HashMap<&str, usize>,
+    state_indexes: &[(&str, usize)],
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
         TransitionTarget::Named(path) if path.len() == 1 => {
             let name = path[0].clone();
-            let index = state_indexes.get(name.as_str()).copied().ok_or_else(|| {
-                Diagnostic::error(format!("unknown state transition target `{name}`"))
-            })?;
+            let index = state_indexes
+                .iter()
+                .find(|(state_name, _)| *state_name == name)
+                .map(|(_, index)| *index)
+                .ok_or_else(|| {
+                    Diagnostic::error(format!("unknown state transition target `{name}`"))
+                })?;
 
             Ok(PlannedTransitionTarget::State { index, name })
         }
