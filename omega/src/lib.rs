@@ -400,4 +400,38 @@ mod tests {
         assert_eq!(control_flow.machines[0].states[0].transitions.len(), 1);
         assert_eq!(control_flow.machines[0].states[1].transitions.len(), 1);
     }
+
+    #[test]
+    fn plans_native_object_shape() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                owns return_code: i32 = 0;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::host(),
+        )
+        .expect("native planning should pass");
+
+        assert_eq!(native_plan.object.sections.len(), 3);
+        assert!(
+            native_plan
+                .object
+                .symbols
+                .iter()
+                .any(|symbol| symbol.name.contains("main"))
+        );
+    }
 }
