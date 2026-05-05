@@ -9,7 +9,7 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub fn load_root(&mut self, path: &Path) -> Result<SourceFile, Diagnostic> {
+    pub fn load_root(&mut self, path: &Path) -> Result<&SourceFile, Diagnostic> {
         let source = std::fs::read_to_string(path).map_err(|error| {
             Diagnostic::error(format!("failed to read {}: {error}", path.display()))
         })?;

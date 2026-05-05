@@ -126,7 +126,7 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         }
 
         loaded_files.push(LoadedFile {
-            path: file.path,
+            path: file.path.clone(),
             first_item,
             item_count,
         });
