@@ -121,6 +121,7 @@ impl<'program> MachineSymbols<'program> {
     pub fn build(machine: &'program Machine, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let mut commands = HashMap::new();
         let mut contained_types = HashMap::new();
+        let mut member_names = HashSet::new();
         let mut owned_data_names = HashSet::new();
         let mut state_names = HashSet::new();
 
@@ -137,6 +138,13 @@ impl<'program> MachineSymbols<'program> {
         }
 
         for contained_object in &machine.contains {
+            if !member_names.insert(contained_object.name.as_str()) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate member `{}`",
+                    machine.name, contained_object.name
+                )));
+            }
+
             if contained_types
                 .insert(
                     contained_object.name.as_str(),
@@ -152,6 +160,13 @@ impl<'program> MachineSymbols<'program> {
         }
 
         for owned_data in &machine.owned_data {
+            if !member_names.insert(owned_data.name.as_str()) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` has duplicate member `{}`",
+                    machine.name, owned_data.name
+                )));
+            }
+
             if !owned_data_names.insert(owned_data.name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate owned data `{}`",

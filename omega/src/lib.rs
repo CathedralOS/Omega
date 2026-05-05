@@ -282,6 +282,42 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_machine_members_across_contains_and_owns() {
+        let tokens = Lexer::new(
+            r#"
+            data Value {
+                raw: i32;
+            }
+
+            platform Console {
+                command WriteLine(text: String);
+            }
+
+            machine main {
+                contains output: Console;
+                owns output: Value;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("duplicate member `output`"))
+        );
+    }
+
+    #[test]
     fn rejects_duplicate_data_members() {
         let tokens = Lexer::new(
             r#"
