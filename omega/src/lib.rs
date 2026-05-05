@@ -225,6 +225,36 @@ mod tests {
     }
 
     #[test]
+    fn rejects_duplicate_data_members() {
+        let tokens = Lexer::new(
+            r#"
+            data Broken {
+                value: i32;
+                value: u32;
+            }
+
+            machine main {
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("duplicate member"))
+        );
+    }
+
+    #[test]
     fn parses_named_and_mutable_command_arguments() {
         let tokens = Lexer::new(
             r#"

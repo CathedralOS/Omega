@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::CommandSignature;
@@ -110,6 +112,8 @@ fn validate_data_field_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for data_definition in &program.data_definitions {
+        validate_data_member_names(data_definition, diagnostics);
+
         for member in &data_definition.members {
             let DataMember::Field(field) = member else {
                 continue;
@@ -137,6 +141,27 @@ fn validate_data_field_types(
                     ),
                 );
             }
+        }
+    }
+}
+
+fn validate_data_member_names(
+    data_definition: &crate::ir::data::DataDefinition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut member_names = HashSet::new();
+
+    for member in &data_definition.members {
+        let member_name = match member {
+            DataMember::Field(field) => field.name.as_str(),
+            DataMember::Variant(variant) => variant.name.as_str(),
+        };
+
+        if !member_names.insert(member_name) {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{}` has duplicate member `{member_name}`",
+                data_definition.name
+            )));
         }
     }
 }
