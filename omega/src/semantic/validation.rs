@@ -7,24 +7,15 @@ use crate::ir::data::DataMember;
 use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
 use crate::ir::types::TypeReference;
+use crate::semantic::symbols::ProgramSymbols;
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let symbols = ProgramSymbols::build(program, &mut diagnostics);
 
-    validate_top_level_names(program, &mut diagnostics);
-    validate_data_field_types(program, &mut diagnostics);
+    validate_top_level_command_signatures(program, &symbols, &mut diagnostics);
+    validate_data_field_types(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
-
-    let platforms = program
-        .platforms
-        .iter()
-        .map(|platform| (platform.name.as_str(), platform))
-        .collect::<HashMap<_, _>>();
-    let machines = program
-        .machines
-        .iter()
-        .map(|machine| (machine.name.as_str(), machine))
-        .collect::<HashMap<_, _>>();
 
     for machine in &program.machines {
         let contained_types = machine
@@ -43,8 +34,8 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
             .map(|state| state.name.as_str())
             .collect::<HashSet<_>>();
 
-        validate_contained_types(machine, program, &mut diagnostics);
-        validate_owned_data(machine, program, &mut diagnostics);
+        validate_contained_types(machine, &symbols, &mut diagnostics);
+        validate_owned_data(machine, &symbols, &mut diagnostics);
 
         for state in &machine.states {
             for statement in &state.statements {
@@ -54,13 +45,12 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                         command_call,
                         machine,
                         &contained_types,
-                        &machines,
-                        &platforms,
+                        &symbols,
                         &mut diagnostics,
                     ),
                     Statement::LocalData(local_data) => validate_type_reference(
                         &local_data.type_reference,
-                        program,
+                        &symbols,
                         &mut diagnostics,
                         format!(
                             "machine `{}` local data `{}`",
@@ -96,63 +86,15 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
-fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
-    let mut data_names = HashSet::new();
-    let mut machine_names = HashSet::new();
-    let mut platform_names = HashSet::new();
-
-    for data_definition in &program.data_definitions {
-        if !data_names.insert(data_definition.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "duplicate data `{}`",
-                data_definition.name
-            )));
-        }
-    }
-
-    for machine in &program.machines {
-        if !machine_names.insert(machine.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "duplicate machine `{}`",
-                machine.name
-            )));
-        }
-
-        if data_names.contains(machine.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}` is declared as both data and a machine",
-                machine.name
-            )));
-        }
-    }
-
-    for platform in &program.platforms {
-        if !platform_names.insert(platform.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "duplicate platform `{}`",
-                platform.name
-            )));
-        }
-
-        if data_names.contains(platform.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}` is declared as both data and a platform",
-                platform.name
-            )));
-        }
-
-        if machine_names.contains(platform.name.as_str()) {
-            diagnostics.push(Diagnostic::error(format!(
-                "`{}` is declared as both a machine and a platform",
-                platform.name
-            )));
-        }
-    }
-
+fn validate_top_level_command_signatures(
+    program: &Program,
+    symbols: &ProgramSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for machine in &program.machines {
         validate_command_signature_types(
             machine.commands.iter().map(|command| &command.signature),
-            program,
+            symbols,
             diagnostics,
             format!("machine `{}`", machine.name),
         );
@@ -161,7 +103,7 @@ fn validate_top_level_names(program: &Program, diagnostics: &mut Vec<Diagnostic>
 
 fn validate_command_signature_types<'a>(
     signatures: impl Iterator<Item = &'a CommandSignature>,
-    program: &Program,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
@@ -169,7 +111,7 @@ fn validate_command_signature_types<'a>(
         for parameter in &command.parameters {
             validate_type_reference(
                 &parameter.type_reference,
-                program,
+                symbols,
                 diagnostics,
                 format!(
                     "{owner} command `{}` parameter `{}`",
@@ -180,7 +122,11 @@ fn validate_command_signature_types<'a>(
     }
 }
 
-fn validate_data_field_types(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_data_field_types(
+    program: &Program,
+    symbols: &ProgramSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     for data_definition in &program.data_definitions {
         for member in &data_definition.members {
             let DataMember::Field(field) = member else {
@@ -189,7 +135,7 @@ fn validate_data_field_types(program: &Program, diagnostics: &mut Vec<Diagnostic
 
             validate_type_reference(
                 &field.type_reference,
-                program,
+                symbols,
                 diagnostics,
                 format!("data `{}` field `{}`", data_definition.name, field.name),
             );
@@ -201,7 +147,7 @@ fn validate_data_field_types(program: &Program, diagnostics: &mut Vec<Diagnostic
             for parameter in &command.parameters {
                 validate_type_reference(
                     &parameter.type_reference,
-                    program,
+                    symbols,
                     diagnostics,
                     format!(
                         "platform `{}` command `{}` parameter `{}`",
@@ -215,30 +161,20 @@ fn validate_data_field_types(program: &Program, diagnostics: &mut Vec<Diagnostic
 
 fn validate_type_reference(
     type_reference: &TypeReference,
-    program: &Program,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
     match type_reference {
         TypeReference::FixedArray { element_type, .. } => {
-            validate_type_reference(element_type, program, diagnostics, owner);
+            validate_type_reference(element_type, symbols, diagnostics, owner);
         }
         TypeReference::Named(name) => {
             if is_primitive_type(name) {
                 return;
             }
 
-            let exists = program
-                .data_definitions
-                .iter()
-                .any(|data_definition| data_definition.name == *name)
-                || program.machines.iter().any(|machine| machine.name == *name)
-                || program
-                    .platforms
-                    .iter()
-                    .any(|platform| platform.name == *name);
-
-            if !exists {
+            if !symbols.has_type(name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown type `{name}`"
                 )));
@@ -271,20 +207,11 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
 
 fn validate_contained_types(
     machine: &crate::ir::machine::Machine,
-    program: &Program,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contained_object in &machine.contains {
-        let type_exists = program
-            .machines
-            .iter()
-            .any(|machine| machine.name == contained_object.type_name)
-            || program
-                .platforms
-                .iter()
-                .any(|platform| platform.name == contained_object.type_name);
-
-        if !type_exists {
+        if !symbols.is_command_receiver_type(&contained_object.type_name) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` contains `{}` with unknown type `{}`",
                 machine.name, contained_object.name, contained_object.type_name
@@ -295,7 +222,7 @@ fn validate_contained_types(
 
 fn validate_owned_data(
     machine: &crate::ir::machine::Machine,
-    program: &Program,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut names = HashSet::new();
@@ -310,7 +237,7 @@ fn validate_owned_data(
 
         validate_type_reference(
             &owned_data.type_reference,
-            program,
+            symbols,
             diagnostics,
             format!(
                 "machine `{}` owned data `{}`",
@@ -351,8 +278,7 @@ fn validate_command_call(
     command_call: &crate::ir::statement::CommandCall,
     current_machine: &crate::ir::machine::Machine,
     contained_types: &HashMap<&str, &str>,
-    machines: &HashMap<&str, &crate::ir::machine::Machine>,
-    platforms: &HashMap<&str, &crate::ir::platform::Platform>,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(receiver) = command_call.receiver.as_deref() else {
@@ -380,7 +306,7 @@ fn validate_command_call(
         return;
     };
 
-    if let Some(platform) = platforms.get(receiver_type) {
+    if let Some(platform) = symbols.platform(receiver_type) {
         let Some(command_signature) = platform
             .commands
             .iter()
@@ -397,7 +323,7 @@ fn validate_command_call(
         return;
     }
 
-    if let Some(machine) = machines.get(receiver_type) {
+    if let Some(machine) = symbols.machine(receiver_type) {
         let Some(command_signature) = machine
             .commands
             .iter()
