@@ -1,4 +1,4 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypeRef {
+pub struct TypeReference {
     pub name: String,
 }

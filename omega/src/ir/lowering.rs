@@ -1,7 +1,7 @@
 use crate::ast;
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
-use crate::ir::command::CommandSignature;
+use crate::ir::command::{CommandParameter, CommandSignature};
 use crate::ir::expression::Expression;
 use crate::ir::machine::{ContainedObject, Machine};
 use crate::ir::platform::Platform;
@@ -55,6 +55,15 @@ fn lower_platform(platform: &ast::item::Platform) -> Platform {
         .iter()
         .map(|command| CommandSignature {
             name: command.name.clone(),
+            parameters: command
+                .parameters
+                .iter()
+                .map(|parameter| CommandParameter {
+                    name: parameter.name.clone(),
+                    type_name: parameter.type_reference.name.clone(),
+                    is_mutable: parameter.is_mutable,
+                })
+                .collect(),
         })
         .collect();
 

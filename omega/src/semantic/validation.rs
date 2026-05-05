@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
+use crate::ir::command::CommandSignature;
+use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
@@ -103,15 +105,64 @@ fn validate_command_call(
         return;
     };
 
-    if !platform
+    let Some(command_signature) = platform
         .commands
         .iter()
-        .any(|command| command.name == command_call.command)
-    {
+        .find(|command| command.name == command_call.command)
+    else {
         diagnostics.push(Diagnostic::error(format!(
             "platform `{}` has no command `{}`",
             platform.name, command_call.command
         )));
+        return;
+    };
+
+    validate_command_arguments(command_call, command_signature, diagnostics);
+}
+
+fn validate_command_arguments(
+    command_call: &crate::ir::statement::CommandCall,
+    command_signature: &CommandSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if command_call.arguments.len() != command_signature.parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "command `{}` expects {} argument(s), got {}",
+            command_call.command,
+            command_signature.parameters.len(),
+            command_call.arguments.len()
+        )));
+        return;
+    }
+
+    for (argument, parameter) in command_call
+        .arguments
+        .iter()
+        .zip(command_signature.parameters.iter())
+    {
+        if !argument_matches_type(argument, parameter.type_name.as_str()) {
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for command `{}` expects `{}`, got `{}`",
+                parameter.name,
+                command_call.command,
+                parameter.type_name,
+                expression_type_name(argument)
+            )));
+        }
+    }
+}
+
+fn argument_matches_type(argument: &Expression, type_name: &str) -> bool {
+    matches!(
+        (argument, type_name),
+        (Expression::String(_), "String") | (Expression::Integer(_), "i32")
+    )
+}
+
+fn expression_type_name(argument: &Expression) -> &'static str {
+    match argument {
+        Expression::Integer(_) => "integer literal",
+        Expression::String(_) => "String",
     }
 }
 

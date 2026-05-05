@@ -60,4 +60,66 @@ mod tests {
             Some(TransitionTarget::Named(vec!["Shutdown".to_owned()]))
         );
     }
+
+    #[test]
+    fn parses_platform_command_parameters() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                command ReadLine(mut out_line: ConsoleLine);
+                command ExitProcess(return_code: i32);
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Platform(platform) = &parsed.items[0] else {
+            panic!("expected a platform");
+        };
+
+        assert_eq!(platform.commands[0].name, "ReadLine");
+        assert_eq!(platform.commands[0].parameters[0].name, "out_line");
+        assert_eq!(
+            platform.commands[0].parameters[0].type_reference.name,
+            "ConsoleLine"
+        );
+        assert!(platform.commands[0].parameters[0].is_mutable);
+        assert_eq!(
+            platform.commands[1].parameters[0].type_reference.name,
+            "i32"
+        );
+    }
+
+    #[test]
+    fn rejects_wrong_platform_argument_count() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                command WriteLine(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state Main {
+                    console.WriteLine();
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let diagnostics = crate::semantic::validation::validate_program(&program)
+            .expect_err("validation should fail");
+
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
+        );
+    }
 }

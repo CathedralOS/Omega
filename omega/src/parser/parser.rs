@@ -1,6 +1,9 @@
 use crate::ast::expression::Expression;
-use crate::ast::item::{CommandSignature, Contains, Item, Machine, Platform, State, UseItem};
+use crate::ast::item::{
+    CommandParameter, CommandSignature, Contains, Item, Machine, Platform, State, UseItem,
+};
 use crate::ast::statement::{CommandCall, Statement, Transition, TransitionTarget};
+use crate::ast::types::TypeReference;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
 
@@ -62,12 +65,45 @@ impl Parser<'_> {
         while !self.consume("}") {
             self.expect("command")?;
             let name = self.expect_identifier()?;
-            self.skip_balanced_parens()?;
+            let parameters = self.parse_command_parameters()?;
             self.expect(";")?;
-            commands.push(CommandSignature { name });
+            commands.push(CommandSignature { name, parameters });
         }
 
         Ok(Platform { name, commands })
+    }
+
+    fn parse_command_parameters(&mut self) -> Result<Vec<CommandParameter>, ParseError> {
+        self.expect("(")?;
+
+        let mut parameters = Vec::new();
+
+        if self.consume(")") {
+            return Ok(parameters);
+        }
+
+        loop {
+            let is_mutable = self.consume("mut");
+            let name = self.expect_identifier()?;
+            self.expect(":")?;
+            let type_reference = TypeReference {
+                name: self.expect_identifier()?,
+            };
+
+            parameters.push(CommandParameter {
+                name,
+                type_reference,
+                is_mutable,
+            });
+
+            if self.consume(")") {
+                break;
+            }
+
+            self.expect(",")?;
+        }
+
+        Ok(parameters)
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {
