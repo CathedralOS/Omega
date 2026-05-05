@@ -85,6 +85,7 @@ Some repo-level taste:
 - Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.
 - Use paged arenas for shared or eventually-parallel compiler data where growth should not move existing pages or require locking one giant `Vec`.
 - Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
+- Do not use `RefCell` as an ownership escape hatch. Runtime borrow checking is not a substitute for clear compiler-phase ownership.
 - Prefer ZII (Zero-is-initialization). Null handles (index 0) instead of optionals and literal nulls.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 
