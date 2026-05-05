@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
-use crate::ir::data::{DataDefinition, DataMember};
+use crate::ir::data::{DataDefinition, DataMember, DataShapeKind};
 use crate::ir::machine::Machine;
 use crate::ir::types::{PrimitiveType, TypeReference};
 use crate::native::target::NativeTarget;
@@ -133,11 +133,7 @@ impl<'program> LayoutBuilder<'program> {
         &mut self,
         definition: &DataDefinition,
     ) -> Result<DataLayout, Diagnostic> {
-        if definition
-            .members
-            .iter()
-            .all(|member| matches!(member, DataMember::Variant(_)))
-        {
+        if definition.shape_kind() == DataShapeKind::Enum {
             let variants = definition
                 .members
                 .iter()

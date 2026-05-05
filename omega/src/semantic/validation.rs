@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::command::CommandSignature;
-use crate::ir::data::DataMember;
+use crate::ir::data::{DataMember, DataShapeKind};
 use crate::ir::expression::Expression;
 use crate::ir::statement::{Statement, TransitionTarget};
 use crate::ir::types::{PrimitiveType, TypeReference};
@@ -179,28 +179,16 @@ fn validate_data_shape(
     data_definition: &crate::ir::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if data_definition.members.is_empty() {
-        diagnostics.push(Diagnostic::error(format!(
+    match data_definition.shape_kind() {
+        DataShapeKind::Empty => diagnostics.push(Diagnostic::error(format!(
             "data `{}` must declare at least one field or variant",
             data_definition.name
-        )));
-        return;
-    }
-
-    let has_fields = data_definition
-        .members
-        .iter()
-        .any(|member| matches!(member, DataMember::Field(_)));
-    let has_variants = data_definition
-        .members
-        .iter()
-        .any(|member| matches!(member, DataMember::Variant(_)));
-
-    if has_fields && has_variants {
-        diagnostics.push(Diagnostic::error(format!(
+        ))),
+        DataShapeKind::Mixed => diagnostics.push(Diagnostic::error(format!(
             "data `{}` mixes fields and variants; split record data from enum-like data",
             data_definition.name
-        )));
+        ))),
+        DataShapeKind::Enum | DataShapeKind::Record => {}
     }
 }
 
