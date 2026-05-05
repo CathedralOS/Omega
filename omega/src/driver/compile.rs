@@ -18,7 +18,31 @@ pub struct CompileOutput {
     pub executable_path: PathBuf,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckOutput {
+    pub summary: String,
+}
+
+pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
+    let items = load_items(&options)?;
+    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
+    validate_program(&program)?;
+
+    Ok(CheckOutput {
+        summary: format!("checked {}", options.root_path.display()),
+    })
+}
+
 pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
+    let items = load_items(&options)?;
+    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
+    validate_program(&program)?;
+    let c_source =
+        backend::c_host::emit_c_host_source(&program).map_err(|diagnostic| vec![diagnostic])?;
+    emit_c_host_binary(&options, c_source)
+}
+
+fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
     let mut resolver = Resolver::default();
     let root_dir = options
         .root_path
@@ -50,10 +74,13 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         items.extend(ast_file.items);
     }
 
-    let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
-    validate_program(&program)?;
-    let c_source =
-        backend::c_host::emit_c_host_source(&program).map_err(|diagnostic| vec![diagnostic])?;
+    Ok(items)
+}
+
+fn emit_c_host_binary(
+    options: &CompileOptions,
+    c_source: String,
+) -> Result<CompileOutput, Vec<Diagnostic>> {
     let output_dir = PathBuf::from("target/omega");
     std::fs::create_dir_all(&output_dir).map_err(|error| {
         vec![Diagnostic::error(format!(

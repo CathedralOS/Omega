@@ -104,6 +104,12 @@ Build the CLI MVP sample:
 cargo run -p omega -- samples/cli_mvp/main.omg
 ```
 
+Check a richer sample without requiring C-host code generation:
+
+```bash
+cargo run -p omega -- --check samples/dungeon_crawler_cli/main.omg
+```
+
 Run the generated executable:
 
 ```bash
