@@ -62,17 +62,19 @@ pub fn build_layout_plan(
     }
 
     Ok(LayoutPlan {
-        data_layouts: builder.data_layouts.into_values().collect(),
-        machine_layouts: builder.machine_layouts.into_values().collect(),
+        data_layouts: builder.data_layouts,
+        machine_layouts: builder.machine_layouts,
     })
 }
 
 struct LayoutBuilder<'program> {
     data_definitions: HashMap<&'program str, &'program DataDefinition>,
-    data_layouts: HashMap<String, DataLayout>,
+    data_layout_indexes: HashMap<String, usize>,
+    data_layouts: Vec<DataLayout>,
     data_visiting: HashSet<String>,
     machine_definitions: HashMap<&'program str, &'program Machine>,
-    machine_layouts: HashMap<String, MachineLayout>,
+    machine_layout_indexes: HashMap<String, usize>,
+    machine_layouts: Vec<MachineLayout>,
     machine_visiting: HashSet<String>,
     target: NativeTarget,
 }
@@ -85,22 +87,24 @@ impl<'program> LayoutBuilder<'program> {
                 .iter()
                 .map(|definition| (definition.name.as_str(), definition))
                 .collect(),
-            data_layouts: HashMap::new(),
+            data_layout_indexes: HashMap::new(),
+            data_layouts: Vec::new(),
             data_visiting: HashSet::new(),
             machine_definitions: program
                 .machines
                 .iter()
                 .map(|machine| (machine.name.as_str(), machine))
                 .collect(),
-            machine_layouts: HashMap::new(),
+            machine_layout_indexes: HashMap::new(),
+            machine_layouts: Vec::new(),
             machine_visiting: HashSet::new(),
             target,
         }
     }
 
     fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
-        if let Some(data_layout) = self.data_layouts.get(name) {
-            return Ok(data_layout.layout);
+        if let Some(index) = self.data_layout_indexes.get(name) {
+            return Ok(self.data_layouts[*index].layout);
         }
 
         if !self.data_visiting.insert(name.to_owned()) {
@@ -115,8 +119,11 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| Diagnostic::error(format!("unknown data type `{name}`")))?;
         let data_layout = self.compute_data_layout(definition)?;
         let layout = data_layout.layout;
+        let layout_index = self.data_layouts.len();
 
-        self.data_layouts.insert(name.to_owned(), data_layout);
+        self.data_layouts.push(data_layout);
+        self.data_layout_indexes
+            .insert(name.to_owned(), layout_index);
         self.data_visiting.remove(name);
 
         Ok(layout)
@@ -176,8 +183,8 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn layout_machine(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
-        if let Some(machine_layout) = self.machine_layouts.get(name) {
-            return Ok(machine_layout.layout);
+        if let Some(index) = self.machine_layout_indexes.get(name) {
+            return Ok(self.machine_layouts[*index].layout);
         }
 
         if !self.machine_visiting.insert(name.to_owned()) {
@@ -192,8 +199,11 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| Diagnostic::error(format!("unknown machine `{name}`")))?;
         let machine_layout = self.compute_machine_layout(machine)?;
         let layout = machine_layout.layout;
+        let layout_index = self.machine_layouts.len();
 
-        self.machine_layouts.insert(name.to_owned(), machine_layout);
+        self.machine_layouts.push(machine_layout);
+        self.machine_layout_indexes
+            .insert(name.to_owned(), layout_index);
         self.machine_visiting.remove(name);
 
         Ok(layout)
