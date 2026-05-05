@@ -3,6 +3,7 @@ pub mod diagnostics;
 pub mod driver;
 pub mod ir;
 pub mod lexer;
+pub mod native;
 pub mod parser;
 pub mod semantic;
 pub mod source;
@@ -298,5 +299,49 @@ mod tests {
         assert_eq!(machine.owned_data[1].name, "current_cell");
         assert!(machine.owned_data[0].initial_value.is_some());
         assert!(machine.owned_data[1].initial_value.is_some());
+    }
+
+    #[test]
+    fn plans_native_layout_for_owned_data() {
+        let tokens = Lexer::new(
+            r#"
+            data CellId {
+                Empty,
+                A1,
+            }
+
+            data Player {
+                cell: CellId;
+                score: u32;
+            }
+
+            machine main {
+                owns player: Player;
+
+                state Main {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::host(),
+        )
+        .expect("native planning should pass");
+        let main_layout = native_plan
+            .layouts
+            .machine_layouts
+            .iter()
+            .find(|layout| layout.name == "main")
+            .expect("main layout should exist");
+
+        assert_eq!(main_layout.fields[0].name, "player");
+        assert!(main_layout.layout.size >= 8);
     }
 }

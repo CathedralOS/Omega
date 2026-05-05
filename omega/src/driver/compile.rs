@@ -6,6 +6,8 @@ use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
 use crate::ir::lowering::lower_program;
 use crate::lexer::Lexer;
+use crate::native::plan::build_native_plan;
+use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
@@ -35,10 +37,16 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let items = load_items(&options)?;
     let program = lower_program(&items).map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
+    let native_plan =
+        build_native_plan(&program, NativeTarget::host()).map_err(|diagnostic| vec![diagnostic])?;
 
-    Err(vec![Diagnostic::error(
-        "native binary emission is not implemented yet; use `omega --check <root.omg>` for the current compiler pipeline",
-    )])
+    Err(vec![Diagnostic::error(format!(
+        "native object emission is not implemented yet; planned {} data layout(s), {} machine layout(s), entry {}.{}",
+        native_plan.layouts.data_layouts.len(),
+        native_plan.layouts.machine_layouts.len(),
+        native_plan.entry_machine,
+        native_plan.entry_state
+    ))])
 }
 
 fn load_items(options: &CompileOptions) -> Result<Vec<Item>, Vec<Diagnostic>> {
