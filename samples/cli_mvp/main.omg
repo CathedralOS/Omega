@@ -3,8 +3,8 @@ use platform::console;
 machine main {
     contains console: Console;
 
-    state Main {
-        console.WriteLine("Hello, Omega.");
-        console.ExitProcess(0);
+    state entry {
+        console.write_line("Hello, Omega.");
+        console.exit_process(0);
     }
 }

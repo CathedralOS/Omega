@@ -38,7 +38,7 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                state Main {
+                state entry {
                     let value i32;
                 }
             }
@@ -71,8 +71,8 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                state Running {
-                    -> dungeon.Main -> Shutdown;
+                state running {
+                    -> dungeon.entry -> shutdown;
                 }
             }
             "#,
@@ -89,11 +89,11 @@ mod tests {
 
         assert_eq!(
             transition.target,
-            TransitionTarget::Named(vec!["dungeon".to_owned(), "Main".to_owned()])
+            TransitionTarget::Named(vec!["dungeon".to_owned(), "entry".to_owned()])
         );
         assert_eq!(
             transition.continuation,
-            Some(TransitionTarget::Named(vec!["Shutdown".to_owned()]))
+            Some(TransitionTarget::Named(vec!["shutdown".to_owned()]))
         );
     }
 
@@ -102,8 +102,8 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command ReadLine(mut out_line: ConsoleLine);
-                command ExitProcess(return_code: i32);
+                command read_line(mut out_line: ConsoleLine);
+                command exit_process(return_code: i32);
             }
             "#,
         )
@@ -114,7 +114,7 @@ mod tests {
             panic!("expected a platform");
         };
 
-        assert_eq!(platform.commands[0].name, "ReadLine");
+        assert_eq!(platform.commands[0].name, "read_line");
         assert_eq!(platform.commands[0].parameters[0].name, "out_line");
         assert_eq!(
             platform.commands[0].parameters[0].type_reference,
@@ -163,14 +163,14 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command WriteLine(text: String);
+                command write_line(text: String);
             }
 
             machine main {
                 contains console: Console;
 
-                state Main {
-                    console.WriteLine();
+                state entry {
+                    console.write_line();
                 }
             }
             "#,
@@ -199,14 +199,14 @@ mod tests {
             }
 
             machine main {
-                command NeedsValue(value: Value) {
+                command needs_value(value: Value) {
                 }
 
-                command BadCall() {
-                    NeedsValue();
+                command bad_call() {
+                    needs_value();
                 }
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -231,12 +231,12 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                command BadLocals() {
+                command bad_locals() {
                     let value: i32;
                     let value: i32;
                 }
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -261,11 +261,11 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                command BadShadow(value: i32) {
+                command bad_shadow(value: i32) {
                     let value: i32;
                 }
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -290,15 +290,15 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command WriteLine(text: String);
-                command WriteLine(mut text: String);
-                command Echo(text: String, text: String);
+                command write_line(text: String);
+                command write_line(mut text: String);
+                command echo(text: String, text: String);
             }
 
             machine main {
                 contains console: Console;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -330,7 +330,7 @@ mod tests {
             machine main {
                 contains console: MissingConsole;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -355,17 +355,17 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command WriteLine(text: String);
+                command write_line(text: String);
             }
 
             machine main {
                 contains console: Console;
                 contains console: Console;
 
-                state Main {
+                state entry {
                 }
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -399,14 +399,14 @@ mod tests {
             }
 
             platform Console {
-                command WriteLine(text: String);
+                command write_line(text: String);
             }
 
             machine main {
                 contains output: Console;
                 owns output: Value;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -436,7 +436,7 @@ mod tests {
             }
 
             machine main {
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -466,7 +466,7 @@ mod tests {
             }
 
             machine main {
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -494,7 +494,7 @@ mod tests {
             }
 
             machine main {
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -519,14 +519,14 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine Worker {
-                state Main {
+                state entry {
                 }
             }
 
             machine main {
                 owns worker: Worker;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -553,9 +553,9 @@ mod tests {
             machine main {
                 contains console: Console;
 
-                state Main {
-                    console.ReadLine(mut input.line);
-                    console.ExitProcess(return_code);
+                state entry {
+                    console.read_line(mut input.line);
+                    console.exit_process(return_code);
                 }
             }
             "#,
@@ -586,7 +586,7 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                state Main {
+                state entry {
                     return_code = 0;
                     player.position = next_position;
                 }
@@ -621,8 +621,8 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine main {
-                state Main {
-                    WriteCurrentCell(level, current_cell, mut command_line);
+                state entry {
+                    write_current_cell(level, current_cell, mut command_line);
                 }
             }
             "#,
@@ -638,7 +638,7 @@ mod tests {
         };
 
         assert_eq!(command_call.receiver, None);
-        assert_eq!(command_call.command, "WriteCurrentCell");
+        assert_eq!(command_call.command, "write_current_cell");
         assert_eq!(command_call.arguments.len(), 3);
     }
 
@@ -650,7 +650,7 @@ mod tests {
                 owns return_code: i32 = 0;
                 owns current_cell: CellId = CellId::Empty;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -685,7 +685,7 @@ mod tests {
             machine main {
                 owns player: Player;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -724,7 +724,7 @@ mod tests {
             machine main {
                 owns counters: Counters;
 
-                state Main {
+                state entry {
                 }
             }
             "#,
@@ -757,7 +757,7 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             machine Sample {
-                command Write(mut out_level: Level) {
+                command write(mut out_level: Level) {
                     let room: Room;
                     out_level.rooms[0] = Room { cell: CellId::A1 };
                     out_level.name = "A" + "1";
@@ -772,7 +772,7 @@ mod tests {
             panic!("expected a machine");
         };
 
-        assert_eq!(machine.commands[0].signature.name, "Write");
+        assert_eq!(machine.commands[0].signature.name, "write");
         assert_eq!(machine.commands[0].statements.len(), 3);
     }
 
@@ -783,13 +783,13 @@ mod tests {
             machine main {
                 owns return_code: i32 = 0;
 
-                state Main {
+                state entry {
                     let temp: i32;
                     return_code = 1;
-                    -> Running;
+                    -> running;
                 }
 
-                state Running {
+                state running {
                     -> self;
                 }
             }
@@ -823,7 +823,7 @@ mod tests {
             machine main {
                 owns return_code: i32 = 0;
 
-                state Main {
+                state entry {
                 }
             }
             "#,

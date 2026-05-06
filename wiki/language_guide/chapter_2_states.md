@@ -3,8 +3,8 @@
 A semantic state executes straight-line work. At the end of the state, transition arrows decide where control goes next.
 
 ```omega
-state Running {
-    Tick();
+state running {
+    tick();
 
     -> self;
 }
@@ -29,14 +29,14 @@ Omega may allow transitions to appear before the physical end of a source state.
 This is useful for early exits:
 
 ```omega
-state Loading {
-    ReadHeader();
+state loading {
+    read_header();
 
-    -> Failed when header.invalid;
+    -> failed when header.invalid;
 
-    ReadBody();
+    read_body();
 
-    -> Loaded;
+    -> loaded;
 }
 ```
 
@@ -45,17 +45,17 @@ This does not introduce true branching inside a state. It is graph-authoring sug
 The compiler should decompose the source state into semantic sub-states:
 
 ```omega
-state Loading_0 {
-    ReadHeader();
+state loading_0 {
+    read_header();
 
-    -> Failed when header.invalid;
-    -> Loading_1;
+    -> failed when header.invalid;
+    -> loading_1;
 }
 
-state Loading_1 {
-    ReadBody();
+state loading_1 {
+    read_body();
 
-    -> Loaded;
+    -> loaded;
 }
 ```
 

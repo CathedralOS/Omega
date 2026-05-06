@@ -12,9 +12,9 @@ use platform::console;
 machine main {
     contains console: Console;
 
-    state Main {
-        console.WriteLine("Hello, Omega.");
-        console.ExitProcess(0);
+    state entry {
+        console.write_line("Hello, Omega.");
+        console.exit_process(0);
     }
 }
 ```
@@ -26,12 +26,12 @@ Omega is not stable, specified, or trying to look finished. This repository is w
 Omega is currently exploring a few strong ideas:
 
 - State machines are first-class citizens, not framework objects.
-- `machine main` with `state Main` is the process entry point.
+- `machine main` with `state entry` is the process entry point.
 - States should be branch-free by design: no hidden `if`/`else` control flow inside state bodies.
-- Transitions live at the end of states as ordered `-> Target` edges.
+- Transitions live at the end of states as ordered `-> target` edges.
 - A bare arrow is unconditional; `when` adds the guard.
 - `-> self;` re-enters the current state.
-- Nested machine flow can be expressed as `-> child.Main -> Continuation;`.
+- Nested machine flow can be expressed as `-> child.entry -> continuation;`.
 - Commands perform explicit work but do not imply return-value control flow.
 - Data flow should prefer explicit owned data and `mut` parameters over invisible stacks or ambient state.
 - Platform boundaries are explicit and stub-friendly.

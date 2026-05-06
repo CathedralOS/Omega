@@ -9,8 +9,8 @@ machine main {
     owns health: i32[range<1, 100>] = 100;
     owns mass: i32[range<1, 100>];
 
-    state Main {
-        -> Running;
+    state entry {
+        -> running;
     }
 }
 ```

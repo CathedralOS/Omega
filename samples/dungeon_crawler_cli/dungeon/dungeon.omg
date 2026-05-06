@@ -10,128 +10,128 @@ machine Dungeon {
     owns level: Level;
     owns navigation: Navigation;
 
-    state Main {
-        -> EnterRoom;
+    state entry {
+        -> enter_room;
     }
 
-    state EnterRoom {
-        WriteCurrentCell(level, current_cell, mut command_line);
-        console.WriteLine(command_line.text);
+    state enter_room {
+        write_current_cell(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
 
-        -> Prompt;
+        -> prompt;
     }
 
-    state Prompt {
-        WriteAdjacentRooms(level, current_cell, mut command_line);
-        console.WriteLine(command_line.text);
-        console.Write("> ");
-        console.ReadLine(mut command_line);
-        ResolveCommand(level, current_cell, command_line, mut navigation);
+    state prompt {
+        write_adjacent_rooms(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+        console.write("> ");
+        console.read_line(mut command_line);
+        resolve_command(level, current_cell, command_line, mut navigation);
 
-        -> Finished when navigation.choice == NavigationChoice::Quit;
-        -> Move when navigation.choice == NavigationChoice::Move;
-        -> InvalidCommand;
+        -> finished when navigation.choice == NavigationChoice::Quit;
+        -> move when navigation.choice == NavigationChoice::Move;
+        -> invalid_command;
     }
 
-    state Move {
+    state move {
         current_cell = navigation.destination;
 
-        -> EnterRoom;
+        -> enter_room;
     }
 
-    state InvalidCommand {
-        console.WriteLine("That path is not open.");
+    state invalid_command {
+        console.write_line("That path is not open.");
 
-        -> Prompt;
+        -> prompt;
     }
 
-    state Finished {
+    state finished {
         -> return;
     }
 
-    command Start() {
-        SampleLevel.Write(mut level);
+    command start() {
+        SampleLevel.write(mut level);
         current_cell = level.start_cell;
-        console.WriteLine("Omega Dungeon");
+        console.write_line("Omega Dungeon");
     }
 
-    command Exit(return_code: i32) {
-        console.WriteLine("Goodbye.");
-        console.ExitProcess(return_code);
+    command exit(return_code: i32) {
+        console.write_line("Goodbye.");
+        console.exit_process(return_code);
     }
 
-    command ResolveCommand(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
+    command resolve_command(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
         out_navigation.choice = NavigationChoice::Invalid;
         out_navigation.destination = CellId::Empty;
-        ResolveQuit(line, mut out_navigation);
-        ResolveExit(level, cell, line, mut out_navigation);
+        resolve_quit(line, mut out_navigation);
+        resolve_exit(level, cell, line, mut out_navigation);
     }
 
-    command ResolveQuit(line: ConsoleLine, mut out_navigation: Navigation) when line.text == "quit" {
+    command resolve_quit(line: ConsoleLine, mut out_navigation: Navigation) when line.text == "quit" {
         out_navigation.choice = NavigationChoice::Quit;
     }
 
-    command ResolveExit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
+    command resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
         let room: Room;
-        FindRoom(level, cell, mut room);
-        FindExit(room, line.text, mut out_navigation);
+        find_room(level, cell, mut room);
+        find_exit(room, line.text, mut out_navigation);
     }
 
-    command FindExit(room: Room, command: String, mut out_navigation: Navigation) {
-        ScanExit(room.exits[0], command, mut out_navigation);
-        ScanExit(room.exits[1], command, mut out_navigation);
-        ScanExit(room.exits[2], command, mut out_navigation);
-        ScanExit(room.exits[3], command, mut out_navigation);
+    command find_exit(room: Room, command: String, mut out_navigation: Navigation) {
+        scan_exit(room.exits[0], command, mut out_navigation);
+        scan_exit(room.exits[1], command, mut out_navigation);
+        scan_exit(room.exits[2], command, mut out_navigation);
+        scan_exit(room.exits[3], command, mut out_navigation);
     }
 
-    command ScanExit(exit: Exit, command: String, mut out_navigation: Navigation)
+    command scan_exit(exit: Exit, command: String, mut out_navigation: Navigation)
         when exit.command == command
     {
         out_navigation.choice = NavigationChoice::Move;
         out_navigation.destination = exit.destination;
     }
 
-    command WriteCurrentCell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+    command write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
         let room: Room;
-        FindRoom(level, cell, mut room);
+        find_room(level, cell, mut room);
         out_line.text = room.label;
     }
 
-    command WriteAdjacentRooms(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+    command write_adjacent_rooms(level: Level, cell: CellId, mut out_line: ConsoleLine) {
         let room: Room;
-        FindRoom(level, cell, mut room);
-        FormatExits(room, mut out_line);
+        find_room(level, cell, mut room);
+        format_exits(room, mut out_line);
     }
 
-    command FindRoom(level: Level, cell: CellId, mut out_room: Room) {
-        ScanRoom(level.rooms[0], cell, mut out_room);
-        ScanRoom(level.rooms[1], cell, mut out_room);
-        ScanRoom(level.rooms[2], cell, mut out_room);
-        ScanRoom(level.rooms[3], cell, mut out_room);
+    command find_room(level: Level, cell: CellId, mut out_room: Room) {
+        scan_room(level.rooms[0], cell, mut out_room);
+        scan_room(level.rooms[1], cell, mut out_room);
+        scan_room(level.rooms[2], cell, mut out_room);
+        scan_room(level.rooms[3], cell, mut out_room);
     }
 
-    command ScanRoom(room: Room, cell: CellId, mut out_room: Room)
+    command scan_room(room: Room, cell: CellId, mut out_room: Room)
         when room.cell == cell
     {
         out_room = room;
     }
 
-    command FormatExits(room: Room, mut out_line: ConsoleLine) {
+    command format_exits(room: Room, mut out_line: ConsoleLine) {
         out_line.text = "Exits: ";
-        AppendExit(room.exits[0], mut out_line);
-        AppendExit(room.exits[1], mut out_line);
-        AppendExit(room.exits[2], mut out_line);
-        AppendExit(room.exits[3], mut out_line);
-        AppendQuit(mut out_line);
+        append_exit(room.exits[0], mut out_line);
+        append_exit(room.exits[1], mut out_line);
+        append_exit(room.exits[2], mut out_line);
+        append_exit(room.exits[3], mut out_line);
+        append_quit(mut out_line);
     }
 
-    command AppendExit(exit: Exit, mut out_line: ConsoleLine)
+    command append_exit(exit: Exit, mut out_line: ConsoleLine)
         when exit.destination != CellId::Empty
     {
         out_line.text = out_line.text + exit.command + " ";
     }
 
-    command AppendQuit(mut out_line: ConsoleLine) {
+    command append_quit(mut out_line: ConsoleLine) {
         out_line.text = out_line.text + "quit";
     }
 }

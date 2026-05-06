@@ -15,19 +15,19 @@ Likely checks:
 Example:
 
 ```omega
-state ClampLow(&mut self, min: f32) -> f32 {
-    -> self.ClampDone(min);
+state clamp_low(&mut self, min: f32) -> f32 {
+    -> self.clamp_done(min);
 }
 ```
 
-`ClampLow` can jump to `ClampDone` because `ClampDone` accepts the forwarded `f32` and produces the same `f32` expected by the `Clamp` graph.
+`clamp_low` can jump to `clamp_done` because `clamp_done` accepts the forwarded `f32` and produces the same `f32` expected by the `clamp` graph.
 
 This is the key distinction from classic functions: return value compatibility is a graph invariant, not a return path.
 
 Final expressions are constrained by the same idea:
 
 ```omega
-state ClampDone(&mut self, value: f32) -> f32 {
+state clamp_done(&mut self, value: f32) -> f32 {
     value
 }
 ```

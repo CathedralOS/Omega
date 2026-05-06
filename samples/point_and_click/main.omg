@@ -12,28 +12,28 @@ machine main {
     owns is_terminated: bool = false;
     owns return_code: i32 = 0;
 
-    state Main {
-        platform.CreateWindow(mut main_window, 1920, 1080, "Point and Click");
+    state entry {
+        platform.create_window(mut main_window, 1920, 1080, "Point and Click");
 
-        -> Running;
+        -> running;
     }
 
-    state Running {
-        platform.PollFrame(main_window, mut frame_input);
-        game.RunIteration(frame_input);
-        game.WriteView(mut frame_view);
-        platform.DrawRoom(frame_view.room);
-        platform.DrawHud(frame_view.hud);
-        platform.PresentBackbuffer(main_window);
+    state running {
+        platform.poll_frame(main_window, mut frame_input);
+        game.run_iteration(frame_input);
+        game.write_view(mut frame_view);
+        platform.draw_room(frame_view.room);
+        platform.draw_hud(frame_view.hud);
+        platform.present_backbuffer(main_window);
 
-        -> Shutdown when frame_input.close_requested;
+        -> shutdown when frame_input.close_requested;
         -> self;
     }
 
-    state Shutdown {
+    state shutdown {
         is_terminated = true;
         return_code = 0;
-        platform.DestroyWindow(main_window);
-        platform.ExitProcess(return_code);
+        platform.destroy_window(main_window);
+        platform.exit_process(return_code);
     }
 }

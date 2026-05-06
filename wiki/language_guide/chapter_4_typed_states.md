@@ -3,21 +3,21 @@
 A state may accept explicit entry data and declare the value shape its graph eventually produces.
 
 ```omega
-state Clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
-    -> self.ClampLow(min) when value < min;
-    -> self.ClampHigh(max) when value > max;
-    -> self.ClampDone(value);
+state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
+    -> self.clamp_low(min) when value < min;
+    -> self.clamp_high(max) when value > max;
+    -> self.clamp_done(value);
 }
 
-state ClampLow(&mut self, min: f32) -> f32 {
-    -> self.ClampDone(min);
+state clamp_low(&mut self, min: f32) -> f32 {
+    -> self.clamp_done(min);
 }
 
-state ClampHigh(&mut self, max: f32) -> f32 {
-    -> self.ClampDone(max);
+state clamp_high(&mut self, max: f32) -> f32 {
+    -> self.clamp_done(max);
 }
 
-state ClampDone(&mut self, value: f32) -> f32 {
+state clamp_done(&mut self, value: f32) -> f32 {
     value
 }
 ```

@@ -12,6 +12,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 - Typed states remain branch-free semantically. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states with explicit edges.
+- `state entry` is for implicit invocation, such as `machine main`, anonymous machines, and future thread/task machines. Ordinary machines can still be entered through explicit state names.
 
 ## Still Open
 

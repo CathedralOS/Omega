@@ -5,7 +5,7 @@ This sample is intentionally pseudocode. Its purpose is to exercise the Omega ma
 What it is trying to prove:
 
 - `main` clearly owns runtime concerns like window creation and the game loop
-- `state Main` is the implicit entry point for a machine named `main`
+- `state entry` is the implicit entry point for a machine named `main`
 - process exit status is owned data, not a special return value
 - a dedicated room manager owns active-room selection and room dispatch
 - each room machine owns its own state and interaction logic
@@ -25,8 +25,8 @@ Current sketch:
 - `Game` owns frame-level composition and a persistent `MainView`
 - `RoomManager` owns active-room selection, inventory, and room dispatch
 - `FoyerRoom` and `CellarRoom` keep room-specific state local
-- `state` is executable code, `command` mutates context, `query` fills read views, and trailing `-> Target` lines declare exits
-- state-local transition order is the branch table; a bare `-> Target` is unconditional
+- `state` is executable code, `command` mutates context, `query` fills read views, and trailing `-> target` lines declare exits
+- state-local transition order is the branch table; a bare `-> target` is unconditional
 - `-> self;` re-enters the current state
 
 Sample layout:

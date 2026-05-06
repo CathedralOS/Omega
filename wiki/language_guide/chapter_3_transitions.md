@@ -5,20 +5,20 @@ Within one machine, transitions are gotos.
 They do not push a stack frame, remember a return address, or resume the source state. The source state deactivates, and the target state activates with explicit arguments.
 
 ```omega
-state Clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
-    -> self.ClampLow(min) when value < min;
-    -> self.ClampHigh(max) when value > max;
-    -> self.ClampDone(value);
+state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
+    -> self.clamp_low(min) when value < min;
+    -> self.clamp_high(max) when value > max;
+    -> self.clamp_done(value);
 }
 ```
 
-`Clamp` never resumes after `ClampLow`, `ClampHigh`, or `ClampDone`. It hands control away.
+`clamp` never resumes after `clamp_low`, `clamp_high`, or `clamp_done`. It hands control away.
 
 Across machines, nested machine flow may be stack-like:
 
 ```omega
-state Running {
-    -> dungeon.Main -> Running;
+state running {
+    -> dungeon.entry -> running;
 }
 ```
 
@@ -30,6 +30,30 @@ This gives Omega two distinct control-flow worlds:
 - Between machines, composition may use stack-like continuation.
 
 Keeping those separate matters. Otherwise typed states quietly become ordinary functions wearing a state-machine costume, and the graph shape gets muddy.
+
+## Entry States
+
+`state entry` is reserved for machines that need implicit invocation semantics.
+
+Examples:
+
+- `machine main`, because the runtime starts it.
+- Anonymous machines, because a caller invokes the machine as a value.
+- Future thread, task, or fiber machines, if spawning starts the machine as a unit.
+
+Ordinary named machines do not need `entry` unless they are invoked as a whole. They may still be entered through explicit state names:
+
+```omega
+state running {
+    -> room_manager.tick_room;
+}
+```
+
+The rule is:
+
+- If something starts a machine without naming a state, that machine needs `state entry`.
+- If code transitions to an explicitly named state, no entry state is required.
+- The first state listed is never special.
 
 ## Mid-State Transitions
 

@@ -69,8 +69,8 @@ Very early sketch:
 machine main {
     contains log: Logger;
 
-    state Main {
-        log.Flush();
+    state entry {
+        log.flush();
 
         -> self;
     }
@@ -82,8 +82,8 @@ This example suggests a few important ideas:
 - `machine` is a top-level construct
 - `contains` declares owned machine data
 - `state` declares executable machine states
-- `state Main` is the implicit entry point for a machine named `main`
-- trailing `-> Target` lines declare control-flow edges out of a state
+- `state entry` is the implicit entry point for a machine named `main`
+- trailing `-> target` lines declare control-flow edges out of a state
 
 ## Early semantic direction
 

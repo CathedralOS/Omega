@@ -30,7 +30,7 @@ pub fn build_native_plan(
             entry_symbol: String::new(),
         },
         entry_machine: "main".to_owned(),
-        entry_state: "Main".to_owned(),
+        entry_state: "entry".to_owned(),
     };
     native_plan.object = build_object_plan(&native_plan)?;
 

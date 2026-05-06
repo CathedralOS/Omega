@@ -6,18 +6,18 @@ machine main {
 
     owns return_code: i32 = 0;
 
-    state Main {
-        dungeon.Start();
+    state entry {
+        dungeon.start();
 
-        -> Running;
+        -> running;
     }
 
-    state Running {
-        -> dungeon.Main -> Shutdown;
+    state running {
+        -> dungeon.entry -> shutdown;
     }
 
-    state Shutdown {
+    state shutdown {
         return_code = 0;
-        dungeon.Exit(return_code);
+        dungeon.exit(return_code);
     }
 }

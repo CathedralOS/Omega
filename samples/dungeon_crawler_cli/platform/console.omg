@@ -1,8 +1,8 @@
 use data::dungeon_types;
 
 platform ConsolePlatform {
-    command Write(text: String);
-    command WriteLine(text: String);
-    command ReadLine(mut out_line: ConsoleLine);
-    command ExitProcess(return_code: i32);
+    command write(text: String);
+    command write_line(text: String);
+    command read_line(mut out_line: ConsoleLine);
+    command exit_process(return_code: i32);
 }

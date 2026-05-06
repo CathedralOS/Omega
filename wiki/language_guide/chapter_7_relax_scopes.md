@@ -5,7 +5,7 @@ Some transformations temporarily violate invariants but restore them before the 
 ```omega
 owns mass: i32[range<1, 100>];
 
-state Whatever() {
+state whatever() {
     relax self.mass {
         self.mass -= 50000;
         self.mass += 50001;

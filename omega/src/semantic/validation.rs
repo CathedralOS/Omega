@@ -359,8 +359,12 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
         return;
     };
 
-    if !main_machine.states.iter().any(|state| state.name == "Main") {
-        diagnostics.push(Diagnostic::error("machine main is missing state Main"));
+    if !main_machine
+        .states
+        .iter()
+        .any(|state| state.name == "entry")
+    {
+        diagnostics.push(Diagnostic::error("machine main is missing state entry"));
     }
 }
 

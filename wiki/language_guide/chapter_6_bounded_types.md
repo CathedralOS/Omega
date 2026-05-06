@@ -29,18 +29,18 @@ Working interpretation:
 The clamp graph produces an obvious proof shape:
 
 ```omega
-state Clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
-    -> self.ClampLow(min) when value < min;
-    -> self.ClampHigh(max) when value > max;
-    -> self.ClampDone(value);
+state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
+    -> self.clamp_low(min) when value < min;
+    -> self.clamp_high(max) when value > max;
+    -> self.clamp_done(value);
 }
 ```
 
 The ordered transitions create a proof partition:
 
-- If `value < min`, `ClampLow(min)` produces `min`.
-- If `value > max`, `ClampHigh(max)` produces `max`.
-- Otherwise, `ClampDone(value)` is only reachable when `min <= value <= max`.
+- If `value < min`, `clamp_low(min)` produces `min`.
+- If `value > max`, `clamp_high(max)` produces `max`.
+- Otherwise, `clamp_done(value)` is only reachable when `min <= value <= max`.
 
 The order matters. A later transition inherits the fact that earlier transitions did not fire.
 
