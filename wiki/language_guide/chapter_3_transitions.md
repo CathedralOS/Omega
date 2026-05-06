@@ -30,3 +30,19 @@ This gives Omega two distinct control-flow worlds:
 - Between machines, composition may use stack-like continuation.
 
 Keeping those separate matters. Otherwise typed states quietly become ordinary functions wearing a state-machine costume, and the graph shape gets muddy.
+
+## Mid-State Transitions
+
+Transitions may eventually be allowed inside source states before the final line.
+
+They are still gotos. They still terminate the current straight-line segment. The compiler lowers the remaining source statements into generated continuation states.
+
+This means an early-exit transition has better source UX without changing the semantic graph model:
+
+- No true branching inside a semantic state.
+- No transition bodies.
+- No hidden call stack.
+- No implicit `if` / `else`.
+- Just generated sub-states and explicit edges.
+
+Diagnostics should point back to the source transition, while graph/debugger views may expose the generated sub-states when useful.

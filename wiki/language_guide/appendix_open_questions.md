@@ -11,10 +11,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
+- Typed states remain branch-free semantically. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states with explicit edges.
 
 ## Still Open
 
-- How do typed states interact with branch-free states and ordered transitions?
 - Can the compiler infer result bounds from ordered transitions without explicit annotations?
 - Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
 - How explicit should weakened machine invariants be in target state signatures?
