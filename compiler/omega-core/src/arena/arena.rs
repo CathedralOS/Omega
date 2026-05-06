@@ -269,3 +269,94 @@ fn next_generation(generation: u32) -> u32 {
 
     if next == 0 { 1 } else { next }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::arena::{Arena, Handle};
+
+    #[test]
+    fn resolves_zero_to_dummy_slot() {
+        let mut arena = Arena::new();
+        let invalid = Handle::<String>::invalid();
+        let first = arena.insert("alpha".to_owned());
+        let second = arena.insert("beta".to_owned());
+
+        assert!(!invalid.is_valid());
+        assert_eq!(arena.len(), 2);
+        assert_eq!(first.arena_index(), 1);
+        assert_eq!(second.arena_index(), 2);
+        assert_eq!(arena.get(invalid).as_str(), "");
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert_eq!(arena.get(second).as_str(), "beta");
+    }
+
+    #[test]
+    fn invalidates_freed_handles() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert!(arena.is_valid(first));
+        assert!(arena.free(first));
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
+    fn stores_contiguous_handle_spans() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 3);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]
+        );
+
+        arena.span_mut(span).expect("span should resolve")[1] = "bravo".to_owned();
+
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "bravo".to_owned(), "gamma".to_owned()]
+        );
+    }
+
+    #[test]
+    fn rejects_spans_with_freed_slots() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let middle = Handle::from_arena_index(2);
+
+        assert!(arena.span(span).is_some());
+        assert!(arena.free(middle));
+        assert!(arena.span(span).is_none());
+        assert!(arena.span_mut(span).is_none());
+    }
+
+    #[test]
+    fn clear_invalidates_existing_handles() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        arena.clear();
+
+        assert_eq!(arena.len(), 0);
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+}
