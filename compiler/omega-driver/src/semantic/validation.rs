@@ -74,7 +74,15 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
 
 fn validate_invariant_definitions(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
     for invariant in &program.invariant_definitions {
-        for constraint in &invariant.constraints {
+        let Some(constraints) = program.type_constraints.span(invariant.constraints) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "invariant `{}` references invalid constraint storage",
+                invariant.name
+            )));
+            continue;
+        };
+
+        for constraint in constraints {
             match constraint {
                 TypeConstraint::Named(name) if name == "finite" => {}
                 TypeConstraint::Named(name) => diagnostics.push(Diagnostic::error(format!(

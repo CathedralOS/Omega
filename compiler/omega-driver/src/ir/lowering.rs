@@ -61,14 +61,13 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
 
     for alias in &aliases.items {
         let mut expansion_stack = vec![alias.name.clone()];
+        let constraints =
+            lower_type_constraints(&alias.constraints, &aliases, &mut expansion_stack)?;
+        let constraints = program.type_constraints.insert_many(constraints);
 
         program.invariant_definitions.push(InvariantDefinition {
             name: alias.name.clone(),
-            constraints: lower_type_constraints(
-                &alias.constraints,
-                &aliases,
-                &mut expansion_stack,
-            )?,
+            constraints,
         });
     }
 

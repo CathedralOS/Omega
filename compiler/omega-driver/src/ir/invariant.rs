@@ -1,7 +1,7 @@
-use crate::ir::types::TypeConstraint;
+use omega_core::arena::HandleSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvariantDefinition {
     pub name: String,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<crate::ir::types::TypeConstraint>,
 }

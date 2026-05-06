@@ -883,6 +883,10 @@ mod tests {
         let parsed = parse_file(&tokens).expect("parse should succeed");
         let program =
             crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let invariant_constraints = program
+            .type_constraints
+            .span(program.invariant_definitions[1].constraints)
+            .expect("invariant constraints should resolve");
         let crate::ir::types::TypeReference::Constrained {
             base_type,
             constraints,
@@ -896,6 +900,7 @@ mod tests {
             &crate::ir::types::TypeReference::Named("f32".to_owned())
         );
         assert_eq!(constraints.len(), 2);
+        assert_eq!(invariant_constraints, constraints.as_slice());
         assert!(matches!(
             constraints[0],
             crate::ir::types::TypeConstraint::Named(ref name) if name == "finite"

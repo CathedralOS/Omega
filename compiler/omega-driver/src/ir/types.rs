@@ -20,6 +20,12 @@ pub enum TypeConstraint {
     },
 }
 
+impl Default for TypeConstraint {
+    fn default() -> Self {
+        Self::Named(String::new())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrimitiveType {
     Bool,

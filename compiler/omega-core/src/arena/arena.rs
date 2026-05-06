@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use crate::arena::{Handle, HandleSpan};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Arena<T> {
     items: Vec<T>,
     generations: Vec<u32>,
