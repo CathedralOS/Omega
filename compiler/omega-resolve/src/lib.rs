@@ -356,3 +356,71 @@ fn insert_reference(
         owner: owner.to_owned(),
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use omega_ast::item::{Contains, Item, Machine, OwnedData, State, StateParameter, UseItem};
+    use omega_ast::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+    use omega_ast::types::TypeReference;
+
+    use super::{ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report};
+
+    #[test]
+    fn collects_definitions_imports_and_references() {
+        let report = build_resolve_report(&[
+            Item::Use(UseItem {
+                path: vec!["platform".to_owned(), "console".to_owned()],
+            }),
+            Item::Machine(Machine {
+                name: "main".to_owned(),
+                contains: vec![Contains {
+                    name: "console".to_owned(),
+                    type_name: "Console".to_owned(),
+                }],
+                owned_data: vec![OwnedData {
+                    name: "score".to_owned(),
+                    type_reference: TypeReference::named("i32"),
+                    initial_value: None,
+                }],
+                states: vec![State {
+                    name: "entry".to_owned(),
+                    parameters: vec![StateParameter {
+                        name: "amount".to_owned(),
+                        type_reference: TypeReference::named("i32"),
+                        is_const: false,
+                        is_mutable: false,
+                        is_self: false,
+                    }],
+                    return_type: None,
+                    statements: vec![Statement::Transition(Transition {
+                        target: TransitionTarget::Named {
+                            path: vec!["finish".to_owned()],
+                            arguments: Vec::new(),
+                        },
+                        continuation: None,
+                        guard: TransitionGuard::Always,
+                    })],
+                }],
+            }),
+        ]);
+
+        assert_eq!(report.imports.len(), 1);
+        assert_eq!(report.definitions.len(), 1);
+        assert_eq!(report.references.len(), 4);
+
+        let (_, definition) = report
+            .definitions
+            .iter()
+            .find(|(_, definition)| definition.name == "main")
+            .expect("main definition should be collected");
+        assert_eq!(definition.kind, ResolvedDefinitionKind::Machine);
+
+        assert!(
+            report.references.iter().any(|(_, reference)| {
+                reference.name == "finish"
+                    && reference.kind == ResolvedReferenceKind::TransitionTarget
+            }),
+            "state transition target should be collected"
+        );
+    }
+}
