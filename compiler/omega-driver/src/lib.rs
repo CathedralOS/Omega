@@ -1403,10 +1403,11 @@ mod tests {
         let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
             .expect("source artifact should be readable");
 
-        assert!(sources.contains("omega/host/windows.omg"));
-        assert!(sources.contains("omega/host/contracts.omg"));
-        assert!(!sources.contains("omega/host/linux.omg"));
-        assert!(!sources.contains("omega/host/darwin.omg"));
+        assert!(sources.contains("omega/host/windows/mod.omg"));
+        assert!(sources.contains("omega/host/windows/kernel32.omg"));
+        assert!(sources.contains("omega/host/contracts/mod.omg"));
+        assert!(!sources.contains("omega/host/linux/mod.omg"));
+        assert!(!sources.contains("omega/host/darwin/mod.omg"));
 
         let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
             .expect("trust artifact should be readable");

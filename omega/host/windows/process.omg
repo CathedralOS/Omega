@@ -1,0 +1,12 @@
+use omega::host::contracts::process;
+use omega::host::windows::kernel32;
+
+capability WindowsProcess {
+    kernel32: WindowsKernel32
+
+    state exit(return_code: i32) -> Never
+        requires windows_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted omega_windows_process_adapter
+        trusted omega_windows_kernel32
+}

@@ -1,0 +1,8 @@
+use omega::host::contracts::types;
+
+capability Process {
+    state exit(return_code: i32) -> Never
+        requires target_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted host
+}

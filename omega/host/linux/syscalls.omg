@@ -1,15 +1,12 @@
-// Linux host ABI package shipped with the Omega toolchain.
-//
-// Linux is the platform where direct syscalls are a plausible tiny target.
-// The syscall ABI is still trusted host machinery, not app-proven behavior.
+use omega::host::linux::types;
 
 capability LinuxSyscalls {
-    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, Errno>
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno>
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
         ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is Errno
+        ensures result.Err(e) => e is LinuxErrno
         trusted linux_syscall_abi
         trusted host
 
@@ -18,8 +15,4 @@ capability LinuxSyscalls {
         ensures process_terminated
         trusted linux_syscall_abi
         trusted host
-}
-
-capability LinuxHost {
-    syscalls: LinuxSyscalls
 }

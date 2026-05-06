@@ -1,0 +1,6 @@
+data IOError {
+    Interrupted,
+    PermissionDenied,
+    BrokenPipe,
+    Unknown,
+}

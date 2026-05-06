@@ -1,0 +1,12 @@
+use omega::host::contracts::process;
+use omega::host::contracts::stdout;
+use omega::host::contracts::types;
+
+// Target-independent host capability surface.
+//
+// Platform packages implement these contracts by trusting their ABI boundary.
+
+capability Host {
+    stdout: Stdout
+    process: Process
+}

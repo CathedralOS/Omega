@@ -1,0 +1,14 @@
+use omega::host::contracts::stdout;
+use omega::host::darwin::libsystem;
+use omega::host::darwin::types;
+
+capability DarwinStdout {
+    libsystem: DarwinLibSystem
+
+    state write_line(text: String) -> Result<(), IOError>
+        requires text.utf8
+        ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
+        ensures result.Err(e) => e is IOError
+        trusted omega_darwin_stdout_adapter
+        trusted omega_darwin_libsystem
+}

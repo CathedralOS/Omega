@@ -1,15 +1,12 @@
-// Darwin/macOS host ABI package shipped with the Omega toolchain.
-//
-// macOS applications should normally bind through libSystem rather than direct
-// syscall numbers. The platform ABI is the trusted boundary.
+use omega::host::darwin::types;
 
 capability DarwinLibSystem {
-    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, Errno>
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno>
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
         ensures result.Ok(n) => n <= byte_count
-        ensures result.Err(e) => e is Errno
+        ensures result.Err(e) => e is DarwinErrno
         trusted darwin_libsystem_abi
         trusted host
 
@@ -18,8 +15,4 @@ capability DarwinLibSystem {
         ensures process_terminated
         trusted darwin_libsystem_abi
         trusted host
-}
-
-capability DarwinHost {
-    libsystem: DarwinLibSystem
 }

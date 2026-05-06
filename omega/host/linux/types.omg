@@ -1,0 +1,6 @@
+data LinuxErrno {
+    Interrupted,
+    BrokenPipe,
+    PermissionDenied,
+    Unknown,
+}

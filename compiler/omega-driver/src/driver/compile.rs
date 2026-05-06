@@ -446,7 +446,13 @@ fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
     }
 
     path.set_extension("omg");
-    path
+
+    if path.exists() {
+        return path;
+    }
+
+    path.set_extension("");
+    path.join("mod.omg")
 }
 
 fn is_bundled_omega_path(path: &[String]) -> bool {

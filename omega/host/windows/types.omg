@@ -1,0 +1,13 @@
+data WinBool {
+    False,
+    True,
+}
+
+data WinHandle {
+    Invalid,
+    Valid,
+}
+
+data WinOverlapped {
+    None,
+}

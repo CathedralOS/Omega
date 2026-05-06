@@ -1,0 +1,6 @@
+data DarwinErrno {
+    Interrupted,
+    BrokenPipe,
+    PermissionDenied,
+    Unknown,
+}

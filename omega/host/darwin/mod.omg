@@ -1,0 +1,15 @@
+use omega::host::darwin::libsystem;
+use omega::host::darwin::process;
+use omega::host::darwin::stdout;
+use omega::host::darwin::types;
+
+// Darwin/macOS host package shipped with the Omega toolchain.
+//
+// macOS applications should normally bind through libSystem rather than direct
+// syscall numbers. The platform ABI is the trusted boundary.
+
+capability DarwinHost {
+    libsystem: DarwinLibSystem
+    stdout: DarwinStdout
+    process: DarwinProcess
+}

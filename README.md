@@ -69,7 +69,7 @@ cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 
 Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, resolve, effects, driver IR, validation, graph, proof, native planning output, and phase timing notes. Use `--build-dir <dir>` to send those artifacts somewhere explicit. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.
 
-Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`. Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
+Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`. Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::windows` can live in folders and shard their contracts by domain. Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
 
 Use `--target <name>` to select a target from `build.omg`. When a target is selected, only that target's referenced bundled host package is loaded.
 
@@ -87,7 +87,7 @@ Native binary emission should come from a real Omega backend or execution model,
 - `compiler/omega-proof/`: source-level invariant and bounded-type proof surface reporting
 - `compiler/omega-native/`: source-level native entry/platform/machine surface reporting
 - `compiler/omega-driver/`: current orchestration crate with IR, semantic validation, native planning, and compile driver
-- `omega/`: bundled Omega source packages, currently `omega::std` and `omega::host`
+- `omega/`: bundled Omega source packages, currently `omega::std` and folder-backed `omega::host` platform packages
 - `omega-cli/`: command-line entry point, with binary name `omega`
 - `samples/`: small Omega programs used to pressure-test language ideas
 - `wiki/`: evolving design notes for semantics, proof shape, and state-machine behavior
