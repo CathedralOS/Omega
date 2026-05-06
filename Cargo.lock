@@ -37,6 +37,7 @@ dependencies = [
  "omega-core",
  "omega-lexer",
  "omega-parser",
+ "omega-resolve",
 ]
 
 [[package]]
