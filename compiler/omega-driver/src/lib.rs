@@ -1171,16 +1171,38 @@ mod tests {
             let build_dir = temporary_build_dir("omega-canary-fail", &root_path);
             let _ = std::fs::remove_dir_all(&build_dir);
 
-            if let Ok(output) = crate::check(crate::CompileOptions {
+            let expected_diagnostic_path = root_path
+                .parent()
+                .expect("canary entrypoint should have a parent directory")
+                .join("expected.txt");
+            let expected_diagnostic = std::fs::read_to_string(&expected_diagnostic_path)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "failed to read expected diagnostic {}: {error}",
+                        expected_diagnostic_path.display()
+                    )
+                });
+            let diagnostics = crate::check(crate::CompileOptions {
                 build_dir: Some(build_dir.clone()),
                 root_path: root_path.clone(),
-            }) {
-                panic!(
-                    "failing canary {} unexpectedly passed; artifacts {}",
-                    root_path.display(),
-                    output.artifacts_dir.display()
-                );
-            }
+            })
+            .expect_err(&format!(
+                "failing canary {} unexpectedly passed",
+                root_path.display()
+            ));
+            let diagnostics_text = diagnostics
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            assert!(
+                diagnostics_text.contains(expected_diagnostic.trim()),
+                "failing canary {} expected diagnostic containing `{}`, got:\n{}",
+                root_path.display(),
+                expected_diagnostic.trim(),
+                diagnostics_text
+            );
 
             let _ = std::fs::remove_dir_all(build_dir);
         }
