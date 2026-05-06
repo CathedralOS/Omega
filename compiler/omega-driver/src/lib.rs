@@ -1081,6 +1081,26 @@ mod tests {
     }
 
     #[test]
+    fn arena_stores_contiguous_handle_spans() {
+        let mut arena = crate::arena::Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 3);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]
+        );
+
+        arena.span_mut(span).expect("span should resolve")[1] = "bravo".to_owned();
+
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "bravo".to_owned(), "gamma".to_owned()]
+        );
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
