@@ -6,24 +6,23 @@ pub struct Arena<T> {
     items: Vec<T>,
 }
 
-impl<T> Arena<T> {
+impl<T: Default> Arena<T> {
     pub fn new() -> Self {
-        Self { items: Vec::new() }
-    }
-
-    pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            items: Vec::with_capacity(capacity),
+            items: vec![T::default()],
         }
     }
 
+    pub fn with_capacity(capacity: usize) -> Self {
+        let mut items =
+            Vec::with_capacity(capacity.checked_add(1).expect("arena capacity overflow"));
+        items.push(T::default());
+
+        Self { items }
+    }
+
     pub fn insert(&mut self, item: T) -> Handle<T> {
-        let arena_index = self
-            .items
-            .len()
-            .checked_add(1)
-            .and_then(|index| u32::try_from(index).ok())
-            .expect("arena index overflow");
+        let arena_index = self.items.len().try_into().expect("arena index overflow");
 
         self.items.push(item);
 
@@ -31,12 +30,7 @@ impl<T> Arena<T> {
     }
 
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
-        let start_index = self
-            .items
-            .len()
-            .checked_add(1)
-            .and_then(|index| u32::try_from(index).ok())
-            .expect("arena index overflow");
+        let start_index = self.items.len().try_into().expect("arena index overflow");
         let mut count = 0u32;
 
         for item in items {
@@ -51,18 +45,28 @@ impl<T> Arena<T> {
         }
     }
 
-    pub fn get(&self, handle: Handle<T>) -> Option<&T> {
-        self.index_from_handle(handle)
-            .and_then(|index| self.items.get(index))
+    pub fn get(&self, handle: Handle<T>) -> &T {
+        self.items
+            .get(self.index_from_handle(handle))
+            .unwrap_or_else(|| self.dummy())
     }
 
-    pub fn get_mut(&mut self, handle: Handle<T>) -> Option<&mut T> {
-        self.index_from_handle(handle)
-            .and_then(|index| self.items.get_mut(index))
+    pub fn get_mut(&mut self, handle: Handle<T>) -> &mut T {
+        let index = self.index_from_handle(handle);
+
+        if index < self.items.len() {
+            &mut self.items[index]
+        } else {
+            &mut self.items[0]
+        }
     }
 
     pub fn span(&self, span: HandleSpan<T>) -> Option<&[T]> {
-        let start = self.index_from_handle(span.start())?;
+        if span.is_empty() {
+            return Some(&[]);
+        }
+
+        let start = self.index_from_handle(span.start());
         let count = usize::try_from(span.count()).ok()?;
         let end = start.checked_add(count)?;
 
@@ -70,7 +74,11 @@ impl<T> Arena<T> {
     }
 
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
-        let start = self.index_from_handle(span.start())?;
+        if span.is_empty() {
+            return Some(&mut []);
+        }
+
+        let start = self.index_from_handle(span.start());
         let count = usize::try_from(span.count()).ok()?;
         let end = start.checked_add(count)?;
 
@@ -78,38 +86,43 @@ impl<T> Arena<T> {
     }
 
     pub fn len(&self) -> usize {
-        self.items.len()
+        self.items.len() - 1
     }
 
     pub fn is_empty(&self) -> bool {
-        self.items.is_empty()
+        self.len() == 0
     }
 
     pub fn clear(&mut self) {
         self.items.clear();
+        self.items.push(T::default());
     }
 
     pub fn as_slice(&self) -> &[T] {
-        &self.items
+        &self.items[1..]
+    }
+
+    pub fn dummy(&self) -> &T {
+        &self.items[0]
     }
 
     pub fn iter(&self) -> ArenaIter<'_, T> {
         ArenaIter {
-            inner: self.items.iter().enumerate(),
+            inner: self.items[1..].iter().enumerate(),
             marker: PhantomData,
         }
     }
 
-    fn index_from_handle(&self, handle: Handle<T>) -> Option<usize> {
-        if !handle.is_valid() {
-            return None;
+    fn index_from_handle(&self, handle: Handle<T>) -> usize {
+        if !handle.is_valid() || handle.generation() == 0 {
+            return 0;
         }
 
-        usize::try_from(handle.arena_index() - 1).ok()
+        usize::try_from(handle.arena_index()).unwrap_or(0)
     }
 }
 
-impl<T> Default for Arena<T> {
+impl<T: Default> Default for Arena<T> {
     fn default() -> Self {
         Self::new()
     }

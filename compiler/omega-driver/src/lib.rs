@@ -1066,18 +1066,19 @@ mod tests {
     }
 
     #[test]
-    fn arena_uses_zero_as_invalid_handle() {
+    fn arena_resolves_zero_to_dummy_slot() {
         let mut arena = crate::arena::Arena::new();
         let invalid = crate::arena::Handle::<String>::invalid();
         let first = arena.insert("alpha".to_owned());
         let second = arena.insert("beta".to_owned());
 
         assert!(!invalid.is_valid());
+        assert_eq!(arena.len(), 2);
         assert_eq!(first.arena_index(), 1);
         assert_eq!(second.arena_index(), 2);
-        assert_eq!(arena.get(invalid), None);
-        assert_eq!(arena.get(first).map(String::as_str), Some("alpha"));
-        assert_eq!(arena.get(second).map(String::as_str), Some("beta"));
+        assert_eq!(arena.get(invalid).as_str(), "");
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert_eq!(arena.get(second).as_str(), "beta");
     }
 
     #[test]
