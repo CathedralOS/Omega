@@ -6,7 +6,7 @@ This sample intentionally avoids input so the entry and platform boundary are ea
 
 ## Trusted Root Sketch
 
-`build.omg` and `host_contracts.omg` are parsed as opaque top-level `target` and `capability` items for now. The syntax is intentionally ahead of lowering and validation so we can design the trust boundary in Omega source instead of inventing a sidecar config format.
+`build.omg` and `host_contracts.omg` are parsed as top-level `target` and `capability` items. Their bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
 
 For cross-platform hello world, the trusted computing base is tiny:
 
