@@ -7,6 +7,7 @@ version.workspace = true
 [[bin]]
 name = "omega"
 path = "src/main.rs"
+test = false
 
 [dependencies]
 omega-driver = { path = "../compiler/omega-driver" }

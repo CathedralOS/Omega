@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::ast::item::{Item, UseItem};
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
+use crate::driver::artifacts::ArtifactWriter;
 use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
 use crate::native::plan::build_native_plan;
@@ -14,35 +15,101 @@ use crate::source::{Resolver, SourceFile};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
     pub summary: String,
+    pub artifacts_dir: PathBuf,
     pub executable_path: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckOutput {
     pub summary: String,
+    pub artifacts_dir: PathBuf,
 }
 
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
+    let artifacts = ArtifactWriter::new(&options.build_dir, &options.root_path)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let loaded_program = load_program_sources(&options)?;
     debug_assert!(loaded_program.file_ranges_are_valid());
+    artifacts
+        .write_sources(&loaded_program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_ast(&loaded_program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("03_resolve.txt", "Omega Resolve")
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("04_types.txt", "Omega Types")
+        .map_err(|diagnostic| vec![diagnostic])?;
     let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_ir(&program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
+    artifacts
+        .write_validation(&program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("07_graph.txt", "Omega Graph")
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("08_proof.txt", "Omega Proof")
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("09_native_plan.txt", "Omega Native Plan")
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     Ok(CheckOutput {
-        summary: format!("checked {}", options.root_path.display()),
+        artifacts_dir: artifacts.root().to_path_buf(),
+        summary: format!(
+            "checked {}; artifacts {}",
+            options.root_path.display(),
+            artifacts.root().display()
+        ),
     })
 }
 
 pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
+    let artifacts = ArtifactWriter::new(&options.build_dir, &options.root_path)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let loaded_program = load_program_sources(&options)?;
     debug_assert!(loaded_program.file_ranges_are_valid());
+    artifacts
+        .write_sources(&loaded_program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_ast(&loaded_program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("03_resolve.txt", "Omega Resolve")
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("04_types.txt", "Omega Types")
+        .map_err(|diagnostic| vec![diagnostic])?;
     let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_ir(&program)
+        .map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&program)?;
+    artifacts
+        .write_validation(&program)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("07_graph.txt", "Omega Graph")
+        .map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_placeholder("08_proof.txt", "Omega Proof")
+        .map_err(|diagnostic| vec![diagnostic])?;
     let native_plan =
         build_native_plan(&program, NativeTarget::host()).map_err(|diagnostic| vec![diagnostic])?;
+    artifacts
+        .write_native_plan(&native_plan)
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
+        "native object emission is not implemented yet; artifacts {}; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
+        artifacts.root().display(),
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
         native_plan.control_flow.machines.len(),
@@ -54,16 +121,16 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
 }
 
 #[derive(Debug)]
-struct LoadedProgram {
-    items: Vec<Item>,
-    files: Vec<LoadedFile>,
+pub(crate) struct LoadedProgram {
+    pub(crate) items: Vec<Item>,
+    pub(crate) files: Vec<LoadedFile>,
 }
 
 #[derive(Debug)]
-struct LoadedFile {
-    path: PathBuf,
-    first_item: usize,
-    item_count: usize,
+pub(crate) struct LoadedFile {
+    pub(crate) path: PathBuf,
+    pub(crate) first_item: usize,
+    pub(crate) item_count: usize,
 }
 
 impl LoadedProgram {

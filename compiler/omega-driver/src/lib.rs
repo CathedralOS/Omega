@@ -937,4 +937,38 @@ mod tests {
         assert_eq!(arena.get(first).map(String::as_str), Some("alpha"));
         assert_eq!(arena.get(second).map(String::as_str), Some("beta"));
     }
+
+    #[test]
+    fn check_writes_phase_artifacts() {
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&build_dir);
+        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples/cli_mvp/main.omg");
+
+        let output = crate::check(crate::CompileOptions {
+            build_dir: build_dir.clone(),
+            root_path,
+        })
+        .expect("check should pass");
+
+        for file_name in [
+            "01_sources.txt",
+            "02_ast.txt",
+            "03_resolve.txt",
+            "04_types.txt",
+            "05_driver_ir.txt",
+            "06_validation.txt",
+            "07_graph.txt",
+            "08_proof.txt",
+            "09_native_plan.txt",
+        ] {
+            assert!(
+                output.artifacts_dir.join(file_name).is_file(),
+                "missing artifact {file_name}"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
 }
