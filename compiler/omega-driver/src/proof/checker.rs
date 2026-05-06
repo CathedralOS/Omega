@@ -3,7 +3,8 @@ use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::ir::types::TypeConstraint;
 use crate::proof::obligations::{
-    BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
+    BoundedCallArgumentObligation, BoundedStateReturnObligation,
+    BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +27,9 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
             ProofObligation::BoundedCallArgument(obligation) => {
                 check_bounded_call_argument(obligation, &mut diagnostics);
             }
+            ProofObligation::BoundedStateReturn(obligation) => {
+                check_bounded_state_return(obligation, &mut diagnostics);
+            }
             ProofObligation::BoundedTransitionArgument(obligation) => {
                 check_bounded_transition_argument(obligation, &mut diagnostics);
             }
@@ -37,6 +41,43 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_bounded_state_return(
+    obligation: &BoundedStateReturnObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    check_return_named_constraints(obligation, diagnostics);
+
+    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = integer_range_for_return_value(obligation) else {
+            diagnostics.push(cannot_prove_bounded_return_integer(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_return_integer(
+                obligation,
+                target_range,
+            ));
+        }
+    }
+
+    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = float_range_for_return_value(obligation) else {
+            diagnostics.push(cannot_prove_bounded_return_float(obligation, target_range));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_return_float(obligation, target_range));
+        }
     }
 }
 
@@ -160,6 +201,19 @@ fn float_range_for_call_argument(obligation: &BoundedCallArgumentObligation) -> 
     }
 }
 
+fn float_range_for_return_value(obligation: &BoundedStateReturnObligation) -> Option<FloatRange> {
+    match &obligation.value {
+        Expression::Float(value) => {
+            let value = float_literal(value)?;
+            Some(FloatRange {
+                minimum: value,
+                maximum: value,
+            })
+        }
+        _ => float_range_from_constraints(&obligation.value_constraints),
+    }
+}
+
 fn integer_range_for_call_argument(
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
@@ -169,6 +223,18 @@ fn integer_range_for_call_argument(
             maximum: *value,
         }),
         _ => integer_range_from_constraints(&obligation.argument_constraints),
+    }
+}
+
+fn integer_range_for_return_value(
+    obligation: &BoundedStateReturnObligation,
+) -> Option<IntegerRange> {
+    match &obligation.value {
+        Expression::Integer(value) => Some(IntegerRange {
+            minimum: *value,
+            maximum: *value,
+        }),
+        _ => integer_range_from_constraints(&obligation.value_constraints),
     }
 }
 
@@ -345,6 +411,21 @@ fn check_transition_named_constraints(
     }
 }
 
+fn check_return_named_constraints(
+    obligation: &BoundedStateReturnObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in named_constraints(&obligation.constraints) {
+        if !argument_satisfies_named_constraint(
+            &obligation.value,
+            &obligation.value_constraints,
+            constraint,
+        ) {
+            diagnostics.push(cannot_prove_return_named_constraint(obligation, constraint));
+        }
+    }
+}
+
 fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &str> {
     constraints.iter().filter_map(|constraint| {
         let TypeConstraint::Named(name) = constraint else {
@@ -391,6 +472,20 @@ fn cannot_prove_bounded_transition_integer(
     ))
 }
 
+fn cannot_prove_bounded_return_integer(
+    obligation: &BoundedStateReturnObligation,
+    target_range: IntegerRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
 fn cannot_prove_bounded_transition_float(
     obligation: &BoundedTransitionArgumentObligation,
     target_range: FloatRange,
@@ -399,6 +494,20 @@ fn cannot_prove_bounded_transition_float(
         "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
         obligation.argument.display_name(),
         obligation.parameter,
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
+fn cannot_prove_bounded_return_float(
+    obligation: &BoundedStateReturnObligation,
+    target_range: FloatRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove return value `{}` satisfies bounded return type in `{}.{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -415,6 +524,19 @@ fn cannot_prove_transition_named_constraint(
         obligation.argument.display_name(),
         constraint,
         obligation.parameter,
+        obligation.machine,
+        obligation.state
+    ))
+}
+
+fn cannot_prove_return_named_constraint(
+    obligation: &BoundedStateReturnObligation,
+    constraint: &str,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove return value `{}` satisfies `{}` for bounded return type in `{}.{}`",
+        obligation.value.display_name(),
+        constraint,
         obligation.machine,
         obligation.state
     ))

@@ -14,6 +14,7 @@ pub struct ProofPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofObligation {
     BoundedCallArgument(BoundedCallArgumentObligation),
+    BoundedStateReturn(BoundedStateReturnObligation),
     BoundedValue(BoundedValueObligation),
     BoundedTransitionArgument(BoundedTransitionArgumentObligation),
     GuardedTransition(GuardedTransitionObligation),
@@ -43,6 +44,16 @@ pub struct BoundedCallArgumentObligation {
     pub parameter: String,
     pub argument: Expression,
     pub argument_constraints: Vec<TypeConstraint>,
+    pub base_type: TypeReference,
+    pub constraints: Vec<TypeConstraint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedStateReturnObligation {
+    pub machine: String,
+    pub state: String,
+    pub value: Expression,
+    pub value_constraints: Vec<TypeConstraint>,
     pub base_type: TypeReference,
     pub constraints: Vec<TypeConstraint>,
 }
@@ -93,6 +104,12 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         "machine `{}` state `{}` return value",
                         machine.name, state.name
                     ),
+                    return_type,
+                    &mut obligations,
+                );
+                collect_bounded_state_return_obligation(
+                    machine,
+                    state,
                     return_type,
                     &mut obligations,
                 );
@@ -238,6 +255,35 @@ fn collect_bounded_call_argument_obligations(
             },
         ));
     }
+}
+
+fn collect_bounded_state_return_obligation(
+    machine: &Machine,
+    state: &State,
+    return_type: &TypeReference,
+    obligations: &mut Vec<ProofObligation>,
+) {
+    let TypeReference::Constrained {
+        base_type,
+        constraints,
+    } = return_type
+    else {
+        return;
+    };
+    let Some(crate::ir::statement::Statement::Expression(value)) = state.statements.last() else {
+        return;
+    };
+
+    obligations.push(ProofObligation::BoundedStateReturn(
+        BoundedStateReturnObligation {
+            machine: machine.name.clone(),
+            state: state.name.clone(),
+            value: value.clone(),
+            value_constraints: expression_constraints(machine, state, value),
+            base_type: base_type.as_ref().clone(),
+            constraints: constraints.clone(),
+        },
+    ));
 }
 
 fn call_target_parameters<'program>(

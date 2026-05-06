@@ -1,0 +1,8 @@
+machine main {
+    state entry {
+    }
+
+    state answer() -> i32[range<1, 50>] {
+        100
+    }
+}
