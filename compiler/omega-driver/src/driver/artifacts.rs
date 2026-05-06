@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
 use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
@@ -51,7 +52,17 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn write_ast(&self, loaded_program: &LoadedProgram) -> Result<(), Diagnostic> {
-        self.write("02_ast.txt", &format!("{:#?}\n", loaded_program.items))
+        let mut output = String::new();
+
+        output.push_str("# Omega AST\n\n");
+        output.push_str(&format!("files: {}\n", loaded_program.files.len()));
+        output.push_str(&format!("items: {}\n\n", loaded_program.items.len()));
+
+        for file in &loaded_program.files {
+            write_ast_file(&mut output, loaded_program, file);
+        }
+
+        self.write("02_ast.txt", &output)
     }
 
     pub(crate) fn write_resolve_report(
@@ -411,6 +422,76 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!("first item: {}\n", file.first_item));
     output.push_str(&format!("item count: {}\n\n", file.item_count));
+}
+
+fn write_ast_file(output: &mut String, loaded_program: &LoadedProgram, file: &LoadedFile) {
+    output.push_str(&format!("## {}\n", file.path.display()));
+
+    let Some(items) = loaded_program
+        .items
+        .get(file.first_item..file.first_item + file.item_count)
+    else {
+        output.push_str("invalid item range\n\n");
+        return;
+    };
+
+    if items.is_empty() {
+        output.push_str("items: none\n\n");
+        return;
+    }
+
+    for (index, item) in items.iter().enumerate() {
+        output.push_str(&format!(
+            "- item {}: {}\n",
+            file.first_item + index,
+            ast_item_summary(item)
+        ));
+    }
+
+    output.push('\n');
+}
+
+fn ast_item_summary(item: &Item) -> String {
+    match item {
+        Item::Data(data_definition) => {
+            let mut field_count = 0usize;
+            let mut variant_count = 0usize;
+
+            for member in &data_definition.members {
+                match member {
+                    crate::ast::item::DataMember::Field(_) => field_count += 1,
+                    crate::ast::item::DataMember::Variant(_) => variant_count += 1,
+                }
+            }
+
+            format!(
+                "data `{}` fields {} variants {}",
+                data_definition.name, field_count, variant_count
+            )
+        }
+        Item::Invariant(invariant) => {
+            format!(
+                "invariant `{}` constraints {}",
+                invariant.name,
+                invariant.constraints.len()
+            )
+        }
+        Item::Use(use_item) => format!("use {}", use_item.path.join("::")),
+        Item::Machine(machine) => format!(
+            "machine `{}` contains {} owned data {} states {}",
+            machine.name,
+            machine.contains.len(),
+            machine.owned_data.len(),
+            machine.states.len()
+        ),
+        Item::Platform(platform) => {
+            format!(
+                "platform `{}` states {}",
+                platform.name,
+                platform.states.len()
+            )
+        }
+    }
 }
 
 fn write_proof_obligation(
