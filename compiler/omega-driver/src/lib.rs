@@ -1249,6 +1249,13 @@ mod tests {
         }
         assert!(!output.phase_timings.is_empty());
 
+        let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
+            .expect("source artifact should be readable");
+        assert!(
+            sources.contains("omega/std/console.omg"),
+            "source artifact should include bundled omega std source"
+        );
+
         let _ = std::fs::remove_dir_all(build_dir);
     }
 

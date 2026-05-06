@@ -69,6 +69,8 @@ cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 
 Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, resolve, effects, driver IR, validation, graph, proof, native planning output, and phase timing notes. Use `--build-dir <dir>` to send those artifacts somewhere explicit. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.
 
+Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`. Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
+
 Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 
 ## Repository Layout
