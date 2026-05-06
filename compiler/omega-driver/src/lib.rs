@@ -1082,6 +1082,25 @@ mod tests {
     }
 
     #[test]
+    fn arena_invalidates_freed_handles() {
+        let mut arena = crate::arena::Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        assert_eq!(arena.get(first).as_str(), "alpha");
+        assert!(arena.is_valid(first));
+        assert!(arena.free(first));
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
     fn arena_stores_contiguous_handle_spans() {
         let mut arena = crate::arena::Arena::new();
         let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
