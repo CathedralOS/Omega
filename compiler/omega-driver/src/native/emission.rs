@@ -10,6 +10,7 @@ pub struct EmissionPlan {
     pub symbols: usize,
     pub host_bindings: usize,
     pub host_calls: usize,
+    pub selected_instructions: usize,
     pub blockers: Arena<EmissionBlocker>,
 }
 
@@ -24,8 +25,8 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 
     blockers.insert_many([
         blocker(
-            "instruction selection",
-            "Omega statements are not lowered to target machine instructions yet",
+            "machine encoding",
+            "selected native instructions are not encoded into target bytes yet",
         ),
         blocker(
             "relocations",
@@ -44,6 +45,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         symbols: native_plan.object.symbols.len(),
         host_bindings: native_plan.host_abi.bindings.len(),
         host_calls: native_plan.host_calls.calls.len(),
+        selected_instructions: native_plan.instructions.instructions.len(),
         blockers,
     }
 }

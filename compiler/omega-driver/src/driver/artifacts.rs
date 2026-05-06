@@ -14,6 +14,9 @@ use crate::native::control_flow::{
 };
 use crate::native::emission::EmissionPlan;
 use crate::native::host_calls::{HostCall, LoweredHostOperation};
+use crate::native::instructions::{
+    FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind,
+};
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
@@ -421,6 +424,20 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Instruction Selection\n");
+        output.push_str(&format!(
+            "functions: {}\n",
+            native_plan.instructions.functions.len()
+        ));
+        output.push_str(&format!(
+            "instructions: {}\n",
+            native_plan.instructions.instructions.len()
+        ));
+        for (_, function) in native_plan.instructions.functions.iter() {
+            write_function_instruction_plan(&mut output, native_plan, function);
+        }
+        output.push('\n');
+
         output.push_str("## Source Native Surface\n");
         output.push_str(&format!(
             "entry candidates: {}\n",
@@ -521,6 +538,10 @@ impl ArtifactWriter {
         output.push_str(&format!("symbols: {}\n", emission_plan.symbols));
         output.push_str(&format!("host bindings: {}\n", emission_plan.host_bindings));
         output.push_str(&format!("host calls: {}\n", emission_plan.host_calls));
+        output.push_str(&format!(
+            "selected instructions: {}\n",
+            emission_plan.selected_instructions
+        ));
         output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
 
         if emission_plan.blockers.is_empty() {
@@ -1085,6 +1106,56 @@ fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOper
         "  - {}.{}\n",
         operation.capability, operation.operation
     ));
+}
+
+fn write_function_instruction_plan(
+    output: &mut String,
+    native_plan: &NativePlan,
+    function: &FunctionInstructionPlan,
+) {
+    output.push_str(&format!(
+        "- function {} from {}.{}\n",
+        function.symbol, function.machine, function.state
+    ));
+
+    match native_plan
+        .instructions
+        .instructions
+        .span(function.instructions)
+    {
+        Some(instructions) if instructions.is_empty() => output.push_str("  instructions: none\n"),
+        Some(instructions) => {
+            output.push_str("  instructions:\n");
+            for instruction in instructions {
+                write_selected_instruction(output, instruction);
+            }
+        }
+        None => output.push_str("  instructions: invalid span\n"),
+    }
+}
+
+fn write_selected_instruction(output: &mut String, instruction: &SelectedInstruction) {
+    output.push_str(&format!(
+        "    - statement {}: {}\n",
+        instruction.source_statement,
+        selected_instruction_name(&instruction.kind)
+    ));
+}
+
+fn selected_instruction_name(kind: &SelectedInstructionKind) -> String {
+    match kind {
+        SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
+        SelectedInstructionKind::BeginPlatformCall { platform_call } => {
+            format!("begin platform call `{platform_call}`")
+        }
+        SelectedInstructionKind::HostOperation {
+            capability,
+            operation,
+        } => {
+            format!("call host operation {capability}.{operation}")
+        }
+        SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
+    }
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {

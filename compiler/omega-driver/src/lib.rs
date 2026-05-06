@@ -1206,6 +1206,8 @@ mod tests {
         .expect("native planning should pass");
 
         assert_eq!(native_plan.object.sections.len(), 3);
+        assert!(!native_plan.instructions.functions.is_empty());
+        assert!(!native_plan.instructions.instructions.is_empty());
         assert!(
             native_plan
                 .object
@@ -1265,6 +1267,7 @@ mod tests {
         );
         assert_eq!(native_plan.host_calls.calls.len(), 2);
         assert_eq!(native_plan.host_calls.operations.len(), 3);
+        assert!(native_plan.instructions.instructions.len() >= 5);
     }
 
     #[test]
@@ -1311,6 +1314,7 @@ mod tests {
         );
         assert_eq!(native_plan.host_calls.calls.len(), 2);
         assert_eq!(native_plan.host_calls.operations.len(), 2);
+        assert!(native_plan.instructions.instructions.len() >= 4);
     }
 
     #[test]
@@ -1358,6 +1362,7 @@ mod tests {
         let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
             .expect("emission artifact should be readable");
         assert!(emission.contains("status: blocked before byte emission"));
+        assert!(emission.contains("selected instructions:"));
 
         let _ = std::fs::remove_dir_all(build_dir);
     }

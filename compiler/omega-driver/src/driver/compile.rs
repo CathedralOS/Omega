@@ -249,11 +249,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), {} emission blocker(s), entry {}.{} as `{}`",
+        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} selected instruction(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), {} emission blocker(s), entry {}.{} as `{}`",
         artifacts.root().display(),
         format_phase_timings(&phase_timings),
         native_plan.host_abi.bindings.len(),
         native_plan.host_calls.calls.len(),
+        native_plan.instructions.instructions.len(),
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
         native_plan.control_flow.machines.len(),
