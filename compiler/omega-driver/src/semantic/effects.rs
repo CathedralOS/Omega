@@ -1,3 +1,5 @@
+use omega_core::arena::{Arena, HandleSpan};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Effect {
     Pure,
@@ -5,15 +7,16 @@ pub enum Effect {
     Platform,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EffectPlan {
     pub machines: Vec<MachineEffects>,
+    pub states: Arena<StateEffects>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffects {
     pub name: String,
-    pub states: Vec<StateEffects>,
+    pub states: HandleSpan<StateEffects>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,28 +25,32 @@ pub struct StateEffects {
     pub effect: Effect,
 }
 
+impl Default for StateEffects {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            effect: Effect::Pure,
+        }
+    }
+}
+
 pub fn infer_effects(program: &crate::ir::Program) -> EffectPlan {
-    let machines = program
-        .machines
-        .iter()
-        .map(|machine| {
-            let states = machine
-                .states
-                .iter()
-                .map(|state| StateEffects {
-                    name: state.name.clone(),
-                    effect: infer_state_effect(program, machine, state),
-                })
-                .collect();
+    let mut effect_plan = EffectPlan::default();
 
-            MachineEffects {
-                name: machine.name.clone(),
-                states,
-            }
-        })
-        .collect();
+    for machine in &program.machines {
+        let states = machine.states.iter().map(|state| StateEffects {
+            name: state.name.clone(),
+            effect: infer_state_effect(program, machine, state),
+        });
+        let states = effect_plan.states.insert_many(states);
 
-    EffectPlan { machines }
+        effect_plan.machines.push(MachineEffects {
+            name: machine.name.clone(),
+            states,
+        });
+    }
+
+    effect_plan
 }
 
 fn infer_state_effect(

@@ -9,7 +9,7 @@ use crate::native::control_flow::{
 };
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::ProofPlan;
-use crate::semantic::effects::EffectPlan;
+use crate::semantic::effects::{EffectPlan, StateEffects};
 
 pub(crate) struct ArtifactWriter {
     root: PathBuf,
@@ -51,7 +51,28 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn write_effects(&self, effect_plan: &EffectPlan) -> Result<(), Diagnostic> {
-        self.write("04_types.txt", &format!("{effect_plan:#?}\n"))
+        let mut output = String::new();
+
+        output.push_str("# Omega Types And Effects\n\n");
+        output.push_str(&format!("machines: {}\n", effect_plan.machines.len()));
+        output.push_str(&format!("states: {}\n\n", effect_plan.states.len()));
+
+        for machine in &effect_plan.machines {
+            output.push_str(&format!("## machine {}\n", machine.name));
+
+            let Some(states) = effect_plan.states.span(machine.states) else {
+                output.push_str("invalid state span\n\n");
+                continue;
+            };
+
+            for state in states {
+                write_state_effect(&mut output, state);
+            }
+
+            output.push('\n');
+        }
+
+        self.write("04_types.txt", &output)
     }
 
     pub(crate) fn write_validation(&self, program: &Program) -> Result<(), Diagnostic> {
@@ -148,6 +169,10 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!("first item: {}\n", file.first_item));
     output.push_str(&format!("item count: {}\n\n", file.item_count));
+}
+
+fn write_state_effect(output: &mut String, state: &StateEffects) {
+    output.push_str(&format!("- state {}: {:?}\n", state.name, state.effect));
 }
 
 fn write_state_flow(output: &mut String, control_flow: &ControlFlowPlan, state: &StateFlow) {
