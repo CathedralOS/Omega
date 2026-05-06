@@ -110,7 +110,7 @@ fn build_machine_flow(
         .iter()
         .flat_map(|state_segments| state_segments.iter())
         .enumerate()
-        .map(|(index, segment)| (segment.name.clone(), index))
+        .map(|(index, segment)| (segment.name.as_str(), index))
         .collect::<Vec<_>>();
 
     let states = segments
@@ -217,14 +217,11 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
         next_segment_name: None,
     });
 
-    let next_names = segments
-        .iter()
-        .skip(1)
-        .map(|segment| segment.name.clone())
-        .collect::<Vec<_>>();
-
-    for (segment, next_name) in segments.iter_mut().zip(next_names.into_iter()) {
-        segment.next_segment_name = Some(next_name);
+    if segments.len() > 1 {
+        for segment_index in 0..segments.len() - 1 {
+            let next_name = segments[segment_index + 1].name.clone();
+            segments[segment_index].next_segment_name = Some(next_name);
+        }
     }
 
     segments
@@ -256,7 +253,7 @@ fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {
 }
 
 fn plan_transition(
-    state_indexes: &[(String, usize)],
+    state_indexes: &[(&str, usize)],
     transition: &Transition,
 ) -> Result<TransitionFlow, Diagnostic> {
     Ok(TransitionFlow {
@@ -271,7 +268,7 @@ fn plan_transition(
 }
 
 fn plan_transition_target(
-    state_indexes: &[(String, usize)],
+    state_indexes: &[(&str, usize)],
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
@@ -281,7 +278,7 @@ fn plan_transition_target(
             let name = path.last().expect("named transition has a state").clone();
             let index = state_indexes
                 .iter()
-                .find(|(state_name, _)| state_name == &name)
+                .find(|(state_name, _)| *state_name == name)
                 .map(|(_, index)| *index)
                 .ok_or_else(|| {
                     Diagnostic::error(format!("unknown state transition target `{name}`"))
