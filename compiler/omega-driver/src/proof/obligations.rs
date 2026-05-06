@@ -5,10 +5,19 @@ use crate::ir::signature::StateParameter;
 use crate::ir::state::State;
 use crate::ir::statement::{Assignment, Call, Transition, TransitionGuard, TransitionTarget};
 use crate::ir::types::{TypeConstraint, TypeReference};
+use omega_core::arena::{Arena, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofPlan {
     pub obligations: Vec<ProofObligation>,
+    pub type_constraints: Arena<TypeConstraint>,
+}
+
+impl ProofPlan {
+    fn store_constraints(&mut self, constraints: &[TypeConstraint]) -> HandleSpan<TypeConstraint> {
+        self.type_constraints
+            .insert_many(constraints.iter().cloned())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +35,7 @@ pub enum ProofObligation {
 pub struct BoundedValueObligation {
     pub owner: String,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,9 +52,9 @@ pub struct BoundedAssignmentObligation {
     pub state: String,
     pub target: Expression,
     pub value: Expression,
-    pub value_constraints: Vec<TypeConstraint>,
+    pub value_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,9 +65,9 @@ pub struct BoundedCallArgumentObligation {
     pub target: String,
     pub parameter: String,
     pub argument: Expression,
-    pub argument_constraints: Vec<TypeConstraint>,
+    pub argument_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,7 +75,7 @@ pub struct BoundedInitializerObligation {
     pub owner: String,
     pub value: Expression,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,9 +83,9 @@ pub struct BoundedStateReturnObligation {
     pub machine: String,
     pub state: String,
     pub value: Expression,
-    pub value_constraints: Vec<TypeConstraint>,
+    pub value_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,14 +95,14 @@ pub struct BoundedTransitionArgumentObligation {
     pub target: TransitionTarget,
     pub parameter: String,
     pub argument: Expression,
-    pub argument_constraints: Vec<TypeConstraint>,
+    pub argument_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReference,
-    pub constraints: Vec<TypeConstraint>,
+    pub constraints: HandleSpan<TypeConstraint>,
     pub guard: TransitionGuard,
 }
 
 pub fn build_proof_plan(program: &Program) -> ProofPlan {
-    let mut obligations = Vec::new();
+    let mut proof_plan = ProofPlan::default();
 
     for machine in &program.machines {
         for owned_data in &machine.owned_data {
@@ -103,7 +112,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                     machine.name, owned_data.name
                 ),
                 &owned_data.type_reference,
-                &mut obligations,
+                &mut proof_plan,
             );
             if let Some(initial_value) = &owned_data.initial_value {
                 collect_bounded_initializer_obligation(
@@ -113,7 +122,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                     ),
                     &owned_data.type_reference,
                     initial_value,
-                    &mut obligations,
+                    &mut proof_plan,
                 );
             }
         }
@@ -126,7 +135,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         machine.name, state.name, parameter.name
                     ),
                     &parameter.type_reference,
-                    &mut obligations,
+                    &mut proof_plan,
                 );
             }
 
@@ -137,13 +146,13 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         machine.name, state.name
                     ),
                     return_type,
-                    &mut obligations,
+                    &mut proof_plan,
                 );
                 collect_bounded_state_return_obligation(
                     machine,
                     state,
                     return_type,
-                    &mut obligations,
+                    &mut proof_plan,
                 );
             }
 
@@ -154,7 +163,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                             machine,
                             state,
                             assignment,
-                            &mut obligations,
+                            &mut proof_plan,
                         );
                         continue;
                     }
@@ -164,7 +173,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                             machine,
                             state,
                             call,
-                            &mut obligations,
+                            &mut proof_plan,
                         );
                         continue;
                     }
@@ -173,14 +182,16 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                 };
 
                 if let TransitionGuard::When(_) = &transition.guard {
-                    obligations.push(ProofObligation::GuardedTransition(
-                        GuardedTransitionObligation {
-                            machine: machine.name.clone(),
-                            state: state.name.clone(),
-                            target: transition.target.clone(),
-                            guard: transition.guard.clone(),
-                        },
-                    ));
+                    proof_plan
+                        .obligations
+                        .push(ProofObligation::GuardedTransition(
+                            GuardedTransitionObligation {
+                                machine: machine.name.clone(),
+                                state: state.name.clone(),
+                                target: transition.target.clone(),
+                                guard: transition.guard.clone(),
+                            },
+                        ));
                 }
 
                 collect_bounded_transition_argument_obligations(
@@ -188,33 +199,36 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                     machine,
                     state,
                     transition,
-                    &mut obligations,
+                    &mut proof_plan,
                 );
             }
         }
     }
 
-    ProofPlan { obligations }
+    proof_plan
 }
 
 fn collect_bounded_value_obligation(
     owner: String,
     type_reference: &TypeReference,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     match type_reference {
         TypeReference::Constrained {
             base_type,
             constraints,
         } => {
-            obligations.push(ProofObligation::BoundedValue(BoundedValueObligation {
-                owner,
-                base_type: base_type.as_ref().clone(),
-                constraints: constraints.clone(),
-            }));
+            let constraints = proof_plan.store_constraints(constraints);
+            proof_plan
+                .obligations
+                .push(ProofObligation::BoundedValue(BoundedValueObligation {
+                    owner,
+                    base_type: base_type.as_ref().clone(),
+                    constraints,
+                }));
         }
         TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_value_obligation(owner, element_type, obligations);
+            collect_bounded_value_obligation(owner, element_type, proof_plan);
         }
         TypeReference::Named(_) => {}
     }
@@ -224,24 +238,27 @@ fn collect_bounded_initializer_obligation(
     owner: String,
     type_reference: &TypeReference,
     value: &Expression,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     match type_reference {
         TypeReference::Constrained {
             base_type,
             constraints,
         } => {
-            obligations.push(ProofObligation::BoundedInitializer(
-                BoundedInitializerObligation {
-                    owner,
-                    value: value.clone(),
-                    base_type: base_type.as_ref().clone(),
-                    constraints: constraints.clone(),
-                },
-            ));
+            let constraints = proof_plan.store_constraints(constraints);
+            proof_plan
+                .obligations
+                .push(ProofObligation::BoundedInitializer(
+                    BoundedInitializerObligation {
+                        owner,
+                        value: value.clone(),
+                        base_type: base_type.as_ref().clone(),
+                        constraints,
+                    },
+                ));
         }
         TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_initializer_obligation(owner, element_type, value, obligations);
+            collect_bounded_initializer_obligation(owner, element_type, value, proof_plan);
         }
         TypeReference::Named(_) => {}
     }
@@ -251,7 +268,7 @@ fn collect_bounded_assignment_obligation(
     machine: &Machine,
     state: &State,
     assignment: &Assignment,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     let Some(TypeReference::Constrained {
         base_type,
@@ -261,17 +278,23 @@ fn collect_bounded_assignment_obligation(
         return;
     };
 
-    obligations.push(ProofObligation::BoundedAssignment(
-        BoundedAssignmentObligation {
-            machine: machine.name.clone(),
-            state: state.name.clone(),
-            target: assignment.target.clone(),
-            value: assignment.value.clone(),
-            value_constraints: expression_constraints(machine, state, &assignment.value),
-            base_type: base_type.as_ref().clone(),
-            constraints: constraints.clone(),
-        },
-    ));
+    let value_constraints = expression_constraints(machine, state, &assignment.value);
+    let value_constraints = proof_plan.store_constraints(&value_constraints);
+    let constraints = proof_plan.store_constraints(constraints);
+
+    proof_plan
+        .obligations
+        .push(ProofObligation::BoundedAssignment(
+            BoundedAssignmentObligation {
+                machine: machine.name.clone(),
+                state: state.name.clone(),
+                target: assignment.target.clone(),
+                value: assignment.value.clone(),
+                value_constraints,
+                base_type: base_type.as_ref().clone(),
+                constraints,
+            },
+        ));
 }
 
 fn collect_bounded_transition_argument_obligations(
@@ -279,7 +302,7 @@ fn collect_bounded_transition_argument_obligations(
     machine: &Machine,
     state: &State,
     transition: &Transition,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     let Some((target_state, arguments)) =
         transition_target_state_and_arguments(program, machine, state, &transition.target)
@@ -296,19 +319,25 @@ fn collect_bounded_transition_argument_obligations(
             continue;
         };
 
-        obligations.push(ProofObligation::BoundedTransitionArgument(
-            BoundedTransitionArgumentObligation {
-                machine: machine.name.clone(),
-                state: state.name.clone(),
-                target: transition.target.clone(),
-                parameter: parameter.name.clone(),
-                argument: argument.clone(),
-                argument_constraints: expression_constraints(machine, state, argument),
-                base_type: base_type.as_ref().clone(),
-                constraints: constraints.clone(),
-                guard: transition.guard.clone(),
-            },
-        ));
+        let argument_constraints = expression_constraints(machine, state, argument);
+        let argument_constraints = proof_plan.store_constraints(&argument_constraints);
+        let constraints = proof_plan.store_constraints(constraints);
+
+        proof_plan
+            .obligations
+            .push(ProofObligation::BoundedTransitionArgument(
+                BoundedTransitionArgumentObligation {
+                    machine: machine.name.clone(),
+                    state: state.name.clone(),
+                    target: transition.target.clone(),
+                    parameter: parameter.name.clone(),
+                    argument: argument.clone(),
+                    argument_constraints,
+                    base_type: base_type.as_ref().clone(),
+                    constraints,
+                    guard: transition.guard.clone(),
+                },
+            ));
     }
 }
 
@@ -317,7 +346,7 @@ fn collect_bounded_call_argument_obligations(
     machine: &Machine,
     state: &State,
     call: &Call,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     let Some(parameters) = call_target_parameters(program, machine, call) else {
         return;
@@ -336,19 +365,25 @@ fn collect_bounded_call_argument_obligations(
             continue;
         };
 
-        obligations.push(ProofObligation::BoundedCallArgument(
-            BoundedCallArgumentObligation {
-                machine: machine.name.clone(),
-                state: state.name.clone(),
-                receiver: call.receiver.clone(),
-                target: call.target.clone(),
-                parameter: parameter.name.clone(),
-                argument: argument.clone(),
-                argument_constraints: expression_constraints(machine, state, argument),
-                base_type: base_type.as_ref().clone(),
-                constraints: constraints.clone(),
-            },
-        ));
+        let argument_constraints = expression_constraints(machine, state, argument);
+        let argument_constraints = proof_plan.store_constraints(&argument_constraints);
+        let constraints = proof_plan.store_constraints(constraints);
+
+        proof_plan
+            .obligations
+            .push(ProofObligation::BoundedCallArgument(
+                BoundedCallArgumentObligation {
+                    machine: machine.name.clone(),
+                    state: state.name.clone(),
+                    receiver: call.receiver.clone(),
+                    target: call.target.clone(),
+                    parameter: parameter.name.clone(),
+                    argument: argument.clone(),
+                    argument_constraints,
+                    base_type: base_type.as_ref().clone(),
+                    constraints,
+                },
+            ));
     }
 }
 
@@ -356,7 +391,7 @@ fn collect_bounded_state_return_obligation(
     machine: &Machine,
     state: &State,
     return_type: &TypeReference,
-    obligations: &mut Vec<ProofObligation>,
+    proof_plan: &mut ProofPlan,
 ) {
     let TypeReference::Constrained {
         base_type,
@@ -369,16 +404,22 @@ fn collect_bounded_state_return_obligation(
         return;
     };
 
-    obligations.push(ProofObligation::BoundedStateReturn(
-        BoundedStateReturnObligation {
-            machine: machine.name.clone(),
-            state: state.name.clone(),
-            value: value.clone(),
-            value_constraints: expression_constraints(machine, state, value),
-            base_type: base_type.as_ref().clone(),
-            constraints: constraints.clone(),
-        },
-    ));
+    let value_constraints = expression_constraints(machine, state, value);
+    let value_constraints = proof_plan.store_constraints(&value_constraints);
+    let constraints = proof_plan.store_constraints(constraints);
+
+    proof_plan
+        .obligations
+        .push(ProofObligation::BoundedStateReturn(
+            BoundedStateReturnObligation {
+                machine: machine.name.clone(),
+                state: state.name.clone(),
+                value: value.clone(),
+                value_constraints,
+                base_type: base_type.as_ref().clone(),
+                constraints,
+            },
+        ));
 }
 
 fn call_target_parameters<'program>(

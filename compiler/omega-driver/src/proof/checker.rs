@@ -6,6 +6,7 @@ use crate::proof::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
 };
+use omega_core::arena::HandleSpan;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct IntegerRange {
@@ -25,19 +26,19 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     for obligation in &proof_plan.obligations {
         match obligation {
             ProofObligation::BoundedAssignment(obligation) => {
-                check_bounded_assignment(obligation, &mut diagnostics);
+                check_bounded_assignment(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedCallArgument(obligation) => {
-                check_bounded_call_argument(obligation, &mut diagnostics);
+                check_bounded_call_argument(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedInitializer(obligation) => {
-                check_bounded_initializer(obligation, &mut diagnostics);
+                check_bounded_initializer(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedStateReturn(obligation) => {
-                check_bounded_state_return(obligation, &mut diagnostics);
+                check_bounded_state_return(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedTransitionArgument(obligation) => {
-                check_bounded_transition_argument(obligation, &mut diagnostics);
+                check_bounded_transition_argument(proof_plan, obligation, &mut diagnostics);
             }
             ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
         }
@@ -51,13 +52,16 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
 }
 
 fn check_bounded_assignment(
+    proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_assignment_named_constraints(obligation, diagnostics);
+    check_assignment_named_constraints(proof_plan, obligation, diagnostics);
 
-    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
-        let Some(value_range) = integer_range_for_assignment(obligation) else {
+    if let Some(target_range) =
+        integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(value_range) = integer_range_for_assignment(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_assignment_integer(
                 obligation,
                 target_range,
@@ -74,8 +78,10 @@ fn check_bounded_assignment(
         }
     }
 
-    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
-        let Some(value_range) = float_range_for_assignment(obligation) else {
+    if let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(value_range) = float_range_for_assignment(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_assignment_float(
                 obligation,
                 target_range,
@@ -94,12 +100,15 @@ fn check_bounded_assignment(
 }
 
 fn check_bounded_initializer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_initializer_named_constraints(obligation, diagnostics);
+    check_initializer_named_constraints(proof_plan, obligation, diagnostics);
 
-    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+    if let Some(target_range) =
+        integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
         let Some(value_range) = integer_range_for_initializer(obligation) else {
             diagnostics.push(cannot_prove_bounded_initializer_integer(
                 obligation,
@@ -117,7 +126,9 @@ fn check_bounded_initializer(
         }
     }
 
-    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+    if let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
         let Some(value_range) = float_range_for_initializer(obligation) else {
             diagnostics.push(cannot_prove_bounded_initializer_float(
                 obligation,
@@ -137,13 +148,16 @@ fn check_bounded_initializer(
 }
 
 fn check_bounded_state_return(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_return_named_constraints(obligation, diagnostics);
+    check_return_named_constraints(proof_plan, obligation, diagnostics);
 
-    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
-        let Some(value_range) = integer_range_for_return_value(obligation) else {
+    if let Some(target_range) =
+        integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(value_range) = integer_range_for_return_value(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_return_integer(
                 obligation,
                 target_range,
@@ -160,8 +174,10 @@ fn check_bounded_state_return(
         }
     }
 
-    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
-        let Some(value_range) = float_range_for_return_value(obligation) else {
+    if let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(value_range) = float_range_for_return_value(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_return_float(obligation, target_range));
             return;
         };
@@ -174,13 +190,16 @@ fn check_bounded_state_return(
 }
 
 fn check_bounded_call_argument(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_call_named_constraints(obligation, diagnostics);
+    check_call_named_constraints(proof_plan, obligation, diagnostics);
 
-    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
-        let Some(argument_range) = integer_range_for_call_argument(obligation) else {
+    if let Some(target_range) =
+        integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(argument_range) = integer_range_for_call_argument(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_call_integer(obligation, target_range));
             return;
         };
@@ -192,8 +211,10 @@ fn check_bounded_call_argument(
         }
     }
 
-    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
-        let Some(argument_range) = float_range_for_call_argument(obligation) else {
+    if let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(argument_range) = float_range_for_call_argument(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_call_float(obligation, target_range));
             return;
         };
@@ -207,13 +228,18 @@ fn check_bounded_call_argument(
 }
 
 fn check_bounded_transition_argument(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    check_transition_named_constraints(obligation, diagnostics);
+    check_transition_named_constraints(proof_plan, obligation, diagnostics);
 
-    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
-        let Some(mut argument_range) = integer_range_for_transition_argument(obligation) else {
+    if let Some(target_range) =
+        integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(mut argument_range) =
+            integer_range_for_transition_argument(proof_plan, obligation)
+        else {
             diagnostics.push(cannot_prove_bounded_transition_integer(
                 obligation,
                 target_range,
@@ -233,8 +259,11 @@ fn check_bounded_transition_argument(
         }
     }
 
-    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
-        let Some(argument_range) = float_range_for_transition_argument(obligation) else {
+    if let Some(target_range) =
+        float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
+    {
+        let Some(argument_range) = float_range_for_transition_argument(proof_plan, obligation)
+        else {
             diagnostics.push(cannot_prove_bounded_transition_float(
                 obligation,
                 target_range,
@@ -254,6 +283,7 @@ fn check_bounded_transition_argument(
 }
 
 fn integer_range_for_transition_argument(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<IntegerRange> {
     match &obligation.argument {
@@ -261,11 +291,15 @@ fn integer_range_for_transition_argument(
             minimum: *value,
             maximum: *value,
         }),
-        _ => integer_range_from_constraints(&obligation.argument_constraints),
+        _ => integer_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        )),
     }
 }
 
 fn float_range_for_transition_argument(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<FloatRange> {
     match &obligation.argument {
@@ -276,11 +310,17 @@ fn float_range_for_transition_argument(
                 maximum: value,
             })
         }
-        _ => float_range_from_constraints(&obligation.argument_constraints),
+        _ => float_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        )),
     }
 }
 
-fn float_range_for_assignment(obligation: &BoundedAssignmentObligation) -> Option<FloatRange> {
+fn float_range_for_assignment(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
             let value = float_literal(value)?;
@@ -289,11 +329,16 @@ fn float_range_for_assignment(obligation: &BoundedAssignmentObligation) -> Optio
                 maximum: value,
             })
         }
-        _ => float_range_from_constraints(&obligation.value_constraints),
+        _ => {
+            float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
+        }
     }
 }
 
-fn float_range_for_call_argument(obligation: &BoundedCallArgumentObligation) -> Option<FloatRange> {
+fn float_range_for_call_argument(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedCallArgumentObligation,
+) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
             let value = float_literal(value)?;
@@ -302,11 +347,17 @@ fn float_range_for_call_argument(obligation: &BoundedCallArgumentObligation) -> 
                 maximum: value,
             })
         }
-        _ => float_range_from_constraints(&obligation.argument_constraints),
+        _ => float_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        )),
     }
 }
 
-fn float_range_for_return_value(obligation: &BoundedStateReturnObligation) -> Option<FloatRange> {
+fn float_range_for_return_value(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedStateReturnObligation,
+) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
             let value = float_literal(value)?;
@@ -315,7 +366,9 @@ fn float_range_for_return_value(obligation: &BoundedStateReturnObligation) -> Op
                 maximum: value,
             })
         }
-        _ => float_range_from_constraints(&obligation.value_constraints),
+        _ => {
+            float_range_from_constraints(type_constraints(proof_plan, obligation.value_constraints))
+        }
     }
 }
 
@@ -333,6 +386,7 @@ fn float_range_for_initializer(obligation: &BoundedInitializerObligation) -> Opt
 }
 
 fn integer_range_for_call_argument(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
     match &obligation.argument {
@@ -340,21 +394,31 @@ fn integer_range_for_call_argument(
             minimum: *value,
             maximum: *value,
         }),
-        _ => integer_range_from_constraints(&obligation.argument_constraints),
+        _ => integer_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.argument_constraints,
+        )),
     }
 }
 
-fn integer_range_for_assignment(obligation: &BoundedAssignmentObligation) -> Option<IntegerRange> {
+fn integer_range_for_assignment(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+) -> Option<IntegerRange> {
     match &obligation.value {
         Expression::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
-        _ => integer_range_from_constraints(&obligation.value_constraints),
+        _ => integer_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.value_constraints,
+        )),
     }
 }
 
 fn integer_range_for_return_value(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
 ) -> Option<IntegerRange> {
     match &obligation.value {
@@ -362,7 +426,10 @@ fn integer_range_for_return_value(
             minimum: *value,
             maximum: *value,
         }),
-        _ => integer_range_from_constraints(&obligation.value_constraints),
+        _ => integer_range_from_constraints(type_constraints(
+            proof_plan,
+            obligation.value_constraints,
+        )),
     }
 }
 
@@ -389,6 +456,13 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
             maximum: integer_literal(maximum)?,
         })
     })
+}
+
+fn type_constraints(
+    proof_plan: &ProofPlan,
+    constraints: HandleSpan<TypeConstraint>,
+) -> &[TypeConstraint] {
+    proof_plan.type_constraints.span(constraints).unwrap_or(&[])
 }
 
 fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
@@ -520,13 +594,15 @@ fn apply_left_literal_guard(
 }
 
 fn check_call_named_constraints(
+    proof_plan: &ProofPlan,
     obligation: &BoundedCallArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for constraint in named_constraints(&obligation.constraints) {
+    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !argument_satisfies_named_constraint(
+            proof_plan,
             &obligation.argument,
-            &obligation.argument_constraints,
+            obligation.argument_constraints,
             constraint,
         ) {
             diagnostics.push(cannot_prove_call_named_constraint(obligation, constraint));
@@ -535,13 +611,15 @@ fn check_call_named_constraints(
 }
 
 fn check_assignment_named_constraints(
+    proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for constraint in named_constraints(&obligation.constraints) {
+    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !argument_satisfies_named_constraint(
+            proof_plan,
             &obligation.value,
-            &obligation.value_constraints,
+            obligation.value_constraints,
             constraint,
         ) {
             diagnostics.push(cannot_prove_assignment_named_constraint(
@@ -552,13 +630,15 @@ fn check_assignment_named_constraints(
 }
 
 fn check_transition_named_constraints(
+    proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for constraint in named_constraints(&obligation.constraints) {
+    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !argument_satisfies_named_constraint(
+            proof_plan,
             &obligation.argument,
-            &obligation.argument_constraints,
+            obligation.argument_constraints,
             constraint,
         ) {
             diagnostics.push(cannot_prove_transition_named_constraint(
@@ -569,13 +649,15 @@ fn check_transition_named_constraints(
 }
 
 fn check_return_named_constraints(
+    proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for constraint in named_constraints(&obligation.constraints) {
+    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !argument_satisfies_named_constraint(
+            proof_plan,
             &obligation.value,
-            &obligation.value_constraints,
+            obligation.value_constraints,
             constraint,
         ) {
             diagnostics.push(cannot_prove_return_named_constraint(obligation, constraint));
@@ -584,10 +666,11 @@ fn check_return_named_constraints(
 }
 
 fn check_initializer_named_constraints(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for constraint in named_constraints(&obligation.constraints) {
+    for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !expression_is_finite_literal(&obligation.value) || constraint != "finite" {
             diagnostics.push(cannot_prove_initializer_named_constraint(
                 obligation, constraint,
@@ -607,16 +690,20 @@ fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &st
 }
 
 fn argument_satisfies_named_constraint(
+    proof_plan: &ProofPlan,
     argument: &Expression,
-    argument_constraints: &[TypeConstraint],
+    argument_constraints: HandleSpan<TypeConstraint>,
     constraint: &str,
 ) -> bool {
-    argument_constraints.iter().any(|argument_constraint| {
-        matches!(
-            argument_constraint,
-            TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
-        )
-    }) || (constraint == "finite" && expression_is_finite_literal(argument))
+    type_constraints(proof_plan, argument_constraints)
+        .iter()
+        .any(|argument_constraint| {
+            matches!(
+                argument_constraint,
+                TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
+            )
+        })
+        || (constraint == "finite" && expression_is_finite_literal(argument))
 }
 
 fn expression_is_finite_literal(expression: &Expression) -> bool {
