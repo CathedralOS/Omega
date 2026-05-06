@@ -16,6 +16,7 @@ use crate::proof::obligations::build_proof_plan;
 use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
+use omega_graph::build_source_graph_report;
 use omega_resolve::build_resolve_report;
 use omega_types::build_type_surface_report;
 
@@ -88,10 +89,11 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
+        let source_graph = build_source_graph_report(&loaded_program.items);
         let control_flow =
             build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_control_flow(&control_flow)
+            .write_graphs(&source_graph, &control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
@@ -172,10 +174,11 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
+        let source_graph = build_source_graph_report(&loaded_program.items);
         let control_flow =
             build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_control_flow(&control_flow)
+            .write_graphs(&source_graph, &control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {

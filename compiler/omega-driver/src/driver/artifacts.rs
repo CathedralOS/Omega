@@ -12,6 +12,7 @@ use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
+use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_resolve::ResolveReport;
 use omega_types::TypeSurfaceReport;
 
@@ -165,23 +166,54 @@ impl ArtifactWriter {
         self.write("06_validation.txt", &output)
     }
 
-    pub(crate) fn write_control_flow(
+    pub(crate) fn write_graphs(
         &self,
+        source_graph: &SourceGraphReport,
         control_flow: &ControlFlowPlan,
     ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        output.push_str("# Omega Control Flow\n\n");
-        output.push_str(&format!("machines: {}\n", control_flow.machines.len()));
-        output.push_str(&format!("states: {}\n", control_flow.states.len()));
+        output.push_str("# Omega Graphs\n\n");
+        output.push_str(&format!(
+            "source machines: {}\n",
+            source_graph.machines.len()
+        ));
+        output.push_str(&format!("source states: {}\n", source_graph.states.len()));
+        output.push_str(&format!(
+            "source transitions: {}\n",
+            source_graph.transitions.len()
+        ));
+        output.push_str(&format!(
+            "control-flow machines: {}\n",
+            control_flow.machines.len()
+        ));
+        output.push_str(&format!(
+            "control-flow states: {}\n",
+            control_flow.states.len()
+        ));
         output.push_str(&format!("operations: {}\n", control_flow.operations.len()));
         output.push_str(&format!(
-            "transitions: {}\n\n",
+            "control-flow transitions: {}\n\n",
             control_flow.transitions.len()
         ));
 
+        output.push_str("## Source Graph\n");
+        for (_, machine) in source_graph.machines.iter() {
+            output.push_str(&format!("### machine {}\n", machine.name));
+
+            let Some(states) = source_graph.states.span(machine.states) else {
+                output.push_str("invalid state span\n\n");
+                continue;
+            };
+
+            for state in states {
+                write_source_graph_state(&mut output, source_graph, state);
+            }
+        }
+
+        output.push_str("\n## Lowered Control Flow\n");
         for machine in &control_flow.machines {
-            output.push_str(&format!("## machine {}\n", machine.name));
+            output.push_str(&format!("### machine {}\n", machine.name));
 
             let Some(states) = control_flow.states.span(machine.states) else {
                 output.push_str("invalid state span\n\n");
@@ -487,6 +519,28 @@ fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
 
 fn write_state_effect(output: &mut String, state: &StateEffects) {
     output.push_str(&format!("- state {}: {:?}\n", state.name, state.effect));
+}
+
+fn write_source_graph_state(
+    output: &mut String,
+    source_graph: &SourceGraphReport,
+    state: &SourceGraphState,
+) {
+    output.push_str(&format!("- state {}\n", state.name));
+
+    match source_graph.transitions.span(state.transitions) {
+        Some(transitions) if transitions.is_empty() => output.push_str("  transitions: none\n"),
+        Some(transitions) => {
+            output.push_str("  transitions:\n");
+            for transition in transitions {
+                output.push_str(&format!(
+                    "    - -> {} {} continuation {}\n",
+                    transition.target, transition.guard, transition.continuation
+                ));
+            }
+        }
+        None => output.push_str("  transitions: invalid span\n"),
+    }
 }
 
 fn write_state_flow(output: &mut String, control_flow: &ControlFlowPlan, state: &StateFlow) {

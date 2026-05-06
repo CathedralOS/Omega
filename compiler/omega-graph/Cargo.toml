@@ -9,5 +9,5 @@ name = "omega_graph"
 path = "src/lib.rs"
 
 [dependencies]
+omega-ast = { path = "../omega-ast" }
 omega-core = { path = "../omega-core" }
-omega-types = { path = "../omega-types" }
