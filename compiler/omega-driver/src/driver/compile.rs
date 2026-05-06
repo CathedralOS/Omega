@@ -10,6 +10,7 @@ use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
 use crate::native::control_flow::build_control_flow_plan;
 use crate::native::emission::build_emission_plan;
+use crate::native::emitter::emit_native_object;
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
@@ -244,31 +245,40 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
 
         Ok(emission_plan)
     })?;
+    let object_path = record_phase(&mut phase_timings, "emit native object", || {
+        let emitted_object =
+            emit_native_object(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
+        artifacts
+            .write_emitted_native_object(&emitted_object)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
-    Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), {} emission blocker(s), entry {}.{} as `{}`",
-        artifacts.root().display(),
-        format_phase_timings(&phase_timings),
-        native_plan.host_abi.bindings.len(),
-        native_plan.host_calls.calls.len(),
-        native_plan.data.bytes.len(),
-        native_plan.instructions.instructions.len(),
-        native_plan.instructions.operands.len(),
-        native_plan.machine_code.byte_count,
-        native_plan.machine_code.bytes.len(),
-        native_plan.relocations.records.len(),
-        native_plan.layouts.data_layouts.len(),
-        native_plan.layouts.machine_layouts.len(),
-        native_plan.control_flow.machines.len(),
-        native_plan.object.sections.len(),
-        emission_plan.blockers.len(),
-        native_plan.entry_machine,
-        native_plan.entry_state,
-        native_plan.object.entry_symbol
-    ))])
+    Ok(CompileOutput {
+        artifacts_dir: artifacts.root().to_path_buf(),
+        executable_path: object_path.clone(),
+        summary: format!(
+            "emitted {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
+            object_path.display(),
+            artifacts.root().display(),
+            format_phase_timings(&phase_timings),
+            native_plan.host_abi.bindings.len(),
+            native_plan.host_calls.calls.len(),
+            native_plan.data.bytes.len(),
+            native_plan.instructions.instructions.len(),
+            native_plan.instructions.operands.len(),
+            native_plan.machine_code.byte_count,
+            native_plan.machine_code.bytes.len(),
+            native_plan.relocations.records.len(),
+            emission_plan.blockers.len(),
+            native_plan.entry_machine,
+            native_plan.entry_state,
+            native_plan.object.entry_symbol
+        ),
+        phase_timings,
+    })
 }
 
 fn record_phase<T>(

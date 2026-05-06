@@ -57,7 +57,9 @@ The Rust compiler is intentionally small, but it now has real pipeline seams und
 - native planning for target layout, state control-flow, object sections, symbols, and entry point
 - phase timing artifacts for each compiler stage
 
-Omega does not currently emit a native binary. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
+Omega does not currently emit a platform executable. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
+
+Compile mode now emits an Omega native object container under the build directory. This is not yet a Mach-O/ELF/COFF file, but it is real compiler-emitted bytes: encoded machine-code bytes where supported, data bytes, symbol records, and relocation records.
 
 The current MVP can check all samples through the real front-end pipeline:
 
@@ -65,6 +67,7 @@ The current MVP can check all samples through the real front-end pipeline:
 cargo run -p omega-cli -- --check samples/cli_mvp/main.omg
 cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
 cargo run -p omega-cli -- --check samples/point_and_click/main.omg
+cargo run -p omega-cli -- --target macos_arm64 samples/cli_mvp/main.omg
 ```
 
 Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, resolve, effects, driver IR, validation, graph, proof, native planning output, and phase timing notes. Use `--build-dir <dir>` to send those artifacts somewhere explicit. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.

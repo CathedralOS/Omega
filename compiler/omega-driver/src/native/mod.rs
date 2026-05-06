@@ -2,6 +2,7 @@ pub mod abi;
 pub mod control_flow;
 pub mod data;
 pub mod emission;
+pub mod emitter;
 pub mod host_calls;
 pub mod instructions;
 pub mod layout;

@@ -14,6 +14,7 @@ use crate::native::control_flow::{
 };
 use crate::native::data::NativeDataObject;
 use crate::native::emission::EmissionPlan;
+use crate::native::emitter::EmittedNativeObject;
 use crate::native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
@@ -661,6 +662,34 @@ impl ArtifactWriter {
         }
 
         self.write("11_emission.txt", &output)
+    }
+
+    pub(crate) fn write_emitted_native_object(
+        &self,
+        emitted_object: &EmittedNativeObject,
+    ) -> Result<PathBuf, Diagnostic> {
+        let object_path = self.root.join("omega-native.omgobj");
+        fs::write(&object_path, &emitted_object.bytes).map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to write native object {}: {error}",
+                object_path.display()
+            ))
+        })?;
+
+        let mut output = String::new();
+        output.push_str("# Omega Emitted Native Object\n\n");
+        output.push_str(&format!("path: {}\n", object_path.display()));
+        output.push_str("format: omega-native-object-container\n");
+        output.push_str(&format!("bytes: {}\n", emitted_object.bytes.len()));
+        output.push_str(&format!("text bytes: {}\n", emitted_object.text_bytes));
+        output.push_str(&format!("data bytes: {}\n", emitted_object.data_bytes));
+        output.push_str(&format!("bss bytes: {}\n", emitted_object.bss_bytes));
+        output.push_str(&format!("symbols: {}\n", emitted_object.symbols));
+        output.push_str(&format!("relocations: {}\n", emitted_object.relocations));
+
+        self.write("12_emitted_object.txt", &output)?;
+
+        Ok(object_path)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {

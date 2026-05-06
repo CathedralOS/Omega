@@ -1412,6 +1412,36 @@ mod tests {
     }
 
     #[test]
+    fn compile_emits_native_object_bytes() {
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-driver-compile-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&build_dir);
+        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples/cli_mvp/main.omg");
+
+        let output = crate::compile(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path,
+            target_name: Some("macos_arm64".to_owned()),
+        })
+        .expect("compile should emit bytes");
+
+        assert!(output.executable_path.is_file());
+        assert!(output.artifacts_dir.join("12_emitted_object.txt").is_file());
+
+        let bytes = std::fs::read(&output.executable_path)
+            .expect("emitted native object should be readable");
+        assert!(bytes.starts_with(b"OMGOBJ\0\0"));
+        assert!(bytes.len() > 32);
+        assert!(
+            output.summary.contains("emitted"),
+            "compile summary should report emitted output"
+        );
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+
+    #[test]
     fn selected_target_loads_only_referenced_host_package() {
         let build_dir = std::env::temp_dir().join(format!(
             "omega-driver-selected-target-{}",
