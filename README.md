@@ -78,7 +78,7 @@ Native binary emission should come from a real Omega backend or execution model,
 - `compiler/omega-lexer/`: source characters to tokens
 - `compiler/omega-parser/`: tokens to AST
 - `compiler/omega-resolve/`: imports, top-level definitions, and syntactic reference collection
-- `compiler/omega-types/`: placeholder for type, ownership, mutability, and bounded-value checks
+- `compiler/omega-types/`: type surface declarations, type references, and invariant constraint reporting
 - `compiler/omega-graph/`: placeholder crate for machine/state graph lowering
 - `compiler/omega-proof/`: placeholder crate for proof obligations and invariant checks
 - `compiler/omega-native/`: placeholder crate for native layout, assembly, and object emission
