@@ -16,21 +16,15 @@ machine FoyerRoom {
 
     state collect_key(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory) {
         inventory.has_key = true;
-
-        ->
     }
 
     state unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId) {
         door_unlocked = true;
         active_room = RoomId::Cellar;
-
-        ->
     }
 
     state open_chest(frame: FrameInput, clicked: ClickTarget) {
         chest_open = true;
-
-        ->
     }
 
     state write_view(mut out_view: RoomView) {

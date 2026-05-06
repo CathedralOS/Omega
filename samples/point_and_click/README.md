@@ -28,7 +28,7 @@ Current sketch:
 - `state` is executable code, calls mutate explicit `mut` context, and trailing `-> target` lines declare exits
 - state-local transition order is the branch table; a bare `-> target` is unconditional
 - `-> self;` re-enters the current state
-- trailing bare `->` marks terminal completion for called helper states
+- trailing bare `->` marks explicit terminal/default completion in branch tables
 
 Sample layout:
 

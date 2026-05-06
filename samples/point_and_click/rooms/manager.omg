@@ -21,14 +21,10 @@ machine RoomManager {
 
     state tick_foyer(frame: FrameInput) {
         foyer.tick(frame, mut inventory, mut active_room);
-
-        ->
     }
 
     state tick_cellar(frame: FrameInput) {
         cellar.tick(frame, mut inventory, mut active_room);
-
-        ->
     }
 
     state write_active_room_view(mut out_view: RoomView) {
@@ -39,14 +35,10 @@ machine RoomManager {
 
     state write_foyer_view(mut out_view: RoomView) {
         foyer.write_view(mut out_view);
-
-        ->
     }
 
     state write_cellar_view(mut out_view: RoomView) {
         cellar.write_view(mut out_view);
-
-        ->
     }
 
     state write_inventory(mut out_inventory: Inventory) {

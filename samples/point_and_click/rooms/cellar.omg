@@ -10,8 +10,6 @@ machine CellarRoom {
 
     state mark_intro_seen(frame: FrameInput) {
         intro_seen = true;
-
-        ->
     }
 
     state write_view(mut out_view: RoomView) {

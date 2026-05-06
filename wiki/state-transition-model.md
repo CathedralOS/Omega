@@ -95,7 +95,7 @@ If multiple transitions leave the same state, they appear as trailing `-> target
 
 `-> self;` is a self-transition. It re-enters the current state without repeating the state name.
 
-A trailing bare `->` is terminal completion. It deliberately has no target and no semicolon:
+A trailing bare `->` is explicit terminal completion. It deliberately has no target and no semicolon:
 
 ```omega
 state collect_key(mut inventory: Inventory) {
@@ -112,6 +112,16 @@ state clamp_done(value: f32) -> f32 {
     value
 }
 ```
+
+For straight-line states with no outgoing transition table, terminal completion may be implicit:
+
+```omega
+state open_chest {
+    chest_open = true;
+}
+```
+
+The explicit `->` earns its keep when there are guarded exits and the author wants to say "none of the guarded exits matched, complete here."
 
 Nested machine flow can be sketched as two arrows:
 

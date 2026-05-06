@@ -31,7 +31,7 @@ Omega is currently exploring a few strong ideas:
 - Transitions live at the end of states as ordered `-> target` edges.
 - A bare arrow is unconditional; `when` adds the guard.
 - `-> self;` re-enters the current state.
-- A trailing bare `->` marks terminal completion.
+- A trailing bare `->` marks explicit terminal/default completion when a transition table needs it.
 - Nested machine flow can be expressed as `-> child.entry -> continuation;`.
 - Calls perform explicit work but do not imply return-value control flow.
 - Data flow should prefer explicit owned data and `mut` parameters over invisible stacks or ambient state.

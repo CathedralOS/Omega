@@ -24,7 +24,7 @@ state running {
 
 The parent enters a child machine and records or otherwise carries the continuation to use when the child machine terminates. That continuation stack belongs to machine composition, not ordinary intra-machine branching.
 
-Terminal completion is written as a trailing bare arrow:
+Explicit terminal/default completion is written as a trailing bare arrow:
 
 ```omega
 state done {
@@ -39,6 +39,14 @@ There is no `return` keyword. For typed states, a final expression produces the 
 ```omega
 state done(value: f32) -> f32 {
     value
+}
+```
+
+If a state has no outgoing transition table, completion can be implicit:
+
+```omega
+state cleanup {
+    release_temp_buffers();
 }
 ```
 

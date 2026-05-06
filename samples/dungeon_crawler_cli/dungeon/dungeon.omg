@@ -50,7 +50,6 @@ machine Dungeon {
     }
 
     state finished {
-        ->
     }
 
     state start() {
@@ -66,16 +65,12 @@ machine Dungeon {
 
     state resolve_command(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
         resolve_exit(level, cell, line, mut out_navigation);
-
-        ->
     }
 
     state resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
         let room: Room;
         find_room(level, cell, mut room);
         find_exit(room, line.text, mut out_navigation);
-
-        ->
     }
 
     state find_exit(room: Room, command: String, mut out_navigation: Navigation) {
@@ -93,8 +88,6 @@ machine Dungeon {
     state apply_exit(exit: Exit, mut out_navigation: Navigation) {
         out_navigation.choice = NavigationChoice::Move;
         out_navigation.destination = exit.destination;
-
-        ->
     }
 
     state write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
@@ -123,8 +116,6 @@ machine Dungeon {
 
     state apply_room(room: Room, mut out_room: Room) {
         out_room = room;
-
-        ->
     }
 
     state format_exits(room: Room, mut out_line: ConsoleLine) {
@@ -143,8 +134,6 @@ machine Dungeon {
 
     state append_open_exit(exit: Exit, mut out_line: ConsoleLine) {
         out_line.text = out_line.text + exit.command + " ";
-
-        ->
     }
 
     state append_quit(mut out_line: ConsoleLine) {
