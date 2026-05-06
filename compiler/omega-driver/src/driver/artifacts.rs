@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::Diagnostic;
 use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
-use crate::native::control_flow::ControlFlowPlan;
+use crate::native::control_flow::{
+    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
+};
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::ProofPlan;
 use crate::semantic::effects::EffectPlan;
@@ -71,7 +73,33 @@ impl ArtifactWriter {
         &self,
         control_flow: &ControlFlowPlan,
     ) -> Result<(), Diagnostic> {
-        self.write("07_graph.txt", &format!("{control_flow:#?}\n"))
+        let mut output = String::new();
+
+        output.push_str("# Omega Control Flow\n\n");
+        output.push_str(&format!("machines: {}\n", control_flow.machines.len()));
+        output.push_str(&format!("states: {}\n", control_flow.states.len()));
+        output.push_str(&format!("operations: {}\n", control_flow.operations.len()));
+        output.push_str(&format!(
+            "transitions: {}\n\n",
+            control_flow.transitions.len()
+        ));
+
+        for machine in &control_flow.machines {
+            output.push_str(&format!("## machine {}\n", machine.name));
+
+            let Some(states) = control_flow.states.span(machine.states) else {
+                output.push_str("invalid state span\n\n");
+                continue;
+            };
+
+            for state in states {
+                write_state_flow(&mut output, control_flow, state);
+            }
+
+            output.push('\n');
+        }
+
+        self.write("07_graph.txt", &output)
     }
 
     pub(crate) fn write_proof_plan(&self, proof_plan: &ProofPlan) -> Result<(), Diagnostic> {
@@ -120,4 +148,60 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!("first item: {}\n", file.first_item));
     output.push_str(&format!("item count: {}\n\n", file.item_count));
+}
+
+fn write_state_flow(output: &mut String, control_flow: &ControlFlowPlan, state: &StateFlow) {
+    output.push_str(&format!("- state {} #{}\n", state.name, state.index));
+
+    match control_flow.operations.span(state.operations) {
+        Some(operations) if operations.is_empty() => output.push_str("  operations: none\n"),
+        Some(operations) => {
+            output.push_str("  operations:\n");
+            for operation in operations {
+                write_operation(output, operation);
+            }
+        }
+        None => output.push_str("  operations: invalid span\n"),
+    }
+
+    match control_flow.transitions.span(state.transitions) {
+        Some(transitions) if transitions.is_empty() => output.push_str("  transitions: none\n"),
+        Some(transitions) => {
+            output.push_str("  transitions:\n");
+            for transition in transitions {
+                write_transition(output, transition);
+            }
+        }
+        None => output.push_str("  transitions: invalid span\n"),
+    }
+}
+
+fn write_operation(output: &mut String, operation: &Operation) {
+    output.push_str(&format!(
+        "    - statement {}: {:?}\n",
+        operation.statement_index, operation.kind
+    ));
+}
+
+fn write_transition(output: &mut String, transition: &TransitionFlow) {
+    output.push_str(&format!(
+        "    - -> {} when {:?}",
+        transition_target_name(&transition.target),
+        transition.guard
+    ));
+
+    if let Some(continuation) = &transition.continuation {
+        output.push_str(&format!(" -> {}", transition_target_name(continuation)));
+    }
+
+    output.push('\n');
+}
+
+fn transition_target_name(target: &PlannedTransitionTarget) -> String {
+    match target {
+        PlannedTransitionTarget::State { name, .. } => name.clone(),
+        PlannedTransitionTarget::Nested { receiver, state } => format!("{receiver}.{state}"),
+        PlannedTransitionTarget::SelfTarget => "self".to_owned(),
+        PlannedTransitionTarget::Terminal => "terminal".to_owned(),
+    }
 }
