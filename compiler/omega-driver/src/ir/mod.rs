@@ -1,5 +1,6 @@
 pub mod data;
 pub mod expression;
+pub mod invariant;
 pub mod lowering;
 pub mod machine;
 pub mod platform;
@@ -11,6 +12,7 @@ pub mod types;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
     pub data_definitions: Vec<data::DataDefinition>,
+    pub invariant_definitions: Vec<invariant::InvariantDefinition>,
     pub machines: Vec<machine::Machine>,
     pub platforms: Vec<platform::Platform>,
 }

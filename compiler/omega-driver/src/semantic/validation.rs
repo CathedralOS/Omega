@@ -11,6 +11,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = ProgramSymbols::build(program, &mut diagnostics);
 
+    validate_invariant_definitions(program, &mut diagnostics);
     validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
@@ -68,6 +69,21 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn validate_invariant_definitions(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+    for invariant in &program.invariant_definitions {
+        for constraint in &invariant.constraints {
+            match constraint {
+                TypeConstraint::Named(name) if name == "finite" => {}
+                TypeConstraint::Named(name) => diagnostics.push(Diagnostic::error(format!(
+                    "invariant `{}` uses unknown type constraint `{name}`",
+                    invariant.name
+                ))),
+                TypeConstraint::Range { .. } => {}
+            }
+        }
     }
 }
 

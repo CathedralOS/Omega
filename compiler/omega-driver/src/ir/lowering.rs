@@ -6,6 +6,7 @@ use crate::ir::expression::{
     BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
+use crate::ir::invariant::InvariantDefinition;
 use crate::ir::machine::{ContainedObject, Machine, OwnedData};
 use crate::ir::platform::Platform;
 use crate::ir::signature::{StateParameter, StateSignature};
@@ -15,22 +16,70 @@ use crate::ir::statement::{
 };
 use crate::ir::types::{TypeConstraint, TypeReference};
 
+struct InvariantAliases {
+    items: Vec<InvariantAlias>,
+}
+
+struct InvariantAlias {
+    name: String,
+    constraints: Vec<ast::types::TypeConstraint>,
+}
+
+impl InvariantAliases {
+    fn build(items: &[ast::item::Item]) -> Result<Self, Diagnostic> {
+        let mut aliases = Self { items: Vec::new() };
+
+        for item in items {
+            let ast::item::Item::Invariant(invariant) = item else {
+                continue;
+            };
+
+            if aliases.get(&invariant.name).is_some() {
+                return Err(Diagnostic::error(format!(
+                    "duplicate invariant `{}`",
+                    invariant.name
+                )));
+            }
+
+            aliases.items.push(InvariantAlias {
+                name: invariant.name.clone(),
+                constraints: invariant.constraints.clone(),
+            });
+        }
+
+        Ok(aliases)
+    }
+
+    fn get(&self, name: &str) -> Option<&InvariantAlias> {
+        self.items.iter().find(|alias| alias.name == name)
+    }
+}
+
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
+    let aliases = InvariantAliases::build(items)?;
     let mut program = Program::default();
+
+    for alias in &aliases.items {
+        program.invariant_definitions.push(InvariantDefinition {
+            name: alias.name.clone(),
+            constraints: lower_type_constraints(&alias.constraints, &aliases, &mut Vec::new())?,
+        });
+    }
 
     for item in items {
         match item {
             ast::item::Item::Data(data_definition) => {
                 program
                     .data_definitions
-                    .push(lower_data_definition(data_definition)?);
+                    .push(lower_data_definition(data_definition, &aliases)?);
             }
+            ast::item::Item::Invariant(_) => {}
             ast::item::Item::Use(_) => {}
             ast::item::Item::Machine(machine) => {
-                program.machines.push(lower_machine(machine)?);
+                program.machines.push(lower_machine(machine, &aliases)?);
             }
             ast::item::Item::Platform(platform) => {
-                program.platforms.push(lower_platform(platform)?);
+                program.platforms.push(lower_platform(platform, &aliases)?);
             }
         }
     }
@@ -40,11 +89,12 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
 
 fn lower_data_definition(
     data_definition: &ast::item::DataDefinition,
+    aliases: &InvariantAliases,
 ) -> Result<DataDefinition, Diagnostic> {
     let members = data_definition
         .members
         .iter()
-        .map(lower_data_member)
+        .map(|member| lower_data_member(member, aliases))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DataDefinition {
@@ -53,11 +103,14 @@ fn lower_data_definition(
     })
 }
 
-fn lower_data_member(member: &ast::item::DataMember) -> Result<DataMember, Diagnostic> {
+fn lower_data_member(
+    member: &ast::item::DataMember,
+    aliases: &InvariantAliases,
+) -> Result<DataMember, Diagnostic> {
     match member {
         ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             name: field.name.clone(),
-            type_reference: lower_type_reference(&field.type_reference)?,
+            type_reference: lower_type_reference(&field.type_reference, aliases)?,
         })),
         ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
             name: variant.name.clone(),
@@ -65,7 +118,10 @@ fn lower_data_member(member: &ast::item::DataMember) -> Result<DataMember, Diagn
     }
 }
 
-fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
+fn lower_machine(
+    machine: &ast::item::Machine,
+    aliases: &InvariantAliases,
+) -> Result<Machine, Diagnostic> {
     let contains = machine
         .contains
         .iter()
@@ -78,13 +134,13 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
     let owned_data = machine
         .owned_data
         .iter()
-        .map(lower_owned_data)
+        .map(|owned_data| lower_owned_data(owned_data, aliases))
         .collect::<Result<Vec<_>, _>>()?;
 
     let states = machine
         .states
         .iter()
-        .map(lower_state)
+        .map(|state| lower_state(state, aliases))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Machine {
@@ -95,10 +151,13 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
     })
 }
 
-fn lower_owned_data(owned_data: &ast::item::OwnedData) -> Result<OwnedData, Diagnostic> {
+fn lower_owned_data(
+    owned_data: &ast::item::OwnedData,
+    aliases: &InvariantAliases,
+) -> Result<OwnedData, Diagnostic> {
     Ok(OwnedData {
         name: owned_data.name.clone(),
-        type_reference: lower_type_reference(&owned_data.type_reference)?,
+        type_reference: lower_type_reference(&owned_data.type_reference, aliases)?,
         initial_value: owned_data
             .initial_value
             .as_ref()
@@ -107,11 +166,14 @@ fn lower_owned_data(owned_data: &ast::item::OwnedData) -> Result<OwnedData, Diag
     })
 }
 
-fn lower_platform(platform: &ast::item::Platform) -> Result<Platform, Diagnostic> {
+fn lower_platform(
+    platform: &ast::item::Platform,
+    aliases: &InvariantAliases,
+) -> Result<Platform, Diagnostic> {
     let states = platform
         .states
         .iter()
-        .map(lower_state_signature)
+        .map(|signature| lower_state_signature(signature, aliases))
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
@@ -122,13 +184,14 @@ fn lower_platform(platform: &ast::item::Platform) -> Result<Platform, Diagnostic
 
 fn lower_state_signature(
     signature: &ast::item::StateSignature,
+    aliases: &InvariantAliases,
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
         name: signature.name.clone(),
         return_type: signature
             .return_type
             .as_ref()
-            .map(lower_type_reference)
+            .map(|type_reference| lower_type_reference(type_reference, aliases))
             .transpose()?,
         parameters: signature
             .parameters
@@ -136,7 +199,7 @@ fn lower_state_signature(
             .map(|parameter| {
                 Ok(StateParameter {
                     name: parameter.name.clone(),
-                    type_reference: lower_type_reference(&parameter.type_reference)?,
+                    type_reference: lower_type_reference(&parameter.type_reference, aliases)?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                     is_self: parameter.is_self,
@@ -148,23 +211,21 @@ fn lower_state_signature(
 
 fn lower_type_reference(
     type_reference: &ast::types::TypeReference,
+    aliases: &InvariantAliases,
 ) -> Result<TypeReference, Diagnostic> {
     match type_reference {
         ast::types::TypeReference::Constrained {
             base_type,
             constraints,
         } => Ok(TypeReference::Constrained {
-            base_type: Box::new(lower_type_reference(base_type)?),
-            constraints: constraints
-                .iter()
-                .map(lower_type_constraint)
-                .collect::<Result<Vec<_>, Diagnostic>>()?,
+            base_type: Box::new(lower_type_reference(base_type, aliases)?),
+            constraints: lower_type_constraints(constraints, aliases, &mut Vec::new())?,
         }),
         ast::types::TypeReference::FixedArray {
             element_type,
             length,
         } => Ok(TypeReference::FixedArray {
-            element_type: Box::new(lower_type_reference(element_type)?),
+            element_type: Box::new(lower_type_reference(element_type, aliases)?),
             length: *length,
         }),
         ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
@@ -183,11 +244,48 @@ fn lower_type_constraint(
     }
 }
 
-fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
+fn lower_type_constraints(
+    constraints: &[ast::types::TypeConstraint],
+    aliases: &InvariantAliases,
+    expansion_stack: &mut Vec<String>,
+) -> Result<Vec<TypeConstraint>, Diagnostic> {
+    let mut lowered_constraints = Vec::new();
+
+    for constraint in constraints {
+        match constraint {
+            ast::types::TypeConstraint::Named(name) => {
+                if let Some(alias) = aliases.get(name) {
+                    if expansion_stack.contains(name) {
+                        return Err(Diagnostic::error(format!(
+                            "recursive invariant alias `{name}`"
+                        )));
+                    }
+
+                    expansion_stack.push(name.clone());
+                    lowered_constraints.extend(lower_type_constraints(
+                        &alias.constraints,
+                        aliases,
+                        expansion_stack,
+                    )?);
+                    expansion_stack.pop();
+                } else {
+                    lowered_constraints.push(TypeConstraint::Named(name.clone()));
+                }
+            }
+            ast::types::TypeConstraint::Range { .. } => {
+                lowered_constraints.push(lower_type_constraint(constraint)?);
+            }
+        }
+    }
+
+    Ok(lowered_constraints)
+}
+
+fn lower_state(state: &ast::item::State, aliases: &InvariantAliases) -> Result<State, Diagnostic> {
     let statements = state
         .statements
         .iter()
-        .map(lower_statement)
+        .map(|statement| lower_statement(statement, aliases))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
@@ -195,7 +293,7 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
         return_type: state
             .return_type
             .as_ref()
-            .map(lower_type_reference)
+            .map(|type_reference| lower_type_reference(type_reference, aliases))
             .transpose()?,
         parameters: state
             .parameters
@@ -203,7 +301,7 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
             .map(|parameter| {
                 Ok(StateParameter {
                     name: parameter.name.clone(),
-                    type_reference: lower_type_reference(&parameter.type_reference)?,
+                    type_reference: lower_type_reference(&parameter.type_reference, aliases)?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                     is_self: parameter.is_self,
@@ -214,7 +312,10 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
     })
 }
 
-fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, Diagnostic> {
+fn lower_statement(
+    statement: &ast::statement::Statement,
+    aliases: &InvariantAliases,
+) -> Result<Statement, Diagnostic> {
     match statement {
         ast::statement::Statement::Assignment(assignment) => {
             Ok(Statement::Assignment(Assignment {
@@ -236,7 +337,7 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
         }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
             name: local_data.name.clone(),
-            type_reference: lower_type_reference(&local_data.type_reference)?,
+            type_reference: lower_type_reference(&local_data.type_reference, aliases)?,
         })),
         ast::statement::Statement::Transition(transition) => {
             Ok(Statement::Transition(Transition {

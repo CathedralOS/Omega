@@ -1,10 +1,12 @@
+invariant speed_range = [finite, range<0.0f, 100000.0f>];
+
 machine main {
-    owns speed: f32[finite, range<0.0f, 100000.0f>] = 0.0f;
+    owns speed: f32[speed_range] = 0.0f;
 
     state entry {
         clamp_speed(speed);
     }
 
-    state clamp_speed(value: f32[finite, range<0.0f, 100000.0f>]) {
+    state clamp_speed(value: f32[speed_range]) {
     }
 }

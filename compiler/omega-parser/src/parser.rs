@@ -4,8 +4,8 @@ use omega_ast::expression::{
     StructLiteralField,
 };
 use omega_ast::item::{
-    Contains, DataDefinition, DataField, DataMember, DataVariant, Item, Machine, OwnedData,
-    Platform, State, StateParameter, StateSignature, UseItem,
+    Contains, DataDefinition, DataField, DataMember, DataVariant, InvariantDefinition, Item,
+    Machine, OwnedData, Platform, State, StateParameter, StateSignature, UseItem,
 };
 use omega_ast::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -34,6 +34,8 @@ impl Parser<'_> {
         while !self.is_at_end() {
             if self.consume("use") {
                 items.push(Item::Use(self.parse_use()?));
+            } else if self.consume("invariant") {
+                items.push(Item::Invariant(self.parse_invariant_definition()?));
             } else if self.consume("data") {
                 items.push(Item::Data(self.parse_data_definition()?));
             } else if self.consume("platform") {
@@ -58,6 +60,15 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(UseItem { path })
+    }
+
+    fn parse_invariant_definition(&mut self) -> Result<InvariantDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("=")?;
+        let constraints = self.parse_type_constraints()?;
+        self.expect(";")?;
+
+        Ok(InvariantDefinition { name, constraints })
     }
 
     fn parse_data_definition(&mut self) -> Result<DataDefinition, ParseError> {
@@ -255,7 +266,13 @@ impl Parser<'_> {
                 states.push(self.parse_state()?);
             } else if self.consume("invariant") {
                 self.expect_identifier()?;
-                self.skip_balanced_braces()?;
+
+                if self.consume("=") {
+                    self.parse_type_constraints()?;
+                    self.expect(";")?;
+                } else {
+                    self.skip_balanced_braces()?;
+                }
             } else {
                 return Err(self.error_here("expected machine item"));
             }

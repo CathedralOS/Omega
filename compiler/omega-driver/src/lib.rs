@@ -864,6 +864,49 @@ mod tests {
     }
 
     #[test]
+    fn expands_invariant_aliases_during_lowering() {
+        let tokens = Lexer::new(
+            r#"
+            invariant finite_value = [finite];
+            invariant speed_range = [finite_value, range<0.0f, 100000.0f>];
+
+            machine main {
+                owns speed: f32[speed_range] = 0.0f;
+
+                state entry {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let crate::ir::types::TypeReference::Constrained {
+            base_type,
+            constraints,
+        } = &program.machines[0].owned_data[0].type_reference
+        else {
+            panic!("expected constrained owned data");
+        };
+
+        assert_eq!(
+            base_type.as_ref(),
+            &crate::ir::types::TypeReference::Named("f32".to_owned())
+        );
+        assert_eq!(constraints.len(), 2);
+        assert!(matches!(
+            constraints[0],
+            crate::ir::types::TypeConstraint::Named(ref name) if name == "finite"
+        ));
+        assert!(matches!(
+            constraints[1],
+            crate::ir::types::TypeConstraint::Range { .. }
+        ));
+    }
+
+    #[test]
     fn plans_state_control_flow() {
         let tokens = Lexer::new(
             r#"

@@ -69,6 +69,28 @@ Important runtime rule:
 
 This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
 
+## Invariant Aliases
+
+Repeated constraint lists may be named for reuse.
+
+```omega
+invariant finite_value = [finite];
+invariant speed_range = [finite_value, range<0.0f, 100000.0f>];
+
+machine main {
+    owns speed: f32[speed_range] = 0.0f;
+}
+```
+
+Working interpretation:
+
+- Invariant names use normal Rust-style value naming: `speed_range`, not `SpeedRange`.
+- An invariant alias expands at compile time into its constraint list.
+- Aliases may compose by referring to earlier or later aliases.
+- Aliases do not create runtime types, wrappers, tags, RTTI, or hidden storage.
+- A bounded type like `f32[speed_range]` is still represented as an `f32`.
+- Recursive aliases are invalid because they never produce a concrete proof fact.
+
 ## Float Invariants
 
 Float types need refinements too, but they are trickier than integers.
