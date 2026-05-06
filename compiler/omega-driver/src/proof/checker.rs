@@ -12,6 +12,12 @@ struct IntegerRange {
     maximum: i64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FloatRange {
+    minimum: f64,
+    maximum: f64,
+}
+
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
@@ -38,18 +44,32 @@ fn check_bounded_call_argument(
     obligation: &BoundedCallArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(target_range) = integer_range_from_constraints(&obligation.constraints) else {
-        return;
-    };
-    let Some(argument_range) = integer_range_for_call_argument(obligation) else {
-        diagnostics.push(cannot_prove_bounded_call(obligation, target_range));
-        return;
-    };
+    check_call_named_constraints(obligation, diagnostics);
 
-    if argument_range.minimum < target_range.minimum
-        || argument_range.maximum > target_range.maximum
-    {
-        diagnostics.push(cannot_prove_bounded_call(obligation, target_range));
+    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+        let Some(argument_range) = integer_range_for_call_argument(obligation) else {
+            diagnostics.push(cannot_prove_bounded_call_integer(obligation, target_range));
+            return;
+        };
+
+        if argument_range.minimum < target_range.minimum
+            || argument_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_call_integer(obligation, target_range));
+        }
+    }
+
+    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+        let Some(argument_range) = float_range_for_call_argument(obligation) else {
+            diagnostics.push(cannot_prove_bounded_call_float(obligation, target_range));
+            return;
+        };
+
+        if argument_range.minimum < target_range.minimum
+            || argument_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_call_float(obligation, target_range));
+        }
     }
 }
 
@@ -57,24 +77,50 @@ fn check_bounded_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(target_range) = integer_range_from_constraints(&obligation.constraints) else {
-        return;
-    };
-    let Some(mut argument_range) = integer_range_for_argument(obligation) else {
-        diagnostics.push(cannot_prove_bounded_handoff(obligation, target_range));
-        return;
-    };
+    check_transition_named_constraints(obligation, diagnostics);
 
-    argument_range = apply_guard(argument_range, &obligation.argument, &obligation.guard);
+    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+        let Some(mut argument_range) = integer_range_for_transition_argument(obligation) else {
+            diagnostics.push(cannot_prove_bounded_transition_integer(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
 
-    if argument_range.minimum < target_range.minimum
-        || argument_range.maximum > target_range.maximum
-    {
-        diagnostics.push(cannot_prove_bounded_handoff(obligation, target_range));
+        argument_range = apply_guard(argument_range, &obligation.argument, &obligation.guard);
+
+        if argument_range.minimum < target_range.minimum
+            || argument_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_transition_integer(
+                obligation,
+                target_range,
+            ));
+        }
+    }
+
+    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+        let Some(argument_range) = float_range_for_transition_argument(obligation) else {
+            diagnostics.push(cannot_prove_bounded_transition_float(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if argument_range.minimum < target_range.minimum
+            || argument_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_transition_float(
+                obligation,
+                target_range,
+            ));
+        }
     }
 }
 
-fn integer_range_for_argument(
+fn integer_range_for_transition_argument(
     obligation: &BoundedTransitionArgumentObligation,
 ) -> Option<IntegerRange> {
     match &obligation.argument {
@@ -83,6 +129,34 @@ fn integer_range_for_argument(
             maximum: *value,
         }),
         _ => integer_range_from_constraints(&obligation.argument_constraints),
+    }
+}
+
+fn float_range_for_transition_argument(
+    obligation: &BoundedTransitionArgumentObligation,
+) -> Option<FloatRange> {
+    match &obligation.argument {
+        Expression::Float(value) => {
+            let value = float_literal(value)?;
+            Some(FloatRange {
+                minimum: value,
+                maximum: value,
+            })
+        }
+        _ => float_range_from_constraints(&obligation.argument_constraints),
+    }
+}
+
+fn float_range_for_call_argument(obligation: &BoundedCallArgumentObligation) -> Option<FloatRange> {
+    match &obligation.argument {
+        Expression::Float(value) => {
+            let value = float_literal(value)?;
+            Some(FloatRange {
+                minimum: value,
+                maximum: value,
+            })
+        }
+        _ => float_range_from_constraints(&obligation.argument_constraints),
     }
 }
 
@@ -111,11 +185,42 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
     })
 }
 
+fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
+    constraints.iter().find_map(|constraint| {
+        let TypeConstraint::Range { minimum, maximum } = constraint else {
+            return None;
+        };
+        if !matches!(minimum, Expression::Float(_)) && !matches!(maximum, Expression::Float(_)) {
+            return None;
+        }
+
+        Some(FloatRange {
+            minimum: float_literal_expression(minimum)?,
+            maximum: float_literal_expression(maximum)?,
+        })
+    })
+}
+
 fn integer_literal(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
         _ => None,
     }
+}
+
+fn float_literal_expression(expression: &Expression) -> Option<f64> {
+    match expression {
+        Expression::Float(value) => float_literal(value),
+        Expression::Integer(value) => Some(*value as f64),
+        _ => None,
+    }
+}
+
+fn float_literal(value: &str) -> Option<f64> {
+    let trimmed = value.trim_end_matches(['f', 'F']);
+    let parsed = trimmed.parse::<f64>().ok()?;
+
+    parsed.is_finite().then_some(parsed)
 }
 
 fn apply_guard(
@@ -208,7 +313,70 @@ fn apply_left_literal_guard(
     range
 }
 
-fn cannot_prove_bounded_handoff(
+fn check_call_named_constraints(
+    obligation: &BoundedCallArgumentObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in named_constraints(&obligation.constraints) {
+        if !argument_satisfies_named_constraint(
+            &obligation.argument,
+            &obligation.argument_constraints,
+            constraint,
+        ) {
+            diagnostics.push(cannot_prove_call_named_constraint(obligation, constraint));
+        }
+    }
+}
+
+fn check_transition_named_constraints(
+    obligation: &BoundedTransitionArgumentObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in named_constraints(&obligation.constraints) {
+        if !argument_satisfies_named_constraint(
+            &obligation.argument,
+            &obligation.argument_constraints,
+            constraint,
+        ) {
+            diagnostics.push(cannot_prove_transition_named_constraint(
+                obligation, constraint,
+            ));
+        }
+    }
+}
+
+fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &str> {
+    constraints.iter().filter_map(|constraint| {
+        let TypeConstraint::Named(name) = constraint else {
+            return None;
+        };
+
+        Some(name.as_str())
+    })
+}
+
+fn argument_satisfies_named_constraint(
+    argument: &Expression,
+    argument_constraints: &[TypeConstraint],
+    constraint: &str,
+) -> bool {
+    argument_constraints.iter().any(|argument_constraint| {
+        matches!(
+            argument_constraint,
+            TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
+        )
+    }) || (constraint == "finite" && expression_is_finite_literal(argument))
+}
+
+fn expression_is_finite_literal(expression: &Expression) -> bool {
+    match expression {
+        Expression::Float(value) => float_literal(value).is_some(),
+        Expression::Integer(_) => true,
+        _ => false,
+    }
+}
+
+fn cannot_prove_bounded_transition_integer(
     obligation: &BoundedTransitionArgumentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
@@ -223,7 +391,36 @@ fn cannot_prove_bounded_handoff(
     ))
 }
 
-fn cannot_prove_bounded_call(
+fn cannot_prove_bounded_transition_float(
+    obligation: &BoundedTransitionArgumentObligation,
+    target_range: FloatRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
+        obligation.argument.display_name(),
+        obligation.parameter,
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
+fn cannot_prove_transition_named_constraint(
+    obligation: &BoundedTransitionArgumentObligation,
+    constraint: &str,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove transition argument `{}` satisfies `{}` for bounded parameter `{}` in `{}.{}`",
+        obligation.argument.display_name(),
+        constraint,
+        obligation.parameter,
+        obligation.machine,
+        obligation.state
+    ))
+}
+
+fn cannot_prove_bounded_call_integer(
     obligation: &BoundedCallArgumentObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
@@ -242,5 +439,48 @@ fn cannot_prove_bounded_call(
         obligation.state,
         target_range.minimum,
         target_range.maximum
+    ))
+}
+
+fn cannot_prove_bounded_call_float(
+    obligation: &BoundedCallArgumentObligation,
+    target_range: FloatRange,
+) -> Diagnostic {
+    let target = obligation
+        .receiver
+        .as_ref()
+        .map(|receiver| format!("{receiver}.{}", obligation.target))
+        .unwrap_or_else(|| obligation.target.clone());
+
+    Diagnostic::error(format!(
+        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
+        obligation.argument.display_name(),
+        obligation.parameter,
+        target,
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
+fn cannot_prove_call_named_constraint(
+    obligation: &BoundedCallArgumentObligation,
+    constraint: &str,
+) -> Diagnostic {
+    let target = obligation
+        .receiver
+        .as_ref()
+        .map(|receiver| format!("{receiver}.{}", obligation.target))
+        .unwrap_or_else(|| obligation.target.clone());
+
+    Diagnostic::error(format!(
+        "cannot prove call argument `{}` satisfies `{}` for bounded parameter `{}` for `{}` in `{}.{}`",
+        obligation.argument.display_name(),
+        constraint,
+        obligation.parameter,
+        target,
+        obligation.machine,
+        obligation.state
     ))
 }

@@ -1,0 +1,10 @@
+machine main {
+    owns speed: f32[finite, range<0.0f, 100000.0f>] = 0.0f;
+
+    state entry {
+        safe_speed(speed);
+    }
+
+    state safe_speed(value: f32[finite, range<0.0f, 100.0f>]) {
+    }
+}
