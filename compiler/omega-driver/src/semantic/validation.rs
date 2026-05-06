@@ -450,6 +450,28 @@ fn validate_type_reference(
         TypeReference::FixedArray { element_type, .. } => {
             validate_type_reference(program, element_type, symbols, diagnostics, owner);
         }
+        TypeReference::Generic {
+            base_name,
+            arguments,
+        } => {
+            if PrimitiveType::from_name(base_name).is_none()
+                && !symbols.has_data_definition(base_name)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown generic type `{base_name}`"
+                )));
+            }
+
+            for argument in arguments {
+                validate_type_reference(
+                    program,
+                    argument,
+                    symbols,
+                    diagnostics,
+                    format!("{owner} generic argument"),
+                );
+            }
+        }
         TypeReference::Named(name) => {
             if PrimitiveType::from_name(name).is_some() {
                 return;
@@ -461,6 +483,7 @@ fn validate_type_reference(
                 )));
             }
         }
+        TypeReference::Unit => {}
     }
 }
 
@@ -930,6 +953,13 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
             argument,
             Expression::ArrayLiteral(_) | Expression::Indexed(_) | Expression::Name(_)
         ),
+        TypeReference::Generic { .. } => matches!(
+            argument,
+            Expression::Binary(_)
+                | Expression::Indexed(_)
+                | Expression::Name(_)
+                | Expression::StructLiteral(_)
+        ),
         TypeReference::Named(type_name) => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument, Expression::Boolean(_))
@@ -957,6 +987,7 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
                     | Expression::StructLiteral(_)
             )
         }
+        TypeReference::Unit => false,
     }
 }
 

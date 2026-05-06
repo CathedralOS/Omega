@@ -261,7 +261,18 @@ fn lower_type_reference(
             )?),
             length: *length,
         }),
+        ast::types::TypeReference::Generic {
+            base_name,
+            arguments,
+        } => Ok(TypeReference::Generic {
+            base_name: base_name.clone(),
+            arguments: arguments
+                .iter()
+                .map(|argument| lower_type_reference(argument, aliases, type_constraints))
+                .collect::<Result<Vec<_>, _>>()?,
+        }),
         ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
+        ast::types::TypeReference::Unit => Ok(TypeReference::Unit),
     }
 }
 

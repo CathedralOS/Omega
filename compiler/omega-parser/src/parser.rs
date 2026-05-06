@@ -4,9 +4,11 @@ use omega_ast::expression::{
     StructLiteralField,
 };
 use omega_ast::item::{
-    CapabilityDefinition, Contains, DataDefinition, DataField, DataMember, DataVariant,
-    InvariantDefinition, Item, Machine, OwnedData, Platform, State, StateParameter, StateSignature,
-    TargetDefinition, UseItem,
+    CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
+    CapabilityMember, CapabilityState, Contains, DataDefinition, DataField, DataMember,
+    DataVariant, InvariantDefinition, Item, Machine, OwnedData, Platform, State, StateParameter,
+    StateSignature, TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue,
+    TrustLevel, TrustMode, TrustPolicy, UseItem,
 };
 use omega_ast::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -69,16 +71,144 @@ impl Parser<'_> {
 
     fn parse_target_definition(&mut self) -> Result<TargetDefinition, ParseError> {
         let name = self.expect_identifier()?;
-        self.skip_balanced_braces()?;
+        self.expect("{")?;
 
-        Ok(TargetDefinition { name })
+        let mut host = None;
+        let mut trust_policies = Vec::new();
+
+        while !self.consume("}") {
+            if self.consume("host") {
+                host = Some(self.parse_target_host()?);
+            } else if self.consume("trust") {
+                trust_policies.push(self.parse_trust_policy()?);
+            } else {
+                return Err(self.error_here("expected target item"));
+            }
+        }
+
+        Ok(TargetDefinition {
+            name,
+            host,
+            trust_policies,
+        })
     }
 
     fn parse_capability_definition(&mut self) -> Result<CapabilityDefinition, ParseError> {
         let name = self.expect_identifier()?;
-        self.skip_balanced_braces()?;
+        self.expect("{")?;
 
-        Ok(CapabilityDefinition { name })
+        let mut members = Vec::new();
+
+        while !self.consume("}") {
+            if self.consume("state") {
+                members.push(CapabilityMember::State(self.parse_capability_state()?));
+            } else {
+                let field_name = self.expect_identifier()?;
+                self.expect(":")?;
+                let type_reference = self.parse_type_reference()?;
+                members.push(CapabilityMember::Field(CapabilityField {
+                    name: field_name,
+                    type_reference,
+                }));
+            }
+        }
+
+        Ok(CapabilityDefinition { name, members })
+    }
+
+    fn parse_target_host(&mut self) -> Result<TargetHost, ParseError> {
+        self.expect(":")?;
+        let provider = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut settings = Vec::new();
+
+        while !self.consume("}") {
+            let name = self.expect_identifier()?;
+            self.expect("=")?;
+            let value_name = self.expect_identifier()?;
+            let value = if self.consume("(") {
+                TargetHostSettingValue::Call {
+                    name: value_name,
+                    argument_tokens: self.skip_balanced_parentheses_after_open()?,
+                }
+            } else {
+                TargetHostSettingValue::Named(value_name)
+            };
+
+            settings.push(TargetHostSetting { name, value });
+        }
+
+        Ok(TargetHost { provider, settings })
+    }
+
+    fn parse_trust_policy(&mut self) -> Result<TrustPolicy, ParseError> {
+        let mode = if self.consume("unchecked") {
+            TrustMode::Unchecked
+        } else {
+            TrustMode::Checked
+        };
+        let name = self.expect_identifier()?;
+
+        Ok(TrustPolicy { mode, name })
+    }
+
+    fn parse_capability_state(&mut self) -> Result<CapabilityState, ParseError> {
+        let signature = self.parse_state_signature()?;
+        let mut contracts = Vec::new();
+
+        while !self.check("state") && !self.check("}") {
+            if self.consume("requires") {
+                contracts.push(CapabilityContract {
+                    kind: CapabilityContractKind::Requires,
+                    token_count: self.skip_capability_contract_tokens(),
+                });
+            } else if self.consume("ensures") {
+                contracts.push(CapabilityContract {
+                    kind: CapabilityContractKind::Ensures,
+                    token_count: self.skip_capability_contract_tokens(),
+                });
+            } else if self.consume("trusted") {
+                let trust_level = self.parse_trust_level()?;
+                contracts.push(CapabilityContract {
+                    kind: CapabilityContractKind::Trusted(trust_level),
+                    token_count: 1,
+                });
+            } else {
+                return Err(self.error_here("expected capability contract"));
+            }
+        }
+
+        Ok(CapabilityState {
+            signature,
+            contracts,
+        })
+    }
+
+    fn parse_trust_level(&mut self) -> Result<TrustLevel, ParseError> {
+        let name = self.expect_identifier()?;
+
+        if name == "host" {
+            Ok(TrustLevel::Host)
+        } else {
+            Ok(TrustLevel::Named(name))
+        }
+    }
+
+    fn skip_capability_contract_tokens(&mut self) -> usize {
+        let start = self.index;
+
+        while !self.is_at_end()
+            && !self.check("requires")
+            && !self.check("ensures")
+            && !self.check("trusted")
+            && !self.check("state")
+            && !self.check("}")
+        {
+            self.index += 1;
+        }
+
+        self.index - start
     }
 
     fn parse_invariant_definition(&mut self) -> Result<InvariantDefinition, ParseError> {
@@ -202,6 +332,12 @@ impl Parser<'_> {
     }
 
     fn parse_type_reference(&mut self) -> Result<TypeReference, ParseError> {
+        if self.consume("(") {
+            self.expect(")")?;
+
+            return Ok(TypeReference::Unit);
+        }
+
         if self.consume("[") {
             let element_type = self.parse_type_reference()?;
             self.expect(";")?;
@@ -214,7 +350,29 @@ impl Parser<'_> {
             });
         }
 
-        let mut type_reference = TypeReference::named(self.expect_identifier()?);
+        let base_name = self.expect_identifier()?;
+        let mut type_reference = if self.consume("<") {
+            let mut arguments = Vec::new();
+
+            if !self.check(">") {
+                loop {
+                    arguments.push(self.parse_type_reference()?);
+
+                    if !self.consume(",") {
+                        break;
+                    }
+                }
+            }
+
+            self.expect(">")?;
+
+            TypeReference::Generic {
+                base_name,
+                arguments,
+            }
+        } else {
+            TypeReference::named(base_name)
+        };
 
         if self.check("[") {
             type_reference = TypeReference::Constrained {
@@ -758,6 +916,29 @@ impl Parser<'_> {
         }
 
         Ok(())
+    }
+
+    fn skip_balanced_parentheses_after_open(&mut self) -> Result<usize, ParseError> {
+        let mut depth = 1usize;
+        let mut token_count = 0usize;
+
+        while depth > 0 {
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("unterminated parenthesized value"));
+            };
+
+            if token.lexeme == "(" {
+                depth += 1;
+            } else if token.lexeme == ")" {
+                depth -= 1;
+            }
+
+            if depth > 0 {
+                token_count += 1;
+            }
+        }
+
+        Ok(token_count)
     }
 
     fn consume(&mut self, lexeme: &str) -> bool {

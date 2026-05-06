@@ -8,7 +8,12 @@ pub enum TypeReference {
         element_type: Box<TypeReference>,
         length: usize,
     },
+    Generic {
+        base_name: String,
+        arguments: Vec<TypeReference>,
+    },
     Named(String),
+    Unit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -477,7 +477,26 @@ fn write_ast_file(output: &mut String, loaded_program: &LoadedProgram, file: &Lo
 
 fn ast_item_summary(item: &Item) -> String {
     match item {
-        Item::Capability(capability) => format!("capability `{}`", capability.name),
+        Item::Capability(capability) => {
+            let mut field_count = 0usize;
+            let mut state_count = 0usize;
+            let mut contract_count = 0usize;
+
+            for member in &capability.members {
+                match member {
+                    crate::ast::item::CapabilityMember::Field(_) => field_count += 1,
+                    crate::ast::item::CapabilityMember::State(state) => {
+                        state_count += 1;
+                        contract_count += state.contracts.len();
+                    }
+                }
+            }
+
+            format!(
+                "capability `{}` fields {} states {} contracts {}",
+                capability.name, field_count, state_count, contract_count
+            )
+        }
         Item::Data(data_definition) => {
             let mut field_count = 0usize;
             let mut variant_count = 0usize;
@@ -516,7 +535,16 @@ fn ast_item_summary(item: &Item) -> String {
                 platform.states.len()
             )
         }
-        Item::Target(target) => format!("target `{}`", target.name),
+        Item::Target(target) => format!(
+            "target `{}` host {} trust policies {}",
+            target.name,
+            target
+                .host
+                .as_ref()
+                .map(|host| host.provider.as_str())
+                .unwrap_or("none"),
+            target.trust_policies.len()
+        ),
     }
 }
 

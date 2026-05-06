@@ -4,7 +4,9 @@
 //! ownership, borrow, and proof-aware type solving can grow here without living
 //! inside the driver orchestration crate.
 
-use omega_ast::item::{DataMember, Item, Machine, State, StateParameter, StateSignature};
+use omega_ast::item::{
+    CapabilityMember, DataMember, Item, Machine, State, StateParameter, StateSignature,
+};
 use omega_ast::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
 
@@ -62,6 +64,29 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                     &capability.name,
                     TypeDeclarationKind::Capability,
                 );
+
+                for member in &capability.members {
+                    match member {
+                        CapabilityMember::Field(field) => {
+                            collect_type_reference(
+                                &mut report,
+                                &field.type_reference,
+                                TypeReferenceUseKind::Storage,
+                                &format!("capability `{}` field `{}`", capability.name, field.name),
+                            );
+                        }
+                        CapabilityMember::State(state) => {
+                            collect_state_signature(
+                                &mut report,
+                                &state.signature,
+                                &format!(
+                                    "capability `{}` state `{}`",
+                                    capability.name, state.signature.name
+                                ),
+                            );
+                        }
+                    }
+                }
             }
             Item::Data(data_definition) => {
                 insert_declaration(
@@ -202,7 +227,18 @@ fn collect_type_reference(
         TypeReference::FixedArray { element_type, .. } => {
             collect_type_reference(report, element_type, kind, owner);
         }
+        TypeReference::Generic {
+            base_name,
+            arguments,
+        } => {
+            insert_reference(report, base_name, kind, owner);
+
+            for argument in arguments {
+                collect_type_reference(report, argument, kind, owner);
+            }
+        }
         TypeReference::Named(name) => insert_reference(report, name, kind, owner),
+        TypeReference::Unit => {}
     }
 }
 

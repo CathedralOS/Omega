@@ -6,7 +6,7 @@
 //! That gives later phases a concrete spine to grow from.
 
 use omega_ast::expression::Expression;
-use omega_ast::item::{DataMember, Item, Machine, State, StateSignature};
+use omega_ast::item::{CapabilityMember, DataMember, Item, Machine, State, StateSignature};
 use omega_ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_ast::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
@@ -70,6 +70,28 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                     name: capability.name.clone(),
                     kind: ResolvedDefinitionKind::Capability,
                 });
+
+                for member in &capability.members {
+                    match member {
+                        CapabilityMember::Field(field) => {
+                            collect_type_reference(
+                                &mut report,
+                                &field.type_reference,
+                                &format!("capability `{}` field `{}`", capability.name, field.name),
+                            );
+                        }
+                        CapabilityMember::State(state) => {
+                            collect_state_signature_references(
+                                &mut report,
+                                &state.signature,
+                                &format!(
+                                    "capability `{}` state `{}`",
+                                    capability.name, state.signature.name
+                                ),
+                            );
+                        }
+                    }
+                }
             }
             Item::Data(data_definition) => {
                 report.definitions.insert(ResolvedDefinition {
@@ -293,9 +315,20 @@ fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeRefer
         TypeReference::FixedArray { element_type, .. } => {
             collect_type_reference(report, element_type, owner);
         }
+        TypeReference::Generic {
+            base_name,
+            arguments,
+        } => {
+            insert_reference(report, base_name, ResolvedReferenceKind::Type, owner);
+
+            for argument in arguments {
+                collect_type_reference(report, argument, owner);
+            }
+        }
         TypeReference::Named(name) => {
             insert_reference(report, name, ResolvedReferenceKind::Type, owner);
         }
+        TypeReference::Unit => {}
     }
 }
 

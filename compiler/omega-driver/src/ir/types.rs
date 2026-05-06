@@ -10,7 +10,12 @@ pub enum TypeReference {
         element_type: Box<TypeReference>,
         length: usize,
     },
+    Generic {
+        base_name: String,
+        arguments: Vec<TypeReference>,
+    },
     Named(String),
+    Unit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,7 +67,19 @@ impl TypeReference {
             } => {
                 format!("[{}; {}]", element_type.display_name(), length)
             }
+            TypeReference::Generic {
+                base_name,
+                arguments,
+            } => {
+                let arguments = arguments
+                    .iter()
+                    .map(TypeReference::display_name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{base_name}<{arguments}>")
+            }
             TypeReference::Named(name) => name.clone(),
+            TypeReference::Unit => "()".to_owned(),
         }
     }
 
@@ -96,7 +113,19 @@ impl TypeReference {
                     length
                 )
             }
+            TypeReference::Generic {
+                base_name,
+                arguments,
+            } => {
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| argument.display_name_with_constraints(type_constraints))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("{base_name}<{arguments}>")
+            }
             TypeReference::Named(name) => name.clone(),
+            TypeReference::Unit => "()".to_owned(),
         }
     }
 
@@ -104,7 +133,9 @@ impl TypeReference {
         match self {
             TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
             TypeReference::Named(name) => PrimitiveType::from_name(name),
-            TypeReference::FixedArray { .. } => None,
+            TypeReference::FixedArray { .. }
+            | TypeReference::Generic { .. }
+            | TypeReference::Unit => None,
         }
     }
 }

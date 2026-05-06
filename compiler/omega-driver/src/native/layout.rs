@@ -275,7 +275,14 @@ impl<'program> LayoutBuilder<'program> {
                     alignment: element_layout.alignment,
                 })
             }
+            TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
+                "native layout for generic type `{base_name}` is not implemented yet"
+            ))),
             TypeReference::Named(name) => self.layout_named_type(name),
+            TypeReference::Unit => Ok(TypeLayout {
+                size: 0,
+                alignment: 1,
+            }),
         }
     }
 

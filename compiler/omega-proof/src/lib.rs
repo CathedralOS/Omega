@@ -152,7 +152,13 @@ fn collect_bounded_type_site(
         TypeReference::FixedArray { element_type, .. } => {
             collect_bounded_type_site(report, element_type, owner);
         }
+        TypeReference::Generic { arguments, .. } => {
+            for argument in arguments {
+                collect_bounded_type_site(report, argument, owner);
+            }
+        }
         TypeReference::Named(_) => {}
+        TypeReference::Unit => {}
     }
 }
 
@@ -165,7 +171,19 @@ fn type_reference_name(type_reference: &TypeReference) -> String {
         } => {
             format!("[{}; {length}]", type_reference_name(element_type))
         }
+        TypeReference::Generic {
+            base_name,
+            arguments,
+        } => {
+            let arguments = arguments
+                .iter()
+                .map(type_reference_name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{base_name}<{arguments}>")
+        }
         TypeReference::Named(name) => name.clone(),
+        TypeReference::Unit => "()".to_owned(),
     }
 }
 

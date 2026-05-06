@@ -23,11 +23,84 @@ pub struct InvariantDefinition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityDefinition {
     pub name: String,
+    pub members: Vec<CapabilityMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapabilityMember {
+    Field(CapabilityField),
+    State(CapabilityState),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityField {
+    pub name: String,
+    pub type_reference: crate::types::TypeReference,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityState {
+    pub signature: StateSignature,
+    pub contracts: Vec<CapabilityContract>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityContract {
+    pub kind: CapabilityContractKind,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapabilityContractKind {
+    Ensures,
+    Requires,
+    Trusted(TrustLevel),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustLevel {
+    Host,
+    Named(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetDefinition {
     pub name: String,
+    pub host: Option<TargetHost>,
+    pub trust_policies: Vec<TrustPolicy>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetHost {
+    pub provider: String,
+    pub settings: Vec<TargetHostSetting>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetHostSetting {
+    pub name: String,
+    pub value: TargetHostSettingValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TargetHostSettingValue {
+    Call {
+        name: String,
+        argument_tokens: usize,
+    },
+    Named(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustPolicy {
+    pub mode: TrustMode,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TrustMode {
+    Checked,
+    Unchecked,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
