@@ -36,5 +36,5 @@ pub struct Transition {
 pub enum TransitionTarget {
     Named(Vec<String>),
     SelfTarget,
-    ReturnToCaller,
+    Terminal,
 }

@@ -47,7 +47,7 @@ pub enum PlannedTransitionTarget {
     State { index: usize, name: String },
     Nested { receiver: String, state: String },
     SelfTarget,
-    ReturnToCaller,
+    Terminal,
 }
 
 pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
@@ -183,7 +183,7 @@ fn plan_transition_target(
             path.join(".")
         ))),
         TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
-        TransitionTarget::ReturnToCaller => Ok(PlannedTransitionTarget::ReturnToCaller),
+        TransitionTarget::Terminal => Ok(PlannedTransitionTarget::Terminal),
     }
 }
 

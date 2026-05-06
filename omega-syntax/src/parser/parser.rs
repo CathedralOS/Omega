@@ -242,6 +242,14 @@ impl Parser<'_> {
     }
 
     fn parse_transition(&mut self) -> Result<Statement, ParseError> {
+        if self.check("}") {
+            return Ok(Statement::Transition(Transition {
+                target: TransitionTarget::Terminal,
+                continuation: None,
+                condition: None,
+            }));
+        }
+
         let target = self.parse_transition_target()?;
         let continuation = if self.consume("->") {
             Some(self.parse_transition_target()?)
@@ -265,10 +273,6 @@ impl Parser<'_> {
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
         if self.consume("self") {
             return Ok(TransitionTarget::SelfTarget);
-        }
-
-        if self.consume("return") {
-            return Ok(TransitionTarget::ReturnToCaller);
         }
 
         let mut path = vec![self.expect_identifier()?];

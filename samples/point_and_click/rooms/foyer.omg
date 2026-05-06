@@ -11,26 +11,26 @@ machine FoyerRoom {
         -> collect_key(frame, clicked, mut inventory) when frame.left_pressed && clicked == ClickTarget::Key;
         -> unlock_door(frame, clicked, inventory, mut active_room) when frame.left_pressed && clicked == ClickTarget::Door && inventory.has_key;
         -> open_chest(frame, clicked) when frame.left_pressed && clicked == ClickTarget::Chest;
-        -> return;
+        ->
     }
 
     state collect_key(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory) {
         inventory.has_key = true;
 
-        -> return;
+        ->
     }
 
     state unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId) {
         door_unlocked = true;
         active_room = RoomId::Cellar;
 
-        -> return;
+        ->
     }
 
     state open_chest(frame: FrameInput, clicked: ClickTarget) {
         chest_open = true;
 
-        -> return;
+        ->
     }
 
     state write_view(mut out_view: RoomView) {

@@ -5,13 +5,13 @@ machine CellarRoom {
 
     state tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
         -> mark_intro_seen(frame) when frame.left_pressed;
-        -> return;
+        ->
     }
 
     state mark_intro_seen(frame: FrameInput) {
         intro_seen = true;
 
-        -> return;
+        ->
     }
 
     state write_view(mut out_view: RoomView) {

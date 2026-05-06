@@ -50,7 +50,7 @@ machine Dungeon {
     }
 
     state finished {
-        -> return;
+        ->
     }
 
     state start() {
@@ -67,7 +67,7 @@ machine Dungeon {
     state resolve_command(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
         resolve_exit(level, cell, line, mut out_navigation);
 
-        -> return;
+        ->
     }
 
     state resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
@@ -75,7 +75,7 @@ machine Dungeon {
         find_room(level, cell, mut room);
         find_exit(room, line.text, mut out_navigation);
 
-        -> return;
+        ->
     }
 
     state find_exit(room: Room, command: String, mut out_navigation: Navigation) {
@@ -87,14 +87,14 @@ machine Dungeon {
 
     state scan_exit(exit: Exit, command: String, mut out_navigation: Navigation) {
         -> apply_exit(exit, mut out_navigation) when exit.command == command;
-        -> return;
+        ->
     }
 
     state apply_exit(exit: Exit, mut out_navigation: Navigation) {
         out_navigation.choice = NavigationChoice::Move;
         out_navigation.destination = exit.destination;
 
-        -> return;
+        ->
     }
 
     state write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
@@ -118,13 +118,13 @@ machine Dungeon {
 
     state scan_room(room: Room, cell: CellId, mut out_room: Room) {
         -> apply_room(room, mut out_room) when room.cell == cell;
-        -> return;
+        ->
     }
 
     state apply_room(room: Room, mut out_room: Room) {
         out_room = room;
 
-        -> return;
+        ->
     }
 
     state format_exits(room: Room, mut out_line: ConsoleLine) {
@@ -138,13 +138,13 @@ machine Dungeon {
 
     state append_exit(exit: Exit, mut out_line: ConsoleLine) {
         -> append_open_exit(exit, mut out_line) when exit.destination != CellId::Empty;
-        -> return;
+        ->
     }
 
     state append_open_exit(exit: Exit, mut out_line: ConsoleLine) {
         out_line.text = out_line.text + exit.command + " ";
 
-        -> return;
+        ->
     }
 
     state append_quit(mut out_line: ConsoleLine) {

@@ -21,7 +21,7 @@ Current loop:
 - classify the command into owned navigation data
 - move if the command names an adjacent room
 - otherwise print an invalid-command message and ask again
-- return to parent control flow from the terminal dungeon state
+- complete back to parent control flow from the terminal dungeon state
 
 Sample layout:
 

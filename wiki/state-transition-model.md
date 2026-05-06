@@ -68,7 +68,7 @@ Owns data, child machines, states, and transitions.
 
 For a machine named `main`, `state entry` is the entry point. The OS process result should be modeled as owned data, such as `owns return_code: i32`, and updated through explicit mutation rather than returned from the state.
 
-There are no language-level returns from `state entry`. When a program exits, the root machine reaches a terminal state and performs an explicit platform handoff:
+There is no `return` keyword in `state entry`. When a program exits, the root machine reaches a terminal state and performs an explicit platform handoff:
 
 ```omega
 state shutdown {
@@ -87,13 +87,31 @@ Executable block. It may run one operation, many operations, or eventually be re
 
 `transition`
 
-Declarative edge from one state to another. It has no body and does not return values.
+Declarative edge from one state to another. It has no body and does not use a `return` keyword.
 
 Within a machine, a transition is a goto. It does not create a call frame, does not store a return address, and does not resume the state it left.
 
 If multiple transitions leave the same state, they appear as trailing `-> target` lines and are evaluated in source order. The first enabled edge is selected. A bare `-> target` edge is unconditional.
 
 `-> self;` is a self-transition. It re-enters the current state without repeating the state name.
+
+A trailing bare `->` is terminal completion. It deliberately has no target and no semicolon:
+
+```omega
+state collect_key(mut inventory: Inventory) {
+    inventory.has_key = true;
+
+    ->
+}
+```
+
+This says the state may complete here. If the state is running as part of nested machine flow, completion resumes the explicit continuation carried by the parent. If the state is a typed state with a value, a final expression produces the value instead of a `return` statement:
+
+```omega
+state clamp_done(value: f32) -> f32 {
+    value
+}
+```
 
 Nested machine flow can be sketched as two arrows:
 
@@ -103,7 +121,7 @@ state running {
 }
 ```
 
-This means the parent transitions into the child machine's `entry` state, and when that child reaches `-> return;`, parent control resumes at `shutdown`. This avoids a special `.finished` property on every machine while keeping the continuation visible in source.
+This means the parent transitions into the child machine's `entry` state, and when that child reaches terminal completion (`->`), parent control resumes at `shutdown`. This avoids a special `.finished` property on every machine while keeping the continuation visible in source.
 
 This is the stack-like exception. A parent may enter a child machine and carry an explicit continuation, but ordinary transitions inside a machine remain gotos.
 

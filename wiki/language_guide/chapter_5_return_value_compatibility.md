@@ -32,4 +32,4 @@ state clamp_done(&mut self, value: f32) -> f32 {
 }
 ```
 
-The produced value flows to the enclosing graph expectation, not back to an intra-machine caller frame.
+The produced value flows to the enclosing graph expectation, not back to an intra-machine caller frame. There is no `return value` statement; the final expression is the value.

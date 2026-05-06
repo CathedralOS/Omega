@@ -709,6 +709,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_terminal_completion_arrow() {
+        let tokens = Lexer::new(
+            r#"
+            machine Sample {
+                state done {
+                    ->
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+        let Statement::Transition(transition) = &machine.states[0].statements[0] else {
+            panic!("expected terminal transition");
+        };
+
+        assert_eq!(transition.target, TransitionTarget::Terminal);
+        assert_eq!(transition.continuation, None);
+        assert_eq!(transition.condition, None);
+    }
+
+    #[test]
     fn plans_state_control_flow() {
         let tokens = Lexer::new(
             r#"

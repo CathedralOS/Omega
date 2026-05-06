@@ -265,6 +265,6 @@ fn lower_transition_target(target: &ast::statement::TransitionTarget) -> Transit
     match target {
         ast::statement::TransitionTarget::Named(path) => TransitionTarget::Named(path.clone()),
         ast::statement::TransitionTarget::SelfTarget => TransitionTarget::SelfTarget,
-        ast::statement::TransitionTarget::ReturnToCaller => TransitionTarget::ReturnToCaller,
+        ast::statement::TransitionTarget::Terminal => TransitionTarget::Terminal,
     }
 }
