@@ -10,7 +10,7 @@ use crate::native::control_flow::{
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
-use crate::proof::obligations::ProofPlan;
+use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 
 pub(crate) struct ArtifactWriter {
@@ -126,7 +126,20 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn write_proof_plan(&self, proof_plan: &ProofPlan) -> Result<(), Diagnostic> {
-        self.write("08_proof.txt", &format!("{proof_plan:#?}\n"))
+        let mut output = String::new();
+
+        output.push_str("# Omega Proof Plan\n\n");
+        output.push_str(&format!("obligations: {}\n", proof_plan.obligations.len()));
+        output.push_str(&format!(
+            "constraints: {}\n\n",
+            proof_plan.type_constraints.len()
+        ));
+
+        for obligation in &proof_plan.obligations {
+            write_proof_obligation(&mut output, proof_plan, obligation);
+        }
+
+        self.write("08_proof.txt", &output)
     }
 
     pub(crate) fn write_native_plan(&self, native_plan: &NativePlan) -> Result<(), Diagnostic> {
@@ -233,6 +246,138 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!("first item: {}\n", file.first_item));
     output.push_str(&format!("item count: {}\n\n", file.item_count));
+}
+
+fn write_proof_obligation(
+    output: &mut String,
+    proof_plan: &ProofPlan,
+    obligation: &ProofObligation,
+) {
+    match obligation {
+        ProofObligation::BoundedAssignment(obligation) => {
+            output.push_str(&format!(
+                "- bounded assignment {}.{}: {} = {} : {} {}\n",
+                obligation.machine,
+                obligation.state,
+                obligation.target.display_name(),
+                obligation.value.display_name(),
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints)
+            ));
+            output.push_str(&format!(
+                "  value constraints: {}\n",
+                proof_constraints_name(proof_plan, obligation.value_constraints)
+            ));
+        }
+        ProofObligation::BoundedCallArgument(obligation) => {
+            let target = obligation
+                .receiver
+                .as_ref()
+                .map(|receiver| format!("{receiver}.{}", obligation.target))
+                .unwrap_or_else(|| obligation.target.clone());
+            output.push_str(&format!(
+                "- bounded call argument {}.{} -> {}({}): {} : {} {}\n",
+                obligation.machine,
+                obligation.state,
+                target,
+                obligation.parameter,
+                obligation.argument.display_name(),
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints)
+            ));
+            output.push_str(&format!(
+                "  argument constraints: {}\n",
+                proof_constraints_name(proof_plan, obligation.argument_constraints)
+            ));
+        }
+        ProofObligation::BoundedInitializer(obligation) => {
+            output.push_str(&format!(
+                "- bounded initializer {} = {} : {} {}\n",
+                obligation.owner,
+                obligation.value.display_name(),
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints)
+            ));
+        }
+        ProofObligation::BoundedStateReturn(obligation) => {
+            output.push_str(&format!(
+                "- bounded state return {}.{}: {} : {} {}\n",
+                obligation.machine,
+                obligation.state,
+                obligation.value.display_name(),
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints)
+            ));
+            output.push_str(&format!(
+                "  value constraints: {}\n",
+                proof_constraints_name(proof_plan, obligation.value_constraints)
+            ));
+        }
+        ProofObligation::BoundedTransitionArgument(obligation) => {
+            output.push_str(&format!(
+                "- bounded transition argument {}.{} -> {}({}): {} : {} {} when {:?}\n",
+                obligation.machine,
+                obligation.state,
+                proof_transition_target_name(&obligation.target),
+                obligation.parameter,
+                obligation.argument.display_name(),
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints),
+                obligation.guard
+            ));
+            output.push_str(&format!(
+                "  argument constraints: {}\n",
+                proof_constraints_name(proof_plan, obligation.argument_constraints)
+            ));
+        }
+        ProofObligation::BoundedValue(obligation) => {
+            output.push_str(&format!(
+                "- bounded value {} : {} {}\n",
+                obligation.owner,
+                obligation.base_type.display_name(),
+                proof_constraints_name(proof_plan, obligation.constraints)
+            ));
+        }
+        ProofObligation::GuardedTransition(obligation) => {
+            output.push_str(&format!(
+                "- guarded transition {}.{} -> {} when {:?}\n",
+                obligation.machine,
+                obligation.state,
+                proof_transition_target_name(&obligation.target),
+                obligation.guard
+            ));
+        }
+    }
+}
+
+fn proof_constraints_name(
+    proof_plan: &ProofPlan,
+    constraints: omega_core::arena::HandleSpan<crate::ir::types::TypeConstraint>,
+) -> String {
+    let Some(constraints) = proof_plan.type_constraints.span(constraints) else {
+        return "[invalid constraint span]".to_owned();
+    };
+
+    if constraints.is_empty() {
+        return "[]".to_owned();
+    }
+
+    format!(
+        "[{}]",
+        constraints
+            .iter()
+            .map(crate::ir::types::TypeConstraint::display_name)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
+fn proof_transition_target_name(target: &crate::ir::statement::TransitionTarget) -> String {
+    match target {
+        crate::ir::statement::TransitionTarget::Named { path, .. } => path.join("."),
+        crate::ir::statement::TransitionTarget::SelfTarget => "self".to_owned(),
+        crate::ir::statement::TransitionTarget::Terminal => "terminal".to_owned(),
+    }
 }
 
 fn write_field_layouts(
