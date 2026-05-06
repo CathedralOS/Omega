@@ -11,6 +11,7 @@ use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
 use crate::proof::obligations::build_proof_plan;
+use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 
@@ -60,19 +61,19 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_placeholder("03_resolve.txt", "Omega Resolve")
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "types", || {
+    let program = record_phase(&mut phase_timings, "driver ir lowering", || {
+        lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "types/effects", || {
+        let effect_plan = infer_effects(&program);
         artifacts
-            .write_placeholder("04_types.txt", "Omega Types")
+            .write_effects(&effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "driver ir", || {
-        let program =
-            lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+    record_phase(&mut phase_timings, "driver ir", || {
         artifacts
             .write_ir(&program)
-            .map_err(|diagnostic| vec![diagnostic])?;
-
-        Ok(program)
+            .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "validation", || {
         validate_program(&program)?;
@@ -139,19 +140,19 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_placeholder("03_resolve.txt", "Omega Resolve")
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "types", || {
+    let program = record_phase(&mut phase_timings, "driver ir lowering", || {
+        lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "types/effects", || {
+        let effect_plan = infer_effects(&program);
         artifacts
-            .write_placeholder("04_types.txt", "Omega Types")
+            .write_effects(&effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "driver ir", || {
-        let program =
-            lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+    record_phase(&mut phase_timings, "driver ir", || {
         artifacts
             .write_ir(&program)
-            .map_err(|diagnostic| vec![diagnostic])?;
-
-        Ok(program)
+            .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "validation", || {
         validate_program(&program)?;

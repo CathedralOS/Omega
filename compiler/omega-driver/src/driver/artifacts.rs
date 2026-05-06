@@ -6,6 +6,7 @@ use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::ProofPlan;
+use crate::semantic::effects::EffectPlan;
 
 pub(crate) struct ArtifactWriter {
     root: PathBuf,
@@ -44,6 +45,10 @@ impl ArtifactWriter {
 
     pub(crate) fn write_ir(&self, program: &Program) -> Result<(), Diagnostic> {
         self.write("05_driver_ir.txt", &format!("{program:#?}\n"))
+    }
+
+    pub(crate) fn write_effects(&self, effect_plan: &EffectPlan) -> Result<(), Diagnostic> {
+        self.write("04_types.txt", &format!("{effect_plan:#?}\n"))
     }
 
     pub(crate) fn write_validation(&self, program: &Program) -> Result<(), Diagnostic> {
