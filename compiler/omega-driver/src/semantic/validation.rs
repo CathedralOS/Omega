@@ -612,7 +612,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            call,
+            &call.arguments,
             state.name.as_str(),
             &state.parameters,
             writable_roots,
@@ -632,7 +632,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            call,
+            &call.arguments,
             state.name.as_str(),
             &state.parameters,
             writable_roots,
@@ -658,7 +658,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            call,
+            &call.arguments,
             &state_signature.name,
             &state_signature.parameters,
             writable_roots,
@@ -678,7 +678,7 @@ fn validate_call(
         {
             validate_call_arguments(
                 program,
-                call,
+                &call.arguments,
                 &state.name,
                 &state.parameters,
                 writable_roots,
@@ -701,7 +701,7 @@ fn validate_call(
 
 fn validate_call_arguments(
     program: &Program,
-    call: &crate::ir::statement::Call,
+    arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],
     writable_roots: &[&str],
@@ -712,17 +712,17 @@ fn validate_call_arguments(
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
 
-    if call.arguments.len() != callable_parameters.len() {
+    if arguments.len() != callable_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
             "state `{}` expects {} argument(s), got {}",
             target_name,
             callable_parameters.len(),
-            call.arguments.len()
+            arguments.len()
         )));
         return;
     }
 
-    for (argument, parameter) in call.arguments.iter().zip(callable_parameters.iter()) {
+    for (argument, parameter) in arguments.iter().zip(callable_parameters.iter()) {
         if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` must be passed with `mut`",
@@ -754,7 +754,7 @@ fn validate_call_arguments(
         }
     }
 
-    validate_argument_borrows(&call.arguments, target_name, writable_roots, diagnostics);
+    validate_argument_borrows(arguments, target_name, writable_roots, diagnostics);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1070,15 +1070,9 @@ fn validate_transition_arguments(
     writable_roots: &[&str],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let call = crate::ir::statement::Call {
-        receiver: None,
-        target: target_name.to_owned(),
-        arguments: arguments.to_vec(),
-    };
-
     validate_call_arguments(
         program,
-        &call,
+        arguments,
         target_name,
         parameters,
         writable_roots,
