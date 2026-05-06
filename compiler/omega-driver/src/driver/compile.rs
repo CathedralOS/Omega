@@ -223,11 +223,20 @@ fn record_phase<T>(
 }
 
 fn format_phase_timings(timings: &[PhaseTiming]) -> String {
-    timings
-        .iter()
-        .map(|timing| format!("{}={}us", timing.phase, timing.microseconds))
-        .collect::<Vec<_>>()
-        .join(", ")
+    let mut output = String::new();
+
+    for (index, timing) in timings.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+
+        output.push_str(&timing.phase);
+        output.push('=');
+        output.push_str(&timing.microseconds.to_string());
+        output.push_str("us");
+    }
+
+    output
 }
 
 #[derive(Debug)]
