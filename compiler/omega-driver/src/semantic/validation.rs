@@ -23,19 +23,11 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
 
         for state in &machine.states {
-            let reserved_names = machine_symbols
-                .member_names()
-                .chain(
-                    state
-                        .parameters
-                        .iter()
-                        .map(|parameter| parameter.name.as_str()),
-                )
-                .collect::<Vec<_>>();
             validate_local_data_names(
                 &state.statements,
+                &machine_symbols,
+                &state.parameters,
                 format!("machine `{}` state `{}`", machine.name, state.name),
-                &reserved_names,
                 &mut diagnostics,
             );
             let local_names = collect_local_data_names(&state.statements);
@@ -111,8 +103,9 @@ fn collect_local_data_names(statements: &[Statement]) -> Vec<&str> {
 
 fn validate_local_data_names(
     statements: &[Statement],
+    machine_symbols: &MachineSymbols<'_>,
+    parameters: &[StateParameter],
     owner: String,
-    reserved_names: &[&str],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut local_names = Vec::new();
@@ -122,7 +115,11 @@ fn validate_local_data_names(
             continue;
         };
 
-        if reserved_names.contains(&local_data.name.as_str()) {
+        if machine_symbols.has_member(local_data.name.as_str())
+            || parameters
+                .iter()
+                .any(|parameter| parameter.name == local_data.name)
+        {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} local data `{}` conflicts with an existing name",
                 local_data.name

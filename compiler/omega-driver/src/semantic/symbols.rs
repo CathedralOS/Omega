@@ -259,7 +259,7 @@ impl<'program> MachineSymbols<'program> {
         self.state(name).is_some()
     }
 
-    fn has_member(&self, name: &str) -> bool {
+    pub fn has_member(&self, name: &str) -> bool {
         self.member_names.contains(&name)
     }
 
