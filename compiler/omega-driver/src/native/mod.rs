@@ -5,6 +5,7 @@ pub mod emission;
 pub mod host_calls;
 pub mod instructions;
 pub mod layout;
+pub mod machine_code;
 pub mod object;
 pub mod plan;
 pub mod relocations;

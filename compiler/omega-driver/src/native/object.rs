@@ -92,7 +92,7 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         SectionPlan {
             name: section_name(native_plan.target, SectionKind::Text),
             kind: SectionKind::Text,
-            size: 0,
+            size: native_plan.machine_code.byte_count,
             alignment: 16,
         },
         SectionPlan {
@@ -114,7 +114,7 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
             name: object_plan.entry_symbol.clone(),
             section: Some(section_name(native_plan.target, SectionKind::Text)),
             offset: 0,
-            size: 0,
+            size: native_plan.machine_code.byte_count,
             kind: SymbolKind::Function,
         },
         SymbolPlan {

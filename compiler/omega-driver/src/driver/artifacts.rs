@@ -21,6 +21,7 @@ use crate::native::instructions::{
     FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use crate::native::layout::{DataShape, FieldLayout};
+use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
@@ -458,6 +459,21 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Machine Code Shape\n");
+        output.push_str(&format!(
+            "functions: {}\n",
+            native_plan.machine_code.functions.len()
+        ));
+        output.push_str(&format!(
+            "instructions: {}\n",
+            native_plan.machine_code.instructions.len()
+        ));
+        output.push_str(&format!("bytes: {}\n", native_plan.machine_code.byte_count));
+        for (_, function) in native_plan.machine_code.functions.iter() {
+            write_machine_function_code(&mut output, native_plan, function);
+        }
+        output.push('\n');
+
         output.push_str("## Source Native Surface\n");
         output.push_str(&format!(
             "entry candidates: {}\n",
@@ -580,6 +596,10 @@ impl ArtifactWriter {
         output.push_str(&format!(
             "instruction operands: {}\n",
             emission_plan.instruction_operands
+        ));
+        output.push_str(&format!(
+            "machine code bytes: {}\n",
+            emission_plan.machine_code_bytes
         ));
         output.push_str(&format!("relocations: {}\n", emission_plan.relocations));
         output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
@@ -1267,6 +1287,42 @@ fn selected_instruction_operands_name(
         })
         .collect::<Vec<_>>()
         .join(", ")
+}
+
+fn write_machine_function_code(
+    output: &mut String,
+    native_plan: &NativePlan,
+    function: &MachineFunctionCode,
+) {
+    output.push_str(&format!(
+        "- function {} @{} bytes {}\n",
+        function.symbol, function.offset, function.byte_count
+    ));
+
+    match native_plan
+        .machine_code
+        .instructions
+        .span(function.instructions)
+    {
+        Some(instructions) if instructions.is_empty() => output.push_str("  instructions: none\n"),
+        Some(instructions) => {
+            output.push_str("  instructions:\n");
+            for instruction in instructions {
+                write_machine_instruction(output, instruction);
+            }
+        }
+        None => output.push_str("  instructions: invalid span\n"),
+    }
+}
+
+fn write_machine_instruction(output: &mut String, instruction: &MachineInstruction) {
+    output.push_str(&format!(
+        "    - selected #{} @{} bytes {} {:?}\n",
+        instruction.selected_instruction_index,
+        instruction.offset,
+        instruction.byte_width,
+        instruction.kind
+    ));
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
