@@ -7,6 +7,8 @@ use crate::ir::Program;
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
+use crate::native::layout::{DataShape, FieldLayout};
+use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::ProofPlan;
 use crate::semantic::effects::{EffectPlan, StateEffects};
@@ -128,7 +130,69 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn write_native_plan(&self, native_plan: &NativePlan) -> Result<(), Diagnostic> {
-        self.write("09_native_plan.txt", &format!("{native_plan:#?}\n"))
+        let mut output = String::new();
+
+        output.push_str("# Omega Native Plan\n\n");
+        output.push_str(&format!("target: {:?}\n", native_plan.target));
+        output.push_str(&format!(
+            "entry: {}.{} as `{}`\n\n",
+            native_plan.entry_machine, native_plan.entry_state, native_plan.object.entry_symbol
+        ));
+
+        output.push_str("## Layouts\n");
+        output.push_str(&format!(
+            "data layouts: {}\n",
+            native_plan.layouts.data_layouts.len()
+        ));
+        output.push_str(&format!(
+            "machine layouts: {}\n",
+            native_plan.layouts.machine_layouts.len()
+        ));
+        output.push_str(&format!("fields: {}\n\n", native_plan.layouts.fields.len()));
+
+        for data_layout in &native_plan.layouts.data_layouts {
+            output.push_str(&format!(
+                "- data {}: size {}, align {}\n",
+                data_layout.name, data_layout.layout.size, data_layout.layout.alignment
+            ));
+
+            match &data_layout.shape {
+                DataShape::Enum { variants } => {
+                    output.push_str(&format!("  variants: {}\n", variants.join(", ")));
+                }
+                DataShape::Record { fields } => {
+                    write_field_layouts(&mut output, &native_plan.layouts.fields, *fields);
+                }
+            }
+        }
+
+        for machine_layout in &native_plan.layouts.machine_layouts {
+            output.push_str(&format!(
+                "- machine {}: size {}, align {}\n",
+                machine_layout.name, machine_layout.layout.size, machine_layout.layout.alignment
+            ));
+            write_field_layouts(
+                &mut output,
+                &native_plan.layouts.fields,
+                machine_layout.fields,
+            );
+        }
+
+        output.push_str("\n## Object\n");
+        output.push_str(&format!(
+            "sections: {}\n",
+            native_plan.object.sections.len()
+        ));
+        for (_, section) in native_plan.object.sections.iter() {
+            write_section_plan(&mut output, section);
+        }
+
+        output.push_str(&format!("symbols: {}\n", native_plan.object.symbols.len()));
+        for (_, symbol) in native_plan.object.symbols.iter() {
+            write_symbol_plan(&mut output, symbol);
+        }
+
+        self.write("09_native_plan.txt", &output)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
@@ -169,6 +233,45 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!("first item: {}\n", file.first_item));
     output.push_str(&format!("item count: {}\n\n", file.item_count));
+}
+
+fn write_field_layouts(
+    output: &mut String,
+    fields: &omega_core::arena::Arena<FieldLayout>,
+    field_span: omega_core::arena::HandleSpan<FieldLayout>,
+) {
+    let Some(fields) = fields.span(field_span) else {
+        output.push_str("  fields: invalid span\n");
+        return;
+    };
+
+    if fields.is_empty() {
+        output.push_str("  fields: none\n");
+        return;
+    }
+
+    output.push_str("  fields:\n");
+    for field in fields {
+        output.push_str(&format!(
+            "    - {} @{}: {} size {}, align {}\n",
+            field.name, field.offset, field.type_name, field.layout.size, field.layout.alignment
+        ));
+    }
+}
+
+fn write_section_plan(output: &mut String, section: &SectionPlan) {
+    output.push_str(&format!(
+        "- section {} {:?}: size {}, align {}\n",
+        section.name, section.kind, section.size, section.alignment
+    ));
+}
+
+fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
+    let section = symbol.section.as_deref().unwrap_or("none");
+    output.push_str(&format!(
+        "- symbol {} {:?}: section {}, offset {}, size {}\n",
+        symbol.name, symbol.kind, section, symbol.offset, symbol.size
+    ));
 }
 
 fn write_state_effect(output: &mut String, state: &StateEffects) {
