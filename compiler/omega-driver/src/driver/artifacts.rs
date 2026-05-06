@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::diagnostics::Diagnostic;
 use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
+use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
@@ -578,9 +579,9 @@ fn write_operation(output: &mut String, operation: &Operation) {
 
 fn write_transition(output: &mut String, transition: &TransitionFlow) {
     output.push_str(&format!(
-        "    - -> {} when {:?}",
+        "    - -> {} {}",
         transition_target_name(&transition.target),
-        transition.guard
+        transition_guard_name(&transition.guard)
     ));
 
     if let Some(continuation) = &transition.continuation {
@@ -588,6 +589,13 @@ fn write_transition(output: &mut String, transition: &TransitionFlow) {
     }
 
     output.push('\n');
+}
+
+fn transition_guard_name(guard: &TransitionGuard) -> String {
+    match guard {
+        TransitionGuard::Always => "always".to_owned(),
+        TransitionGuard::When(expression) => format!("when {}", expression.display_name()),
+    }
 }
 
 fn transition_target_name(target: &PlannedTransitionTarget) -> String {
