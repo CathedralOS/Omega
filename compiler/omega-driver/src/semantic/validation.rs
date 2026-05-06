@@ -4,7 +4,7 @@ use crate::ir::data::{DataMember, DataShapeKind};
 use crate::ir::expression::Expression;
 use crate::ir::signature::{StateParameter, StateSignature};
 use crate::ir::statement::{Statement, TransitionTarget};
-use crate::ir::types::{PrimitiveType, TypeReference};
+use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
@@ -391,8 +391,12 @@ fn validate_type_reference(
     owner: String,
 ) {
     match type_reference {
-        TypeReference::Constrained { base_type, .. } => {
-            validate_type_reference(base_type, symbols, diagnostics, owner);
+        TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => {
+            validate_type_reference(base_type, symbols, diagnostics, owner.clone());
+            validate_type_constraints(base_type, constraints, diagnostics, owner);
         }
         TypeReference::FixedArray { element_type, .. } => {
             validate_type_reference(element_type, symbols, diagnostics, owner);
@@ -406,6 +410,55 @@ fn validate_type_reference(
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
                 )));
+            }
+        }
+    }
+}
+
+fn validate_type_constraints(
+    base_type: &TypeReference,
+    constraints: &[TypeConstraint],
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    let primitive_type = base_type.primitive_type();
+
+    for constraint in constraints {
+        match constraint {
+            TypeConstraint::Named(name) if name == "finite" => {
+                let Some(primitive_type) = primitive_type else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `finite` on non-primitive type `{}`",
+                        base_type.display_name()
+                    )));
+                    continue;
+                };
+
+                if !primitive_type.accepts_finite_constraint() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `finite` on `{}`, but `finite` is only valid on floats",
+                        primitive_type.name()
+                    )));
+                }
+            }
+            TypeConstraint::Named(name) => diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses unknown type constraint `{name}`"
+            ))),
+            TypeConstraint::Range { .. } => {
+                let Some(primitive_type) = primitive_type else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `range` on non-primitive type `{}`",
+                        base_type.display_name()
+                    )));
+                    continue;
+                };
+
+                if !primitive_type.accepts_range_constraint() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
+                        primitive_type.name()
+                    )));
+                }
             }
         }
     }

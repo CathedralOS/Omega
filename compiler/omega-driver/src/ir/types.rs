@@ -118,4 +118,15 @@ impl PrimitiveType {
     pub fn accepts_float_literal(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
     }
+
+    pub fn accepts_range_constraint(self) -> bool {
+        matches!(
+            self,
+            Self::F32 | Self::F64 | Self::I32 | Self::U32 | Self::U64 | Self::Usize
+        )
+    }
+
+    pub fn accepts_finite_constraint(self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
 }

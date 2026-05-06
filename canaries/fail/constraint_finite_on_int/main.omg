@@ -1,0 +1,6 @@
+machine main {
+    owns count: i32[finite] = 0;
+
+    state entry {
+    }
+}

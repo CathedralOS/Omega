@@ -1,0 +1,6 @@
+machine main {
+    owns value: i32[magic] = 0;
+
+    state entry {
+    }
+}

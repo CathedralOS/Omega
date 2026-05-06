@@ -1,0 +1,10 @@
+data Label {
+    text: String;
+}
+
+machine main {
+    owns label: String[range<1, 10>];
+
+    state entry {
+    }
+}
