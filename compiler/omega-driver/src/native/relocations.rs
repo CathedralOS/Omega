@@ -73,6 +73,7 @@ fn collect_function_relocations(
         let SelectedInstructionKind::HostOperation {
             capability,
             operation,
+            ..
         } = &instruction.kind
         else {
             continue;

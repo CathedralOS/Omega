@@ -1271,6 +1271,7 @@ mod tests {
         assert_eq!(native_plan.data.objects.len(), 1);
         assert_eq!(native_plan.data.bytes.len(), 7);
         assert!(native_plan.instructions.instructions.len() >= 5);
+        assert_eq!(native_plan.instructions.operands.len(), 4);
         assert_eq!(native_plan.relocations.records.len(), 3);
     }
 
@@ -1321,6 +1322,7 @@ mod tests {
         assert_eq!(native_plan.data.objects.len(), 1);
         assert_eq!(native_plan.data.bytes.len(), 7);
         assert!(native_plan.instructions.instructions.len() >= 4);
+        assert_eq!(native_plan.instructions.operands.len(), 4);
         assert_eq!(native_plan.relocations.records.len(), 0);
     }
 
@@ -1371,6 +1373,7 @@ mod tests {
         assert!(emission.contains("status: blocked before byte emission"));
         assert!(emission.contains("data bytes:"));
         assert!(emission.contains("selected instructions:"));
+        assert!(emission.contains("instruction operands:"));
         assert!(emission.contains("relocations:"));
 
         let _ = std::fs::remove_dir_all(build_dir);

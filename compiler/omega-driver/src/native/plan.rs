@@ -38,6 +38,7 @@ pub fn build_native_plan(
             target,
             functions: omega_core::arena::Arena::new(),
             instructions: omega_core::arena::Arena::new(),
+            operands: omega_core::arena::Arena::new(),
         },
         control_flow: build_control_flow_plan(program)?,
         layouts: build_layout_plan(program, target)?,

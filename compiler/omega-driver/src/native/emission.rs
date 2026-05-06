@@ -12,6 +12,7 @@ pub struct EmissionPlan {
     pub host_calls: usize,
     pub data_bytes: usize,
     pub selected_instructions: usize,
+    pub instruction_operands: usize,
     pub relocations: usize,
     pub blockers: Arena<EmissionBlocker>,
 }
@@ -49,6 +50,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         host_calls: native_plan.host_calls.calls.len(),
         data_bytes: native_plan.data.bytes.len(),
         selected_instructions: native_plan.instructions.instructions.len(),
+        instruction_operands: native_plan.instructions.operands.len(),
         relocations: native_plan.relocations.records.len(),
         blockers,
     }

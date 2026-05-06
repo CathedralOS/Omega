@@ -1,6 +1,8 @@
+use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
+use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
-use crate::native::target::NativeTarget;
+use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,6 +10,7 @@ pub struct InstructionPlan {
     pub target: NativeTarget,
     pub functions: Arena<FunctionInstructionPlan>,
     pub instructions: Arena<SelectedInstruction>,
+    pub operands: Arena<InstructionOperand>,
 }
 
 impl Default for InstructionPlan {
@@ -16,6 +19,7 @@ impl Default for InstructionPlan {
             target: NativeTarget::host(),
             functions: Arena::new(),
             instructions: Arena::new(),
+            operands: Arena::new(),
         }
     }
 }
@@ -67,8 +71,29 @@ pub enum SelectedInstructionKind {
     HostOperation {
         capability: String,
         operation: String,
+        operands: HandleSpan<InstructionOperand>,
     },
     LeaveFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstructionOperand {
+    pub kind: InstructionOperandKind,
+}
+
+impl Default for InstructionOperand {
+    fn default() -> Self {
+        Self {
+            kind: InstructionOperandKind::ImmediateInteger(0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstructionOperandKind {
+    DataAddress { symbol: String },
+    ImmediateInteger(i64),
+    ByteLength(usize),
 }
 
 pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
@@ -76,9 +101,10 @@ pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
         target: native_plan.target,
         functions: Arena::new(),
         instructions: Arena::new(),
+        operands: Arena::new(),
     };
 
-    let entry_instructions = select_entry_instructions(native_plan);
+    let entry_instructions = select_entry_instructions(native_plan, &mut instruction_plan.operands);
     let instructions = instruction_plan
         .instructions
         .insert_many(entry_instructions);
@@ -93,7 +119,10 @@ pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
     instruction_plan
 }
 
-fn select_entry_instructions(native_plan: &NativePlan) -> Vec<SelectedInstruction> {
+fn select_entry_instructions(
+    native_plan: &NativePlan,
+    operands: &mut Arena<InstructionOperand>,
+) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
 
     selected_instructions.push(entry_instruction(native_plan));
@@ -105,7 +134,7 @@ fn select_entry_instructions(native_plan: &NativePlan) -> Vec<SelectedInstructio
             continue;
         }
 
-        select_host_call(native_plan, host_call, &mut selected_instructions);
+        select_host_call(native_plan, host_call, operands, &mut selected_instructions);
     }
 
     selected_instructions.push(exit_instruction(native_plan));
@@ -115,6 +144,7 @@ fn select_entry_instructions(native_plan: &NativePlan) -> Vec<SelectedInstructio
 fn select_host_call(
     native_plan: &NativePlan,
     host_call: &HostCall,
+    operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     selected_instructions.push(SelectedInstruction {
@@ -131,16 +161,104 @@ fn select_host_call(
     };
 
     for operation in operations {
+        let operation_operands = select_host_operation_operands(
+            native_plan,
+            host_call,
+            &operation.capability,
+            &operation.operation,
+        );
+        let operation_operands = operands.insert_many(operation_operands);
+
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
                 capability: operation.capability.clone(),
                 operation: operation.operation.clone(),
+                operands: operation_operands,
             },
             source_machine: host_call.machine.clone(),
             source_state: host_call.state.clone(),
             source_statement: host_call.statement_index,
         });
     }
+}
+
+fn select_host_operation_operands(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+    capability: &str,
+    operation: &str,
+) -> Vec<InstructionOperand> {
+    match (native_plan.target.object_format, capability, operation) {
+        (ObjectFormat::Coff, "Stdout", "get_std_handle") => {
+            vec![operand(InstructionOperandKind::ImmediateInteger(-11))]
+        }
+        (_, "Stdout", "write" | "write_file") => {
+            let Some(data_object) = find_data_object(native_plan, host_call) else {
+                return Vec::new();
+            };
+            let byte_count = native_plan
+                .data
+                .bytes
+                .span(data_object.bytes)
+                .map_or(0, |bytes| bytes.len());
+
+            let mut operands = Vec::new();
+            if operation == "write" {
+                operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
+            }
+            operands.push(operand(InstructionOperandKind::DataAddress {
+                symbol: data_object.symbol.clone(),
+            }));
+            operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
+            operands
+        }
+        (_, "Process", "exit" | "exit_group" | "exit_process") => {
+            vec![operand(InstructionOperandKind::ImmediateInteger(
+                exit_code(host_call, native_plan),
+            ))]
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn find_data_object<'plan>(
+    native_plan: &'plan NativePlan,
+    host_call: &HostCall,
+) -> Option<&'plan NativeDataObject> {
+    native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_machine == host_call.machine
+                && data_object.source_state == host_call.state
+                && data_object.source_statement == host_call.statement_index
+        })
+        .map(|(_, data_object)| data_object)
+}
+
+fn exit_code(host_call: &HostCall, native_plan: &NativePlan) -> i64 {
+    first_argument(host_call, native_plan)
+        .and_then(|argument| match &argument.kind {
+            HostCallArgumentKind::Integer(value) => Some(*value),
+            _ => None,
+        })
+        .unwrap_or(0)
+}
+
+fn first_argument<'plan>(
+    host_call: &HostCall,
+    native_plan: &'plan NativePlan,
+) -> Option<&'plan HostCallArgument> {
+    native_plan
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.first())
+}
+
+fn operand(kind: InstructionOperandKind) -> InstructionOperand {
+    InstructionOperand { kind }
 }
 
 fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {

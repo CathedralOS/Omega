@@ -18,7 +18,7 @@ use crate::native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
 use crate::native::instructions::{
-    FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
@@ -449,6 +449,10 @@ impl ArtifactWriter {
             "instructions: {}\n",
             native_plan.instructions.instructions.len()
         ));
+        output.push_str(&format!(
+            "operands: {}\n",
+            native_plan.instructions.operands.len()
+        ));
         for (_, function) in native_plan.instructions.functions.iter() {
             write_function_instruction_plan(&mut output, native_plan, function);
         }
@@ -572,6 +576,10 @@ impl ArtifactWriter {
         output.push_str(&format!(
             "selected instructions: {}\n",
             emission_plan.selected_instructions
+        ));
+        output.push_str(&format!(
+            "instruction operands: {}\n",
+            emission_plan.instruction_operands
         ));
         output.push_str(&format!("relocations: {}\n", emission_plan.relocations));
         output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
@@ -1203,22 +1211,26 @@ fn write_function_instruction_plan(
         Some(instructions) => {
             output.push_str("  instructions:\n");
             for instruction in instructions {
-                write_selected_instruction(output, instruction);
+                write_selected_instruction(output, native_plan, instruction);
             }
         }
         None => output.push_str("  instructions: invalid span\n"),
     }
 }
 
-fn write_selected_instruction(output: &mut String, instruction: &SelectedInstruction) {
+fn write_selected_instruction(
+    output: &mut String,
+    native_plan: &NativePlan,
+    instruction: &SelectedInstruction,
+) {
     output.push_str(&format!(
         "    - statement {}: {}\n",
         instruction.source_statement,
-        selected_instruction_name(&instruction.kind)
+        selected_instruction_name(native_plan, &instruction.kind)
     ));
 }
 
-fn selected_instruction_name(kind: &SelectedInstructionKind) -> String {
+fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructionKind) -> String {
     match kind {
         SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
         SelectedInstructionKind::BeginPlatformCall { platform_call } => {
@@ -1227,11 +1239,34 @@ fn selected_instruction_name(kind: &SelectedInstructionKind) -> String {
         SelectedInstructionKind::HostOperation {
             capability,
             operation,
+            operands,
         } => {
-            format!("call host operation {capability}.{operation}")
+            format!(
+                "call host operation {capability}.{operation}({})",
+                selected_instruction_operands_name(native_plan, *operands)
+            )
         }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
     }
+}
+
+fn selected_instruction_operands_name(
+    native_plan: &NativePlan,
+    operands: omega_core::arena::HandleSpan<crate::native::instructions::InstructionOperand>,
+) -> String {
+    let Some(operands) = native_plan.instructions.operands.span(operands) else {
+        return "invalid operands".to_owned();
+    };
+
+    operands
+        .iter()
+        .map(|operand| match &operand.kind {
+            InstructionOperandKind::DataAddress { symbol } => format!("addr {symbol}"),
+            InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
+            InstructionOperandKind::ByteLength(value) => format!("len {value}"),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
