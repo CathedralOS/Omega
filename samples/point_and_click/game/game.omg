@@ -5,19 +5,19 @@ machine Game {
     contains rooms: RoomManager;
     owns view: MainView;
 
-    command run_iteration(frame: FrameInput) {
+    state run_iteration(frame: FrameInput) {
         rooms.tick(frame);
         compose_view(mut view);
     }
 
-    command compose_view(mut out_view: MainView) {
+    state compose_view(mut out_view: MainView) {
         let inventory_snapshot: Inventory;
         rooms.write_active_room_view(mut out_view.room);
         rooms.write_inventory(mut inventory_snapshot);
         out_view.hud.has_key = inventory_snapshot.has_key;
     }
 
-    command write_view(mut out_view: MainView) {
+    state write_view(mut out_view: MainView) {
         out_view = view;
     }
 }

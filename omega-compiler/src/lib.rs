@@ -95,12 +95,12 @@ mod tests {
     }
 
     #[test]
-    fn parses_platform_command_parameters() {
+    fn parses_platform_state_parameters() {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command read_line(mut out_line: ConsoleLine);
-                command exit_process(return_code: i32);
+                state read_line(mut out_line: ConsoleLine);
+                state exit_process(return_code: i32);
             }
             "#,
         )
@@ -111,15 +111,15 @@ mod tests {
             panic!("expected a platform");
         };
 
-        assert_eq!(platform.commands[0].name, "read_line");
-        assert_eq!(platform.commands[0].parameters[0].name, "out_line");
+        assert_eq!(platform.states[0].name, "read_line");
+        assert_eq!(platform.states[0].parameters[0].name, "out_line");
         assert_eq!(
-            platform.commands[0].parameters[0].type_reference,
+            platform.states[0].parameters[0].type_reference,
             TypeReference::named("ConsoleLine")
         );
-        assert!(platform.commands[0].parameters[0].is_mutable);
+        assert!(platform.states[0].parameters[0].is_mutable);
         assert_eq!(
-            platform.commands[1].parameters[0].type_reference,
+            platform.states[1].parameters[0].type_reference,
             TypeReference::named("i32")
         );
     }
@@ -160,7 +160,7 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command write_line(text: String);
+                state write_line(text: String);
             }
 
             machine main {
@@ -188,47 +188,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_wrong_command_body_argument_count() {
-        let tokens = Lexer::new(
-            r#"
-            data Value {
-                raw: i32;
-            }
-
-            machine main {
-                command needs_value(value: Value) {
-                }
-
-                command bad_call() {
-                    needs_value();
-                }
-
-                state entry {
-                }
-            }
-            "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
-
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
-        );
-    }
-
-    #[test]
-    fn rejects_duplicate_local_data_in_command_body() {
+    fn rejects_duplicate_local_data_in_state_body() {
         let tokens = Lexer::new(
             r#"
             machine main {
-                command bad_locals() {
+                state bad_locals() {
                     let value: i32;
                     let value: i32;
                 }
@@ -254,42 +218,13 @@ mod tests {
     }
 
     #[test]
-    fn rejects_local_data_shadowing_command_parameters() {
-        let tokens = Lexer::new(
-            r#"
-            machine main {
-                command bad_shadow(value: i32) {
-                    let value: i32;
-                }
-
-                state entry {
-                }
-            }
-            "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
-
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("conflicts with an existing name")
-        }));
-    }
-
-    #[test]
-    fn rejects_duplicate_platform_commands_and_parameters() {
+    fn rejects_duplicate_platform_states_and_parameters() {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command write_line(text: String);
-                command write_line(mut text: String);
-                command echo(text: String, text: String);
+                state write_line(text: String);
+                state write_line(mut text: String);
+                state echo(text: String, text: String);
             }
 
             machine main {
@@ -311,7 +246,7 @@ mod tests {
         assert!(
             diagnostics
                 .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate command"))
+                .any(|diagnostic| diagnostic.message.contains("duplicate state"))
         );
         assert!(
             diagnostics
@@ -352,7 +287,7 @@ mod tests {
         let tokens = Lexer::new(
             r#"
             platform Console {
-                command write_line(text: String);
+                state write_line(text: String);
             }
 
             machine main {
@@ -396,7 +331,7 @@ mod tests {
             }
 
             platform Console {
-                command write_line(text: String);
+                state write_line(text: String);
             }
 
             machine main {
@@ -544,7 +479,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_named_and_mutable_command_arguments() {
+    fn parses_named_and_mutable_call_arguments() {
         let tokens = Lexer::new(
             r#"
             machine main {
@@ -564,8 +499,8 @@ mod tests {
             panic!("expected a machine");
         };
 
-        let Statement::CommandCall(read_line) = &machine.states[0].statements[0] else {
-            panic!("expected command call");
+        let Statement::Call(read_line) = &machine.states[0].statements[0] else {
+            panic!("expected state call");
         };
         let crate::ast::expression::Expression::Mutable(inner_expression) = &read_line.arguments[0]
         else {
@@ -614,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_local_command_call_without_receiver() {
+    fn parses_local_call_without_receiver() {
         let tokens = Lexer::new(
             r#"
             machine main {
@@ -630,13 +565,13 @@ mod tests {
         let Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected a machine");
         };
-        let Statement::CommandCall(command_call) = &machine.states[0].statements[0] else {
-            panic!("expected command call");
+        let Statement::Call(call) = &machine.states[0].statements[0] else {
+            panic!("expected state call");
         };
 
-        assert_eq!(command_call.receiver, None);
-        assert_eq!(command_call.command, "write_current_cell");
-        assert_eq!(command_call.arguments.len(), 3);
+        assert_eq!(call.receiver, None);
+        assert_eq!(call.target, "write_current_cell");
+        assert_eq!(call.arguments.len(), 3);
     }
 
     #[test]
@@ -750,11 +685,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_command_body_statements() {
+    fn parses_state_body_statements() {
         let tokens = Lexer::new(
             r#"
             machine Sample {
-                command write(mut out_level: Level) {
+                state write(mut out_level: Level) {
                     let room: Room;
                     out_level.rooms[0] = Room { cell: CellId::A1 };
                     out_level.name = "A" + "1";
@@ -769,8 +704,8 @@ mod tests {
             panic!("expected a machine");
         };
 
-        assert_eq!(machine.commands[0].signature.name, "write");
-        assert_eq!(machine.commands[0].statements.len(), 3);
+        assert_eq!(machine.states[0].name, "write");
+        assert_eq!(machine.states[0].statements.len(), 3);
     }
 
     #[test]

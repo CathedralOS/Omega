@@ -1,8 +1,8 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
-use crate::ir::command::CommandSignature;
 use crate::ir::data::{DataMember, DataShapeKind};
 use crate::ir::expression::Expression;
+use crate::ir::signature::{StateParameter, StateSignature};
 use crate::ir::statement::{Statement, TransitionTarget};
 use crate::ir::types::{PrimitiveType, TypeReference};
 use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
@@ -11,7 +11,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = ProgramSymbols::build(program, &mut diagnostics);
 
-    validate_top_level_command_signatures(program, &symbols, &mut diagnostics);
+    validate_callable_state_signatures(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
@@ -21,41 +21,16 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         validate_contained_types(machine, &symbols, &mut diagnostics);
         validate_owned_data(machine, &symbols, &mut diagnostics);
 
-        for command in &machine.commands {
+        for state in &machine.states {
             let reserved_names = machine_symbols
                 .member_names()
                 .chain(
-                    command
-                        .signature
+                    state
                         .parameters
                         .iter()
                         .map(|parameter| parameter.name.as_str()),
                 )
                 .collect::<Vec<_>>();
-            validate_local_data_names(
-                &command.statements,
-                format!(
-                    "machine `{}` command `{}`",
-                    machine.name, command.signature.name
-                ),
-                &reserved_names,
-                &mut diagnostics,
-            );
-
-            for statement in &command.statements {
-                validate_command_body_statement(
-                    machine,
-                    &command.signature.name,
-                    &machine_symbols,
-                    &symbols,
-                    statement,
-                    &mut diagnostics,
-                );
-            }
-        }
-
-        for state in &machine.states {
-            let reserved_names = machine_symbols.member_names().collect::<Vec<_>>();
             validate_local_data_names(
                 &state.statements,
                 format!("machine `{}` state `{}`", machine.name, state.name),
@@ -115,35 +90,6 @@ fn validate_local_data_names(
     }
 }
 
-fn validate_command_body_statement(
-    machine: &crate::ir::machine::Machine,
-    command_name: &str,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &ProgramSymbols<'_>,
-    statement: &Statement,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    match statement {
-        Statement::Assignment(_) => {}
-        Statement::CommandCall(command_call) => {
-            validate_command_call(command_call, machine, machine_symbols, symbols, diagnostics)
-        }
-        Statement::LocalData(local_data) => validate_type_reference(
-            &local_data.type_reference,
-            symbols,
-            diagnostics,
-            format!(
-                "machine `{}` command `{command_name}` local data `{}`",
-                machine.name, local_data.name
-            ),
-        ),
-        Statement::Transition(_) => diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` command `{command_name}` cannot contain state transitions",
-            machine.name
-        ))),
-    }
-}
-
 fn validate_state_statement(
     machine: &crate::ir::machine::Machine,
     state_name: &str,
@@ -154,8 +100,8 @@ fn validate_state_statement(
 ) {
     match statement {
         Statement::Assignment(_) => {}
-        Statement::CommandCall(command_call) => {
-            validate_command_call(command_call, machine, machine_symbols, symbols, diagnostics)
+        Statement::Call(call) => {
+            validate_call(call, machine, machine_symbols, symbols, diagnostics)
         }
         Statement::LocalData(local_data) => validate_type_reference(
             &local_data.type_reference,
@@ -176,14 +122,17 @@ fn validate_state_statement(
     }
 }
 
-fn validate_top_level_command_signatures(
+fn validate_callable_state_signatures(
     program: &Program,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in &program.machines {
-        validate_command_signature_types(
-            machine.commands.iter().map(|command| &command.signature),
+        validate_state_signature_types(
+            machine.states.iter().map(|state| StateSignature {
+                name: state.name.clone(),
+                parameters: state.parameters.clone(),
+            }),
             symbols,
             diagnostics,
             format!("machine `{}`", machine.name),
@@ -191,9 +140,9 @@ fn validate_top_level_command_signatures(
     }
 
     for platform in &program.platforms {
-        validate_platform_command_names(platform, diagnostics);
-        validate_command_signature_types(
-            platform.commands.iter(),
+        validate_platform_state_names(platform, diagnostics);
+        validate_state_signature_types(
+            platform.states.iter().cloned(),
             symbols,
             diagnostics,
             format!("platform `{}`", platform.name),
@@ -201,59 +150,59 @@ fn validate_top_level_command_signatures(
     }
 }
 
-fn validate_command_signature_types<'a>(
-    signatures: impl Iterator<Item = &'a CommandSignature>,
+fn validate_state_signature_types(
+    signatures: impl Iterator<Item = StateSignature>,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
-    for command in signatures {
-        validate_command_parameter_names(command, &owner, diagnostics);
+    for signature in signatures {
+        validate_state_parameter_names(&signature, &owner, diagnostics);
 
-        for parameter in &command.parameters {
+        for parameter in &signature.parameters {
             validate_type_reference(
                 &parameter.type_reference,
                 symbols,
                 diagnostics,
                 format!(
-                    "{owner} command `{}` parameter `{}`",
-                    command.name, parameter.name
+                    "{owner} state `{}` parameter `{}`",
+                    signature.name, parameter.name
                 ),
             );
         }
     }
 }
 
-fn validate_platform_command_names(
+fn validate_platform_state_names(
     platform: &crate::ir::platform::Platform,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut command_names = Vec::new();
+    let mut state_names = Vec::new();
 
-    for command in &platform.commands {
-        if command_names.contains(&command.name.as_str()) {
+    for state in &platform.states {
+        if state_names.contains(&state.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
-                "platform `{}` has duplicate command `{}`",
-                platform.name, command.name
+                "platform `{}` has duplicate state `{}`",
+                platform.name, state.name
             )));
         }
 
-        command_names.push(command.name.as_str());
+        state_names.push(state.name.as_str());
     }
 }
 
-fn validate_command_parameter_names(
-    command: &CommandSignature,
+fn validate_state_parameter_names(
+    state: &StateSignature,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut parameter_names = Vec::new();
 
-    for parameter in &command.parameters {
+    for parameter in &state.parameters {
         if parameter_names.contains(&parameter.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} command `{}` has duplicate parameter `{}`",
-                command.name, parameter.name
+                "{owner} state `{}` has duplicate parameter `{}`",
+                state.name, parameter.name
             )));
         }
 
@@ -374,7 +323,7 @@ fn validate_contained_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for contained_object in &machine.contains {
-        if !symbols.is_command_receiver_type(&contained_object.type_name) {
+        if !symbols.is_callable_receiver_type(&contained_object.type_name) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` contains `{}` with unknown type `{}`",
                 machine.name, contained_object.name, contained_object.type_name
@@ -428,42 +377,47 @@ fn validate_initial_value(
     }
 }
 
-fn validate_command_call(
-    command_call: &crate::ir::statement::CommandCall,
+fn validate_call(
+    call: &crate::ir::statement::Call,
     current_machine: &crate::ir::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(receiver) = command_call.receiver.as_deref() else {
-        let Some(command_definition) = machine_symbols.command(&command_call.command) else {
+    let Some(receiver) = call.receiver.as_deref() else {
+        let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no local command `{}`",
-                current_machine.name, command_call.command
+                "machine `{}` has no local state `{}`",
+                current_machine.name, call.target
             )));
             return;
         };
 
-        validate_command_arguments(command_call, &command_definition.signature, diagnostics);
+        validate_call_arguments(call, state.name.as_str(), &state.parameters, diagnostics);
         return;
     };
 
     let receiver_type = machine_symbols.contained_type(receiver);
 
     if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
-        let Some(command_signature) = platform
-            .commands
+        let Some(state_signature) = platform
+            .states
             .iter()
-            .find(|command| command.name == command_call.command)
+            .find(|state| state.name == call.target)
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "platform `{}` has no command `{}`",
-                platform.name, command_call.command
+                "platform `{}` has no state `{}`",
+                platform.name, call.target
             )));
             return;
         };
 
-        validate_command_arguments(command_call, command_signature, diagnostics);
+        validate_call_arguments(
+            call,
+            &state_signature.name,
+            &state_signature.parameters,
+            diagnostics,
+        );
         return;
     }
 
@@ -471,59 +425,56 @@ fn validate_command_call(
         .and_then(|type_name| symbols.machine(type_name))
         .or_else(|| symbols.machine(receiver))
     {
-        let Some(command_signature) = machine
-            .commands
+        if let Some(state) = machine
+            .states
             .iter()
-            .find(|command| command.signature.name == command_call.command)
-        else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no command `{}`",
-                machine.name, command_call.command
-            )));
+            .find(|state| state.name == call.target)
+        {
+            validate_call_arguments(call, &state.name, &state.parameters, diagnostics);
             return;
         };
 
-        validate_command_arguments(command_call, &command_signature.signature, diagnostics);
-        return;
-    }
-
-    diagnostics.push(Diagnostic::error(format!(
-        "unknown command receiver `{receiver}`"
-    )));
-}
-
-fn validate_command_arguments(
-    command_call: &crate::ir::statement::CommandCall,
-    command_signature: &CommandSignature,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    if command_call.arguments.len() != command_signature.parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
-            "command `{}` expects {} argument(s), got {}",
-            command_call.command,
-            command_signature.parameters.len(),
-            command_call.arguments.len()
+            "machine `{}` has no state `{}`",
+            machine.name, call.target
         )));
         return;
     }
 
-    for (argument, parameter) in command_call
-        .arguments
-        .iter()
-        .zip(command_signature.parameters.iter())
-    {
+    diagnostics.push(Diagnostic::error(format!(
+        "unknown call receiver `{receiver}`"
+    )));
+}
+
+fn validate_call_arguments(
+    call: &crate::ir::statement::Call,
+    target_name: &str,
+    parameters: &[StateParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if call.arguments.len() != parameters.len() {
+        diagnostics.push(Diagnostic::error(format!(
+            "state `{}` expects {} argument(s), got {}",
+            target_name,
+            parameters.len(),
+            call.arguments.len()
+        )));
+        return;
+    }
+
+    for (argument, parameter) in call.arguments.iter().zip(parameters.iter()) {
         if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
             diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for command `{}` must be passed with `mut`",
-                parameter.name, command_call.command
+                "argument `{}` for state `{}` must be passed with `mut`",
+                parameter.name, target_name
             )));
             continue;
         }
 
         if !parameter.is_mutable && matches!(argument, Expression::Mutable(_)) {
             diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for command `{}` is not mutable",
-                parameter.name, command_call.command
+                "argument `{}` for state `{}` is not mutable",
+                parameter.name, target_name
             )));
             continue;
         }
@@ -532,9 +483,9 @@ fn validate_command_arguments(
 
         if !argument_matches_type(argument, &parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for command `{}` expects `{}`, got `{}`",
+                "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,
-                command_call.command,
+                target_name,
                 expected_type,
                 expression_type_name(argument)
             )));

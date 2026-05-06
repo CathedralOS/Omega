@@ -90,7 +90,7 @@ This example suggests a few important ideas:
 The design currently appears to want the following:
 
 - State is explicit, not implicit in scattered booleans or enum checks
-- Behavior lives inside states, commands, and queries
+- Behavior lives inside states and explicit calls between states or platform boundaries
 - Transitions are graph edges, not function bodies
 - Data ownership belongs to the machine that evolves it
 - Transitions are natural proof boundaries

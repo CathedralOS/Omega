@@ -38,7 +38,6 @@ pub struct DataVariant {
 pub struct Machine {
     pub name: String,
     pub contains: Vec<Contains>,
-    pub commands: Vec<CommandDefinition>,
     pub owned_data: Vec<OwnedData>,
     pub states: Vec<State>,
 }
@@ -59,30 +58,24 @@ pub struct OwnedData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub name: String,
-    pub statements: Vec<crate::ast::statement::Statement>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandDefinition {
-    pub signature: CommandSignature,
-    pub guard: Option<String>,
+    pub parameters: Vec<StateParameter>,
     pub statements: Vec<crate::ast::statement::Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {
     pub name: String,
-    pub commands: Vec<CommandSignature>,
+    pub states: Vec<StateSignature>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandSignature {
+pub struct StateSignature {
     pub name: String,
-    pub parameters: Vec<CommandParameter>,
+    pub parameters: Vec<StateParameter>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandParameter {
+pub struct StateParameter {
     pub name: String,
     pub type_reference: crate::ast::types::TypeReference,
     pub is_mutable: bool,

@@ -1,18 +1,16 @@
 use crate::ast;
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
-use crate::ir::command::{CommandParameter, CommandSignature};
 use crate::ir::data::{DataDefinition, DataField, DataMember, DataVariant};
 use crate::ir::expression::{
     BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
-use crate::ir::machine::{CommandDefinition, ContainedObject, Machine, OwnedData};
+use crate::ir::machine::{ContainedObject, Machine, OwnedData};
 use crate::ir::platform::Platform;
+use crate::ir::signature::{StateParameter, StateSignature};
 use crate::ir::state::State;
-use crate::ir::statement::{
-    Assignment, CommandCall, LocalData, Statement, Transition, TransitionTarget,
-};
+use crate::ir::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
 use crate::ir::types::TypeReference;
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
@@ -75,12 +73,6 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
         })
         .collect();
 
-    let commands = machine
-        .commands
-        .iter()
-        .map(lower_command_definition)
-        .collect::<Result<Vec<_>, _>>()?;
-
     let owned_data = machine
         .owned_data
         .iter()
@@ -95,24 +87,9 @@ fn lower_machine(machine: &ast::item::Machine) -> Result<Machine, Diagnostic> {
 
     Ok(Machine {
         name: machine.name.clone(),
-        commands,
         contains,
         owned_data,
         states,
-    })
-}
-
-fn lower_command_definition(
-    command: &ast::item::CommandDefinition,
-) -> Result<CommandDefinition, Diagnostic> {
-    Ok(CommandDefinition {
-        signature: lower_command_signature(&command.signature)?,
-        guard: command.guard.clone(),
-        statements: command
-            .statements
-            .iter()
-            .map(lower_statement)
-            .collect::<Result<Vec<_>, _>>()?,
     })
 }
 
@@ -129,28 +106,28 @@ fn lower_owned_data(owned_data: &ast::item::OwnedData) -> Result<OwnedData, Diag
 }
 
 fn lower_platform(platform: &ast::item::Platform) -> Result<Platform, Diagnostic> {
-    let commands = platform
-        .commands
+    let states = platform
+        .states
         .iter()
-        .map(lower_command_signature)
+        .map(lower_state_signature)
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
         name: platform.name.clone(),
-        commands,
+        states,
     })
 }
 
-fn lower_command_signature(
-    command: &ast::item::CommandSignature,
-) -> Result<CommandSignature, Diagnostic> {
-    Ok(CommandSignature {
-        name: command.name.clone(),
-        parameters: command
+fn lower_state_signature(
+    signature: &ast::item::StateSignature,
+) -> Result<StateSignature, Diagnostic> {
+    Ok(StateSignature {
+        name: signature.name.clone(),
+        parameters: signature
             .parameters
             .iter()
             .map(|parameter| {
-                Ok(CommandParameter {
+                Ok(StateParameter {
                     name: parameter.name.clone(),
                     type_reference: lower_type_reference(&parameter.type_reference)?,
                     is_mutable: parameter.is_mutable,
@@ -184,6 +161,17 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
 
     Ok(State {
         name: state.name.clone(),
+        parameters: state
+            .parameters
+            .iter()
+            .map(|parameter| {
+                Ok(StateParameter {
+                    name: parameter.name.clone(),
+                    type_reference: lower_type_reference(&parameter.type_reference)?,
+                    is_mutable: parameter.is_mutable,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?,
         statements,
     })
 }
@@ -196,17 +184,15 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
                 value: lower_expression(&assignment.value)?,
             }))
         }
-        ast::statement::Statement::CommandCall(command_call) => {
-            Ok(Statement::CommandCall(CommandCall {
-                receiver: command_call.receiver.clone(),
-                command: command_call.command.clone(),
-                arguments: command_call
-                    .arguments
-                    .iter()
-                    .map(lower_expression)
-                    .collect::<Result<Vec<_>, _>>()?,
-            }))
-        }
+        ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
+            receiver: call.receiver.clone(),
+            target: call.target.clone(),
+            arguments: call
+                .arguments
+                .iter()
+                .map(lower_expression)
+                .collect::<Result<Vec<_>, _>>()?,
+        })),
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
             name: local_data.name.clone(),
             type_reference: lower_type_reference(&local_data.type_reference)?,

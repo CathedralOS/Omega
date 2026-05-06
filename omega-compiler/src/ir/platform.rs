@@ -1,7 +1,7 @@
-use crate::ir::command::CommandSignature;
+use crate::ir::signature::StateSignature;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {
     pub name: String,
-    pub commands: Vec<CommandSignature>,
+    pub states: Vec<StateSignature>,
 }

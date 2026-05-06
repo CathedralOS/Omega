@@ -3,15 +3,18 @@ use data::game_types;
 machine CellarRoom {
     owns intro_seen: bool = false;
 
-    command tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
-        mark_intro_seen(frame);
+    state tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
+        -> mark_intro_seen(frame) when frame.left_pressed;
+        -> return;
     }
 
-    command mark_intro_seen(frame: FrameInput) when frame.left_pressed {
+    state mark_intro_seen(frame: FrameInput) {
         intro_seen = true;
+
+        -> return;
     }
 
-    command write_view(mut out_view: RoomView) {
+    state write_view(mut out_view: RoomView) {
         out_view.room_name = "Cellar";
         out_view.hotspots = [];
         out_view.hotspot_count = 0;

@@ -3,12 +3,10 @@ use crate::ast::expression::{
     StructLiteralField,
 };
 use crate::ast::item::{
-    CommandDefinition, CommandParameter, CommandSignature, Contains, DataDefinition, DataField,
-    DataMember, DataVariant, Item, Machine, OwnedData, Platform, State, UseItem,
+    Contains, DataDefinition, DataField, DataMember, DataVariant, Item, Machine, OwnedData,
+    Platform, State, StateParameter, StateSignature, UseItem,
 };
-use crate::ast::statement::{
-    Assignment, CommandCall, LocalData, Statement, Transition, TransitionTarget,
-};
+use crate::ast::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
 use crate::ast::types::TypeReference;
 use crate::lexer::{Token, TokenKind};
 use crate::parser::parse_error::ParseError;
@@ -92,26 +90,26 @@ impl Parser<'_> {
         let name = self.expect_identifier()?;
         self.expect("{")?;
 
-        let mut commands = Vec::new();
+        let mut states = Vec::new();
 
         while !self.consume("}") {
-            self.expect("command")?;
-            let signature = self.parse_command_signature()?;
+            self.expect("state")?;
+            let signature = self.parse_state_signature()?;
             self.expect(";")?;
-            commands.push(signature);
+            states.push(signature);
         }
 
-        Ok(Platform { name, commands })
+        Ok(Platform { name, states })
     }
 
-    fn parse_command_signature(&mut self) -> Result<CommandSignature, ParseError> {
+    fn parse_state_signature(&mut self) -> Result<StateSignature, ParseError> {
         let name = self.expect_identifier()?;
-        let parameters = self.parse_command_parameters()?;
+        let parameters = self.parse_state_parameters()?;
 
-        Ok(CommandSignature { name, parameters })
+        Ok(StateSignature { name, parameters })
     }
 
-    fn parse_command_parameters(&mut self) -> Result<Vec<CommandParameter>, ParseError> {
+    fn parse_state_parameters(&mut self) -> Result<Vec<StateParameter>, ParseError> {
         self.expect("(")?;
 
         let mut parameters = Vec::new();
@@ -126,7 +124,7 @@ impl Parser<'_> {
             self.expect(":")?;
             let type_reference = self.parse_type_reference()?;
 
-            parameters.push(CommandParameter {
+            parameters.push(StateParameter {
                 name,
                 type_reference,
                 is_mutable,
@@ -163,7 +161,6 @@ impl Parser<'_> {
         self.expect("{")?;
 
         let mut contains = Vec::new();
-        let mut commands = Vec::new();
         let mut owned_data = Vec::new();
         let mut states = Vec::new();
 
@@ -174,8 +171,6 @@ impl Parser<'_> {
                 owned_data.push(self.parse_owned_data()?);
             } else if self.consume("state") {
                 states.push(self.parse_state()?);
-            } else if self.consume("command") {
-                commands.push(self.parse_command_definition()?);
             } else if self.consume("invariant") {
                 self.expect_identifier()?;
                 self.skip_balanced_braces()?;
@@ -187,35 +182,8 @@ impl Parser<'_> {
         Ok(Machine {
             name,
             contains,
-            commands,
             owned_data,
             states,
-        })
-    }
-
-    fn parse_command_definition(&mut self) -> Result<CommandDefinition, ParseError> {
-        let signature = self.parse_command_signature()?;
-
-        if self.consume(";") {
-            return Ok(CommandDefinition {
-                signature,
-                guard: None,
-                statements: Vec::new(),
-            });
-        }
-
-        let guard = if self.consume("when") {
-            Some(self.collect_until("{")?)
-        } else {
-            None
-        };
-
-        let statements = self.parse_statement_block()?;
-
-        Ok(CommandDefinition {
-            signature,
-            guard,
-            statements,
         })
     }
 
@@ -248,6 +216,12 @@ impl Parser<'_> {
 
     fn parse_state(&mut self) -> Result<State, ParseError> {
         let name = self.expect_identifier()?;
+        let parameters = if self.check("(") {
+            self.parse_state_parameters()?
+        } else {
+            Vec::new()
+        };
+
         self.expect("{")?;
 
         let mut statements = Vec::new();
@@ -260,7 +234,11 @@ impl Parser<'_> {
             }
         }
 
-        Ok(State { name, statements })
+        Ok(State {
+            name,
+            parameters,
+            statements,
+        })
     }
 
     fn parse_transition(&mut self) -> Result<Statement, ParseError> {
@@ -299,6 +277,10 @@ impl Parser<'_> {
             path.push(self.expect_identifier()?);
         }
 
+        if self.check("(") {
+            self.skip_parenthesized_arguments()?;
+        }
+
         Ok(TransitionTarget::Named(path))
     }
 
@@ -321,9 +303,9 @@ impl Parser<'_> {
         if self.check("(") {
             self.expect("(")?;
             let arguments = self.parse_call_arguments()?;
-            return Ok(Statement::CommandCall(CommandCall {
+            return Ok(Statement::Call(Call {
                 receiver: None,
-                command: first_name,
+                target: first_name,
                 arguments,
             }));
         }
@@ -344,9 +326,9 @@ impl Parser<'_> {
         self.expect("(")?;
         let arguments = self.parse_call_arguments()?;
 
-        Ok(Statement::CommandCall(CommandCall {
+        Ok(Statement::Call(Call {
             receiver: Some(first_name),
-            command: second_name,
+            target: second_name,
             arguments,
         }))
     }
@@ -516,21 +498,6 @@ impl Parser<'_> {
         }))
     }
 
-    fn parse_statement_block(&mut self) -> Result<Vec<Statement>, ParseError> {
-        self.expect("{")?;
-        let mut statements = Vec::new();
-
-        while !self.consume("}") {
-            if self.consume("->") {
-                statements.push(self.parse_transition()?);
-            } else {
-                statements.push(self.parse_statement()?);
-            }
-        }
-
-        Ok(statements)
-    }
-
     fn skip_balanced_braces(&mut self) -> Result<(), ParseError> {
         self.expect("{")?;
         let mut depth = 1;
@@ -550,17 +517,24 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn collect_until(&mut self, lexeme: &str) -> Result<String, ParseError> {
-        let mut parts = Vec::new();
+    fn skip_parenthesized_arguments(&mut self) -> Result<(), ParseError> {
+        self.expect("(")?;
 
-        while !self.check(lexeme) {
-            let Some(token) = self.advance() else {
-                return Err(self.error_here(format!("expected `{lexeme}`")));
-            };
-            parts.push(token.lexeme.clone());
+        let mut depth = 1usize;
+
+        while let Some(token) = self.advance() {
+            if token.lexeme == "(" {
+                depth += 1;
+            } else if token.lexeme == ")" {
+                depth -= 1;
+
+                if depth == 0 {
+                    return Ok(());
+                }
+            }
         }
 
-        Ok(parts.join(" "))
+        Err(ParseError::new("unterminated transition arguments"))
     }
 
     fn collect_condition_until_semicolon(&mut self) -> Result<String, ParseError> {

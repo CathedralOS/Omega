@@ -1,4 +1,4 @@
 platform Console {
-    command write_line(text: String);
-    command exit_process(return_code: i32);
+    state write_line(text: String);
+    state exit_process(return_code: i32);
 }

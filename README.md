@@ -32,7 +32,7 @@ Omega is currently exploring a few strong ideas:
 - A bare arrow is unconditional; `when` adds the guard.
 - `-> self;` re-enters the current state.
 - Nested machine flow can be expressed as `-> child.entry -> continuation;`.
-- Commands perform explicit work but do not imply return-value control flow.
+- Calls perform explicit work but do not imply return-value control flow.
 - Data flow should prefer explicit owned data and `mut` parameters over invisible stacks or ambient state.
 - Platform boundaries are explicit and stub-friendly.
 
@@ -45,9 +45,9 @@ Performance is part of the language design too. Omega should bias toward dense d
 The Rust compiler is intentionally small, but it now has real pipeline seams:
 
 - lexer with spans and structured errors
-- parser for top-level items, machines, platforms, states, command calls, and transition arrows
+- parser for top-level items, machines, platforms, states, calls, and transition arrows
 - AST-to-IR lowering
-- semantic validation for entry point, receivers, platform commands, and transition targets
+- semantic validation for entry point, receivers, platform states, and transition targets
 
 Omega does not currently emit a native binary. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
 

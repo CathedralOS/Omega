@@ -25,6 +25,6 @@ The intended rules:
 Potential constraints:
 
 - Only explicitly named targets may be relaxed.
-- Relaxed values cannot be passed to commands unless the command accepts the relaxed type.
+- Relaxed values cannot be passed to calls unless the callee accepts the relaxed type.
 - Transitions inside relax blocks are only allowed if the relax obligation is carried onto each outgoing edge.
 - Nested relax scopes need a clear proof stack.

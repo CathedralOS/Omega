@@ -1,4 +1,3 @@
-use crate::ir::command::CommandSignature;
 use crate::ir::expression::Expression;
 use crate::ir::state::State;
 use crate::ir::types::TypeReference;
@@ -6,17 +5,9 @@ use crate::ir::types::TypeReference;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: String,
-    pub commands: Vec<CommandDefinition>,
     pub contains: Vec<ContainedObject>,
     pub owned_data: Vec<OwnedData>,
     pub states: Vec<State>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandDefinition {
-    pub signature: CommandSignature,
-    pub guard: Option<String>,
-    pub statements: Vec<crate::ir::statement::Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

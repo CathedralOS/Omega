@@ -1,7 +1,7 @@
 use data::dungeon_types;
 
 machine SampleLevel {
-    command write(mut out_level: Level) {
+    state write(mut out_level: Level) {
         out_level.start_cell = CellId::A1;
         out_level.room_count = 4;
         write_room_a1(mut out_level.rooms[0]);
@@ -10,7 +10,7 @@ machine SampleLevel {
         write_room_b2(mut out_level.rooms[3]);
     }
 
-    command write_room_a1(mut room: Room) {
+    state write_room_a1(mut room: Room) {
         room.cell = CellId::A1;
         room.label = "You are in A1.";
         room.exit_count = 2;
@@ -18,7 +18,7 @@ machine SampleLevel {
         room.exits[1] = Exit { command: "east", destination: CellId::B1 };
     }
 
-    command write_room_a2(mut room: Room) {
+    state write_room_a2(mut room: Room) {
         room.cell = CellId::A2;
         room.label = "You are in A2.";
         room.exit_count = 2;
@@ -26,7 +26,7 @@ machine SampleLevel {
         room.exits[1] = Exit { command: "east", destination: CellId::B2 };
     }
 
-    command write_room_b1(mut room: Room) {
+    state write_room_b1(mut room: Room) {
         room.cell = CellId::B1;
         room.label = "You are in B1.";
         room.exit_count = 2;
@@ -34,7 +34,7 @@ machine SampleLevel {
         room.exits[1] = Exit { command: "west", destination: CellId::A1 };
     }
 
-    command write_room_b2(mut room: Room) {
+    state write_room_b2(mut room: Room) {
         room.cell = CellId::B2;
         room.label = "You are in B2.";
         room.exit_count = 2;

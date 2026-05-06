@@ -11,15 +11,7 @@ pub struct ControlFlowPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
     pub name: String,
-    pub commands: Vec<CommandFlow>,
     pub states: Vec<StateFlow>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandFlow {
-    pub name: String,
-    pub operations: Vec<Operation>,
-    pub guard: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,7 +31,7 @@ pub struct Operation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     Assignment,
-    CommandCall,
+    Call,
     LocalData,
 }
 
@@ -76,17 +68,6 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
         .map(|(index, state)| (state.name.as_str(), index))
         .collect::<Vec<_>>();
 
-    let commands = machine
-        .commands
-        .iter()
-        .map(|command| {
-            Ok(CommandFlow {
-                name: command.signature.name.clone(),
-                operations: statements_to_operations(&command.statements)?,
-                guard: command.guard.clone(),
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
     let states = machine
         .states
         .iter()
@@ -106,33 +87,8 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
 
     Ok(MachineFlow {
         name: machine.name.clone(),
-        commands,
         states,
     })
-}
-
-fn statements_to_operations(statements: &[Statement]) -> Result<Vec<Operation>, Diagnostic> {
-    statements
-        .iter()
-        .enumerate()
-        .map(|(statement_index, statement)| match statement {
-            Statement::Assignment(_) => Ok(Operation {
-                statement_index,
-                kind: OperationKind::Assignment,
-            }),
-            Statement::CommandCall(_) => Ok(Operation {
-                statement_index,
-                kind: OperationKind::CommandCall,
-            }),
-            Statement::LocalData(_) => Ok(Operation {
-                statement_index,
-                kind: OperationKind::LocalData,
-            }),
-            Statement::Transition(_) => Err(Diagnostic::error(
-                "command bodies cannot contain state transitions",
-            )),
-        })
-        .collect()
 }
 
 fn split_state_statements(
@@ -156,14 +112,14 @@ fn split_state_statements(
                     kind: OperationKind::Assignment,
                 });
             }
-            Statement::CommandCall(_) => {
+            Statement::Call(_) => {
                 if transition_section_started {
                     return Err(non_trailing_transition_error(machine));
                 }
 
                 operations.push(Operation {
                     statement_index,
-                    kind: OperationKind::CommandCall,
+                    kind: OperationKind::Call,
                 });
             }
             Statement::LocalData(_) => {

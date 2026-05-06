@@ -7,8 +7,7 @@ The short version:
 - states execute code
 - transitions are graph edges at the end of state bodies
 - `state entry` is the implicit entry point for `machine main`
-- commands mutate context
-- queries read or fill views
+- calls execute another state or platform boundary without changing the current control-flow edge
 - events and guards decide which edge is taken
 - ordered state-local transitions replace inline branching
 
@@ -78,9 +77,9 @@ state shutdown {
 }
 ```
 
-The return code is just data owned by the root machine. The OS boundary is a command.
+The return code is just data owned by the root machine. The OS boundary is an explicit platform state call.
 
-Newer sketches are exploring typed states that can produce values through a constrained state graph. That is a separate design thread from process exit and command-style return values. See [Typed States And Invariants](typed-states-and-invariants.md).
+Newer sketches are exploring typed states that can produce values through a constrained state graph. That is a separate design thread from process exit and call-style return values. See [Typed States And Invariants](typed-states-and-invariants.md).
 
 `state`
 
@@ -110,13 +109,9 @@ This is the stack-like exception. A parent may enter a child machine and carry a
 
 Typed-state sketches may allow state signatures and return value compatibility checks. In that model, transitions are still handoffs: the target state's parameters must match, and its return value must satisfy the source graph's return value obligation, but there is no hidden caller stack inside the machine.
 
-`command`
+`call`
 
-Callable behavior that mutates explicit context. This is useful for platform operations, room ticks, and other effects that are not state handoffs.
-
-`query`
-
-Callable behavior that reads state or writes a view buffer. Queries should not advance the machine.
+Callable state behavior that does explicit work without selecting the caller's next transition. Calls can target local states, contained machines, or platform boundaries. They should still make mutation visible through `mut` parameters rather than hidden ambient state.
 
 `event`
 
@@ -260,13 +255,13 @@ A debugger can expose:
 Breakpoints become clearer:
 
 - break on state entry
-- break on a command inside a state
+- break on a call inside a state
 - break before transition selection
 - break when a specific edge is taken
 
 ## Open questions
 
-- Should a state be allowed to contain multiple commands, or should it execute one operand and transition immediately?
+- Should a state be allowed to contain multiple calls, or should it execute one operand and transition immediately?
 - Should at least one trailing transition be mandatory on every non-terminal state?
 - Is a final bare transition mandatory when the outgoing edge set is incomplete?
 - Should ordered edges be the only priority mechanism, or should priority be explicit?

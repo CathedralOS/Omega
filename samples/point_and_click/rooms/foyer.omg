@@ -4,34 +4,36 @@ machine FoyerRoom {
     owns chest_open: bool = false;
     owns door_unlocked: bool = false;
 
-    command tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
+    state tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
         let clicked: ClickTarget;
         hit_test(frame.mouse_x, frame.mouse_y, mut clicked);
-        collect_key(frame, clicked, mut inventory);
-        unlock_door(frame, clicked, inventory, mut active_room);
-        open_chest(frame, clicked);
+
+        -> collect_key(frame, clicked, mut inventory) when frame.left_pressed && clicked == ClickTarget::Key;
+        -> unlock_door(frame, clicked, inventory, mut active_room) when frame.left_pressed && clicked == ClickTarget::Door && inventory.has_key;
+        -> open_chest(frame, clicked) when frame.left_pressed && clicked == ClickTarget::Chest;
+        -> return;
     }
 
-    command collect_key(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory)
-        when frame.left_pressed && clicked == ClickTarget::Key
-    {
+    state collect_key(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory) {
         inventory.has_key = true;
+
+        -> return;
     }
 
-    command unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId)
-        when frame.left_pressed && clicked == ClickTarget::Door && inventory.has_key
-    {
+    state unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId) {
         door_unlocked = true;
         active_room = RoomId::Cellar;
+
+        -> return;
     }
 
-    command open_chest(frame: FrameInput, clicked: ClickTarget)
-        when frame.left_pressed && clicked == ClickTarget::Chest
-    {
+    state open_chest(frame: FrameInput, clicked: ClickTarget) {
         chest_open = true;
+
+        -> return;
     }
 
-    command write_view(mut out_view: RoomView) {
+    state write_view(mut out_view: RoomView) {
         out_view.room_name = "Foyer";
         out_view.hotspots = [
             Hotspot { target: ClickTarget::Door, x: 420, y: 80, width: 80, height: 180 },
@@ -41,7 +43,7 @@ machine FoyerRoom {
         out_view.hotspot_count = 3;
     }
 
-    command hit_test(x: i32, y: i32, mut out_target: ClickTarget) {
+    state hit_test(x: i32, y: i32, mut out_target: ClickTarget) {
         // Long term this likely lowers into a SIMD-friendly scan across
         // hotspot bounds owned by the room.
         out_target = ClickTarget::None;

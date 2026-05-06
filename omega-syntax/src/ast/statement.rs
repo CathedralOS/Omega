@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Assignment(Assignment),
-    CommandCall(CommandCall),
+    Call(Call),
     LocalData(LocalData),
     Transition(Transition),
 }
@@ -19,9 +19,9 @@ pub struct LocalData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CommandCall {
+pub struct Call {
     pub receiver: Option<String>,
-    pub command: String,
+    pub target: String,
     pub arguments: Vec<crate::ast::expression::Expression>,
 }
 

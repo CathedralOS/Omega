@@ -25,7 +25,7 @@ Current sketch:
 - `Game` owns frame-level composition and a persistent `MainView`
 - `RoomManager` owns active-room selection, inventory, and room dispatch
 - `FoyerRoom` and `CellarRoom` keep room-specific state local
-- `state` is executable code, `command` mutates context, `query` fills read views, and trailing `-> target` lines declare exits
+- `state` is executable code, calls mutate explicit `mut` context, and trailing `-> target` lines declare exits
 - state-local transition order is the branch table; a bare `-> target` is unconditional
 - `-> self;` re-enters the current state
 
@@ -42,4 +42,4 @@ Questions this sample should help answer next:
 - Should `query` be able to write into arbitrary output structs, or should views be preallocated owned buffers only?
 - How strict should cross-machine `mut` access rules be?
 - Should event-driven transitions suspend a state, or should they always flow into an explicit waiting state?
-- Should commands and queries also be branch-free, or is branch-free execution only required for states?
+- Should called states also be branch-free, or is branch-free execution only required for scheduled states?

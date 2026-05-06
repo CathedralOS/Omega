@@ -1,8 +1,9 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::DataDefinition;
-use crate::ir::machine::{CommandDefinition, Machine};
+use crate::ir::machine::Machine;
 use crate::ir::platform::Platform;
+use crate::ir::state::State;
 
 #[derive(Debug)]
 pub struct ProgramSymbols<'program> {
@@ -130,7 +131,7 @@ impl<'program> ProgramSymbols<'program> {
             .map(|symbol| symbol.platform)
     }
 
-    pub fn is_command_receiver_type(&self, name: &str) -> bool {
+    pub fn is_callable_receiver_type(&self, name: &str) -> bool {
         self.machine(name).is_some() || self.platform(name).is_some()
     }
 
@@ -144,17 +145,10 @@ impl<'program> ProgramSymbols<'program> {
 
 #[derive(Debug)]
 pub struct MachineSymbols<'program> {
-    commands: Vec<CommandSymbol<'program>>,
     contained_objects: Vec<ContainedObjectSymbol<'program>>,
     member_names: Vec<&'program str>,
     owned_data_names: Vec<&'program str>,
-    state_names: Vec<&'program str>,
-}
-
-#[derive(Debug)]
-struct CommandSymbol<'program> {
-    name: &'program str,
-    command: &'program CommandDefinition,
+    states: Vec<StateSymbol<'program>>,
 }
 
 #[derive(Debug)]
@@ -163,29 +157,20 @@ struct ContainedObjectSymbol<'program> {
     type_name: &'program str,
 }
 
+#[derive(Debug)]
+struct StateSymbol<'program> {
+    name: &'program str,
+    state: &'program State,
+}
+
 impl<'program> MachineSymbols<'program> {
     pub fn build(machine: &'program Machine, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let mut symbols = Self {
-            commands: Vec::new(),
             contained_objects: Vec::new(),
             member_names: Vec::new(),
             owned_data_names: Vec::new(),
-            state_names: Vec::new(),
+            states: Vec::new(),
         };
-
-        for command in &machine.commands {
-            if symbols.command(command.signature.name.as_str()).is_some() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` has duplicate command `{}`",
-                    machine.name, command.signature.name
-                )));
-            }
-
-            symbols.commands.push(CommandSymbol {
-                name: command.signature.name.as_str(),
-                command,
-            });
-        }
 
         for contained_object in &machine.contains {
             if symbols.has_member(contained_object.name.as_str()) {
@@ -239,17 +224,20 @@ impl<'program> MachineSymbols<'program> {
                 )));
             }
 
-            symbols.state_names.push(state.name.as_str());
+            symbols.states.push(StateSymbol {
+                name: state.name.as_str(),
+                state,
+            });
         }
 
         symbols
     }
 
-    pub fn command(&self, name: &str) -> Option<&'program CommandDefinition> {
-        self.commands
+    pub fn state(&self, name: &str) -> Option<&'program State> {
+        self.states
             .iter()
             .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.command)
+            .map(|symbol| symbol.state)
     }
 
     pub fn contained_type(&self, name: &str) -> Option<&'program str> {
@@ -264,7 +252,7 @@ impl<'program> MachineSymbols<'program> {
     }
 
     pub fn has_state(&self, name: &str) -> bool {
-        self.state_names.contains(&name)
+        self.state(name).is_some()
     }
 
     fn has_member(&self, name: &str) -> bool {
