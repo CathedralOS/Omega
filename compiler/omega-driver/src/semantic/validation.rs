@@ -159,6 +159,7 @@ fn validate_state_statement(
             format!("machine `{}` state `{state_name}` assignment", machine.name),
         ),
         Statement::Call(call) => validate_call(
+            program,
             call,
             machine,
             machine_symbols,
@@ -180,6 +181,7 @@ fn validate_state_statement(
             };
 
             validate_expression_type(
+                program,
                 expression,
                 return_type,
                 diagnostics,
@@ -201,6 +203,7 @@ fn validate_state_statement(
         ),
         Statement::Transition(transition) => {
             validate_transition_target(
+                program,
                 &transition.target,
                 machine_symbols,
                 symbols,
@@ -210,6 +213,7 @@ fn validate_state_statement(
 
             if let Some(continuation) = &transition.continuation {
                 validate_transition_target(
+                    program,
                     continuation,
                     machine_symbols,
                     symbols,
@@ -559,6 +563,7 @@ fn validate_owned_data(
 
         if let Some(initial_value) = &owned_data.initial_value {
             validate_initial_value(
+                program,
                 &owned_data.type_reference,
                 initial_value,
                 diagnostics,
@@ -572,6 +577,7 @@ fn validate_owned_data(
 }
 
 fn validate_initial_value(
+    program: &Program,
     type_reference: &TypeReference,
     initial_value: &Expression,
     diagnostics: &mut Vec<Diagnostic>,
@@ -580,13 +586,14 @@ fn validate_initial_value(
     if !argument_matches_type(initial_value, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} initializer expects `{}`, got `{}`",
-            type_reference.display_name(),
+            type_reference.display_name_with_constraints(&program.type_constraints),
             expression_type_name(initial_value)
         )));
     }
 }
 
 fn validate_call(
+    program: &Program,
     call: &crate::ir::statement::Call,
     current_machine: &crate::ir::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -604,6 +611,7 @@ fn validate_call(
         };
 
         validate_call_arguments(
+            program,
             call,
             state.name.as_str(),
             &state.parameters,
@@ -623,6 +631,7 @@ fn validate_call(
         };
 
         validate_call_arguments(
+            program,
             call,
             state.name.as_str(),
             &state.parameters,
@@ -648,6 +657,7 @@ fn validate_call(
         };
 
         validate_call_arguments(
+            program,
             call,
             &state_signature.name,
             &state_signature.parameters,
@@ -667,6 +677,7 @@ fn validate_call(
             .find(|state| state.name == call.target)
         {
             validate_call_arguments(
+                program,
                 call,
                 &state.name,
                 &state.parameters,
@@ -689,6 +700,7 @@ fn validate_call(
 }
 
 fn validate_call_arguments(
+    program: &Program,
     call: &crate::ir::statement::Call,
     target_name: &str,
     parameters: &[StateParameter],
@@ -727,7 +739,9 @@ fn validate_call_arguments(
             continue;
         }
 
-        let expected_type = parameter.type_reference.display_name();
+        let expected_type = parameter
+            .type_reference
+            .display_name_with_constraints(&program.type_constraints);
 
         if !argument_matches_type(argument, &parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
@@ -933,6 +947,7 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
 }
 
 fn validate_expression_type(
+    program: &Program,
     expression: &Expression,
     type_reference: &TypeReference,
     diagnostics: &mut Vec<Diagnostic>,
@@ -941,7 +956,7 @@ fn validate_expression_type(
     if !argument_matches_type(expression, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, got `{}`",
-            type_reference.display_name(),
+            type_reference.display_name_with_constraints(&program.type_constraints),
             expression_type_name(expression)
         )));
     }
@@ -963,6 +978,7 @@ fn expression_type_name(argument: &Expression) -> &'static str {
 }
 
 fn validate_transition_target(
+    program: &Program,
     target: &TransitionTarget,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
@@ -983,6 +999,7 @@ fn validate_transition_target(
         };
 
         validate_transition_arguments(
+            program,
             arguments,
             state.name.as_str(),
             &state.parameters,
@@ -1003,6 +1020,7 @@ fn validate_transition_target(
         };
 
         validate_transition_arguments(
+            program,
             arguments,
             state.name.as_str(),
             &state.parameters,
@@ -1034,6 +1052,7 @@ fn validate_transition_target(
         };
 
         validate_transition_arguments(
+            program,
             arguments,
             &state.name,
             &state.parameters,
@@ -1044,6 +1063,7 @@ fn validate_transition_target(
 }
 
 fn validate_transition_arguments(
+    program: &Program,
     arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],
@@ -1056,5 +1076,12 @@ fn validate_transition_arguments(
         arguments: arguments.to_vec(),
     };
 
-    validate_call_arguments(&call, target_name, parameters, writable_roots, diagnostics);
+    validate_call_arguments(
+        program,
+        &call,
+        target_name,
+        parameters,
+        writable_roots,
+        diagnostics,
+    );
 }

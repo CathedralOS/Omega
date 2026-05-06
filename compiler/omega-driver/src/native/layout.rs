@@ -2,8 +2,9 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::{DataDefinition, DataMember, DataShapeKind};
 use crate::ir::machine::Machine;
-use crate::ir::types::{PrimitiveType, TypeReference};
+use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::native::target::NativeTarget;
+use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
@@ -73,6 +74,7 @@ struct LayoutBuilder<'program> {
     machine_layouts: Vec<MachineLayout>,
     machine_visiting: Vec<String>,
     target: NativeTarget,
+    type_constraints: &'program Arena<TypeConstraint>,
 }
 
 impl<'program> LayoutBuilder<'program> {
@@ -85,6 +87,7 @@ impl<'program> LayoutBuilder<'program> {
             machine_layouts: Vec::new(),
             machine_visiting: Vec::new(),
             target,
+            type_constraints: &program.type_constraints,
         }
     }
 
@@ -150,7 +153,9 @@ impl<'program> LayoutBuilder<'program> {
                 let layout = self.layout_type_reference(&field.type_reference)?;
                 Ok(PlannedField {
                     name: field.name.clone(),
-                    type_name: field.type_reference.display_name(),
+                    type_name: field
+                        .type_reference
+                        .display_name_with_constraints(self.type_constraints),
                     layout,
                 })
             })
@@ -201,7 +206,9 @@ impl<'program> LayoutBuilder<'program> {
         for owned_data in &machine.owned_data {
             fields.push(PlannedField {
                 name: owned_data.name.clone(),
-                type_name: owned_data.type_reference.display_name(),
+                type_name: owned_data
+                    .type_reference
+                    .display_name_with_constraints(self.type_constraints),
                 layout: self.layout_type_reference(&owned_data.type_reference)?,
             });
         }

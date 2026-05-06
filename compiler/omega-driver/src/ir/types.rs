@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
@@ -61,6 +61,40 @@ impl TypeReference {
                 length,
             } => {
                 format!("[{}; {}]", element_type.display_name(), length)
+            }
+            TypeReference::Named(name) => name.clone(),
+        }
+    }
+
+    pub fn display_name_with_constraints(
+        &self,
+        type_constraints: &Arena<TypeConstraint>,
+    ) -> String {
+        match self {
+            TypeReference::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = type_constraints.span(*constraints).unwrap_or(&[]);
+                format!(
+                    "{}[{}]",
+                    base_type.display_name_with_constraints(type_constraints),
+                    constraints
+                        .iter()
+                        .map(TypeConstraint::display_name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            TypeReference::FixedArray {
+                element_type,
+                length,
+            } => {
+                format!(
+                    "[{}; {}]",
+                    element_type.display_name_with_constraints(type_constraints),
+                    length
+                )
             }
             TypeReference::Named(name) => name.clone(),
         }
