@@ -12,6 +12,7 @@ use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
+use omega_resolve::ResolveReport;
 
 pub(crate) struct ArtifactWriter {
     root: PathBuf,
@@ -46,6 +47,44 @@ impl ArtifactWriter {
 
     pub(crate) fn write_ast(&self, loaded_program: &LoadedProgram) -> Result<(), Diagnostic> {
         self.write("02_ast.txt", &format!("{:#?}\n", loaded_program.items))
+    }
+
+    pub(crate) fn write_resolve_report(
+        &self,
+        resolve_report: &ResolveReport,
+    ) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Resolve\n\n");
+        output.push_str(&format!(
+            "definitions: {}\n",
+            resolve_report.definitions.len()
+        ));
+        output.push_str(&format!("imports: {}\n", resolve_report.imports.len()));
+        output.push_str(&format!(
+            "references: {}\n\n",
+            resolve_report.references.len()
+        ));
+
+        output.push_str("## Imports\n");
+        for (_, import) in resolve_report.imports.iter() {
+            output.push_str(&format!("- {}\n", import.path));
+        }
+
+        output.push_str("\n## Definitions\n");
+        for (_, definition) in resolve_report.definitions.iter() {
+            output.push_str(&format!("- {:?} `{}`\n", definition.kind, definition.name));
+        }
+
+        output.push_str("\n## References\n");
+        for (_, reference) in resolve_report.references.iter() {
+            output.push_str(&format!(
+                "- {:?} `{}` from {}\n",
+                reference.kind, reference.name, reference.owner
+            ));
+        }
+
+        self.write("03_resolve.txt", &output)
     }
 
     pub(crate) fn write_ir(&self, program: &Program) -> Result<(), Diagnostic> {
@@ -218,13 +257,6 @@ impl ArtifactWriter {
         }
 
         self.write("00_timings.txt", &output)
-    }
-
-    pub(crate) fn write_placeholder(&self, file_name: &str, title: &str) -> Result<(), Diagnostic> {
-        self.write(
-            file_name,
-            &format!("# {title}\n\nstatus: not implemented yet\n"),
-        )
     }
 
     pub(crate) fn root(&self) -> &Path {

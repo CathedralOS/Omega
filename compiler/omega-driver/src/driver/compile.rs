@@ -16,6 +16,7 @@ use crate::proof::obligations::build_proof_plan;
 use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
+use omega_resolve::build_resolve_report;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
@@ -59,8 +60,9 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "resolve", || {
+        let resolve_report = build_resolve_report(&loaded_program.items);
         artifacts
-            .write_placeholder("03_resolve.txt", "Omega Resolve")
+            .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let program = record_phase(&mut phase_timings, "driver ir lowering", || {
@@ -141,8 +143,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "resolve", || {
+        let resolve_report = build_resolve_report(&loaded_program.items);
         artifacts
-            .write_placeholder("03_resolve.txt", "Omega Resolve")
+            .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let program = record_phase(&mut phase_timings, "driver ir lowering", || {
