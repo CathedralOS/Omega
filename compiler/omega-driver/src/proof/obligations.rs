@@ -40,6 +40,7 @@ pub struct BoundedTransitionArgumentObligation {
     pub target: TransitionTarget,
     pub parameter: String,
     pub argument: Expression,
+    pub argument_constraints: Vec<TypeConstraint>,
     pub base_type: TypeReference,
     pub constraints: Vec<TypeConstraint>,
     pub guard: TransitionGuard,
@@ -165,6 +166,7 @@ fn collect_bounded_transition_argument_obligations(
                 target: transition.target.clone(),
                 parameter: parameter.name.clone(),
                 argument: argument.clone(),
+                argument_constraints: expression_constraints(machine, state, argument),
                 base_type: base_type.as_ref().clone(),
                 constraints: constraints.clone(),
                 guard: transition.guard.clone(),
@@ -235,4 +237,39 @@ fn callable_parameters(state: &State) -> impl Iterator<Item = &StateParameter> {
         .parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
+}
+
+fn expression_constraints(
+    machine: &Machine,
+    state: &State,
+    expression: &Expression,
+) -> Vec<TypeConstraint> {
+    let Expression::Name(path) = expression else {
+        return Vec::new();
+    };
+    let [name] = path.as_slice() else {
+        return Vec::new();
+    };
+
+    state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.name == *name)
+        .map(|parameter| collect_constraints(&parameter.type_reference))
+        .or_else(|| {
+            machine
+                .owned_data
+                .iter()
+                .find(|owned_data| owned_data.name == *name)
+                .map(|owned_data| collect_constraints(&owned_data.type_reference))
+        })
+        .unwrap_or_default()
+}
+
+fn collect_constraints(type_reference: &TypeReference) -> Vec<TypeConstraint> {
+    match type_reference {
+        TypeReference::Constrained { constraints, .. } => constraints.clone(),
+        TypeReference::FixedArray { element_type, .. } => collect_constraints(element_type),
+        TypeReference::Named(_) => Vec::new(),
+    }
 }

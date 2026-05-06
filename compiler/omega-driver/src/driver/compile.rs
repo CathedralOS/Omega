@@ -11,6 +11,7 @@ use crate::native::control_flow::build_control_flow_plan;
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
+use crate::proof::checker::check_proof_plan;
 use crate::proof::obligations::build_proof_plan;
 use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
@@ -93,7 +94,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         let proof_plan = build_proof_plan(&program);
         artifacts
             .write_proof_plan(&proof_plan)
-            .map_err(|diagnostic| vec![diagnostic])
+            .map_err(|diagnostic| vec![diagnostic])?;
+        check_proof_plan(&proof_plan)
     })?;
     record_phase(&mut phase_timings, "native plan", || {
         let native_plan = build_native_plan(&program, NativeTarget::host())
@@ -174,7 +176,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         let proof_plan = build_proof_plan(&program);
         artifacts
             .write_proof_plan(&proof_plan)
-            .map_err(|diagnostic| vec![diagnostic])
+            .map_err(|diagnostic| vec![diagnostic])?;
+        check_proof_plan(&proof_plan)
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
         let native_plan = build_native_plan(&program, NativeTarget::host())
