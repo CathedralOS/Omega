@@ -43,7 +43,7 @@ Performance is part of the language design too. Omega should bias toward dense d
 
 ## Compiler Status
 
-The Rust compiler is intentionally small, but it now has real pipeline seams:
+The Rust compiler is intentionally small, but it now has real pipeline seams under `compiler/`:
 
 - lexer with spans and structured errors
 - parser for top-level items, machines, platforms, states, calls, and transition arrows
@@ -65,9 +65,16 @@ Native binary emission should come from a real Omega backend or execution model,
 
 ## Repository Layout
 
-- `omega-core/`: shared compiler foundations such as arenas, diagnostics, source files, and spans
-- `omega-syntax/`: lexer, parser, tokens, and AST
-- `omega-compiler/`: IR, semantic validation, native planning, and compile driver
+- `compiler/omega-core/`: shared compiler foundations such as arenas, diagnostics, source files, and spans
+- `compiler/omega-ast/`: source tree data structures
+- `compiler/omega-lexer/`: source characters to tokens
+- `compiler/omega-parser/`: tokens to AST
+- `compiler/omega-resolve/`: placeholder for imports, modules, and name resolution
+- `compiler/omega-types/`: placeholder for type, ownership, mutability, and bounded-value checks
+- `compiler/omega-graph/`: placeholder for machine/state graph lowering
+- `compiler/omega-proof/`: placeholder for proof obligations and invariant checks
+- `compiler/omega-native/`: placeholder for native layout, assembly, and object emission
+- `compiler/omega-driver/`: current orchestration crate with IR, semantic validation, native planning, and compile driver
 - `omega-cli/`: command-line entry point, with binary name `omega`
 - `samples/`: small Omega programs used to pressure-test language ideas
 - `wiki/`: evolving design notes for semantics, proof shape, and state-machine behavior

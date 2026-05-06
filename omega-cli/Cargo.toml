@@ -9,4 +9,4 @@ name = "omega"
 path = "src/main.rs"
 
 [dependencies]
-omega-compiler = { path = "../omega-compiler" }
+omega-driver = { path = "../compiler/omega-driver" }

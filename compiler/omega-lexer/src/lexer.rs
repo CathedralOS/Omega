@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::lexer::{LexError, Span, Token, TokenKind};
+use crate::{LexError, Span, Token, TokenKind};
 
 pub struct Lexer<'source> {
     source: &'source str,

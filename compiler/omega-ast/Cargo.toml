@@ -1,0 +1,11 @@
+[package]
+name = "omega-ast"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_ast"
+path = "src/lib.rs"
+
+[dependencies]

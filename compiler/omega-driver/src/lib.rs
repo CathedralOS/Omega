@@ -3,10 +3,12 @@ pub mod ir;
 pub mod native;
 pub mod semantic;
 
+pub(crate) use omega_ast as ast;
 #[cfg(test)]
 pub(crate) use omega_core::arena;
 pub(crate) use omega_core::{diagnostics, source};
-pub(crate) use omega_syntax::{ast, lexer, parser};
+pub(crate) use omega_lexer as lexer;
+pub(crate) use omega_parser as parser;
 
 pub use driver::{CheckOutput, CompileOptions, CompileOutput, check, compile};
 
@@ -17,7 +19,7 @@ mod tests {
     use crate::ast::statement::{Statement, TransitionTarget};
     use crate::ast::types::TypeReference;
     use crate::parser::parser::parse_file;
-    use omega_syntax::Lexer;
+    use omega_lexer::Lexer;
 
     #[test]
     fn tokenizes_simple_source() {

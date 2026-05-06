@@ -1,12 +1,15 @@
 [package]
-name = "omega-syntax"
+name = "omega-driver"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_syntax"
+name = "omega_driver"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../omega-core" }
+omega-ast = { path = "../omega-ast" }
+omega-lexer = { path = "../omega-lexer" }
+omega-parser = { path = "../omega-parser" }

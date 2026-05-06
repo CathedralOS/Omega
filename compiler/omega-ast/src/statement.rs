@@ -2,28 +2,28 @@
 pub enum Statement {
     Assignment(Assignment),
     Call(Call),
-    Expression(crate::ast::expression::Expression),
+    Expression(crate::expression::Expression),
     LocalData(LocalData),
     Transition(Transition),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
-    pub target: crate::ast::expression::Expression,
-    pub value: crate::ast::expression::Expression,
+    pub target: crate::expression::Expression,
+    pub value: crate::expression::Expression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
     pub name: String,
-    pub type_reference: crate::ast::types::TypeReference,
+    pub type_reference: crate::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
     pub receiver: Option<String>,
     pub target: String,
-    pub arguments: Vec<crate::ast::expression::Expression>,
+    pub arguments: Vec<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +37,7 @@ pub struct Transition {
 pub enum TransitionTarget {
     Named {
         path: Vec<String>,
-        arguments: Vec<crate::ast::expression::Expression>,
+        arguments: Vec<crate::expression::Expression>,
     },
     SelfTarget,
     Terminal,

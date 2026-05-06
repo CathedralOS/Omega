@@ -1,13 +1,14 @@
 [package]
-name = "omega-compiler"
+name = "omega-parser"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_compiler"
+name = "omega_parser"
 path = "src/lib.rs"
 
 [dependencies]
+omega-ast = { path = "../omega-ast" }
 omega-core = { path = "../omega-core" }
-omega-syntax = { path = "../omega-syntax" }
+omega-lexer = { path = "../omega-lexer" }

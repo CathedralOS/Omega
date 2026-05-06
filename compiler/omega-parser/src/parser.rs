@@ -1,15 +1,15 @@
-use crate::ast::expression::{
+use crate::parse_error::ParseError;
+use omega_ast::expression::{
     BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
-use crate::ast::item::{
+use omega_ast::item::{
     Contains, DataDefinition, DataField, DataMember, DataVariant, Item, Machine, OwnedData,
     Platform, State, StateParameter, StateSignature, UseItem,
 };
-use crate::ast::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
-use crate::ast::types::TypeReference;
-use crate::lexer::{Token, TokenKind};
-use crate::parser::parse_error::ParseError;
+use omega_ast::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
+use omega_ast::types::TypeReference;
+use omega_lexer::{Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {

@@ -26,7 +26,7 @@ pub enum DataMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
     pub name: String,
-    pub type_reference: crate::ast::types::TypeReference,
+    pub type_reference: crate::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,16 +51,16 @@ pub struct Contains {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedData {
     pub name: String,
-    pub type_reference: crate::ast::types::TypeReference,
-    pub initial_value: Option<crate::ast::expression::Expression>,
+    pub type_reference: crate::types::TypeReference,
+    pub initial_value: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub name: String,
     pub parameters: Vec<StateParameter>,
-    pub return_type: Option<crate::ast::types::TypeReference>,
-    pub statements: Vec<crate::ast::statement::Statement>,
+    pub return_type: Option<crate::types::TypeReference>,
+    pub statements: Vec<crate::statement::Statement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,13 +73,13 @@ pub struct Platform {
 pub struct StateSignature {
     pub name: String,
     pub parameters: Vec<StateParameter>,
-    pub return_type: Option<crate::ast::types::TypeReference>,
+    pub return_type: Option<crate::types::TypeReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub name: String,
-    pub type_reference: crate::ast::types::TypeReference,
+    pub type_reference: crate::types::TypeReference,
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,

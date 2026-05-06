@@ -1,4 +1,4 @@
-use crate::lexer::Span;
+use omega_lexer::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
