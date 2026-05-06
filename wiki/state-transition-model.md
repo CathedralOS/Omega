@@ -90,6 +90,8 @@ Executable block. It may run one operation, many operations, or eventually be re
 
 Declarative edge from one state to another. It has no body and does not return values.
 
+Within a machine, a transition is a goto. It does not create a call frame, does not store a return address, and does not resume the state it left.
+
 If multiple transitions leave the same state, they appear as trailing `-> Target` lines and are evaluated in source order. The first enabled edge is selected. A bare `-> Target` edge is unconditional.
 
 `-> self;` is a self-transition. It re-enters the current state without repeating the state name.
@@ -103,6 +105,10 @@ state Running {
 ```
 
 This means the parent transitions into the child machine's `Main` state, and when that child reaches `-> return;`, parent control resumes at `Shutdown`. This avoids a special `.finished` property on every machine while keeping the continuation visible in source.
+
+This is the stack-like exception. A parent may enter a child machine and carry an explicit continuation, but ordinary transitions inside a machine remain gotos.
+
+Typed-state sketches may allow state signatures and result compatibility checks. In that model, transitions are still handoffs: the target state's parameters and result obligation must line up, but there is no hidden caller stack inside the machine.
 
 `command`
 

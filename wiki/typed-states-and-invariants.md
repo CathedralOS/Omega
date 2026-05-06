@@ -47,9 +47,61 @@ Working interpretation:
 - The return type is the type that must be yielded by terminal state completion.
 - A state body may end in transitions or a final expression.
 - Transitions can forward values into another state.
-- A transition to another state with the same return type is a continuation, not a stack return.
+- A transition to another state is a typed goto, not a stack return.
 
 The implementation should be careful not to accidentally reintroduce arbitrary call-stack semantics everywhere.
+
+## Stack Semantics Versus Goto Semantics
+
+Omega should distinguish two control-flow worlds.
+
+Inside one machine, transitions are gotos. They do not push a stack frame, remember a return address, or resume the source state. The source state deactivates, and the target state activates with explicit arguments.
+
+```omega
+state Clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
+    -> self.ClampLow(min) when value < min;
+    -> self.ClampHigh(max) when value > max;
+    -> self.ClampDone(value);
+}
+```
+
+Those edges are not calls. `Clamp` never resumes after `ClampLow`, `ClampHigh`, or `ClampDone`. It hands control away.
+
+Across machines, nested machine flow may be stack-like:
+
+```omega
+state Running {
+    -> dungeon.Main -> Running;
+}
+```
+
+The parent enters a child machine and records or otherwise carries the continuation to use when the child machine terminates. That continuation stack belongs to machine composition, not ordinary intra-machine branching.
+
+Typed states are therefore function-shaped graph nodes, not classic functions. Their signatures constrain which gotos are legal.
+
+## Transition Type Compatibility
+
+A typed transition is legal only when the graph handoff lines up.
+
+Likely checks:
+
+- The target state exists in the current machine or explicitly addressed machine.
+- The provided arguments match the target state's parameters.
+- The target state's result type can satisfy the current state's result obligation.
+- Every reachable terminal expression in a typed state graph produces the declared result type.
+- A guarded transition may add proof assumptions for the target edge, but it does not create a caller frame.
+
+For example:
+
+```omega
+state ClampLow(&mut self, min: f32) -> f32 {
+    -> self.ClampDone(min);
+}
+```
+
+`ClampLow` can jump to `ClampDone` because `ClampDone` accepts the forwarded `f32` and produces the same `f32` result expected by the `Clamp` graph.
+
+This is the key distinction from classic functions: result compatibility is a graph invariant, not a return path.
 
 ## State Return Values
 
@@ -69,6 +121,7 @@ This should mean:
 - The value is produced by a terminal expression or equivalent terminal state.
 - Intermediate transitions do not "return" in the C/Rust sense.
 - The compiler can model the whole state cluster as a transition graph with a result.
+- The produced value flows to the enclosing graph expectation, not back to an intra-machine caller frame.
 
 Open question:
 
