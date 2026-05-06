@@ -1,4 +1,5 @@
 use crate::ir::Program;
+use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
 use crate::ir::statement::{Call, Statement};
@@ -9,6 +10,7 @@ use omega_core::arena::{Arena, HandleSpan};
 pub struct HostCallPlan {
     pub calls: Arena<HostCall>,
     pub operations: Arena<LoweredHostOperation>,
+    pub arguments: Arena<HostCallArgument>,
 }
 
 impl Default for HostCallPlan {
@@ -16,6 +18,7 @@ impl Default for HostCallPlan {
         Self {
             calls: Arena::new(),
             operations: Arena::new(),
+            arguments: Arena::new(),
         }
     }
 }
@@ -27,6 +30,7 @@ pub struct HostCall {
     pub statement_index: usize,
     pub platform_call: String,
     pub operations: HandleSpan<LoweredHostOperation>,
+    pub arguments: HandleSpan<HostCallArgument>,
 }
 
 impl Default for HostCall {
@@ -37,6 +41,7 @@ impl Default for HostCall {
             statement_index: 0,
             platform_call: String::new(),
             operations: HandleSpan::empty(),
+            arguments: HandleSpan::empty(),
         }
     }
 }
@@ -54,6 +59,26 @@ impl Default for LoweredHostOperation {
             operation: String::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostCallArgument {
+    pub kind: HostCallArgumentKind,
+}
+
+impl Default for HostCallArgument {
+    fn default() -> Self {
+        Self {
+            kind: HostCallArgumentKind::Expression(String::new()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HostCallArgumentKind {
+    Text(String),
+    Integer(i64),
+    Expression(String),
 }
 
 pub fn build_host_call_plan(program: &Program, target: NativeTarget) -> HostCallPlan {
@@ -99,12 +124,14 @@ fn collect_state_host_calls(
         }
 
         let operations = plan.operations.insert_many(lowered_operations);
+        let arguments = plan.arguments.insert_many(lower_host_call_arguments(call));
         plan.calls.insert(HostCall {
             machine: machine.name.clone(),
             state: state.name.clone(),
             statement_index,
             platform_call: platform_call_name(call),
             operations,
+            arguments,
         });
     }
 }
@@ -148,6 +175,23 @@ fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {
     LoweredHostOperation {
         capability: capability.to_owned(),
         operation: operation.to_owned(),
+    }
+}
+
+fn lower_host_call_arguments(call: &Call) -> Vec<HostCallArgument> {
+    call.arguments
+        .iter()
+        .map(|argument| HostCallArgument {
+            kind: lower_host_call_argument(argument),
+        })
+        .collect()
+}
+
+fn lower_host_call_argument(argument: &Expression) -> HostCallArgumentKind {
+    match argument {
+        Expression::String(value) => HostCallArgumentKind::Text(value.clone()),
+        Expression::Integer(value) => HostCallArgumentKind::Integer(*value),
+        _ => HostCallArgumentKind::Expression(argument.display_name()),
     }
 }
 

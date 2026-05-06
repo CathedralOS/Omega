@@ -98,7 +98,7 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         SectionPlan {
             name: section_name(native_plan.target, SectionKind::Data),
             kind: SectionKind::Data,
-            size: 0,
+            size: native_plan.data.bytes.len(),
             alignment: native_plan.target.pointer_alignment,
         },
         SectionPlan {
@@ -142,6 +142,26 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
                         kind: SymbolKind::Import,
                     }),
                     HostBindingMechanism::Syscall { .. } => None,
+                }),
+        );
+
+    object_plan
+        .symbols
+        .insert_many(
+            native_plan
+                .data
+                .objects
+                .iter()
+                .filter_map(|(_, data_object)| {
+                    let bytes = native_plan.data.bytes.span(data_object.bytes)?;
+
+                    Some(SymbolPlan {
+                        name: data_object.symbol.clone(),
+                        section: Some(section_name(native_plan.target, SectionKind::Data)),
+                        offset: data_object.offset,
+                        size: bytes.len(),
+                        kind: SymbolKind::Object,
+                    })
                 }),
         );
 

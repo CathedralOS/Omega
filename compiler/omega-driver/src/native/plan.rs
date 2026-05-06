@@ -2,6 +2,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::native::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::native::control_flow::{ControlFlowPlan, build_control_flow_plan};
+use crate::native::data::{NativeDataPlan, build_native_data_plan};
 use crate::native::host_calls::{HostCallPlan, build_host_call_plan};
 use crate::native::instructions::{InstructionPlan, build_instruction_plan};
 use crate::native::layout::{LayoutPlan, build_layout_plan};
@@ -14,6 +15,7 @@ pub struct NativePlan {
     pub target: NativeTarget,
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
+    pub data: NativeDataPlan,
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
     pub layouts: LayoutPlan,
@@ -31,6 +33,7 @@ pub fn build_native_plan(
         target,
         host_abi: build_host_abi_plan(target),
         host_calls: build_host_call_plan(program, target),
+        data: NativeDataPlan::default(),
         instructions: InstructionPlan {
             target,
             functions: omega_core::arena::Arena::new(),
@@ -51,6 +54,7 @@ pub fn build_native_plan(
         entry_machine: "main".to_owned(),
         entry_state: "entry".to_owned(),
     };
+    native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);
     native_plan.relocations = build_relocation_plan(&native_plan);

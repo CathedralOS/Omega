@@ -12,8 +12,11 @@ use crate::native::abi::{HostBinding, HostBindingMechanism};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
+use crate::native::data::NativeDataObject;
 use crate::native::emission::EmissionPlan;
-use crate::native::host_calls::{HostCall, LoweredHostOperation};
+use crate::native::host_calls::{
+    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
+};
 use crate::native::instructions::{
     FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind,
 };
@@ -425,6 +428,18 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Native Data\n");
+        output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
+        output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));
+        if native_plan.data.objects.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, data_object) in native_plan.data.objects.iter() {
+                write_native_data_object(&mut output, native_plan, data_object);
+            }
+        }
+        output.push('\n');
+
         output.push_str("## Instruction Selection\n");
         output.push_str(&format!(
             "functions: {}\n",
@@ -553,6 +568,7 @@ impl ArtifactWriter {
         output.push_str(&format!("symbols: {}\n", emission_plan.symbols));
         output.push_str(&format!("host bindings: {}\n", emission_plan.host_bindings));
         output.push_str(&format!("host calls: {}\n", emission_plan.host_calls));
+        output.push_str(&format!("data bytes: {}\n", emission_plan.data_bytes));
         output.push_str(&format!(
             "selected instructions: {}\n",
             emission_plan.selected_instructions
@@ -1105,6 +1121,17 @@ fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCal
         call.machine, call.state, call.statement_index, call.platform_call
     ));
 
+    match native_plan.host_calls.arguments.span(call.arguments) {
+        Some(arguments) if arguments.is_empty() => output.push_str("  arguments: none\n"),
+        Some(arguments) => {
+            output.push_str("  arguments:\n");
+            for argument in arguments {
+                write_host_call_argument(output, argument);
+            }
+        }
+        None => output.push_str("  arguments: invalid span\n"),
+    }
+
     match native_plan.host_calls.operations.span(call.operations) {
         Some(operations) if operations.is_empty() => output.push_str("  operations: none\n"),
         Some(operations) => {
@@ -1117,10 +1144,43 @@ fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCal
     }
 }
 
+fn write_host_call_argument(output: &mut String, argument: &HostCallArgument) {
+    let argument_name = match &argument.kind {
+        HostCallArgumentKind::Text(text) => format!("text {text:?}"),
+        HostCallArgumentKind::Integer(value) => format!("integer {value}"),
+        HostCallArgumentKind::Expression(expression) => format!("expression {expression}"),
+    };
+
+    output.push_str(&format!("  - {argument_name}\n"));
+}
+
 fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOperation) {
     output.push_str(&format!(
         "  - {}.{}\n",
         operation.capability, operation.operation
+    ));
+}
+
+fn write_native_data_object(
+    output: &mut String,
+    native_plan: &NativePlan,
+    data_object: &NativeDataObject,
+) {
+    let byte_count = native_plan
+        .data
+        .bytes
+        .span(data_object.bytes)
+        .map_or(0, |bytes| bytes.len());
+
+    output.push_str(&format!(
+        "- {} @{} bytes {} align {} from {}.{} statement {}\n",
+        data_object.symbol,
+        data_object.offset,
+        byte_count,
+        data_object.alignment,
+        data_object.source_machine,
+        data_object.source_state,
+        data_object.source_statement
     ));
 }
 
