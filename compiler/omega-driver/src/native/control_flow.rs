@@ -8,6 +8,7 @@ use omega_core::arena::{Arena, HandleSpan};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
     pub machines: Vec<MachineFlow>,
+    pub states: Arena<StateFlow>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionFlow>,
 }
@@ -15,7 +16,7 @@ pub struct ControlFlowPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
     pub name: String,
-    pub states: Vec<StateFlow>,
+    pub states: HandleSpan<StateFlow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +25,17 @@ pub struct StateFlow {
     pub index: usize,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
+}
+
+impl Default for StateFlow {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            index: 0,
+            operations: HandleSpan::empty(),
+            transitions: HandleSpan::empty(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -148,6 +160,7 @@ fn build_machine_flow(
             })
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
+    let states = control_flow.states.insert_many(states);
 
     Ok(MachineFlow {
         name: machine.name.clone(),
