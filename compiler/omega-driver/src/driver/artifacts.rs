@@ -5,6 +5,7 @@ use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
 use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
+use crate::ir::data::DataMember;
 use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
@@ -104,7 +105,30 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn write_ir(&self, program: &Program) -> Result<(), Diagnostic> {
-        self.write("05_driver_ir.txt", &format!("{program:#?}\n"))
+        let mut output = String::new();
+
+        output.push_str("# Omega Driver IR\n\n");
+        output.push_str(&format!(
+            "data definitions: {}\n",
+            program.data_definitions.len()
+        ));
+        output.push_str(&format!(
+            "invariant definitions: {}\n",
+            program.invariant_definitions.len()
+        ));
+        output.push_str(&format!("platforms: {}\n", program.platforms.len()));
+        output.push_str(&format!("machines: {}\n", program.machines.len()));
+        output.push_str(&format!(
+            "type constraints: {}\n\n",
+            program.type_constraints.len()
+        ));
+
+        write_ir_data_definitions(&mut output, program);
+        write_ir_invariants(&mut output, program);
+        write_ir_platforms(&mut output, program);
+        write_ir_machines(&mut output, program);
+
+        self.write("05_driver_ir.txt", &output)
     }
 
     pub(crate) fn write_type_surface_and_effects(
@@ -492,6 +516,218 @@ fn ast_item_summary(item: &Item) -> String {
             )
         }
     }
+}
+
+fn write_ir_data_definitions(output: &mut String, program: &Program) {
+    output.push_str("## Data Definitions\n");
+
+    if program.data_definitions.is_empty() {
+        output.push_str("none\n\n");
+        return;
+    }
+
+    for data_definition in &program.data_definitions {
+        output.push_str(&format!(
+            "- data `{}` {:?}: members {}\n",
+            data_definition.name,
+            data_definition.shape_kind(),
+            data_definition.members.len()
+        ));
+
+        for member in &data_definition.members {
+            match member {
+                DataMember::Field(field) => output.push_str(&format!(
+                    "  - field {}: {}\n",
+                    field.name,
+                    field
+                        .type_reference
+                        .display_name_with_constraints(&program.type_constraints)
+                )),
+                DataMember::Variant(variant) => {
+                    output.push_str(&format!("  - variant {}\n", variant.name));
+                }
+            }
+        }
+    }
+
+    output.push('\n');
+}
+
+fn write_ir_invariants(output: &mut String, program: &Program) {
+    output.push_str("## Invariants\n");
+
+    if program.invariant_definitions.is_empty() {
+        output.push_str("none\n\n");
+        return;
+    }
+
+    for invariant in &program.invariant_definitions {
+        output.push_str(&format!(
+            "- invariant `{}` = {}\n",
+            invariant.name,
+            ir_constraint_span_name(program, invariant.constraints)
+        ));
+    }
+
+    output.push('\n');
+}
+
+fn write_ir_platforms(output: &mut String, program: &Program) {
+    output.push_str("## Platforms\n");
+
+    if program.platforms.is_empty() {
+        output.push_str("none\n\n");
+        return;
+    }
+
+    for platform in &program.platforms {
+        output.push_str(&format!(
+            "- platform `{}` states {}\n",
+            platform.name,
+            platform.states.len()
+        ));
+
+        for state in &platform.states {
+            output.push_str(&format!(
+                "  - state {}({}){}\n",
+                state.name,
+                ir_parameters_name(program, &state.parameters),
+                ir_return_type_name(program, state.return_type.as_ref())
+            ));
+        }
+    }
+
+    output.push('\n');
+}
+
+fn write_ir_machines(output: &mut String, program: &Program) {
+    output.push_str("## Machines\n");
+
+    if program.machines.is_empty() {
+        output.push_str("none\n\n");
+        return;
+    }
+
+    for machine in &program.machines {
+        output.push_str(&format!(
+            "- machine `{}` contains {} owned data {} states {}\n",
+            machine.name,
+            machine.contains.len(),
+            machine.owned_data.len(),
+            machine.states.len()
+        ));
+
+        for contained_object in &machine.contains {
+            output.push_str(&format!(
+                "  - contains {}: {}\n",
+                contained_object.name, contained_object.type_name
+            ));
+        }
+
+        for owned_data in &machine.owned_data {
+            output.push_str(&format!(
+                "  - owns {}: {}{}\n",
+                owned_data.name,
+                owned_data
+                    .type_reference
+                    .display_name_with_constraints(&program.type_constraints),
+                if owned_data.initial_value.is_some() {
+                    " = <initializer>"
+                } else {
+                    ""
+                }
+            ));
+        }
+
+        for state in &machine.states {
+            output.push_str(&format!(
+                "  - state {}({}){}: statements {}\n",
+                state.name,
+                ir_parameters_name(program, &state.parameters),
+                ir_return_type_name(program, state.return_type.as_ref()),
+                state.statements.len()
+            ));
+        }
+    }
+
+    output.push('\n');
+}
+
+fn ir_constraint_span_name(
+    program: &Program,
+    span: omega_core::arena::HandleSpan<crate::ir::types::TypeConstraint>,
+) -> String {
+    let Some(constraints) = program.type_constraints.span(span) else {
+        return "[invalid constraint span]".to_owned();
+    };
+
+    if constraints.is_empty() {
+        return "[]".to_owned();
+    }
+
+    let mut output = String::new();
+    output.push('[');
+
+    for (index, constraint) in constraints.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+
+        output.push_str(&constraint.display_name());
+    }
+
+    output.push(']');
+    output
+}
+
+fn ir_parameters_name(
+    program: &Program,
+    parameters: &[crate::ir::signature::StateParameter],
+) -> String {
+    let mut output = String::new();
+
+    for (index, parameter) in parameters.iter().enumerate() {
+        if index > 0 {
+            output.push_str(", ");
+        }
+
+        if parameter.is_const {
+            output.push_str("const ");
+        }
+
+        if parameter.is_mutable {
+            output.push_str("mut ");
+        }
+
+        if parameter.is_self {
+            output.push_str("self");
+        } else {
+            output.push_str(&parameter.name);
+        }
+
+        output.push_str(": ");
+        output.push_str(
+            &parameter
+                .type_reference
+                .display_name_with_constraints(&program.type_constraints),
+        );
+    }
+
+    output
+}
+
+fn ir_return_type_name(
+    program: &Program,
+    return_type: Option<&crate::ir::types::TypeReference>,
+) -> String {
+    return_type
+        .map(|return_type| {
+            format!(
+                " -> {}",
+                return_type.display_name_with_constraints(&program.type_constraints)
+            )
+        })
+        .unwrap_or_default()
 }
 
 fn write_proof_obligation(
