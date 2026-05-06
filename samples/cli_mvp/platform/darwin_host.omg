@@ -1,0 +1,26 @@
+// Darwin/macOS host ABI sketch.
+//
+// macOS applications should normally bind through libSystem rather than direct
+// syscall numbers. The stable contract is the platform ABI, not the private
+// kernel transition details.
+
+capability DarwinLibSystem {
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, Errno>
+        requires fd == 1
+        requires buffer.initialized
+        requires byte_count <= buffer.len
+        ensures result.Ok(n) => n <= byte_count
+        ensures result.Err(e) => e is Errno
+        trusted darwin_libsystem_abi
+        trusted host
+
+    state exit(return_code: i32) -> Never
+        requires darwin_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted darwin_libsystem_abi
+        trusted host
+}
+
+capability DarwinHost {
+    libsystem: DarwinLibSystem
+}

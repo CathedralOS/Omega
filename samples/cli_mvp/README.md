@@ -14,3 +14,15 @@ For cross-platform hello world, the trusted computing base is tiny:
 - `Process.exit`: host claims it can terminate the process with a target-specific observable exit code.
 
 Omega should prove the literal is initialized/UTF-8 and that errors are handled once `Result` exists. Omega should trust the OS wrapper contract only because `build.omg` explicitly accepts `host_contracts`.
+
+## Standard Library vs Host Bindings
+
+The standard library should be ordinary Omega code wherever possible: strings, slices, math, collections, parsing helpers, portable console helpers, and so on.
+
+The host bindings are different. Files under `platform/*_host.omg` sketch the trusted root that adapts those portable capabilities to a target ABI:
+
+- Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
+- Linux can plausibly use raw syscalls for `write` and `exit_group`.
+- Darwin/macOS should usually bind through `libSystem`.
+
+So the goal is not "no DLLs exist" on Windows. The goal is no Omega runtime DLL, no C runtime dependency, and a tiny audited set of OS imports.

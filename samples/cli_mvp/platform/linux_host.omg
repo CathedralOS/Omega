@@ -1,0 +1,26 @@
+// Linux host ABI sketch.
+//
+// Linux is the platform where direct syscalls are a plausible default target.
+// Even here, Omega should treat the syscall ABI as trusted host machinery, not
+// as something proven by application code.
+
+capability LinuxSyscalls {
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, Errno>
+        requires fd == 1
+        requires buffer.initialized
+        requires byte_count <= buffer.len
+        ensures result.Ok(n) => n <= byte_count
+        ensures result.Err(e) => e is Errno
+        trusted linux_syscall_abi
+        trusted host
+
+    state exit_group(return_code: i32) -> Never
+        requires linux_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted linux_syscall_abi
+        trusted host
+}
+
+capability LinuxHost {
+    syscalls: LinuxSyscalls
+}

@@ -3,6 +3,10 @@
 // Build configuration is Omega source. No TOML/YAML side language.
 
 use host_contracts;
+use platform::darwin_host;
+use platform::linux_host;
+use platform::standard_host;
+use platform::windows_host;
 //
 // Hello world needs only two host capabilities:
 //
@@ -17,6 +21,7 @@ use host_contracts;
 
 target cross_platform_cli {
     host: StandardHost {
+        abi = target_default
         stdout = enabled
         process = enabled
         filesystem = disabled
@@ -26,10 +31,12 @@ target cross_platform_cli {
     }
 
     trust host_contracts
+    trust standard_host_abi
 }
 
 target linux_x64 {
     host: LinuxHost {
+        abi = syscall
         stdout = fd(1)
         process = enabled
         filesystem = disabled
@@ -39,10 +46,12 @@ target linux_x64 {
     }
 
     trust host_contracts
+    trust linux_syscall_abi
 }
 
 target macos_arm64 {
     host: DarwinHost {
+        abi = libSystem
         stdout = fd(1)
         process = enabled
         filesystem = disabled
@@ -52,10 +61,12 @@ target macos_arm64 {
     }
 
     trust host_contracts
+    trust darwin_libsystem_abi
 }
 
 target windows_x64 {
     host: WindowsHost {
+        abi = win32
         stdout = standard_handle(stdout)
         process = enabled
         filesystem = disabled
@@ -65,11 +76,15 @@ target windows_x64 {
     }
 
     trust host_contracts
+    trust windows_loader
+    trust win32_contracts
+    trust windows_x64_calling_convention
 }
 
 // A permissive development build should still be auditable.
 target local_unchecked {
     host: StandardHost {
+        abi = target_default
         stdout = enabled
         process = enabled
     }

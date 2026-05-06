@@ -1,0 +1,51 @@
+// Windows host ABI sketch.
+//
+// This is not the Omega standard library. This is the target-host binding
+// layer: the small trusted surface that adapts Omega capabilities to the
+// documented Windows user-mode ABI.
+//
+// Future syntax may become something closer to:
+//
+// extern windows_x64 kernel32.WriteFile(...) -> WinBool
+//     links "Kernel32.dll"
+//     trusted windows_loader
+//     trusted win32_contracts
+//     trusted windows_x64_calling_convention
+//
+// For now, these ABI edges are modeled as capabilities so the parser and trust
+// report can see the boundary without pretending we can prove Win32 itself.
+
+capability WindowsKernel32 {
+    state get_std_handle(kind: u32) -> WinHandle
+        requires kind == std_output_handle
+        ensures result.valid || result.invalid
+        trusted windows_loader
+        trusted win32_contracts
+        trusted windows_x64_calling_convention
+
+    state write_file(
+        handle: WinHandle,
+        buffer: Slice<u8>,
+        bytes_to_write: u32,
+        mut bytes_written: u32,
+        overlapped: WinOverlapped
+    ) -> WinBool
+        requires buffer.initialized
+        requires bytes_to_write <= buffer.len
+        ensures result.true => bytes_written <= bytes_to_write
+        ensures result.false => windows_last_error_available
+        trusted windows_loader
+        trusted win32_contracts
+        trusted windows_x64_calling_convention
+
+    state exit_process(return_code: u32) -> Never
+        requires windows_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted windows_loader
+        trusted win32_contracts
+        trusted windows_x64_calling_convention
+}
+
+capability WindowsHost {
+    kernel32: WindowsKernel32
+}
