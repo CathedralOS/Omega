@@ -1,0 +1,1 @@
+cannot prove call argument `health` satisfies bounded parameter `value`

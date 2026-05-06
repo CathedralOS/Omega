@@ -3,7 +3,7 @@ use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
 use crate::ir::signature::StateParameter;
 use crate::ir::state::State;
-use crate::ir::statement::{Transition, TransitionGuard, TransitionTarget};
+use crate::ir::statement::{Call, Transition, TransitionGuard, TransitionTarget};
 use crate::ir::types::{TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +13,7 @@ pub struct ProofPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofObligation {
+    BoundedCallArgument(BoundedCallArgumentObligation),
     BoundedValue(BoundedValueObligation),
     BoundedTransitionArgument(BoundedTransitionArgumentObligation),
     GuardedTransition(GuardedTransitionObligation),
@@ -31,6 +32,19 @@ pub struct GuardedTransitionObligation {
     pub state: String,
     pub target: TransitionTarget,
     pub guard: TransitionGuard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedCallArgumentObligation {
+    pub machine: String,
+    pub state: String,
+    pub receiver: Option<String>,
+    pub target: String,
+    pub parameter: String,
+    pub argument: Expression,
+    pub argument_constraints: Vec<TypeConstraint>,
+    pub base_type: TypeReference,
+    pub constraints: Vec<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,8 +99,19 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
             }
 
             for statement in &state.statements {
-                let crate::ir::statement::Statement::Transition(transition) = statement else {
-                    continue;
+                let transition = match statement {
+                    crate::ir::statement::Statement::Call(call) => {
+                        collect_bounded_call_argument_obligations(
+                            program,
+                            machine,
+                            state,
+                            call,
+                            &mut obligations,
+                        );
+                        continue;
+                    }
+                    crate::ir::statement::Statement::Transition(transition) => transition,
+                    _ => continue,
                 };
 
                 if let TransitionGuard::When(_) = &transition.guard {
@@ -173,6 +198,114 @@ fn collect_bounded_transition_argument_obligations(
             },
         ));
     }
+}
+
+fn collect_bounded_call_argument_obligations(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    call: &Call,
+    obligations: &mut Vec<ProofObligation>,
+) {
+    let Some(parameters) = call_target_parameters(program, machine, call) else {
+        return;
+    };
+
+    for (parameter, argument) in parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .zip(call.arguments.iter())
+    {
+        let TypeReference::Constrained {
+            base_type,
+            constraints,
+        } = &parameter.type_reference
+        else {
+            continue;
+        };
+
+        obligations.push(ProofObligation::BoundedCallArgument(
+            BoundedCallArgumentObligation {
+                machine: machine.name.clone(),
+                state: state.name.clone(),
+                receiver: call.receiver.clone(),
+                target: call.target.clone(),
+                parameter: parameter.name.clone(),
+                argument: argument.clone(),
+                argument_constraints: expression_constraints(machine, state, argument),
+                base_type: base_type.as_ref().clone(),
+                constraints: constraints.clone(),
+            },
+        ));
+    }
+}
+
+fn call_target_parameters<'program>(
+    program: &'program Program,
+    machine: &'program Machine,
+    call: &Call,
+) -> Option<&'program [StateParameter]> {
+    let Some(receiver) = call.receiver.as_deref() else {
+        return machine
+            .states
+            .iter()
+            .find(|state| state.name == call.target)
+            .map(|state| state.parameters.as_slice());
+    };
+
+    if receiver == "self" {
+        return machine
+            .states
+            .iter()
+            .find(|state| state.name == call.target)
+            .map(|state| state.parameters.as_slice());
+    }
+
+    let receiver_type = machine
+        .contains
+        .iter()
+        .find(|contained| contained.name == receiver)
+        .map(|contained| contained.type_name.as_str());
+
+    if let Some(parameters) = receiver_type
+        .and_then(|type_name| platform_state_parameters(program, type_name, &call.target))
+    {
+        return Some(parameters);
+    }
+
+    receiver_type
+        .and_then(|type_name| machine_state_parameters(program, type_name, &call.target))
+        .or_else(|| machine_state_parameters(program, receiver, &call.target))
+}
+
+fn platform_state_parameters<'program>(
+    program: &'program Program,
+    platform_name: &str,
+    state_name: &str,
+) -> Option<&'program [StateParameter]> {
+    program
+        .platforms
+        .iter()
+        .find(|platform| platform.name == platform_name)?
+        .states
+        .iter()
+        .find(|state| state.name == state_name)
+        .map(|state| state.parameters.as_slice())
+}
+
+fn machine_state_parameters<'program>(
+    program: &'program Program,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<&'program [StateParameter]> {
+    program
+        .machines
+        .iter()
+        .find(|machine| machine.name == machine_name)?
+        .states
+        .iter()
+        .find(|state| state.name == state_name)
+        .map(|state| state.parameters.as_slice())
 }
 
 fn transition_target_state_and_arguments<'program>(

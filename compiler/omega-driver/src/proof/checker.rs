@@ -2,7 +2,9 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::ir::types::TypeConstraint;
-use crate::proof::obligations::{BoundedTransitionArgumentObligation, ProofObligation, ProofPlan};
+use crate::proof::obligations::{
+    BoundedCallArgumentObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct IntegerRange {
@@ -14,17 +16,40 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
 
     for obligation in &proof_plan.obligations {
-        let ProofObligation::BoundedTransitionArgument(obligation) = obligation else {
-            continue;
-        };
-
-        check_bounded_transition_argument(obligation, &mut diagnostics);
+        match obligation {
+            ProofObligation::BoundedCallArgument(obligation) => {
+                check_bounded_call_argument(obligation, &mut diagnostics);
+            }
+            ProofObligation::BoundedTransitionArgument(obligation) => {
+                check_bounded_transition_argument(obligation, &mut diagnostics);
+            }
+            ProofObligation::BoundedValue(_) | ProofObligation::GuardedTransition(_) => {}
+        }
     }
 
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_bounded_call_argument(
+    obligation: &BoundedCallArgumentObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(target_range) = integer_range_from_constraints(&obligation.constraints) else {
+        return;
+    };
+    let Some(argument_range) = integer_range_for_call_argument(obligation) else {
+        diagnostics.push(cannot_prove_bounded_call(obligation, target_range));
+        return;
+    };
+
+    if argument_range.minimum < target_range.minimum
+        || argument_range.maximum > target_range.maximum
+    {
+        diagnostics.push(cannot_prove_bounded_call(obligation, target_range));
     }
 }
 
@@ -51,6 +76,18 @@ fn check_bounded_transition_argument(
 
 fn integer_range_for_argument(
     obligation: &BoundedTransitionArgumentObligation,
+) -> Option<IntegerRange> {
+    match &obligation.argument {
+        Expression::Integer(value) => Some(IntegerRange {
+            minimum: *value,
+            maximum: *value,
+        }),
+        _ => integer_range_from_constraints(&obligation.argument_constraints),
+    }
+}
+
+fn integer_range_for_call_argument(
+    obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
     match &obligation.argument {
         Expression::Integer(value) => Some(IntegerRange {
@@ -179,6 +216,28 @@ fn cannot_prove_bounded_handoff(
         "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
         obligation.argument.display_name(),
         obligation.parameter,
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
+fn cannot_prove_bounded_call(
+    obligation: &BoundedCallArgumentObligation,
+    target_range: IntegerRange,
+) -> Diagnostic {
+    let target = obligation
+        .receiver
+        .as_ref()
+        .map(|receiver| format!("{receiver}.{}", obligation.target))
+        .unwrap_or_else(|| obligation.target.clone());
+
+    Diagnostic::error(format!(
+        "cannot prove call argument `{}` satisfies bounded parameter `{}` for `{}` in `{}.{}`; expected range<{}, {}>",
+        obligation.argument.display_name(),
+        obligation.parameter,
+        target,
         obligation.machine,
         obligation.state,
         target_range.minimum,
