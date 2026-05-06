@@ -335,8 +335,16 @@ impl ArtifactWriter {
         output.push_str("# Omega Trust\n\n");
         output.push_str(&format!("targets: {}\n", trust_report.targets.len()));
         output.push_str(&format!(
+            "trust roots: {}\n",
+            trust_report.trust_roots.len()
+        ));
+        output.push_str(&format!(
             "trusted contracts: {}\n",
             trust_report.trusted_contracts.len()
+        ));
+        output.push_str(&format!(
+            "unresolved trusts: {}\n",
+            trust_report.unresolved_trusts.len()
         ));
         output.push_str(&format!(
             "unchecked policies: {}\n\n",
@@ -359,18 +367,47 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Trust Roots\n");
+        if trust_report.trust_roots.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, root) in trust_report.trust_roots.iter() {
+                output.push_str(&format!(
+                    "- trust `{}` body tokens {}\n",
+                    root.name, root.token_count
+                ));
+            }
+        }
+
         output.push_str("\n## Trusted Contracts\n");
         if trust_report.trusted_contracts.is_empty() {
             output.push_str("none\n");
         } else {
             for (_, contract) in trust_report.trusted_contracts.iter() {
                 output.push_str(&format!(
-                    "- {}.{} trusted `{}` requires {} ensures {}\n",
+                    "- {}.{} trusts `{}` ({}) requires {} ensures {}\n",
                     contract.capability,
                     contract.state,
                     contract.trust_level,
+                    if contract.resolved {
+                        "resolved"
+                    } else {
+                        "unresolved"
+                    },
                     contract.requires_count,
                     contract.ensures_count
+                ));
+            }
+        }
+
+        output.push_str("\n## Unresolved Trusts\n");
+        if trust_report.unresolved_trusts.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, unresolved) in trust_report.unresolved_trusts.iter() {
+                output.push_str(&format!(
+                    "- {}.{} trust `{}`\n",
+                    unresolved.capability, unresolved.state, unresolved.trust_level
                 ));
             }
         }
@@ -731,6 +768,10 @@ fn ast_item_summary(item: &Item) -> String {
                 invariant.constraints.len()
             )
         }
+        Item::TrustDefinition(trust_definition) => format!(
+            "trust `{}` body tokens {}",
+            trust_definition.name, trust_definition.token_count
+        ),
         Item::Use(use_item) => format!("use {}", use_item.path.join("::")),
         Item::Machine(machine) => format!(
             "machine `{}` contains {} owned data {} states {}",

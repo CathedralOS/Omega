@@ -3,6 +3,7 @@ pub enum Item {
     Capability(CapabilityDefinition),
     Data(DataDefinition),
     Invariant(InvariantDefinition),
+    TrustDefinition(TrustDefinition),
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
@@ -18,6 +19,12 @@ pub struct UseItem {
 pub struct InvariantDefinition {
     pub name: String,
     pub constraints: Vec<crate::types::TypeConstraint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrustDefinition {
+    pub name: String,
+    pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

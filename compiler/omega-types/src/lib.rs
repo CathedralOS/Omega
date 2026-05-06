@@ -131,6 +131,7 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
             Item::Target(target) => {
                 insert_declaration(&mut report, &target.name, TypeDeclarationKind::Target);
             }
+            Item::TrustDefinition(_) => {}
         }
     }
 

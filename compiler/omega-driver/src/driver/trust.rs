@@ -6,7 +6,9 @@ use omega_core::arena::Arena;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TrustReport {
     pub targets: Arena<TrustTarget>,
+    pub trust_roots: Arena<TrustRoot>,
     pub trusted_contracts: Arena<TrustedContract>,
+    pub unresolved_trusts: Arena<UnresolvedTrustReference>,
     pub unchecked_policies: Arena<UncheckedTrustPolicy>,
 }
 
@@ -20,12 +22,26 @@ pub struct TrustTarget {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrustRoot {
+    pub name: String,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TrustedContract {
     pub capability: String,
     pub state: String,
     pub trust_level: String,
+    pub resolved: bool,
     pub requires_count: usize,
     pub ensures_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UnresolvedTrustReference {
+    pub capability: String,
+    pub state: String,
+    pub trust_level: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -36,6 +52,7 @@ pub struct UncheckedTrustPolicy {
 
 pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) -> TrustReport {
     let mut report = TrustReport::default();
+    let trust_root_names = collect_trust_root_names(items, &mut report);
 
     for item in items {
         match item {
@@ -53,13 +70,25 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                             CapabilityContractKind::Requires => requires_count += 1,
                             CapabilityContractKind::Ensures => ensures_count += 1,
                             CapabilityContractKind::Trusted(trust_level) => {
+                                let trust_level_name = trust_level_name(trust_level);
+                                let resolved = trust_level_resolves(trust_level, &trust_root_names);
+
                                 report.trusted_contracts.insert(TrustedContract {
                                     capability: capability.name.clone(),
                                     state: state.signature.name.clone(),
-                                    trust_level: trust_level_name(trust_level),
+                                    trust_level: trust_level_name.clone(),
+                                    resolved,
                                     requires_count,
                                     ensures_count,
                                 });
+
+                                if !resolved {
+                                    report.unresolved_trusts.insert(UnresolvedTrustReference {
+                                        capability: capability.name.clone(),
+                                        state: state.signature.name.clone(),
+                                        trust_level: trust_level_name,
+                                    });
+                                }
                             }
                         }
                     }
@@ -107,6 +136,31 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
     }
 
     report
+}
+
+fn collect_trust_root_names(items: &[Item], report: &mut TrustReport) -> Vec<String> {
+    let mut names = Vec::new();
+
+    for item in items {
+        let Item::TrustDefinition(trust_definition) = item else {
+            continue;
+        };
+
+        names.push(trust_definition.name.clone());
+        report.trust_roots.insert(TrustRoot {
+            name: trust_definition.name.clone(),
+            token_count: trust_definition.token_count,
+        });
+    }
+
+    names
+}
+
+fn trust_level_resolves(trust_level: &TrustLevel, trust_root_names: &[String]) -> bool {
+    match trust_level {
+        TrustLevel::Host => true,
+        TrustLevel::Named(name) => trust_root_names.iter().any(|root_name| root_name == name),
+    }
 }
 
 fn trust_level_name(trust_level: &TrustLevel) -> String {

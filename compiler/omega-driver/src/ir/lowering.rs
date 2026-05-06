@@ -90,7 +90,7 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
                     &mut program.type_constraints,
                 )?);
             }
-            ast::item::Item::Target(_) => {}
+            ast::item::Item::Target(_) | ast::item::Item::TrustDefinition(_) => {}
         }
     }
 

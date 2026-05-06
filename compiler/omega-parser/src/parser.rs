@@ -8,7 +8,7 @@ use omega_ast::item::{
     CapabilityMember, CapabilityState, Contains, DataDefinition, DataField, DataMember,
     DataVariant, InvariantDefinition, Item, Machine, OwnedData, Platform, State, StateParameter,
     StateSignature, TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue,
-    TrustLevel, TrustMode, TrustPolicy, UseItem,
+    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, UseItem,
 };
 use omega_ast::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -39,6 +39,8 @@ impl Parser<'_> {
                 items.push(Item::Use(self.parse_use()?));
             } else if self.consume("target") {
                 items.push(Item::Target(self.parse_target_definition()?));
+            } else if self.consume("trust") {
+                items.push(Item::TrustDefinition(self.parse_trust_definition()?));
             } else if self.consume("capability") {
                 items.push(Item::Capability(self.parse_capability_definition()?));
             } else if self.consume("invariant") {
@@ -62,6 +64,13 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(UseItem { path })
+    }
+
+    fn parse_trust_definition(&mut self) -> Result<TrustDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        let token_count = self.skip_balanced_braces_with_count()?;
+
+        Ok(TrustDefinition { name, token_count })
     }
 
     fn parse_target_definition(&mut self) -> Result<TargetDefinition, ParseError> {
@@ -949,6 +958,30 @@ impl Parser<'_> {
         }
 
         Ok(())
+    }
+
+    fn skip_balanced_braces_with_count(&mut self) -> Result<usize, ParseError> {
+        self.expect("{")?;
+        let mut depth = 1usize;
+        let mut token_count = 0usize;
+
+        while depth > 0 {
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("unterminated block"));
+            };
+
+            if token.lexeme == "{" {
+                depth += 1;
+            } else if token.lexeme == "}" {
+                depth -= 1;
+            }
+
+            if depth > 0 {
+                token_count += 1;
+            }
+        }
+
+        Ok(token_count)
     }
 
     fn skip_balanced_parentheses_after_open(&mut self) -> Result<usize, ParseError> {

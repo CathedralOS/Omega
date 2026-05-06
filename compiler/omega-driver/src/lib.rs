@@ -950,6 +950,31 @@ mod tests {
     }
 
     #[test]
+    fn parses_top_level_trust_definitions() {
+        let tokens = Lexer::new(
+            r#"
+            trust omega_windows_kernel32 {
+                owner omega::host::windows
+                reason "Windows Kernel32 API contract"
+                scope {
+                    dll "Kernel32.dll"
+                    symbols GetStdHandle, WriteFile, ExitProcess
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::TrustDefinition(trust_definition) = &parsed.items[0] else {
+            panic!("expected a trust definition");
+        };
+
+        assert_eq!(trust_definition.name, "omega_windows_kernel32");
+        assert!(trust_definition.token_count > 0);
+    }
+
+    #[test]
     fn builds_trust_report_from_targets_and_capabilities() {
         let tokens = Lexer::new(
             r#"
@@ -1414,7 +1439,10 @@ mod tests {
         let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
             .expect("trust artifact should be readable");
         assert!(trust.contains("targets: 1"));
+        assert!(trust.contains("trust roots: 6"));
+        assert!(trust.contains("unresolved trusts: 0"));
         assert!(trust.contains("target `windows_x64`"));
+        assert!(trust.contains("trust `omega_windows_kernel32`"));
         assert!(!trust.contains("target `linux_x64`"));
         assert!(!trust.contains("unchecked `invariant_proofs`"));
 

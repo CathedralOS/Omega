@@ -54,7 +54,7 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
             Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, machine),
             Item::Platform(platform) => collect_platform(&mut report, platform),
-            Item::Target(_) => {}
+            Item::Target(_) | Item::TrustDefinition(_) => {}
         }
     }
 

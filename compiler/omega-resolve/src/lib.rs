@@ -32,6 +32,7 @@ pub enum ResolvedDefinitionKind {
     Machine,
     Platform,
     Target,
+    Trust,
     #[default]
     Unknown,
 }
@@ -152,6 +153,12 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                 report.definitions.insert(ResolvedDefinition {
                     name: target.name.clone(),
                     kind: ResolvedDefinitionKind::Target,
+                });
+            }
+            Item::TrustDefinition(trust_definition) => {
+                report.definitions.insert(ResolvedDefinition {
+                    name: trust_definition.name.clone(),
+                    kind: ResolvedDefinitionKind::Trust,
                 });
             }
         }

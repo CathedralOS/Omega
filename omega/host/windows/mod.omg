@@ -1,6 +1,7 @@
 use omega::host::windows::kernel32;
 use omega::host::windows::process;
 use omega::host::windows::stdout;
+use omega::host::windows::trusts;
 use omega::host::windows::types;
 
 // Windows host package shipped with the Omega toolchain.
