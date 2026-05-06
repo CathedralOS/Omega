@@ -34,7 +34,7 @@ pub struct UncheckedTrustPolicy {
     pub name: String,
 }
 
-pub fn build_trust_report(items: &[Item]) -> TrustReport {
+pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) -> TrustReport {
     let mut report = TrustReport::default();
 
     for item in items {
@@ -66,6 +66,10 @@ pub fn build_trust_report(items: &[Item]) -> TrustReport {
                 }
             }
             Item::Target(target) => {
+                if selected_target_name.is_some_and(|selected| target.name != selected) {
+                    continue;
+                }
+
                 let mut checked_trusts = 0usize;
                 let mut unchecked_trusts = 0usize;
 

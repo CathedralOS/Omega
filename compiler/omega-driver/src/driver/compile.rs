@@ -108,7 +108,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         check_proof_plan(&proof_plan)
     })?;
     record_phase(&mut phase_timings, "trust", || {
-        let trust_report = build_trust_report(&loaded_program.items);
+        let trust_report =
+            build_trust_report(&loaded_program.items, options.target_name.as_deref());
         artifacts
             .write_trust_report(&trust_report)
             .map_err(|diagnostic| vec![diagnostic])
@@ -201,7 +202,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         check_proof_plan(&proof_plan)
     })?;
     record_phase(&mut phase_timings, "trust", || {
-        let trust_report = build_trust_report(&loaded_program.items);
+        let trust_report =
+            build_trust_report(&loaded_program.items, options.target_name.as_deref());
         artifacts
             .write_trust_report(&trust_report)
             .map_err(|diagnostic| vec![diagnostic])
@@ -302,6 +304,7 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
     let mut pending = Vec::new();
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
+    let mut selected_target_found = options.target_name.is_none();
 
     if let Some(build_path) = build_policy_path(&options.root_path) {
         pending.push(build_path);
@@ -343,6 +346,17 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
                     pending.push(resolve_source_path(&root_dir, &use_item.path));
                 }
                 Item::Target(target) => {
+                    let target_is_selected = options
+                        .target_name
+                        .as_ref()
+                        .is_none_or(|target_name| target.name == *target_name);
+
+                    if target_is_selected {
+                        selected_target_found = true;
+                    } else {
+                        continue;
+                    }
+
                     if let Some(host) = &target.host {
                         if is_bundled_omega_path(&host.provider) {
                             pending.push(resolve_source_path(&root_dir, &host.provider));
@@ -365,6 +379,16 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
             item_count,
         });
         items.extend(ast_file.items);
+    }
+
+    if !selected_target_found {
+        return Err(vec![Diagnostic::error(format!(
+            "target `{}` was not found in build policy",
+            options
+                .target_name
+                .as_deref()
+                .expect("missing selected target should have been detected")
+        ))]);
     }
 
     Ok(LoadedProgram {

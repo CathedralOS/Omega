@@ -4,6 +4,7 @@ use std::path::PathBuf;
 pub struct CompileOptions {
     pub root_path: PathBuf,
     pub build_dir: Option<PathBuf>,
+    pub target_name: Option<String>,
 }
 
 impl CompileOptions {

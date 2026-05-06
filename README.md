@@ -71,6 +71,8 @@ Each check writes ignored phase artifacts under a `build/` directory next to the
 
 Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`. Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
 
+Use `--target <name>` to select a target from `build.omg`. When a target is selected, only that target's referenced bundled host package is loaded.
+
 Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 
 ## Repository Layout

@@ -972,7 +972,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
         let parsed = parse_file(&tokens).expect("parse should succeed");
-        let trust_report = crate::driver::trust::build_trust_report(&parsed.items);
+        let trust_report = crate::driver::trust::build_trust_report(&parsed.items, None);
 
         assert_eq!(trust_report.targets.len(), 1);
         assert_eq!(trust_report.trusted_contracts.len(), 1);
@@ -1226,6 +1226,7 @@ mod tests {
         let output = crate::check(crate::CompileOptions {
             build_dir: Some(build_dir.clone()),
             root_path,
+            target_name: None,
         })
         .expect("check should pass");
 
@@ -1255,6 +1256,40 @@ mod tests {
             sources.contains("omega/std/console.omg"),
             "source artifact should include bundled omega std source"
         );
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+
+    #[test]
+    fn selected_target_loads_only_referenced_host_package() {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-driver-selected-target-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&build_dir);
+        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../samples/cli_mvp/main.omg");
+
+        let output = crate::check(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path,
+            target_name: Some("windows_x64".to_owned()),
+        })
+        .expect("check should pass");
+        let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
+            .expect("source artifact should be readable");
+
+        assert!(sources.contains("omega/host/windows.omg"));
+        assert!(sources.contains("omega/host/contracts.omg"));
+        assert!(!sources.contains("omega/host/linux.omg"));
+        assert!(!sources.contains("omega/host/darwin.omg"));
+
+        let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
+            .expect("trust artifact should be readable");
+        assert!(trust.contains("targets: 1"));
+        assert!(trust.contains("target `windows_x64`"));
+        assert!(!trust.contains("target `linux_x64`"));
+        assert!(!trust.contains("unchecked `invariant_proofs`"));
 
         let _ = std::fs::remove_dir_all(build_dir);
     }
@@ -1292,6 +1327,7 @@ mod tests {
             crate::check(crate::CompileOptions {
                 build_dir: Some(build_dir.clone()),
                 root_path: root_path.clone(),
+                target_name: None,
             })
             .unwrap_or_else(|diagnostics| {
                 panic!(
@@ -1334,6 +1370,7 @@ mod tests {
             crate::check(crate::CompileOptions {
                 build_dir: Some(build_dir.clone()),
                 root_path: root_path.clone(),
+                target_name: None,
             })
             .unwrap_or_else(|diagnostics| {
                 panic!(
@@ -1387,6 +1424,7 @@ mod tests {
             let diagnostics = crate::check(crate::CompileOptions {
                 build_dir: Some(build_dir.clone()),
                 root_path: root_path.clone(),
+                target_name: None,
             })
             .expect_err(&format!(
                 "failing canary {} unexpectedly passed",
