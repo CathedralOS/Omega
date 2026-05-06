@@ -5,24 +5,25 @@ use omega_lexer::Lexer;
 use omega_parser::parse_file;
 
 #[test]
-fn parses_every_sample_file() {
+fn parses_every_sample_and_canary_file() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
         .expect("parser crate should live under compiler/omega-parser");
     let sample_root = repo_root.join("samples");
-    let mut sample_files = Vec::new();
+    let canary_root = repo_root.join("canaries");
+    let mut omega_files = Vec::new();
 
-    collect_omega_files(&sample_root, &mut sample_files);
-    sample_files.sort();
+    collect_omega_files(&sample_root, &mut omega_files);
+    collect_omega_files(&canary_root, &mut omega_files);
+    omega_files.sort();
 
     assert!(
-        !sample_files.is_empty(),
-        "expected at least one Omega sample file under {}",
-        sample_root.display()
+        !omega_files.is_empty(),
+        "expected at least one Omega sample or canary file"
     );
 
-    for path in sample_files {
+    for path in omega_files {
         let source = fs::read_to_string(&path)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
         let tokens = Lexer::new(&source)
