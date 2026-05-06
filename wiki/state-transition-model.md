@@ -80,6 +80,8 @@ state Shutdown {
 
 The return code is just data owned by the root machine. The OS boundary is a command.
 
+Newer sketches are exploring typed states that can produce values through a constrained state graph. That is a separate design thread from process exit and command-style return values. See [Typed States And Invariants](typed-states-and-invariants.md).
+
 `state`
 
 Executable block. It may run one operation, many operations, or eventually be restricted to a smaller unit if we want highly granular debugging and proof steps.

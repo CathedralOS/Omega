@@ -129,6 +129,7 @@ Near-term documentation to add:
 
 - Syntax sketches
 - Machine semantics: see [State And Transition Model](state-transition-model.md)
+- Typed states, bounded values, and repair scopes: see [Typed States And Invariants](typed-states-and-invariants.md)
 - Transition execution model
 - Proof and invariant model
 - Data layout and SIMD strategy
