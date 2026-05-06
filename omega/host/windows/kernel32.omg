@@ -25,7 +25,7 @@ capability WindowsKernel32 {
         trust windows_x64_calling_convention
     }
 
-    state exit_process(return_code: u32) -> Never {
+    state exit_process(return_code: u32) -> Terminal {
         requires windows_accepts_exit_code(return_code)
         ensures process_terminated
         trust windows_loader

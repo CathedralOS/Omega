@@ -11,7 +11,7 @@ capability DarwinLibSystem {
         trust host
     }
 
-    state exit(return_code: i32) -> Never {
+    state exit(return_code: i32) -> Terminal {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
         trust darwin_libsystem_abi

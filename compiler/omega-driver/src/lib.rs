@@ -963,7 +963,7 @@ mod tests {
             }
 
             capability Process {
-                state exit(return_code: i32) -> Never {
+                state exit(return_code: i32) -> Terminal {
                     requires target_accepts_exit_code(return_code)
                     ensures process_terminated
                     trust host

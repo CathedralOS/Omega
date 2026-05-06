@@ -4,7 +4,7 @@ use omega::host::darwin::libsystem;
 capability DarwinProcess {
     libsystem: DarwinLibSystem
 
-    state exit(return_code: i32) -> Never {
+    state exit(return_code: i32) -> Terminal {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
         trust omega_darwin_process_adapter

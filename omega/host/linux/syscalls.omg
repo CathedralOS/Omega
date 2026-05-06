@@ -11,7 +11,7 @@ capability LinuxSyscalls {
         trust host
     }
 
-    state exit_group(return_code: i32) -> Never {
+    state exit_group(return_code: i32) -> Terminal {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
         trust linux_syscall_abi
