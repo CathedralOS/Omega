@@ -3,8 +3,8 @@ use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::ir::types::TypeConstraint;
 use crate::proof::obligations::{
-    BoundedCallArgumentObligation, BoundedInitializerObligation, BoundedStateReturnObligation,
-    BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
+    BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +24,9 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
 
     for obligation in &proof_plan.obligations {
         match obligation {
+            ProofObligation::BoundedAssignment(obligation) => {
+                check_bounded_assignment(obligation, &mut diagnostics);
+            }
             ProofObligation::BoundedCallArgument(obligation) => {
                 check_bounded_call_argument(obligation, &mut diagnostics);
             }
@@ -44,6 +47,49 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_bounded_assignment(
+    obligation: &BoundedAssignmentObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    check_assignment_named_constraints(obligation, diagnostics);
+
+    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = integer_range_for_assignment(obligation) else {
+            diagnostics.push(cannot_prove_bounded_assignment_integer(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_assignment_integer(
+                obligation,
+                target_range,
+            ));
+        }
+    }
+
+    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = float_range_for_assignment(obligation) else {
+            diagnostics.push(cannot_prove_bounded_assignment_float(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_assignment_float(
+                obligation,
+                target_range,
+            ));
+        }
     }
 }
 
@@ -234,6 +280,19 @@ fn float_range_for_transition_argument(
     }
 }
 
+fn float_range_for_assignment(obligation: &BoundedAssignmentObligation) -> Option<FloatRange> {
+    match &obligation.value {
+        Expression::Float(value) => {
+            let value = float_literal(value)?;
+            Some(FloatRange {
+                minimum: value,
+                maximum: value,
+            })
+        }
+        _ => float_range_from_constraints(&obligation.value_constraints),
+    }
+}
+
 fn float_range_for_call_argument(obligation: &BoundedCallArgumentObligation) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
@@ -282,6 +341,16 @@ fn integer_range_for_call_argument(
             maximum: *value,
         }),
         _ => integer_range_from_constraints(&obligation.argument_constraints),
+    }
+}
+
+fn integer_range_for_assignment(obligation: &BoundedAssignmentObligation) -> Option<IntegerRange> {
+    match &obligation.value {
+        Expression::Integer(value) => Some(IntegerRange {
+            minimum: *value,
+            maximum: *value,
+        }),
+        _ => integer_range_from_constraints(&obligation.value_constraints),
     }
 }
 
@@ -465,6 +534,23 @@ fn check_call_named_constraints(
     }
 }
 
+fn check_assignment_named_constraints(
+    obligation: &BoundedAssignmentObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in named_constraints(&obligation.constraints) {
+        if !argument_satisfies_named_constraint(
+            &obligation.value,
+            &obligation.value_constraints,
+            constraint,
+        ) {
+            diagnostics.push(cannot_prove_assignment_named_constraint(
+                obligation, constraint,
+            ));
+        }
+    }
+}
+
 fn check_transition_named_constraints(
     obligation: &BoundedTransitionArgumentObligation,
     diagnostics: &mut Vec<Diagnostic>,
@@ -556,6 +642,21 @@ fn cannot_prove_bounded_transition_integer(
     ))
 }
 
+fn cannot_prove_bounded_assignment_integer(
+    obligation: &BoundedAssignmentObligation,
+    target_range: IntegerRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
+        obligation.target.display_name(),
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
 fn cannot_prove_bounded_return_integer(
     obligation: &BoundedStateReturnObligation,
     target_range: IntegerRange,
@@ -591,6 +692,21 @@ fn cannot_prove_bounded_transition_float(
         "cannot prove transition argument `{}` satisfies bounded parameter `{}` in `{}.{}`; expected range<{}, {}>",
         obligation.argument.display_name(),
         obligation.parameter,
+        obligation.machine,
+        obligation.state,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
+fn cannot_prove_bounded_assignment_float(
+    obligation: &BoundedAssignmentObligation,
+    target_range: FloatRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove assignment value `{}` satisfies bounded target `{}` in `{}.{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
+        obligation.target.display_name(),
         obligation.machine,
         obligation.state,
         target_range.minimum,
@@ -634,6 +750,20 @@ fn cannot_prove_transition_named_constraint(
         obligation.argument.display_name(),
         constraint,
         obligation.parameter,
+        obligation.machine,
+        obligation.state
+    ))
+}
+
+fn cannot_prove_assignment_named_constraint(
+    obligation: &BoundedAssignmentObligation,
+    constraint: &str,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove assignment value `{}` satisfies `{}` for bounded target `{}` in `{}.{}`",
+        obligation.value.display_name(),
+        constraint,
+        obligation.target.display_name(),
         obligation.machine,
         obligation.state
     ))

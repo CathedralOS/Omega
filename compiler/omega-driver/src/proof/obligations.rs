@@ -3,7 +3,7 @@ use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
 use crate::ir::signature::StateParameter;
 use crate::ir::state::State;
-use crate::ir::statement::{Call, Transition, TransitionGuard, TransitionTarget};
+use crate::ir::statement::{Assignment, Call, Transition, TransitionGuard, TransitionTarget};
 use crate::ir::types::{TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,6 +13,7 @@ pub struct ProofPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofObligation {
+    BoundedAssignment(BoundedAssignmentObligation),
     BoundedCallArgument(BoundedCallArgumentObligation),
     BoundedInitializer(BoundedInitializerObligation),
     BoundedStateReturn(BoundedStateReturnObligation),
@@ -34,6 +35,17 @@ pub struct GuardedTransitionObligation {
     pub state: String,
     pub target: TransitionTarget,
     pub guard: TransitionGuard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedAssignmentObligation {
+    pub machine: String,
+    pub state: String,
+    pub target: Expression,
+    pub value: Expression,
+    pub value_constraints: Vec<TypeConstraint>,
+    pub base_type: TypeReference,
+    pub constraints: Vec<TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,6 +149,15 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 
             for statement in &state.statements {
                 let transition = match statement {
+                    crate::ir::statement::Statement::Assignment(assignment) => {
+                        collect_bounded_assignment_obligation(
+                            machine,
+                            state,
+                            assignment,
+                            &mut obligations,
+                        );
+                        continue;
+                    }
                     crate::ir::statement::Statement::Call(call) => {
                         collect_bounded_call_argument_obligations(
                             program,
@@ -224,6 +245,33 @@ fn collect_bounded_initializer_obligation(
         }
         TypeReference::Named(_) => {}
     }
+}
+
+fn collect_bounded_assignment_obligation(
+    machine: &Machine,
+    state: &State,
+    assignment: &Assignment,
+    obligations: &mut Vec<ProofObligation>,
+) {
+    let Some(TypeReference::Constrained {
+        base_type,
+        constraints,
+    }) = expression_type_reference(machine, state, &assignment.target)
+    else {
+        return;
+    };
+
+    obligations.push(ProofObligation::BoundedAssignment(
+        BoundedAssignmentObligation {
+            machine: machine.name.clone(),
+            state: state.name.clone(),
+            target: assignment.target.clone(),
+            value: assignment.value.clone(),
+            value_constraints: expression_constraints(machine, state, &assignment.value),
+            base_type: base_type.as_ref().clone(),
+            constraints: constraints.clone(),
+        },
+    ));
 }
 
 fn collect_bounded_transition_argument_obligations(
@@ -470,26 +518,46 @@ fn expression_constraints(
     state: &State,
     expression: &Expression,
 ) -> Vec<TypeConstraint> {
+    expression_type_reference(machine, state, expression)
+        .map(collect_constraints)
+        .unwrap_or_default()
+}
+
+fn expression_type_reference<'program>(
+    machine: &'program Machine,
+    state: &'program State,
+    expression: &Expression,
+) -> Option<&'program TypeReference> {
     let Expression::Name(path) = expression else {
-        return Vec::new();
+        return None;
     };
-    let [name] = path.as_slice() else {
-        return Vec::new();
+    let name = match path.as_slice() {
+        [name] => name,
+        [receiver, name] if receiver == "self" => name,
+        _ => return None,
     };
 
     state
         .parameters
         .iter()
         .find(|parameter| parameter.name == *name)
-        .map(|parameter| collect_constraints(&parameter.type_reference))
+        .map(|parameter| &parameter.type_reference)
+        .or_else(|| {
+            state.statements.iter().find_map(|statement| {
+                let crate::ir::statement::Statement::LocalData(local_data) = statement else {
+                    return None;
+                };
+
+                (local_data.name == *name).then_some(&local_data.type_reference)
+            })
+        })
         .or_else(|| {
             machine
                 .owned_data
                 .iter()
                 .find(|owned_data| owned_data.name == *name)
-                .map(|owned_data| collect_constraints(&owned_data.type_reference))
+                .map(|owned_data| &owned_data.type_reference)
         })
-        .unwrap_or_default()
 }
 
 fn collect_constraints(type_reference: &TypeReference) -> Vec<TypeConstraint> {
