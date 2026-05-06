@@ -1121,6 +1121,18 @@ mod tests {
     }
 
     #[test]
+    fn arena_rejects_spans_with_freed_slots() {
+        let mut arena = crate::arena::Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let middle = crate::arena::Handle::from_arena_index(2);
+
+        assert!(arena.span(span).is_some());
+        assert!(arena.free(middle));
+        assert!(arena.span(span).is_none());
+        assert!(arena.span_mut(span).is_none());
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
