@@ -181,13 +181,16 @@ impl<T: Default> Arena<T> {
     }
 
     pub fn clear(&mut self) {
-        self.items.clear();
-        self.items.push(T::default());
-        self.generations.clear();
-        self.generations.push(0);
-        self.occupied.clear();
-        self.occupied.push(true);
+        for index in 1..self.items.len() {
+            self.items[index] = T::default();
+            self.generations[index] = next_generation(self.generations[index]);
+            self.occupied[index] = false;
+        }
+
         self.free_indices.clear();
+        self.free_indices.extend(
+            (1..self.items.len()).map(|index| u32::try_from(index).expect("arena index overflow")),
+        );
         self.active_count = 0;
     }
 

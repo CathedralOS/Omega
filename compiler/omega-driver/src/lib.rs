@@ -1138,6 +1138,25 @@ mod tests {
     }
 
     #[test]
+    fn arena_clear_invalidates_existing_handles() {
+        let mut arena = crate::arena::Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        arena.clear();
+
+        assert_eq!(arena.len(), 0);
+        assert!(!arena.is_valid(first));
+        assert_eq!(arena.get(first).as_str(), "");
+
+        let reused = arena.insert("beta".to_owned());
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert_eq!(arena.get(first).as_str(), "");
+        assert_eq!(arena.get(reused).as_str(), "beta");
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
