@@ -13,7 +13,7 @@ use crate::ir::state::State;
 use crate::ir::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
-use crate::ir::types::TypeReference;
+use crate::ir::types::{TypeConstraint, TypeReference};
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     let mut program = Program::default();
@@ -155,7 +155,10 @@ fn lower_type_reference(
             constraints,
         } => Ok(TypeReference::Constrained {
             base_type: Box::new(lower_type_reference(base_type)?),
-            constraints: constraints.clone(),
+            constraints: constraints
+                .iter()
+                .map(lower_type_constraint)
+                .collect::<Result<Vec<_>, Diagnostic>>()?,
         }),
         ast::types::TypeReference::FixedArray {
             element_type,
@@ -165,6 +168,18 @@ fn lower_type_reference(
             length: *length,
         }),
         ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
+    }
+}
+
+fn lower_type_constraint(
+    constraint: &ast::types::TypeConstraint,
+) -> Result<TypeConstraint, Diagnostic> {
+    match constraint {
+        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(name.clone())),
+        ast::types::TypeConstraint::Range { minimum, maximum } => Ok(TypeConstraint::Range {
+            minimum: lower_expression(minimum)?,
+            maximum: lower_expression(maximum)?,
+        }),
     }
 }
 

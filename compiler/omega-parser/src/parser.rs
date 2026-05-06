@@ -10,7 +10,7 @@ use omega_ast::item::{
 use omega_ast::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
-use omega_ast::types::TypeReference;
+use omega_ast::types::{TypeConstraint, TypeReference};
 use omega_lexer::{Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,42 +189,53 @@ impl Parser<'_> {
         if self.check("[") {
             type_reference = TypeReference::Constrained {
                 base_type: Box::new(type_reference),
-                constraints: self.collect_type_constraints()?,
+                constraints: self.parse_type_constraints()?,
             };
         }
 
         Ok(type_reference)
     }
 
-    fn collect_type_constraints(&mut self) -> Result<String, ParseError> {
+    fn parse_type_constraints(&mut self) -> Result<Vec<TypeConstraint>, ParseError> {
         self.expect("[")?;
 
-        let mut depth = 1usize;
-        let mut parts = Vec::new();
+        let mut constraints = Vec::new();
 
-        while depth > 0 {
-            let Some(token) = self.advance() else {
-                return Err(self.error_here("unterminated type constraints"));
-            };
+        if self.consume("]") {
+            return Err(self.error_here("expected type constraints"));
+        }
 
-            if token.lexeme == "[" {
-                depth += 1;
-            } else if token.lexeme == "]" {
-                depth -= 1;
+        loop {
+            constraints.push(self.parse_type_constraint()?);
 
-                if depth == 0 {
-                    break;
-                }
+            if self.consume("]") {
+                break;
             }
 
-            parts.push(token.lexeme.clone());
+            self.expect(",")?;
         }
 
-        if parts.is_empty() {
-            Err(self.error_here("expected type constraints"))
+        Ok(constraints)
+    }
+
+    fn parse_type_constraint(&mut self) -> Result<TypeConstraint, ParseError> {
+        let name = self.expect_identifier()?;
+
+        if name == "range" {
+            self.expect("<")?;
+            let minimum = self.parse_range_bound_expression()?;
+            self.expect(",")?;
+            let maximum = self.parse_range_bound_expression()?;
+            self.expect(">")?;
+
+            Ok(TypeConstraint::Range { minimum, maximum })
         } else {
-            Ok(parts.join(" "))
+            Ok(TypeConstraint::Named(name))
         }
+    }
+
+    fn parse_range_bound_expression(&mut self) -> Result<Expression, ParseError> {
+        self.parse_add_expression()
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {

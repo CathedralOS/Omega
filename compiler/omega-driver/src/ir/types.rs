@@ -2,13 +2,22 @@
 pub enum TypeReference {
     Constrained {
         base_type: Box<TypeReference>,
-        constraints: String,
+        constraints: Vec<TypeConstraint>,
     },
     FixedArray {
         element_type: Box<TypeReference>,
         length: usize,
     },
     Named(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TypeConstraint {
+    Named(String),
+    Range {
+        minimum: crate::ir::expression::Expression,
+        maximum: crate::ir::expression::Expression,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,7 +39,15 @@ impl TypeReference {
                 base_type,
                 constraints,
             } => {
-                format!("{}[{}]", base_type.display_name(), constraints)
+                format!(
+                    "{}[{}]",
+                    base_type.display_name(),
+                    constraints
+                        .iter()
+                        .map(TypeConstraint::display_name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             TypeReference::FixedArray {
                 element_type,
@@ -47,6 +64,21 @@ impl TypeReference {
             TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
             TypeReference::Named(name) => PrimitiveType::from_name(name),
             TypeReference::FixedArray { .. } => None,
+        }
+    }
+}
+
+impl TypeConstraint {
+    pub fn display_name(&self) -> String {
+        match self {
+            TypeConstraint::Named(name) => name.clone(),
+            TypeConstraint::Range { minimum, maximum } => {
+                format!(
+                    "range<{}, {}>",
+                    minimum.display_name(),
+                    maximum.display_name()
+                )
+            }
         }
     }
 }

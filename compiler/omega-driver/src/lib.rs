@@ -17,7 +17,7 @@ mod tests {
     use crate::ast::expression::{BinaryOperator, Expression};
     use crate::ast::item::Item;
     use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
-    use crate::ast::types::TypeReference;
+    use crate::ast::types::{TypeConstraint, TypeReference};
     use crate::parser::parser::parse_file;
     use omega_lexer::Lexer;
 
@@ -849,7 +849,17 @@ mod tests {
         assert!(machine.states[0].parameters[1].is_const);
         assert_eq!(min_type, "i32");
         assert_eq!(base_type.as_ref(), &TypeReference::named("i32"));
-        assert_eq!(constraints, "range < min , max >");
+        let [TypeConstraint::Range { minimum, maximum }] = constraints.as_slice() else {
+            panic!("expected one range constraint");
+        };
+        let Expression::Name(minimum_path) = minimum else {
+            panic!("expected range minimum name");
+        };
+        let Expression::Name(maximum_path) = maximum else {
+            panic!("expected range maximum name");
+        };
+        assert_eq!(minimum_path, &vec!["min".to_owned()]);
+        assert_eq!(maximum_path, &vec!["max".to_owned()]);
     }
 
     #[test]
