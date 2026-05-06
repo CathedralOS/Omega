@@ -1,0 +1,17 @@
+# Omega Language Guide
+
+This guide is a chaptered sketch of Omega's language direction.
+
+The syntax is not final. These chapters exist so language ideas can be organized, challenged, and eventually turned into parser/compiler work.
+
+- [Chapter 1: Variables And Owned Data](chapter_1_variables.md)
+- [Chapter 2: States](chapter_2_states.md)
+- [Chapter 3: Transitions](chapter_3_transitions.md)
+- [Chapter 4: Typed States](chapter_4_typed_states.md)
+- [Chapter 5: Return Value Compatibility](chapter_5_return_value_compatibility.md)
+- [Chapter 6: Bounded Types](chapter_6_bounded_types.md)
+- [Chapter 7: Relax Scopes](chapter_7_relax_scopes.md)
+- [Chapter 8: Invariant Propagation](chapter_8_invariant_propagation.md)
+- [Chapter 9: Proof Obligations](chapter_9_proof_obligations.md)
+- [Chapter 10: Tooling And UX](chapter_10_tooling_and_ux.md)
+- [Appendix: Open Questions](appendix_open_questions.md)

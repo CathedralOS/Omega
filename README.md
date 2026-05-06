@@ -119,4 +119,4 @@ The language is moving quickly. The best current design references are:
 
 - [Language Vision](wiki/language-vision.md)
 - [State And Transition Model](wiki/state-transition-model.md)
-- [Typed States And Invariants](wiki/typed-states-and-invariants.md)
+- [Omega Language Guide](wiki/language_guide/README.md)
