@@ -13,6 +13,7 @@ use crate::native::plan::NativePlan;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_resolve::ResolveReport;
+use omega_types::TypeSurfaceReport;
 
 pub(crate) struct ArtifactWriter {
     root: PathBuf,
@@ -91,12 +92,45 @@ impl ArtifactWriter {
         self.write("05_driver_ir.txt", &format!("{program:#?}\n"))
     }
 
-    pub(crate) fn write_effects(&self, effect_plan: &EffectPlan) -> Result<(), Diagnostic> {
+    pub(crate) fn write_type_surface_and_effects(
+        &self,
+        type_surface: &TypeSurfaceReport,
+        effect_plan: &EffectPlan,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
         output.push_str("# Omega Types And Effects\n\n");
-        output.push_str(&format!("machines: {}\n", effect_plan.machines.len()));
-        output.push_str(&format!("states: {}\n\n", effect_plan.states.len()));
+        output.push_str(&format!(
+            "type declarations: {}\n",
+            type_surface.declarations.len()
+        ));
+        output.push_str(&format!(
+            "type references: {}\n",
+            type_surface.references.len()
+        ));
+        output.push_str(&format!(
+            "effect machines: {}\n",
+            effect_plan.machines.len()
+        ));
+        output.push_str(&format!("effect states: {}\n\n", effect_plan.states.len()));
+
+        output.push_str("## Type Declarations\n");
+        for (_, declaration) in type_surface.declarations.iter() {
+            output.push_str(&format!(
+                "- {:?} `{}`\n",
+                declaration.kind, declaration.name
+            ));
+        }
+
+        output.push_str("\n## Type References\n");
+        for (_, reference) in type_surface.references.iter() {
+            output.push_str(&format!(
+                "- {:?} `{}` from {}\n",
+                reference.kind, reference.name, reference.owner
+            ));
+        }
+
+        output.push_str("\n## Effects\n");
 
         for machine in &effect_plan.machines {
             output.push_str(&format!("## machine {}\n", machine.name));

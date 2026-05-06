@@ -17,6 +17,7 @@ use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 use omega_resolve::build_resolve_report;
+use omega_types::build_type_surface_report;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
@@ -69,9 +70,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "types/effects", || {
+        let type_surface = build_type_surface_report(&loaded_program.items);
         let effect_plan = infer_effects(&program);
         artifacts
-            .write_effects(&effect_plan)
+            .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "driver ir", || {
@@ -152,9 +154,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "types/effects", || {
+        let type_surface = build_type_surface_report(&loaded_program.items);
         let effect_plan = infer_effects(&program);
         artifacts
-            .write_effects(&effect_plan)
+            .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "driver ir", || {

@@ -38,6 +38,7 @@ dependencies = [
  "omega-lexer",
  "omega-parser",
  "omega-resolve",
+ "omega-types",
 ]
 
 [[package]]
@@ -92,6 +93,7 @@ dependencies = [
 name = "omega-types"
 version = "0.1.0"
 dependencies = [
+ "omega-ast",
  "omega-core",
  "omega-resolve",
 ]
