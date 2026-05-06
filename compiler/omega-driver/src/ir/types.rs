@@ -1,8 +1,10 @@
+use omega_core::arena::HandleSpan;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
     Constrained {
         base_type: Box<TypeReference>,
-        constraints: Vec<TypeConstraint>,
+        constraints: HandleSpan<TypeConstraint>,
     },
     FixedArray {
         element_type: Box<TypeReference>,
@@ -48,11 +50,10 @@ impl TypeReference {
                 format!(
                     "{}[{}]",
                     base_type.display_name(),
-                    constraints
-                        .iter()
-                        .map(TypeConstraint::display_name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    match constraints.count() {
+                        1 => "1 constraint".to_owned(),
+                        count => format!("{count} constraints"),
+                    }
                 )
             }
             TypeReference::FixedArray {

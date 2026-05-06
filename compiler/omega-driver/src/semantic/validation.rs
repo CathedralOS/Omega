@@ -20,7 +20,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
         let machine_symbols = MachineSymbols::build(machine, &mut diagnostics);
 
         validate_contained_types(machine, &symbols, &mut diagnostics);
-        validate_owned_data(machine, &symbols, &mut diagnostics);
+        validate_owned_data(program, machine, &symbols, &mut diagnostics);
 
         for state in &machine.states {
             let reserved_names = machine_symbols
@@ -53,6 +53,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
 
             for statement in &state.statements {
                 validate_state_statement(
+                    program,
                     machine,
                     &state.name,
                     &machine_symbols,
@@ -141,6 +142,7 @@ fn validate_local_data_names(
 }
 
 fn validate_state_statement(
+    program: &Program,
     machine: &crate::ir::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
@@ -188,6 +190,7 @@ fn validate_state_statement(
             );
         }
         Statement::LocalData(local_data) => validate_type_reference(
+            program,
             &local_data.type_reference,
             symbols,
             diagnostics,
@@ -254,6 +257,7 @@ fn validate_callable_state_signatures(
                 parameters: state.parameters.clone(),
                 return_type: state.return_type.clone(),
             }),
+            program,
             symbols,
             diagnostics,
             format!("machine `{}`", machine.name),
@@ -264,6 +268,7 @@ fn validate_callable_state_signatures(
         validate_platform_state_names(platform, diagnostics);
         validate_state_signature_types(
             platform.states.iter().cloned(),
+            program,
             symbols,
             diagnostics,
             format!("platform `{}`", platform.name),
@@ -273,6 +278,7 @@ fn validate_callable_state_signatures(
 
 fn validate_state_signature_types(
     signatures: impl Iterator<Item = StateSignature>,
+    program: &Program,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
@@ -286,6 +292,7 @@ fn validate_state_signature_types(
             }
 
             validate_type_reference(
+                program,
                 &parameter.type_reference,
                 symbols,
                 diagnostics,
@@ -298,6 +305,7 @@ fn validate_state_signature_types(
 
         if let Some(return_type) = &signature.return_type {
             validate_type_reference(
+                program,
                 return_type,
                 symbols,
                 diagnostics,
@@ -359,6 +367,7 @@ fn validate_data_field_types(
             };
 
             validate_type_reference(
+                program,
                 &field.type_reference,
                 symbols,
                 diagnostics,
@@ -409,6 +418,7 @@ fn validate_data_member_names(
 }
 
 fn validate_type_reference(
+    program: &Program,
     type_reference: &TypeReference,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -419,11 +429,11 @@ fn validate_type_reference(
             base_type,
             constraints,
         } => {
-            validate_type_reference(base_type, symbols, diagnostics, owner.clone());
-            validate_type_constraints(base_type, constraints, diagnostics, owner);
+            validate_type_reference(program, base_type, symbols, diagnostics, owner.clone());
+            validate_type_constraints(program, base_type, *constraints, diagnostics, owner);
         }
         TypeReference::FixedArray { element_type, .. } => {
-            validate_type_reference(element_type, symbols, diagnostics, owner);
+            validate_type_reference(program, element_type, symbols, diagnostics, owner);
         }
         TypeReference::Named(name) => {
             if PrimitiveType::from_name(name).is_some() {
@@ -440,12 +450,19 @@ fn validate_type_reference(
 }
 
 fn validate_type_constraints(
+    program: &Program,
     base_type: &TypeReference,
-    constraints: &[TypeConstraint],
+    constraints: omega_core::arena::HandleSpan<TypeConstraint>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
     let primitive_type = base_type.primitive_type();
+    let Some(constraints) = program.type_constraints.span(constraints) else {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} references invalid constraint storage"
+        )));
+        return;
+    };
 
     for constraint in constraints {
         match constraint {
@@ -523,12 +540,14 @@ fn validate_contained_types(
 }
 
 fn validate_owned_data(
+    program: &Program,
     machine: &crate::ir::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for owned_data in &machine.owned_data {
         validate_type_reference(
+            program,
             &owned_data.type_reference,
             symbols,
             diagnostics,

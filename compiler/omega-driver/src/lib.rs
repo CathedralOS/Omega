@@ -897,14 +897,18 @@ mod tests {
             base_type.as_ref(),
             &crate::ir::types::TypeReference::Named("f32".to_owned())
         );
-        assert_eq!(constraints.len(), 2);
-        assert_eq!(invariant_constraints, constraints.as_slice());
+        let owned_data_constraints = program
+            .type_constraints
+            .span(*constraints)
+            .expect("owned data constraints should resolve");
+        assert_eq!(owned_data_constraints.len(), 2);
+        assert_eq!(invariant_constraints, owned_data_constraints);
         assert!(matches!(
-            constraints[0],
+            owned_data_constraints[0],
             crate::ir::types::TypeConstraint::Named(ref name) if name == "finite"
         ));
         assert!(matches!(
-            constraints[1],
+            owned_data_constraints[1],
             crate::ir::types::TypeConstraint::Range { .. }
         ));
     }

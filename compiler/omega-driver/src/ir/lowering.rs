@@ -15,6 +15,7 @@ use crate::ir::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use crate::ir::types::{TypeConstraint, TypeReference};
+use omega_core::arena::Arena;
 
 struct InvariantAliases {
     items: Vec<InvariantAlias>,
@@ -74,17 +75,27 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     for item in items {
         match item {
             ast::item::Item::Data(data_definition) => {
-                program
-                    .data_definitions
-                    .push(lower_data_definition(data_definition, &aliases)?);
+                program.data_definitions.push(lower_data_definition(
+                    data_definition,
+                    &aliases,
+                    &mut program.type_constraints,
+                )?);
             }
             ast::item::Item::Invariant(_) => {}
             ast::item::Item::Use(_) => {}
             ast::item::Item::Machine(machine) => {
-                program.machines.push(lower_machine(machine, &aliases)?);
+                program.machines.push(lower_machine(
+                    machine,
+                    &aliases,
+                    &mut program.type_constraints,
+                )?);
             }
             ast::item::Item::Platform(platform) => {
-                program.platforms.push(lower_platform(platform, &aliases)?);
+                program.platforms.push(lower_platform(
+                    platform,
+                    &aliases,
+                    &mut program.type_constraints,
+                )?);
             }
         }
     }
@@ -95,11 +106,12 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
 fn lower_data_definition(
     data_definition: &ast::item::DataDefinition,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<DataDefinition, Diagnostic> {
     let members = data_definition
         .members
         .iter()
-        .map(|member| lower_data_member(member, aliases))
+        .map(|member| lower_data_member(member, aliases, type_constraints))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DataDefinition {
@@ -111,11 +123,12 @@ fn lower_data_definition(
 fn lower_data_member(
     member: &ast::item::DataMember,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<DataMember, Diagnostic> {
     match member {
         ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             name: field.name.clone(),
-            type_reference: lower_type_reference(&field.type_reference, aliases)?,
+            type_reference: lower_type_reference(&field.type_reference, aliases, type_constraints)?,
         })),
         ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
             name: variant.name.clone(),
@@ -126,6 +139,7 @@ fn lower_data_member(
 fn lower_machine(
     machine: &ast::item::Machine,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<Machine, Diagnostic> {
     let contains = machine
         .contains
@@ -139,13 +153,13 @@ fn lower_machine(
     let owned_data = machine
         .owned_data
         .iter()
-        .map(|owned_data| lower_owned_data(owned_data, aliases))
+        .map(|owned_data| lower_owned_data(owned_data, aliases, type_constraints))
         .collect::<Result<Vec<_>, _>>()?;
 
     let states = machine
         .states
         .iter()
-        .map(|state| lower_state(state, aliases))
+        .map(|state| lower_state(state, aliases, type_constraints))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Machine {
@@ -159,10 +173,15 @@ fn lower_machine(
 fn lower_owned_data(
     owned_data: &ast::item::OwnedData,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<OwnedData, Diagnostic> {
     Ok(OwnedData {
         name: owned_data.name.clone(),
-        type_reference: lower_type_reference(&owned_data.type_reference, aliases)?,
+        type_reference: lower_type_reference(
+            &owned_data.type_reference,
+            aliases,
+            type_constraints,
+        )?,
         initial_value: owned_data
             .initial_value
             .as_ref()
@@ -174,11 +193,12 @@ fn lower_owned_data(
 fn lower_platform(
     platform: &ast::item::Platform,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<Platform, Diagnostic> {
     let states = platform
         .states
         .iter()
-        .map(|signature| lower_state_signature(signature, aliases))
+        .map(|signature| lower_state_signature(signature, aliases, type_constraints))
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
@@ -190,13 +210,14 @@ fn lower_platform(
 fn lower_state_signature(
     signature: &ast::item::StateSignature,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
         name: signature.name.clone(),
         return_type: signature
             .return_type
             .as_ref()
-            .map(|type_reference| lower_type_reference(type_reference, aliases))
+            .map(|type_reference| lower_type_reference(type_reference, aliases, type_constraints))
             .transpose()?,
         parameters: signature
             .parameters
@@ -204,7 +225,11 @@ fn lower_state_signature(
             .map(|parameter| {
                 Ok(StateParameter {
                     name: parameter.name.clone(),
-                    type_reference: lower_type_reference(&parameter.type_reference, aliases)?,
+                    type_reference: lower_type_reference(
+                        &parameter.type_reference,
+                        aliases,
+                        type_constraints,
+                    )?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                     is_self: parameter.is_self,
@@ -217,20 +242,29 @@ fn lower_state_signature(
 fn lower_type_reference(
     type_reference: &ast::types::TypeReference,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<TypeReference, Diagnostic> {
     match type_reference {
         ast::types::TypeReference::Constrained {
             base_type,
             constraints,
         } => Ok(TypeReference::Constrained {
-            base_type: Box::new(lower_type_reference(base_type, aliases)?),
-            constraints: lower_type_constraints(constraints, aliases, &mut Vec::new())?,
+            base_type: Box::new(lower_type_reference(base_type, aliases, type_constraints)?),
+            constraints: {
+                let lowered_constraints =
+                    lower_type_constraints(constraints, aliases, &mut Vec::new())?;
+                type_constraints.insert_many(lowered_constraints)
+            },
         }),
         ast::types::TypeReference::FixedArray {
             element_type,
             length,
         } => Ok(TypeReference::FixedArray {
-            element_type: Box::new(lower_type_reference(element_type, aliases)?),
+            element_type: Box::new(lower_type_reference(
+                element_type,
+                aliases,
+                type_constraints,
+            )?),
             length: *length,
         }),
         ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
@@ -286,11 +320,15 @@ fn lower_type_constraints(
     Ok(lowered_constraints)
 }
 
-fn lower_state(state: &ast::item::State, aliases: &InvariantAliases) -> Result<State, Diagnostic> {
+fn lower_state(
+    state: &ast::item::State,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<State, Diagnostic> {
     let statements = state
         .statements
         .iter()
-        .map(|statement| lower_statement(statement, aliases))
+        .map(|statement| lower_statement(statement, aliases, type_constraints))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
@@ -298,7 +336,7 @@ fn lower_state(state: &ast::item::State, aliases: &InvariantAliases) -> Result<S
         return_type: state
             .return_type
             .as_ref()
-            .map(|type_reference| lower_type_reference(type_reference, aliases))
+            .map(|type_reference| lower_type_reference(type_reference, aliases, type_constraints))
             .transpose()?,
         parameters: state
             .parameters
@@ -306,7 +344,11 @@ fn lower_state(state: &ast::item::State, aliases: &InvariantAliases) -> Result<S
             .map(|parameter| {
                 Ok(StateParameter {
                     name: parameter.name.clone(),
-                    type_reference: lower_type_reference(&parameter.type_reference, aliases)?,
+                    type_reference: lower_type_reference(
+                        &parameter.type_reference,
+                        aliases,
+                        type_constraints,
+                    )?,
                     is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
                     is_self: parameter.is_self,
@@ -320,6 +362,7 @@ fn lower_state(state: &ast::item::State, aliases: &InvariantAliases) -> Result<S
 fn lower_statement(
     statement: &ast::statement::Statement,
     aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<Statement, Diagnostic> {
     match statement {
         ast::statement::Statement::Assignment(assignment) => {
@@ -342,7 +385,11 @@ fn lower_statement(
         }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
             name: local_data.name.clone(),
-            type_reference: lower_type_reference(&local_data.type_reference, aliases)?,
+            type_reference: lower_type_reference(
+                &local_data.type_reference,
+                aliases,
+                type_constraints,
+            )?,
         })),
         ast::statement::Statement::Transition(transition) => {
             Ok(Statement::Transition(Transition {

@@ -107,6 +107,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
     for machine in &program.machines {
         for owned_data in &machine.owned_data {
             collect_bounded_value_obligation(
+                program,
                 format!(
                     "machine `{}` owned data `{}`",
                     machine.name, owned_data.name
@@ -116,6 +117,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
             );
             if let Some(initial_value) = &owned_data.initial_value {
                 collect_bounded_initializer_obligation(
+                    program,
                     format!(
                         "machine `{}` owned data `{}`",
                         machine.name, owned_data.name
@@ -130,6 +132,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
         for state in &machine.states {
             for parameter in &state.parameters {
                 collect_bounded_value_obligation(
+                    program,
                     format!(
                         "machine `{}` state `{}` parameter `{}`",
                         machine.name, state.name, parameter.name
@@ -141,6 +144,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 
             if let Some(return_type) = &state.return_type {
                 collect_bounded_value_obligation(
+                    program,
                     format!(
                         "machine `{}` state `{}` return value",
                         machine.name, state.name
@@ -149,6 +153,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                     &mut proof_plan,
                 );
                 collect_bounded_state_return_obligation(
+                    program,
                     machine,
                     state,
                     return_type,
@@ -160,6 +165,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                 let transition = match statement {
                     crate::ir::statement::Statement::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
+                            program,
                             machine,
                             state,
                             assignment,
@@ -209,6 +215,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 }
 
 fn collect_bounded_value_obligation(
+    program: &Program,
     owner: String,
     type_reference: &TypeReference,
     proof_plan: &mut ProofPlan,
@@ -218,7 +225,7 @@ fn collect_bounded_value_obligation(
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraints(constraints);
+            let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
             proof_plan
                 .obligations
                 .push(ProofObligation::BoundedValue(BoundedValueObligation {
@@ -228,13 +235,14 @@ fn collect_bounded_value_obligation(
                 }));
         }
         TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_value_obligation(owner, element_type, proof_plan);
+            collect_bounded_value_obligation(program, owner, element_type, proof_plan);
         }
         TypeReference::Named(_) => {}
     }
 }
 
 fn collect_bounded_initializer_obligation(
+    program: &Program,
     owner: String,
     type_reference: &TypeReference,
     value: &Expression,
@@ -245,7 +253,7 @@ fn collect_bounded_initializer_obligation(
             base_type,
             constraints,
         } => {
-            let constraints = proof_plan.store_constraints(constraints);
+            let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
             proof_plan
                 .obligations
                 .push(ProofObligation::BoundedInitializer(
@@ -258,13 +266,14 @@ fn collect_bounded_initializer_obligation(
                 ));
         }
         TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_initializer_obligation(owner, element_type, value, proof_plan);
+            collect_bounded_initializer_obligation(program, owner, element_type, value, proof_plan);
         }
         TypeReference::Named(_) => {}
     }
 }
 
 fn collect_bounded_assignment_obligation(
+    program: &Program,
     machine: &Machine,
     state: &State,
     assignment: &Assignment,
@@ -278,9 +287,9 @@ fn collect_bounded_assignment_obligation(
         return;
     };
 
-    let value_constraints = expression_constraints(machine, state, &assignment.value);
+    let value_constraints = expression_constraints(program, machine, state, &assignment.value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
-    let constraints = proof_plan.store_constraints(constraints);
+    let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
     proof_plan
         .obligations
@@ -319,9 +328,9 @@ fn collect_bounded_transition_argument_obligations(
             continue;
         };
 
-        let argument_constraints = expression_constraints(machine, state, argument);
+        let argument_constraints = expression_constraints(program, machine, state, argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
-        let constraints = proof_plan.store_constraints(constraints);
+        let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
         proof_plan
             .obligations
@@ -365,9 +374,9 @@ fn collect_bounded_call_argument_obligations(
             continue;
         };
 
-        let argument_constraints = expression_constraints(machine, state, argument);
+        let argument_constraints = expression_constraints(program, machine, state, argument);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
-        let constraints = proof_plan.store_constraints(constraints);
+        let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
         proof_plan
             .obligations
@@ -388,6 +397,7 @@ fn collect_bounded_call_argument_obligations(
 }
 
 fn collect_bounded_state_return_obligation(
+    program: &Program,
     machine: &Machine,
     state: &State,
     return_type: &TypeReference,
@@ -404,9 +414,9 @@ fn collect_bounded_state_return_obligation(
         return;
     };
 
-    let value_constraints = expression_constraints(machine, state, value);
+    let value_constraints = expression_constraints(program, machine, state, value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
-    let constraints = proof_plan.store_constraints(constraints);
+    let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
     proof_plan
         .obligations
@@ -555,12 +565,13 @@ fn callable_parameters(state: &State) -> impl Iterator<Item = &StateParameter> {
 }
 
 fn expression_constraints(
+    program: &Program,
     machine: &Machine,
     state: &State,
     expression: &Expression,
 ) -> Vec<TypeConstraint> {
     expression_type_reference(machine, state, expression)
-        .map(collect_constraints)
+        .map(|type_reference| collect_constraints(program, type_reference))
         .unwrap_or_default()
 }
 
@@ -601,10 +612,21 @@ fn expression_type_reference<'program>(
         })
 }
 
-fn collect_constraints(type_reference: &TypeReference) -> Vec<TypeConstraint> {
+fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec<TypeConstraint> {
     match type_reference {
-        TypeReference::Constrained { constraints, .. } => constraints.clone(),
-        TypeReference::FixedArray { element_type, .. } => collect_constraints(element_type),
+        TypeReference::Constrained { constraints, .. } => {
+            type_constraints(program, *constraints).to_vec()
+        }
+        TypeReference::FixedArray { element_type, .. } => {
+            collect_constraints(program, element_type)
+        }
         TypeReference::Named(_) => Vec::new(),
     }
+}
+
+fn type_constraints(
+    program: &Program,
+    constraints: omega_core::arena::HandleSpan<TypeConstraint>,
+) -> &[TypeConstraint] {
+    program.type_constraints.span(constraints).unwrap_or(&[])
 }
