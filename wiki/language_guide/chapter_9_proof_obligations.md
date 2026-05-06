@@ -12,6 +12,7 @@ Likely obligations:
 - Every `relax` scope re-establishes all relaxed invariants before exit.
 - Every transition leaving a `relax` scope either re-establishes the invariant or carries an explicit proof obligation into a compatible target.
 - Every generic invariant is instantiated with compile-time or proof-visible facts.
+- Every float invariant is checked as a semantic fact, not treated as an optimization permission.
 
 This maps well onto TLA+ style action checking:
 
@@ -22,3 +23,5 @@ This maps well onto TLA+ style action checking:
 - Relax scopes are local invariant weakening with mandatory restoration.
 
 Invariants are not RTTI. If proof fails, the normal result is a compiler diagnostic, not a hidden runtime tag check. Runtime validation may exist as an explicit debug or proof-emission mode, but it should not define the semantics.
+
+Float invariants are also not fast-math flags. A proof that a value is `finite` or in `range<a, b>` does not automatically permit reassociation, signed-zero erasure, reciprocal transforms, or other approximate rewrites.

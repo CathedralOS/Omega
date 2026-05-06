@@ -19,3 +19,5 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
 - How explicit should weakened machine invariants be in target state signatures?
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
+- What syntax should Omega use for float optimization permissions, separate from float invariants?
+- Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?

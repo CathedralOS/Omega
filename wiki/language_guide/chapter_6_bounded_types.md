@@ -69,6 +69,35 @@ Important runtime rule:
 
 This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
 
+## Float Invariants
+
+Float types need refinements too, but they are trickier than integers.
+
+Omega should assume IEEE semantics by default, then allow extra proof information to be layered on top:
+
+```omega
+owns speed: f32[finite, range<0.0f, 100000.0f>];
+```
+
+Working interpretation:
+
+- `f32` and `f64` are IEEE floats by default.
+- `finite` means the value is not `NaN`, `+inf`, or `-inf`.
+- `range<0.0f, 100000.0f>` is a proof refinement over the numeric value.
+- Float refinements are compile-time proof facts, not runtime metadata.
+- Float ranges should not imply algebraic rewrite permissions.
+
+The last point matters. "This value is finite and in range" is not the same thing as "addition is associative" or "the compiler can ignore signed zero." Floating point has several different concerns that should not be collapsed into one flag.
+
+Omega likely needs two separate layers:
+
+- Semantic invariants: facts that must be true, such as `finite`, `non_nan`, `non_negative`, or `range<a, b>`.
+- Optimization permissions: facts about which rewrites are acceptable, such as reassociation, reciprocal transforms, approximate math, or ignoring signed zero.
+
+Some float optimizations are naturally onion-like: each permission expands the set of legal rewrites. Others are more domain-specific: a program may accept approximate square roots but still care about commutative behavior or signed zero.
+
+For now, bounded float syntax should describe correctness facts only. Optimization policy needs its own syntax or mode later.
+
 ## Rust Comparison
 
 Rust has related pieces, but not this exact feature.
