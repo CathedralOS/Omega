@@ -60,9 +60,15 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     let mut program = Program::default();
 
     for alias in &aliases.items {
+        let mut expansion_stack = vec![alias.name.clone()];
+
         program.invariant_definitions.push(InvariantDefinition {
             name: alias.name.clone(),
-            constraints: lower_type_constraints(&alias.constraints, &aliases, &mut Vec::new())?,
+            constraints: lower_type_constraints(
+                &alias.constraints,
+                &aliases,
+                &mut expansion_stack,
+            )?,
         });
     }
 
