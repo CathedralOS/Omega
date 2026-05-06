@@ -969,7 +969,15 @@ mod tests {
         crate::semantic::validation::validate_program(&program).expect("validation should pass");
         let proof_plan = crate::proof::obligations::build_proof_plan(&program);
 
-        assert_eq!(proof_plan.obligations.len(), 3);
+        assert_eq!(proof_plan.obligations.len(), 4);
+        assert!(proof_plan.obligations.iter().any(|obligation| {
+            matches!(
+                obligation,
+                crate::proof::obligations::ProofObligation::BoundedTransitionArgument(
+                    transition_obligation
+                ) if transition_obligation.parameter == "amount"
+            )
+        }));
     }
 
     #[test]
