@@ -14,5 +14,6 @@ omega-ast = { path = "../omega-ast" }
 omega-graph = { path = "../omega-graph" }
 omega-lexer = { path = "../omega-lexer" }
 omega-parser = { path = "../omega-parser" }
+omega-proof = { path = "../omega-proof" }
 omega-resolve = { path = "../omega-resolve" }
 omega-types = { path = "../omega-types" }

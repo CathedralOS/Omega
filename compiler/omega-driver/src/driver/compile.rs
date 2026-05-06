@@ -17,6 +17,7 @@ use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 use omega_graph::build_source_graph_report;
+use omega_proof::build_proof_surface_report;
 use omega_resolve::build_resolve_report;
 use omega_types::build_type_surface_report;
 
@@ -97,9 +98,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
+        let proof_surface = build_proof_surface_report(&loaded_program.items);
         let proof_plan = build_proof_plan(&program);
         artifacts
-            .write_proof_plan(&proof_plan)
+            .write_proof_report(&proof_surface, &proof_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
         check_proof_plan(&proof_plan)
     })?;
@@ -182,9 +184,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
+        let proof_surface = build_proof_surface_report(&loaded_program.items);
         let proof_plan = build_proof_plan(&program);
         artifacts
-            .write_proof_plan(&proof_plan)
+            .write_proof_report(&proof_surface, &proof_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
         check_proof_plan(&proof_plan)
     })?;

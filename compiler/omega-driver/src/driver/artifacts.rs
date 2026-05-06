@@ -14,6 +14,7 @@ use crate::native::plan::NativePlan;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
+use omega_proof::ProofSurfaceReport;
 use omega_resolve::ResolveReport;
 use omega_types::TypeSurfaceReport;
 
@@ -231,16 +232,48 @@ impl ArtifactWriter {
         self.write("07_graph.txt", &output)
     }
 
-    pub(crate) fn write_proof_plan(&self, proof_plan: &ProofPlan) -> Result<(), Diagnostic> {
+    pub(crate) fn write_proof_report(
+        &self,
+        proof_surface: &ProofSurfaceReport,
+        proof_plan: &ProofPlan,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
         output.push_str("# Omega Proof Plan\n\n");
-        output.push_str(&format!("obligations: {}\n", proof_plan.obligations.len()));
+        output.push_str(&format!(
+            "source invariants: {}\n",
+            proof_surface.invariants.len()
+        ));
+        output.push_str(&format!(
+            "source bounded sites: {}\n",
+            proof_surface.bounded_sites.len()
+        ));
+        output.push_str(&format!(
+            "lowered obligations: {}\n",
+            proof_plan.obligations.len()
+        ));
         output.push_str(&format!(
             "constraints: {}\n\n",
             proof_plan.type_constraints.len()
         ));
 
+        output.push_str("## Source Invariants\n");
+        for (_, invariant) in proof_surface.invariants.iter() {
+            output.push_str(&format!(
+                "- invariant {} = {}\n",
+                invariant.name, invariant.constraints
+            ));
+        }
+
+        output.push_str("\n## Source Bounded Sites\n");
+        for (_, bounded_site) in proof_surface.bounded_sites.iter() {
+            output.push_str(&format!(
+                "- {} : {} {}\n",
+                bounded_site.owner, bounded_site.base_type, bounded_site.constraints
+            ));
+        }
+
+        output.push_str("\n## Lowered Obligations\n");
         for obligation in &proof_plan.obligations {
             write_proof_obligation(&mut output, proof_plan, obligation);
         }
