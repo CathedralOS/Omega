@@ -105,8 +105,13 @@ impl Parser<'_> {
     fn parse_state_signature(&mut self) -> Result<StateSignature, ParseError> {
         let name = self.expect_identifier()?;
         let parameters = self.parse_state_parameters()?;
+        let return_type = self.parse_optional_return_type()?;
 
-        Ok(StateSignature { name, parameters })
+        Ok(StateSignature {
+            name,
+            parameters,
+            return_type,
+        })
     }
 
     fn parse_state_parameters(&mut self) -> Result<Vec<StateParameter>, ParseError> {
@@ -119,15 +124,31 @@ impl Parser<'_> {
         }
 
         loop {
-            let is_mutable = self.consume("mut");
-            let name = self.expect_identifier()?;
-            self.expect(":")?;
-            let type_reference = self.parse_type_reference()?;
+            let (name, type_reference, is_const, is_mutable, is_self) = if self.consume("&") {
+                self.expect("mut")?;
+                self.expect("self")?;
+                (
+                    String::from("self"),
+                    TypeReference::named("Self"),
+                    false,
+                    true,
+                    true,
+                )
+            } else {
+                let is_mutable = self.consume("mut");
+                let name = self.expect_identifier()?;
+                self.expect(":")?;
+                let is_const = self.consume("const");
+                let type_reference = self.parse_type_reference()?;
+                (name, type_reference, is_const, is_mutable, false)
+            };
 
             parameters.push(StateParameter {
                 name,
                 type_reference,
+                is_const,
                 is_mutable,
+                is_self,
             });
 
             if self.consume(")") {
@@ -138,6 +159,14 @@ impl Parser<'_> {
         }
 
         Ok(parameters)
+    }
+
+    fn parse_optional_return_type(&mut self) -> Result<Option<TypeReference>, ParseError> {
+        if self.consume("->") {
+            return Ok(Some(self.parse_type_reference()?));
+        }
+
+        Ok(None)
     }
 
     fn parse_type_reference(&mut self) -> Result<TypeReference, ParseError> {
@@ -153,7 +182,47 @@ impl Parser<'_> {
             });
         }
 
-        Ok(TypeReference::named(self.expect_identifier()?))
+        let mut type_reference = TypeReference::named(self.expect_identifier()?);
+
+        if self.check("[") {
+            type_reference = TypeReference::Constrained {
+                base_type: Box::new(type_reference),
+                constraints: self.collect_type_constraints()?,
+            };
+        }
+
+        Ok(type_reference)
+    }
+
+    fn collect_type_constraints(&mut self) -> Result<String, ParseError> {
+        self.expect("[")?;
+
+        let mut depth = 1usize;
+        let mut parts = Vec::new();
+
+        while depth > 0 {
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("unterminated type constraints"));
+            };
+
+            if token.lexeme == "[" {
+                depth += 1;
+            } else if token.lexeme == "]" {
+                depth -= 1;
+
+                if depth == 0 {
+                    break;
+                }
+            }
+
+            parts.push(token.lexeme.clone());
+        }
+
+        if parts.is_empty() {
+            Err(self.error_here("expected type constraints"))
+        } else {
+            Ok(parts.join(" "))
+        }
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {
@@ -221,6 +290,7 @@ impl Parser<'_> {
         } else {
             Vec::new()
         };
+        let return_type = self.parse_optional_return_type()?;
 
         self.expect("{")?;
 
@@ -237,11 +307,20 @@ impl Parser<'_> {
         Ok(State {
             name,
             parameters,
+            return_type,
             statements,
         })
     }
 
     fn parse_transition(&mut self) -> Result<Statement, ParseError> {
+        if self.consume("when") {
+            return Ok(Statement::Transition(Transition {
+                target: TransitionTarget::Terminal,
+                continuation: None,
+                condition: Some(self.collect_condition_until_transition_end()?),
+            }));
+        }
+
         if self.check("}") {
             return Ok(Statement::Transition(Transition {
                 target: TransitionTarget::Terminal,
@@ -272,7 +351,23 @@ impl Parser<'_> {
 
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
         if self.consume("self") {
-            return Ok(TransitionTarget::SelfTarget);
+            if !self.check(".") {
+                return Ok(TransitionTarget::SelfTarget);
+            }
+
+            let mut path = vec![String::from("self")];
+
+            while self.consume(".") {
+                path.push(self.expect_identifier()?);
+            }
+
+            let arguments = if self.consume("(") {
+                self.parse_arguments_after_open_paren()?
+            } else {
+                Vec::new()
+            };
+
+            return Ok(TransitionTarget::Named { path, arguments });
         }
 
         let mut path = vec![self.expect_identifier()?];
@@ -281,16 +376,32 @@ impl Parser<'_> {
             path.push(self.expect_identifier()?);
         }
 
-        if self.check("(") {
-            self.skip_parenthesized_arguments()?;
-        }
+        let arguments = if self.consume("(") {
+            self.parse_arguments_after_open_paren()?
+        } else {
+            Vec::new()
+        };
 
-        Ok(TransitionTarget::Named(path))
+        Ok(TransitionTarget::Named { path, arguments })
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         if self.consume("let") {
             return self.parse_local_data();
+        }
+
+        if self.check_kind(TokenKind::Integer)
+            || self.check_kind(TokenKind::Float)
+            || self.check_kind(TokenKind::String)
+        {
+            let expression = self.parse_expression()?;
+
+            if self.check("}") {
+                return Ok(Statement::Expression(expression));
+            }
+
+            self.expect(";")?;
+            return Ok(Statement::Expression(expression));
         }
 
         let first_name = self.expect_identifier()?;
@@ -312,6 +423,10 @@ impl Parser<'_> {
                 target: first_name,
                 arguments,
             }));
+        }
+
+        if self.check("}") {
+            return Ok(Statement::Expression(Expression::Name(vec![first_name])));
         }
 
         self.expect(".")?;
@@ -350,6 +465,13 @@ impl Parser<'_> {
     }
 
     fn parse_call_arguments(&mut self) -> Result<Vec<Expression>, ParseError> {
+        let arguments = self.parse_arguments_after_open_paren()?;
+        self.expect(";")?;
+
+        Ok(arguments)
+    }
+
+    fn parse_arguments_after_open_paren(&mut self) -> Result<Vec<Expression>, ParseError> {
         let mut arguments = Vec::new();
 
         if !self.check(")") {
@@ -363,7 +485,6 @@ impl Parser<'_> {
         }
 
         self.expect(")")?;
-        self.expect(";")?;
 
         Ok(arguments)
     }
@@ -403,6 +524,7 @@ impl Parser<'_> {
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
+                TokenKind::Float => Ok(Expression::Float(token.lexeme.clone())),
                 TokenKind::Identifier => {
                     let mut path = vec![token.lexeme.clone()];
 
@@ -521,26 +643,6 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn skip_parenthesized_arguments(&mut self) -> Result<(), ParseError> {
-        self.expect("(")?;
-
-        let mut depth = 1usize;
-
-        while let Some(token) = self.advance() {
-            if token.lexeme == "(" {
-                depth += 1;
-            } else if token.lexeme == ")" {
-                depth -= 1;
-
-                if depth == 0 {
-                    return Ok(());
-                }
-            }
-        }
-
-        Err(ParseError::new("unterminated transition arguments"))
-    }
-
     fn collect_condition_until_semicolon(&mut self) -> Result<String, ParseError> {
         let mut parts = Vec::new();
 
@@ -550,6 +652,25 @@ impl Parser<'_> {
             };
             parts.push(token.lexeme.clone());
         }
+
+        if parts.is_empty() {
+            Err(self.error_here("expected transition condition"))
+        } else {
+            Ok(parts.join(" "))
+        }
+    }
+
+    fn collect_condition_until_transition_end(&mut self) -> Result<String, ParseError> {
+        let mut parts = Vec::new();
+
+        while !self.check(";") && !self.check("}") {
+            let Some(token) = self.advance() else {
+                return Err(self.error_here("expected transition condition"));
+            };
+            parts.push(token.lexeme.clone());
+        }
+
+        let _ = self.consume(";");
 
         if parts.is_empty() {
             Err(self.error_here("expected transition condition"))
@@ -569,6 +690,10 @@ impl Parser<'_> {
 
     fn check(&self, lexeme: &str) -> bool {
         self.peek().is_some_and(|token| token.lexeme == lexeme)
+    }
+
+    fn check_kind(&self, kind: TokenKind) -> bool {
+        self.peek().is_some_and(|token| token.kind == kind)
     }
 
     fn expect(&mut self, lexeme: &str) -> Result<(), ParseError> {

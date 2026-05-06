@@ -103,6 +103,29 @@ fn validate_state_statement(
         Statement::Call(call) => {
             validate_call(call, machine, machine_symbols, symbols, diagnostics)
         }
+        Statement::Expression(expression) => {
+            let Some(state) = machine_symbols.state(state_name) else {
+                return;
+            };
+
+            let Some(return_type) = &state.return_type else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{state_name}` has a terminal expression but no return type",
+                    machine.name
+                )));
+                return;
+            };
+
+            validate_expression_type(
+                expression,
+                return_type,
+                diagnostics,
+                format!(
+                    "machine `{}` state `{state_name}` terminal expression",
+                    machine.name
+                ),
+            );
+        }
         Statement::LocalData(local_data) => validate_type_reference(
             &local_data.type_reference,
             symbols,
@@ -113,10 +136,10 @@ fn validate_state_statement(
             ),
         ),
         Statement::Transition(transition) => {
-            validate_transition_target(&transition.target, machine_symbols, diagnostics);
+            validate_transition_target(&transition.target, machine_symbols, symbols, diagnostics);
 
             if let Some(continuation) = &transition.continuation {
-                validate_transition_target(continuation, machine_symbols, diagnostics);
+                validate_transition_target(continuation, machine_symbols, symbols, diagnostics);
             }
         }
     }
@@ -132,6 +155,7 @@ fn validate_callable_state_signatures(
             machine.states.iter().map(|state| StateSignature {
                 name: state.name.clone(),
                 parameters: state.parameters.clone(),
+                return_type: state.return_type.clone(),
             }),
             symbols,
             diagnostics,
@@ -160,6 +184,10 @@ fn validate_state_signature_types(
         validate_state_parameter_names(&signature, &owner, diagnostics);
 
         for parameter in &signature.parameters {
+            if parameter.is_self {
+                continue;
+            }
+
             validate_type_reference(
                 &parameter.type_reference,
                 symbols,
@@ -168,6 +196,15 @@ fn validate_state_signature_types(
                     "{owner} state `{}` parameter `{}`",
                     signature.name, parameter.name
                 ),
+            );
+        }
+
+        if let Some(return_type) = &signature.return_type {
+            validate_type_reference(
+                return_type,
+                symbols,
+                diagnostics,
+                format!("{owner} state `{}` return type", signature.name),
             );
         }
     }
@@ -281,6 +318,9 @@ fn validate_type_reference(
     owner: String,
 ) {
     match type_reference {
+        TypeReference::Constrained { base_type, .. } => {
+            validate_type_reference(base_type, symbols, diagnostics, owner);
+        }
         TypeReference::FixedArray { element_type, .. } => {
             validate_type_reference(element_type, symbols, diagnostics, owner);
         }
@@ -397,6 +437,19 @@ fn validate_call(
         return;
     };
 
+    if receiver == "self" {
+        let Some(state) = machine_symbols.state(&call.target) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has no local state `{}`",
+                current_machine.name, call.target
+            )));
+            return;
+        };
+
+        validate_call_arguments(call, state.name.as_str(), &state.parameters, diagnostics);
+        return;
+    }
+
     let receiver_type = machine_symbols.contained_type(receiver);
 
     if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
@@ -452,17 +505,22 @@ fn validate_call_arguments(
     parameters: &[StateParameter],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if call.arguments.len() != parameters.len() {
+    let callable_parameters = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+
+    if call.arguments.len() != callable_parameters.len() {
         diagnostics.push(Diagnostic::error(format!(
             "state `{}` expects {} argument(s), got {}",
             target_name,
-            parameters.len(),
+            callable_parameters.len(),
             call.arguments.len()
         )));
         return;
     }
 
-    for (argument, parameter) in call.arguments.iter().zip(parameters.iter()) {
+    for (argument, parameter) in call.arguments.iter().zip(callable_parameters.iter()) {
         if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` must be passed with `mut`",
@@ -499,6 +557,7 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
     }
 
     match type_reference {
+        TypeReference::Constrained { base_type, .. } => argument_matches_type(argument, base_type),
         TypeReference::FixedArray { .. } => matches!(
             argument,
             Expression::ArrayLiteral(_) | Expression::Indexed(_) | Expression::Name(_)
@@ -507,6 +566,8 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument, Expression::String(_))
                     && primitive_type == PrimitiveType::String
+                    || matches!(argument, Expression::Float(_))
+                        && primitive_type.accepts_float_literal()
                     || matches!(argument, Expression::Integer(_))
                         && primitive_type.accepts_integer_literal()
                     || matches!(
@@ -529,10 +590,26 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
     }
 }
 
+fn validate_expression_type(
+    expression: &Expression,
+    type_reference: &TypeReference,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    if !argument_matches_type(expression, type_reference) {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} expects `{}`, got `{}`",
+            type_reference.display_name(),
+            expression_type_name(expression)
+        )));
+    }
+}
+
 fn expression_type_name(argument: &Expression) -> &'static str {
     match argument {
         Expression::ArrayLiteral(_) => "array literal",
         Expression::Binary(_) => "binary expression",
+        Expression::Float(_) => "float literal",
         Expression::Indexed(_) => "indexed value",
         Expression::Integer(_) => "integer literal",
         Expression::Mutable(inner_expression) => expression_type_name(inner_expression),
@@ -545,27 +622,86 @@ fn expression_type_name(argument: &Expression) -> &'static str {
 fn validate_transition_target(
     target: &TransitionTarget,
     machine_symbols: &MachineSymbols<'_>,
+    symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let TransitionTarget::Named(path) = target else {
+    let TransitionTarget::Named { path, arguments } = target else {
         return;
     };
 
     if path.len() == 1 {
-        if !machine_symbols.has_state(path[0].as_str()) {
+        let Some(state) = machine_symbols.state(path[0].as_str()) else {
             diagnostics.push(Diagnostic::error(format!(
                 "unknown state transition target `{}`",
                 path[0]
             )));
-        }
+            return;
+        };
+
+        validate_transition_arguments(
+            arguments,
+            state.name.as_str(),
+            &state.parameters,
+            diagnostics,
+        );
 
         return;
     }
 
-    if machine_symbols.contained_type(path[0].as_str()).is_none() {
+    if path.len() == 2 && path[0] == "self" {
+        let Some(state) = machine_symbols.state(path[1].as_str()) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "unknown state transition target `{}`",
+                path[1]
+            )));
+            return;
+        };
+
+        validate_transition_arguments(
+            arguments,
+            state.name.as_str(),
+            &state.parameters,
+            diagnostics,
+        );
+        return;
+    }
+
+    let Some(receiver_type) = machine_symbols.contained_type(path[0].as_str()) else {
         diagnostics.push(Diagnostic::error(format!(
             "unknown nested transition receiver `{}`",
             path[0]
         )));
+        return;
+    };
+
+    if path.len() == 2 {
+        let Some(machine) = symbols.machine(receiver_type) else {
+            return;
+        };
+
+        let Some(state) = machine.states.iter().find(|state| state.name == path[1]) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has no state `{}`",
+                machine.name, path[1]
+            )));
+            return;
+        };
+
+        validate_transition_arguments(arguments, &state.name, &state.parameters, diagnostics);
     }
+}
+
+fn validate_transition_arguments(
+    arguments: &[Expression],
+    target_name: &str,
+    parameters: &[StateParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let call = crate::ir::statement::Call {
+        receiver: None,
+        target: target_name.to_owned(),
+        arguments: arguments.to_vec(),
+    };
+
+    validate_call_arguments(&call, target_name, parameters, diagnostics);
 }

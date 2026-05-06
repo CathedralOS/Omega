@@ -2,6 +2,7 @@
 pub enum Statement {
     Assignment(Assignment),
     Call(Call),
+    Expression(crate::ast::expression::Expression),
     LocalData(LocalData),
     Transition(Transition),
 }
@@ -34,7 +35,10 @@ pub struct Transition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
-    Named(Vec<String>),
+    Named {
+        path: Vec<String>,
+        arguments: Vec<crate::ast::expression::Expression>,
+    },
     SelfTarget,
     Terminal,
 }

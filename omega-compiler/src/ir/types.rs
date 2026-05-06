@@ -1,5 +1,9 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
+    Constrained {
+        base_type: Box<TypeReference>,
+        constraints: String,
+    },
     FixedArray {
         element_type: Box<TypeReference>,
         length: usize,
@@ -22,6 +26,12 @@ pub enum PrimitiveType {
 impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
+            TypeReference::Constrained {
+                base_type,
+                constraints,
+            } => {
+                format!("{}[{}]", base_type.display_name(), constraints)
+            }
             TypeReference::FixedArray {
                 element_type,
                 length,
@@ -33,11 +43,11 @@ impl TypeReference {
     }
 
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
-        let TypeReference::Named(name) = self else {
-            return None;
-        };
-
-        PrimitiveType::from_name(name)
+        match self {
+            TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
+            TypeReference::Named(name) => PrimitiveType::from_name(name),
+            TypeReference::FixedArray { .. } => None,
+        }
     }
 }
 
@@ -71,5 +81,9 @@ impl PrimitiveType {
 
     pub fn accepts_integer_literal(self) -> bool {
         matches!(self, Self::I32 | Self::U32 | Self::U64 | Self::Usize)
+    }
+
+    pub fn accepts_float_literal(self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
     }
 }

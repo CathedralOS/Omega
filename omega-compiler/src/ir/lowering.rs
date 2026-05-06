@@ -123,6 +123,11 @@ fn lower_state_signature(
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
         name: signature.name.clone(),
+        return_type: signature
+            .return_type
+            .as_ref()
+            .map(lower_type_reference)
+            .transpose()?,
         parameters: signature
             .parameters
             .iter()
@@ -130,7 +135,9 @@ fn lower_state_signature(
                 Ok(StateParameter {
                     name: parameter.name.clone(),
                     type_reference: lower_type_reference(&parameter.type_reference)?,
+                    is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
+                    is_self: parameter.is_self,
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?,
@@ -141,6 +148,13 @@ fn lower_type_reference(
     type_reference: &ast::types::TypeReference,
 ) -> Result<TypeReference, Diagnostic> {
     match type_reference {
+        ast::types::TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => Ok(TypeReference::Constrained {
+            base_type: Box::new(lower_type_reference(base_type)?),
+            constraints: constraints.clone(),
+        }),
         ast::types::TypeReference::FixedArray {
             element_type,
             length,
@@ -161,6 +175,11 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
 
     Ok(State {
         name: state.name.clone(),
+        return_type: state
+            .return_type
+            .as_ref()
+            .map(lower_type_reference)
+            .transpose()?,
         parameters: state
             .parameters
             .iter()
@@ -168,7 +187,9 @@ fn lower_state(state: &ast::item::State) -> Result<State, Diagnostic> {
                 Ok(StateParameter {
                     name: parameter.name.clone(),
                     type_reference: lower_type_reference(&parameter.type_reference)?,
+                    is_const: parameter.is_const,
                     is_mutable: parameter.is_mutable,
+                    is_self: parameter.is_self,
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?,
@@ -193,17 +214,21 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
                 .map(lower_expression)
                 .collect::<Result<Vec<_>, _>>()?,
         })),
+        ast::statement::Statement::Expression(expression) => {
+            Ok(Statement::Expression(lower_expression(expression)?))
+        }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
             name: local_data.name.clone(),
             type_reference: lower_type_reference(&local_data.type_reference)?,
         })),
         ast::statement::Statement::Transition(transition) => {
             Ok(Statement::Transition(Transition {
-                target: lower_transition_target(&transition.target),
+                target: lower_transition_target(&transition.target)?,
                 continuation: transition
                     .continuation
                     .as_ref()
-                    .map(lower_transition_target),
+                    .map(lower_transition_target)
+                    .transpose()?,
                 condition: transition.condition.clone(),
             }))
         }
@@ -232,6 +257,7 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             })))
         }
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
+        ast::expression::Expression::Float(value) => Ok(Expression::Float(value.clone())),
         ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
             Box::new(lower_expression(inner_expression)?),
         )),
@@ -261,10 +287,20 @@ fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOpe
     }
 }
 
-fn lower_transition_target(target: &ast::statement::TransitionTarget) -> TransitionTarget {
+fn lower_transition_target(
+    target: &ast::statement::TransitionTarget,
+) -> Result<TransitionTarget, Diagnostic> {
     match target {
-        ast::statement::TransitionTarget::Named(path) => TransitionTarget::Named(path.clone()),
-        ast::statement::TransitionTarget::SelfTarget => TransitionTarget::SelfTarget,
-        ast::statement::TransitionTarget::Terminal => TransitionTarget::Terminal,
+        ast::statement::TransitionTarget::Named { path, arguments } => {
+            Ok(TransitionTarget::Named {
+                path: path.clone(),
+                arguments: arguments
+                    .iter()
+                    .map(lower_expression)
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            })
+        }
+        ast::statement::TransitionTarget::SelfTarget => Ok(TransitionTarget::SelfTarget),
+        ast::statement::TransitionTarget::Terminal => Ok(TransitionTarget::Terminal),
     }
 }

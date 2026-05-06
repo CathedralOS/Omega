@@ -4,6 +4,7 @@ use crate::ir::expression::Expression;
 pub enum Statement {
     Assignment(Assignment),
     Call(Call),
+    Expression(Expression),
     LocalData(LocalData),
     Transition(Transition),
 }
@@ -36,7 +37,10 @@ pub struct Transition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
-    Named(Vec<String>),
+    Named {
+        path: Vec<String>,
+        arguments: Vec<Expression>,
+    },
     SelfTarget,
     Terminal,
 }

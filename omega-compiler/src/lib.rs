@@ -86,11 +86,17 @@ mod tests {
 
         assert_eq!(
             transition.target,
-            TransitionTarget::Named(vec!["dungeon".to_owned(), "entry".to_owned()])
+            TransitionTarget::Named {
+                path: vec!["dungeon".to_owned(), "entry".to_owned()],
+                arguments: Vec::new(),
+            }
         );
         assert_eq!(
             transition.continuation,
-            Some(TransitionTarget::Named(vec!["shutdown".to_owned()]))
+            Some(TransitionTarget::Named {
+                path: vec!["shutdown".to_owned()],
+                arguments: Vec::new(),
+            })
         );
     }
 
@@ -732,6 +738,113 @@ mod tests {
         assert_eq!(transition.target, TransitionTarget::Terminal);
         assert_eq!(transition.continuation, None);
         assert_eq!(transition.condition, None);
+    }
+
+    #[test]
+    fn parses_typed_state_final_expression_and_self_parameter() {
+        let tokens = Lexer::new(
+            r#"
+            machine Math {
+                state clamp_done(&mut self, value: f32) -> f32 {
+                    value
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+
+        assert_eq!(
+            machine.states[0].return_type,
+            Some(TypeReference::named("f32"))
+        );
+        assert!(machine.states[0].parameters[0].is_self);
+        assert_eq!(machine.states[0].parameters[1].name, "value");
+
+        let Statement::Expression(Expression::Name(path)) = &machine.states[0].statements[0] else {
+            panic!("expected final expression");
+        };
+        assert_eq!(path, &vec!["value".to_owned()]);
+    }
+
+    #[test]
+    fn parses_transition_arguments_and_guarded_terminal_completion() {
+        let tokens = Lexer::new(
+            r#"
+            machine Math {
+                state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
+                    -> self.clamp_low(min) when value < min;
+                    -> when value == min
+                }
+
+                state clamp_low(&mut self, min: f32) -> f32 {
+                    min
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+
+        let Statement::Transition(first_transition) = &machine.states[0].statements[0] else {
+            panic!("expected transition");
+        };
+        let TransitionTarget::Named { path, arguments } = &first_transition.target else {
+            panic!("expected named transition target");
+        };
+        assert_eq!(path, &vec!["self".to_owned(), "clamp_low".to_owned()]);
+        assert_eq!(arguments.len(), 1);
+
+        let Statement::Transition(second_transition) = &machine.states[0].statements[1] else {
+            panic!("expected terminal transition");
+        };
+        assert_eq!(second_transition.target, TransitionTarget::Terminal);
+        assert_eq!(second_transition.condition, Some("value == min".to_owned()));
+    }
+
+    #[test]
+    fn parses_const_parameters_and_bounded_types() {
+        let tokens = Lexer::new(
+            r#"
+            machine Math {
+                state clamp(value: i32, min: const i32, max: const i32) -> i32[range<min, max>] {
+                    value
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected a machine");
+        };
+        let TypeReference::Named(min_type) = &machine.states[0].parameters[1].type_reference else {
+            panic!("expected named const parameter type");
+        };
+        let TypeReference::Constrained {
+            base_type,
+            constraints,
+        } = machine.states[0]
+            .return_type
+            .as_ref()
+            .expect("return type should exist")
+        else {
+            panic!("expected constrained return type");
+        };
+
+        assert!(machine.states[0].parameters[1].is_const);
+        assert_eq!(min_type, "i32");
+        assert_eq!(base_type.as_ref(), &TypeReference::named("i32"));
+        assert_eq!(constraints, "range < min , max >");
     }
 
     #[test]

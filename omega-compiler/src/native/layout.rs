@@ -230,6 +230,7 @@ impl<'program> LayoutBuilder<'program> {
         type_reference: &TypeReference,
     ) -> Result<TypeLayout, Diagnostic> {
         match type_reference {
+            TypeReference::Constrained { base_type, .. } => self.layout_type_reference(base_type),
             TypeReference::FixedArray {
                 element_type,
                 length,

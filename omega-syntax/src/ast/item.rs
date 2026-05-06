@@ -59,6 +59,7 @@ pub struct OwnedData {
 pub struct State {
     pub name: String,
     pub parameters: Vec<StateParameter>,
+    pub return_type: Option<crate::ast::types::TypeReference>,
     pub statements: Vec<crate::ast::statement::Statement>,
 }
 
@@ -72,11 +73,14 @@ pub struct Platform {
 pub struct StateSignature {
     pub name: String,
     pub parameters: Vec<StateParameter>,
+    pub return_type: Option<crate::ast::types::TypeReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub name: String,
     pub type_reference: crate::ast::types::TypeReference,
+    pub is_const: bool,
     pub is_mutable: bool,
+    pub is_self: bool,
 }

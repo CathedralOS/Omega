@@ -47,6 +47,7 @@ The Rust compiler is intentionally small, but it now has real pipeline seams:
 
 - lexer with spans and structured errors
 - parser for top-level items, machines, platforms, states, calls, and transition arrows
+- syntax support for typed states, final-expression completion, `&mut self`, `const` parameters, and bounded type annotations
 - AST-to-IR lowering
 - semantic validation for entry point, receivers, platform states, and transition targets
 

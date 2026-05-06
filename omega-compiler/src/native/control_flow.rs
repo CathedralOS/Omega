@@ -32,6 +32,7 @@ pub struct Operation {
 pub enum OperationKind {
     Assignment,
     Call,
+    Expression,
     LocalData,
 }
 
@@ -122,6 +123,16 @@ fn split_state_statements(
                     kind: OperationKind::Call,
                 });
             }
+            Statement::Expression(_) => {
+                if transition_section_started {
+                    return Err(non_trailing_transition_error(machine));
+                }
+
+                operations.push(Operation {
+                    statement_index,
+                    kind: OperationKind::Expression,
+                });
+            }
             Statement::LocalData(_) => {
                 if transition_section_started {
                     return Err(non_trailing_transition_error(machine));
@@ -162,8 +173,10 @@ fn plan_transition_target(
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
-        TransitionTarget::Named(path) if path.len() == 1 => {
-            let name = path[0].clone();
+        TransitionTarget::Named { path, .. }
+            if path.len() == 1 || path.len() == 2 && path[0] == "self" =>
+        {
+            let name = path.last().expect("named transition has a state").clone();
             let index = state_indexes
                 .iter()
                 .find(|(state_name, _)| *state_name == name)
@@ -174,11 +187,13 @@ fn plan_transition_target(
 
             Ok(PlannedTransitionTarget::State { index, name })
         }
-        TransitionTarget::Named(path) if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
-            receiver: path[0].clone(),
-            state: path[1].clone(),
-        }),
-        TransitionTarget::Named(path) => Err(Diagnostic::error(format!(
+        TransitionTarget::Named { path, .. } if path.len() == 2 => {
+            Ok(PlannedTransitionTarget::Nested {
+                receiver: path[0].clone(),
+                state: path[1].clone(),
+            })
+        }
+        TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
             "unsupported transition target `{}`",
             path.join(".")
         ))),

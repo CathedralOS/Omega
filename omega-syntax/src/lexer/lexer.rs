@@ -35,7 +35,7 @@ impl<'source> Lexer<'source> {
             }
 
             if character.is_ascii_digit() {
-                tokens.push(self.lex_integer(start, character));
+                tokens.push(self.lex_number(start, character));
                 continue;
             }
 
@@ -77,8 +77,9 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    fn lex_integer(&mut self, start: usize, first: char) -> Token {
+    fn lex_number(&mut self, start: usize, first: char) -> Token {
         let mut end = start + first.len_utf8();
+        let mut is_float = false;
 
         while let Some((next_index, next)) = self.chars.peek().copied() {
             if next.is_ascii_digit() {
@@ -89,8 +90,40 @@ impl<'source> Lexer<'source> {
             }
         }
 
+        if self.peek_character() == Some('.') {
+            let mut clone = self.chars.clone();
+            clone.next();
+
+            if matches!(clone.peek(), Some((_, character)) if character.is_ascii_digit()) {
+                is_float = true;
+
+                if let Some((dot_index, dot)) = self.chars.next() {
+                    end = dot_index + dot.len_utf8();
+                }
+
+                while let Some((next_index, next)) = self.chars.peek().copied() {
+                    if next.is_ascii_digit() {
+                        end = next_index + next.len_utf8();
+                        self.chars.next();
+                    } else {
+                        break;
+                    }
+                }
+
+                if self.peek_character() == Some('f') {
+                    if let Some((suffix_index, suffix)) = self.chars.next() {
+                        end = suffix_index + suffix.len_utf8();
+                    }
+                }
+            }
+        }
+
         Token {
-            kind: TokenKind::Integer,
+            kind: if is_float {
+                TokenKind::Float
+            } else {
+                TokenKind::Integer
+            },
             lexeme: self.source[start..end].to_owned(),
             span: Span::new(start, end),
         }
@@ -142,9 +175,17 @@ impl<'source> Lexer<'source> {
     fn lex_symbol(&mut self, start: usize, first: char) -> Token {
         let mut end = start + first.len_utf8();
 
-        if (first == ':' && self.peek_character() == Some(':'))
-            || (first == '-' && self.peek_character() == Some('>'))
-        {
+        if matches!(
+            (first, self.peek_character()),
+            (':', Some(':'))
+                | ('-', Some('>'))
+                | ('=', Some('='))
+                | ('!', Some('='))
+                | ('<', Some('='))
+                | ('>', Some('='))
+                | ('&', Some('&'))
+                | ('|', Some('|'))
+        ) {
             if let Some((next_index, next)) = self.chars.next() {
                 end = next_index + next.len_utf8();
             }
