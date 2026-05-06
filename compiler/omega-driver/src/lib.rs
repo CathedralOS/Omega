@@ -872,6 +872,134 @@ mod tests {
     }
 
     #[test]
+    fn parses_targets_capabilities_and_generic_types() {
+        let tokens = Lexer::new(
+            r#"
+            target local_unchecked {
+                host: StandardHost {
+                    stdout = enabled
+                    filesystem = sandbox("./")
+                }
+
+                trust host_contracts
+                trust unchecked invariant_proofs
+            }
+
+            capability Stdout {
+                state write(buf: Slice<u8>) -> Result<(), IOError>
+                    requires buf.initialized
+                    ensures result.Ok
+                    trusted host
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let Item::Target(target) = &parsed.items[0] else {
+            panic!("expected a target");
+        };
+        let Item::Capability(capability) = &parsed.items[1] else {
+            panic!("expected a capability");
+        };
+
+        assert_eq!(target.name, "local_unchecked");
+        assert_eq!(
+            target
+                .host
+                .as_ref()
+                .expect("host should exist")
+                .settings
+                .len(),
+            2
+        );
+        assert_eq!(target.trust_policies.len(), 2);
+
+        let crate::ast::item::CapabilityMember::State(state) = &capability.members[0] else {
+            panic!("expected capability state");
+        };
+        assert_eq!(state.contracts.len(), 3);
+
+        let TypeReference::Generic {
+            base_name,
+            arguments,
+        } = &state.signature.parameters[0].type_reference
+        else {
+            panic!("expected generic parameter type");
+        };
+        assert_eq!(base_name, "Slice");
+        assert_eq!(arguments, &vec![TypeReference::named("u8")]);
+
+        let TypeReference::Generic {
+            base_name,
+            arguments,
+        } = state
+            .signature
+            .return_type
+            .as_ref()
+            .expect("return type should exist")
+        else {
+            panic!("expected generic return type");
+        };
+        assert_eq!(base_name, "Result");
+        assert_eq!(
+            arguments,
+            &vec![TypeReference::Unit, TypeReference::named("IOError")]
+        );
+    }
+
+    #[test]
+    fn builds_trust_report_from_targets_and_capabilities() {
+        let tokens = Lexer::new(
+            r#"
+            target local_unchecked {
+                host: StandardHost {
+                    stdout = enabled
+                }
+
+                trust host_contracts
+                trust unchecked invariant_proofs
+            }
+
+            capability Process {
+                state exit(return_code: i32) -> Never
+                    requires target_accepts_exit_code(return_code)
+                    ensures process_terminated
+                    trusted host
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let trust_report = crate::driver::trust::build_trust_report(&parsed.items);
+
+        assert_eq!(trust_report.targets.len(), 1);
+        assert_eq!(trust_report.trusted_contracts.len(), 1);
+        assert_eq!(trust_report.unchecked_policies.len(), 1);
+
+        let (_, target) = trust_report
+            .targets
+            .iter()
+            .next()
+            .expect("target should exist");
+        assert_eq!(target.host_provider, "StandardHost");
+        assert_eq!(target.checked_trusts, 1);
+        assert_eq!(target.unchecked_trusts, 1);
+
+        let (_, contract) = trust_report
+            .trusted_contracts
+            .iter()
+            .next()
+            .expect("trusted contract should exist");
+        assert_eq!(contract.capability, "Process");
+        assert_eq!(contract.state, "exit");
+        assert_eq!(contract.trust_level, "host");
+        assert_eq!(contract.requires_count, 1);
+        assert_eq!(contract.ensures_count, 1);
+    }
+
+    #[test]
     fn expands_invariant_aliases_during_lowering() {
         let tokens = Lexer::new(
             r#"
