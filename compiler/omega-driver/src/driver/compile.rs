@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::ast::item::{Item, UseItem};
+use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
 use crate::driver::artifacts::ArtifactWriter;
@@ -338,8 +338,24 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         let item_count = ast_file.items.len();
 
         for item in &ast_file.items {
-            if let Item::Use(use_item) = item {
-                pending.push(resolve_use(&root_dir, use_item));
+            match item {
+                Item::Use(use_item) => {
+                    pending.push(resolve_source_path(&root_dir, &use_item.path));
+                }
+                Item::Target(target) => {
+                    if let Some(host) = &target.host {
+                        if is_bundled_omega_path(&host.provider) {
+                            pending.push(resolve_source_path(&root_dir, &host.provider));
+                        }
+                    }
+
+                    for trust_policy in &target.trust_policies {
+                        if is_bundled_omega_path(&trust_policy.path) {
+                            pending.push(resolve_source_path(&root_dir, &trust_policy.path));
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -357,13 +373,9 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
     })
 }
 
-fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
-    let mut segments = use_item.path.iter();
-    let mut path = if use_item
-        .path
-        .first()
-        .is_some_and(|segment| segment == "omega")
-    {
+fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
+    let mut segments = source_path.iter();
+    let mut path = if is_bundled_omega_path(source_path) {
         segments.next();
         bundled_omega_root()
     } else {
@@ -376,6 +388,10 @@ fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
 
     path.set_extension("omg");
     path
+}
+
+fn is_bundled_omega_path(path: &[String]) -> bool {
+    path.first().is_some_and(|segment| segment == "omega")
 }
 
 fn bundled_omega_root() -> PathBuf {

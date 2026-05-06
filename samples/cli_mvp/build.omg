@@ -2,12 +2,6 @@
 //
 // Build configuration is Omega source. No TOML/YAML side language.
 
-use omega::host::contracts;
-use omega::host::darwin;
-use omega::host::linux;
-use omega::host::standard;
-use omega::host::windows;
-//
 // Hello world needs only two host capabilities:
 //
 // - stdout.write_line: writes initialized UTF-8 bytes to process stdout.
@@ -20,7 +14,7 @@ use omega::host::windows;
 //   ExitProcess(code).
 
 target cross_platform_cli {
-    host: StandardHost {
+    host: omega::host::standard {
         abi = target_default
         stdout = enabled
         process = enabled
@@ -30,12 +24,12 @@ target cross_platform_cli {
         random = disabled
     }
 
-    trust host_contracts
-    trust standard_host_abi
+    trust omega::host::contracts
+    trust omega::host::standard
 }
 
 target linux_x64 {
-    host: LinuxHost {
+    host: omega::host::linux {
         abi = syscall
         stdout = fd(1)
         process = enabled
@@ -45,12 +39,12 @@ target linux_x64 {
         random = disabled
     }
 
-    trust host_contracts
-    trust linux_syscall_abi
+    trust omega::host::contracts
+    trust omega::host::linux
 }
 
 target macos_arm64 {
-    host: DarwinHost {
+    host: omega::host::darwin {
         abi = libSystem
         stdout = fd(1)
         process = enabled
@@ -60,12 +54,12 @@ target macos_arm64 {
         random = disabled
     }
 
-    trust host_contracts
-    trust darwin_libsystem_abi
+    trust omega::host::contracts
+    trust omega::host::darwin
 }
 
 target windows_x64 {
-    host: WindowsHost {
+    host: omega::host::windows {
         abi = win32
         stdout = standard_handle(stdout)
         process = enabled
@@ -75,20 +69,18 @@ target windows_x64 {
         random = disabled
     }
 
-    trust host_contracts
-    trust windows_loader
-    trust win32_contracts
-    trust windows_x64_calling_convention
+    trust omega::host::contracts
+    trust omega::host::windows
 }
 
 // A permissive development build should still be auditable.
 target local_unchecked {
-    host: StandardHost {
+    host: omega::host::standard {
         abi = target_default
         stdout = enabled
         process = enabled
     }
 
-    trust host_contracts
+    trust omega::host::contracts
     trust unchecked invariant_proofs
 }

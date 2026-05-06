@@ -87,7 +87,7 @@ pub fn build_trust_report(items: &[Item]) -> TrustReport {
                     host_provider: target
                         .host
                         .as_ref()
-                        .map(|host| host.provider.clone())
+                        .map(|host| host.provider.join("::"))
                         .unwrap_or_else(|| "none".to_owned()),
                     host_settings: target
                         .host
@@ -113,5 +113,5 @@ fn trust_level_name(trust_level: &TrustLevel) -> String {
 }
 
 fn policy_name(policy: &TrustPolicy) -> String {
-    policy.name.clone()
+    policy.path.join("::")
 }

@@ -58,12 +58,7 @@ impl Parser<'_> {
     }
 
     fn parse_use(&mut self) -> Result<UseItem, ParseError> {
-        let mut path = vec![self.expect_identifier()?];
-
-        while self.consume("::") {
-            path.push(self.expect_identifier()?);
-        }
-
+        let path = self.parse_path()?;
         self.expect(";")?;
 
         Ok(UseItem { path })
@@ -118,7 +113,7 @@ impl Parser<'_> {
 
     fn parse_target_host(&mut self) -> Result<TargetHost, ParseError> {
         self.expect(":")?;
-        let provider = self.expect_identifier()?;
+        let provider = self.parse_path()?;
         self.expect("{")?;
 
         let mut settings = Vec::new();
@@ -148,9 +143,9 @@ impl Parser<'_> {
         } else {
             TrustMode::Checked
         };
-        let name = self.expect_identifier()?;
+        let path = self.parse_path()?;
 
-        Ok(TrustPolicy { mode, name })
+        Ok(TrustPolicy { mode, path })
     }
 
     fn parse_capability_state(&mut self) -> Result<CapabilityState, ParseError> {
@@ -193,6 +188,16 @@ impl Parser<'_> {
         } else {
             Ok(TrustLevel::Named(name))
         }
+    }
+
+    fn parse_path(&mut self) -> Result<Vec<String>, ParseError> {
+        let mut path = vec![self.expect_identifier()?];
+
+        while self.consume("::") {
+            path.push(self.expect_identifier()?);
+        }
+
+        Ok(path)
     }
 
     fn skip_capability_contract_tokens(&mut self) -> usize {

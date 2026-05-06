@@ -6,7 +6,7 @@ This sample intentionally avoids input so the entry and platform boundary are ea
 
 ## Trusted Root Sketch
 
-`build.omg` imports compiler-provided `omega::host` packages and is parsed as top-level `target` items. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
+`build.omg` references compiler-provided `omega::host` packages from each `target` item. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
 
 For cross-platform hello world, the trusted computing base is tiny:
 

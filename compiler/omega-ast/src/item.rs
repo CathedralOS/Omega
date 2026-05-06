@@ -72,7 +72,7 @@ pub struct TargetDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetHost {
-    pub provider: String,
+    pub provider: Vec<String>,
     pub settings: Vec<TargetHostSetting>,
 }
 
@@ -94,7 +94,7 @@ pub enum TargetHostSettingValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustPolicy {
     pub mode: TrustMode,
-    pub name: String,
+    pub path: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

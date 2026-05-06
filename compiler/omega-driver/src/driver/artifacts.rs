@@ -603,8 +603,8 @@ fn ast_item_summary(item: &Item) -> String {
             target
                 .host
                 .as_ref()
-                .map(|host| host.provider.as_str())
-                .unwrap_or("none"),
+                .map(|host| host.provider.join("::"))
+                .unwrap_or_else(|| "none".to_owned()),
             target.trust_policies.len()
         ),
     }
