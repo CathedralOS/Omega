@@ -468,6 +468,10 @@ impl ArtifactWriter {
             "instructions: {}\n",
             native_plan.machine_code.instructions.len()
         ));
+        output.push_str(&format!(
+            "encoded bytes: {}\n",
+            native_plan.machine_code.bytes.len()
+        ));
         output.push_str(&format!("bytes: {}\n", native_plan.machine_code.byte_count));
         for (_, function) in native_plan.machine_code.functions.iter() {
             write_machine_function_code(&mut output, native_plan, function);
@@ -600,6 +604,10 @@ impl ArtifactWriter {
         output.push_str(&format!(
             "machine code bytes: {}\n",
             emission_plan.machine_code_bytes
+        ));
+        output.push_str(&format!(
+            "encoded machine bytes: {}\n",
+            emission_plan.encoded_machine_bytes
         ));
         output.push_str(&format!("relocations: {}\n", emission_plan.relocations));
         output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
@@ -1308,21 +1316,45 @@ fn write_machine_function_code(
         Some(instructions) => {
             output.push_str("  instructions:\n");
             for instruction in instructions {
-                write_machine_instruction(output, instruction);
+                write_machine_instruction(output, native_plan, instruction);
             }
         }
         None => output.push_str("  instructions: invalid span\n"),
     }
 }
 
-fn write_machine_instruction(output: &mut String, instruction: &MachineInstruction) {
+fn write_machine_instruction(
+    output: &mut String,
+    native_plan: &NativePlan,
+    instruction: &MachineInstruction,
+) {
     output.push_str(&format!(
-        "    - selected #{} @{} bytes {} {:?}\n",
+        "    - selected #{} @{} bytes {} {:?} encoded {}\n",
         instruction.selected_instruction_index,
         instruction.offset,
         instruction.byte_width,
-        instruction.kind
+        instruction.kind,
+        machine_instruction_bytes_name(native_plan, instruction)
     ));
+}
+
+fn machine_instruction_bytes_name(
+    native_plan: &NativePlan,
+    instruction: &MachineInstruction,
+) -> String {
+    let Some(bytes) = native_plan.machine_code.bytes.span(instruction.bytes) else {
+        return "invalid".to_owned();
+    };
+
+    if bytes.is_empty() {
+        return "none".to_owned();
+    }
+
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {

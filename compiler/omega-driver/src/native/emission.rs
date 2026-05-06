@@ -14,6 +14,7 @@ pub struct EmissionPlan {
     pub selected_instructions: usize,
     pub instruction_operands: usize,
     pub machine_code_bytes: usize,
+    pub encoded_machine_bytes: usize,
     pub relocations: usize,
     pub blockers: Arena<EmissionBlocker>,
 }
@@ -27,11 +28,14 @@ pub struct EmissionBlocker {
 pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     let mut blockers = Arena::new();
 
-    blockers.insert_many([
-        blocker(
+    if native_plan.machine_code.bytes.len() < native_plan.machine_code.byte_count {
+        blockers.insert(blocker(
             "machine encoding",
-            "selected native instructions are not encoded into target bytes yet",
-        ),
+            "not all selected native instructions are encoded into target bytes yet",
+        ));
+    }
+
+    blockers.insert_many([
         blocker(
             "relocation encoding",
             "planned relocation records are not serialized into target object format yet",
@@ -53,6 +57,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         selected_instructions: native_plan.instructions.instructions.len(),
         instruction_operands: native_plan.instructions.operands.len(),
         machine_code_bytes: native_plan.machine_code.byte_count,
+        encoded_machine_bytes: native_plan.machine_code.bytes.len(),
         relocations: native_plan.relocations.records.len(),
         blockers,
     }

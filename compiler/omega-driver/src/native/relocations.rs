@@ -1,5 +1,7 @@
 use crate::native::abi::{HostBinding, HostBindingMechanism};
-use crate::native::instructions::{FunctionInstructionPlan, SelectedInstructionKind};
+use crate::native::instructions::{
+    FunctionInstructionPlan, InstructionOperandKind, SelectedInstructionKind,
+};
 use crate::native::plan::NativePlan;
 use crate::native::target::NativeTarget;
 use omega_core::arena::Arena;
@@ -40,6 +42,7 @@ impl Default for RelocationRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelocationKind {
+    DataAddress,
     ExternalFunctionCall,
 }
 
@@ -73,17 +76,9 @@ fn collect_function_relocations(
         let SelectedInstructionKind::HostOperation {
             capability,
             operation,
-            ..
+            operands,
         } = &instruction.kind
         else {
-            continue;
-        };
-
-        let Some(binding) = find_host_binding(native_plan, capability, operation) else {
-            continue;
-        };
-
-        let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
             continue;
         };
 
@@ -94,11 +89,52 @@ fn collect_function_relocations(
             .checked_add(u32::try_from(offset).expect("instruction offset overflow"))
             .expect("instruction index overflow");
 
+        collect_data_address_relocations(
+            native_plan,
+            function,
+            selected_instruction_index,
+            *operands,
+            relocation_plan,
+        );
+
+        let Some(binding) = find_host_binding(native_plan, capability, operation) else {
+            continue;
+        };
+
+        let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+            continue;
+        };
+
         relocation_plan.records.insert(RelocationRecord {
             function_symbol: function.symbol.clone(),
             selected_instruction_index,
             symbol: symbol.clone(),
             kind: RelocationKind::ExternalFunctionCall,
+        });
+    }
+}
+
+fn collect_data_address_relocations(
+    native_plan: &NativePlan,
+    function: &FunctionInstructionPlan,
+    selected_instruction_index: u32,
+    operands: omega_core::arena::HandleSpan<crate::native::instructions::InstructionOperand>,
+    relocation_plan: &mut RelocationPlan,
+) {
+    let Some(operands) = native_plan.instructions.operands.span(operands) else {
+        return;
+    };
+
+    for operand in operands {
+        let InstructionOperandKind::DataAddress { symbol } = &operand.kind else {
+            continue;
+        };
+
+        relocation_plan.records.insert(RelocationRecord {
+            function_symbol: function.symbol.clone(),
+            selected_instruction_index,
+            symbol: symbol.clone(),
+            kind: RelocationKind::DataAddress,
         });
     }
 }

@@ -1274,7 +1274,7 @@ mod tests {
         assert!(native_plan.instructions.instructions.len() >= 5);
         assert_eq!(native_plan.instructions.operands.len(), 4);
         assert!(native_plan.machine_code.byte_count > 0);
-        assert_eq!(native_plan.relocations.records.len(), 3);
+        assert_eq!(native_plan.relocations.records.len(), 4);
     }
 
     #[test]
@@ -1326,7 +1326,7 @@ mod tests {
         assert!(native_plan.instructions.instructions.len() >= 4);
         assert_eq!(native_plan.instructions.operands.len(), 4);
         assert!(native_plan.machine_code.byte_count > 0);
-        assert_eq!(native_plan.relocations.records.len(), 0);
+        assert_eq!(native_plan.relocations.records.len(), 1);
     }
 
     #[test]
@@ -1378,6 +1378,7 @@ mod tests {
         assert!(emission.contains("selected instructions:"));
         assert!(emission.contains("instruction operands:"));
         assert!(emission.contains("machine code bytes:"));
+        assert!(emission.contains("encoded machine bytes:"));
         assert!(emission.contains("relocations:"));
 
         let _ = std::fs::remove_dir_all(build_dir);
