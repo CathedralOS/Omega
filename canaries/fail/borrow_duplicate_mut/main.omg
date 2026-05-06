@@ -1,0 +1,11 @@
+machine main {
+    owns value: i32 = 1;
+
+    state entry {
+        swap(mut value, mut value);
+    }
+
+    state swap(mut left: i32, mut right: i32) {
+        left = right;
+    }
+}

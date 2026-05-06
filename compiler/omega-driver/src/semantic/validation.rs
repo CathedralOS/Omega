@@ -549,6 +549,142 @@ fn validate_call_arguments(
             )));
         }
     }
+
+    validate_argument_borrows(&call.arguments, target_name, diagnostics);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArgumentAccessKind {
+    Mutable,
+    Read,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ArgumentAccess<'expression> {
+    root_name: &'expression str,
+    kind: ArgumentAccessKind,
+}
+
+fn validate_argument_borrows(
+    arguments: &[Expression],
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut accesses = Vec::new();
+
+    for argument in arguments {
+        collect_argument_accesses(argument, target_name, &mut accesses, diagnostics);
+    }
+
+    for (index, access) in accesses.iter().enumerate() {
+        if access.kind != ArgumentAccessKind::Mutable {
+            continue;
+        }
+
+        for other_access in accesses.iter().skip(index + 1) {
+            if access.root_name != other_access.root_name {
+                continue;
+            }
+
+            match other_access.kind {
+                ArgumentAccessKind::Mutable => diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives `{}` as mutable more than once",
+                    access.root_name
+                ))),
+                ArgumentAccessKind::Read => diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` receives `{}` as both mutable and read-only",
+                    access.root_name
+                ))),
+            }
+        }
+    }
+}
+
+fn collect_argument_accesses<'expression>(
+    expression: &'expression Expression,
+    target_name: &str,
+    accesses: &mut Vec<ArgumentAccess<'expression>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match expression {
+        Expression::Mutable(inner_expression) => {
+            if !is_mutable_place(inner_expression) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "mutable argument for state `{target_name}` must be a named place"
+                )));
+                return;
+            }
+
+            if let Some(root_name) = expression_root_name(inner_expression) {
+                accesses.push(ArgumentAccess {
+                    root_name,
+                    kind: ArgumentAccessKind::Mutable,
+                });
+            }
+        }
+        other_expression => collect_read_accesses(other_expression, accesses),
+    }
+}
+
+fn collect_read_accesses<'expression>(
+    expression: &'expression Expression,
+    accesses: &mut Vec<ArgumentAccess<'expression>>,
+) {
+    match expression {
+        Expression::ArrayLiteral(values) => {
+            for value in values {
+                collect_read_accesses(value, accesses);
+            }
+        }
+        Expression::Binary(binary) => {
+            collect_read_accesses(&binary.left, accesses);
+            collect_read_accesses(&binary.right, accesses);
+        }
+        Expression::Indexed(indexed) => {
+            if let Some(root_name) = expression_root_name(&indexed.collection) {
+                accesses.push(ArgumentAccess {
+                    root_name,
+                    kind: ArgumentAccessKind::Read,
+                });
+            }
+
+            collect_read_accesses(&indexed.index, accesses);
+        }
+        Expression::Name(path) => {
+            if let Some(root_name) = path.first() {
+                accesses.push(ArgumentAccess {
+                    root_name,
+                    kind: ArgumentAccessKind::Read,
+                });
+            }
+        }
+        Expression::Mutable(inner_expression) => collect_read_accesses(inner_expression, accesses),
+        Expression::StructLiteral(struct_literal) => {
+            for field in &struct_literal.fields {
+                collect_read_accesses(&field.value, accesses);
+            }
+        }
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::String(_) => {}
+    }
+}
+
+fn is_mutable_place(expression: &Expression) -> bool {
+    match expression {
+        Expression::Indexed(indexed) => is_mutable_place(&indexed.collection),
+        Expression::Name(_) => true,
+        _ => false,
+    }
+}
+
+fn expression_root_name(expression: &Expression) -> Option<&str> {
+    match expression {
+        Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
+        Expression::Name(path) => path.first().map(String::as_str),
+        _ => None,
+    }
 }
 
 fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) -> bool {

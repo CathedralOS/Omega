@@ -1034,7 +1034,7 @@ mod tests {
         let sample_root = repo_root.join("samples");
         let mut entrypoints = Vec::new();
 
-        collect_sample_entrypoints(&sample_root, &mut entrypoints);
+        collect_entrypoints(&sample_root, &mut entrypoints);
         entrypoints.sort();
 
         assert!(
@@ -1075,10 +1075,86 @@ mod tests {
         }
     }
 
-    fn collect_sample_entrypoints(
-        path: &std::path::Path,
-        entrypoints: &mut Vec<std::path::PathBuf>,
-    ) {
+    #[test]
+    fn checks_passing_canaries() {
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("driver crate should live under compiler/omega-driver");
+        let canary_root = repo_root.join("canaries/pass");
+        let mut entrypoints = Vec::new();
+
+        collect_entrypoints(&canary_root, &mut entrypoints);
+        entrypoints.sort();
+
+        assert!(
+            !entrypoints.is_empty(),
+            "expected at least one passing canary under {}",
+            canary_root.display()
+        );
+
+        for root_path in entrypoints {
+            let build_dir = temporary_build_dir("omega-canary-pass", &root_path);
+            let _ = std::fs::remove_dir_all(&build_dir);
+
+            crate::check(crate::CompileOptions {
+                build_dir: Some(build_dir.clone()),
+                root_path: root_path.clone(),
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "passing canary {} failed check:\n{}",
+                    root_path.display(),
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+
+            let _ = std::fs::remove_dir_all(build_dir);
+        }
+    }
+
+    #[test]
+    fn rejects_failing_canaries() {
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("driver crate should live under compiler/omega-driver");
+        let canary_root = repo_root.join("canaries/fail");
+        let mut entrypoints = Vec::new();
+
+        collect_entrypoints(&canary_root, &mut entrypoints);
+        entrypoints.sort();
+
+        assert!(
+            !entrypoints.is_empty(),
+            "expected at least one failing canary under {}",
+            canary_root.display()
+        );
+
+        for root_path in entrypoints {
+            let build_dir = temporary_build_dir("omega-canary-fail", &root_path);
+            let _ = std::fs::remove_dir_all(&build_dir);
+
+            if let Ok(output) = crate::check(crate::CompileOptions {
+                build_dir: Some(build_dir.clone()),
+                root_path: root_path.clone(),
+            }) {
+                panic!(
+                    "failing canary {} unexpectedly passed; artifacts {}",
+                    root_path.display(),
+                    output.artifacts_dir.display()
+                );
+            }
+
+            let _ = std::fs::remove_dir_all(build_dir);
+        }
+    }
+
+    fn collect_entrypoints(path: &std::path::Path, entrypoints: &mut Vec<std::path::PathBuf>) {
         let entries = std::fs::read_dir(path)
             .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
 
@@ -1088,7 +1164,7 @@ mod tests {
             let path = entry.path();
 
             if path.is_dir() {
-                collect_sample_entrypoints(&path, entrypoints);
+                collect_entrypoints(&path, entrypoints);
             } else if path
                 .file_name()
                 .is_some_and(|file_name| file_name == "main.omg")
@@ -1096,5 +1172,18 @@ mod tests {
                 entrypoints.push(path);
             }
         }
+    }
+
+    fn temporary_build_dir(prefix: &str, root_path: &std::path::Path) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "{}-{}-{}",
+            prefix,
+            std::process::id(),
+            root_path
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|name| name.to_str())
+                .unwrap_or("entrypoint")
+        ))
     }
 }

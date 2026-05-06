@@ -1,0 +1,12 @@
+machine main {
+    owns left: i32 = 1;
+    owns right: i32 = 2;
+
+    state entry {
+        copy(mut left, right);
+    }
+
+    state copy(mut out_value: i32, input_value: i32) {
+        out_value = input_value;
+    }
+}

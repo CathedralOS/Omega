@@ -1,0 +1,9 @@
+machine main {
+    state entry {
+        write(mut 1);
+    }
+
+    state write(mut out_value: i32) {
+        out_value = 2;
+    }
+}
