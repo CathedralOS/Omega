@@ -1,16 +1,18 @@
 use omega::host::contracts::types;
 
 capability Stdout {
-    state write(buf: Slice<u8>) -> Result<usize, IOError>
+    state write(buf: Slice<u8>) -> Result<usize, IOError> {
         requires buf.initialized
         requires buf.len <= usize.max
         ensures result.Ok(n) => n <= buf.len
         ensures result.Err(e) => e is IOError
-        trusted host
+        trust host
+    }
 
-    state write_line(text: String) -> Result<(), IOError>
+    state write_line(text: String) -> Result<(), IOError> {
         requires text.utf8
         ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
         ensures result.Err(e) => e is IOError
-        trusted host
+        trust host
+    }
 }

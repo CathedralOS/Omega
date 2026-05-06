@@ -4,9 +4,10 @@ use omega::host::linux::syscalls;
 capability LinuxProcess {
     syscalls: LinuxSyscalls
 
-    state exit(return_code: i32) -> Never
+    state exit(return_code: i32) -> Never {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
-        trusted omega_linux_process_adapter
-        trusted omega_linux_syscalls
+        trust omega_linux_process_adapter
+        trust omega_linux_syscalls
+    }
 }

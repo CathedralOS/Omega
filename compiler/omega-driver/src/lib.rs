@@ -886,10 +886,11 @@ mod tests {
             }
 
             capability Stdout {
-                state write(buf: Slice<u8>) -> Result<(), IOError>
+                state write(buf: Slice<u8>) -> Result<(), IOError> {
                     requires buf.initialized
                     ensures result.Ok
-                    trusted host
+                    trust host
+                }
             }
             "#,
         )
@@ -962,10 +963,11 @@ mod tests {
             }
 
             capability Process {
-                state exit(return_code: i32) -> Never
+                state exit(return_code: i32) -> Never {
                     requires target_accepts_exit_code(return_code)
                     ensures process_terminated
-                    trusted host
+                    trust host
+                }
             }
             "#,
         )

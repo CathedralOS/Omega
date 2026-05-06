@@ -1,18 +1,20 @@
 use omega::host::darwin::types;
 
 capability DarwinLibSystem {
-    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno>
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
         ensures result.Ok(n) => n <= byte_count
         ensures result.Err(e) => e is DarwinErrno
-        trusted darwin_libsystem_abi
-        trusted host
+        trust darwin_libsystem_abi
+        trust host
+    }
 
-    state exit(return_code: i32) -> Never
+    state exit(return_code: i32) -> Never {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
-        trusted darwin_libsystem_abi
-        trusted host
+        trust darwin_libsystem_abi
+        trust host
+    }
 }

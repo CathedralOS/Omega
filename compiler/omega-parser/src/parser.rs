@@ -152,32 +152,47 @@ impl Parser<'_> {
         let signature = self.parse_state_signature()?;
         let mut contracts = Vec::new();
 
-        while !self.check("state") && !self.check("}") {
-            if self.consume("requires") {
-                contracts.push(CapabilityContract {
-                    kind: CapabilityContractKind::Requires,
-                    token_count: self.skip_capability_contract_tokens(),
-                });
-            } else if self.consume("ensures") {
-                contracts.push(CapabilityContract {
-                    kind: CapabilityContractKind::Ensures,
-                    token_count: self.skip_capability_contract_tokens(),
-                });
-            } else if self.consume("trusted") {
-                let trust_level = self.parse_trust_level()?;
-                contracts.push(CapabilityContract {
-                    kind: CapabilityContractKind::Trusted(trust_level),
-                    token_count: 1,
-                });
-            } else {
-                return Err(self.error_here("expected capability contract"));
+        if self.consume("{") {
+            while !self.consume("}") {
+                contracts.push(self.parse_capability_contract()?);
             }
+
+            return Ok(CapabilityState {
+                signature,
+                contracts,
+            });
+        }
+
+        while !self.check("state") && !self.check("}") {
+            contracts.push(self.parse_capability_contract()?);
         }
 
         Ok(CapabilityState {
             signature,
             contracts,
         })
+    }
+
+    fn parse_capability_contract(&mut self) -> Result<CapabilityContract, ParseError> {
+        if self.consume("requires") {
+            Ok(CapabilityContract {
+                kind: CapabilityContractKind::Requires,
+                token_count: self.skip_capability_contract_tokens(),
+            })
+        } else if self.consume("ensures") {
+            Ok(CapabilityContract {
+                kind: CapabilityContractKind::Ensures,
+                token_count: self.skip_capability_contract_tokens(),
+            })
+        } else if self.consume("trust") || self.consume("trusted") {
+            let trust_level = self.parse_trust_level()?;
+            Ok(CapabilityContract {
+                kind: CapabilityContractKind::Trusted(trust_level),
+                token_count: 1,
+            })
+        } else {
+            Err(self.error_here("expected capability contract"))
+        }
     }
 
     fn parse_trust_level(&mut self) -> Result<TrustLevel, ParseError> {
@@ -206,6 +221,7 @@ impl Parser<'_> {
         while !self.is_at_end()
             && !self.check("requires")
             && !self.check("ensures")
+            && !self.check("trust")
             && !self.check("trusted")
             && !self.check("state")
             && !self.check("}")
