@@ -108,7 +108,7 @@ This means the parent transitions into the child machine's `Main` state, and whe
 
 This is the stack-like exception. A parent may enter a child machine and carry an explicit continuation, but ordinary transitions inside a machine remain gotos.
 
-Typed-state sketches may allow state signatures and result compatibility checks. In that model, transitions are still handoffs: the target state's parameters and result obligation must line up, but there is no hidden caller stack inside the machine.
+Typed-state sketches may allow state signatures and return value compatibility checks. In that model, transitions are still handoffs: the target state's parameters must match, and its return value must satisfy the source graph's return value obligation, but there is no hidden caller stack inside the machine.
 
 `command`
 
