@@ -940,15 +940,13 @@ mod tests {
         crate::semantic::validation::validate_program(&program).expect("validation should pass");
         let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
             .expect("control-flow planning should pass");
+        let entry_operations = control_flow
+            .operations
+            .span(control_flow.machines[0].states[0].operations)
+            .expect("entry operations should resolve");
 
-        assert_eq!(
-            control_flow.machines[0].states[0].operations[0].statement_index,
-            0
-        );
-        assert_eq!(
-            control_flow.machines[0].states[0].operations[1].statement_index,
-            1
-        );
+        assert_eq!(entry_operations[0].statement_index, 0);
+        assert_eq!(entry_operations[1].statement_index, 1);
         assert_eq!(control_flow.machines[0].states[0].transitions.len(), 1);
         assert_eq!(control_flow.machines[0].states[1].transitions.len(), 1);
     }

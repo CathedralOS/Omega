@@ -3,10 +3,13 @@ use crate::ir::Program;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
 use crate::ir::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use omega_core::arena::{Arena, HandleSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
     pub machines: Vec<MachineFlow>,
+    pub operations: Arena<Operation>,
+    pub transitions: Arena<TransitionFlow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,8 +22,8 @@ pub struct MachineFlow {
 pub struct StateFlow {
     pub name: String,
     pub index: usize,
-    pub operations: Vec<Operation>,
-    pub transitions: Vec<TransitionFlow>,
+    pub operations: HandleSpan<Operation>,
+    pub transitions: HandleSpan<TransitionFlow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +38,15 @@ pub enum OperationKind {
     Call,
     Expression,
     LocalData,
+}
+
+impl Default for Operation {
+    fn default() -> Self {
+        Self {
+            statement_index: 0,
+            kind: OperationKind::LocalData,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,17 +64,31 @@ pub enum PlannedTransitionTarget {
     Terminal,
 }
 
-pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
-    let machines = program
-        .machines
-        .iter()
-        .map(build_machine_flow)
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(ControlFlowPlan { machines })
+impl Default for TransitionFlow {
+    fn default() -> Self {
+        Self {
+            target: PlannedTransitionTarget::Terminal,
+            continuation: None,
+            guard: TransitionGuard::Always,
+        }
+    }
 }
 
-fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
+pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
+    let mut control_flow = ControlFlowPlan::default();
+
+    for machine in &program.machines {
+        let machine_flow = build_machine_flow(machine, &mut control_flow)?;
+        control_flow.machines.push(machine_flow);
+    }
+
+    Ok(control_flow)
+}
+
+fn build_machine_flow(
+    machine: &Machine,
+    control_flow: &mut ControlFlowPlan,
+) -> Result<MachineFlow, Diagnostic> {
     let segments = machine
         .states
         .iter()
@@ -109,10 +135,15 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
                 }
             }
 
+            let operations = control_flow
+                .operations
+                .insert_many(segment.operations.iter().cloned());
+            let transitions = control_flow.transitions.insert_many(transitions);
+
             Ok(StateFlow {
                 name: segment.name.clone(),
                 index,
-                operations: segment.operations.clone(),
+                operations,
                 transitions,
             })
         })

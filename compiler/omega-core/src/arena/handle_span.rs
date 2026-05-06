@@ -34,6 +34,10 @@ impl<T> HandleSpan<T> {
         self.count
     }
 
+    pub const fn len(self) -> usize {
+        self.count as usize
+    }
+
     pub const fn is_empty(self) -> bool {
         self.count == 0
     }
