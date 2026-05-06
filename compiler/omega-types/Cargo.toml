@@ -11,4 +11,3 @@ path = "src/lib.rs"
 [dependencies]
 omega-ast = { path = "../omega-ast" }
 omega-core = { path = "../omega-core" }
-omega-resolve = { path = "../omega-resolve" }

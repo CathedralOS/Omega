@@ -41,6 +41,7 @@ pub struct TypeReferenceUse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TypeReferenceUseKind {
     Constraint,
+    RangeConstraint,
     ReturnType,
     Storage,
     Parameter,
@@ -203,7 +204,18 @@ fn collect_constraints(
             TypeConstraint::Named(name) => {
                 insert_reference(report, name, TypeReferenceUseKind::Constraint, owner);
             }
-            TypeConstraint::Range { .. } => {}
+            TypeConstraint::Range { minimum, maximum } => {
+                insert_reference(
+                    report,
+                    &format!(
+                        "range<{}, {}>",
+                        minimum.display_name(),
+                        maximum.display_name()
+                    ),
+                    TypeReferenceUseKind::RangeConstraint,
+                    owner,
+                );
+            }
         }
     }
 }
@@ -244,7 +256,15 @@ mod tests {
                 name: "speed".to_owned(),
                 type_reference: TypeReference::Constrained {
                     base_type: Box::new(TypeReference::named("f32")),
-                    constraints: vec![TypeConstraint::Named("finite".to_owned())],
+                    constraints: vec![
+                        TypeConstraint::Named("finite".to_owned()),
+                        TypeConstraint::Range {
+                            minimum: omega_ast::expression::Expression::Float("0.0f".to_owned()),
+                            maximum: omega_ast::expression::Expression::Float(
+                                "100000.0f".to_owned(),
+                            ),
+                        },
+                    ],
                 },
                 initial_value: None,
             }],
@@ -274,6 +294,13 @@ mod tests {
             }),
             "constraint references should be recorded"
         );
-        assert_eq!(report.references.len(), 4);
+        assert!(
+            report.references.iter().any(|(_, reference)| {
+                reference.name == "range<0.0f, 100000.0f>"
+                    && reference.kind == TypeReferenceUseKind::RangeConstraint
+            }),
+            "range constraints should be recorded"
+        );
+        assert_eq!(report.references.len(), 5);
     }
 }

@@ -95,7 +95,6 @@ version = "0.1.0"
 dependencies = [
  "omega-ast",
  "omega-core",
- "omega-resolve",
 ]
 
 [[package]]
