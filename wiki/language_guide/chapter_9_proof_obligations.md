@@ -11,6 +11,7 @@ Likely obligations:
 - Every guarded transition establishes the assumptions needed by its target.
 - Every `relax` scope re-establishes all relaxed invariants before exit.
 - Every transition leaving a `relax` scope either re-establishes the invariant or carries an explicit proof obligation into a compatible target.
+- Every generic invariant is instantiated with compile-time or proof-visible facts.
 
 This maps well onto TLA+ style action checking:
 
@@ -19,3 +20,5 @@ This maps well onto TLA+ style action checking:
 - Transitions are guarded next-state relations.
 - Bounded types are invariants or pre/postconditions.
 - Relax scopes are local invariant weakening with mandatory restoration.
+
+Invariants are not RTTI. If proof fails, the normal result is a compiler diagnostic, not a hidden runtime tag check. Runtime validation may exist as an explicit debug or proof-emission mode, but it should not define the semantics.

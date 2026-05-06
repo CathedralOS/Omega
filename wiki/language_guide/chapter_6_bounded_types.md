@@ -23,6 +23,7 @@ Working interpretation:
 - `i32[range<min, max>]` is an `i32` refined by compile-time or proof-visible bounds.
 - `const` parameters may be used in type-level constraints.
 - The compiler emits proof obligations anywhere a value is assigned, produced, or transitioned into a bounded slot.
+- Invariants are compile-time proof facts, not RTTI.
 
 The clamp graph produces an obvious proof shape:
 
@@ -41,3 +42,28 @@ The ordered transitions create a proof partition:
 - Otherwise, `ClampDone(value)` is only reachable when `min <= value <= max`.
 
 The order matters. A later transition inherits the fact that earlier transitions did not fire.
+
+## Generic Invariants
+
+Bounds may be generic over compile-time or proof-known values.
+
+```omega
+state clamp(
+    value: i32,
+    min: const i32,
+    max: const i32
+) -> i32[range<min, max>] {
+}
+```
+
+This means each instantiation of `clamp` carries a proof obligation for the specific `min` and `max` in scope.
+
+Important runtime rule:
+
+- `i32[range<min, max>]` is still represented as an `i32`.
+- The range is not runtime type information.
+- Code cannot inspect the invariant at runtime as metadata.
+- If the compiler cannot prove the invariant, it should emit a diagnostic rather than silently inserting hidden runtime checks.
+- Debug builds or proof artifacts may choose to emit extra validation, but that is instrumentation, not the language's core runtime model.
+
+This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
