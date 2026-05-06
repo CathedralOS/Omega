@@ -98,11 +98,14 @@ Some repo-level taste:
 - Prefer small checkpoint commits after a working improvement.
 - Samples should reveal language pressure, not hide it in giant `main` files.
 - Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.
+- Lowered IR should prefer `Handle<T>` and `HandleSpan<T>` over owned `Vec<T>` fields for repeated child lists.
+- `Vec<T>` is fine for temporary builders, parser output, and genuinely local scratch data; it should not become the default long-lived IR shape.
 - Prefer arena/vector-backed symbol tables over local hash maps. Names should collapse toward ids/handles as phases mature.
 - Use paged arenas for shared or eventually-parallel compiler data where growth should not move existing pages or require locking one giant `Vec`.
 - Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
 - Do not use `RefCell` as an ownership escape hatch. Runtime borrow checking is not a substitute for clear compiler-phase ownership.
-- Prefer ZII (Zero-is-initialization). Null handles (index 0) instead of optionals and literal nulls.
+- Prefer ZII (Zero-is-initialization). Null handles (index 0) resolve to dummy arena entries instead of optionals and literal nulls.
+- Arena handles must be generational. Freed or stale handles resolve to dummy entries, not reused storage.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 
 If a name or abstraction makes the compiler feel like a high-school project or a PL paper cosplay, it probably needs another pass.
