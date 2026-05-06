@@ -707,22 +707,25 @@ fn validate_call_arguments(
     writable_roots: &[&str],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let callable_parameters = parameters
+    let callable_parameter_count = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+        .count();
 
-    if arguments.len() != callable_parameters.len() {
+    if arguments.len() != callable_parameter_count {
         diagnostics.push(Diagnostic::error(format!(
             "state `{}` expects {} argument(s), got {}",
             target_name,
-            callable_parameters.len(),
+            callable_parameter_count,
             arguments.len()
         )));
         return;
     }
 
-    for (argument, parameter) in arguments.iter().zip(callable_parameters.iter()) {
+    for (argument, parameter) in arguments
+        .iter()
+        .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+    {
         if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` must be passed with `mut`",
