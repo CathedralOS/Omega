@@ -969,7 +969,15 @@ mod tests {
         crate::semantic::validation::validate_program(&program).expect("validation should pass");
         let proof_plan = crate::proof::obligations::build_proof_plan(&program);
 
-        assert_eq!(proof_plan.obligations.len(), 4);
+        assert_eq!(proof_plan.obligations.len(), 5);
+        assert!(proof_plan.obligations.iter().any(|obligation| {
+            matches!(
+                obligation,
+                crate::proof::obligations::ProofObligation::BoundedInitializer(
+                    initializer_obligation
+                ) if initializer_obligation.owner == "machine `main` owned data `health`"
+            )
+        }));
         assert!(proof_plan.obligations.iter().any(|obligation| {
             matches!(
                 obligation,

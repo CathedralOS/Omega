@@ -14,6 +14,7 @@ pub struct ProofPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProofObligation {
     BoundedCallArgument(BoundedCallArgumentObligation),
+    BoundedInitializer(BoundedInitializerObligation),
     BoundedStateReturn(BoundedStateReturnObligation),
     BoundedValue(BoundedValueObligation),
     BoundedTransitionArgument(BoundedTransitionArgumentObligation),
@@ -44,6 +45,14 @@ pub struct BoundedCallArgumentObligation {
     pub parameter: String,
     pub argument: Expression,
     pub argument_constraints: Vec<TypeConstraint>,
+    pub base_type: TypeReference,
+    pub constraints: Vec<TypeConstraint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundedInitializerObligation {
+    pub owner: String,
+    pub value: Expression,
     pub base_type: TypeReference,
     pub constraints: Vec<TypeConstraint>,
 }
@@ -84,6 +93,17 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                 &owned_data.type_reference,
                 &mut obligations,
             );
+            if let Some(initial_value) = &owned_data.initial_value {
+                collect_bounded_initializer_obligation(
+                    format!(
+                        "machine `{}` owned data `{}`",
+                        machine.name, owned_data.name
+                    ),
+                    &owned_data.type_reference,
+                    initial_value,
+                    &mut obligations,
+                );
+            }
         }
 
         for state in &machine.states {
@@ -174,6 +194,33 @@ fn collect_bounded_value_obligation(
         }
         TypeReference::FixedArray { element_type, .. } => {
             collect_bounded_value_obligation(owner, element_type, obligations);
+        }
+        TypeReference::Named(_) => {}
+    }
+}
+
+fn collect_bounded_initializer_obligation(
+    owner: String,
+    type_reference: &TypeReference,
+    value: &Expression,
+    obligations: &mut Vec<ProofObligation>,
+) {
+    match type_reference {
+        TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => {
+            obligations.push(ProofObligation::BoundedInitializer(
+                BoundedInitializerObligation {
+                    owner,
+                    value: value.clone(),
+                    base_type: base_type.as_ref().clone(),
+                    constraints: constraints.clone(),
+                },
+            ));
+        }
+        TypeReference::FixedArray { element_type, .. } => {
+            collect_bounded_initializer_obligation(owner, element_type, value, obligations);
         }
         TypeReference::Named(_) => {}
     }

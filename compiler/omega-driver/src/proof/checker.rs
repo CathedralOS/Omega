@@ -3,7 +3,7 @@ use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::ir::types::TypeConstraint;
 use crate::proof::obligations::{
-    BoundedCallArgumentObligation, BoundedStateReturnObligation,
+    BoundedCallArgumentObligation, BoundedInitializerObligation, BoundedStateReturnObligation,
     BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
 };
 
@@ -27,6 +27,9 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
             ProofObligation::BoundedCallArgument(obligation) => {
                 check_bounded_call_argument(obligation, &mut diagnostics);
             }
+            ProofObligation::BoundedInitializer(obligation) => {
+                check_bounded_initializer(obligation, &mut diagnostics);
+            }
             ProofObligation::BoundedStateReturn(obligation) => {
                 check_bounded_state_return(obligation, &mut diagnostics);
             }
@@ -41,6 +44,49 @@ pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+fn check_bounded_initializer(
+    obligation: &BoundedInitializerObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    check_initializer_named_constraints(obligation, diagnostics);
+
+    if let Some(target_range) = integer_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = integer_range_for_initializer(obligation) else {
+            diagnostics.push(cannot_prove_bounded_initializer_integer(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_initializer_integer(
+                obligation,
+                target_range,
+            ));
+        }
+    }
+
+    if let Some(target_range) = float_range_from_constraints(&obligation.constraints) {
+        let Some(value_range) = float_range_for_initializer(obligation) else {
+            diagnostics.push(cannot_prove_bounded_initializer_float(
+                obligation,
+                target_range,
+            ));
+            return;
+        };
+
+        if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
+        {
+            diagnostics.push(cannot_prove_bounded_initializer_float(
+                obligation,
+                target_range,
+            ));
+        }
     }
 }
 
@@ -214,6 +260,19 @@ fn float_range_for_return_value(obligation: &BoundedStateReturnObligation) -> Op
     }
 }
 
+fn float_range_for_initializer(obligation: &BoundedInitializerObligation) -> Option<FloatRange> {
+    match &obligation.value {
+        Expression::Float(value) => {
+            let value = float_literal(value)?;
+            Some(FloatRange {
+                minimum: value,
+                maximum: value,
+            })
+        }
+        _ => None,
+    }
+}
+
 fn integer_range_for_call_argument(
     obligation: &BoundedCallArgumentObligation,
 ) -> Option<IntegerRange> {
@@ -235,6 +294,18 @@ fn integer_range_for_return_value(
             maximum: *value,
         }),
         _ => integer_range_from_constraints(&obligation.value_constraints),
+    }
+}
+
+fn integer_range_for_initializer(
+    obligation: &BoundedInitializerObligation,
+) -> Option<IntegerRange> {
+    match &obligation.value {
+        Expression::Integer(value) => Some(IntegerRange {
+            minimum: *value,
+            maximum: *value,
+        }),
+        _ => None,
     }
 }
 
@@ -426,6 +497,19 @@ fn check_return_named_constraints(
     }
 }
 
+fn check_initializer_named_constraints(
+    obligation: &BoundedInitializerObligation,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for constraint in named_constraints(&obligation.constraints) {
+        if !expression_is_finite_literal(&obligation.value) || constraint != "finite" {
+            diagnostics.push(cannot_prove_initializer_named_constraint(
+                obligation, constraint,
+            ));
+        }
+    }
+}
+
 fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &str> {
     constraints.iter().filter_map(|constraint| {
         let TypeConstraint::Named(name) = constraint else {
@@ -486,6 +570,19 @@ fn cannot_prove_bounded_return_integer(
     ))
 }
 
+fn cannot_prove_bounded_initializer_integer(
+    obligation: &BoundedInitializerObligation,
+    target_range: IntegerRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
+        obligation.owner,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
 fn cannot_prove_bounded_transition_float(
     obligation: &BoundedTransitionArgumentObligation,
     target_range: FloatRange,
@@ -515,6 +612,19 @@ fn cannot_prove_bounded_return_float(
     ))
 }
 
+fn cannot_prove_bounded_initializer_float(
+    obligation: &BoundedInitializerObligation,
+    target_range: FloatRange,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
+        obligation.value.display_name(),
+        obligation.owner,
+        target_range.minimum,
+        target_range.maximum
+    ))
+}
+
 fn cannot_prove_transition_named_constraint(
     obligation: &BoundedTransitionArgumentObligation,
     constraint: &str,
@@ -539,6 +649,18 @@ fn cannot_prove_return_named_constraint(
         constraint,
         obligation.machine,
         obligation.state
+    ))
+}
+
+fn cannot_prove_initializer_named_constraint(
+    obligation: &BoundedInitializerObligation,
+    constraint: &str,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "cannot prove initializer `{}` satisfies `{}` for bounded value `{}`",
+        obligation.value.display_name(),
+        constraint,
+        obligation.owner
     ))
 }
 
