@@ -152,6 +152,18 @@ impl Parser<'_> {
         let signature = self.parse_state_signature()?;
         let mut contracts = Vec::new();
 
+        if self.consume("where") {
+            self.expect("{")?;
+            while !self.consume("}") {
+                contracts.push(self.parse_capability_contract()?);
+            }
+
+            return Ok(CapabilityState {
+                signature,
+                contracts,
+            });
+        }
+
         if self.consume("{") {
             while !self.consume("}") {
                 contracts.push(self.parse_capability_contract()?);

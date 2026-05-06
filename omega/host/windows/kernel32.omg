@@ -1,7 +1,7 @@
 use omega::host::windows::types;
 
 capability WindowsKernel32 {
-    state get_std_handle(kind: u32) -> WinHandle {
+    state get_std_handle(kind: u32) -> WinHandle where {
         requires kind == std_output_handle
         ensures result.valid || result.invalid
         trust windows_loader
@@ -15,7 +15,7 @@ capability WindowsKernel32 {
         bytes_to_write: u32,
         mut bytes_written: u32,
         overlapped: WinOverlapped
-    ) -> WinBool {
+    ) -> WinBool where {
         requires buffer.initialized
         requires bytes_to_write <= buffer.len
         ensures result.true => bytes_written <= bytes_to_write
@@ -25,7 +25,7 @@ capability WindowsKernel32 {
         trust windows_x64_calling_convention
     }
 
-    state exit_process(return_code: u32) -> Terminal {
+    state exit_process(return_code: u32) -> Terminal where {
         requires windows_accepts_exit_code(return_code)
         ensures process_terminated
         trust windows_loader

@@ -5,7 +5,7 @@ use omega::host::windows::types;
 capability WindowsStdout {
     kernel32: WindowsKernel32
 
-    state write_line(text: String) -> Result<(), IOError> {
+    state write_line(text: String) -> Result<(), IOError> where {
         requires text.utf8
         ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
         ensures result.Err(e) => e is IOError
