@@ -5,6 +5,7 @@ use crate::ast::item::{Item, UseItem};
 use crate::diagnostics::Diagnostic;
 use crate::driver::CompileOptions;
 use crate::driver::artifacts::ArtifactWriter;
+use crate::driver::trust::build_trust_report;
 use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
 use crate::native::control_flow::build_control_flow_plan;
@@ -106,6 +107,12 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])?;
         check_proof_plan(&proof_plan)
     })?;
+    record_phase(&mut phase_timings, "trust", || {
+        let trust_report = build_trust_report(&loaded_program.items);
+        artifacts
+            .write_trust_report(&trust_report)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     record_phase(&mut phase_timings, "native plan", || {
         let native_surface = build_native_surface_report(&loaded_program.items);
         let native_plan = build_native_plan(&program, NativeTarget::host())
@@ -192,6 +199,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_proof_report(&proof_surface, &proof_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
         check_proof_plan(&proof_plan)
+    })?;
+    record_phase(&mut phase_timings, "trust", || {
+        let trust_report = build_trust_report(&loaded_program.items);
+        artifacts
+            .write_trust_report(&trust_report)
+            .map_err(|diagnostic| vec![diagnostic])
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
         let native_surface = build_native_surface_report(&loaded_program.items);
