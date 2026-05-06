@@ -2,7 +2,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::data::{DataMember, DataShapeKind};
 use crate::ir::expression::Expression;
-use crate::ir::signature::{StateParameter, StateSignature};
+use crate::ir::signature::StateParameter;
 use crate::ir::statement::{Statement, TransitionTarget};
 use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
@@ -256,10 +256,10 @@ fn validate_callable_state_signatures(
 ) {
     for machine in &program.machines {
         validate_state_signature_types(
-            machine.states.iter().map(|state| StateSignature {
-                name: state.name.clone(),
-                parameters: state.parameters.clone(),
-                return_type: state.return_type.clone(),
+            machine.states.iter().map(|state| StateSignatureView {
+                name: state.name.as_str(),
+                parameters: &state.parameters,
+                return_type: state.return_type.as_ref(),
             }),
             program,
             symbols,
@@ -271,7 +271,11 @@ fn validate_callable_state_signatures(
     for platform in &program.platforms {
         validate_platform_state_names(platform, diagnostics);
         validate_state_signature_types(
-            platform.states.iter().cloned(),
+            platform.states.iter().map(|state| StateSignatureView {
+                name: state.name.as_str(),
+                parameters: &state.parameters,
+                return_type: state.return_type.as_ref(),
+            }),
             program,
             symbols,
             diagnostics,
@@ -280,17 +284,24 @@ fn validate_callable_state_signatures(
     }
 }
 
-fn validate_state_signature_types(
-    signatures: impl Iterator<Item = StateSignature>,
+#[derive(Debug, Clone, Copy)]
+struct StateSignatureView<'program> {
+    name: &'program str,
+    parameters: &'program [StateParameter],
+    return_type: Option<&'program TypeReference>,
+}
+
+fn validate_state_signature_types<'program>(
+    signatures: impl Iterator<Item = StateSignatureView<'program>>,
     program: &Program,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
     for signature in signatures {
-        validate_state_parameter_names(&signature, &owner, diagnostics);
+        validate_state_parameter_names(signature, &owner, diagnostics);
 
-        for parameter in &signature.parameters {
+        for parameter in signature.parameters {
             if parameter.is_self {
                 continue;
             }
@@ -307,7 +318,7 @@ fn validate_state_signature_types(
             );
         }
 
-        if let Some(return_type) = &signature.return_type {
+        if let Some(return_type) = signature.return_type {
             validate_type_reference(
                 program,
                 return_type,
@@ -338,13 +349,13 @@ fn validate_platform_state_names(
 }
 
 fn validate_state_parameter_names(
-    state: &StateSignature,
+    state: StateSignatureView<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut parameter_names = Vec::new();
 
-    for parameter in &state.parameters {
+    for parameter in state.parameters {
         if parameter_names.contains(&parameter.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "{owner} state `{}` has duplicate parameter `{}`",
