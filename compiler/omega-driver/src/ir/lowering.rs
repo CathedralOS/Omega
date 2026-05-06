@@ -10,7 +10,9 @@ use crate::ir::machine::{ContainedObject, Machine, OwnedData};
 use crate::ir::platform::Platform;
 use crate::ir::signature::{StateParameter, StateSignature};
 use crate::ir::state::State;
-use crate::ir::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
+use crate::ir::statement::{
+    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+};
 use crate::ir::types::TypeReference;
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
@@ -229,8 +231,19 @@ fn lower_statement(statement: &ast::statement::Statement) -> Result<Statement, D
                     .as_ref()
                     .map(lower_transition_target)
                     .transpose()?,
-                condition: transition.condition.clone(),
+                guard: lower_transition_guard(&transition.guard)?,
             }))
+        }
+    }
+}
+
+fn lower_transition_guard(
+    guard: &ast::statement::TransitionGuard,
+) -> Result<TransitionGuard, Diagnostic> {
+    match guard {
+        ast::statement::TransitionGuard::Always => Ok(TransitionGuard::Always),
+        ast::statement::TransitionGuard::When(expression) => {
+            Ok(TransitionGuard::When(lower_expression(expression)?))
         }
     }
 }
@@ -285,6 +298,14 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
 fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOperator {
     match operator {
         ast::expression::BinaryOperator::Add => BinaryOperator::Add,
+        ast::expression::BinaryOperator::And => BinaryOperator::And,
+        ast::expression::BinaryOperator::Equal => BinaryOperator::Equal,
+        ast::expression::BinaryOperator::Greater => BinaryOperator::Greater,
+        ast::expression::BinaryOperator::GreaterOrEqual => BinaryOperator::GreaterOrEqual,
+        ast::expression::BinaryOperator::Less => BinaryOperator::Less,
+        ast::expression::BinaryOperator::LessOrEqual => BinaryOperator::LessOrEqual,
+        ast::expression::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
+        ast::expression::BinaryOperator::Or => BinaryOperator::Or,
     }
 }
 

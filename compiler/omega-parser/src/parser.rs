@@ -7,7 +7,9 @@ use omega_ast::item::{
     Contains, DataDefinition, DataField, DataMember, DataVariant, Item, Machine, OwnedData,
     Platform, State, StateParameter, StateSignature, UseItem,
 };
-use omega_ast::statement::{Assignment, Call, LocalData, Statement, Transition, TransitionTarget};
+use omega_ast::statement::{
+    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+};
 use omega_ast::types::TypeReference;
 use omega_lexer::{Token, TokenKind};
 
@@ -317,7 +319,7 @@ impl Parser<'_> {
             return Ok(Statement::Transition(Transition {
                 target: TransitionTarget::Terminal,
                 continuation: None,
-                condition: Some(self.collect_condition_until_transition_end()?),
+                guard: TransitionGuard::When(self.parse_expression()?),
             }));
         }
 
@@ -325,7 +327,7 @@ impl Parser<'_> {
             return Ok(Statement::Transition(Transition {
                 target: TransitionTarget::Terminal,
                 continuation: None,
-                condition: None,
+                guard: TransitionGuard::Always,
             }));
         }
 
@@ -335,17 +337,19 @@ impl Parser<'_> {
         } else {
             None
         };
-        let condition = if self.consume("when") {
-            Some(self.collect_condition_until_semicolon()?)
+        let guard = if self.consume("when") {
+            let guard = TransitionGuard::When(self.parse_expression()?);
+            let _ = self.consume(";");
+            guard
         } else {
             self.expect(";")?;
-            None
+            TransitionGuard::Always
         };
 
         Ok(Statement::Transition(Transition {
             target,
             continuation,
-            condition,
+            guard,
         }))
     }
 
@@ -490,7 +494,69 @@ impl Parser<'_> {
     }
 
     fn parse_expression(&mut self) -> Result<Expression, ParseError> {
-        self.parse_add_expression()
+        self.parse_or_expression()
+    }
+
+    fn parse_or_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_and_expression()?;
+
+        while self.consume("||") {
+            let right = self.parse_and_expression()?;
+            expression = binary_expression(expression, BinaryOperator::Or, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_and_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_equality_expression()?;
+
+        while self.consume("&&") {
+            let right = self.parse_equality_expression()?;
+            expression = binary_expression(expression, BinaryOperator::And, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_equality_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_comparison_expression()?;
+
+        loop {
+            let operator = if self.consume("==") {
+                BinaryOperator::Equal
+            } else if self.consume("!=") {
+                BinaryOperator::NotEqual
+            } else {
+                break;
+            };
+            let right = self.parse_comparison_expression()?;
+            expression = binary_expression(expression, operator, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_comparison_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_add_expression()?;
+
+        loop {
+            let operator = if self.consume("<=") {
+                BinaryOperator::LessOrEqual
+            } else if self.consume(">=") {
+                BinaryOperator::GreaterOrEqual
+            } else if self.consume("<") {
+                BinaryOperator::Less
+            } else if self.consume(">") {
+                BinaryOperator::Greater
+            } else {
+                break;
+            };
+            let right = self.parse_add_expression()?;
+            expression = binary_expression(expression, operator, right);
+        }
+
+        Ok(expression)
     }
 
     fn parse_add_expression(&mut self) -> Result<Expression, ParseError> {
@@ -498,11 +564,7 @@ impl Parser<'_> {
 
         while self.consume("+") {
             let right = self.parse_primary_expression()?;
-            expression = Expression::Binary(Box::new(BinaryExpression {
-                left: expression,
-                operator: BinaryOperator::Add,
-                right,
-            }));
+            expression = binary_expression(expression, BinaryOperator::Add, right);
         }
 
         Ok(expression)
@@ -651,42 +713,6 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn collect_condition_until_semicolon(&mut self) -> Result<String, ParseError> {
-        let mut parts = Vec::new();
-
-        while !self.consume(";") {
-            let Some(token) = self.advance() else {
-                return Err(self.error_here("expected transition condition"));
-            };
-            parts.push(token.lexeme.clone());
-        }
-
-        if parts.is_empty() {
-            Err(self.error_here("expected transition condition"))
-        } else {
-            Ok(parts.join(" "))
-        }
-    }
-
-    fn collect_condition_until_transition_end(&mut self) -> Result<String, ParseError> {
-        let mut parts = Vec::new();
-
-        while !self.check(";") && !self.check("}") {
-            let Some(token) = self.advance() else {
-                return Err(self.error_here("expected transition condition"));
-            };
-            parts.push(token.lexeme.clone());
-        }
-
-        let _ = self.consume(";");
-
-        if parts.is_empty() {
-            Err(self.error_here("expected transition condition"))
-        } else {
-            Ok(parts.join(" "))
-        }
-    }
-
     fn consume(&mut self, lexeme: &str) -> bool {
         if self.check(lexeme) {
             self.index += 1;
@@ -760,4 +786,12 @@ impl Parser<'_> {
             ParseError::new(message)
         }
     }
+}
+
+fn binary_expression(left: Expression, operator: BinaryOperator, right: Expression) -> Expression {
+    Expression::Binary(Box::new(BinaryExpression {
+        left,
+        operator,
+        right,
+    }))
 }

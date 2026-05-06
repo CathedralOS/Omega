@@ -14,9 +14,9 @@ pub use driver::{CheckOutput, CompileOptions, CompileOutput, PhaseTiming, check,
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::expression::Expression;
+    use crate::ast::expression::{BinaryOperator, Expression};
     use crate::ast::item::Item;
-    use crate::ast::statement::{Statement, TransitionTarget};
+    use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
     use crate::ast::types::TypeReference;
     use crate::parser::parser::parse_file;
     use omega_lexer::Lexer;
@@ -739,7 +739,7 @@ mod tests {
 
         assert_eq!(transition.target, TransitionTarget::Terminal);
         assert_eq!(transition.continuation, None);
-        assert_eq!(transition.condition, None);
+        assert_eq!(transition.guard, TransitionGuard::Always);
     }
 
     #[test]
@@ -809,7 +809,10 @@ mod tests {
             panic!("expected terminal transition");
         };
         assert_eq!(second_transition.target, TransitionTarget::Terminal);
-        assert_eq!(second_transition.condition, Some("value == min".to_owned()));
+        let TransitionGuard::When(Expression::Binary(condition)) = &second_transition.guard else {
+            panic!("expected structured transition guard");
+        };
+        assert_eq!(condition.operator, BinaryOperator::Equal);
     }
 
     #[test]

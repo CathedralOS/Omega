@@ -2,7 +2,7 @@ use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
-use crate::ir::statement::{Statement, Transition, TransitionTarget};
+use crate::ir::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ControlFlowPlan {
@@ -41,7 +41,7 @@ pub enum OperationKind {
 pub struct TransitionFlow {
     pub target: PlannedTransitionTarget,
     pub continuation: Option<PlannedTransitionTarget>,
-    pub condition: Option<String>,
+    pub guard: TransitionGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +104,7 @@ fn build_machine_flow(machine: &Machine) -> Result<MachineFlow, Diagnostic> {
                             name: next_segment_name.clone(),
                         },
                         continuation: None,
-                        condition: None,
+                        guard: TransitionGuard::Always,
                     });
                 }
             }
@@ -208,7 +208,7 @@ fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {
     segment
         .transitions
         .iter()
-        .any(|transition| transition.condition.is_none())
+        .any(|transition| transition.guard == TransitionGuard::Always)
 }
 
 fn plan_transition(
@@ -222,7 +222,7 @@ fn plan_transition(
             .as_ref()
             .map(|target| plan_transition_target(state_indexes, target))
             .transpose()?,
-        condition: transition.condition.clone(),
+        guard: transition.guard.clone(),
     })
 }
 

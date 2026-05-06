@@ -22,6 +22,14 @@ pub struct BinaryExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Add,
+    And,
+    Equal,
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual,
+    NotEqual,
+    Or,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

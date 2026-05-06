@@ -30,7 +30,13 @@ pub struct Call {
 pub struct Transition {
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
-    pub condition: Option<String>,
+    pub guard: TransitionGuard,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransitionGuard {
+    Always,
+    When(crate::expression::Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
