@@ -890,6 +890,44 @@ mod tests {
     }
 
     #[test]
+    fn plans_mid_state_transition_as_generated_segments() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                owns ready: bool = false;
+
+                state entry {
+                    -> done when ready;
+                    prepare();
+                    -> done;
+                }
+
+                state prepare {
+                }
+
+                state done {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
+            .expect("control-flow planning should pass");
+        let states = &control_flow.machines[0].states;
+
+        assert_eq!(states[0].name, "entry");
+        assert_eq!(states[1].name, "entry__segment_1");
+        assert_eq!(states[0].transitions.len(), 2);
+        assert_eq!(states[1].operations.len(), 1);
+        assert_eq!(states[1].transitions.len(), 1);
+    }
+
+    #[test]
     fn plans_native_object_shape() {
         let tokens = Lexer::new(
             r#"
