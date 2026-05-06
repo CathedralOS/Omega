@@ -28,6 +28,43 @@ impl NativeTarget {
             pointer_alignment: std::mem::align_of::<usize>(),
         }
     }
+
+    pub fn from_omega_target_name(target_name: Option<&str>) -> Self {
+        match target_name {
+            Some("linux_x64") => Self::linux_x64(),
+            Some("macos_arm64") => Self::macos_arm64(),
+            Some("windows_x64") => Self::windows_x64(),
+            Some("cross_platform_cli") | Some("local_unchecked") | None => Self::host(),
+            Some(_) => Self::host(),
+        }
+    }
+
+    pub fn linux_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn macos_arm64() -> Self {
+        Self {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::MachO,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    pub fn windows_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
 }
 
 fn host_architecture() -> Architecture {

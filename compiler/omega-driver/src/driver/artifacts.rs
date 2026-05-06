@@ -8,6 +8,7 @@ use crate::driver::trust::TrustReport;
 use crate::ir::Program;
 use crate::ir::data::DataMember;
 use crate::ir::statement::TransitionGuard;
+use crate::native::abi::{HostBinding, HostBindingMechanism};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
@@ -392,6 +393,16 @@ impl ArtifactWriter {
             "entry: {}.{} as `{}`\n\n",
             native_plan.entry_machine, native_plan.entry_state, native_plan.object.entry_symbol
         ));
+
+        output.push_str("## Host ABI\n");
+        output.push_str(&format!(
+            "bindings: {}\n",
+            native_plan.host_abi.bindings.len()
+        ));
+        for (_, binding) in native_plan.host_abi.bindings.iter() {
+            write_host_binding(&mut output, binding);
+        }
+        output.push('\n');
 
         output.push_str("## Source Native Surface\n");
         output.push_str(&format!(
@@ -983,6 +994,23 @@ fn write_section_plan(output: &mut String, section: &SectionPlan) {
         "- section {} {:?}: size {}, align {}\n",
         section.name, section.kind, section.size, section.alignment
     ));
+}
+
+fn write_host_binding(output: &mut String, binding: &HostBinding) {
+    match &binding.mechanism {
+        HostBindingMechanism::Import { library, symbol } => {
+            output.push_str(&format!(
+                "- {}.{} import {}!{} trust `{}`\n",
+                binding.capability, binding.operation, library, symbol, binding.trust_policy
+            ));
+        }
+        HostBindingMechanism::Syscall { name, number } => {
+            output.push_str(&format!(
+                "- {}.{} syscall {}({}) trust `{}`\n",
+                binding.capability, binding.operation, name, number, binding.trust_policy
+            ));
+        }
+    }
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {

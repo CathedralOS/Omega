@@ -116,8 +116,11 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     })?;
     record_phase(&mut phase_timings, "native plan", || {
         let native_surface = build_native_surface_report(&loaded_program.items);
-        let native_plan = build_native_plan(&program, NativeTarget::host())
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let native_plan = build_native_plan(
+            &program,
+            NativeTarget::from_omega_target_name(options.target_name.as_deref()),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -210,8 +213,11 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
         let native_surface = build_native_surface_report(&loaded_program.items);
-        let native_plan = build_native_plan(&program, NativeTarget::host())
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let native_plan = build_native_plan(
+            &program,
+            NativeTarget::from_omega_target_name(options.target_name.as_deref()),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -223,9 +229,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
+        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
         artifacts.root().display(),
         format_phase_timings(&phase_timings),
+        native_plan.host_abi.bindings.len(),
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
         native_plan.control_flow.machines.len(),

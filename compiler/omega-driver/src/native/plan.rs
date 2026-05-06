@@ -1,5 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
+use crate::native::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::native::control_flow::{ControlFlowPlan, build_control_flow_plan};
 use crate::native::layout::{LayoutPlan, build_layout_plan};
 use crate::native::object::{ObjectPlan, build_object_plan};
@@ -8,6 +9,7 @@ use crate::native::target::NativeTarget;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {
     pub target: NativeTarget,
+    pub host_abi: HostAbiPlan,
     pub control_flow: ControlFlowPlan,
     pub layouts: LayoutPlan,
     pub object: ObjectPlan,
@@ -21,6 +23,7 @@ pub fn build_native_plan(
 ) -> Result<NativePlan, Diagnostic> {
     let mut native_plan = NativePlan {
         target,
+        host_abi: build_host_abi_plan(target),
         control_flow: build_control_flow_plan(program)?,
         layouts: build_layout_plan(program, target)?,
         object: ObjectPlan {

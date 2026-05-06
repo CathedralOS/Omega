@@ -1216,6 +1216,82 @@ mod tests {
     }
 
     #[test]
+    fn selected_windows_target_plans_coff_and_kernel32_imports() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state entry {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::windows_x64(),
+        )
+        .expect("native planning should pass");
+
+        assert_eq!(
+            native_plan.target.object_format,
+            crate::native::target::ObjectFormat::Coff
+        );
+        assert!(
+            native_plan
+                .object
+                .symbols
+                .iter()
+                .any(|(_, symbol)| symbol.name == "WriteFile")
+        );
+        assert!(
+            native_plan
+                .host_abi
+                .bindings
+                .iter()
+                .any(|(_, binding)| binding.trust_policy == "omega::host::windows")
+        );
+    }
+
+    #[test]
+    fn selected_linux_target_plans_elf_and_syscalls() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                state entry {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::linux_x64(),
+        )
+        .expect("native planning should pass");
+
+        assert_eq!(
+            native_plan.target.object_format,
+            crate::native::target::ObjectFormat::Elf
+        );
+        assert_eq!(native_plan.object.symbols.len(), 2);
+        assert!(
+            native_plan
+                .host_abi
+                .bindings
+                .iter()
+                .any(|(_, binding)| binding.operation == "exit_group")
+        );
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));

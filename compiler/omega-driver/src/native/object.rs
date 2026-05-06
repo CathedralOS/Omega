@@ -1,4 +1,5 @@
 use crate::diagnostics::Diagnostic;
+use crate::native::abi::HostBindingMechanism;
 use crate::native::layout::MachineLayout;
 use crate::native::plan::NativePlan;
 use crate::native::target::{NativeTarget, ObjectFormat};
@@ -62,6 +63,7 @@ impl Default for SymbolPlan {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolKind {
     Function,
+    Import,
     Object,
 }
 
@@ -123,6 +125,25 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
             kind: SymbolKind::Object,
         },
     ]);
+
+    object_plan
+        .symbols
+        .insert_many(
+            native_plan
+                .host_abi
+                .bindings
+                .iter()
+                .filter_map(|(_, binding)| match &binding.mechanism {
+                    HostBindingMechanism::Import { symbol, .. } => Some(SymbolPlan {
+                        name: symbol.clone(),
+                        section: None,
+                        offset: 0,
+                        size: 0,
+                        kind: SymbolKind::Import,
+                    }),
+                    HostBindingMechanism::Syscall { .. } => None,
+                }),
+        );
 
     Ok(object_plan)
 }
