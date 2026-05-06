@@ -49,7 +49,12 @@ The Rust compiler is intentionally small, but it now has real pipeline seams und
 - parser for top-level items, machines, platforms, states, calls, and transition arrows
 - syntax support for typed states, final-expression completion, `&mut self`, `const` parameters, and bounded type annotations
 - AST-to-IR lowering
+- arena-backed storage for lowered type constraints and proof constraint chunks
 - semantic validation for entry point, receivers, platform states, and transition targets
+- invariant aliases such as `invariant speed_range = [finite, range<0.0f, 100000.0f>];`
+- conservative proof obligations for bounded initializers, assignments, calls, transitions, and state returns
+- native planning for target layout, state control-flow, object sections, symbols, and entry point
+- phase timing artifacts for each compiler stage
 
 Omega does not currently emit a native binary. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
 
