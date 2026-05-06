@@ -1475,7 +1475,7 @@ mod tests {
         );
         let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
             .expect("emission artifact should be readable");
-        assert!(emission.contains("status: blocked before byte emission"));
+        assert!(emission.contains("status: ready to emit"));
         assert!(emission.contains("data bytes:"));
         assert!(emission.contains("selected instructions:"));
         assert!(emission.contains("instruction operands:"));
@@ -1506,7 +1506,7 @@ mod tests {
 
         let bytes = std::fs::read(&output.executable_path)
             .expect("emitted native object should be readable");
-        assert!(bytes.starts_with(b"OMGOBJ\0\0"));
+        assert!(bytes.starts_with(&0xfeedfacfu32.to_le_bytes()));
         assert!(bytes.len() > 32);
         assert!(
             output.summary.contains("emitted"),

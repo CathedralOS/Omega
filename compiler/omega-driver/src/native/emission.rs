@@ -1,5 +1,5 @@
 use crate::native::plan::NativePlan;
-use crate::native::target::ObjectFormat;
+use crate::native::target::{Architecture, ObjectFormat};
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,16 +35,18 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         ));
     }
 
-    blockers.insert_many([
-        blocker(
-            "relocation encoding",
-            "planned relocation records are not serialized into target object format yet",
-        ),
-        blocker(
-            "object writer",
-            "ELF, Mach-O, and COFF bytes are planned but not serialized yet",
-        ),
-    ]);
+    if !can_emit_real_object(native_plan) {
+        blockers.insert_many([
+            blocker(
+                "relocation encoding",
+                "planned relocation records are not serialized into this target object format yet",
+            ),
+            blocker(
+                "object writer",
+                "this target still falls back to the Omega native object container",
+            ),
+        ]);
+    }
 
     EmissionPlan {
         object_format: native_plan.target.object_format,
@@ -61,6 +63,12 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         relocations: native_plan.relocations.records.len(),
         blockers,
     }
+}
+
+fn can_emit_real_object(native_plan: &NativePlan) -> bool {
+    native_plan.target.object_format == ObjectFormat::MachO
+        && native_plan.target.architecture == Architecture::Aarch64
+        && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {

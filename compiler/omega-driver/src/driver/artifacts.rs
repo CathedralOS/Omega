@@ -668,7 +668,7 @@ impl ArtifactWriter {
         &self,
         emitted_object: &EmittedNativeObject,
     ) -> Result<PathBuf, Diagnostic> {
-        let object_path = self.root.join("omega-native.omgobj");
+        let object_path = self.root.join(&emitted_object.file_name);
         fs::write(&object_path, &emitted_object.bytes).map_err(|error| {
             Diagnostic::error(format!(
                 "failed to write native object {}: {error}",
@@ -679,7 +679,7 @@ impl ArtifactWriter {
         let mut output = String::new();
         output.push_str("# Omega Emitted Native Object\n\n");
         output.push_str(&format!("path: {}\n", object_path.display()));
-        output.push_str("format: omega-native-object-container\n");
+        output.push_str(&format!("format: {}\n", emitted_object.format));
         output.push_str(&format!("bytes: {}\n", emitted_object.bytes.len()));
         output.push_str(&format!("text bytes: {}\n", emitted_object.text_bytes));
         output.push_str(&format!("data bytes: {}\n", emitted_object.data_bytes));

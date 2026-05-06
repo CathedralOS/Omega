@@ -57,9 +57,9 @@ The Rust compiler is intentionally small, but it now has real pipeline seams und
 - native planning for target layout, state control-flow, object sections, symbols, and entry point
 - phase timing artifacts for each compiler stage
 
-Omega does not currently emit a platform executable. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
+Omega does not currently emit platform executables directly. That is deliberate: the old C-host path was removed rather than letting a throwaway transpiler shape the language.
 
-Compile mode now emits an Omega native object container under the build directory. This is not yet a Mach-O/ELF/COFF file, but it is real compiler-emitted bytes: encoded machine-code bytes where supported, data bytes, symbol records, and relocation records.
+Compile mode now emits real compiler-owned bytes under the build directory. On `macos_arm64`, that output is a linkable Mach-O arm64 object file containing encoded machine-code bytes, data bytes, symbol table entries, and relocation records. Targets without a real object writer still fall back to the Omega native object container so the planned bytes remain inspectable.
 
 The current MVP can check all samples through the real front-end pipeline:
 
