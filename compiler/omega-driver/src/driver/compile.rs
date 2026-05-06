@@ -9,6 +9,7 @@ use crate::driver::trust::build_trust_report;
 use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
 use crate::native::control_flow::build_control_flow_plan;
+use crate::native::emission::build_emission_plan;
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
@@ -125,6 +126,17 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
+    record_phase(&mut phase_timings, "emission plan", || {
+        let native_plan = build_native_plan(
+            &program,
+            NativeTarget::from_omega_target_name(options.target_name.as_deref()),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let emission_plan = build_emission_plan(&native_plan);
+        artifacts
+            .write_emission_plan(&emission_plan)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -224,19 +236,29 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
 
         Ok(native_plan)
     })?;
+    let emission_plan = record_phase(&mut phase_timings, "emission plan", || {
+        let emission_plan = build_emission_plan(&native_plan);
+        artifacts
+            .write_emission_plan(&emission_plan)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(emission_plan)
+    })?;
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
+        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), {} emission blocker(s), entry {}.{} as `{}`",
         artifacts.root().display(),
         format_phase_timings(&phase_timings),
         native_plan.host_abi.bindings.len(),
+        native_plan.host_calls.calls.len(),
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
         native_plan.control_flow.machines.len(),
         native_plan.object.sections.len(),
+        emission_plan.blockers.len(),
         native_plan.entry_machine,
         native_plan.entry_state,
         native_plan.object.entry_symbol

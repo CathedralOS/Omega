@@ -1340,6 +1340,7 @@ mod tests {
             "08_proof.txt",
             "09_native_plan.txt",
             "10_trust.txt",
+            "11_emission.txt",
         ] {
             assert!(
                 output.artifacts_dir.join(file_name).is_file(),
@@ -1354,6 +1355,9 @@ mod tests {
             sources.contains("omega/std/console.omg"),
             "source artifact should include bundled omega std source"
         );
+        let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
+            .expect("emission artifact should be readable");
+        assert!(emission.contains("status: blocked before byte emission"));
 
         let _ = std::fs::remove_dir_all(build_dir);
     }

@@ -1,0 +1,56 @@
+use crate::native::plan::NativePlan;
+use crate::native::target::ObjectFormat;
+use omega_core::arena::Arena;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmissionPlan {
+    pub object_format: ObjectFormat,
+    pub entry_symbol: String,
+    pub sections: usize,
+    pub symbols: usize,
+    pub host_bindings: usize,
+    pub host_calls: usize,
+    pub blockers: Arena<EmissionBlocker>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EmissionBlocker {
+    pub stage: String,
+    pub reason: String,
+}
+
+pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
+    let mut blockers = Arena::new();
+
+    blockers.insert_many([
+        blocker(
+            "instruction selection",
+            "Omega statements are not lowered to target machine instructions yet",
+        ),
+        blocker(
+            "relocations",
+            "external imports and machine storage references do not have relocation records yet",
+        ),
+        blocker(
+            "object writer",
+            "ELF, Mach-O, and COFF bytes are planned but not serialized yet",
+        ),
+    ]);
+
+    EmissionPlan {
+        object_format: native_plan.target.object_format,
+        entry_symbol: native_plan.object.entry_symbol.clone(),
+        sections: native_plan.object.sections.len(),
+        symbols: native_plan.object.symbols.len(),
+        host_bindings: native_plan.host_abi.bindings.len(),
+        host_calls: native_plan.host_calls.calls.len(),
+        blockers,
+    }
+}
+
+fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
+    EmissionBlocker {
+        stage: stage.to_owned(),
+        reason: reason.to_owned(),
+    }
+}

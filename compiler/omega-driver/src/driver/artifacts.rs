@@ -12,6 +12,7 @@ use crate::native::abi::{HostBinding, HostBindingMechanism};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
+use crate::native::emission::EmissionPlan;
 use crate::native::host_calls::{HostCall, LoweredHostOperation};
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
@@ -502,6 +503,38 @@ impl ArtifactWriter {
         }
 
         self.write("09_native_plan.txt", &output)
+    }
+
+    pub(crate) fn write_emission_plan(
+        &self,
+        emission_plan: &EmissionPlan,
+    ) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Emission Plan\n\n");
+        output.push_str(&format!(
+            "object format: {:?}\n",
+            emission_plan.object_format
+        ));
+        output.push_str(&format!("entry symbol: {}\n", emission_plan.entry_symbol));
+        output.push_str(&format!("sections: {}\n", emission_plan.sections));
+        output.push_str(&format!("symbols: {}\n", emission_plan.symbols));
+        output.push_str(&format!("host bindings: {}\n", emission_plan.host_bindings));
+        output.push_str(&format!("host calls: {}\n", emission_plan.host_calls));
+        output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
+
+        if emission_plan.blockers.is_empty() {
+            output.push_str("status: ready to emit\n");
+        } else {
+            output.push_str("status: blocked before byte emission\n\n");
+            output.push_str("## Blockers\n");
+
+            for (_, blocker) in emission_plan.blockers.iter() {
+                output.push_str(&format!("- {}: {}\n", blocker.stage, blocker.reason));
+            }
+        }
+
+        self.write("11_emission.txt", &output)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
