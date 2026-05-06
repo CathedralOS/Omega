@@ -61,7 +61,7 @@ cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
 cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 ```
 
-Each check writes ignored phase artifacts under `omega-build/<program>/`, including source loading, AST, placeholder resolve/types/graph/proof stages, driver IR, validation, and native planning output.
+Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, placeholder resolve/types/graph/proof stages, driver IR, validation, native planning output, and phase timing notes. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.
 
 Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 

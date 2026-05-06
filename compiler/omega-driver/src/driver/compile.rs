@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use crate::ast::item::{Item, UseItem};
 use crate::diagnostics::Diagnostic;
@@ -17,99 +18,170 @@ pub struct CompileOutput {
     pub summary: String,
     pub artifacts_dir: PathBuf,
     pub executable_path: PathBuf,
+    pub phase_timings: Vec<PhaseTiming>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckOutput {
     pub summary: String,
     pub artifacts_dir: PathBuf,
+    pub phase_timings: Vec<PhaseTiming>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
 }
 
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
-    let artifacts = ArtifactWriter::new(&options.build_dir, &options.root_path)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let loaded_program = load_program_sources(&options)?;
+    let build_dir = options.build_dir();
+    let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
+    let mut phase_timings = Vec::new();
+    let loaded_program = record_phase(&mut phase_timings, "sources", || {
+        let loaded_program = load_program_sources(&options)?;
+        debug_assert!(loaded_program.file_ranges_are_valid());
+        artifacts
+            .write_sources(&loaded_program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(loaded_program)
+    })?;
+
     debug_assert!(loaded_program.file_ranges_are_valid());
+    record_phase(&mut phase_timings, "ast", || {
+        artifacts
+            .write_ast(&loaded_program)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "resolve", || {
+        artifacts
+            .write_placeholder("03_resolve.txt", "Omega Resolve")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "types", || {
+        artifacts
+            .write_placeholder("04_types.txt", "Omega Types")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    let program = record_phase(&mut phase_timings, "driver ir", || {
+        let program =
+            lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+        artifacts
+            .write_ir(&program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(program)
+    })?;
+    record_phase(&mut phase_timings, "validation", || {
+        validate_program(&program)?;
+        artifacts
+            .write_validation(&program)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "graph", || {
+        artifacts
+            .write_placeholder("07_graph.txt", "Omega Graph")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "proof", || {
+        artifacts
+            .write_placeholder("08_proof.txt", "Omega Proof")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "native plan", || {
+        artifacts
+            .write_placeholder("09_native_plan.txt", "Omega Native Plan")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
     artifacts
-        .write_sources(&loaded_program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_ast(&loaded_program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("03_resolve.txt", "Omega Resolve")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("04_types.txt", "Omega Types")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_ir(&program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    validate_program(&program)?;
-    artifacts
-        .write_validation(&program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("07_graph.txt", "Omega Graph")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("08_proof.txt", "Omega Proof")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("09_native_plan.txt", "Omega Native Plan")
+        .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Ok(CheckOutput {
         artifacts_dir: artifacts.root().to_path_buf(),
         summary: format!(
-            "checked {}; artifacts {}",
+            "checked {}; artifacts {}; phases {}",
             options.root_path.display(),
-            artifacts.root().display()
+            artifacts.root().display(),
+            format_phase_timings(&phase_timings)
         ),
+        phase_timings,
     })
 }
 
 pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
-    let artifacts = ArtifactWriter::new(&options.build_dir, &options.root_path)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let loaded_program = load_program_sources(&options)?;
+    let build_dir = options.build_dir();
+    let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
+    let mut phase_timings = Vec::new();
+    let loaded_program = record_phase(&mut phase_timings, "sources", || {
+        let loaded_program = load_program_sources(&options)?;
+        debug_assert!(loaded_program.file_ranges_are_valid());
+        artifacts
+            .write_sources(&loaded_program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(loaded_program)
+    })?;
+
     debug_assert!(loaded_program.file_ranges_are_valid());
+    record_phase(&mut phase_timings, "ast", || {
+        artifacts
+            .write_ast(&loaded_program)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "resolve", || {
+        artifacts
+            .write_placeholder("03_resolve.txt", "Omega Resolve")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "types", || {
+        artifacts
+            .write_placeholder("04_types.txt", "Omega Types")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    let program = record_phase(&mut phase_timings, "driver ir", || {
+        let program =
+            lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
+        artifacts
+            .write_ir(&program)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(program)
+    })?;
+    record_phase(&mut phase_timings, "validation", || {
+        validate_program(&program)?;
+        artifacts
+            .write_validation(&program)
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "graph", || {
+        artifacts
+            .write_placeholder("07_graph.txt", "Omega Graph")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    record_phase(&mut phase_timings, "proof", || {
+        artifacts
+            .write_placeholder("08_proof.txt", "Omega Proof")
+            .map_err(|diagnostic| vec![diagnostic])
+    })?;
+    let native_plan = record_phase(&mut phase_timings, "native plan", || {
+        let native_plan = build_native_plan(&program, NativeTarget::host())
+            .map_err(|diagnostic| vec![diagnostic])?;
+        artifacts
+            .write_native_plan(&native_plan)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(native_plan)
+    })?;
     artifacts
-        .write_sources(&loaded_program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_ast(&loaded_program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("03_resolve.txt", "Omega Resolve")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("04_types.txt", "Omega Types")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let program = lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_ir(&program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    validate_program(&program)?;
-    artifacts
-        .write_validation(&program)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("07_graph.txt", "Omega Graph")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_placeholder("08_proof.txt", "Omega Proof")
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let native_plan =
-        build_native_plan(&program, NativeTarget::host()).map_err(|diagnostic| vec![diagnostic])?;
-    artifacts
-        .write_native_plan(&native_plan)
+        .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Err(vec![Diagnostic::error(format!(
-        "native object emission is not implemented yet; artifacts {}; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
+        "native object emission is not implemented yet; artifacts {}; phases {}; planned {} data layout(s), {} machine layout(s), {} control-flow machine(s), {} object section(s), entry {}.{} as `{}`",
         artifacts.root().display(),
+        format_phase_timings(&phase_timings),
         native_plan.layouts.data_layouts.len(),
         native_plan.layouts.machine_layouts.len(),
         native_plan.control_flow.machines.len(),
@@ -118,6 +190,30 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         native_plan.entry_state,
         native_plan.object.entry_symbol
     ))])
+}
+
+fn record_phase<T>(
+    timings: &mut Vec<PhaseTiming>,
+    phase: &str,
+    action: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
+) -> Result<T, Vec<Diagnostic>> {
+    let started_at = Instant::now();
+    let result = action();
+
+    timings.push(PhaseTiming {
+        phase: phase.to_owned(),
+        microseconds: started_at.elapsed().as_micros(),
+    });
+
+    result
+}
+
+fn format_phase_timings(timings: &[PhaseTiming]) -> String {
+    timings
+        .iter()
+        .map(|timing| format!("{}={}us", timing.phase, timing.microseconds))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[derive(Debug)]

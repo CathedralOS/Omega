@@ -10,7 +10,7 @@ pub(crate) use omega_core::{diagnostics, source};
 pub(crate) use omega_lexer as lexer;
 pub(crate) use omega_parser as parser;
 
-pub use driver::{CheckOutput, CompileOptions, CompileOutput, check, compile};
+pub use driver::{CheckOutput, CompileOptions, CompileOutput, PhaseTiming, check, compile};
 
 #[cfg(test)]
 mod tests {
@@ -947,12 +947,13 @@ mod tests {
             .join("../../samples/cli_mvp/main.omg");
 
         let output = crate::check(crate::CompileOptions {
-            build_dir: build_dir.clone(),
+            build_dir: Some(build_dir.clone()),
             root_path,
         })
         .expect("check should pass");
 
         for file_name in [
+            "00_timings.txt",
             "01_sources.txt",
             "02_ast.txt",
             "03_resolve.txt",
@@ -968,6 +969,7 @@ mod tests {
                 "missing artifact {file_name}"
             );
         }
+        assert!(!output.phase_timings.is_empty());
 
         let _ = std::fs::remove_dir_all(build_dir);
     }

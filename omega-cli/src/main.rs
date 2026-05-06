@@ -17,7 +17,7 @@ fn main() {
     };
 
     let options = CompileOptions {
-        build_dir: PathBuf::from("omega-build"),
+        build_dir: None,
         root_path: PathBuf::from(root_path),
     };
 

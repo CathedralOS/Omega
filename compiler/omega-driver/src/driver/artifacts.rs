@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::diagnostics::Diagnostic;
-use crate::driver::compile::{LoadedFile, LoadedProgram};
+use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
 use crate::native::plan::NativePlan;
 
@@ -11,8 +11,8 @@ pub(crate) struct ArtifactWriter {
 }
 
 impl ArtifactWriter {
-    pub(crate) fn new(build_dir: &Path, root_path: &Path) -> Result<Self, Diagnostic> {
-        let root = build_dir.join(artifact_name(root_path));
+    pub(crate) fn new(build_dir: &Path) -> Result<Self, Diagnostic> {
+        let root = build_dir.to_path_buf();
         fs::create_dir_all(&root).map_err(|error| {
             Diagnostic::error(format!(
                 "failed to create artifact directory {}: {error}",
@@ -64,6 +64,18 @@ impl ArtifactWriter {
         self.write("09_native_plan.txt", &format!("{native_plan:#?}\n"))
     }
 
+    pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Phase Timings\n\n");
+
+        for timing in timings {
+            output.push_str(&format!("{}: {} us\n", timing.phase, timing.microseconds));
+        }
+
+        self.write("00_timings.txt", &output)
+    }
+
     pub(crate) fn write_placeholder(&self, file_name: &str, title: &str) -> Result<(), Diagnostic> {
         self.write(
             file_name,
@@ -84,33 +96,6 @@ impl ArtifactWriter {
             ))
         })
     }
-}
-
-fn artifact_name(root_path: &Path) -> String {
-    let stem = root_path
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .filter(|stem| !stem.is_empty())
-        .unwrap_or("omega-program");
-    let parent = root_path
-        .parent()
-        .and_then(|parent| parent.file_name())
-        .and_then(|name| name.to_str())
-        .filter(|name| !name.is_empty());
-    let name = match parent {
-        Some(parent) => format!("{parent}_{stem}"),
-        None => stem.to_owned(),
-    };
-
-    name.chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect()
 }
 
 fn write_loaded_file(output: &mut String, file: &LoadedFile) {
