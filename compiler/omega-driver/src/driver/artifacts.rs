@@ -12,6 +12,7 @@ use crate::native::abi::{HostBinding, HostBindingMechanism};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
+use crate::native::host_calls::{HostCall, LoweredHostOperation};
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
@@ -401,6 +402,21 @@ impl ArtifactWriter {
         ));
         for (_, binding) in native_plan.host_abi.bindings.iter() {
             write_host_binding(&mut output, binding);
+        }
+        output.push('\n');
+
+        output.push_str("## Host Call Lowering\n");
+        output.push_str(&format!("calls: {}\n", native_plan.host_calls.calls.len()));
+        output.push_str(&format!(
+            "operations: {}\n",
+            native_plan.host_calls.operations.len()
+        ));
+        if native_plan.host_calls.calls.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, call) in native_plan.host_calls.calls.iter() {
+                write_host_call(&mut output, native_plan, call);
+            }
         }
         output.push('\n');
 
@@ -1011,6 +1027,31 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             ));
         }
     }
+}
+
+fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCall) {
+    output.push_str(&format!(
+        "- {}.{} statement {} `{}`\n",
+        call.machine, call.state, call.statement_index, call.platform_call
+    ));
+
+    match native_plan.host_calls.operations.span(call.operations) {
+        Some(operations) if operations.is_empty() => output.push_str("  operations: none\n"),
+        Some(operations) => {
+            output.push_str("  operations:\n");
+            for operation in operations {
+                write_lowered_host_operation(output, operation);
+            }
+        }
+        None => output.push_str("  operations: invalid span\n"),
+    }
+}
+
+fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOperation) {
+    output.push_str(&format!(
+        "  - {}.{}\n",
+        operation.capability, operation.operation
+    ));
 }
 
 fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {

@@ -1,5 +1,6 @@
 pub mod abi;
 pub mod control_flow;
+pub mod host_calls;
 pub mod layout;
 pub mod object;
 pub mod plan;

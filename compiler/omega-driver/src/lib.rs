@@ -1219,8 +1219,17 @@ mod tests {
     fn selected_windows_target_plans_coff_and_kernel32_imports() {
         let tokens = Lexer::new(
             r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
             machine main {
+                contains console: Console;
+
                 state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
                 }
             }
             "#,
@@ -1254,14 +1263,25 @@ mod tests {
                 .iter()
                 .any(|(_, binding)| binding.trust_policy == "omega::host::windows")
         );
+        assert_eq!(native_plan.host_calls.calls.len(), 2);
+        assert_eq!(native_plan.host_calls.operations.len(), 3);
     }
 
     #[test]
     fn selected_linux_target_plans_elf_and_syscalls() {
         let tokens = Lexer::new(
             r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
             machine main {
+                contains console: Console;
+
                 state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
                 }
             }
             "#,
@@ -1289,6 +1309,8 @@ mod tests {
                 .iter()
                 .any(|(_, binding)| binding.operation == "exit_group")
         );
+        assert_eq!(native_plan.host_calls.calls.len(), 2);
+        assert_eq!(native_plan.host_calls.operations.len(), 2);
     }
 
     #[test]
