@@ -4,8 +4,9 @@ use omega_ast::expression::{
     StructLiteralField,
 };
 use omega_ast::item::{
-    Contains, DataDefinition, DataField, DataMember, DataVariant, InvariantDefinition, Item,
-    Machine, OwnedData, Platform, State, StateParameter, StateSignature, UseItem,
+    CapabilityDefinition, Contains, DataDefinition, DataField, DataMember, DataVariant,
+    InvariantDefinition, Item, Machine, OwnedData, Platform, State, StateParameter, StateSignature,
+    TargetDefinition, UseItem,
 };
 use omega_ast::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -34,6 +35,10 @@ impl Parser<'_> {
         while !self.is_at_end() {
             if self.consume("use") {
                 items.push(Item::Use(self.parse_use()?));
+            } else if self.consume("target") {
+                items.push(Item::Target(self.parse_target_definition()?));
+            } else if self.consume("capability") {
+                items.push(Item::Capability(self.parse_capability_definition()?));
             } else if self.consume("invariant") {
                 items.push(Item::Invariant(self.parse_invariant_definition()?));
             } else if self.consume("data") {
@@ -60,6 +65,20 @@ impl Parser<'_> {
         self.expect(";")?;
 
         Ok(UseItem { path })
+    }
+
+    fn parse_target_definition(&mut self) -> Result<TargetDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        self.skip_balanced_braces()?;
+
+        Ok(TargetDefinition { name })
+    }
+
+    fn parse_capability_definition(&mut self) -> Result<CapabilityDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        self.skip_balanced_braces()?;
+
+        Ok(CapabilityDefinition { name })
     }
 
     fn parse_invariant_definition(&mut self) -> Result<InvariantDefinition, ParseError> {

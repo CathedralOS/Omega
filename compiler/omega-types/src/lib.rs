@@ -22,11 +22,13 @@ pub struct TypeDeclaration {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TypeDeclarationKind {
+    Capability,
     Data,
     Invariant,
     Machine,
     Platform,
     State,
+    Target,
     #[default]
     Unknown,
 }
@@ -54,6 +56,13 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
 
     for item in items {
         match item {
+            Item::Capability(capability) => {
+                insert_declaration(
+                    &mut report,
+                    &capability.name,
+                    TypeDeclarationKind::Capability,
+                );
+            }
             Item::Data(data_definition) => {
                 insert_declaration(
                     &mut report,
@@ -93,6 +102,9 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                         &format!("platform `{}` state `{}`", platform.name, state.name),
                     );
                 }
+            }
+            Item::Target(target) => {
+                insert_declaration(&mut report, &target.name, TypeDeclarationKind::Target);
             }
         }
     }

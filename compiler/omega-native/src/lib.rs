@@ -39,9 +39,11 @@ pub fn build_native_surface_report(items: &[Item]) -> NativeSurfaceReport {
 
     for item in items {
         match item {
+            Item::Capability(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, machine),
             Item::Platform(platform) => collect_platform(&mut report, platform),
             Item::Data(_) | Item::Invariant(_) | Item::Use(_) => {}
+            Item::Target(_) => {}
         }
     }
 

@@ -1,10 +1,12 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
+    Capability(CapabilityDefinition),
     Data(DataDefinition),
     Invariant(InvariantDefinition),
     Use(UseItem),
     Machine(Machine),
     Platform(Platform),
+    Target(TargetDefinition),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,6 +18,16 @@ pub struct UseItem {
 pub struct InvariantDefinition {
     pub name: String,
     pub constraints: Vec<crate::types::TypeConstraint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityDefinition {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetDefinition {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

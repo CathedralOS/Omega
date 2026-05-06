@@ -26,10 +26,12 @@ pub struct ResolvedDefinition {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResolvedDefinitionKind {
+    Capability,
     Data,
     Invariant,
     Machine,
     Platform,
+    Target,
     #[default]
     Unknown,
 }
@@ -63,6 +65,12 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
 
     for item in items {
         match item {
+            Item::Capability(capability) => {
+                report.definitions.insert(ResolvedDefinition {
+                    name: capability.name.clone(),
+                    kind: ResolvedDefinitionKind::Capability,
+                });
+            }
             Item::Data(data_definition) => {
                 report.definitions.insert(ResolvedDefinition {
                     name: data_definition.name.clone(),
@@ -117,6 +125,12 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                         &format!("platform `{}` state `{}`", platform.name, state.name),
                     );
                 }
+            }
+            Item::Target(target) => {
+                report.definitions.insert(ResolvedDefinition {
+                    name: target.name.clone(),
+                    kind: ResolvedDefinitionKind::Target,
+                });
             }
         }
     }

@@ -286,9 +286,15 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         .unwrap_or_else(|| PathBuf::from("."));
 
     let mut seen = Vec::<PathBuf>::new();
-    let mut pending = vec![options.root_path.clone()];
+    let mut pending = Vec::new();
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
+
+    if let Some(build_path) = build_policy_path(&options.root_path) {
+        pending.push(build_path);
+    }
+
+    pending.push(options.root_path.clone());
 
     while let Some(path) = pending.pop() {
         let normalized = normalize_path(&path)?;
@@ -347,6 +353,12 @@ fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
 
     path.set_extension("omg");
     path
+}
+
+fn build_policy_path(root_path: &Path) -> Option<PathBuf> {
+    let build_path = root_path.parent()?.join("build.omg");
+
+    build_path.exists().then_some(build_path)
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {

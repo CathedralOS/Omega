@@ -33,6 +33,7 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
 
     for item in items {
         match item {
+            Item::Capability(_) => {}
             Item::Data(data_definition) => {
                 for member in &data_definition.members {
                     if let DataMember::Field(field) = member {
@@ -53,6 +54,7 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
             Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, machine),
             Item::Platform(platform) => collect_platform(&mut report, platform),
+            Item::Target(_) => {}
         }
     }
 

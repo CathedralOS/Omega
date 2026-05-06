@@ -477,6 +477,7 @@ fn write_ast_file(output: &mut String, loaded_program: &LoadedProgram, file: &Lo
 
 fn ast_item_summary(item: &Item) -> String {
     match item {
+        Item::Capability(capability) => format!("capability `{}`", capability.name),
         Item::Data(data_definition) => {
             let mut field_count = 0usize;
             let mut variant_count = 0usize;
@@ -515,6 +516,7 @@ fn ast_item_summary(item: &Item) -> String {
                 platform.states.len()
             )
         }
+        Item::Target(target) => format!("target `{}`", target.name),
     }
 }
 

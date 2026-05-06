@@ -66,6 +66,7 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
 
     for item in items {
         match item {
+            ast::item::Item::Capability(_) => {}
             ast::item::Item::Data(data_definition) => {
                 program.data_definitions.push(lower_data_definition(
                     data_definition,
@@ -89,6 +90,7 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
                     &mut program.type_constraints,
                 )?);
             }
+            ast::item::Item::Target(_) => {}
         }
     }
 
