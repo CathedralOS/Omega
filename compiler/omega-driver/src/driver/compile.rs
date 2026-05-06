@@ -90,8 +90,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "native plan", || {
+        let native_plan = build_native_plan(&program, NativeTarget::host())
+            .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_placeholder("09_native_plan.txt", "Omega Native Plan")
+            .write_native_plan(&native_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     artifacts
