@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ops::Range;
 
 use crate::arena::{Handle, HandleSpan};
 
@@ -135,20 +136,9 @@ impl<T: Default> Arena<T> {
             return Some(&[]);
         }
 
-        let start = self.index_from_valid_handle(span.start());
-        if start == 0 {
-            return None;
-        }
+        let range = self.valid_span_range(span)?;
 
-        let count = usize::try_from(span.count()).ok()?;
-        let end = start.checked_add(count)?;
-        let occupied = self.occupied.get(start..end)?;
-
-        if occupied.iter().any(|occupied| !occupied) {
-            return None;
-        }
-
-        self.items.get(start..end)
+        self.items.get(range)
     }
 
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
@@ -156,6 +146,12 @@ impl<T: Default> Arena<T> {
             return Some(&mut []);
         }
 
+        let range = self.valid_span_range(span)?;
+
+        self.items.get_mut(range)
+    }
+
+    fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
         let start = self.index_from_valid_handle(span.start());
         if start == 0 {
             return None;
@@ -164,12 +160,20 @@ impl<T: Default> Arena<T> {
         let count = usize::try_from(span.count()).ok()?;
         let end = start.checked_add(count)?;
         let occupied = self.occupied.get(start..end)?;
+        let generations = self.generations.get(start..end)?;
 
         if occupied.iter().any(|occupied| !occupied) {
             return None;
         }
 
-        self.items.get_mut(start..end)
+        if generations
+            .iter()
+            .any(|generation| *generation != span.start().generation())
+        {
+            return None;
+        }
+
+        Some(start..end)
     }
 
     pub fn len(&self) -> usize {
@@ -337,6 +341,20 @@ mod tests {
 
         assert!(arena.span(span).is_some());
         assert!(arena.free(middle));
+        assert!(arena.span(span).is_none());
+        assert!(arena.span_mut(span).is_none());
+    }
+
+    #[test]
+    fn rejects_spans_with_reused_slots() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+        let middle = Handle::from_arena_index(2);
+
+        assert!(arena.free(middle));
+        let reused = arena.insert("delta".to_owned());
+
+        assert_eq!(reused.arena_index(), middle.arena_index());
         assert!(arena.span(span).is_none());
         assert!(arena.span_mut(span).is_none());
     }
