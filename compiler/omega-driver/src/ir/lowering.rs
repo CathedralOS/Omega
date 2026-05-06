@@ -17,17 +17,12 @@ use crate::ir::statement::{
 use crate::ir::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
 
-struct InvariantAliases {
-    items: Vec<InvariantAlias>,
+struct InvariantAliases<'ast> {
+    items: Vec<&'ast ast::item::InvariantDefinition>,
 }
 
-struct InvariantAlias {
-    name: String,
-    constraints: Vec<ast::types::TypeConstraint>,
-}
-
-impl InvariantAliases {
-    fn build(items: &[ast::item::Item]) -> Result<Self, Diagnostic> {
+impl<'ast> InvariantAliases<'ast> {
+    fn build(items: &'ast [ast::item::Item]) -> Result<Self, Diagnostic> {
         let mut aliases = Self { items: Vec::new() };
 
         for item in items {
@@ -42,17 +37,14 @@ impl InvariantAliases {
                 )));
             }
 
-            aliases.items.push(InvariantAlias {
-                name: invariant.name.clone(),
-                constraints: invariant.constraints.clone(),
-            });
+            aliases.items.push(invariant);
         }
 
         Ok(aliases)
     }
 
-    fn get(&self, name: &str) -> Option<&InvariantAlias> {
-        self.items.iter().find(|alias| alias.name == name)
+    fn get(&self, name: &str) -> Option<&ast::item::InvariantDefinition> {
+        self.items.iter().copied().find(|alias| alias.name == name)
     }
 }
 
