@@ -1268,6 +1268,7 @@ mod tests {
         assert_eq!(native_plan.host_calls.calls.len(), 2);
         assert_eq!(native_plan.host_calls.operations.len(), 3);
         assert!(native_plan.instructions.instructions.len() >= 5);
+        assert_eq!(native_plan.relocations.records.len(), 3);
     }
 
     #[test]
@@ -1315,6 +1316,7 @@ mod tests {
         assert_eq!(native_plan.host_calls.calls.len(), 2);
         assert_eq!(native_plan.host_calls.operations.len(), 2);
         assert!(native_plan.instructions.instructions.len() >= 4);
+        assert_eq!(native_plan.relocations.records.len(), 0);
     }
 
     #[test]
@@ -1363,6 +1365,7 @@ mod tests {
             .expect("emission artifact should be readable");
         assert!(emission.contains("status: blocked before byte emission"));
         assert!(emission.contains("selected instructions:"));
+        assert!(emission.contains("relocations:"));
 
         let _ = std::fs::remove_dir_all(build_dir);
     }

@@ -6,4 +6,5 @@ pub mod instructions;
 pub mod layout;
 pub mod object;
 pub mod plan;
+pub mod relocations;
 pub mod target;

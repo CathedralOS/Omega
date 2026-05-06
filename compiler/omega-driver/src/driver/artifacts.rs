@@ -20,6 +20,7 @@ use crate::native::instructions::{
 use crate::native::layout::{DataShape, FieldLayout};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
+use crate::native::relocations::RelocationRecord;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
@@ -518,6 +519,20 @@ impl ArtifactWriter {
         for (_, symbol) in native_plan.object.symbols.iter() {
             write_symbol_plan(&mut output, symbol);
         }
+        output.push('\n');
+
+        output.push_str("## Relocations\n");
+        output.push_str(&format!(
+            "records: {}\n",
+            native_plan.relocations.records.len()
+        ));
+        if native_plan.relocations.records.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, relocation) in native_plan.relocations.records.iter() {
+                write_relocation_record(&mut output, relocation);
+            }
+        }
 
         self.write("09_native_plan.txt", &output)
     }
@@ -542,6 +557,7 @@ impl ArtifactWriter {
             "selected instructions: {}\n",
             emission_plan.selected_instructions
         ));
+        output.push_str(&format!("relocations: {}\n", emission_plan.relocations));
         output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
 
         if emission_plan.blockers.is_empty() {
@@ -1163,6 +1179,16 @@ fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
     output.push_str(&format!(
         "- symbol {} {:?}: section {}, offset {}, size {}\n",
         symbol.name, symbol.kind, section, symbol.offset, symbol.size
+    ));
+}
+
+fn write_relocation_record(output: &mut String, relocation: &RelocationRecord) {
+    output.push_str(&format!(
+        "- {:?} {} instruction #{} -> {}\n",
+        relocation.kind,
+        relocation.function_symbol,
+        relocation.selected_instruction_index,
+        relocation.symbol
     ));
 }
 

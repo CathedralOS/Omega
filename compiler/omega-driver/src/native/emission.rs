@@ -11,6 +11,7 @@ pub struct EmissionPlan {
     pub host_bindings: usize,
     pub host_calls: usize,
     pub selected_instructions: usize,
+    pub relocations: usize,
     pub blockers: Arena<EmissionBlocker>,
 }
 
@@ -29,8 +30,8 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
             "selected native instructions are not encoded into target bytes yet",
         ),
         blocker(
-            "relocations",
-            "external imports and machine storage references do not have relocation records yet",
+            "relocation encoding",
+            "planned relocation records are not serialized into target object format yet",
         ),
         blocker(
             "object writer",
@@ -46,6 +47,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         host_bindings: native_plan.host_abi.bindings.len(),
         host_calls: native_plan.host_calls.calls.len(),
         selected_instructions: native_plan.instructions.instructions.len(),
+        relocations: native_plan.relocations.records.len(),
         blockers,
     }
 }
