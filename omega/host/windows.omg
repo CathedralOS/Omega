@@ -1,19 +1,7 @@
-// Windows host ABI sketch.
+// Windows host ABI package shipped with the Omega toolchain.
 //
-// This is not the Omega standard library. This is the target-host binding
-// layer: the small trusted surface that adapts Omega capabilities to the
-// documented Windows user-mode ABI.
-//
-// Future syntax may become something closer to:
-//
-// extern windows_x64 kernel32.WriteFile(...) -> WinBool
-//     links "Kernel32.dll"
-//     trusted windows_loader
-//     trusted win32_contracts
-//     trusted windows_x64_calling_convention
-//
-// For now, these ABI edges are modeled as capabilities so the parser and trust
-// report can see the boundary without pretending we can prove Win32 itself.
+// Omega should not ship a runtime DLL for this path. A normal Windows target
+// emits PE imports for documented OS DLL APIs and records the trust boundary.
 
 capability WindowsKernel32 {
     state get_std_handle(kind: u32) -> WinHandle

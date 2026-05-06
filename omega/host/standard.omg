@@ -1,0 +1,11 @@
+use omega::host::contracts;
+
+// Portable host selection surface.
+//
+// `StandardHost` means "use the default host ABI for the selected target"
+// while keeping the accepted trust policy visible in `build.omg`.
+
+capability StandardHost {
+    stdout: Stdout
+    process: Process
+}

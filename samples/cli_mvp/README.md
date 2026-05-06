@@ -6,7 +6,7 @@ This sample intentionally avoids input so the entry and platform boundary are ea
 
 ## Trusted Root Sketch
 
-`build.omg` and `host_contracts.omg` are parsed as top-level `target` and `capability` items. Their bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
+`build.omg` imports compiler-provided `omega::host` packages and is parsed as top-level `target` items. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.
 
 For cross-platform hello world, the trusted computing base is tiny:
 
@@ -19,7 +19,7 @@ Omega should prove the literal is initialized/UTF-8 and that errors are handled 
 
 The standard library should be ordinary Omega code wherever possible: strings, slices, math, collections, parsing helpers, portable console helpers, and so on.
 
-The host bindings are different. Files under `platform/*_host.omg` sketch the trusted root that adapts those portable capabilities to a target ABI:
+The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the trusted root that adapts those portable capabilities to a target ABI:
 
 - Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
 - Linux can plausibly use raw syscalls for `write` and `exit_group`.

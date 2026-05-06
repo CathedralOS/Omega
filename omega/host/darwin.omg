@@ -1,8 +1,7 @@
-// Darwin/macOS host ABI sketch.
+// Darwin/macOS host ABI package shipped with the Omega toolchain.
 //
 // macOS applications should normally bind through libSystem rather than direct
-// syscall numbers. The stable contract is the platform ABI, not the private
-// kernel transition details.
+// syscall numbers. The platform ABI is the trusted boundary.
 
 capability DarwinLibSystem {
     state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, Errno>

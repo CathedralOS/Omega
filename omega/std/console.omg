@@ -1,0 +1,9 @@
+// Portable console surface exposed by the Omega standard library.
+//
+// This is the friendly app-facing API. Its implementation should eventually be
+// proven Omega code over explicit host capabilities, not a direct OS binding.
+
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}

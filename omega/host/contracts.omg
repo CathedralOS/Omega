@@ -1,0 +1,31 @@
+// Core host capability contracts shipped with the Omega toolchain.
+//
+// These declarations are target-independent. Target packages decide how to
+// implement them and which ABI contracts must be trusted.
+
+capability Stdout {
+    state write(buf: Slice<u8>) -> Result<usize, IOError>
+        requires buf.initialized
+        requires buf.len <= usize.max
+        ensures result.Ok(n) => n <= buf.len
+        ensures result.Err(e) => e is IOError
+        trusted host
+
+    state write_line(text: String) -> Result<(), IOError>
+        requires text.utf8
+        ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
+        ensures result.Err(e) => e is IOError
+        trusted host
+}
+
+capability Process {
+    state exit(return_code: i32) -> Never
+        requires target_accepts_exit_code(return_code)
+        ensures process_terminated
+        trusted host
+}
+
+capability Host {
+    stdout: Stdout
+    process: Process
+}

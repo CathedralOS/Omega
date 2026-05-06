@@ -2,11 +2,11 @@
 //
 // Build configuration is Omega source. No TOML/YAML side language.
 
-use host_contracts;
-use platform::darwin_host;
-use platform::linux_host;
-use platform::standard_host;
-use platform::windows_host;
+use omega::host::contracts;
+use omega::host::darwin;
+use omega::host::linux;
+use omega::host::standard;
+use omega::host::windows;
 //
 // Hello world needs only two host capabilities:
 //

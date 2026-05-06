@@ -83,6 +83,7 @@ Native binary emission should come from a real Omega backend or execution model,
 - `compiler/omega-proof/`: source-level invariant and bounded-type proof surface reporting
 - `compiler/omega-native/`: source-level native entry/platform/machine surface reporting
 - `compiler/omega-driver/`: current orchestration crate with IR, semantic validation, native planning, and compile driver
+- `omega/`: bundled Omega source packages, currently `omega::std` and `omega::host`
 - `omega-cli/`: command-line entry point, with binary name `omega`
 - `samples/`: small Omega programs used to pressure-test language ideas
 - `wiki/`: evolving design notes for semantics, proof shape, and state-machine behavior

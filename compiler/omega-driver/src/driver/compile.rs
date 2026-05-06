@@ -358,14 +358,36 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
 }
 
 fn resolve_use(root_dir: &Path, use_item: &UseItem) -> PathBuf {
-    let mut path = root_dir.to_path_buf();
+    let mut segments = use_item.path.iter();
+    let mut path = if use_item
+        .path
+        .first()
+        .is_some_and(|segment| segment == "omega")
+    {
+        segments.next();
+        bundled_omega_root()
+    } else {
+        root_dir.to_path_buf()
+    };
 
-    for segment in &use_item.path {
+    for segment in segments {
         path.push(segment);
     }
 
     path.set_extension("omg");
     path
+}
+
+fn bundled_omega_root() -> PathBuf {
+    if let Some(path) = std::env::var_os("OMEGA_LIBRARY_ROOT") {
+        return PathBuf::from(path);
+    }
+
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("driver crate should live under compiler/omega-driver")
+        .join("omega")
 }
 
 fn build_policy_path(root_path: &Path) -> Option<PathBuf> {

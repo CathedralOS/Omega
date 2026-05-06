@@ -12,10 +12,12 @@ fn parses_every_sample_and_canary_file() {
         .expect("parser crate should live under compiler/omega-parser");
     let sample_root = repo_root.join("samples");
     let canary_root = repo_root.join("canaries");
+    let omega_root = repo_root.join("omega");
     let mut omega_files = Vec::new();
 
     collect_omega_files(&sample_root, &mut omega_files);
     collect_omega_files(&canary_root, &mut omega_files);
+    collect_omega_files(&omega_root, &mut omega_files);
     omega_files.sort();
 
     assert!(

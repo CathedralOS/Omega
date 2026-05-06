@@ -1240,6 +1240,7 @@ mod tests {
             "07_graph.txt",
             "08_proof.txt",
             "09_native_plan.txt",
+            "10_trust.txt",
         ] {
             assert!(
                 output.artifacts_dir.join(file_name).is_file(),

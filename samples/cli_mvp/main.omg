@@ -1,4 +1,4 @@
-use platform::console;
+use omega::std::console;
 
 machine main {
     contains console: Console;
