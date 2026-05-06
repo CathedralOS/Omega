@@ -1,12 +1,12 @@
 [package]
-name = "omega"
+name = "omega-syntax"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega"
+name = "omega_syntax"
 path = "src/lib.rs"
 
 [dependencies]
-arc-swap = "1.7"
+omega-core = { path = "../omega-core" }

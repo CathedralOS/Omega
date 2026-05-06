@@ -12,10 +12,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega"
+name = "omega-cli"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+]
+
+[[package]]
+name = "omega-compiler"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-syntax",
+]
+
+[[package]]
+name = "omega-core"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+]
+
+[[package]]
+name = "omega-syntax"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use omega::driver::{CompileOptions, check, compile};
+use omega_compiler::{CompileOptions, check, compile};
 
 fn main() {
     let mut arguments = std::env::args_os().skip(1);

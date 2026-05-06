@@ -54,16 +54,19 @@ Omega does not currently emit a native binary. That is deliberate: the old C-hos
 The current MVP can check all samples through the real front-end pipeline:
 
 ```bash
-cargo run -p omega -- --check samples/cli_mvp/main.omg
-cargo run -p omega -- --check samples/dungeon_crawler_cli/main.omg
-cargo run -p omega -- --check samples/point_and_click/main.omg
+cargo run -p omega-cli -- --check samples/cli_mvp/main.omg
+cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
+cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 ```
 
 Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 
 ## Repository Layout
 
-- `omega/`: Rust compiler crate and command-line entry point
+- `omega-core/`: shared compiler foundations such as arenas, diagnostics, source files, and spans
+- `omega-syntax/`: lexer, parser, tokens, and AST
+- `omega-compiler/`: IR, semantic validation, native planning, and compile driver
+- `omega-cli/`: command-line entry point, with binary name `omega`
 - `samples/`: small Omega programs used to pressure-test language ideas
 - `wiki/`: evolving design notes for semantics, proof shape, and state-machine behavior
 
@@ -103,14 +106,14 @@ cargo test
 Check the CLI MVP sample:
 
 ```bash
-cargo run -p omega -- --check samples/cli_mvp/main.omg
+cargo run -p omega-cli -- --check samples/cli_mvp/main.omg
 ```
 
 Check richer samples:
 
 ```bash
-cargo run -p omega -- --check samples/dungeon_crawler_cli/main.omg
-cargo run -p omega -- --check samples/point_and_click/main.omg
+cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
+cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 ```
 
 ## Design Notes

@@ -1,26 +1,23 @@
-pub mod arena;
-pub mod ast;
-pub mod diagnostics;
 pub mod driver;
 pub mod ir;
-pub mod lexer;
 pub mod native;
-pub mod parser;
 pub mod semantic;
-pub mod source;
-pub mod syntax;
 
-pub use lexer::{Lexer, Token, TokenKind};
-pub use syntax::Module;
+#[cfg(test)]
+pub(crate) use omega_core::arena;
+pub(crate) use omega_core::{diagnostics, source};
+pub(crate) use omega_syntax::{ast, lexer, parser};
+
+pub use driver::{CheckOutput, CompileOptions, CompileOutput, check, compile};
 
 #[cfg(test)]
 mod tests {
-    use crate::Lexer;
     use crate::ast::expression::Expression;
     use crate::ast::item::Item;
     use crate::ast::statement::{Statement, TransitionTarget};
     use crate::ast::types::TypeReference;
     use crate::parser::parser::parse_file;
+    use omega_syntax::Lexer;
 
     #[test]
     fn tokenizes_simple_source() {
