@@ -21,6 +21,7 @@ Working interpretation:
 
 - `i32[range<1, 100>]` is an `i32` refined by a range invariant.
 - `i32[range<min, max>]` is an `i32` refined by compile-time or proof-visible bounds.
+- Ranges are assumed inclusive for now unless the syntax grows explicit open/closed bounds.
 - `const` parameters may be used in type-level constraints.
 - The compiler emits proof obligations anywhere a value is assigned, produced, or transitioned into a bounded slot.
 - Invariants are compile-time proof facts, not RTTI.
@@ -67,3 +68,14 @@ Important runtime rule:
 - Debug builds or proof artifacts may choose to emit extra validation, but that is instrumentation, not the language's core runtime model.
 
 This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
+
+## Rust Comparison
+
+Rust has related pieces, but not this exact feature.
+
+- `1..100` and `1..=100` are range values.
+- Range patterns can match values in some contexts.
+- Const generics can parameterize types over compile-time values.
+- Newtypes and smart constructors can enforce ranges by convention.
+
+None of those make `i32[range<min, max>]` a native, compiler-proved primitive refinement on stable Rust. Omega's range syntax is therefore its own proof-facing type annotation, not a Rust compatibility feature.

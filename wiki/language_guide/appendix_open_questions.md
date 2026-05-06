@@ -10,10 +10,10 @@ This page tracks design pressure that is not fully nailed down yet.
 - A final expression does not automatically make a state too function-like. It is just the terminal value of a typed state graph.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
+- The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 
 ## Still Open
 
-- Should the refinement syntax be `i32[range<1, 100>]`, `i32 where range<1, 100>`, or something else?
 - How do typed states interact with branch-free states and ordered transitions?
 - Can the compiler infer result bounds from ordered transitions without explicit annotations?
 - Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
