@@ -5,6 +5,7 @@ use crate::diagnostics::Diagnostic;
 use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::ir::Program;
 use crate::native::plan::NativePlan;
+use crate::proof::obligations::ProofPlan;
 
 pub(crate) struct ArtifactWriter {
     root: PathBuf,
@@ -58,6 +59,10 @@ impl ArtifactWriter {
         output.push_str(&format!("machines: {}\n", program.machines.len()));
 
         self.write("06_validation.txt", &output)
+    }
+
+    pub(crate) fn write_proof_plan(&self, proof_plan: &ProofPlan) -> Result<(), Diagnostic> {
+        self.write("08_proof.txt", &format!("{proof_plan:#?}\n"))
     }
 
     pub(crate) fn write_native_plan(&self, native_plan: &NativePlan) -> Result<(), Diagnostic> {

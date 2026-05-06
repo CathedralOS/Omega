@@ -10,6 +10,7 @@ use crate::lexer::{Lexer, Span};
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
+use crate::proof::obligations::build_proof_plan;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 
@@ -85,8 +86,9 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
+        let proof_plan = build_proof_plan(&program);
         artifacts
-            .write_placeholder("08_proof.txt", "Omega Proof")
+            .write_proof_plan(&proof_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "native plan", || {
@@ -163,8 +165,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
+        let proof_plan = build_proof_plan(&program);
         artifacts
-            .write_placeholder("08_proof.txt", "Omega Proof")
+            .write_proof_plan(&proof_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {

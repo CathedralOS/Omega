@@ -1,6 +1,7 @@
 pub mod driver;
 pub mod ir;
 pub mod native;
+pub mod proof;
 pub mod semantic;
 
 pub(crate) use omega_ast as ast;
@@ -938,6 +939,37 @@ mod tests {
         assert_eq!(states[0].transitions.len(), 2);
         assert_eq!(states[1].operations.len(), 1);
         assert_eq!(states[1].transitions.len(), 1);
+    }
+
+    #[test]
+    fn builds_proof_obligations_for_bounds_and_guards() {
+        let tokens = Lexer::new(
+            r#"
+            machine main {
+                owns health: i32[range<1, 100>] = 100;
+
+                state entry {
+                    -> damaged(health) when health > 50;
+                    -> done;
+                }
+
+                state damaged(amount: i32[range<1, 50>]) {
+                }
+
+                state done {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        crate::semantic::validation::validate_program(&program).expect("validation should pass");
+        let proof_plan = crate::proof::obligations::build_proof_plan(&program);
+
+        assert_eq!(proof_plan.obligations.len(), 3);
     }
 
     #[test]
