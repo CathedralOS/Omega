@@ -263,7 +263,7 @@ impl<'program> MachineSymbols<'program> {
         self.member_names.contains(&name)
     }
 
-    fn has_owned_data(&self, name: &str) -> bool {
+    pub fn has_owned_data(&self, name: &str) -> bool {
         self.owned_data_names.contains(&name)
     }
 }

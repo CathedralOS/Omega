@@ -30,18 +30,11 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
                 format!("machine `{}` state `{}`", machine.name, state.name),
                 &mut diagnostics,
             );
-            let local_names = collect_local_data_names(&state.statements);
-            let writable_roots = machine_symbols
-                .owned_data_names()
-                .chain(local_names.iter().copied())
-                .chain(
-                    state
-                        .parameters
-                        .iter()
-                        .filter(|parameter| parameter.is_mutable)
-                        .map(|parameter| parameter.name.as_str()),
-                )
-                .collect::<Vec<_>>();
+            let writable_roots = WritableRoots {
+                machine_symbols: &machine_symbols,
+                statements: &state.statements,
+                parameters: &state.parameters,
+            };
 
             for statement in &state.statements {
                 validate_state_statement(
@@ -88,17 +81,27 @@ fn validate_invariant_definitions(program: &Program, diagnostics: &mut Vec<Diagn
     }
 }
 
-fn collect_local_data_names(statements: &[Statement]) -> Vec<&str> {
-    statements
-        .iter()
-        .filter_map(|statement| {
-            let Statement::LocalData(local_data) = statement else {
-                return None;
-            };
+struct WritableRoots<'program, 'state> {
+    machine_symbols: &'state MachineSymbols<'program>,
+    statements: &'state [Statement],
+    parameters: &'state [StateParameter],
+}
 
-            Some(local_data.name.as_str())
-        })
-        .collect()
+impl WritableRoots<'_, '_> {
+    fn contains(&self, root_name: &str) -> bool {
+        self.machine_symbols.has_owned_data(root_name)
+            || self.statements.iter().any(|statement| {
+                let Statement::LocalData(local_data) = statement else {
+                    return false;
+                };
+
+                local_data.name == root_name
+            })
+            || self
+                .parameters
+                .iter()
+                .any(|parameter| parameter.is_mutable && parameter.name == root_name)
+    }
 }
 
 fn validate_local_data_names(
@@ -144,7 +147,7 @@ fn validate_state_statement(
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     statement: &Statement,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -224,7 +227,7 @@ fn validate_state_statement(
 
 fn validate_assignment_target(
     target: &Expression,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
@@ -239,7 +242,7 @@ fn validate_assignment_target(
         return;
     };
 
-    if !writable_roots.contains(&root_name) {
+    if !writable_roots.contains(root_name) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} cannot write `{root_name}` because it is not mutable in this state"
         )));
@@ -595,7 +598,7 @@ fn validate_call(
     current_machine: &crate::ir::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(receiver) = call.receiver.as_deref() else {
@@ -701,7 +704,7 @@ fn validate_call_arguments(
     arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let callable_parameter_count = parameters
@@ -772,7 +775,7 @@ struct ArgumentAccess<'expression> {
 fn validate_argument_borrows(
     arguments: &[Expression],
     target_name: &str,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut accesses = Vec::new();
@@ -814,7 +817,7 @@ fn validate_argument_borrows(
 fn collect_argument_accesses<'expression>(
     expression: &'expression Expression,
     target_name: &str,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     accesses: &mut Vec<ArgumentAccess<'expression>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -828,7 +831,7 @@ fn collect_argument_accesses<'expression>(
             }
 
             if let Some(root_name) = expression_root_name(inner_expression) {
-                if !writable_roots.contains(&root_name) {
+                if !writable_roots.contains(root_name) {
                     diagnostics.push(Diagnostic::error(format!(
                         "mutable argument `{root_name}` for state `{target_name}` is not writable in this state"
                     )));
@@ -982,7 +985,7 @@ fn validate_transition_target(
     target: &TransitionTarget,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let TransitionTarget::Named { path, arguments } = target else {
@@ -1067,7 +1070,7 @@ fn validate_transition_arguments(
     arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],
-    writable_roots: &[&str],
+    writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_call_arguments(
