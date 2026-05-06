@@ -251,6 +251,10 @@ impl<'program> MachineSymbols<'program> {
         self.member_names.iter().copied()
     }
 
+    pub fn owned_data_names(&self) -> impl Iterator<Item = &'program str> + '_ {
+        self.owned_data_names.iter().copied()
+    }
+
     pub fn has_state(&self, name: &str) -> bool {
         self.state(name).is_some()
     }

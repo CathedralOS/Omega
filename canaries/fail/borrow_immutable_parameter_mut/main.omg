@@ -1,0 +1,15 @@
+machine main {
+    owns value: i32 = 1;
+
+    state entry {
+        write(value);
+    }
+
+    state write(input_value: i32) {
+        copy(mut input_value);
+    }
+
+    state copy(mut out_value: i32) {
+        out_value = 2;
+    }
+}

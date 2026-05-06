@@ -1,0 +1,11 @@
+machine main {
+    owns value: i32 = 1;
+
+    state entry {
+        overwrite(value);
+    }
+
+    state overwrite(input_value: i32) {
+        input_value = 2;
+    }
+}
