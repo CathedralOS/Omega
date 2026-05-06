@@ -48,6 +48,7 @@ The Rust compiler is intentionally small, but it now has real pipeline seams und
 - lexer with spans and structured errors
 - parser for top-level items, machines, platforms, states, calls, and transition arrows
 - syntax support for typed states, final-expression completion, `&mut self`, `const` parameters, and bounded type annotations
+- resolve reports for imports, top-level definitions, and syntactic references
 - AST-to-IR lowering
 - arena-backed storage for lowered type constraints and proof constraint chunks
 - semantic validation for entry point, receivers, platform states, and transition targets
@@ -66,7 +67,7 @@ cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
 cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 ```
 
-Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, placeholder resolve/types/graph/proof stages, driver IR, validation, real native planning output, and phase timing notes. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.
+Each check writes ignored phase artifacts under a `build/` directory next to the entrypoint, including source loading, AST, resolve, effects, driver IR, validation, graph, proof, native planning output, and phase timing notes. Use `--build-dir <dir>` to send those artifacts somewhere explicit. Sample folders carry their own `.gitignore` files so they stay copy-pastable outside this repo.
 
 Native binary emission should come from a real Omega backend or execution model, not from pretending C is the architecture.
 
@@ -76,11 +77,11 @@ Native binary emission should come from a real Omega backend or execution model,
 - `compiler/omega-ast/`: source tree data structures
 - `compiler/omega-lexer/`: source characters to tokens
 - `compiler/omega-parser/`: tokens to AST
-- `compiler/omega-resolve/`: placeholder for imports, modules, and name resolution
+- `compiler/omega-resolve/`: imports, top-level definitions, and syntactic reference collection
 - `compiler/omega-types/`: placeholder for type, ownership, mutability, and bounded-value checks
-- `compiler/omega-graph/`: placeholder for machine/state graph lowering
-- `compiler/omega-proof/`: placeholder for proof obligations and invariant checks
-- `compiler/omega-native/`: placeholder for native layout, assembly, and object emission
+- `compiler/omega-graph/`: placeholder crate for machine/state graph lowering
+- `compiler/omega-proof/`: placeholder crate for proof obligations and invariant checks
+- `compiler/omega-native/`: placeholder crate for native layout, assembly, and object emission
 - `compiler/omega-driver/`: current orchestration crate with IR, semantic validation, native planning, and compile driver
 - `omega-cli/`: command-line entry point, with binary name `omega`
 - `samples/`: small Omega programs used to pressure-test language ideas
