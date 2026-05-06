@@ -1,0 +1,1 @@
+invariant `speed_range` uses unknown type constraint `definitely_real`

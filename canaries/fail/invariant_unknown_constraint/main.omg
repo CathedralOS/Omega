@@ -1,0 +1,8 @@
+invariant speed_range = [definitely_real];
+
+machine main {
+    owns speed: f32[speed_range] = 0.0f;
+
+    state entry {
+    }
+}
