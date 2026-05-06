@@ -1357,6 +1357,81 @@ mod tests {
     }
 
     #[test]
+    fn selected_macos_arm64_plans_relocation_byte_offsets() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should pass");
+
+        let relocations = native_plan
+            .relocations
+            .records
+            .iter()
+            .map(|(_, relocation)| {
+                (
+                    relocation.kind,
+                    relocation.text_offset,
+                    relocation.byte_width,
+                    relocation.symbol.as_str(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            relocations,
+            vec![
+                (
+                    crate::native::relocations::RelocationKind::Aarch64Page21,
+                    4,
+                    4,
+                    "omega_string_literal_1",
+                ),
+                (
+                    crate::native::relocations::RelocationKind::Aarch64PageOffset12,
+                    8,
+                    4,
+                    "omega_string_literal_1",
+                ),
+                (
+                    crate::native::relocations::RelocationKind::Aarch64Branch26,
+                    16,
+                    4,
+                    "_write",
+                ),
+                (
+                    crate::native::relocations::RelocationKind::Aarch64Branch26,
+                    24,
+                    4,
+                    "_exit",
+                ),
+            ]
+        );
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));

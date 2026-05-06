@@ -1437,9 +1437,11 @@ fn write_symbol_plan(output: &mut String, symbol: &SymbolPlan) {
 
 fn write_relocation_record(output: &mut String, relocation: &RelocationRecord) {
     output.push_str(&format!(
-        "- {:?} {} instruction #{} -> {}\n",
+        "- {:?} {} text @{} width {} instruction #{} -> {}\n",
         relocation.kind,
         relocation.function_symbol,
+        relocation.text_offset,
+        relocation.byte_width,
         relocation.selected_instruction_index,
         relocation.symbol
     ));

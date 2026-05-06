@@ -30,7 +30,7 @@ pub fn emit_native_object(native_plan: &NativePlan) -> Result<EmittedNativeObjec
 
     let mut bytes = Vec::new();
     bytes.extend(b"OMGOBJ\0\0");
-    write_u32(&mut bytes, 1);
+    write_u32(&mut bytes, 2);
     write_u32(&mut bytes, architecture_id(native_plan.target.architecture));
     write_u32(
         &mut bytes,
@@ -95,6 +95,14 @@ fn write_relocations(bytes: &mut Vec<u8>, native_plan: &NativePlan) {
     for (_, relocation) in native_plan.relocations.records.iter() {
         write_string(bytes, &relocation.function_symbol);
         write_u32(bytes, relocation.selected_instruction_index);
+        write_u64(
+            bytes,
+            u64::try_from(relocation.text_offset).expect("relocation text offset overflow"),
+        );
+        write_u32(
+            bytes,
+            u32::try_from(relocation.byte_width).expect("relocation byte width overflow"),
+        );
         write_string(bytes, &relocation.symbol);
         write_u32(bytes, relocation_kind_id(relocation.kind));
     }
@@ -135,8 +143,11 @@ fn symbol_kind_id(symbol_kind: SymbolKind) -> u32 {
 
 fn relocation_kind_id(relocation_kind: RelocationKind) -> u32 {
     match relocation_kind {
-        RelocationKind::DataAddress => 1,
-        RelocationKind::ExternalFunctionCall => 2,
+        RelocationKind::Aarch64Page21 => 1,
+        RelocationKind::Aarch64PageOffset12 => 2,
+        RelocationKind::Aarch64Branch26 => 3,
+        RelocationKind::X86_64Absolute64 => 4,
+        RelocationKind::X86_64Relative32 => 5,
     }
 }
 
