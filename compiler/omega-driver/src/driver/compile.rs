@@ -11,6 +11,7 @@ use crate::lexer::{Lexer, Span};
 use crate::native::control_flow::build_control_flow_plan;
 use crate::native::emission::build_emission_plan;
 use crate::native::emitter::emit_native_object;
+use crate::native::linker::link_native_object;
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
@@ -252,16 +253,27 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_emitted_native_object(&emitted_object)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
+    let executable_path = record_phase(&mut phase_timings, "link executable", || {
+        let link_output = link_native_object(&native_plan, &object_path, artifacts.root())
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let executable_path = link_output.executable_path.clone();
+        artifacts
+            .write_link_report(&link_output)
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(executable_path)
+    })?;
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
 
     Ok(CompileOutput {
         artifacts_dir: artifacts.root().to_path_buf(),
-        executable_path: object_path.clone(),
+        executable_path: executable_path.clone(),
         summary: format!(
-            "emitted {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
+            "emitted {}; linked {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
             object_path.display(),
+            executable_path.display(),
             artifacts.root().display(),
             format_phase_timings(&phase_timings),
             native_plan.host_abi.bindings.len(),

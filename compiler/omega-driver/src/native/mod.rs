@@ -6,6 +6,7 @@ pub mod emitter;
 pub mod host_calls;
 pub mod instructions;
 pub mod layout;
+pub mod linker;
 pub mod machine_code;
 pub mod object;
 pub mod plan;

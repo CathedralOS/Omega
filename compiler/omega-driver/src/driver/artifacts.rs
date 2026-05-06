@@ -22,6 +22,7 @@ use crate::native::instructions::{
     FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use crate::native::layout::{DataShape, FieldLayout};
+use crate::native::linker::{LinkOutput, LinkStatus};
 use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
@@ -690,6 +691,37 @@ impl ArtifactWriter {
         self.write("12_emitted_object.txt", &output)?;
 
         Ok(object_path)
+    }
+
+    pub(crate) fn write_link_report(&self, link_output: &LinkOutput) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Link\n\n");
+        output.push_str(&format!("status: {:?}\n", link_output.status));
+        output.push_str(&format!(
+            "output: {}\n",
+            link_output.executable_path.display()
+        ));
+        if link_output.command.is_empty() {
+            output.push_str("command: none\n");
+        } else {
+            output.push_str(&format!("command: {}\n", link_output.command.join(" ")));
+        }
+        if !link_output.stdout.is_empty() {
+            output.push_str("\n## stdout\n");
+            output.push_str(&link_output.stdout);
+            output.push('\n');
+        }
+        if !link_output.stderr.is_empty() {
+            output.push_str("\n## stderr\n");
+            output.push_str(&link_output.stderr);
+            output.push('\n');
+        }
+        if link_output.status == LinkStatus::Skipped {
+            output.push_str("\nlinking was skipped; compile output is the native object file.\n");
+        }
+
+        self.write("13_link.txt", &output)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {

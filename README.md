@@ -61,6 +61,8 @@ Omega does not currently emit platform executables directly. That is deliberate:
 
 Compile mode now emits real compiler-owned bytes under the build directory. On `macos_arm64`, that output is a linkable Mach-O arm64 object file containing encoded machine-code bytes, data bytes, symbol table entries, and relocation records. Targets without a real object writer still fall back to the Omega native object container so the planned bytes remain inspectable.
 
+On a macOS ARM64 host, compile mode also invokes the system linker after object emission and writes a runnable `omega-program` next to the phase artifacts. Omega still owns code generation; the platform linker is only doing the OS-specific object/link/load ceremony.
+
 The current MVP can check all samples through the real front-end pipeline:
 
 ```bash
