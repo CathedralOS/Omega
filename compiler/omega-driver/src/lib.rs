@@ -646,8 +646,13 @@ mod tests {
             .iter()
             .find(|layout| layout.name == "main")
             .expect("main layout should exist");
+        let main_fields = native_plan
+            .layouts
+            .fields
+            .span(main_layout.fields)
+            .expect("main fields should resolve");
 
-        assert_eq!(main_layout.fields[0].name, "player");
+        assert_eq!(main_fields[0].name, "player");
         assert!(main_layout.layout.size >= 8);
     }
 
@@ -686,6 +691,11 @@ mod tests {
         let crate::native::layout::DataShape::Record { fields } = &counters_layout.shape else {
             panic!("expected record layout");
         };
+        let fields = native_plan
+            .layouts
+            .fields
+            .span(*fields)
+            .expect("counter fields should resolve");
 
         assert_eq!(fields[0].layout.size, target.pointer_size);
         assert_eq!(fields[1].layout.size, target.pointer_size * 2);

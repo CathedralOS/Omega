@@ -4,12 +4,21 @@ use crate::ir::data::{DataDefinition, DataMember, DataShapeKind};
 use crate::ir::machine::Machine;
 use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::native::target::NativeTarget;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
     pub size: usize,
     pub alignment: usize,
+}
+
+impl Default for TypeLayout {
+    fn default() -> Self {
+        Self {
+            size: 0,
+            alignment: 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,10 +29,21 @@ pub struct FieldLayout {
     pub layout: TypeLayout,
 }
 
+impl Default for FieldLayout {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            offset: 0,
+            type_name: String::new(),
+            layout: TypeLayout::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
     Enum { variants: Vec<String> },
-    Record { fields: Vec<FieldLayout> },
+    Record { fields: HandleSpan<FieldLayout> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,13 +56,14 @@ pub struct DataLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineLayout {
     pub name: String,
-    pub fields: Vec<FieldLayout>,
+    pub fields: HandleSpan<FieldLayout>,
     pub layout: TypeLayout,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutPlan {
     pub data_layouts: Vec<DataLayout>,
+    pub fields: Arena<FieldLayout>,
     pub machine_layouts: Vec<MachineLayout>,
 }
 
@@ -62,6 +83,7 @@ pub fn build_layout_plan(
 
     Ok(LayoutPlan {
         data_layouts: builder.data_layouts,
+        fields: builder.fields,
         machine_layouts: builder.machine_layouts,
     })
 }
@@ -70,6 +92,7 @@ struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Vec<DataLayout>,
     data_visiting: Vec<String>,
+    fields: Arena<FieldLayout>,
     machine_definitions: &'program [Machine],
     machine_layouts: Vec<MachineLayout>,
     machine_visiting: Vec<String>,
@@ -83,6 +106,7 @@ impl<'program> LayoutBuilder<'program> {
             data_definitions: &program.data_definitions,
             data_layouts: Vec::new(),
             data_visiting: Vec::new(),
+            fields: Arena::new(),
             machine_definitions: &program.machines,
             machine_layouts: Vec::new(),
             machine_visiting: Vec::new(),
@@ -161,6 +185,7 @@ impl<'program> LayoutBuilder<'program> {
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
         let (fields, layout) = pack_fields(fields);
+        let fields = self.fields.insert_many(fields);
 
         Ok(DataLayout {
             name: definition.name.clone(),
@@ -224,6 +249,7 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         let (fields, layout) = pack_fields(fields);
+        let fields = self.fields.insert_many(fields);
 
         Ok(MachineLayout {
             name: machine.name.clone(),
