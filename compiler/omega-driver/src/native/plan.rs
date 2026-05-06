@@ -25,8 +25,8 @@ pub fn build_native_plan(
         layouts: build_layout_plan(program, target)?,
         object: ObjectPlan {
             target,
-            sections: Vec::new(),
-            symbols: Vec::new(),
+            sections: omega_core::arena::Arena::new(),
+            symbols: omega_core::arena::Arena::new(),
             entry_symbol: String::new(),
         },
         entry_machine: "main".to_owned(),

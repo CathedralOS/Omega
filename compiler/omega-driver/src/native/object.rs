@@ -2,12 +2,13 @@ use crate::diagnostics::Diagnostic;
 use crate::native::layout::MachineLayout;
 use crate::native::plan::NativePlan;
 use crate::native::target::{NativeTarget, ObjectFormat};
+use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
     pub target: NativeTarget,
-    pub sections: Vec<SectionPlan>,
-    pub symbols: Vec<SymbolPlan>,
+    pub sections: Arena<SectionPlan>,
+    pub symbols: Arena<SymbolPlan>,
     pub entry_symbol: String,
 }
 
@@ -17,6 +18,17 @@ pub struct SectionPlan {
     pub kind: SectionKind,
     pub size: usize,
     pub alignment: usize,
+}
+
+impl Default for SectionPlan {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            kind: SectionKind::Text,
+            size: 0,
+            alignment: 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +45,18 @@ pub struct SymbolPlan {
     pub offset: usize,
     pub size: usize,
     pub kind: SymbolKind,
+}
+
+impl Default for SymbolPlan {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            section: None,
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Object,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,46 +79,52 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         })?;
     let entry_symbol = entry_symbol_name(native_plan.target);
 
-    Ok(ObjectPlan {
+    let mut object_plan = ObjectPlan {
         target: native_plan.target,
-        sections: vec![
-            SectionPlan {
-                name: section_name(native_plan.target, SectionKind::Text),
-                kind: SectionKind::Text,
-                size: 0,
-                alignment: 16,
-            },
-            SectionPlan {
-                name: section_name(native_plan.target, SectionKind::Data),
-                kind: SectionKind::Data,
-                size: 0,
-                alignment: native_plan.target.pointer_alignment,
-            },
-            SectionPlan {
-                name: section_name(native_plan.target, SectionKind::Bss),
-                kind: SectionKind::Bss,
-                size: main_layout.layout.size,
-                alignment: main_layout.layout.alignment,
-            },
-        ],
-        symbols: vec![
-            SymbolPlan {
-                name: entry_symbol.clone(),
-                section: Some(section_name(native_plan.target, SectionKind::Text)),
-                offset: 0,
-                size: 0,
-                kind: SymbolKind::Function,
-            },
-            SymbolPlan {
-                name: machine_storage_symbol(main_layout),
-                section: Some(section_name(native_plan.target, SectionKind::Bss)),
-                offset: 0,
-                size: main_layout.layout.size,
-                kind: SymbolKind::Object,
-            },
-        ],
+        sections: Arena::new(),
+        symbols: Arena::new(),
         entry_symbol,
-    })
+    };
+
+    object_plan.sections.insert_many([
+        SectionPlan {
+            name: section_name(native_plan.target, SectionKind::Text),
+            kind: SectionKind::Text,
+            size: 0,
+            alignment: 16,
+        },
+        SectionPlan {
+            name: section_name(native_plan.target, SectionKind::Data),
+            kind: SectionKind::Data,
+            size: 0,
+            alignment: native_plan.target.pointer_alignment,
+        },
+        SectionPlan {
+            name: section_name(native_plan.target, SectionKind::Bss),
+            kind: SectionKind::Bss,
+            size: main_layout.layout.size,
+            alignment: main_layout.layout.alignment,
+        },
+    ]);
+
+    object_plan.symbols.insert_many([
+        SymbolPlan {
+            name: object_plan.entry_symbol.clone(),
+            section: Some(section_name(native_plan.target, SectionKind::Text)),
+            offset: 0,
+            size: 0,
+            kind: SymbolKind::Function,
+        },
+        SymbolPlan {
+            name: machine_storage_symbol(main_layout),
+            section: Some(section_name(native_plan.target, SectionKind::Bss)),
+            offset: 0,
+            size: main_layout.layout.size,
+            kind: SymbolKind::Object,
+        },
+    ]);
+
+    Ok(object_plan)
 }
 
 fn entry_symbol_name(target: NativeTarget) -> String {

@@ -1073,7 +1073,7 @@ mod tests {
                 .object
                 .symbols
                 .iter()
-                .any(|symbol| symbol.name.contains("main"))
+                .any(|(_, symbol)| symbol.name.contains("main"))
         );
     }
 
