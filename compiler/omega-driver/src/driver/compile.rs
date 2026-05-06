@@ -7,6 +7,7 @@ use crate::driver::CompileOptions;
 use crate::driver::artifacts::ArtifactWriter;
 use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
+use crate::native::control_flow::build_control_flow_plan;
 use crate::native::plan::build_native_plan;
 use crate::native::target::NativeTarget;
 use crate::parser::parser::parse_file;
@@ -82,8 +83,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
+        let control_flow =
+            build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_placeholder("07_graph.txt", "Omega Graph")
+            .write_control_flow(&control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
@@ -161,8 +164,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
+        let control_flow =
+            build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_placeholder("07_graph.txt", "Omega Graph")
+            .write_control_flow(&control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
