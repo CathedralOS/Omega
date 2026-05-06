@@ -2,6 +2,7 @@
 pub enum Expression {
     ArrayLiteral(Vec<Expression>),
     Binary(Box<BinaryExpression>),
+    Boolean(bool),
     Float(String),
     Indexed(Box<IndexedExpression>),
     Integer(i64),

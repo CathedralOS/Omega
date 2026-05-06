@@ -250,6 +250,7 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
                 right: lower_expression(&binary.right)?,
             })))
         }
+        ast::expression::Expression::Boolean(value) => Ok(Expression::Boolean(*value)),
         ast::expression::Expression::Indexed(indexed) => {
             Ok(Expression::Indexed(Box::new(IndexedExpression {
                 collection: lower_expression(&indexed.collection)?,

@@ -973,4 +973,77 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(build_dir);
     }
+
+    #[test]
+    fn checks_every_sample_entrypoint() {
+        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("driver crate should live under compiler/omega-driver");
+        let sample_root = repo_root.join("samples");
+        let mut entrypoints = Vec::new();
+
+        collect_sample_entrypoints(&sample_root, &mut entrypoints);
+        entrypoints.sort();
+
+        assert!(
+            !entrypoints.is_empty(),
+            "expected at least one sample entrypoint under {}",
+            sample_root.display()
+        );
+
+        for root_path in entrypoints {
+            let build_dir = std::env::temp_dir().join(format!(
+                "omega-sample-check-{}-{}",
+                std::process::id(),
+                root_path
+                    .parent()
+                    .and_then(|parent| parent.file_name())
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("sample")
+            ));
+            let _ = std::fs::remove_dir_all(&build_dir);
+
+            crate::check(crate::CompileOptions {
+                build_dir: Some(build_dir.clone()),
+                root_path: root_path.clone(),
+            })
+            .unwrap_or_else(|diagnostics| {
+                panic!(
+                    "sample {} failed check:\n{}",
+                    root_path.display(),
+                    diagnostics
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                )
+            });
+
+            let _ = std::fs::remove_dir_all(build_dir);
+        }
+    }
+
+    fn collect_sample_entrypoints(
+        path: &std::path::Path,
+        entrypoints: &mut Vec<std::path::PathBuf>,
+    ) {
+        let entries = std::fs::read_dir(path)
+            .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
+
+        for entry in entries {
+            let entry =
+                entry.unwrap_or_else(|error| panic!("failed to read directory entry: {error}"));
+            let path = entry.path();
+
+            if path.is_dir() {
+                collect_sample_entrypoints(&path, entrypoints);
+            } else if path
+                .file_name()
+                .is_some_and(|file_name| file_name == "main.omg")
+            {
+                entrypoints.push(path);
+            }
+        }
+    }
 }

@@ -526,6 +526,14 @@ impl Parser<'_> {
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
                 TokenKind::Float => Ok(Expression::Float(token.lexeme.clone())),
                 TokenKind::Identifier => {
+                    if token.lexeme == "true" {
+                        return Ok(Expression::Boolean(true));
+                    }
+
+                    if token.lexeme == "false" {
+                        return Ok(Expression::Boolean(false));
+                    }
+
                     let mut path = vec![token.lexeme.clone()];
 
                     while self.consume(".") || self.consume("::") {

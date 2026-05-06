@@ -94,6 +94,7 @@ Omega is allowed to be strange, but the codebase should not be sloppy.
 Some repo-level taste:
 - Use real words in code. Prefer `character`, `statement`, `expression`, and `arguments` over `ch`, `stmt`, `expr`, and `args`.
 - Keep compiler stages honest. Parse syntax, lower meaning, validate semantics, then emit code.
+- Keep sample coverage out of the shipped CLI. Tests and dev harnesses may discover `samples/`, but user-facing compiler behavior stays generic.
 - Prefer small checkpoint commits after a working improvement.
 - Samples should reveal language pressure, not hide it in giant `main` files.
 - Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.

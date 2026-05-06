@@ -564,8 +564,10 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
         ),
         TypeReference::Named(type_name) => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-                return matches!(argument, Expression::String(_))
-                    && primitive_type == PrimitiveType::String
+                return matches!(argument, Expression::Boolean(_))
+                    && primitive_type == PrimitiveType::Bool
+                    || matches!(argument, Expression::String(_))
+                        && primitive_type == PrimitiveType::String
                     || matches!(argument, Expression::Float(_))
                         && primitive_type.accepts_float_literal()
                     || matches!(argument, Expression::Integer(_))
@@ -609,6 +611,7 @@ fn expression_type_name(argument: &Expression) -> &'static str {
     match argument {
         Expression::ArrayLiteral(_) => "array literal",
         Expression::Binary(_) => "binary expression",
+        Expression::Boolean(_) => "bool",
         Expression::Float(_) => "float literal",
         Expression::Indexed(_) => "indexed value",
         Expression::Integer(_) => "integer literal",
