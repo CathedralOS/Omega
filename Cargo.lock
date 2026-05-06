@@ -37,6 +37,7 @@ dependencies = [
  "omega-core",
  "omega-graph",
  "omega-lexer",
+ "omega-native",
  "omega-parser",
  "omega-proof",
  "omega-resolve",
@@ -62,8 +63,8 @@ dependencies = [
 name = "omega-native"
 version = "0.1.0"
 dependencies = [
+ "omega-ast",
  "omega-core",
- "omega-graph",
 ]
 
 [[package]]

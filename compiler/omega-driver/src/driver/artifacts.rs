@@ -14,6 +14,7 @@ use crate::native::plan::NativePlan;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
+use omega_native::NativeSurfaceReport;
 use omega_proof::ProofSurfaceReport;
 use omega_resolve::ResolveReport;
 use omega_types::TypeSurfaceReport;
@@ -281,7 +282,11 @@ impl ArtifactWriter {
         self.write("08_proof.txt", &output)
     }
 
-    pub(crate) fn write_native_plan(&self, native_plan: &NativePlan) -> Result<(), Diagnostic> {
+    pub(crate) fn write_native_report(
+        &self,
+        native_surface: &NativeSurfaceReport,
+        native_plan: &NativePlan,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
         output.push_str("# Omega Native Plan\n\n");
@@ -291,7 +296,35 @@ impl ArtifactWriter {
             native_plan.entry_machine, native_plan.entry_state, native_plan.object.entry_symbol
         ));
 
-        output.push_str("## Layouts\n");
+        output.push_str("## Source Native Surface\n");
+        output.push_str(&format!(
+            "entry candidates: {}\n",
+            native_surface.entry_points.len()
+        ));
+        for (_, entry_point) in native_surface.entry_points.iter() {
+            output.push_str(&format!(
+                "- entry {}.{}\n",
+                entry_point.machine, entry_point.state
+            ));
+        }
+
+        output.push_str(&format!("platforms: {}\n", native_surface.platforms.len()));
+        for (_, platform) in native_surface.platforms.iter() {
+            output.push_str(&format!(
+                "- platform {}: {} state(s)\n",
+                platform.name, platform.states
+            ));
+        }
+
+        output.push_str(&format!("machines: {}\n", native_surface.machines.len()));
+        for (_, machine) in native_surface.machines.iter() {
+            output.push_str(&format!(
+                "- machine {}: contains {}, owned data {}, states {}\n",
+                machine.name, machine.contained_objects, machine.owned_data, machine.states
+            ));
+        }
+
+        output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",
             native_plan.layouts.data_layouts.len()

@@ -17,6 +17,7 @@ use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 use omega_graph::build_source_graph_report;
+use omega_native::build_native_surface_report;
 use omega_proof::build_proof_surface_report;
 use omega_resolve::build_resolve_report;
 use omega_types::build_type_surface_report;
@@ -106,10 +107,11 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         check_proof_plan(&proof_plan)
     })?;
     record_phase(&mut phase_timings, "native plan", || {
+        let native_surface = build_native_surface_report(&loaded_program.items);
         let native_plan = build_native_plan(&program, NativeTarget::host())
             .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_native_plan(&native_plan)
+            .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     artifacts
@@ -192,10 +194,11 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         check_proof_plan(&proof_plan)
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
+        let native_surface = build_native_surface_report(&loaded_program.items);
         let native_plan = build_native_plan(&program, NativeTarget::host())
             .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_native_plan(&native_plan)
+            .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(native_plan)
