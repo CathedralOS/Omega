@@ -2462,13 +2462,13 @@ fn builds_proof_obligations_for_bounds_and_guards() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     crate::semantic::validation::validate_program(&program).expect("validation should pass");
-    let proof_plan = crate::proof::obligations::build_proof_plan(&program);
+    let proof_plan = omega_proof::obligations::build_proof_plan(&program);
 
     assert_eq!(proof_plan.obligations.len(), 5);
     assert!(proof_plan.obligations.iter().any(|obligation| {
         matches!(
             obligation,
-            crate::proof::obligations::ProofObligation::BoundedInitializer(
+            omega_proof::obligations::ProofObligation::BoundedInitializer(
                 initializer_obligation
             ) if initializer_obligation.owner == "machine `main` owned data `health`"
         )
@@ -2476,7 +2476,7 @@ fn builds_proof_obligations_for_bounds_and_guards() {
     assert!(proof_plan.obligations.iter().any(|obligation| {
         matches!(
             obligation,
-            crate::proof::obligations::ProofObligation::BoundedTransitionArgument(
+            omega_proof::obligations::ProofObligation::BoundedTransitionArgument(
                 transition_obligation
             ) if transition_obligation.parameter == "amount"
         )

@@ -2,17 +2,15 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::ast::item::Item;
-use crate::diagnostics::Diagnostic;
 use crate::lexer::{Lexer, Span};
 use crate::parser::parser::parse_file;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
-use crate::proof::checker::check_proof_plan;
-use crate::proof::obligations::build_proof_plan;
 use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
+use omega_core::diagnostics::Diagnostic;
 use omega_graph::build_source_graph_report;
 use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
@@ -23,6 +21,8 @@ use omega_native::linker::link_native_object;
 use omega_native::plan::build_native_plan;
 use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
+use omega_proof::checker::check_proof_plan;
+use omega_proof::obligations::build_proof_plan;
 use omega_typed_program::lowering::lower_program;
 use omega_types::build_type_surface_report;
 

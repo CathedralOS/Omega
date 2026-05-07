@@ -2,11 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::item::Item;
-use crate::diagnostics::Diagnostic;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
-use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
+use omega_core::diagnostics::Diagnostic;
 use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
@@ -38,6 +37,7 @@ use omega_native::runtime_dispatch::branching::{
 use omega_native::runtime_flow::RuntimeTransitionTarget;
 use omega_native::state_schedule::build_entry_state_schedule;
 use omega_proof::ProofSurfaceReport;
+use omega_proof::obligations::{ProofObligation, ProofPlan};
 use omega_typed_program::Program;
 use omega_typed_program::data::DataMember;
 use omega_typed_program::statement::TransitionGuard;

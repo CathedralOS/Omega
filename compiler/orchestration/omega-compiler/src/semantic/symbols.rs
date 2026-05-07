@@ -1,4 +1,4 @@
-use crate::diagnostics::Diagnostic;
+use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::Program;
 use omega_typed_program::data::DataDefinition;
 use omega_typed_program::machine::Machine;
