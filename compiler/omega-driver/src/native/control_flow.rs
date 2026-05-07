@@ -7,7 +7,7 @@ use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
-    pub machines: Vec<MachineFlow>,
+    pub machines: Arena<MachineFlow>,
     pub states: Arena<StateFlow>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionFlow>,
@@ -17,6 +17,15 @@ pub struct ControlFlowPlan {
 pub struct MachineFlow {
     pub name: String,
     pub states: HandleSpan<StateFlow>,
+}
+
+impl Default for MachineFlow {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            states: HandleSpan::empty(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,7 +100,7 @@ pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Dia
 
     for machine in &program.machines {
         let machine_flow = build_machine_flow(machine, &mut control_flow)?;
-        control_flow.machines.push(machine_flow);
+        control_flow.machines.insert(machine_flow);
     }
 
     Ok(control_flow)

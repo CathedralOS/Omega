@@ -186,8 +186,8 @@ fn entry_state_flow(native_plan: &NativePlan) -> Option<&StateFlow> {
         .control_flow
         .machines
         .iter()
-        .find(|machine| machine.name == native_plan.entry_machine)
-        .and_then(|machine| native_plan.control_flow.states.span(machine.states))
+        .find(|(_, machine)| machine.name == native_plan.entry_machine)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| {
             states
                 .iter()

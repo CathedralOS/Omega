@@ -266,7 +266,7 @@ impl ArtifactWriter {
         }
 
         output.push_str("\n## Lowered Control Flow\n");
-        for machine in &control_flow.machines {
+        for (_, machine) in control_flow.machines.iter() {
             output.push_str(&format!("### machine {}\n", machine.name));
 
             let Some(states) = control_flow.states.span(machine.states) else {

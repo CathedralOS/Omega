@@ -1105,9 +1105,14 @@ mod tests {
         crate::semantic::validation::validate_program(&program).expect("validation should pass");
         let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
             .expect("control-flow planning should pass");
+        let (_, machine) = control_flow
+            .machines
+            .iter()
+            .next()
+            .expect("machine should exist");
         let states = control_flow
             .states
-            .span(control_flow.machines[0].states)
+            .span(machine.states)
             .expect("machine states should resolve");
         let entry_operations = control_flow
             .operations
@@ -1149,9 +1154,14 @@ mod tests {
         crate::semantic::validation::validate_program(&program).expect("validation should pass");
         let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
             .expect("control-flow planning should pass");
+        let (_, machine) = control_flow
+            .machines
+            .iter()
+            .next()
+            .expect("machine should exist");
         let states = control_flow
             .states
-            .span(control_flow.machines[0].states)
+            .span(machine.states)
             .expect("machine states should resolve");
 
         assert_eq!(states[0].name, "entry");
