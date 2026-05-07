@@ -1,4 +1,5 @@
 use crate::native::abi::{HostBinding, HostBindingMechanism};
+use crate::native::architecture;
 use crate::native::instructions::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstructionKind,
 };
@@ -151,7 +152,8 @@ fn collect_data_address_relocations(
 
     for operand in operands {
         let InstructionOperandKind::DataAddress { symbol } = &operand.kind else {
-            operand_text_offset += operand_width(native_plan.target.architecture, operand);
+            operand_text_offset +=
+                architecture::operand_width(native_plan.target.architecture, operand);
             continue;
         };
 
@@ -164,7 +166,8 @@ fn collect_data_address_relocations(
             symbol,
         );
 
-        operand_text_offset += operand_width(native_plan.target.architecture, operand);
+        operand_text_offset +=
+            architecture::operand_width(native_plan.target.architecture, operand);
     }
 }
 
@@ -223,18 +226,6 @@ fn selected_instruction_text_offset(
         .unwrap_or(0)
 }
 
-fn operand_width(architecture: Architecture, operand: &InstructionOperand) -> usize {
-    match architecture {
-        Architecture::Aarch64 => match operand.kind {
-            InstructionOperandKind::DataAddress { .. } => 8,
-            InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
-                4
-            }
-        },
-        Architecture::X86_64 => 8,
-    }
-}
-
 fn external_call_relocation_offset(
     architecture: Architecture,
     selected_text_offset: usize,
@@ -242,7 +233,7 @@ fn external_call_relocation_offset(
 ) -> usize {
     let operand_bytes = operands
         .iter()
-        .map(|operand| operand_width(architecture, operand))
+        .map(|operand| crate::native::architecture::operand_width(architecture, operand))
         .sum::<usize>();
 
     selected_text_offset

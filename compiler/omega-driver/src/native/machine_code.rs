@@ -1,8 +1,7 @@
-use crate::native::instructions::{
-    InstructionOperand, InstructionOperandKind, SelectedInstructionKind,
-};
+use crate::native::architecture;
+use crate::native::instructions::SelectedInstructionKind;
 use crate::native::plan::NativePlan;
-use crate::native::target::{Architecture, NativeTarget};
+use crate::native::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,82 +188,29 @@ fn machine_instruction_shape(
 }
 
 fn encode_machine_instruction(native_plan: &NativePlan, kind: &SelectedInstructionKind) -> Vec<u8> {
-    if native_plan.target.architecture != Architecture::Aarch64 {
-        return Vec::new();
-    }
-
     match kind {
         SelectedInstructionKind::HostOperation { operands, .. } => {
             let Some(operands) = native_plan.instructions.operands.span(*operands) else {
                 return Vec::new();
             };
 
-            encode_aarch64_host_call_sequence(operands)
+            architecture::encode_host_call_sequence(native_plan.target.architecture, operands)
         }
-        SelectedInstructionKind::LeaveFunction => encode_aarch64_instruction(0xD65F03C0),
+        SelectedInstructionKind::LeaveFunction => {
+            architecture::encode_return(native_plan.target.architecture)
+        }
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::BeginPlatformCall { .. } => Vec::new(),
     }
 }
 
-fn host_call_sequence_width(architecture: Architecture, operands: &[InstructionOperand]) -> usize {
-    match architecture {
-        Architecture::Aarch64 => {
-            operands
-                .iter()
-                .map(|operand| match operand.kind {
-                    InstructionOperandKind::DataAddress { .. } => 8,
-                    InstructionOperandKind::ImmediateInteger(_)
-                    | InstructionOperandKind::ByteLength(_) => 4,
-                })
-                .sum::<usize>()
-                + 4
-        }
-        Architecture::X86_64 => operands.len() * 8 + 5,
-    }
+fn host_call_sequence_width(
+    architecture: crate::native::target::Architecture,
+    operands: &[crate::native::instructions::InstructionOperand],
+) -> usize {
+    architecture::host_call_sequence_width(architecture, operands)
 }
 
-fn return_width(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 4,
-        Architecture::X86_64 => 1,
-    }
-}
-
-fn encode_aarch64_host_call_sequence(operands: &[InstructionOperand]) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    let mut next_register = 0u8;
-
-    for operand in operands {
-        match &operand.kind {
-            InstructionOperandKind::ImmediateInteger(value) => {
-                bytes.extend(encode_aarch64_movz(next_register, *value as u16));
-                next_register += 1;
-            }
-            InstructionOperandKind::DataAddress { .. } => {
-                bytes.extend(encode_aarch64_instruction(
-                    0x90000000 | u32::from(next_register),
-                ));
-                bytes.extend(encode_aarch64_instruction(
-                    0x91000000 | (u32::from(next_register) << 5) | u32::from(next_register),
-                ));
-                next_register += 1;
-            }
-            InstructionOperandKind::ByteLength(value) => {
-                bytes.extend(encode_aarch64_movz(next_register, *value as u16));
-                next_register += 1;
-            }
-        }
-    }
-
-    bytes.extend(encode_aarch64_instruction(0x94000000));
-    bytes
-}
-
-fn encode_aarch64_movz(register: u8, immediate: u16) -> Vec<u8> {
-    encode_aarch64_instruction(0xD2800000 | (u32::from(immediate) << 5) | u32::from(register))
-}
-
-fn encode_aarch64_instruction(instruction: u32) -> Vec<u8> {
-    instruction.to_le_bytes().to_vec()
+fn return_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::return_width(architecture)
 }

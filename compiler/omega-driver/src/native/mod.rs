@@ -1,4 +1,5 @@
 pub mod abi;
+pub mod architecture;
 pub mod control_flow;
 pub mod data;
 pub mod emission;
