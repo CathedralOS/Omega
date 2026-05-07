@@ -871,6 +871,10 @@ fn collect_runtime_body_storage_blockers(
     }
 
     for (_, write) in native_plan.runtime_storage.writes.iter() {
+        if runtime_storage_write_has_planned_text_write(native_plan, write) {
+            continue;
+        }
+
         blockers.insert(blocker(
             "state mutation",
             &format!(
@@ -885,6 +889,32 @@ fn collect_runtime_body_storage_blockers(
                 write.value.display_name()
             ),
         ));
+    }
+}
+
+fn runtime_storage_write_has_planned_text_write(
+    native_plan: &NativePlan,
+    write: &crate::native::runtime_storage::RuntimeStorageWrite,
+) -> bool {
+    runtime_text_write_for_statement(
+        native_plan,
+        &write.source_machine,
+        &write.source_state,
+        write.statement_index,
+    )
+    .is_some_and(|text_write| {
+        text_write.target.display_name() == write.target.display_name()
+            && runtime_text_write_is_planned(native_plan, text_write)
+    })
+}
+
+fn runtime_text_write_is_planned(native_plan: &NativePlan, text_write: &RuntimeTextWrite) -> bool {
+    match text_write.kind {
+        RuntimeTextWriteKind::StaticText | RuntimeTextWriteKind::StoredCopy => true,
+        RuntimeTextWriteKind::GeneratedString => {
+            runtime_text_builder_for_write(native_plan, text_write).is_some()
+        }
+        RuntimeTextWriteKind::OtherExpression => false,
     }
 }
 

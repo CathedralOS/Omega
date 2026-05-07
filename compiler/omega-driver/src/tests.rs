@@ -3289,10 +3289,11 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
         "planned text builders should not report a duplicate state-value blocker"
     );
     assert!(
-        emission_plan
+        !emission_plan
             .blockers
             .iter()
-            .any(|(_, blocker)| blocker.stage == "state mutation")
+            .any(|(_, blocker)| blocker.stage == "state mutation"),
+        "planned text write should not report a stale state-mutation blocker"
     );
 }
 
