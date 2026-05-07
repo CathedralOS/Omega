@@ -30,11 +30,11 @@ pub fn dispatch_guard_compare_static_width() -> usize {
 }
 
 pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
-    8 + literal.len() * 12
+    8 + literal.len() * 12 + runtime_text_input_delimiter_check_width()
 }
 
 pub fn runtime_text_storage_compare_width() -> usize {
-    48
+    84
 }
 
 pub fn runtime_storage_compare_width() -> usize {
@@ -43,6 +43,10 @@ pub fn runtime_storage_compare_width() -> usize {
 
 pub fn runtime_storage_value_compare_width() -> usize {
     20
+}
+
+fn runtime_text_input_delimiter_check_width() -> usize {
+    32
 }
 
 pub fn runtime_text_literal_write_width(literal: &str) -> usize {
@@ -205,6 +209,7 @@ pub fn encode_dispatch_guard_compare_static(
 pub fn encode_runtime_text_literal_compare(
     literal: &str,
     failure_branch_distances: Vec<isize>,
+    delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     if literal.len() != failure_branch_distances.len() {
         return Err(Diagnostic::error(format!(
@@ -225,12 +230,17 @@ pub fn encode_runtime_text_literal_compare(
         )?);
     }
 
+    bytes.extend(encode_runtime_text_input_delimiter_check(
+        literal.len(),
+        delimiter_failure_branch_distance,
+    )?);
     Ok(bytes)
 }
 
 pub fn encode_runtime_text_storage_compare(
     source_offset: usize,
-    failure_branch_distance: isize,
+    compare_failure_branch_distance: isize,
+    delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
@@ -240,16 +250,21 @@ pub fn encode_runtime_text_storage_compare(
     bytes.extend(encode_load_x_from_x(18, 17, source_offset)?);
     bytes.extend(encode_load_x_from_x(19, 17, source_offset + 8)?);
 
+    bytes.extend(encode_cbz_x(19, 28)?);
     bytes.extend(encode_load_byte_w_post_increment(20, 18, 1)?);
     bytes.extend(encode_load_byte_w_post_increment(21, 16, 1)?);
     bytes.extend(encode_compare_w_register(20, 21));
     bytes.extend(if branch_when_equal {
-        encode_conditional_branch_equal(failure_branch_distance)?
+        encode_conditional_branch_equal(compare_failure_branch_distance)?
     } else {
-        encode_conditional_branch_not_equal(failure_branch_distance)?
+        encode_conditional_branch_not_equal(compare_failure_branch_distance)?
     });
     bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
     bytes.extend(encode_conditional_branch_not_equal(-20)?);
+    bytes.extend(encode_runtime_text_input_delimiter_check(
+        0,
+        delimiter_failure_branch_distance,
+    )?);
     Ok(bytes)
 }
 
@@ -586,6 +601,21 @@ fn encode_load_w_from_x(
 
 fn encode_load_byte_w17_from_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
     encode_load_byte_w_from_x(17, 16, byte_offset)
+}
+
+fn encode_runtime_text_input_delimiter_check(
+    byte_offset: usize,
+    failure_branch_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_load_byte_w17_from_x16(byte_offset)?;
+    bytes.extend(encode_compare_w17_immediate(10)?);
+    bytes.extend(encode_conditional_branch_equal(24)?);
+    bytes.extend(encode_compare_w17_immediate(13)?);
+    bytes.extend(encode_conditional_branch_equal(16)?);
+    bytes.extend(encode_compare_w17_immediate(0)?);
+    bytes.extend(encode_conditional_branch_equal(8)?);
+    bytes.extend(encode_unconditional_branch(failure_branch_distance)?);
+    Ok(bytes)
 }
 
 fn encode_load_byte_w_from_x(

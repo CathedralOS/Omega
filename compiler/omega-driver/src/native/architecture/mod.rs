@@ -237,11 +237,14 @@ pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
     literal: &str,
     failure_branch_distances: Vec<isize>,
+    delimiter_failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_runtime_text_literal_compare(literal, failure_branch_distances)
-        }
+        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_compare(
+            literal,
+            failure_branch_distances,
+            delimiter_failure_branch_distance,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -249,13 +252,15 @@ pub fn encode_runtime_text_literal_compare(
 pub fn encode_runtime_text_storage_compare(
     architecture: Architecture,
     source_offset: usize,
-    failure_branch_distance: isize,
+    compare_failure_branch_distance: isize,
+    delimiter_failure_branch_distance: isize,
     branch_when_equal: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare(
             source_offset,
-            failure_branch_distance,
+            compare_failure_branch_distance,
+            delimiter_failure_branch_distance,
             branch_when_equal,
         ),
         Architecture::X86_64 => Ok(Vec::new()),

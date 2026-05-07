@@ -523,9 +523,15 @@ fn encode_machine_instruction(
                 native_plan.target.architecture,
                 literal,
                 byte_distances_to_next_runtime_machine_write_end(
+                    native_plan,
                     machine_instructions,
                     machine_instruction_index,
                     literal,
+                )?,
+                byte_distance_to_next_runtime_write_end(
+                    native_plan,
+                    machine_instructions,
+                    machine_instruction_index,
                 )?,
             )
         }
@@ -540,7 +546,14 @@ fn encode_machine_instruction(
                 native_plan,
                 machine_instructions,
                 machine_instruction_index,
-                36,
+                40,
+            )?,
+            byte_distance_to_next_runtime_write_end_from_branch_offset(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
+                runtime_text_storage_compare_width(native_plan.target.architecture)
+                    .saturating_sub(4),
             )?,
             *operator == StateGuardOperator::NotEqual,
         ),
@@ -764,6 +777,7 @@ fn byte_distance_to_case_leave(
 }
 
 fn byte_distances_to_next_runtime_machine_write_end(
+    native_plan: &NativePlan,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
@@ -771,7 +785,8 @@ fn byte_distances_to_next_runtime_machine_write_end(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(Vec::new());
     };
-    let Some(machine_write) = next_runtime_write(machine_instructions, machine_instruction_index)
+    let Some(machine_write) =
+        next_runtime_write_group_end(native_plan, machine_instructions, machine_instruction_index)
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode runtime text guard at byte {}: missing guarded runtime write",
@@ -874,16 +889,6 @@ fn selected_instruction_source<'plan>(
         selected.source_machine.as_str(),
         selected.source_state.as_str(),
     ))
-}
-
-fn next_runtime_write(
-    machine_instructions: &[MachineInstruction],
-    machine_instruction_index: usize,
-) -> Option<&MachineInstruction> {
-    machine_instructions
-        .iter()
-        .skip(machine_instruction_index + 1)
-        .find(|instruction| is_runtime_write(instruction))
 }
 
 fn is_runtime_write(instruction: &MachineInstruction) -> bool {
