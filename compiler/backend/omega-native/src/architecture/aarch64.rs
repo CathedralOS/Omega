@@ -87,8 +87,12 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
-pub fn runtime_text_line_read_width(_byte_capacity: usize, _syscall_number: u32) -> usize {
-    104
+pub fn runtime_text_line_read_width(_byte_capacity: usize, syscall_number: u32) -> usize {
+    100 + unsigned_immediate_width(u64::from(syscall_number))
+}
+
+pub fn runtime_text_line_read_target_address_offset(syscall_number: u32) -> usize {
+    84 + unsigned_immediate_width(u64::from(syscall_number))
 }
 
 pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
@@ -541,6 +545,8 @@ pub fn encode_runtime_text_line_read(
     target_offset: usize,
     byte_capacity: usize,
     syscall_number: u32,
+    syscall_number_register: u8,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     let max_payload_bytes = byte_capacity.saturating_sub(1);
     let capacity = u32::try_from(max_payload_bytes).map_err(|_| {
@@ -553,12 +559,6 @@ pub fn encode_runtime_text_line_read(
             "AArch64 runtime line read cannot compare capacity `{byte_capacity}` yet"
         )));
     }
-    if syscall_number > u32::from(u16::MAX) {
-        return Err(Diagnostic::error(format!(
-            "AArch64 runtime line read cannot encode syscall `{syscall_number}` yet"
-        )));
-    }
-
     let mut bytes = Vec::new();
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
@@ -568,8 +568,11 @@ pub fn encode_runtime_text_line_read(
     bytes.extend(encode_movz(0, 0));
     bytes.extend(encode_move_x_register(1, 21));
     bytes.extend(encode_movz(2, 1));
-    bytes.extend(encode_movz(8, syscall_number as u16));
-    bytes.extend(encode_svc(0));
+    bytes.extend(encode_unsigned_immediate(
+        syscall_number_register,
+        u64::from(syscall_number),
+    ));
+    bytes.extend(encode_svc(supervisor_call));
     bytes.extend(encode_cbz_x(0, 48)?);
     bytes.extend(encode_load_byte_w_from_x(24, 21, 0)?);
     bytes.extend(encode_compare_w_immediate(24, 10)?);

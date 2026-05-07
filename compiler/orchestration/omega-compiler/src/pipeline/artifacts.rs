@@ -2454,9 +2454,11 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             target_offset,
             byte_capacity,
             syscall_number,
+            syscall_number_register,
+            supervisor_call,
         } => {
             format!(
-                "read runtime text line syscall {syscall_number} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
+                "read runtime text line syscall {syscall_number} via x{syscall_number_register}/svc #{supervisor_call} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {

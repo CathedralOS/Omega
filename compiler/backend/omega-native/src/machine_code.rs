@@ -139,6 +139,8 @@ pub enum MachineInstructionKind {
         target_offset: usize,
         byte_capacity: usize,
         syscall_number: u32,
+        syscall_number_register: u8,
+        supervisor_call: u16,
     },
     RuntimeStorageCopy {
         source_offset: usize,
@@ -455,12 +457,16 @@ fn machine_instruction_shape(
             target_offset,
             byte_capacity,
             syscall_number,
+            syscall_number_register,
+            supervisor_call,
             ..
         } => (
             MachineInstructionKind::RuntimeTextLineRead {
                 target_offset: *target_offset,
                 byte_capacity: *byte_capacity,
                 syscall_number: *syscall_number,
+                syscall_number_register: *syscall_number_register,
+                supervisor_call: *supervisor_call,
             },
             runtime_text_line_read_width(
                 native_plan.target.architecture,
@@ -725,12 +731,16 @@ fn encode_machine_instruction(
             target_offset,
             byte_capacity,
             syscall_number,
+            syscall_number_register,
+            supervisor_call,
             ..
         } => architecture::encode_runtime_text_line_read(
             native_plan.target.architecture,
             *target_offset,
             *byte_capacity,
             *syscall_number,
+            *syscall_number_register,
+            *supervisor_call,
         ),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,

@@ -392,6 +392,7 @@ fn collect_function_relocations(
             SelectedInstructionKind::ReadRuntimeTextLine {
                 buffer_symbol,
                 target_symbol,
+                syscall_number,
                 ..
             } => {
                 insert_data_address_relocations(
@@ -410,6 +411,7 @@ fn collect_function_relocations(
                     selected_text_offset
                         + runtime_text_line_read_target_address_offset(
                             native_plan.target.architecture,
+                            *syscall_number,
                         ),
                     target_symbol,
                 );
@@ -654,11 +656,11 @@ fn runtime_text_buffer_materialize_target_address_offset(architecture: Architect
     }
 }
 
-fn runtime_text_line_read_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 88,
-        Architecture::X86_64 => 8,
-    }
+fn runtime_text_line_read_target_address_offset(
+    architecture: Architecture,
+    syscall_number: u32,
+) -> usize {
+    crate::architecture::runtime_text_line_read_target_address_offset(architecture, syscall_number)
 }
 
 fn external_call_relocation_width(architecture: Architecture) -> usize {

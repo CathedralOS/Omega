@@ -185,6 +185,8 @@ pub enum SelectedInstructionKind {
         target_offset: usize,
         byte_capacity: usize,
         syscall_number: u32,
+        syscall_number_register: u8,
+        supervisor_call: u16,
     },
     CopyRuntimeStorage {
         source_symbol: String,
@@ -2060,6 +2062,8 @@ fn runtime_text_line_read(
     };
     let Some(HostBindingMechanism::Syscall {
         number: syscall_number,
+        number_register: syscall_number_register,
+        supervisor_call,
         ..
     }) = host_binding_mechanism(native_plan, "Stdin", "read")
     else {
@@ -2104,6 +2108,8 @@ fn runtime_text_line_read(
         target_offset: target_place.byte_offset,
         byte_capacity,
         syscall_number: *syscall_number,
+        syscall_number_register: *syscall_number_register,
+        supervisor_call: *supervisor_call,
     })
 }
 
