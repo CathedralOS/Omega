@@ -1213,10 +1213,14 @@ impl ArtifactWriter {
                                 transition_guard_name(&edge.guard)
                             ));
 
-                            if !edge.target_arguments.is_empty() {
+                            let target_arguments = native_plan
+                                .runtime_branching_calls
+                                .target_arguments
+                                .span_or_empty(edge.target_arguments);
+                            if !target_arguments.is_empty() {
                                 output.push_str(&format!(
                                     " args ({})",
-                                    edge.target_arguments
+                                    target_arguments
                                         .iter()
                                         .map(|argument| argument.display_name())
                                         .collect::<Vec<_>>()

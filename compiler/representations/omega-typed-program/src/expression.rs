@@ -12,6 +12,12 @@ pub enum Expression {
     String(String),
 }
 
+impl Default for Expression {
+    fn default() -> Self {
+        Self::Integer(0)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExpression {
     pub left: Expression,

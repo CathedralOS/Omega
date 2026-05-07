@@ -14,6 +14,7 @@ use omega_typed_program::statement::TransitionGuard;
 pub struct RuntimeBranchingCallPlan {
     pub calls: Arena<RuntimeBranchingCall>,
     pub edges: Arena<RuntimeBranchingCallEdge>,
+    pub target_arguments: Arena<Expression>,
     pub leaf_expansions: Arena<RuntimeLeafBranchExpansion>,
     pub leaf_operations: Arena<RuntimeLeafBranchOperation>,
     pub leaf_bindings: Arena<RuntimeLeafBranchBinding>,
@@ -65,7 +66,7 @@ pub struct RuntimeBranchingCallEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
-    pub target_arguments: Vec<Expression>,
+    pub target_arguments: HandleSpan<Expression>,
     pub guard_kind: StateGuardKind,
     pub lowering: RuntimeBranchTargetLowering,
 }
@@ -77,7 +78,7 @@ impl Default for RuntimeBranchingCallEdge {
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
-            target_arguments: Vec::new(),
+            target_arguments: HandleSpan::empty(),
             guard_kind: StateGuardKind::Always,
             lowering: RuntimeBranchTargetLowering::Unknown,
         }
@@ -338,7 +339,12 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             let Some(state_call) = state_call else {
                 continue;
             };
-            let branch_edges = build_branch_edges(native_plan, target_machine, target_state);
+            let branch_edges = build_branch_edges(
+                native_plan,
+                target_machine,
+                target_state,
+                &mut plan.target_arguments,
+            );
             let expansion = classify_branch_call_expansion(&branch_edges);
             if matches!(
                 expansion,
@@ -429,7 +435,7 @@ fn append_leaf_branch_expansions(
             branch_state,
             leaf_machine,
             leaf_state,
-            &edge.target_arguments,
+            plan.target_arguments.span_or_empty(edge.target_arguments),
         ));
         let operations = plan.leaf_operations.insert_many(leaf_operations(
             native_plan,
@@ -491,7 +497,7 @@ fn append_straight_line_branch_expansions(
                 native_plan,
                 target_machine,
                 target_state,
-                &edge.target_arguments,
+                plan.target_arguments.span_or_empty(edge.target_arguments),
             ));
         let operations = plan
             .straight_line_operations
@@ -858,6 +864,7 @@ fn build_branch_edges(
     native_plan: &NativePlan,
     machine_name: &str,
     state_name: &str,
+    target_arguments: &mut Arena<Expression>,
 ) -> Vec<RuntimeBranchingCallEdge> {
     let Some(machine) = machine_flow(native_plan, machine_name) else {
         return Vec::new();
@@ -890,7 +897,7 @@ fn build_branch_edges(
                         runtime_transition_target(machine, state_name, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
-                target_arguments: transition_target_arguments(&transition.target),
+                target_arguments: transition_target_arguments(&transition.target, target_arguments),
                 guard_kind: classify_transition_guard(&transition.guard),
                 guard: transition.guard.clone(),
             }
@@ -898,11 +905,16 @@ fn build_branch_edges(
         .collect()
 }
 
-fn transition_target_arguments(target: &PlannedTransitionTarget) -> Vec<Expression> {
+fn transition_target_arguments(
+    target: &PlannedTransitionTarget,
+    arena: &mut Arena<Expression>,
+) -> HandleSpan<Expression> {
     match target {
         PlannedTransitionTarget::State { arguments, .. }
-        | PlannedTransitionTarget::Nested { arguments, .. } => arguments.clone(),
-        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => Vec::new(),
+        | PlannedTransitionTarget::Nested { arguments, .. } => arena.insert_many(arguments.clone()),
+        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {
+            HandleSpan::empty()
+        }
     }
 }
 
