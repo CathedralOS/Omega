@@ -260,6 +260,8 @@ fn collect_runtime_body_state_call_blockers(
     native_plan: &NativePlan,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
+    let mut grouped_blockers = Vec::<RuntimeBodyStateCallBlocker>::new();
+
     for (_, body) in native_plan.runtime_bodies.bodies.iter() {
         let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
             blockers.insert(blocker(
@@ -283,21 +285,80 @@ fn collect_runtime_body_state_call_blockers(
                 continue;
             };
 
-            blockers.insert(blocker(
-                "state calls",
-                &format!(
-                    "#{} {}.{} statement {} calls {}.{} with {} argument(s); runtime dispatch body needs {:?} state-call expansion",
-                    body.dispatch_index,
-                    operation.source_machine,
-                    operation.source_state,
-                    operation.statement_index,
-                    target_machine,
-                    target_state,
-                    argument_count,
-                    lowering
-                ),
-            ));
+            push_runtime_body_state_call_blocker(
+                &mut grouped_blockers,
+                RuntimeBodyStateCallBlocker {
+                    dispatch_index: body.dispatch_index,
+                    source_machine: operation.source_machine.clone(),
+                    source_state: operation.source_state.clone(),
+                    first_statement_index: operation.statement_index,
+                    target_machine: target_machine.clone(),
+                    target_state: target_state.clone(),
+                    argument_count: *argument_count,
+                    lowering: *lowering,
+                    count: 1,
+                },
+            );
         }
+    }
+
+    for grouped_blocker in grouped_blockers {
+        blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {:?} state-call expansion",
+                grouped_blocker.dispatch_index,
+                grouped_blocker.source_machine,
+                grouped_blocker.source_state,
+                grouped_blocker.first_statement_index,
+                grouped_blocker.target_machine,
+                grouped_blocker.target_state,
+                grouped_blocker.argument_count,
+                repeated_count_suffix(grouped_blocker.count),
+                grouped_blocker.lowering
+            ),
+        ));
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeBodyStateCallBlocker {
+    dispatch_index: u32,
+    source_machine: String,
+    source_state: String,
+    first_statement_index: usize,
+    target_machine: String,
+    target_state: String,
+    argument_count: usize,
+    lowering: StateCallLowering,
+    count: usize,
+}
+
+fn push_runtime_body_state_call_blocker(
+    grouped_blockers: &mut Vec<RuntimeBodyStateCallBlocker>,
+    blocker: RuntimeBodyStateCallBlocker,
+) {
+    if let Some(existing) = grouped_blockers.iter_mut().find(|existing| {
+        existing.dispatch_index == blocker.dispatch_index
+            && existing.source_machine == blocker.source_machine
+            && existing.source_state == blocker.source_state
+            && existing.target_machine == blocker.target_machine
+            && existing.target_state == blocker.target_state
+            && existing.argument_count == blocker.argument_count
+            && existing.lowering == blocker.lowering
+    }) {
+        existing.count += 1;
+        return;
+    }
+
+    grouped_blockers.push(blocker);
+}
+
+fn repeated_count_suffix(count: usize) -> String {
+    if count <= 1 {
+        String::new()
+    } else {
+        format!(" ({count} sites)")
     }
 }
 

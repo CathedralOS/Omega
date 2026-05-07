@@ -59,6 +59,12 @@ pub enum RuntimeDispatchBodyOperationKind {
         target_state: String,
         argument_count: usize,
     },
+    InlineStateCall {
+        target_machine: String,
+        target_state: String,
+        argument_count: usize,
+        lowering: StateCallLowering,
+    },
     StateCall {
         target_machine: String,
         target_state: String,
@@ -226,6 +232,32 @@ fn append_state_call_body_operation(
         return;
     }
 
+    if state_has_no_transitions(
+        native_plan,
+        &state_call.target_machine,
+        &state_call.target_state,
+    ) {
+        operations.push(body_operation(
+            &state_call.source_machine,
+            &state_call.source_state,
+            state_call.statement_index,
+            RuntimeDispatchBodyOperationKind::InlineStateCall {
+                target_machine: state_call.target_machine.clone(),
+                target_state: state_call.target_state.clone(),
+                argument_count: state_call.argument_count,
+                lowering: state_call.lowering,
+            },
+        ));
+        append_state_body_operations(
+            native_plan,
+            &state_call.target_machine,
+            &state_call.target_state,
+            operations,
+            visiting,
+        );
+        return;
+    }
+
     operations.push(body_operation(
         &state_call.source_machine,
         &state_call.source_state,
@@ -266,6 +298,22 @@ fn state_operations<'plan>(
         .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
         .and_then(|state| native_plan.control_flow.operations.span(state.operations))
+}
+
+fn state_has_no_transitions(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> bool {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|state| native_plan.control_flow.transitions.span(state.transitions))
+        .is_none_or(|transitions| transitions.is_empty())
 }
 
 fn host_call_for_statement<'plan>(
