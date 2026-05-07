@@ -12,3 +12,5 @@ path = "src/lib.rs"
 omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }
+
+sha2 = "0.10"

@@ -24,7 +24,7 @@ pub fn emit_target_output(
             Some(elf::emit_elf_arm64_executable(native_plan))
         }
         (ObjectFormat::MachO, Architecture::Aarch64) => {
-            Some(macho::emit_macho_arm64_object(native_plan))
+            Some(macho::emit_macho_arm64_executable(native_plan))
         }
         _ => None,
     }

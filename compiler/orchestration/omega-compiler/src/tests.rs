@@ -2915,8 +2915,8 @@ fn compile_emits_native_output_bytes() {
         "compile summary should report emitted output"
     );
     assert!(
-        output.summary.contains("linked"),
-        "compile summary should report linked output"
+        output.summary.contains("finalized"),
+        "compile summary should report finalized output"
     );
 
     if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
