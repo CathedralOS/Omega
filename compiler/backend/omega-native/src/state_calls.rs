@@ -115,35 +115,32 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     mark_required_state_calls(native_plan, &mut calls);
 
     let mut plan = StateCallPlan::default();
-    let calls = calls
-        .into_iter()
-        .map(|call| {
-            let lowering = state_call_lowering(native_plan, &call);
-            let arguments = plan.arguments.insert_many(build_call_arguments(
-                native_plan,
-                &call.target_machine,
-                &call.target_state,
-                call.required,
-                &call.raw_arguments,
-            ));
+    for call in calls {
+        let lowering = state_call_lowering(native_plan, &call);
+        let arguments = plan.arguments.insert_many(build_call_arguments(
+            native_plan,
+            &call.target_machine,
+            &call.target_state,
+            call.required,
+            &call.raw_arguments,
+        ));
 
-            StateCall {
-                source_machine: call.source_machine,
-                source_state: call.source_state,
-                statement_index: call.statement_index,
-                receiver: call.receiver,
-                target_machine: call.target_machine,
-                target_state: call.target_state,
-                argument_count: arguments.len(),
-                arguments,
-                reachable: call.reachable,
-                required: call.required,
-                lowering,
-                resolution: call.resolution,
-            }
-        })
-        .collect::<Vec<_>>();
-    plan.calls.insert_many(calls);
+        plan.calls.insert(StateCall {
+            source_machine: call.source_machine,
+            source_state: call.source_state,
+            statement_index: call.statement_index,
+            receiver: call.receiver,
+            target_machine: call.target_machine,
+            target_state: call.target_state,
+            argument_count: arguments.len(),
+            arguments,
+            reachable: call.reachable,
+            required: call.required,
+            lowering,
+            resolution: call.resolution,
+        });
+    }
+
     plan
 }
 
