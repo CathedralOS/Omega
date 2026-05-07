@@ -137,27 +137,6 @@ Omega/
 |   |-- [CRATE] omega-graph/                            # Source-level machine/state graph reporting.
 |   |-- [CRATE] omega-proof/                            # Source-level proof surface reporting.
 |   |-- [CRATE] omega-native/                           # Source-level native surface reporting.
-|   |
-|   `-- [CRATE] omega-driver/                           # Compiler pipeline and current lowering/codegen home.
-|       |-- pipeline/                                   # Source loading, phase execution, artifacts, trust report.
-|       |-- ir/                                         # Lowered compiler representation.
-|       |-- semantic/                                   # Symbol collection, effects, validation.
-|       |-- proof/                                      # Driver-level proof obligations and proof checking.
-|       `-- native/                                     # Current native planning and emission.
-|           |-- target.rs                               # Target architecture/object-format selection.
-|           |-- abi.rs                                  # Host ABI bindings and platform-call lowering table.
-|           |-- layout.rs                               # Native data/machine layout planning.
-|           |-- control_flow.rs                         # Lowered state graph data model.
-|           |-- state_schedule.rs                       # Native scheduling of currently-emittable states.
-|           |-- host_calls.rs                           # Platform calls to host operations and arguments.
-|           |-- data.rs                                 # Native data objects and byte storage.
-|           |-- instructions.rs                         # Selected native instruction plan.
-|           |-- machine_code.rs                         # Encoded machine-code bytes.
-|           |-- relocations.rs                          # Relocation records for data and host calls.
-|           |-- object.rs                               # Generic object sections and symbols.
-|           |-- platform_object/                         # OS object writers, e.g. Mach-O.
-|           |-- emitter.rs                              # Emits target object or Omega native container.
-|           `-- linker.rs                               # Invokes system linker where supported.
 |
 |-- omega/
 |   `-- host/                                           # Bundled Omega host contracts and platform packages.
