@@ -456,6 +456,10 @@ impl ArtifactWriter {
         output.push_str("## Host Call Lowering\n");
         output.push_str(&format!("calls: {}\n", native_plan.host_calls.calls.len()));
         output.push_str(&format!(
+            "unsupported calls: {}\n",
+            native_plan.host_calls.unsupported_calls.len()
+        ));
+        output.push_str(&format!(
             "operations: {}\n",
             native_plan.host_calls.operations.len()
         ));
@@ -464,6 +468,19 @@ impl ArtifactWriter {
         } else {
             for (_, call) in native_plan.host_calls.calls.iter() {
                 write_host_call(&mut output, native_plan, call);
+            }
+        }
+        if !native_plan.host_calls.unsupported_calls.is_empty() {
+            output.push_str("unsupported:\n");
+            for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
+                output.push_str(&format!(
+                    "- {}.{} statement {} `{}`: {}\n",
+                    unsupported_call.machine,
+                    unsupported_call.state,
+                    unsupported_call.statement_index,
+                    unsupported_call.platform_call,
+                    unsupported_call.reason
+                ));
             }
         }
         output.push('\n');

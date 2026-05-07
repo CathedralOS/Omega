@@ -1,3 +1,4 @@
+use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
@@ -9,6 +10,7 @@ use omega_core::arena::{Arena, HandleSpan};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
     pub calls: Arena<HostCall>,
+    pub unsupported_calls: Arena<UnsupportedHostCall>,
     pub operations: Arena<LoweredHostOperation>,
     pub arguments: Arena<HostCallArgument>,
 }
@@ -17,10 +19,20 @@ impl Default for HostCallPlan {
     fn default() -> Self {
         Self {
             calls: Arena::new(),
+            unsupported_calls: Arena::new(),
             operations: Arena::new(),
             arguments: Arena::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UnsupportedHostCall {
+    pub machine: String,
+    pub state: String,
+    pub statement_index: usize,
+    pub platform_call: String,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,14 +93,17 @@ pub enum HostCallArgumentKind {
     Expression(String),
 }
 
-pub fn build_host_call_plan(program: &Program, target: NativeTarget) -> HostCallPlan {
+pub fn build_host_call_plan(
+    program: &Program,
+    target: NativeTarget,
+) -> Result<HostCallPlan, Diagnostic> {
     let mut plan = HostCallPlan::default();
 
     for machine in &program.machines {
-        collect_machine_host_calls(program, target, machine, &mut plan);
+        collect_machine_host_calls(program, target, machine, &mut plan)?;
     }
 
-    plan
+    Ok(plan)
 }
 
 fn collect_machine_host_calls(
@@ -96,10 +111,12 @@ fn collect_machine_host_calls(
     target: NativeTarget,
     machine: &Machine,
     plan: &mut HostCallPlan,
-) {
+) -> Result<(), Diagnostic> {
     for state in &machine.states {
-        collect_state_host_calls(program, target, machine, state, plan);
+        collect_state_host_calls(program, target, machine, state, plan)?;
     }
+
+    Ok(())
 }
 
 fn collect_state_host_calls(
@@ -108,7 +125,7 @@ fn collect_state_host_calls(
     machine: &Machine,
     state: &State,
     plan: &mut HostCallPlan,
-) {
+) -> Result<(), Diagnostic> {
     for (statement_index, statement) in state.statements.iter().enumerate() {
         let Statement::Call(call) = statement else {
             continue;
@@ -120,6 +137,14 @@ fn collect_state_host_calls(
 
         let lowered_operations = lower_platform_call(target, call);
         if lowered_operations.is_empty() {
+            let platform_call = platform_call_name(call);
+            plan.unsupported_calls.insert(UnsupportedHostCall {
+                machine: machine.name.clone(),
+                state: state.name.clone(),
+                statement_index,
+                platform_call: platform_call.clone(),
+                reason: format!("no native lowering for target {target:?}"),
+            });
             continue;
         }
 
@@ -134,6 +159,8 @@ fn collect_state_host_calls(
             arguments,
         });
     }
+
+    Ok(())
 }
 
 fn is_platform_call(program: &Program, machine: &Machine, call: &Call) -> bool {

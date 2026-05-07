@@ -63,6 +63,8 @@ Compile mode now emits real compiler-owned bytes under the build directory. On `
 
 On a macOS ARM64 host, compile mode also invokes the system linker after object emission and writes a runnable `omega-program` next to the phase artifacts. Omega still owns code generation; the platform linker is only doing the OS-specific object/link/load ceremony.
 
+The native backend is intentionally honest about its current shape: it supports a straight-line `main.entry` CLI MVP made from target-lowered host calls such as console write and process exit. Unsupported platform calls now fail during native planning instead of silently disappearing. General state-machine branching, nested machine calls, borrow/lifetime enforcement, and invariant discharge are still planned/compiler-surface work, not complete native codegen.
+
 The current MVP can check all samples through the real front-end pipeline:
 
 ```bash

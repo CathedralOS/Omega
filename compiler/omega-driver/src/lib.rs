@@ -1465,6 +1465,43 @@ mod tests {
     }
 
     #[test]
+    fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state write_error(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_error("nope");
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should preserve unsupported call as blocker");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+        assert!(
+            emission_plan.blockers.iter().any(|(_, blocker)| blocker
+                .reason
+                .contains("platform call `console.write_error`: no native lowering")),
+            "expected unsupported platform call blocker"
+        );
+    }
+
+    #[test]
     fn check_writes_phase_artifacts() {
         let build_dir =
             std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
@@ -1569,6 +1606,52 @@ mod tests {
                 "compiled Omega binary should not write stderr"
             );
         }
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+
+    #[test]
+    fn compile_rejects_emission_blockers() {
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-driver-blocked-{}", std::process::id()));
+        let root_dir = build_dir.join("blocked_project");
+        let root_path = root_dir.join("main.omg");
+        std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
+        std::fs::write(
+            &root_path,
+            r#"
+            platform Console {
+                state write_error(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_error("nope");
+                }
+            }
+            "#,
+        )
+        .expect("test source should be writable");
+
+        let diagnostics = crate::compile(crate::CompileOptions {
+            build_dir: Some(root_dir.join("build")),
+            root_path,
+            target_name: None,
+        })
+        .expect_err("compile should reject unresolved emission blockers");
+        let diagnostics_text = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            diagnostics_text.contains("cannot emit native binary; host lowering"),
+            "unexpected diagnostics:\n{}",
+            diagnostics_text
+        );
 
         let _ = std::fs::remove_dir_all(build_dir);
     }

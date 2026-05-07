@@ -35,6 +35,20 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         ));
     }
 
+    for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
+        blockers.insert(blocker(
+            "host lowering",
+            &format!(
+                "{}.{} statement {} platform call `{}`: {}",
+                unsupported_call.machine,
+                unsupported_call.state,
+                unsupported_call.statement_index,
+                unsupported_call.platform_call,
+                unsupported_call.reason
+            ),
+        ));
+    }
+
     if !can_emit_real_object(native_plan) {
         blockers.insert_many([
             blocker(

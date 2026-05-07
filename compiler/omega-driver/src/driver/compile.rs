@@ -246,6 +246,18 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
 
         Ok(emission_plan)
     })?;
+    if !emission_plan.blockers.is_empty() {
+        return Err(emission_plan
+            .blockers
+            .iter()
+            .map(|(_, blocker)| {
+                Diagnostic::error(format!(
+                    "cannot emit native binary; {}: {}",
+                    blocker.stage, blocker.reason
+                ))
+            })
+            .collect());
+    }
     let object_path = record_phase(&mut phase_timings, "emit native object", || {
         let emitted_object =
             emit_native_object(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
