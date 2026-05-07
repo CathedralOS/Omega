@@ -2,6 +2,7 @@ use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
+use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -124,13 +125,13 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
 ) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
+    let state_schedule =
+        build_entry_state_schedule(native_plan).unwrap_or_else(|_| native_entry_only(native_plan));
 
     selected_instructions.push(entry_instruction(native_plan));
 
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if host_call.machine != native_plan.entry_machine
-            || host_call.state != native_plan.entry_state
-        {
+        if !scheduled_state_contains(&state_schedule, &host_call.machine, &host_call.state) {
             continue;
         }
 
@@ -139,6 +140,15 @@ fn select_entry_instructions(
 
     selected_instructions.push(exit_instruction(native_plan));
     selected_instructions
+}
+
+fn native_entry_only(
+    native_plan: &NativePlan,
+) -> Vec<crate::native::state_schedule::ScheduledState> {
+    vec![crate::native::state_schedule::ScheduledState {
+        machine: native_plan.entry_machine.clone(),
+        state: native_plan.entry_state.clone(),
+    }]
 }
 
 fn select_host_call(

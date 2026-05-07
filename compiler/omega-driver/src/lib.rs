@@ -1775,10 +1775,11 @@ mod tests {
     }
 
     #[test]
-    fn reports_entry_transitions_as_native_codegen_blockers() {
+    fn emits_unconditional_entry_transition_chains() {
         let tokens = Lexer::new(
             r#"
             platform Console {
+                state write_line(text: String);
                 state exit_process(return_code: i32);
             }
 
@@ -1786,10 +1787,13 @@ mod tests {
                 contains console: Console;
 
                 state entry {
+                    console.write_line("entry");
+
                     -> shutdown;
                 }
 
                 state shutdown {
+                    console.write_line("shutdown");
                     console.exit_process(0);
                 }
             }
@@ -1804,16 +1808,12 @@ mod tests {
             &program,
             crate::native::target::NativeTarget::macos_arm64(),
         )
-        .expect("native planning should preserve entry transition as blocker");
+        .expect("native planning should allow unconditional transition chain");
         let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(
-            emission_plan.blockers.iter().any(|(_, blocker)| {
-                blocker.stage == "state codegen"
-                    && blocker.reason.contains("straight-line entry states only")
-            }),
-            "expected entry transition codegen blocker"
-        );
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(native_plan.host_calls.calls.len(), 3);
+        assert_eq!(native_plan.instructions.instructions.len(), 8);
     }
 
     #[test]

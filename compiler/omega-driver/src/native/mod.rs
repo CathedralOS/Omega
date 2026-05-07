@@ -13,4 +13,5 @@ pub mod object;
 pub mod object_formats;
 pub mod plan;
 pub mod relocations;
+pub mod state_schedule;
 pub mod target;
