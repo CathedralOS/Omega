@@ -565,6 +565,7 @@ pub fn encode_runtime_text_line_read(
     bytes.extend(encode_move_x_register(21, 20));
     bytes.extend(encode_movz(22, 0));
 
+    let read_loop_offset = bytes.len();
     bytes.extend(encode_movz(0, 0));
     bytes.extend(encode_move_x_register(1, 21));
     bytes.extend(encode_movz(2, 1));
@@ -584,7 +585,8 @@ pub fn encode_runtime_text_line_read(
     bytes.extend(encode_add_x_immediate(21, 21, 1)?);
     bytes.extend(encode_add_x_immediate(22, 22, 1)?);
     bytes.extend(encode_compare_w_immediate(22, capacity)?);
-    bytes.extend(encode_conditional_branch_not_equal(-64)?);
+    let repeat_read_distance = read_loop_offset as isize - bytes.len() as isize;
+    bytes.extend(encode_conditional_branch_not_equal(repeat_read_distance)?);
 
     bytes.extend(encode_store_byte_w_to_x(31, 21, 0)?);
     bytes.extend(encode_adrp_placeholder(16));
