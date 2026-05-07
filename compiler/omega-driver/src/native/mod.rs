@@ -17,4 +17,5 @@ pub mod runtime_flow;
 pub mod state_calls;
 pub mod state_dispatch;
 pub mod state_schedule;
+pub mod state_storage;
 pub mod target;

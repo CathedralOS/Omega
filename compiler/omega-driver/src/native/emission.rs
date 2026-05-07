@@ -72,6 +72,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 
     collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
     collect_state_call_blockers(native_plan, &mut blockers);
+    collect_state_storage_blockers(native_plan, &mut blockers);
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
 
     if !can_emit_real_object(native_plan) {
@@ -186,6 +187,72 @@ fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<Em
     }
 }
 
+fn collect_state_storage_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+    for (_, local) in native_plan.state_storage.locals.iter() {
+        if !local.required {
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state storage",
+            &format!(
+                "{}.{} statement {} local `{}`: {} needs stack/local storage lowering",
+                local.machine, local.state, local.statement_index, local.name, local.type_name
+            ),
+        ));
+    }
+
+    for (_, mutation) in native_plan.state_storage.mutations.iter() {
+        if !mutation.required {
+            continue;
+        }
+
+        if state_mutation_is_already_lowered(
+            native_plan,
+            &mutation.machine,
+            &mutation.state,
+            mutation.statement_index,
+        ) {
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state mutation",
+            &format!(
+                "{}.{} statement {} {:?} `{}` = `{}` needs mutation lowering",
+                mutation.machine,
+                mutation.state,
+                mutation.statement_index,
+                mutation.mutation_kind,
+                mutation.target.display_name(),
+                mutation.value.display_name()
+            ),
+        ));
+    }
+}
+
+fn state_mutation_is_already_lowered(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    let Some(state) = state_flow(native_plan, machine_name, state_name) else {
+        return false;
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return false;
+    };
+
+    operations.iter().any(|operation| {
+        operation.statement_index == statement_index
+            && matches!(
+                operation.kind,
+                OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment { .. }
+            )
+    })
+}
+
 fn collect_state_codegen_blockers(
     native_plan: &NativePlan,
     state_schedule: &[crate::native::state_schedule::ScheduledState],
@@ -249,6 +316,13 @@ fn collect_state_codegen_blockers(
                 }
                 OperationKind::ConstantIntegerAssignment
                 | OperationKind::StaticAssignment { .. } => {}
+                OperationKind::Assignment { .. }
+                    if state_statement_has_storage_mutation(
+                        native_plan,
+                        &scheduled_state.machine,
+                        &scheduled_state.state,
+                        operation.statement_index,
+                    ) => {}
                 OperationKind::Assignment { .. } => {
                     blockers.insert(blocker(
                         "state codegen",
@@ -260,6 +334,13 @@ fn collect_state_codegen_blockers(
                         ),
                     ));
                 }
+                OperationKind::LocalData
+                    if state_statement_has_local_storage(
+                        native_plan,
+                        &scheduled_state.machine,
+                        &scheduled_state.state,
+                        operation.statement_index,
+                    ) => {}
                 _ => {
                     blockers.insert(blocker(
                         "state codegen",
@@ -275,6 +356,36 @@ fn collect_state_codegen_blockers(
             };
         }
     }
+}
+
+fn state_statement_has_local_storage(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    native_plan.state_storage.locals.iter().any(|(_, local)| {
+        local.machine == machine_name
+            && local.state == state_name
+            && local.statement_index == statement_index
+    })
+}
+
+fn state_statement_has_storage_mutation(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    native_plan
+        .state_storage
+        .mutations
+        .iter()
+        .any(|(_, mutation)| {
+            mutation.machine == machine_name
+                && mutation.state == state_name
+                && mutation.statement_index == statement_index
+        })
 }
 
 fn state_statement_has_state_call(

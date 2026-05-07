@@ -523,6 +523,40 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## State Storage\n");
+        output.push_str(&format!(
+            "locals: {}\n",
+            native_plan.state_storage.locals.len()
+        ));
+        for (_, local) in native_plan.state_storage.locals.iter() {
+            output.push_str(&format!(
+                "- {}.{} statement {} local `{}`: {} required {}\n",
+                local.machine,
+                local.state,
+                local.statement_index,
+                local.name,
+                local.type_name,
+                local.required
+            ));
+        }
+        output.push_str(&format!(
+            "mutations: {}\n",
+            native_plan.state_storage.mutations.len()
+        ));
+        for (_, mutation) in native_plan.state_storage.mutations.iter() {
+            output.push_str(&format!(
+                "- {}.{} statement {} {:?}: `{}` = `{}` required {}\n",
+                mutation.machine,
+                mutation.state,
+                mutation.statement_index,
+                mutation.mutation_kind,
+                mutation.target.display_name(),
+                mutation.value.display_name(),
+                mutation.required
+            ));
+        }
+        output.push('\n');
+
         output.push_str("## Native Data\n");
         output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
         output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));

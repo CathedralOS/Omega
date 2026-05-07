@@ -2234,7 +2234,7 @@ fn emits_nested_machine_continuations_inline() {
 }
 
 #[test]
-fn reports_entry_assignments_as_native_codegen_blockers() {
+fn reports_entry_assignments_as_native_mutation_blockers() {
     let tokens = Lexer::new(
         r#"
             platform Console {
@@ -2267,10 +2267,11 @@ fn reports_entry_assignments_as_native_codegen_blockers() {
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
-            blocker.stage == "state codegen"
-                && blocker.reason.contains("Assignment is not supported")
+            blocker.stage == "state mutation"
+                && blocker.reason.contains("return_code")
+                && blocker.reason.contains("other_code")
         }),
-        "expected entry assignment codegen blocker"
+        "expected entry assignment mutation blocker"
     );
 }
 
@@ -2316,6 +2317,62 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
                     .contains("text argument `line::text` needs runtime string lowering")
         }),
         "expected dynamic text argument blocker"
+    );
+}
+
+#[test]
+fn plans_state_storage_and_mutations() {
+    let tokens = Lexer::new(
+        r#"
+            data Room {
+                label: String;
+            }
+
+            machine main {
+                owns current_room: Room;
+
+                state entry {
+                    let scratch: Room;
+                    scratch = current_room;
+                    current_room.label = "A1";
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should collect state storage");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert_eq!(native_plan.state_storage.locals.len(), 1);
+    assert_eq!(native_plan.state_storage.mutations.len(), 2);
+    assert!(
+        native_plan
+            .state_storage
+            .mutations
+            .iter()
+            .any(|(_, mutation)| mutation.mutation_kind
+                == crate::native::state_storage::StateMutationKind::MachineOwned)
+    );
+    assert!(
+        emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "state storage")
+    );
+    assert!(
+        emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "state mutation")
     );
 }
 
