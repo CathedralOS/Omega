@@ -1,4 +1,4 @@
-use crate::ir::expression::Expression;
+use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
@@ -48,7 +48,9 @@ impl Default for StateGuard {
 pub enum StateGuardKind {
     #[default]
     Always,
-    RuntimeBinary,
+    RuntimeEquality,
+    RuntimeInequality,
+    RuntimeOrdering,
     RuntimeExpression,
 }
 
@@ -72,6 +74,26 @@ pub fn build_state_guard_plan(state_dispatch: &StateDispatchPlan) -> StateGuardP
     }
 
     plan
+}
+
+pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
+    match guard {
+        TransitionGuard::Always => StateGuardKind::Always,
+        TransitionGuard::When(expression) => match expression {
+            Expression::Binary(binary) => match binary.operator {
+                BinaryOperator::Equal => StateGuardKind::RuntimeEquality,
+                BinaryOperator::NotEqual => StateGuardKind::RuntimeInequality,
+                BinaryOperator::Greater
+                | BinaryOperator::GreaterOrEqual
+                | BinaryOperator::Less
+                | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
+                BinaryOperator::Add | BinaryOperator::And | BinaryOperator::Or => {
+                    StateGuardKind::RuntimeExpression
+                }
+            },
+            _ => StateGuardKind::RuntimeExpression,
+        },
+    }
 }
 
 fn build_state_guard(
@@ -102,13 +124,8 @@ fn build_state_guard(
 fn guard_data(guard: &TransitionGuard) -> (StateGuardKind, Expression, bool) {
     match guard {
         TransitionGuard::Always => (StateGuardKind::Always, Expression::Boolean(true), false),
-        TransitionGuard::When(expression) => (
-            match expression {
-                Expression::Binary(_) => StateGuardKind::RuntimeBinary,
-                _ => StateGuardKind::RuntimeExpression,
-            },
-            expression.clone(),
-            true,
-        ),
+        TransitionGuard::When(expression) => {
+            (classify_transition_guard(guard), expression.clone(), true)
+        }
     }
 }

@@ -2,6 +2,7 @@ use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget};
 use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use crate::native::runtime_dispatch::guards::{StateGuardKind, classify_transition_guard};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_calls::StateCallLowering;
 use omega_core::arena::{Arena, HandleSpan};
@@ -45,6 +46,7 @@ pub struct RuntimeBranchingCallEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
+    pub guard_kind: StateGuardKind,
     pub lowering: RuntimeBranchTargetLowering,
 }
 
@@ -55,6 +57,7 @@ impl Default for RuntimeBranchingCallEdge {
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
+            guard_kind: StateGuardKind::Always,
             lowering: RuntimeBranchTargetLowering::Unknown,
         }
     }
@@ -143,6 +146,7 @@ fn build_branch_edges(
                         runtime_transition_target(machine, state_name, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
+                guard_kind: classify_transition_guard(&transition.guard),
                 guard: transition.guard.clone(),
             }
         })

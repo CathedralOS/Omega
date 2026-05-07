@@ -1290,7 +1290,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         guard.source_machine == "main"
             && guard.source_state == "entry"
-            && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeBinary
+            && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
             && guard.expression.display_name() == "ready == true"
     }));
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
@@ -1419,6 +1419,10 @@ fn plans_runtime_branching_state_call_edges() {
         edges[0].lowering,
         crate::native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
     );
+    assert_eq!(
+        edges[0].guard_kind,
+        crate::native::state_guards::StateGuardKind::RuntimeExpression
+    );
     assert!(matches!(
         edges[1].target,
         crate::native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
@@ -1427,6 +1431,10 @@ fn plans_runtime_branching_state_call_edges() {
     assert_eq!(
         edges[1].lowering,
         crate::native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
+    );
+    assert_eq!(
+        edges[1].guard_kind,
+        crate::native::state_guards::StateGuardKind::Always
     );
 }
 
