@@ -2026,8 +2026,12 @@ fn plans_runtime_leaf_branch_argument_bindings() {
                 owns first: Cell = Cell { id: CellId::A1 };
 
                 state entry {
-                    scan(first, CellId::A1, mut selected);
+                    wrapper(first, CellId::A1, mut selected);
                     -> self;
+                }
+
+                state wrapper(cell: Cell, id: CellId, mut final_cell: Cell) {
+                    scan(cell, id, mut final_cell);
                 }
 
                 state scan(cell: Cell, id: CellId, mut out_cell: Cell) {

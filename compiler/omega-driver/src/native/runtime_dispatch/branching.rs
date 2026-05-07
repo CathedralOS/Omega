@@ -23,6 +23,13 @@ pub struct RuntimeBranchingCallPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeBranchAlias {
+    machine: String,
+    parameter_name: String,
+    expression: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeBranchingCall {
     pub dispatch_index: u32,
     pub source_machine: String,
@@ -305,8 +312,15 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
         let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
             continue;
         };
+        let mut aliases = Vec::new();
 
         for operation in operations {
+            let state_call = state_call_for_operation(
+                native_plan,
+                &operation.source_machine,
+                &operation.source_state,
+                operation.statement_index,
+            );
             let RuntimeDispatchBodyOperationKind::StateCall {
                 target_machine,
                 target_state,
@@ -314,15 +328,13 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 lowering: StateCallLowering::InlineBranching,
             } = &operation.kind
             else {
+                if let Some(state_call) = state_call {
+                    bind_runtime_branch_aliases(native_plan, &mut aliases, state_call);
+                }
                 continue;
             };
 
-            let Some(state_call) = state_call_for_operation(
-                native_plan,
-                &operation.source_machine,
-                &operation.source_state,
-                operation.statement_index,
-            ) else {
+            let Some(state_call) = state_call else {
                 continue;
             };
             let branch_edges = build_branch_edges(native_plan, target_machine, target_state);
@@ -344,6 +356,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                     target_state,
                     &branch_edges,
                     state_call,
+                    &aliases,
                 );
             }
             if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
@@ -358,6 +371,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                     target_state,
                     &branch_edges,
                     state_call,
+                    &aliases,
                 );
             }
             let edges = plan.edges.insert_many(branch_edges);
@@ -372,6 +386,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 expansion,
                 edges,
             });
+            bind_runtime_branch_aliases(native_plan, &mut aliases, state_call);
         }
     }
 
@@ -390,6 +405,7 @@ fn append_leaf_branch_expansions(
     branch_state: &str,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
+    aliases: &[RuntimeBranchAlias],
 ) {
     for edge in edges {
         if edge.lowering != RuntimeBranchTargetLowering::InlineLeaf {
@@ -404,7 +420,7 @@ fn append_leaf_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(native_plan, state_call);
+        let branch_bindings = branch_parameter_bindings(native_plan, state_call, aliases);
         let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
             &branch_bindings,
             native_plan,
@@ -451,6 +467,7 @@ fn append_straight_line_branch_expansions(
     branch_state: &str,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
+    aliases: &[RuntimeBranchAlias],
 ) {
     for edge in edges {
         if edge.lowering != RuntimeBranchTargetLowering::InlineStraightLine {
@@ -465,7 +482,7 @@ fn append_straight_line_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(native_plan, state_call);
+        let branch_bindings = branch_parameter_bindings(native_plan, state_call, aliases);
         let bindings = plan
             .straight_line_bindings
             .insert_many(straight_line_branch_bindings(
@@ -588,6 +605,7 @@ fn resolve_branch_guard(
 fn branch_parameter_bindings(
     native_plan: &NativePlan,
     state_call: &StateCall,
+    aliases: &[RuntimeBranchAlias],
 ) -> Vec<(String, Expression)> {
     native_plan
         .state_calls
@@ -604,11 +622,100 @@ fn branch_parameter_bindings(
                     } else {
                         argument.expression.clone()
                     };
-                    (argument.parameter_name.clone(), expression)
+                    (
+                        argument.parameter_name.clone(),
+                        resolve_runtime_branch_alias_expression(
+                            &expression,
+                            &state_call.source_machine,
+                            aliases,
+                        ),
+                    )
                 })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn bind_runtime_branch_aliases(
+    native_plan: &NativePlan,
+    aliases: &mut Vec<RuntimeBranchAlias>,
+    state_call: &StateCall,
+) {
+    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+        return;
+    };
+
+    for argument in arguments {
+        let expression = if argument.kind == StateCallArgumentKind::MutableAlias
+            && !matches!(argument.expression, Expression::Mutable(_))
+        {
+            Expression::Mutable(Box::new(argument.expression.clone()))
+        } else {
+            argument.expression.clone()
+        };
+        set_runtime_branch_alias(
+            aliases,
+            RuntimeBranchAlias {
+                machine: state_call.target_machine.clone(),
+                parameter_name: argument.parameter_name.clone(),
+                expression: resolve_runtime_branch_alias_expression(
+                    &expression,
+                    &state_call.source_machine,
+                    aliases,
+                ),
+            },
+        );
+    }
+}
+
+fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
+    if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
+        existing_alias.machine == alias.machine
+            && existing_alias.parameter_name == alias.parameter_name
+    }) {
+        *existing_alias = alias;
+    } else {
+        aliases.push(alias);
+    }
+}
+
+fn resolve_runtime_branch_alias_expression(
+    expression: &Expression,
+    source_machine: &str,
+    aliases: &[RuntimeBranchAlias],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target =
+                resolve_runtime_branch_alias_expression(target, source_machine, aliases);
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Indexed(indexed) => {
+            Expression::Indexed(Box::new(crate::ir::expression::IndexedExpression {
+                collection: resolve_runtime_branch_alias_expression(
+                    &indexed.collection,
+                    source_machine,
+                    aliases,
+                ),
+                index: resolve_runtime_branch_alias_expression(
+                    &indexed.index,
+                    source_machine,
+                    aliases,
+                ),
+            }))
+        }
+        Expression::Name(path) if !path.is_empty() => aliases
+            .iter()
+            .rev()
+            .find(|alias| alias.machine == source_machine && alias.parameter_name == path[0])
+            .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
 }
 
 fn resolve_branch_expression(
