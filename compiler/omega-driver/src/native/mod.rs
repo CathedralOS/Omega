@@ -10,6 +10,7 @@ pub mod layout;
 pub mod linker;
 pub mod machine_code;
 pub mod object;
+pub mod object_formats;
 pub mod plan;
 pub mod relocations;
 pub mod target;
