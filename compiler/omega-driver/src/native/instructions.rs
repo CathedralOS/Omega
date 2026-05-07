@@ -26,6 +26,7 @@ use omega_core::arena::{Arena, HandleSpan};
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeAliasBinding {
     machine: String,
+    state: String,
     parameter_name: String,
     expression: Expression,
 }
@@ -120,6 +121,13 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         operator: StateGuardOperator,
     },
+    CompareRuntimeStorageValue {
+        symbol: String,
+        byte_offset: usize,
+        byte_size: usize,
+        expected_value: i64,
+        operator: StateGuardOperator,
+    },
     WriteRuntimeTextLiteral {
         buffer_symbol: String,
         literal: String,
@@ -137,6 +145,24 @@ pub enum SelectedInstructionKind {
         target_symbol: String,
         target_offset: usize,
         length_delta: usize,
+    },
+    MaterializeRuntimeTextBuffer {
+        buffer_symbol: String,
+        target_symbol: String,
+        target_offset: usize,
+    },
+    AppendRuntimeTextStoredPlace {
+        buffer_symbol: String,
+        source_symbol: String,
+        source_offset: usize,
+        target_symbol: String,
+        target_offset: usize,
+    },
+    AppendRuntimeTextLiteral {
+        buffer_symbol: String,
+        target_symbol: String,
+        target_offset: usize,
+        literal: String,
     },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
@@ -332,8 +358,9 @@ fn select_runtime_dispatch_loop_instructions(
                     &operation.source_state,
                     operation.statement_index,
                 ) {
-                    if let Some((buffer_symbol, literal)) =
-                        runtime_text_literal_write_for_host_call(native_plan, host_call)
+                    if runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
+                        && let Some((buffer_symbol, literal)) =
+                            runtime_text_literal_write_for_host_call(native_plan, host_call)
                     {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::WriteRuntimeTextLiteral {
@@ -459,12 +486,14 @@ fn bind_runtime_operation_aliases(
         let expression = strip_mutable_expression(resolve_runtime_alias_expression(
             &argument.expression,
             &state_call.source_machine,
+            &state_call.source_state,
             aliases,
         ));
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {
                 machine: state_call.target_machine.clone(),
+                state: state_call.target_state.clone(),
                 parameter_name: argument.parameter_name.clone(),
                 expression,
             },
@@ -475,6 +504,7 @@ fn bind_runtime_operation_aliases(
 fn set_runtime_alias(aliases: &mut Vec<RuntimeAliasBinding>, alias: RuntimeAliasBinding) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
         existing_alias.machine == alias.machine
+            && existing_alias.state == alias.state
             && existing_alias.parameter_name == alias.parameter_name
     }) {
         *existing_alias = alias;
@@ -530,7 +560,8 @@ fn select_runtime_mutation_writes(
     static_values: &mut Vec<(String, i64)>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let resolved_target = resolve_runtime_alias_expression(target, source_machine, aliases);
+    let resolved_target =
+        resolve_runtime_alias_expression(target, source_machine, source_state, aliases);
 
     if let Expression::StructLiteral(struct_literal) = value {
         for field in &struct_literal.fields {
@@ -585,7 +616,8 @@ fn select_runtime_mutation_writes(
         return;
     }
 
-    let resolved_value = resolve_runtime_alias_expression(value, source_machine, aliases);
+    let resolved_value =
+        resolve_runtime_alias_expression(value, source_machine, source_state, aliases);
     if let Some(copy) = runtime_storage_copy(
         native_plan,
         dispatch_index,
@@ -606,6 +638,7 @@ fn select_runtime_mutation_writes(
     let Some(value) = resolve_runtime_static_integer_value(
         native_plan,
         source_machine,
+        source_state,
         value,
         aliases,
         static_values,
@@ -647,6 +680,28 @@ fn runtime_text_builder_write(
     resolved_target: &Expression,
     aliases: &[RuntimeAliasBinding],
 ) -> Option<Vec<SelectedInstructionKind>> {
+    runtime_text_builder_write_with_resolver(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        statement_index,
+        resolved_target,
+        &|expression| {
+            resolve_runtime_alias_expression(expression, source_machine, source_state, aliases)
+        },
+    )
+}
+
+fn runtime_text_builder_write_with_resolver(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    resolved_target: &Expression,
+    resolve_expression: &dyn Fn(&Expression) -> Expression,
+) -> Option<Vec<SelectedInstructionKind>> {
     let builder = native_plan
         .runtime_text
         .builders
@@ -661,56 +716,104 @@ fn runtime_text_builder_write(
         .runtime_text
         .builder_segments
         .span(builder.segments)?;
-    let [prefix, suffix] = segments else {
-        return None;
-    };
-    if prefix.kind != RuntimeTextBuilderSegmentKind::StaticText
-        || suffix.kind != RuntimeTextBuilderSegmentKind::StoredPlace
-    {
-        return None;
-    }
-    let Expression::String(prefix) = &prefix.expression else {
-        return None;
-    };
-
-    let buffer = runtime_text_input_buffer_for_text_place(native_plan, resolved_target)?;
-    let source = resolve_runtime_alias_expression(&suffix.expression, source_machine, aliases);
-    let source_place = resolve_runtime_storage_place(
-        native_plan,
-        dispatch_index,
-        source_machine,
-        source_state,
-        &source,
-    )?;
+    let resolved_target = strip_mutable_expression(resolved_target.clone());
+    let buffer = runtime_text_input_buffer_for_text_place(native_plan, &resolved_target)?;
     let target_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
         source_machine,
         source_state,
-        resolved_target,
+        &resolved_target,
     )?;
-    if source_place.byte_count != native_plan.target.pointer_size * 2
-        || target_place.byte_count != native_plan.target.pointer_size * 2
-    {
+    if target_place.byte_count != native_plan.target.pointer_size * 2 {
         return None;
     }
 
-    Some(vec![
-        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
-            buffer_symbol: buffer.symbol.clone(),
-            byte_offset: 0,
-            literal: prefix.clone(),
-        },
-        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
-            buffer_symbol: buffer.symbol.clone(),
-            buffer_offset: prefix.len(),
-            source_symbol: source_place.symbol,
-            source_offset: source_place.byte_offset,
-            target_symbol: target_place.symbol,
-            target_offset: target_place.byte_offset,
-            length_delta: prefix.len(),
-        },
-    ])
+    if let [prefix, suffix] = segments
+        && prefix.kind == RuntimeTextBuilderSegmentKind::StaticText
+        && suffix.kind == RuntimeTextBuilderSegmentKind::StoredPlace
+    {
+        let Expression::String(prefix) = &prefix.expression else {
+            return None;
+        };
+        let source = resolve_expression(&suffix.expression);
+        let source_place = resolve_runtime_storage_place(
+            native_plan,
+            dispatch_index,
+            source_machine,
+            source_state,
+            &source,
+        )?;
+        if source_place.byte_count != native_plan.target.pointer_size * 2 {
+            return None;
+        }
+        return Some(vec![
+            SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+                buffer_symbol: buffer.symbol.clone(),
+                byte_offset: 0,
+                literal: prefix.clone(),
+            },
+            SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+                buffer_symbol: buffer.symbol.clone(),
+                buffer_offset: prefix.len(),
+                source_symbol: source_place.symbol,
+                source_offset: source_place.byte_offset,
+                target_symbol: target_place.symbol,
+                target_offset: target_place.byte_offset,
+                length_delta: prefix.len(),
+            },
+        ]);
+    }
+
+    let mut instructions = Vec::new();
+    for segment in segments {
+        match segment.kind {
+            RuntimeTextBuilderSegmentKind::StoredPlace => {
+                let source = resolve_expression(&segment.expression);
+                let source_place = resolve_runtime_storage_place(
+                    native_plan,
+                    dispatch_index,
+                    source_machine,
+                    source_state,
+                    &source,
+                )?;
+                if source_place.byte_count != native_plan.target.pointer_size * 2 {
+                    return None;
+                }
+                if source_place.symbol == target_place.symbol
+                    && source_place.byte_offset == target_place.byte_offset
+                {
+                    instructions.push(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                        buffer_symbol: buffer.symbol.clone(),
+                        target_symbol: target_place.symbol.clone(),
+                        target_offset: target_place.byte_offset,
+                    });
+                    continue;
+                }
+                instructions.push(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+                    buffer_symbol: buffer.symbol.clone(),
+                    source_symbol: source_place.symbol,
+                    source_offset: source_place.byte_offset,
+                    target_symbol: target_place.symbol.clone(),
+                    target_offset: target_place.byte_offset,
+                });
+            }
+            RuntimeTextBuilderSegmentKind::StaticText => {
+                let Expression::String(literal) = &segment.expression else {
+                    return None;
+                };
+                instructions.push(SelectedInstructionKind::AppendRuntimeTextLiteral {
+                    buffer_symbol: buffer.symbol.clone(),
+                    target_symbol: target_place.symbol.clone(),
+                    target_offset: target_place.byte_offset,
+                    literal: literal.clone(),
+                });
+            }
+            RuntimeTextBuilderSegmentKind::OtherExpression => return None,
+        }
+    }
+
+    (!instructions.is_empty()).then_some(instructions)
 }
 
 fn runtime_storage_copy(
@@ -809,7 +912,9 @@ fn string_literal_data_object<'plan>(
                     .data
                     .bytes
                     .span(data_object.bytes)
-                    .is_some_and(|bytes| bytes == value.as_bytes())
+                    .is_some_and(|bytes| {
+                        bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
+                    })
         })
         .map(|(_, data_object)| data_object)
 }
@@ -817,6 +922,7 @@ fn string_literal_data_object<'plan>(
 fn resolve_runtime_static_integer_value(
     native_plan: &NativePlan,
     source_machine: &str,
+    source_state: &str,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
     static_values: &[(String, i64)],
@@ -825,7 +931,7 @@ fn resolve_runtime_static_integer_value(
         Expression::Integer(value) => Some(*value),
         Expression::Name(_) => enum_variant_value(&native_plan.layouts, expression).or_else(|| {
             let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_machine, aliases);
+                resolve_runtime_alias_expression(expression, source_machine, source_state, aliases);
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
@@ -834,7 +940,7 @@ fn resolve_runtime_static_integer_value(
         }),
         Expression::Indexed(_) | Expression::Mutable(_) => {
             let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_machine, aliases);
+                resolve_runtime_alias_expression(expression, source_machine, source_state, aliases);
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
@@ -871,26 +977,37 @@ fn strip_mutable_expression(expression: Expression) -> Expression {
 fn resolve_runtime_alias_expression(
     expression: &Expression,
     source_machine: &str,
+    source_state: &str,
     aliases: &[RuntimeAliasBinding],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => Expression::Mutable(Box::new(
-            resolve_runtime_alias_expression(target, source_machine, aliases),
+            resolve_runtime_alias_expression(target, source_machine, source_state, aliases),
         )),
         Expression::Indexed(indexed) => {
             Expression::Indexed(Box::new(crate::ir::expression::IndexedExpression {
                 collection: resolve_runtime_alias_expression(
                     &indexed.collection,
                     source_machine,
+                    source_state,
                     aliases,
                 ),
-                index: resolve_runtime_alias_expression(&indexed.index, source_machine, aliases),
+                index: resolve_runtime_alias_expression(
+                    &indexed.index,
+                    source_machine,
+                    source_state,
+                    aliases,
+                ),
             }))
         }
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| alias.machine == source_machine && alias.parameter_name == path[0])
+            .find(|alias| {
+                alias.machine == source_machine
+                    && alias.state == source_state
+                    && alias.parameter_name == path[0]
+            })
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
@@ -923,6 +1040,12 @@ fn select_runtime_leaf_branch_expansion(
     expansion: &RuntimeLeafBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
+    let mut mutation_writes = Vec::new();
+    select_runtime_leaf_branch_mutation_writes(native_plan, expansion, &mut mutation_writes);
+    if mutation_writes.is_empty() {
+        return;
+    }
+
     if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
@@ -943,7 +1066,7 @@ fn select_runtime_leaf_branch_expansion(
     } else {
         return;
     }
-    select_runtime_leaf_branch_mutation_writes(native_plan, expansion, selected_instructions);
+    selected_instructions.extend(mutation_writes);
 }
 
 fn select_runtime_leaf_branch_mutation_writes(
@@ -987,6 +1110,26 @@ fn select_runtime_leaf_branch_mutation_writes(
                 source_state: operation.source_state.clone(),
                 source_statement: operation.statement_index,
             });
+            continue;
+        }
+
+        if let Some(instructions) = runtime_text_builder_write_with_resolver(
+            native_plan,
+            expansion.dispatch_index,
+            &operation.source_machine,
+            &operation.source_state,
+            operation.statement_index,
+            &resolved_target,
+            &|expression| resolve_leaf_binding_expression(expression, bindings),
+        ) {
+            for kind in instructions {
+                selected_instructions.push(SelectedInstruction {
+                    kind,
+                    source_machine: operation.source_machine.clone(),
+                    source_state: operation.source_state.clone(),
+                    source_statement: operation.statement_index,
+                });
+            }
             continue;
         }
 
@@ -1051,26 +1194,55 @@ fn runtime_storage_guard(
         &expansion.source_machine,
         &expansion.source_state,
         &binary.left,
-    )?;
+    );
     let right = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
         &expansion.source_machine,
         &expansion.source_state,
         &binary.right,
-    )?;
-    if left.byte_count != right.byte_count {
-        return None;
+    );
+
+    if let (Some(left), Some(right)) = (left.clone(), right.clone()) {
+        if left.byte_count != right.byte_count {
+            return None;
+        }
+
+        return Some(SelectedInstructionKind::CompareRuntimeStorage {
+            left_symbol: left.symbol,
+            left_offset: left.byte_offset,
+            right_symbol: right.symbol,
+            right_offset: right.byte_offset,
+            byte_size: left.byte_count,
+            operator,
+        });
     }
 
-    Some(SelectedInstructionKind::CompareRuntimeStorage {
-        left_symbol: left.symbol,
-        left_offset: left.byte_offset,
-        right_symbol: right.symbol,
-        right_offset: right.byte_offset,
-        byte_size: left.byte_count,
-        operator,
-    })
+    if let Some(place) = left
+        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.right)
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
+            symbol: place.symbol,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            operator,
+        });
+    }
+
+    if let Some(place) = right
+        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.left)
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
+            symbol: place.symbol,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
+            expected_value,
+            operator,
+        });
+    }
+
+    None
 }
 
 fn runtime_leaf_machine_integer_write(
@@ -1596,6 +1768,7 @@ fn select_host_operation_operands(
             if let Some(data_object) =
                 find_runtime_text_input_buffer_data_object(native_plan, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(native_plan, host_call)
+                && runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
             {
                 operands.push(operand(InstructionOperandKind::DataAddress {
                     symbol: data_object.symbol.clone(),

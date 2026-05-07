@@ -37,6 +37,10 @@ pub fn runtime_storage_compare_width() -> usize {
     32
 }
 
+pub fn runtime_storage_value_compare_width() -> usize {
+    20
+}
+
 pub fn runtime_text_literal_write_width(literal: &str) -> usize {
     8 + literal.len() * 8
 }
@@ -47,6 +51,18 @@ pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
 
 pub fn runtime_text_stored_suffix_append_width() -> usize {
     72
+}
+
+pub fn runtime_text_stored_place_append_width() -> usize {
+    80
+}
+
+pub fn runtime_text_literal_append_width(literal: &str) -> usize {
+    40 + literal.len() * 8
+}
+
+pub fn runtime_text_buffer_materialize_width() -> usize {
+    60
 }
 
 pub fn runtime_machine_integer_write_width() -> usize {
@@ -230,6 +246,31 @@ pub fn encode_runtime_storage_compare(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_value_compare(
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_value = u32::try_from(expected_value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot compare negative runtime guard value `{expected_value}` yet"
+        ))
+    })?;
+
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_w_from_x(17, 16, byte_offset, byte_size)?);
+    bytes.extend(encode_compare_w17_immediate(expected_value)?);
+    bytes.extend(if branch_when_equal {
+        encode_conditional_branch_equal(failure_branch_distance)?
+    } else {
+        encode_conditional_branch_not_equal(failure_branch_distance)?
+    });
+    Ok(bytes)
+}
+
 pub fn encode_runtime_text_literal_write(literal: &str) -> Result<Vec<u8>, Diagnostic> {
     encode_runtime_text_literal_segment_write(0, literal)
 }
@@ -274,6 +315,83 @@ pub fn encode_runtime_text_stored_suffix_append(
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
     bytes.extend(encode_add_x_immediate(23, 23, length_delta)?);
+    bytes.extend(encode_store_x_to_x(23, 17, target_offset + 8)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_text_stored_place_append(
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_x_from_x(22, 17, target_offset + 8)?);
+    bytes.extend(encode_move_x_register(24, 22));
+    bytes.extend(encode_add_x_register(22, 16, 22));
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_load_x_from_x(18, 20, source_offset)?);
+    bytes.extend(encode_load_x_from_x(19, 20, source_offset + 8)?);
+    bytes.extend(encode_move_x_register(23, 19));
+
+    bytes.extend(encode_cbz_x(19, 20)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
+    bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
+    bytes.extend(encode_conditional_branch_not_equal(-12)?);
+
+    bytes.extend(encode_add_x_register(24, 24, 23));
+    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
+    bytes.extend(encode_store_x_to_x(24, 17, target_offset + 8)?);
+    let _ = buffer_offset;
+    Ok(bytes)
+}
+
+pub fn encode_runtime_text_literal_append(
+    buffer_offset: usize,
+    target_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_x_from_x(22, 17, target_offset + 8)?);
+    bytes.extend(encode_move_x_register(20, 16));
+    bytes.extend(encode_add_x_register(16, 16, 22));
+
+    for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
+        bytes.extend(encode_movz_w(18, u16::from(*byte)));
+        bytes.extend(encode_store_byte_w_to_x(18, 16, byte_index)?);
+    }
+
+    bytes.extend(encode_store_x_to_x(20, 17, target_offset)?);
+    bytes.extend(encode_add_x_immediate(22, 22, literal.len())?);
+    bytes.extend(encode_store_x_to_x(22, 17, target_offset + 8)?);
+    let _ = buffer_offset;
+    Ok(bytes)
+}
+
+pub fn encode_runtime_text_buffer_materialize(target_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_x_from_x(18, 17, target_offset)?);
+    bytes.extend(encode_load_x_from_x(19, 17, target_offset + 8)?);
+    bytes.extend(encode_move_x_register(23, 19));
+    bytes.extend(encode_move_x_register(22, 16));
+
+    bytes.extend(encode_cbz_x(19, 20)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
+    bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
+    bytes.extend(encode_conditional_branch_not_equal(-12)?);
+
+    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
     bytes.extend(encode_store_x_to_x(23, 17, target_offset + 8)?);
     Ok(bytes)
 }
@@ -596,6 +714,19 @@ fn encode_add_x_immediate(
             | (u32::from(source_register) << 5)
             | u32::from(destination_register),
     ))
+}
+
+fn encode_add_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> Vec<u8> {
+    encode_instruction(
+        0x8B000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
 }
 
 fn encode_subs_x_immediate(

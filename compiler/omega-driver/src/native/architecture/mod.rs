@@ -70,6 +70,13 @@ pub fn runtime_storage_compare_width(architecture: Architecture) -> usize {
     }
 }
 
+pub fn runtime_storage_value_compare_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_value_compare_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_write_width(literal),
@@ -90,6 +97,27 @@ pub fn runtime_text_literal_segment_write_width(
 pub fn runtime_text_stored_suffix_append_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_stored_suffix_append_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_stored_place_append_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_stored_place_append_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_literal_append_width(architecture: Architecture, literal: &str) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_literal_append_width(literal),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_buffer_materialize_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_buffer_materialize_width(),
         Architecture::X86_64 => 0,
     }
 }
@@ -231,6 +259,26 @@ pub fn encode_runtime_storage_compare(
     }
 }
 
+pub fn encode_runtime_storage_value_compare(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare(
+            byte_offset,
+            byte_size,
+            expected_value,
+            failure_branch_distance,
+            branch_when_equal,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_text_literal_write(
     architecture: Architecture,
     literal: &str,
@@ -268,6 +316,46 @@ pub fn encode_runtime_text_stored_suffix_append(
             target_offset,
             length_delta,
         ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_stored_place_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_place_append(
+            buffer_offset,
+            source_offset,
+            target_offset,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    target_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_append(buffer_offset, target_offset, literal)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_buffer_materialize(
+    architecture: Architecture,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize(target_offset),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

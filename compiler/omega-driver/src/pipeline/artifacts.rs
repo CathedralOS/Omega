@@ -2318,6 +2318,17 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
             )
         }
+        SelectedInstructionKind::CompareRuntimeStorageValue {
+            symbol,
+            byte_offset,
+            byte_size,
+            expected_value,
+            operator,
+        } => {
+            format!(
+                "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeTextLiteral {
             buffer_symbol,
             literal,
@@ -2342,6 +2353,36 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!(
                 "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
+            )
+        }
+        SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+            buffer_symbol,
+            target_symbol,
+            target_offset,
+        } => {
+            format!(
+                "materialize runtime text buffer `{buffer_symbol}` for {target_symbol}@{target_offset}"
+            )
+        }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+            buffer_symbol,
+            source_symbol,
+            source_offset,
+            target_symbol,
+            target_offset,
+        } => {
+            format!(
+                "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor {target_symbol}@{target_offset}"
+            )
+        }
+        SelectedInstructionKind::AppendRuntimeTextLiteral {
+            buffer_symbol,
+            target_symbol,
+            target_offset,
+            literal,
+        } => {
+            format!(
+                "append runtime text literal `{buffer_symbol}`, descriptor {target_symbol}@{target_offset} += {literal:?}"
             )
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger {

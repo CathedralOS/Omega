@@ -172,25 +172,91 @@ fn collect_static_string_assignment_data(
     data_plan: &mut NativeDataPlan,
 ) {
     for (_, mutation) in state_storage.mutations.iter() {
-        let Expression::String(value) = &mutation.value else {
-            continue;
-        };
         if !mutation.required {
             continue;
         }
 
-        let offset = data_plan.bytes.len();
-        let byte_span = data_plan.bytes.insert_many(value.as_bytes().to_vec());
-        let symbol_index = data_plan.objects.len() + 1;
+        collect_static_string_expression_data(
+            &mutation.value,
+            &mutation.machine,
+            &mutation.state,
+            mutation.statement_index,
+            data_plan,
+        );
+    }
+}
 
-        data_plan.objects.insert(NativeDataObject {
-            symbol: format!("omega_string_literal_{symbol_index}"),
-            offset,
-            bytes: byte_span,
-            alignment: 1,
-            source_machine: mutation.machine.clone(),
-            source_state: mutation.state.clone(),
-            source_statement: mutation.statement_index,
-        });
+fn collect_static_string_expression_data(
+    expression: &Expression,
+    source_machine: &str,
+    source_state: &str,
+    source_statement: usize,
+    data_plan: &mut NativeDataPlan,
+) {
+    match expression {
+        Expression::String(value) => {
+            let offset = data_plan.bytes.len();
+            let bytes = if value.is_empty() {
+                vec![0]
+            } else {
+                value.as_bytes().to_vec()
+            };
+            let byte_span = data_plan.bytes.insert_many(bytes);
+            let symbol_index = data_plan.objects.len() + 1;
+
+            data_plan.objects.insert(NativeDataObject {
+                symbol: format!("omega_string_literal_{symbol_index}"),
+                offset,
+                bytes: byte_span,
+                alignment: 1,
+                source_machine: source_machine.to_owned(),
+                source_state: source_state.to_owned(),
+                source_statement,
+            });
+        }
+        Expression::StructLiteral(struct_literal) => {
+            for field in &struct_literal.fields {
+                collect_static_string_expression_data(
+                    &field.value,
+                    source_machine,
+                    source_state,
+                    source_statement,
+                    data_plan,
+                );
+            }
+        }
+        Expression::ArrayLiteral(elements) => {
+            for element in elements {
+                collect_static_string_expression_data(
+                    element,
+                    source_machine,
+                    source_state,
+                    source_statement,
+                    data_plan,
+                );
+            }
+        }
+        Expression::Binary(binary) => {
+            collect_static_string_expression_data(
+                &binary.left,
+                source_machine,
+                source_state,
+                source_statement,
+                data_plan,
+            );
+            collect_static_string_expression_data(
+                &binary.right,
+                source_machine,
+                source_state,
+                source_statement,
+                data_plan,
+            );
+        }
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Indexed(_)
+        | Expression::Integer(_)
+        | Expression::Mutable(_)
+        | Expression::Name(_) => {}
     }
 }

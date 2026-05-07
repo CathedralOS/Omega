@@ -4,7 +4,7 @@ use crate::native::instructions::SelectedInstructionKind;
 use crate::native::plan::NativePlan;
 use crate::native::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::native::target::NativeTarget;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineCodePlan {
@@ -91,6 +91,12 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         operator: StateGuardOperator,
     },
+    RuntimeStorageValueCompare {
+        byte_offset: usize,
+        byte_size: usize,
+        expected_value: i64,
+        operator: StateGuardOperator,
+    },
     RuntimeTextLiteralWrite {
         literal: String,
     },
@@ -103,6 +109,17 @@ pub enum MachineInstructionKind {
         source_offset: usize,
         target_offset: usize,
         length_delta: usize,
+    },
+    RuntimeTextBufferMaterialize {
+        target_offset: usize,
+    },
+    RuntimeTextStoredPlaceAppend {
+        source_offset: usize,
+        target_offset: usize,
+    },
+    RuntimeTextLiteralAppend {
+        target_offset: usize,
+        literal: String,
     },
     RuntimeMachineIntegerWrite {
         byte_offset: usize,
@@ -304,6 +321,21 @@ fn machine_instruction_shape(
             },
             runtime_storage_compare_width(native_plan.target.architecture),
         ),
+        SelectedInstructionKind::CompareRuntimeStorageValue {
+            byte_offset,
+            byte_size,
+            expected_value,
+            operator,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeStorageValueCompare {
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+                expected_value: *expected_value,
+                operator: *operator,
+            },
+            runtime_storage_value_compare_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => (
             MachineInstructionKind::RuntimeTextLiteralWrite {
                 literal: literal.clone(),
@@ -335,6 +367,34 @@ fn machine_instruction_shape(
                 length_delta: *length_delta,
             },
             runtime_text_stored_suffix_append_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => (
+            MachineInstructionKind::RuntimeTextBufferMaterialize {
+                target_offset: *target_offset,
+            },
+            runtime_text_buffer_materialize_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+            source_offset,
+            target_offset,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextStoredPlaceAppend {
+                source_offset: *source_offset,
+                target_offset: *target_offset,
+            },
+            runtime_text_stored_place_append_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::AppendRuntimeTextLiteral {
+            target_offset,
+            literal,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextLiteralAppend {
+                target_offset: *target_offset,
+                literal: literal.clone(),
+            },
+            runtime_text_literal_append_width(native_plan.target.architecture, literal),
         ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
@@ -466,6 +526,25 @@ fn encode_machine_instruction(
             *right_offset,
             *byte_size,
             byte_distance_to_next_runtime_write_end(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
+            )?,
+            *operator == StateGuardOperator::NotEqual,
+        ),
+        SelectedInstructionKind::CompareRuntimeStorageValue {
+            byte_offset,
+            byte_size,
+            expected_value,
+            operator,
+            ..
+        } => architecture::encode_runtime_storage_value_compare(
+            native_plan.target.architecture,
+            *byte_offset,
+            *byte_size,
+            *expected_value,
+            byte_distance_to_next_runtime_write_end(
+                native_plan,
                 machine_instructions,
                 machine_instruction_index,
             )?,
@@ -499,6 +578,32 @@ fn encode_machine_instruction(
             *target_offset,
             *length_delta,
         ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+            source_offset,
+            target_offset,
+            ..
+        } => architecture::encode_runtime_text_stored_place_append(
+            native_plan.target.architecture,
+            0,
+            *source_offset,
+            *target_offset,
+        ),
+        SelectedInstructionKind::AppendRuntimeTextLiteral {
+            target_offset,
+            literal,
+            ..
+        } => architecture::encode_runtime_text_literal_append(
+            native_plan.target.architecture,
+            0,
+            *target_offset,
+            literal,
+        ),
+        SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
+            architecture::encode_runtime_text_buffer_materialize(
+                native_plan.target.architecture,
+                *target_offset,
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
@@ -657,13 +762,15 @@ fn byte_distances_to_next_runtime_machine_write_end(
 }
 
 fn byte_distance_to_next_runtime_write_end(
+    native_plan: &NativePlan,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
-    let Some(machine_write) = next_runtime_write(machine_instructions, machine_instruction_index)
+    let Some(machine_write) =
+        next_runtime_write_group_end(native_plan, machine_instructions, machine_instruction_index)
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode runtime storage guard at byte {}: missing guarded runtime write",
@@ -676,6 +783,53 @@ fn byte_distance_to_next_runtime_write_end(
     Ok(target as isize - branch_program_counter as isize)
 }
 
+fn next_runtime_write_group_end<'instructions>(
+    native_plan: &NativePlan,
+    machine_instructions: &'instructions [MachineInstruction],
+    machine_instruction_index: usize,
+) -> Option<&'instructions MachineInstruction> {
+    let first_write_index = machine_instructions
+        .iter()
+        .enumerate()
+        .skip(machine_instruction_index + 1)
+        .find_map(|(index, instruction)| is_runtime_write(instruction).then_some(index))?;
+
+    let first_source =
+        selected_instruction_source(native_plan, &machine_instructions[first_write_index]);
+    let mut last_write_index = first_write_index;
+    for (index, instruction) in machine_instructions
+        .iter()
+        .enumerate()
+        .skip(first_write_index + 1)
+    {
+        if !is_runtime_write(instruction) {
+            break;
+        }
+        if selected_instruction_source(native_plan, instruction) != first_source {
+            break;
+        }
+        last_write_index = index;
+    }
+
+    machine_instructions.get(last_write_index)
+}
+
+fn selected_instruction_source<'plan>(
+    native_plan: &'plan NativePlan,
+    instruction: &MachineInstruction,
+) -> Option<(&'plan str, &'plan str, usize)> {
+    let handle = Handle::from_arena_index(instruction.selected_instruction_index);
+    if !native_plan.instructions.instructions.is_valid(handle) {
+        return None;
+    }
+    let selected = native_plan.instructions.instructions.get(handle);
+    Some((
+        selected.source_machine.as_str(),
+        selected.source_state.as_str(),
+        selected.source_statement,
+    ))
+}
+
 fn next_runtime_write(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
@@ -683,13 +837,18 @@ fn next_runtime_write(
     machine_instructions
         .iter()
         .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            matches!(
-                instruction.kind,
-                MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
-                    | MachineInstructionKind::RuntimeStorageCopy { .. }
-            )
-        })
+        .find(|instruction| is_runtime_write(instruction))
+}
+
+fn is_runtime_write(instruction: &MachineInstruction) -> bool {
+    matches!(
+        instruction.kind,
+        MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
+            | MachineInstructionKind::RuntimeStorageCopy { .. }
+            | MachineInstructionKind::RuntimeTextBufferMaterialize { .. }
+            | MachineInstructionKind::RuntimeTextStoredPlaceAppend { .. }
+            | MachineInstructionKind::RuntimeTextLiteralAppend { .. }
+    )
 }
 
 fn byte_distance_to_dispatch_loop_start(
@@ -758,6 +917,10 @@ fn runtime_storage_compare_width(architecture: crate::native::target::Architectu
     architecture::runtime_storage_compare_width(architecture)
 }
 
+fn runtime_storage_value_compare_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::runtime_storage_value_compare_width(architecture)
+}
+
 fn runtime_text_literal_write_width(
     architecture: crate::native::target::Architecture,
     literal: &str,
@@ -776,6 +939,25 @@ fn runtime_text_stored_suffix_append_width(
     architecture: crate::native::target::Architecture,
 ) -> usize {
     architecture::runtime_text_stored_suffix_append_width(architecture)
+}
+
+fn runtime_text_buffer_materialize_width(
+    architecture: crate::native::target::Architecture,
+) -> usize {
+    architecture::runtime_text_buffer_materialize_width(architecture)
+}
+
+fn runtime_text_stored_place_append_width(
+    architecture: crate::native::target::Architecture,
+) -> usize {
+    architecture::runtime_text_stored_place_append_width(architecture)
+}
+
+fn runtime_text_literal_append_width(
+    architecture: crate::native::target::Architecture,
+    literal: &str,
+) -> usize {
+    architecture::runtime_text_literal_append_width(architecture, literal)
 }
 
 fn runtime_machine_integer_write_width(architecture: crate::native::target::Architecture) -> usize {

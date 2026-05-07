@@ -25,6 +25,7 @@ pub struct RuntimeBranchingCallPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeBranchAlias {
     machine: String,
+    state: String,
     parameter_name: String,
     expression: Expression,
 }
@@ -627,6 +628,7 @@ fn branch_parameter_bindings(
                         resolve_runtime_branch_alias_expression(
                             &expression,
                             &state_call.source_machine,
+                            &state_call.source_state,
                             aliases,
                         ),
                     )
@@ -657,10 +659,12 @@ fn bind_runtime_branch_aliases(
             aliases,
             RuntimeBranchAlias {
                 machine: state_call.target_machine.clone(),
+                state: state_call.target_state.clone(),
                 parameter_name: argument.parameter_name.clone(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
                     &state_call.source_machine,
+                    &state_call.source_state,
                     aliases,
                 ),
             },
@@ -671,6 +675,7 @@ fn bind_runtime_branch_aliases(
 fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
         existing_alias.machine == alias.machine
+            && existing_alias.state == alias.state
             && existing_alias.parameter_name == alias.parameter_name
     }) {
         *existing_alias = alias;
@@ -682,12 +687,17 @@ fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: Runtim
 fn resolve_runtime_branch_alias_expression(
     expression: &Expression,
     source_machine: &str,
+    source_state: &str,
     aliases: &[RuntimeBranchAlias],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
-            let resolved_target =
-                resolve_runtime_branch_alias_expression(target, source_machine, aliases);
+            let resolved_target = resolve_runtime_branch_alias_expression(
+                target,
+                source_machine,
+                source_state,
+                aliases,
+            );
             if matches!(resolved_target, Expression::Mutable(_)) {
                 resolved_target
             } else {
@@ -699,11 +709,13 @@ fn resolve_runtime_branch_alias_expression(
                 collection: resolve_runtime_branch_alias_expression(
                     &indexed.collection,
                     source_machine,
+                    source_state,
                     aliases,
                 ),
                 index: resolve_runtime_branch_alias_expression(
                     &indexed.index,
                     source_machine,
+                    source_state,
                     aliases,
                 ),
             }))
@@ -711,7 +723,11 @@ fn resolve_runtime_branch_alias_expression(
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| alias.machine == source_machine && alias.parameter_name == path[0])
+            .find(|alias| {
+                alias.machine == source_machine
+                    && alias.state == source_state
+                    && alias.parameter_name == path[0]
+            })
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
