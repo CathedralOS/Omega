@@ -2,7 +2,7 @@ use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
 use crate::target::NativeTarget;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImage {
@@ -42,6 +42,8 @@ pub struct FinalImageSymbol {
     pub kind: SymbolKind,
 }
 
+pub type FinalImageSymbolHandle = Handle<FinalImageSymbol>;
+
 impl Default for FinalImageSymbol {
     fn default() -> Self {
         Self {
@@ -73,6 +75,7 @@ pub struct FinalImageRelocation {
     pub text_offset: usize,
     pub byte_width: usize,
     pub symbol: String,
+    pub symbol_handle: FinalImageSymbolHandle,
     pub kind: RelocationKind,
 }
 
@@ -82,6 +85,7 @@ impl Default for FinalImageRelocation {
             text_offset: 0,
             byte_width: 0,
             symbol: String::new(),
+            symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }
     }
@@ -127,6 +131,7 @@ pub fn build_final_image(native_plan: &NativePlan) -> FinalImage {
             }),
     );
 
+    let symbols = &image.symbols;
     image.relocations.insert_many(
         native_plan
             .relocations
@@ -136,11 +141,54 @@ pub fn build_final_image(native_plan: &NativePlan) -> FinalImage {
                 text_offset: relocation.text_offset,
                 byte_width: relocation.byte_width,
                 symbol: relocation.symbol.clone(),
+                symbol_handle: symbol_handle(symbols, &relocation.symbol),
                 kind: relocation.kind,
             }),
     );
 
     image
+}
+
+pub fn final_image_symbol_address(
+    image: &FinalImage,
+    symbol: FinalImageSymbolHandle,
+    layout: &FinalImageLayout,
+) -> Option<u64> {
+    if !image.symbols.is_valid(symbol) {
+        return None;
+    }
+
+    let symbol = image.symbols.get(symbol);
+    let section_address = match symbol.section {
+        FinalImageSection::Text => layout.text_address,
+        FinalImageSection::Data => layout.data_address,
+        FinalImageSection::Bss => layout.bss_address,
+        FinalImageSection::None => return None,
+    };
+
+    Some(section_address + symbol.offset as u64)
+}
+
+pub fn final_image_imports_symbol(image: &FinalImage, symbol_name: &str) -> bool {
+    image
+        .imports
+        .iter()
+        .any(|(_, import)| import.symbol == symbol_name)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FinalImageLayout {
+    pub text_address: u64,
+    pub data_address: u64,
+    pub bss_address: u64,
+}
+
+fn symbol_handle(symbols: &Arena<FinalImageSymbol>, symbol_name: &str) -> FinalImageSymbolHandle {
+    symbols
+        .iter()
+        .find(|(_, symbol)| symbol.name == symbol_name)
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(Handle::invalid)
 }
 
 fn final_image_section(section_name: &str) -> FinalImageSection {

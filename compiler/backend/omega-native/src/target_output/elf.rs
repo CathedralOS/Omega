@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
-
 use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
-use crate::final_image::{FinalImage, FinalImageSection, build_final_image};
+use crate::final_image::{
+    FinalImage, FinalImageLayout, build_final_image, final_image_imports_symbol,
+    final_image_symbol_address,
+};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
 use omega_core::diagnostics::Diagnostic;
@@ -27,10 +28,13 @@ pub fn emit_elf_arm64_executable(
         data_address + image.data.len() as u64,
         image.bss_alignment as u64,
     );
-    let symbol_addresses =
-        collect_symbol_addresses(&image, text_address, data_address, bss_address);
+    let layout = FinalImageLayout {
+        text_address,
+        data_address,
+        bss_address,
+    };
 
-    apply_relocations(&mut image, text_address, &symbol_addresses)?;
+    apply_relocations(&mut image, &layout)?;
 
     let data_memory_size = (bss_address - data_address)
         .checked_add(image.bss_size as u64)
@@ -57,35 +61,12 @@ pub fn emit_elf_arm64_executable(
     })
 }
 
-fn collect_symbol_addresses(
-    image: &FinalImage,
-    text_address: u64,
-    data_address: u64,
-    bss_address: u64,
-) -> BTreeMap<String, u64> {
-    let mut symbol_addresses = BTreeMap::new();
-
-    for (_, symbol) in image.symbols.iter() {
-        let section_address = match symbol.section {
-            FinalImageSection::Text => text_address,
-            FinalImageSection::Data => data_address,
-            FinalImageSection::Bss => bss_address,
-            FinalImageSection::None => continue,
-        };
-        symbol_addresses.insert(symbol.name.clone(), section_address + symbol.offset as u64);
-    }
-
-    symbol_addresses
-}
-
-fn apply_relocations(
-    image: &mut FinalImage,
-    text_address: u64,
-    symbol_addresses: &BTreeMap<String, u64>,
-) -> Result<(), Diagnostic> {
+fn apply_relocations(image: &mut FinalImage, layout: &FinalImageLayout) -> Result<(), Diagnostic> {
     for (_, relocation) in image.relocations.iter() {
-        let Some(symbol_address) = symbol_addresses.get(&relocation.symbol).copied() else {
-            if image_imports_symbol(image, &relocation.symbol) {
+        let Some(symbol_address) =
+            final_image_symbol_address(image, relocation.symbol_handle, layout)
+        else {
+            if final_image_imports_symbol(image, &relocation.symbol) {
                 return Err(Diagnostic::error(format!(
                     "ELF direct image cannot import `{}` yet; use syscalls or add dynamic linking",
                     relocation.symbol
@@ -103,7 +84,7 @@ fn apply_relocations(
                 patch_aarch64_adrp(
                     &mut image.text,
                     relocation.text_offset,
-                    text_address + relocation.text_offset as u64,
+                    layout.text_address + relocation.text_offset as u64,
                     symbol_address,
                 )?;
             }
@@ -118,7 +99,7 @@ fn apply_relocations(
                 patch_aarch64_branch26(
                     &mut image.text,
                     relocation.text_offset,
-                    text_address + relocation.text_offset as u64,
+                    layout.text_address + relocation.text_offset as u64,
                     symbol_address,
                 )?;
             }
@@ -131,13 +112,6 @@ fn apply_relocations(
     }
 
     Ok(())
-}
-
-fn image_imports_symbol(image: &FinalImage, symbol_name: &str) -> bool {
-    image
-        .imports
-        .iter()
-        .any(|(_, import)| import.symbol == symbol_name)
 }
 
 fn patch_aarch64_adrp(
