@@ -10,6 +10,7 @@ use crate::native::machine_code::{MachineCodePlan, build_machine_code_plan};
 use crate::native::object::{ObjectPlan, build_object_plan};
 use crate::native::relocations::{RelocationPlan, build_relocation_plan};
 use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
+use crate::native::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::native::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::native::target::NativeTarget;
 
@@ -18,6 +19,7 @@ pub struct NativePlan {
     pub target: NativeTarget,
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
+    pub state_calls: StateCallPlan,
     pub data: NativeDataPlan,
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
@@ -45,6 +47,7 @@ pub fn build_native_plan(
         target,
         host_abi: build_host_abi_plan(target),
         host_calls: HostCallPlan::default(),
+        state_calls: StateCallPlan::default(),
         data: NativeDataPlan::default(),
         instructions: InstructionPlan {
             target,
@@ -71,6 +74,7 @@ pub fn build_native_plan(
         entry_state,
     };
     native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
+    native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);

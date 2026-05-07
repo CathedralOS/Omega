@@ -14,6 +14,7 @@ pub mod plan;
 pub mod platform_object;
 pub mod relocations;
 pub mod runtime_flow;
+pub mod state_calls;
 pub mod state_dispatch;
 pub mod state_schedule;
 pub mod target;

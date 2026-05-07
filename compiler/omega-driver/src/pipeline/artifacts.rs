@@ -496,6 +496,33 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## State Call Lowering\n");
+        output.push_str(&format!("calls: {}\n", native_plan.state_calls.calls.len()));
+        if native_plan.state_calls.calls.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, state_call) in native_plan.state_calls.calls.iter() {
+                output.push_str(&format!(
+                    "- {}.{} statement {} `{}` -> {}.{} args {} {:?} reachable {} required {}\n",
+                    state_call.source_machine,
+                    state_call.source_state,
+                    state_call.statement_index,
+                    state_call.receiver,
+                    if state_call.target_machine.is_empty() {
+                        "unresolved"
+                    } else {
+                        state_call.target_machine.as_str()
+                    },
+                    state_call.target_state,
+                    state_call.argument_count,
+                    state_call.resolution,
+                    state_call.reachable,
+                    state_call.required
+                ));
+            }
+        }
+        output.push('\n');
+
         output.push_str("## Native Data\n");
         output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
         output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));

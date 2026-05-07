@@ -37,7 +37,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         Err(reason) => {
             blockers.insert(blocker("state schedule", &reason));
             collect_runtime_dispatch_blockers(native_plan, &mut blockers);
-            runtime_reachable_states(native_plan)
+            runtime_and_required_states(native_plan)
         }
     };
 
@@ -71,6 +71,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 
     collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
+    collect_state_call_blockers(native_plan, &mut blockers);
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
 
     if !can_emit_real_object(native_plan) {
@@ -149,6 +150,42 @@ fn collect_host_argument_blockers(
     }
 }
 
+fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+    for (_, state_call) in native_plan.state_calls.calls.iter() {
+        if !state_call.required {
+            continue;
+        }
+
+        if state_call.target_machine.is_empty() {
+            blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "{}.{} statement {} calls unresolved state `{}` through `{}`",
+                    state_call.source_machine,
+                    state_call.source_state,
+                    state_call.statement_index,
+                    state_call.target_state,
+                    state_call.receiver
+                ),
+            ));
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "{}.{} statement {} calls {}.{} with {} argument(s); native emission needs state call lowering",
+                state_call.source_machine,
+                state_call.source_state,
+                state_call.statement_index,
+                state_call.target_machine,
+                state_call.target_state,
+                state_call.argument_count
+            ),
+        ));
+    }
+}
+
 fn collect_state_codegen_blockers(
     native_plan: &NativePlan,
     state_schedule: &[crate::native::state_schedule::ScheduledState],
@@ -189,6 +226,11 @@ fn collect_state_codegen_blockers(
             match operation.kind {
                 OperationKind::Call { .. }
                     if state_statement_has_host_call(
+                        native_plan,
+                        &scheduled_state.machine,
+                        &scheduled_state.state,
+                        operation.statement_index,
+                    ) || state_statement_has_state_call(
                         native_plan,
                         &scheduled_state.machine,
                         &scheduled_state.state,
@@ -235,18 +277,65 @@ fn collect_state_codegen_blockers(
     }
 }
 
-fn runtime_reachable_states(
+fn state_statement_has_state_call(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    native_plan.state_calls.calls.iter().any(|(_, state_call)| {
+        state_call.source_machine == machine_name
+            && state_call.source_state == state_name
+            && state_call.statement_index == statement_index
+    })
+}
+
+fn runtime_and_required_states(
     native_plan: &NativePlan,
 ) -> Vec<crate::native::state_schedule::ScheduledState> {
-    native_plan
-        .runtime_flow
-        .states
+    let mut states = Vec::new();
+
+    for (_, state) in native_plan.runtime_flow.states.iter() {
+        push_scheduled_state(&mut states, &state.machine, &state.state);
+    }
+
+    for (_, state_call) in native_plan.state_calls.calls.iter() {
+        if state_call.required {
+            push_scheduled_state(
+                &mut states,
+                &state_call.source_machine,
+                &state_call.source_state,
+            );
+
+            if !state_call.target_machine.is_empty() {
+                push_scheduled_state(
+                    &mut states,
+                    &state_call.target_machine,
+                    &state_call.target_state,
+                );
+            }
+        }
+    }
+
+    states
+}
+
+fn push_scheduled_state(
+    states: &mut Vec<crate::native::state_schedule::ScheduledState>,
+    machine: &str,
+    state: &str,
+) {
+    if states
         .iter()
-        .map(|(_, state)| crate::native::state_schedule::ScheduledState {
-            machine: state.machine.clone(),
-            state: state.state.clone(),
-        })
-        .collect()
+        .any(|scheduled_state| scheduled_state.machine == machine && scheduled_state.state == state)
+    {
+        return;
+    }
+
+    states.push(crate::native::state_schedule::ScheduledState {
+        machine: machine.to_owned(),
+        state: state.to_owned(),
+    });
 }
 
 fn collect_runtime_dispatch_blockers(

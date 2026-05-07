@@ -1312,6 +1312,78 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
 }
 
 #[test]
+fn plans_state_calls_separately_from_host_calls() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine Helper {
+                state write {
+                }
+            }
+
+            machine main {
+                contains console: Console;
+                contains helper: Helper;
+
+                state entry {
+                    prepare(1);
+                    helper.write();
+                    console.write_line("done");
+                }
+
+                state prepare(value: i32) {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should separate state calls");
+    let state_calls = native_plan
+        .state_calls
+        .calls
+        .iter()
+        .map(|(_, state_call)| {
+            (
+                state_call.source_machine.as_str(),
+                state_call.source_state.as_str(),
+                state_call.target_machine.as_str(),
+                state_call.target_state.as_str(),
+                state_call.argument_count,
+                state_call.required,
+            )
+        })
+        .collect::<Vec<_>>();
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert_eq!(
+        state_calls,
+        vec![
+            ("main", "entry", "main", "prepare", 1, true),
+            ("main", "entry", "Helper", "write", 0, true),
+        ]
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 1);
+    assert!(
+        emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "state calls")
+    );
+}
+
+#[test]
 fn plans_mid_state_transition_as_generated_segments() {
     let tokens = Lexer::new(
         r#"
