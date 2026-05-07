@@ -910,6 +910,57 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Branching Calls\n");
+        output.push_str(&format!(
+            "calls: {}\n",
+            native_plan.runtime_branching_calls.calls.len()
+        ));
+        output.push_str(&format!(
+            "edges: {}\n",
+            native_plan.runtime_branching_calls.edges.len()
+        ));
+        if native_plan.runtime_branching_calls.calls.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, call) in native_plan.runtime_branching_calls.calls.iter() {
+                output.push_str(&format!(
+                    "- #{} {}.{} statement {} -> {}.{} args {}\n",
+                    call.dispatch_index,
+                    call.source_machine,
+                    call.source_state,
+                    call.statement_index,
+                    call.target_machine,
+                    call.target_state,
+                    call.argument_count
+                ));
+
+                match native_plan.runtime_branching_calls.edges.span(call.edges) {
+                    Some(edges) if edges.is_empty() => output.push_str("  edges: none\n"),
+                    Some(edges) => {
+                        output.push_str("  edges:\n");
+                        for edge in edges {
+                            output.push_str(&format!(
+                                "    - #{} -> {} {}",
+                                edge.order,
+                                runtime_transition_target_name(&edge.target),
+                                transition_guard_name(&edge.guard)
+                            ));
+
+                            if edge.continuation != RuntimeTransitionTarget::None {
+                                output.push_str(&format!(
+                                    " -> {}",
+                                    runtime_transition_target_name(&edge.continuation)
+                                ));
+                            }
+
+                            output.push('\n');
+                        }
+                    }
+                    None => output.push_str("  edges: invalid span\n"),
+                }
+            }
+        }
+
         output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",

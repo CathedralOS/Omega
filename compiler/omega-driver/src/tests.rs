@@ -1361,6 +1361,68 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
 }
 
 #[test]
+fn plans_runtime_branching_state_call_edges() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                owns ready: bool = false;
+
+                state entry {
+                    choose();
+                    -> self;
+                }
+
+                state choose {
+                    -> yes when ready;
+                    -> no;
+                }
+
+                state yes {
+                }
+
+                state no {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build runtime branching calls");
+    let branching_call = native_plan
+        .runtime_branching_calls
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_state == "choose")
+        .map(|(_, call)| call)
+        .expect("branching helper call should be planned");
+    let edges = native_plan
+        .runtime_branching_calls
+        .edges
+        .span(branching_call.edges)
+        .expect("branching call edges should resolve");
+
+    assert_eq!(edges.len(), 2);
+    assert!(matches!(
+        edges[0].target,
+        crate::native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
+            if state == "yes"
+    ));
+    assert!(matches!(
+        edges[1].target,
+        crate::native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
+            if state == "no"
+    ));
+}
+
+#[test]
 fn selects_instructions_for_runtime_reachable_loop_states() {
     let tokens = Lexer::new(
         r#"
