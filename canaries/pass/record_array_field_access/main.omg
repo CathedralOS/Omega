@@ -1,0 +1,43 @@
+data CellId {
+    Empty,
+    A1,
+    A2,
+}
+
+data Exit {
+    command: String;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    label: String;
+    description: String;
+    exits: [Exit; 2];
+}
+
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    owns room: Room;
+    owns selected_exit: Exit;
+
+    state entry {
+        room.cell = CellId::A1;
+        room.label = "A1";
+        room.description = "A1: a stone entry.";
+        room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+        room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
+        selected_exit = room.exits[0];
+
+        console.write_line(room.label);
+        console.write_line(room.description);
+        console.write_line(selected_exit.command);
+        console.exit_process(0);
+    }
+}

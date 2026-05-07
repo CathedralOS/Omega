@@ -1,0 +1,19 @@
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    state entry {
+        console.write_line("first");
+
+        -> second;
+    }
+
+    state second {
+        console.write_line("second");
+        console.exit_process(0);
+    }
+}

@@ -1,0 +1,16 @@
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    owns return_code: i32 = 1;
+
+    state entry {
+        console.write_line("assign");
+        return_code = 0;
+        console.exit_process(return_code);
+    }
+}

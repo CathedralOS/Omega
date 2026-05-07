@@ -1,0 +1,43 @@
+data CommandKind {
+    Quit,
+    Look,
+    Invalid,
+}
+
+data Command {
+    kind: CommandKind;
+}
+
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    owns command: Command;
+
+    state entry {
+        command.kind = CommandKind::Look;
+
+        -> look when command.kind == CommandKind::Look;
+        -> quit when command.kind == CommandKind::Quit;
+        -> invalid;
+    }
+
+    state look {
+        console.write_line("look");
+        console.exit_process(0);
+    }
+
+    state quit {
+        console.write_line("quit");
+        console.exit_process(0);
+    }
+
+    state invalid {
+        console.write_line("invalid");
+        console.exit_process(1);
+    }
+}
