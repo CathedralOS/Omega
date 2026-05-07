@@ -2,11 +2,12 @@ use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGuardPlan {
     pub guards: Arena<StateGuard>,
+    pub operands: Arena<StateGuardOperand>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +21,9 @@ pub struct StateGuard {
     pub continuation_dispatch_index: u32,
     pub statement_order: usize,
     pub kind: StateGuardKind,
+    pub operator: StateGuardOperator,
     pub expression: Expression,
+    pub operands: HandleSpan<StateGuardOperand>,
     pub has_expression: bool,
     pub forms_cycle: bool,
 }
@@ -37,7 +40,9 @@ impl Default for StateGuard {
             continuation_dispatch_index: 0,
             statement_order: 0,
             kind: StateGuardKind::Always,
+            operator: StateGuardOperator::None,
             expression: Expression::Boolean(true),
+            operands: HandleSpan::empty(),
             has_expression: false,
             forms_cycle: false,
         }
@@ -54,6 +59,45 @@ pub enum StateGuardKind {
     RuntimeExpression,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateGuardOperator {
+    #[default]
+    None,
+    Equal,
+    NotEqual,
+    Greater,
+    GreaterOrEqual,
+    Less,
+    LessOrEqual,
+    Add,
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateGuardOperand {
+    pub expression: Expression,
+    pub kind: StateGuardOperandKind,
+}
+
+impl Default for StateGuardOperand {
+    fn default() -> Self {
+        Self {
+            expression: Expression::Boolean(true),
+            kind: StateGuardOperandKind::OtherExpression,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateGuardOperandKind {
+    Place,
+    StaticSymbol,
+    Literal,
+    #[default]
+    OtherExpression,
+}
+
 pub fn build_state_guard_plan(state_dispatch: &StateDispatchPlan) -> StateGuardPlan {
     let mut plan = StateGuardPlan::default();
 
@@ -64,6 +108,7 @@ pub fn build_state_guard_plan(state_dispatch: &StateDispatchPlan) -> StateGuardP
 
         for (statement_order, edge) in edges.iter().enumerate() {
             plan.guards.insert(build_state_guard(
+                &mut plan.operands,
                 &state.machine,
                 &state.state,
                 state.dispatch_index,
@@ -97,13 +142,15 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 }
 
 fn build_state_guard(
+    operands: &mut Arena<StateGuardOperand>,
     source_machine: &str,
     source_state: &str,
     source_dispatch_index: u32,
     statement_order: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
-    let (kind, expression, has_expression) = guard_data(&edge.guard);
+    let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
+    let operands = operands.insert_many(guard_operands(&edge.guard));
 
     StateGuard {
         source_machine: source_machine.to_owned(),
@@ -115,17 +162,82 @@ fn build_state_guard(
         continuation_dispatch_index: edge.continuation_dispatch_index,
         statement_order,
         kind,
+        operator,
         expression,
+        operands,
         has_expression,
         forms_cycle: edge.forms_cycle,
     }
 }
 
-fn guard_data(guard: &TransitionGuard) -> (StateGuardKind, Expression, bool) {
+fn guard_data(guard: &TransitionGuard) -> (StateGuardKind, StateGuardOperator, Expression, bool) {
     match guard {
-        TransitionGuard::Always => (StateGuardKind::Always, Expression::Boolean(true), false),
-        TransitionGuard::When(expression) => {
-            (classify_transition_guard(guard), expression.clone(), true)
-        }
+        TransitionGuard::Always => (
+            StateGuardKind::Always,
+            StateGuardOperator::None,
+            Expression::Boolean(true),
+            false,
+        ),
+        TransitionGuard::When(expression) => (
+            classify_transition_guard(guard),
+            guard_operator(expression),
+            expression.clone(),
+            true,
+        ),
     }
+}
+
+fn guard_operator(expression: &Expression) -> StateGuardOperator {
+    let Expression::Binary(binary) = expression else {
+        return StateGuardOperator::None;
+    };
+
+    match binary.operator {
+        BinaryOperator::Equal => StateGuardOperator::Equal,
+        BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        BinaryOperator::Greater => StateGuardOperator::Greater,
+        BinaryOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqual,
+        BinaryOperator::Less => StateGuardOperator::Less,
+        BinaryOperator::LessOrEqual => StateGuardOperator::LessOrEqual,
+        BinaryOperator::Add => StateGuardOperator::Add,
+        BinaryOperator::And => StateGuardOperator::And,
+        BinaryOperator::Or => StateGuardOperator::Or,
+    }
+}
+
+fn guard_operands(guard: &TransitionGuard) -> Vec<StateGuardOperand> {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+        return Vec::new();
+    };
+
+    [binary.left.clone(), binary.right.clone()]
+        .into_iter()
+        .map(|expression| StateGuardOperand {
+            kind: classify_guard_operand(&expression),
+            expression,
+        })
+        .collect()
+}
+
+fn classify_guard_operand(expression: &Expression) -> StateGuardOperandKind {
+    match expression {
+        Expression::Name(path) if is_static_symbol_path(path) => {
+            StateGuardOperandKind::StaticSymbol
+        }
+        Expression::Name(_) | Expression::Indexed(_) => StateGuardOperandKind::Place,
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::String(_) => StateGuardOperandKind::Literal,
+        Expression::ArrayLiteral(_)
+        | Expression::Binary(_)
+        | Expression::Mutable(_)
+        | Expression::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
+    }
+}
+
+fn is_static_symbol_path(path: &[String]) -> bool {
+    path.first()
+        .and_then(|segment| segment.chars().next())
+        .is_some_and(char::is_uppercase)
 }

@@ -1291,8 +1291,37 @@ fn plans_runtime_guards_for_dispatch_edges() {
         guard.source_machine == "main"
             && guard.source_state == "entry"
             && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
+            && guard.operator == crate::native::state_guards::StateGuardOperator::Equal
             && guard.expression.display_name() == "ready == true"
     }));
+    let equality_guard = native_plan
+        .state_guards
+        .guards
+        .iter()
+        .find(|(_, guard)| {
+            guard.source_machine == "main"
+                && guard.source_state == "entry"
+                && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
+        })
+        .map(|(_, guard)| guard)
+        .expect("runtime equality guard should be planned");
+    let guard_operands = native_plan
+        .state_guards
+        .operands
+        .span(equality_guard.operands)
+        .expect("runtime guard operands should resolve");
+
+    assert_eq!(guard_operands.len(), 2);
+    assert_eq!(guard_operands[0].expression.display_name(), "ready");
+    assert_eq!(
+        guard_operands[0].kind,
+        crate::native::state_guards::StateGuardOperandKind::Place
+    );
+    assert_eq!(guard_operands[1].expression.display_name(), "true");
+    assert_eq!(
+        guard_operands[1].kind,
+        crate::native::state_guards::StateGuardOperandKind::Literal
+    );
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         guard.source_machine == "main"
             && guard.source_state == "entry"

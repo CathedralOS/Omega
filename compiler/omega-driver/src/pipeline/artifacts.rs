@@ -984,19 +984,24 @@ impl ArtifactWriter {
             "guards: {}\n",
             native_plan.state_guards.guards.len()
         ));
+        output.push_str(&format!(
+            "operands: {}\n",
+            native_plan.state_guards.operands.len()
+        ));
         if native_plan.state_guards.guards.is_empty() {
             output.push_str("none\n");
         } else {
             for (_, guard) in native_plan.state_guards.guards.iter() {
                 output.push_str(&format!(
-                    "- #{} {}.{} edge {} -> #{} {} {:?}",
+                    "- #{} {}.{} edge {} -> #{} {} {:?}/{:?}",
                     guard.source_dispatch_index,
                     guard.source_machine,
                     guard.source_state,
                     guard.statement_order,
                     guard.target_dispatch_index,
                     runtime_transition_target_name(&guard.target),
-                    guard.kind
+                    guard.kind,
+                    guard.operator
                 ));
 
                 if guard.has_expression {
@@ -1016,6 +1021,17 @@ impl ArtifactWriter {
                 }
 
                 output.push('\n');
+                if let Some(operands) = native_plan.state_guards.operands.span(guard.operands)
+                    && !operands.is_empty()
+                {
+                    for operand in operands {
+                        output.push_str(&format!(
+                            "  - operand `{}` {:?}\n",
+                            operand.expression.display_name(),
+                            operand.kind
+                        ));
+                    }
+                }
             }
         }
 
