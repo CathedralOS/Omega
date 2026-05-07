@@ -4,6 +4,9 @@ use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use crate::native::runtime_dispatch::branching::{
+    RuntimeBranchTargetLowering, RuntimeBranchingCall,
+};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_calls::StateCallLowering;
 use crate::native::state_guards::StateGuardKind;
@@ -317,10 +320,12 @@ fn collect_runtime_body_state_call_blockers(
     }
 
     for grouped_blocker in grouped_blockers {
+        let expansion_reason =
+            runtime_body_state_call_expansion_reason(native_plan, &grouped_blocker);
         blockers.insert(blocker(
             "state calls",
             &format!(
-                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {:?} state-call expansion",
+                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {expansion_reason}",
                 grouped_blocker.dispatch_index,
                 grouped_blocker.source_machine,
                 grouped_blocker.source_state,
@@ -329,7 +334,6 @@ fn collect_runtime_body_state_call_blockers(
                 grouped_blocker.target_state,
                 grouped_blocker.argument_count,
                 repeated_count_suffix(grouped_blocker.count),
-                grouped_blocker.lowering
             ),
         ));
     }
@@ -374,6 +378,105 @@ fn repeated_count_suffix(count: usize) -> String {
     } else {
         format!(" ({count} sites)")
     }
+}
+
+fn runtime_body_state_call_expansion_reason(
+    native_plan: &NativePlan,
+    grouped_blocker: &RuntimeBodyStateCallBlocker,
+) -> String {
+    match grouped_blocker.lowering {
+        StateCallLowering::InlineLeaf => "leaf state-call expansion".to_owned(),
+        StateCallLowering::InlineExpansion => "straight-line state-call expansion".to_owned(),
+        StateCallLowering::Unresolved => "unresolved state-call expansion".to_owned(),
+        StateCallLowering::InlineBranching => {
+            runtime_branching_call_expansion_reason(native_plan, grouped_blocker)
+        }
+    }
+}
+
+fn runtime_branching_call_expansion_reason(
+    native_plan: &NativePlan,
+    grouped_blocker: &RuntimeBodyStateCallBlocker,
+) -> String {
+    let mut matching_calls = native_plan
+        .runtime_branching_calls
+        .calls
+        .iter()
+        .filter_map(|(_, call)| {
+            runtime_branching_call_matches_grouped_blocker(call, grouped_blocker).then_some(call)
+        })
+        .peekable();
+
+    if matching_calls.peek().is_none() {
+        return "guarded state-call expansion".to_owned();
+    }
+
+    let mut has_unknown_target = false;
+    let mut has_straight_line_target = false;
+    let mut has_nested_branching_target = false;
+    let mut has_complex_guard = false;
+    let mut has_edges = false;
+
+    for call in matching_calls {
+        let Some(edges) = native_plan.runtime_branching_calls.edges.span(call.edges) else {
+            has_unknown_target = true;
+            continue;
+        };
+
+        for edge in edges {
+            has_edges = true;
+            match edge.lowering {
+                RuntimeBranchTargetLowering::Terminal | RuntimeBranchTargetLowering::InlineLeaf => {
+                }
+                RuntimeBranchTargetLowering::InlineStraightLine => has_straight_line_target = true,
+                RuntimeBranchTargetLowering::InlineBranching => has_nested_branching_target = true,
+                RuntimeBranchTargetLowering::Unknown => has_unknown_target = true,
+            }
+
+            if !matches!(
+                edge.guard_kind,
+                StateGuardKind::Always
+                    | StateGuardKind::RuntimeEquality
+                    | StateGuardKind::RuntimeInequality
+            ) {
+                has_complex_guard = true;
+            }
+        }
+    }
+
+    if !has_edges {
+        return "guarded state-call expansion".to_owned();
+    }
+
+    if has_unknown_target {
+        return "guarded branch expansion with unknown target lowering".to_owned();
+    }
+
+    if has_nested_branching_target {
+        return "nested guarded branch expansion".to_owned();
+    }
+
+    if has_straight_line_target {
+        return "guarded branch expansion with straight-line target".to_owned();
+    }
+
+    if has_complex_guard {
+        return "guarded leaf branch expansion with complex guards".to_owned();
+    }
+
+    "guarded leaf branch expansion".to_owned()
+}
+
+fn runtime_branching_call_matches_grouped_blocker(
+    call: &RuntimeBranchingCall,
+    grouped_blocker: &RuntimeBodyStateCallBlocker,
+) -> bool {
+    call.dispatch_index == grouped_blocker.dispatch_index
+        && call.source_machine == grouped_blocker.source_machine
+        && call.source_state == grouped_blocker.source_state
+        && call.target_machine == grouped_blocker.target_machine
+        && call.target_state == grouped_blocker.target_state
+        && call.argument_count == grouped_blocker.argument_count
 }
 
 fn collect_unresolved_state_call_blockers(

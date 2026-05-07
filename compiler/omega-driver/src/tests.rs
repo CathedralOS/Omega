@@ -1439,6 +1439,52 @@ fn plans_runtime_branching_state_call_edges() {
 }
 
 #[test]
+fn reports_runtime_leaf_branch_expansion_blocker() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                owns ready: bool = false;
+
+                state entry {
+                    choose();
+                    -> self;
+                }
+
+                state choose {
+                    -> yes when ready == true;
+                    ->
+                }
+
+                state yes {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build runtime branch blockers");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert!(
+        emission_plan.blockers.iter().any(|(_, blocker)| {
+            blocker.stage == "state calls"
+                && blocker.reason.contains("main.entry")
+                && blocker.reason.contains("main.choose")
+                && blocker.reason.contains("guarded leaf branch expansion")
+        }),
+        "expected runtime branch blocker to identify guarded leaf expansion"
+    );
+}
+
+#[test]
 fn selects_instructions_for_runtime_reachable_loop_states() {
     let tokens = Lexer::new(
         r#"
