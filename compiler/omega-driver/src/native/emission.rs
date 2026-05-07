@@ -34,6 +34,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         Ok(state_schedule) => state_schedule,
         Err(reason) => {
             blockers.insert(blocker("state schedule", &reason));
+            collect_runtime_dispatch_blockers(native_plan, &mut blockers);
             Vec::new()
         }
     };
@@ -182,6 +183,31 @@ fn collect_state_codegen_blockers(
                 }
             };
         }
+    }
+}
+
+fn collect_runtime_dispatch_blockers(
+    native_plan: &NativePlan,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, cycle) in native_plan.runtime_flow.cycles.iter() {
+        let Some(states) = native_plan.runtime_flow.cycle_states.span(cycle.states) else {
+            blockers.insert(blocker(
+                "runtime dispatch",
+                "invalid runtime cycle span in native flow plan",
+            ));
+            continue;
+        };
+        let cycle_path = states
+            .iter()
+            .map(|state| format!("{}.{}", state.machine, state.state))
+            .collect::<Vec<_>>()
+            .join(" -> ");
+
+        blockers.insert(blocker(
+            "runtime dispatch",
+            &format!("cycle {cycle_path} needs generated state dispatch before native emission"),
+        ));
     }
 }
 

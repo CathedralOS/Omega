@@ -1166,6 +1166,49 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
 }
 
 #[test]
+fn reports_runtime_dispatch_blockers_for_state_cycles() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should preserve runtime loops");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert!(
+        emission_plan.blockers.iter().any(|(_, blocker)| {
+            blocker.stage == "runtime dispatch"
+                && blocker
+                    .reason
+                    .contains("main.prompt -> main.invalid_command -> main.prompt")
+        }),
+        "expected runtime dispatch blocker for loop"
+    );
+}
+
+#[test]
 fn plans_mid_state_transition_as_generated_segments() {
     let tokens = Lexer::new(
         r#"
