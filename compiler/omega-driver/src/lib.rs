@@ -1731,7 +1731,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_host_calls_outside_compiled_entry_state_as_blockers() {
+    fn ignores_host_calls_outside_entry_schedule() {
         let tokens = Lexer::new(
             r#"
             platform Console {
@@ -1761,17 +1761,12 @@ mod tests {
             &program,
             crate::native::target::NativeTarget::macos_arm64(),
         )
-        .expect("native planning should preserve non-entry host call as blocker");
+        .expect("native planning should keep unreachable host call out of the schedule");
         let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(
-            emission_plan
-                .blockers
-                .iter()
-                .any(|(_, blocker)| blocker.stage == "state codegen"
-                    && blocker.reason.contains("main.later statement 0")),
-            "expected non-entry host call blocker"
-        );
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(native_plan.host_calls.calls.len(), 2);
+        assert_eq!(native_plan.instructions.instructions.len(), 4);
     }
 
     #[test]
@@ -1963,6 +1958,80 @@ mod tests {
             arguments[0].kind,
             crate::native::host_calls::HostCallArgumentKind::Integer(0)
         );
+    }
+
+    #[test]
+    fn selects_static_guarded_transition() {
+        let tokens = Lexer::new(
+            r#"
+            data CommandKind {
+                Quit,
+                Look,
+                Invalid,
+            }
+
+            data Command {
+                kind: CommandKind;
+            }
+
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+                owns command: Command;
+
+                state entry {
+                    command.kind = CommandKind::Look;
+
+                    -> look when command.kind == CommandKind::Look;
+                    -> quit when command.kind == CommandKind::Quit;
+                    -> invalid;
+                }
+
+                state look {
+                    console.write_line("look");
+                    console.exit_process(0);
+                }
+
+                state quit {
+                    console.write_line("quit");
+                    console.exit_process(0);
+                }
+
+                state invalid {
+                    console.write_line("invalid");
+                    console.exit_process(1);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should select a static guarded transition");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+        let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
+            .expect("entry schedule should select look branch");
+
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(
+            schedule
+                .iter()
+                .map(|state| format!("{}.{}", state.machine, state.state))
+                .collect::<Vec<_>>(),
+            vec!["main.entry", "main.look"]
+        );
+        assert_eq!(native_plan.host_calls.calls.len(), 6);
+        assert_eq!(native_plan.instructions.instructions.len(), 6);
     }
 
     #[test]

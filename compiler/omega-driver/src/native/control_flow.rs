@@ -68,6 +68,7 @@ pub enum OperationKind {
     ConstantIntegerAssignment,
     Expression,
     LocalData,
+    StaticAssignment { target: String, value: String },
 }
 
 impl Default for Operation {
@@ -263,6 +264,12 @@ fn segment_name(state_name: &str, segment_index: usize) -> String {
 
 fn operation_kind(statement: &Statement) -> OperationKind {
     match statement {
+        Statement::Assignment(assignment) if is_static_assignment(assignment) => {
+            OperationKind::StaticAssignment {
+                target: assignment.target.display_name(),
+                value: assignment.value.display_name(),
+            }
+        }
         Statement::Assignment(assignment) if is_constant_integer_assignment(assignment) => {
             OperationKind::ConstantIntegerAssignment
         }
@@ -272,6 +279,16 @@ fn operation_kind(statement: &Statement) -> OperationKind {
         Statement::LocalData(_) => OperationKind::LocalData,
         Statement::Transition(_) => unreachable!("transitions are not operations"),
     }
+}
+
+fn is_static_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
+    matches!(
+        (&assignment.target, &assignment.value),
+        (
+            crate::ir::expression::Expression::Name(target),
+            crate::ir::expression::Expression::Name(value)
+        ) if !target.is_empty() && value.len() > 1
+    )
 }
 
 fn is_constant_integer_assignment(assignment: &crate::ir::statement::Assignment) -> bool {

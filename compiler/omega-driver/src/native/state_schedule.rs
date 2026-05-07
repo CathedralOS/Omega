@@ -1,6 +1,7 @@
+use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{
-    MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow,
+    MachineFlow, OperationKind, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
 use crate::native::plan::NativePlan;
 
@@ -13,6 +14,7 @@ pub struct ScheduledState {
 pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<ScheduledState>, String> {
     let mut schedule = Vec::new();
     let mut visited = Vec::<ScheduledState>::new();
+    let mut values = Vec::<(String, String)>::new();
 
     append_state_chain(
         native_plan,
@@ -20,6 +22,7 @@ pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<Schedu
         &native_plan.entry_state,
         &mut schedule,
         &mut visited,
+        &mut values,
     )?;
 
     Ok(schedule)
@@ -41,6 +44,7 @@ fn append_state_chain(
     state_name: &str,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
+    values: &mut Vec<(String, String)>,
 ) -> Result<(), String> {
     let mut current_machine_name = machine_name.to_owned();
     let mut current_state_name = state_name.to_owned();
@@ -63,6 +67,7 @@ fn append_state_chain(
 
         let machine = machine_flow(native_plan, &current.machine)?;
         let state = state_flow(native_plan, machine, &current.state)?;
+        apply_static_operations(native_plan, state, values);
 
         let transitions = native_plan
             .control_flow
@@ -72,7 +77,10 @@ fn append_state_chain(
 
         match transitions {
             [] => return Ok(()),
-            [transition] if transition.guard == TransitionGuard::Always => {
+            transitions => {
+                let Some(transition) = select_transition(transitions, values, &current)? else {
+                    return Ok(());
+                };
                 let Some(next_state) = next_state(
                     native_plan,
                     &current.machine,
@@ -81,6 +89,7 @@ fn append_state_chain(
                     transition,
                     schedule,
                     visited,
+                    values,
                 )?
                 else {
                     return Ok(());
@@ -88,20 +97,6 @@ fn append_state_chain(
 
                 current_machine_name = next_state.machine;
                 current_state_name = next_state.state;
-            }
-            [_] => {
-                return Err(format!(
-                    "{}.{} has a guarded transition; native emission supports only unconditional state chains so far",
-                    current.machine, current.state
-                ));
-            }
-            _ => {
-                return Err(format!(
-                    "{}.{} has {} transition(s); native emission supports only single-transition state chains so far",
-                    current.machine,
-                    current.state,
-                    transitions.len()
-                ));
             }
         }
     }
@@ -115,6 +110,7 @@ fn next_state(
     transition: &TransitionFlow,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
+    values: &mut Vec<(String, String)>,
 ) -> Result<Option<ScheduledState>, String> {
     match &transition.target {
         PlannedTransitionTarget::State { index, name } => {
@@ -151,6 +147,7 @@ fn next_state(
                 nested_state,
                 schedule,
                 visited,
+                values,
             )?;
 
             match &transition.continuation {
@@ -175,6 +172,97 @@ fn next_state(
                 )),
             }
         }
+    }
+}
+
+fn apply_static_operations(
+    native_plan: &NativePlan,
+    state: &StateFlow,
+    values: &mut Vec<(String, String)>,
+) {
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return;
+    };
+
+    for operation in operations {
+        let OperationKind::StaticAssignment { target, value } = &operation.kind else {
+            continue;
+        };
+
+        if let Some((_, existing_value)) = values
+            .iter_mut()
+            .find(|(existing_target, _)| existing_target == target)
+        {
+            *existing_value = value.clone();
+        } else {
+            values.push((target.clone(), value.clone()));
+        }
+    }
+}
+
+fn select_transition<'plan>(
+    transitions: &'plan [TransitionFlow],
+    values: &[(String, String)],
+    current: &ScheduledState,
+) -> Result<Option<&'plan TransitionFlow>, String> {
+    for transition in transitions {
+        match guard_matches(&transition.guard, values) {
+            Some(true) => return Ok(Some(transition)),
+            Some(false) => continue,
+            None => {
+                return Err(format!(
+                    "{}.{} has a guard native emission cannot evaluate statically yet",
+                    current.machine, current.state
+                ));
+            }
+        }
+    }
+
+    Err(format!(
+        "{}.{} has no transition whose guard is satisfied",
+        current.machine, current.state
+    ))
+}
+
+fn guard_matches(guard: &TransitionGuard, values: &[(String, String)]) -> Option<bool> {
+    match guard {
+        TransitionGuard::Always => Some(true),
+        TransitionGuard::When(expression) => evaluate_boolean(expression, values),
+    }
+}
+
+fn evaluate_boolean(expression: &Expression, values: &[(String, String)]) -> Option<bool> {
+    let Expression::Binary(binary) = expression else {
+        return None;
+    };
+
+    match binary.operator {
+        BinaryOperator::Equal => Some(
+            resolve_static_value(&binary.left, values)?
+                == resolve_static_value(&binary.right, values)?,
+        ),
+        BinaryOperator::NotEqual => Some(
+            resolve_static_value(&binary.left, values)?
+                != resolve_static_value(&binary.right, values)?,
+        ),
+        _ => None,
+    }
+}
+
+fn resolve_static_value(expression: &Expression, values: &[(String, String)]) -> Option<String> {
+    match expression {
+        Expression::Name(_) => {
+            let name = expression.display_name();
+            values
+                .iter()
+                .find(|(target, _)| target == &name)
+                .map(|(_, value)| value.clone())
+                .or(Some(name))
+        }
+        Expression::Boolean(value) => Some(value.to_string()),
+        Expression::Integer(value) => Some(value.to_string()),
+        Expression::String(value) => Some(value.clone()),
+        _ => None,
     }
 }
 

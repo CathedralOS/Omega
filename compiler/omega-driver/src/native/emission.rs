@@ -46,6 +46,14 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 
     for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
+        if !scheduled_state_contains(
+            &state_schedule,
+            &unsupported_call.machine,
+            &unsupported_call.state,
+        ) {
+            continue;
+        }
+
         blockers.insert(blocker(
             "host lowering",
             &format!(
@@ -57,23 +65,6 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
                 unsupported_call.reason
             ),
         ));
-    }
-
-    for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if !scheduled_state_contains(&state_schedule, &host_call.machine, &host_call.state) {
-            blockers.insert(blocker(
-                "state codegen",
-                &format!(
-                    "{}.{} statement {} platform call `{}` is outside compiled state schedule for {}.{}",
-                    host_call.machine,
-                    host_call.state,
-                    host_call.statement_index,
-                    host_call.platform_call,
-                    native_plan.entry_machine,
-                    native_plan.entry_state
-                ),
-            ));
-        }
     }
 
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
@@ -164,7 +155,8 @@ fn collect_state_codegen_blockers(
                         ),
                     ));
                 }
-                OperationKind::ConstantIntegerAssignment => {}
+                OperationKind::ConstantIntegerAssignment
+                | OperationKind::StaticAssignment { .. } => {}
                 _ => {
                     blockers.insert(blocker(
                         "state codegen",
