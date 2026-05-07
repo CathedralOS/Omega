@@ -2300,6 +2300,21 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 format!("evaluate dispatch guard {guard_lowering:?}/{operator:?}")
             }
         }
+        SelectedInstructionKind::CompareRuntimeTextLiteral {
+            buffer_symbol,
+            literal,
+        } => {
+            format!("compare runtime text `{buffer_symbol}` with {literal:?}")
+        }
+        SelectedInstructionKind::WriteRuntimeMachineInteger {
+            byte_offset,
+            byte_size,
+            value,
+        } => {
+            format!(
+                "write runtime machine integer offset {byte_offset} bytes {byte_size} value {value}"
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")
         }

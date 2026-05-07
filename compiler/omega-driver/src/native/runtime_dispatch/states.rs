@@ -73,6 +73,7 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
                 guard: edge.guard.clone(),
                 forms_cycle: edge.forms_cycle,
             })
+            .chain(terminal_continuation_edges(runtime_flow, runtime_state))
             .collect::<Vec<_>>();
         let edges = plan.edges.insert_many(dispatch_edges);
 
@@ -86,6 +87,48 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
     }
 
     plan
+}
+
+fn terminal_continuation_edges(
+    runtime_flow: &RuntimeFlowPlan,
+    runtime_state: &crate::native::runtime_flow::RuntimeState,
+) -> Vec<DispatchEdge> {
+    let has_outgoing_edges = runtime_flow.edges.iter().any(|(_, edge)| {
+        edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
+    });
+    if has_outgoing_edges {
+        return Vec::new();
+    }
+
+    let mut edges = Vec::new();
+    for (_, edge) in runtime_flow.edges.iter() {
+        let RuntimeTransitionTarget::State { machine, .. } = &edge.target else {
+            continue;
+        };
+        if machine != &runtime_state.machine {
+            continue;
+        }
+        let RuntimeTransitionTarget::State { .. } = &edge.continuation else {
+            continue;
+        };
+        if edges.iter().any(|existing: &DispatchEdge| {
+            existing.continuation_dispatch_index
+                == target_dispatch_index(runtime_flow, &edge.continuation)
+        }) {
+            continue;
+        }
+
+        edges.push(DispatchEdge {
+            target_dispatch_index: target_dispatch_index(runtime_flow, &edge.continuation),
+            target: edge.continuation.clone(),
+            continuation_dispatch_index: 0,
+            continuation: RuntimeTransitionTarget::None,
+            guard: TransitionGuard::Always,
+            forms_cycle: false,
+        });
+    }
+
+    edges
 }
 
 fn target_dispatch_index(runtime_flow: &RuntimeFlowPlan, target: &RuntimeTransitionTarget) -> u32 {

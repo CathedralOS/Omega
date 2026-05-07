@@ -82,6 +82,14 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         expected_value: i64,
     },
+    RuntimeTextLiteralCompare {
+        literal: String,
+    },
+    RuntimeMachineIntegerWrite {
+        byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
     },
@@ -247,6 +255,24 @@ fn machine_instruction_shape(
             },
             dispatch_guard_compare_static_width(native_plan.target.architecture),
         ),
+        SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => (
+            MachineInstructionKind::RuntimeTextLiteralCompare {
+                literal: literal.clone(),
+            },
+            runtime_text_literal_compare_width(native_plan.target.architecture, literal),
+        ),
+        SelectedInstructionKind::WriteRuntimeMachineInteger {
+            byte_offset,
+            byte_size,
+            value,
+        } => (
+            MachineInstructionKind::RuntimeMachineIntegerWrite {
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+                value: *value,
+            },
+            runtime_machine_integer_write_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => (
             MachineInstructionKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,
@@ -318,15 +344,38 @@ fn encode_machine_instruction(
             byte_distance_to_next_state_write_end(machine_instructions, machine_instruction_index)?,
             *operator == StateGuardOperator::NotEqual,
         ),
+        SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
+            architecture::encode_runtime_text_literal_compare(
+                native_plan.target.architecture,
+                literal,
+                byte_distances_to_next_runtime_machine_write_end(
+                    machine_instructions,
+                    machine_instruction_index,
+                    literal,
+                )?,
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeMachineInteger {
+            byte_offset,
+            byte_size,
+            value,
+        } => architecture::encode_runtime_machine_integer_write(
+            native_plan.target.architecture,
+            *byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             architecture::encode_dispatch_state_write(
                 native_plan.target.architecture,
                 *dispatch_index,
+                byte_distance_to_case_leave(machine_instructions, machine_instruction_index)?,
             )
         }
         SelectedInstructionKind::TerminateDispatch => architecture::encode_dispatch_state_write(
             native_plan.target.architecture,
             native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+            byte_distance_to_case_leave(machine_instructions, machine_instruction_index)?,
         ),
         SelectedInstructionKind::LeaveDispatchCase => architecture::encode_dispatch_case_leave(
             native_plan.target.architecture,
@@ -393,6 +442,64 @@ fn byte_distance_to_next_state_write_end(
     Ok(target as isize - branch_program_counter as isize)
 }
 
+fn byte_distance_to_case_leave(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(case_leave) = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| instruction.kind == MachineInstructionKind::DispatchCaseLeave)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode dispatch state write at byte {}: missing matching leave case",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + 4;
+    Ok(case_leave.offset as isize - branch_program_counter as isize)
+}
+
+fn byte_distances_to_next_runtime_machine_write_end(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+    literal: &str,
+) -> Result<Vec<isize>, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(Vec::new());
+    };
+    let Some(machine_write) = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
+            )
+        })
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode runtime text guard at byte {}: missing guarded machine write",
+            current.offset
+        )));
+    };
+
+    let target = machine_write.offset + machine_write.byte_width;
+    Ok(literal
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .map(|(byte_index, _)| {
+            let branch_program_counter = current.offset + 8 + byte_index * 12 + 8;
+            target as isize - branch_program_counter as isize
+        })
+        .collect())
+}
+
 fn byte_distance_to_dispatch_loop_start(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
@@ -446,4 +553,15 @@ fn dispatch_case_leave_width(architecture: crate::native::target::Architecture) 
 
 fn dispatch_guard_compare_static_width(architecture: crate::native::target::Architecture) -> usize {
     architecture::dispatch_guard_compare_static_width(architecture)
+}
+
+fn runtime_text_literal_compare_width(
+    architecture: crate::native::target::Architecture,
+    literal: &str,
+) -> usize {
+    architecture::runtime_text_literal_compare_width(architecture, literal)
+}
+
+fn runtime_machine_integer_write_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::runtime_machine_integer_write_width(architecture)
 }

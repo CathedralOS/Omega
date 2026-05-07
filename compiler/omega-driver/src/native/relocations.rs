@@ -149,6 +149,26 @@ fn collect_function_relocations(
                     &machine_storage_symbol_name(&native_plan.entry_machine),
                 );
             }
+            SelectedInstructionKind::CompareRuntimeTextLiteral { buffer_symbol, .. } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    buffer_symbol,
+                );
+            }
+            SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    &machine_storage_symbol_name(&native_plan.entry_machine),
+                );
+            }
             _ => {}
         }
     }

@@ -56,6 +56,20 @@ pub fn dispatch_guard_compare_static_width(architecture: Architecture) -> usize 
     }
 }
 
+pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &str) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_literal_compare_width(literal),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_machine_integer_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_machine_integer_write_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn encode_host_call_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
@@ -99,9 +113,12 @@ pub fn encode_dispatch_case_enter(
 pub fn encode_dispatch_state_write(
     architecture: Architecture,
     dispatch_index: u32,
+    case_leave_byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_dispatch_state_write(dispatch_index),
+        Architecture::Aarch64 => {
+            aarch64::encode_dispatch_state_write(dispatch_index, case_leave_byte_distance)
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -132,6 +149,33 @@ pub fn encode_dispatch_guard_compare_static(
             skip_byte_distance,
             branch_when_equal,
         ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_compare(
+    architecture: Architecture,
+    literal: &str,
+    failure_branch_distances: Vec<isize>,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_compare(literal, failure_branch_distances)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_machine_integer_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

@@ -1,8 +1,14 @@
+use crate::ir::expression::Expression;
 use crate::native::control_flow::OperationKind;
 use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
+use crate::native::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::native::plan::NativePlan;
+use crate::native::runtime_dispatch::branching::{
+    RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
+    RuntimeLeafBranchOperationKind,
+};
 use crate::native::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
 };
@@ -90,6 +96,15 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         expected_value: i64,
         has_storage: bool,
+    },
+    CompareRuntimeTextLiteral {
+        buffer_symbol: String,
+        literal: String,
+    },
+    WriteRuntimeMachineInteger {
+        byte_offset: usize,
+        byte_size: usize,
+        value: i64,
     },
     SetDispatchState {
         dispatch_index: u32,
@@ -250,6 +265,12 @@ fn select_runtime_dispatch_loop_instructions(
             }
         }
 
+        select_runtime_leaf_branch_expansions(
+            native_plan,
+            dispatch_case.dispatch_index,
+            selected_instructions,
+        );
+
         if let Some(edges) = native_plan
             .runtime_dispatch_loop
             .edges
@@ -321,6 +342,151 @@ fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Unknown => {}
+    }
+}
+
+fn select_runtime_leaf_branch_expansions(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    for (_, expansion) in native_plan
+        .runtime_branching_calls
+        .leaf_expansions
+        .iter()
+        .filter(|(_, expansion)| expansion.dispatch_index == dispatch_index)
+    {
+        let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion)
+        else {
+            continue;
+        };
+        let Some((byte_offset, byte_size, value)) =
+            runtime_leaf_machine_integer_write(native_plan, expansion)
+        else {
+            continue;
+        };
+
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
+                buffer_symbol,
+                literal,
+            },
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
+            source_statement: expansion.statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                byte_offset,
+                byte_size,
+                value,
+            },
+            source_machine: expansion.leaf_machine.clone(),
+            source_state: expansion.leaf_state.clone(),
+            source_statement: expansion.statement_index,
+        });
+    }
+}
+
+fn runtime_text_literal_guard(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+) -> Option<(String, String)> {
+    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+        &expansion.resolved_guard
+    else {
+        return None;
+    };
+    if binary.operator != crate::ir::expression::BinaryOperator::Equal {
+        return None;
+    }
+
+    let (text_place, literal) = match (&binary.left, &binary.right) {
+        (text_place, Expression::String(literal)) => (text_place, literal),
+        (Expression::String(literal), text_place) => (text_place, literal),
+        _ => return None,
+    };
+
+    let buffer = runtime_text_input_buffer_for_text_place(native_plan, text_place)?;
+    Some((buffer.symbol.clone(), literal.clone()))
+}
+
+fn runtime_leaf_machine_integer_write(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+) -> Option<(usize, usize, i64)> {
+    let operations = native_plan
+        .runtime_branching_calls
+        .leaf_operations
+        .span(expansion.operations)?;
+    let operation = operations.iter().find_map(|operation| {
+        let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
+            return None;
+        };
+        Some((target, value))
+    })?;
+    let bindings = native_plan
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    let target = resolve_leaf_binding_expression(operation.0, bindings);
+    let (byte_offset, byte_size) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        &expansion.source_machine,
+        &target,
+    )?;
+    let value = enum_variant_value(&native_plan.layouts, operation.1)?;
+
+    Some((byte_offset, byte_size, value))
+}
+
+fn resolve_leaf_binding_expression(
+    expression: &Expression,
+    bindings: &[RuntimeLeafBranchBinding],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target = resolve_leaf_binding_expression(target, bindings);
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Name(path) if !path.is_empty() => bindings
+            .iter()
+            .find(|binding| {
+                binding.parameter_name == path[0]
+                    && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
+            })
+            .or_else(|| {
+                bindings
+                    .iter()
+                    .find(|binding| binding.parameter_name == path[0])
+            })
+            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
+}
+
+fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression {
+    if suffix.is_empty() {
+        return expression.clone();
+    }
+
+    match expression {
+        Expression::Name(path) => {
+            let mut resolved_path = path.clone();
+            resolved_path.extend_from_slice(suffix);
+            Expression::Name(resolved_path)
+        }
+        Expression::Mutable(target) => {
+            Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
+        }
+        _ => expression.clone(),
     }
 }
 
@@ -685,6 +851,143 @@ fn text_place_for_buffer_target(target: &crate::ir::expression::Expression) -> O
         }
         _ => None,
     }
+}
+
+fn runtime_text_input_buffer_for_text_place<'plan>(
+    native_plan: &'plan NativePlan,
+    text_place: &Expression,
+) -> Option<&'plan NativeDataObject> {
+    let text_place_name = text_place.display_name();
+    let buffer = native_plan
+        .runtime_text
+        .buffers
+        .iter()
+        .find_map(|(_, buffer)| {
+            text_place_for_buffer_target(&buffer.target)
+                .is_some_and(|place_name| place_name == text_place_name)
+                .then_some(buffer)
+        })?;
+
+    native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_machine == buffer.machine
+                && data_object.source_state == buffer.state
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(_, data_object)| data_object)
+}
+
+fn resolve_machine_owned_place(
+    layouts: &LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+    expression: &Expression,
+) -> Option<(usize, usize)> {
+    let expression = match expression {
+        Expression::Mutable(target) => target.as_ref(),
+        _ => expression,
+    };
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    let [root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
+    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+    let machine_layout = layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.name == source_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
+    let root_field = field_layout(layouts, machine_layout.fields, root_name)?;
+    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+
+    Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+fn machine_storage_offset(
+    layouts: &LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+) -> Option<usize> {
+    if entry_machine == source_machine {
+        return Some(0);
+    }
+
+    let entry_layout = layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.name == entry_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
+    layouts
+        .fields
+        .span(entry_layout.fields)?
+        .iter()
+        .find(|field| field.type_name == source_machine)
+        .map(|field| field.offset)
+}
+
+fn resolve_nested_field_layout(
+    layouts: &LayoutPlan,
+    root_field: &FieldLayout,
+    suffix: &[String],
+) -> Option<(usize, TypeLayout)> {
+    let mut byte_offset = root_field.offset;
+    let mut type_name = root_field.type_name.as_str();
+    let mut layout = root_field.layout;
+
+    for field_name in suffix {
+        let data_layout = layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.name == type_name)
+            .map(|(_, data_layout)| data_layout)?;
+        let DataShape::Record { fields } = &data_layout.shape else {
+            return None;
+        };
+        let field = field_layout(layouts, *fields, field_name)?;
+        byte_offset += field.offset;
+        type_name = &field.type_name;
+        layout = field.layout;
+    }
+
+    Some((byte_offset, layout))
+}
+
+fn field_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    fields: HandleSpan<FieldLayout>,
+    field_name: &str,
+) -> Option<&'plan FieldLayout> {
+    layouts
+        .fields
+        .span(fields)?
+        .iter()
+        .find(|field| field.name == field_name)
+}
+
+fn enum_variant_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    let [type_name, variant_name] = path.as_slice() else {
+        return None;
+    };
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .map(|(_, data_layout)| data_layout)?;
+    let DataShape::Enum { variants } = &data_layout.shape else {
+        return None;
+    };
+    variants
+        .iter()
+        .position(|variant| variant == variant_name)
+        .and_then(|index| i64::try_from(index).ok())
 }
 
 fn exit_code(host_call: &HostCall, native_plan: &NativePlan) -> i64 {
