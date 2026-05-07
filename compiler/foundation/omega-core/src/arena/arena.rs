@@ -141,6 +141,10 @@ impl<T: Default> Arena<T> {
         self.items.get(range)
     }
 
+    pub fn span_or_empty(&self, span: HandleSpan<T>) -> &[T] {
+        self.span(span).unwrap_or(&self.items[0..0])
+    }
+
     pub fn span_mut(&mut self, span: HandleSpan<T>) -> Option<&mut [T]> {
         if span.is_empty() {
             return Some(&mut []);
@@ -149,6 +153,14 @@ impl<T: Default> Arena<T> {
         let range = self.valid_span_range(span)?;
 
         self.items.get_mut(range)
+    }
+
+    pub fn span_mut_or_empty(&mut self, span: HandleSpan<T>) -> &mut [T] {
+        if let Some(range) = self.valid_span_range(span) {
+            &mut self.items[range]
+        } else {
+            &mut self.items[0..0]
+        }
     }
 
     fn valid_span_range(&self, span: HandleSpan<T>) -> Option<Range<usize>> {
@@ -211,6 +223,19 @@ impl<T: Default> Arena<T> {
             arena: self,
             index: 1,
             marker: PhantomData,
+        }
+    }
+
+    pub fn for_each_mut(&mut self, mut visit: impl FnMut(Handle<T>, &mut T)) {
+        for index in 1..self.items.len() {
+            if !self.occupied[index] {
+                continue;
+            }
+
+            let arena_index = u32::try_from(index).expect("arena index overflow");
+            let handle = Handle::from_parts(arena_index, self.generations[index]);
+
+            visit(handle, &mut self.items[index]);
         }
     }
 

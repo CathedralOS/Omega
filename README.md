@@ -366,12 +366,14 @@ Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testi
 - Prefer arena-backed compiler data. Contiguous storage and small handles beat a pile of tiny heap allocations.
 - Lowered representations should prefer `Handle<T>` and `HandleSpan<T>` over owned `Vec<T>` fields for repeated child lists.
 - `Vec<T>` is fine for parser output, temporary builders, and local scratch data. It should not become the default long-lived representation shape.
-- Prefer arena/vector-backed symbol tables over local hash maps. Names should collapse toward ids/handles as phases mature.
+- Prefer arena/vector-backed symbol tables over local hash maps. Dense lookups should collapse toward ids/handles as phases mature; hash maps need a specific sparsity or boundary reason.
 - Use paged arenas for shared or eventually-parallel compiler data where growth should not move existing pages or require locking one giant `Vec`.
 - Paged arenas use generational handles so reclaimed page storage cannot resurrect stale references.
 - Do not use `RefCell` as an ownership escape hatch. Runtime borrow checking is not a substitute for clear compiler-phase ownership.
 - Prefer ZII (Zero-is-initialization). Null handles (index 0) resolve to dummy arena entries instead of optionals and literal nulls.
+- Do not wrap handles in `Option` just to model absence. The zero handle is the absence state; `Option<Handle<T>>` needs a semantic reason beyond “maybe missing.”
 - Arena handles must be generational. Freed or stale handles resolve to dummy entries, not reused storage.
+- Symbols are handle-first. String names are debug/export/import metadata, not durable identity inside semantic or native compiler layers.
 - Use stable handles when data needs references across phases; use redirect tables only when arena contents need reordering.
 - Comments should explain non-obvious intent. Do not add “doing X unlike Rust” commentary unless the contrast changes implementation.
 
