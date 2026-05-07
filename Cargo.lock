@@ -28,6 +28,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
+ "omega-effects",
  "omega-graph",
  "omega-lexer",
  "omega-names",
@@ -43,6 +44,14 @@ name = "omega-core"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
+]
+
+[[package]]
+name = "omega-effects"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-typed-program",
 ]
 
 [[package]]

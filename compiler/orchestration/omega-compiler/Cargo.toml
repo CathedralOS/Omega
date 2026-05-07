@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
 omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
+omega-effects = { path = "../../semantics/omega-effects" }
 omega-graph = { path = "../../semantics/omega-graph" }
 omega-lexer = { path = "../../frontend/omega-lexer" }
 omega-native = { path = "../../backend/omega-native" }
