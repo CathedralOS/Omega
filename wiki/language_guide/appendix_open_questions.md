@@ -24,3 +24,4 @@ This page tracks design pressure that is not fully nailed down yet.
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
 - Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?
 - Which words must be globally reserved, and which should remain contextual keywords only?
+- How should host operation signatures describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
