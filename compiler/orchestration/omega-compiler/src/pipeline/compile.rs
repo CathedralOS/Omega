@@ -339,11 +339,20 @@ fn format_phase_timings(timings: &[PhaseTiming]) -> String {
 
         output.push_str(&timing.phase);
         output.push('=');
-        output.push_str(&timing.microseconds.to_string());
-        output.push_str("us");
+        output.push_str(&format_compact_duration(timing.microseconds));
     }
 
     output
+}
+
+fn format_compact_duration(microseconds: u128) -> String {
+    if microseconds >= 1_000_000 {
+        format!("{:.2}s", microseconds as f64 / 1_000_000.0)
+    } else if microseconds >= 1_000 {
+        format!("{:.2}ms", microseconds as f64 / 1_000.0)
+    } else {
+        format!("{microseconds}us")
+    }
 }
 
 #[derive(Debug)]

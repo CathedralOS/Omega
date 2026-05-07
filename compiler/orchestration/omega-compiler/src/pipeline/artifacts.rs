@@ -1624,9 +1624,84 @@ impl ArtifactWriter {
 
         output.push_str("# Omega Phase Timings\n\n");
 
-        for timing in timings {
-            output.push_str(&format!("{}: {} us\n", timing.phase, timing.microseconds));
+        let total_microseconds = timings
+            .iter()
+            .map(|timing| timing.microseconds)
+            .sum::<u128>();
+        let slowest = timings.iter().max_by_key(|timing| timing.microseconds);
+        let average_microseconds = if timings.is_empty() {
+            0
+        } else {
+            total_microseconds / timings.len() as u128
+        };
+
+        output.push_str("## Summary\n\n");
+        output.push_str(&format!("phase count: {}\n", timings.len()));
+        output.push_str(&format!(
+            "total measured: {}\n",
+            format_duration(total_microseconds)
+        ));
+        output.push_str(&format!(
+            "average phase: {}\n",
+            format_duration(average_microseconds)
+        ));
+        if let Some(slowest) = slowest {
+            output.push_str(&format!(
+                "slowest phase: {} ({}, {})\n",
+                slowest.phase,
+                format_duration(slowest.microseconds),
+                format_percentage(slowest.microseconds, total_microseconds)
+            ));
         }
+
+        output.push_str("\n## Phases\n\n");
+        let phase_width = timings
+            .iter()
+            .map(|timing| timing.phase.len())
+            .max()
+            .unwrap_or("phase".len())
+            .max("phase".len());
+        let duration_width = timings
+            .iter()
+            .map(|timing| format_duration(timing.microseconds).len())
+            .chain(std::iter::once("time".len()))
+            .max()
+            .unwrap_or("time".len());
+        let raw_width = timings
+            .iter()
+            .map(|timing| format!("{} us", format_integer(timing.microseconds)).len())
+            .chain(std::iter::once("raw".len()))
+            .max()
+            .unwrap_or("raw".len());
+
+        output.push_str(&format!(
+            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
+            "phase", "time", "share", "raw"
+        ));
+        output.push_str(&format!(
+            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}\n",
+            "", "", "", ""
+        ));
+        for timing in timings {
+            output.push_str(&format!(
+                "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
+                timing.phase,
+                format_duration(timing.microseconds),
+                format_percentage(timing.microseconds, total_microseconds),
+                format!("{} us", format_integer(timing.microseconds)),
+            ));
+        }
+        output.push_str(&format!(
+            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}\n",
+            "", "", "", ""
+        ));
+        output.push_str(&format!(
+            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
+            "total",
+            format_duration(total_microseconds),
+            "100.00%",
+            format!("{} us", format_integer(total_microseconds)),
+        ));
 
         self.write("00_timings.txt", &output)
     }
@@ -1644,6 +1719,34 @@ impl ArtifactWriter {
             ))
         })
     }
+}
+
+fn format_duration(microseconds: u128) -> String {
+    if microseconds >= 1_000_000 {
+        format!("{:.3} s", microseconds as f64 / 1_000_000.0)
+    } else {
+        format!("{:.3} ms", microseconds as f64 / 1_000.0)
+    }
+}
+
+fn format_percentage(part: u128, total: u128) -> String {
+    if total == 0 {
+        return "0.00%".to_owned();
+    }
+
+    format!("{:.2}%", part as f64 * 100.0 / total as f64)
+}
+
+fn format_integer(value: u128) -> String {
+    let digits = value.to_string();
+    let mut output = String::with_capacity(digits.len() + digits.len() / 3);
+    for (index, character) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            output.push(',');
+        }
+        output.push(character);
+    }
+    output
 }
 
 fn write_loaded_file(output: &mut String, file: &LoadedFile) {
