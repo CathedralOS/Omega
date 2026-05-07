@@ -188,9 +188,16 @@ pub fn encode_syscall_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
     syscall_number: u32,
+    number_register: u8,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_syscall_sequence(operands, syscall_number),
+        Architecture::Aarch64 => aarch64::encode_syscall_sequence(
+            operands,
+            syscall_number,
+            number_register,
+            supervisor_call,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

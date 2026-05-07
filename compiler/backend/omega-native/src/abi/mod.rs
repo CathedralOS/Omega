@@ -37,8 +37,16 @@ impl Default for HostBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostBindingMechanism {
-    Import { library: String, symbol: String },
-    Syscall { name: String, number: u32 },
+    Import {
+        library: String,
+        symbol: String,
+    },
+    Syscall {
+        name: String,
+        number: u32,
+        number_register: u8,
+        supervisor_call: u16,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

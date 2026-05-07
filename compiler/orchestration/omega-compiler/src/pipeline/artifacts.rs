@@ -2141,10 +2141,21 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
                 binding.capability, binding.operation, library, symbol, binding.trust_policy
             ));
         }
-        HostBindingMechanism::Syscall { name, number } => {
+        HostBindingMechanism::Syscall {
+            name,
+            number,
+            number_register,
+            supervisor_call,
+        } => {
             output.push_str(&format!(
-                "- {}.{} syscall {}({}) trust `{}`\n",
-                binding.capability, binding.operation, name, number, binding.trust_policy
+                "- {}.{} syscall {}({}) register x{} svc #{} trust `{}`\n",
+                binding.capability,
+                binding.operation,
+                name,
+                number,
+                number_register,
+                supervisor_call,
+                binding.trust_policy
             ));
         }
     }

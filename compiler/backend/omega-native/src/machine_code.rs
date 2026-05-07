@@ -525,13 +525,18 @@ fn encode_machine_instruction(
             };
 
             match host_binding_mechanism(native_plan, capability, operation) {
-                Some(HostBindingMechanism::Syscall { number, .. }) => {
-                    architecture::encode_syscall_sequence(
-                        native_plan.target.architecture,
-                        operands,
-                        *number,
-                    )
-                }
+                Some(HostBindingMechanism::Syscall {
+                    number,
+                    number_register,
+                    supervisor_call,
+                    ..
+                }) => architecture::encode_syscall_sequence(
+                    native_plan.target.architecture,
+                    operands,
+                    *number,
+                    *number_register,
+                    *supervisor_call,
+                ),
                 _ => architecture::encode_host_call_sequence(
                     native_plan.target.architecture,
                     operands,

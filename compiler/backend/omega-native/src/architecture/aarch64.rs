@@ -154,6 +154,8 @@ pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Result<Vec<
 pub fn encode_syscall_sequence(
     operands: &[InstructionOperand],
     syscall_number: u32,
+    number_register: u8,
+    supervisor_call: u16,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
     let mut next_register = 0u8;
@@ -196,8 +198,11 @@ pub fn encode_syscall_sequence(
         }
     }
 
-    bytes.extend(encode_unsigned_immediate(8, u64::from(syscall_number)));
-    bytes.extend(encode_svc());
+    bytes.extend(encode_unsigned_immediate(
+        number_register,
+        u64::from(syscall_number),
+    ));
+    bytes.extend(encode_svc(supervisor_call));
     Ok(bytes)
 }
 
@@ -564,7 +569,7 @@ pub fn encode_runtime_text_line_read(
     bytes.extend(encode_move_x_register(1, 21));
     bytes.extend(encode_movz(2, 1));
     bytes.extend(encode_movz(8, syscall_number as u16));
-    bytes.extend(encode_svc());
+    bytes.extend(encode_svc(0));
     bytes.extend(encode_cbz_x(0, 48)?);
     bytes.extend(encode_load_byte_w_from_x(24, 21, 0)?);
     bytes.extend(encode_compare_w_immediate(24, 10)?);
@@ -657,8 +662,8 @@ fn encode_branch_link_placeholder() -> Vec<u8> {
     encode_instruction(0x94000000)
 }
 
-fn encode_svc() -> Vec<u8> {
-    encode_instruction(0xD4000001)
+fn encode_svc(immediate: u16) -> Vec<u8> {
+    encode_instruction(0xD4000001 | (u32::from(immediate) << 5))
 }
 
 fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {

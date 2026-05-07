@@ -75,6 +75,8 @@ fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding 
         mechanism: HostBindingMechanism::Syscall {
             name: operation.to_owned(),
             number,
+            number_register: 8,
+            supervisor_call: 0,
         },
         trust_policy: "omega::host::targets::linux".to_owned(),
     }
