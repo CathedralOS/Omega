@@ -60,8 +60,8 @@ fn append_state_chain(
 
         if visited.contains(&current) {
             return Err(format!(
-                "{}.{} reaches a cycle; native emission does not support loops yet",
-                current.machine, current.state
+                "cycle {}; native emission does not support loops yet",
+                cycle_path(&visited, &current)
             ));
         }
 
@@ -115,6 +115,19 @@ fn append_state_chain(
             }
         }
     }
+}
+
+fn cycle_path(visited: &[ScheduledState], current: &ScheduledState) -> String {
+    let start = visited
+        .iter()
+        .position(|state| state == current)
+        .unwrap_or(0);
+    visited[start..]
+        .iter()
+        .chain(std::iter::once(current))
+        .map(|state| format!("{}.{}", state.machine, state.state))
+        .collect::<Vec<_>>()
+        .join(" -> ")
 }
 
 fn append_local_state_calls(
