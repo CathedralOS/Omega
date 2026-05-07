@@ -624,8 +624,12 @@ impl ArtifactWriter {
 
         output.push_str("## Runtime Text\n");
         output.push_str(&format!("uses: {}\n", native_plan.runtime_text.uses.len()));
+        output.push_str(&format!(
+            "buffers: {}\n",
+            native_plan.runtime_text.buffers.len()
+        ));
         if native_plan.runtime_text.uses.is_empty() {
-            output.push_str("none\n");
+            output.push_str("uses: none\n");
         } else {
             for (_, text_use) in native_plan.runtime_text.uses.iter() {
                 output.push_str(&format!(
@@ -636,6 +640,20 @@ impl ArtifactWriter {
                     text_use.expression.display_name(),
                     text_use.source,
                     text_use.append_newline
+                ));
+            }
+        }
+        if native_plan.runtime_text.buffers.is_empty() {
+            output.push_str("buffers: none\n");
+        } else {
+            for (_, text_buffer) in native_plan.runtime_text.buffers.iter() {
+                output.push_str(&format!(
+                    "- buffer {}.{} statement {} `{}` bytes {}\n",
+                    text_buffer.machine,
+                    text_buffer.state,
+                    text_buffer.statement_index,
+                    text_buffer.target.display_name(),
+                    text_buffer.byte_capacity
                 ));
             }
         }

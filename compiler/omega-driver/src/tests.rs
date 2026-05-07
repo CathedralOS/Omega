@@ -3093,10 +3093,18 @@ fn lowers_mutable_output_host_call() {
         .bytes
         .span(read_buffer.bytes)
         .expect("read buffer bytes should be present");
+    let runtime_text_buffer = native_plan
+        .runtime_text
+        .buffers
+        .iter()
+        .find(|(_, buffer)| buffer.target.display_name() == "line")
+        .map(|(_, buffer)| buffer)
+        .expect("read_line should plan a runtime text buffer binding");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 4);
     assert_eq!(read_buffer_bytes.len(), 256);
+    assert_eq!(runtime_text_buffer.byte_capacity, 256);
 }
 
 #[test]
