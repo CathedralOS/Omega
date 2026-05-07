@@ -149,15 +149,51 @@ fn select_entry_instructions(
 fn runtime_reachable_states(
     native_plan: &NativePlan,
 ) -> Vec<crate::native::state_schedule::ScheduledState> {
-    native_plan
-        .runtime_flow
-        .states
+    let mut states = Vec::new();
+
+    for (_, state) in native_plan.runtime_flow.states.iter() {
+        push_scheduled_state(&mut states, &state.machine, &state.state);
+    }
+
+    for (_, state_call) in native_plan.state_calls.calls.iter() {
+        if !state_call.required {
+            continue;
+        }
+
+        push_scheduled_state(
+            &mut states,
+            &state_call.source_machine,
+            &state_call.source_state,
+        );
+
+        if !state_call.target_machine.is_empty() {
+            push_scheduled_state(
+                &mut states,
+                &state_call.target_machine,
+                &state_call.target_state,
+            );
+        }
+    }
+
+    states
+}
+
+fn push_scheduled_state(
+    states: &mut Vec<crate::native::state_schedule::ScheduledState>,
+    machine: &str,
+    state: &str,
+) {
+    if states
         .iter()
-        .map(|(_, state)| crate::native::state_schedule::ScheduledState {
-            machine: state.machine.clone(),
-            state: state.state.clone(),
-        })
-        .collect()
+        .any(|scheduled_state| scheduled_state.machine == machine && scheduled_state.state == state)
+    {
+        return;
+    }
+
+    states.push(crate::native::state_schedule::ScheduledState {
+        machine: machine.to_owned(),
+        state: state.to_owned(),
+    });
 }
 
 fn select_host_call(

@@ -1312,6 +1312,63 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
 }
 
 #[test]
+fn selects_host_calls_inside_required_state_call_targets() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine Helper {
+                contains console: Console;
+
+                state print {
+                    console.write_line("helper");
+                }
+            }
+
+            machine main {
+                contains helper: Helper;
+
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    helper.print();
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should select required helper host calls");
+    let selected_host_operations = native_plan
+        .instructions
+        .instructions
+        .iter()
+        .filter(|(_, instruction)| {
+            matches!(
+                instruction.kind,
+                crate::native::instructions::SelectedInstructionKind::HostOperation { .. }
+            )
+        })
+        .count();
+
+    assert_eq!(native_plan.host_calls.calls.len(), 1);
+    assert_eq!(selected_host_operations, 1);
+}
+
+#[test]
 fn plans_state_calls_separately_from_host_calls() {
     let tokens = Lexer::new(
         r#"
