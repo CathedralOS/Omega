@@ -87,6 +87,10 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
+pub fn runtime_text_line_read_width(_byte_capacity: usize, _syscall_number: u32) -> usize {
+    104
+}
+
 pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
     16 + runtime_storage_copy_data_width(byte_count)
 }
@@ -528,6 +532,65 @@ pub fn encode_runtime_machine_string_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_text_line_read(
+    target_offset: usize,
+    byte_capacity: usize,
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let max_payload_bytes = byte_capacity.saturating_sub(1);
+    let capacity = u32::try_from(max_payload_bytes).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 runtime line read cannot encode capacity `{byte_capacity}` yet"
+        ))
+    })?;
+    if capacity > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 runtime line read cannot compare capacity `{byte_capacity}` yet"
+        )));
+    }
+    if syscall_number > u32::from(u16::MAX) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 runtime line read cannot encode syscall `{syscall_number}` yet"
+        )));
+    }
+
+    let mut bytes = Vec::new();
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_move_x_register(21, 20));
+    bytes.extend(encode_movz(22, 0));
+
+    bytes.extend(encode_movz(0, 0));
+    bytes.extend(encode_move_x_register(1, 21));
+    bytes.extend(encode_movz(2, 1));
+    bytes.extend(encode_movz(8, syscall_number as u16));
+    bytes.extend(encode_svc());
+    bytes.extend(encode_cbz_x(0, 48)?);
+    bytes.extend(encode_load_byte_w_from_x(24, 21, 0)?);
+    bytes.extend(encode_compare_w_immediate(24, 10)?);
+    bytes.extend(encode_conditional_branch_equal(36)?);
+    bytes.extend(encode_compare_w_immediate(24, 13)?);
+    bytes.extend(encode_conditional_branch_equal(28)?);
+    bytes.extend(encode_compare_w_immediate(24, 0)?);
+    bytes.extend(encode_conditional_branch_equal(20)?);
+    bytes.extend(encode_add_x_immediate(21, 21, 1)?);
+    bytes.extend(encode_add_x_immediate(22, 22, 1)?);
+    bytes.extend(encode_compare_w_immediate(22, capacity)?);
+    bytes.extend(encode_conditional_branch_not_equal(-64)?);
+
+    bytes.extend(encode_store_byte_w_to_x(31, 21, 0)?);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_store_x_to_x(20, 16, target_offset)?);
+    bytes.extend(encode_store_x_to_x(22, 16, target_offset + 8)?);
+
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_text_line_read_width(byte_capacity, syscall_number)
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy(
     source_offset: usize,
     target_offset: usize,
@@ -599,18 +662,14 @@ fn encode_svc() -> Vec<u8> {
 }
 
 fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
-    if value > 4095 {
-        return Err(Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot compare dispatch index `{value}` yet"
-        )));
-    }
-
-    Ok(encode_instruction(
-        0x7100001F | (value << 10) | (u32::from(19u8) << 5),
-    ))
+    encode_compare_w_immediate(19, value)
 }
 
 fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
+    encode_compare_w_immediate(17, value)
+}
+
+fn encode_compare_w_immediate(register: u8, value: u32) -> Result<Vec<u8>, Diagnostic> {
     if value > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot compare guard value `{value}` yet"
@@ -618,7 +677,7 @@ fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
     }
 
     Ok(encode_instruction(
-        0x7100001F | (value << 10) | (u32::from(17u8) << 5),
+        0x7100001F | (value << 10) | (u32::from(register) << 5),
     ))
 }
 

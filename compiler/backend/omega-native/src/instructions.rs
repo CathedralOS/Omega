@@ -1,3 +1,4 @@
+use crate::abi::HostBindingMechanism;
 use crate::control_flow::OperationKind;
 use crate::data::NativeDataObject;
 use crate::host_calls::HostCall;
@@ -177,6 +178,13 @@ pub enum SelectedInstructionKind {
         byte_offset: usize,
         data_symbol: String,
         byte_length: usize,
+    },
+    ReadRuntimeTextLine {
+        buffer_symbol: String,
+        target_symbol: String,
+        target_offset: usize,
+        byte_capacity: usize,
+        syscall_number: u32,
     },
     CopyRuntimeStorage {
         source_symbol: String,
@@ -1984,6 +1992,16 @@ fn select_host_call(
         source_statement: host_call.statement_index,
     });
 
+    if let Some(read_line) = runtime_text_line_read(native_plan, host_call) {
+        selected_instructions.push(SelectedInstruction {
+            kind: read_line,
+            source_machine: host_call.machine.clone(),
+            source_state: host_call.state.clone(),
+            source_statement: host_call.statement_index,
+        });
+        return;
+    }
+
     let Some(operations) = native_plan.host_calls.operations.span(host_call.operations) else {
         return;
     };
@@ -2031,6 +2049,75 @@ fn select_host_call(
             source_statement: host_call.statement_index,
         });
     }
+}
+
+fn runtime_text_line_read(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+) -> Option<SelectedInstructionKind> {
+    let crate::abi::PlatformCallData::MutableOutputBuffer { byte_capacity } = host_call.data else {
+        return None;
+    };
+    let Some(HostBindingMechanism::Syscall {
+        number: syscall_number,
+        ..
+    }) = host_binding_mechanism(native_plan, "Stdin", "read")
+    else {
+        return None;
+    };
+
+    let buffer = native_plan
+        .runtime_text
+        .buffers
+        .iter()
+        .find(|(_, buffer)| {
+            buffer.machine == host_call.machine
+                && buffer.state == host_call.state
+                && buffer.statement_index == host_call.statement_index
+        })
+        .map(|(_, buffer)| buffer)?;
+    let data_object = native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_machine == buffer.machine
+                && data_object.source_state == buffer.state
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(_, data_object)| data_object)?;
+    let text_place = text_expression_for_buffer_target(&buffer.target)?;
+    let target_place = resolve_runtime_storage_place(
+        native_plan,
+        0,
+        &host_call.machine,
+        &host_call.state,
+        &text_place,
+    )?;
+    if target_place.byte_count != native_plan.target.pointer_size * 2 {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::ReadRuntimeTextLine {
+        buffer_symbol: data_object.symbol.clone(),
+        target_symbol: target_place.symbol,
+        target_offset: target_place.byte_offset,
+        byte_capacity,
+        syscall_number: *syscall_number,
+    })
+}
+
+fn host_binding_mechanism<'plan>(
+    native_plan: &'plan NativePlan,
+    capability: &str,
+    operation: &str,
+) -> Option<&'plan HostBindingMechanism> {
+    native_plan
+        .host_abi
+        .bindings
+        .iter()
+        .find(|(_, binding)| binding.capability == capability && binding.operation == operation)
+        .map(|(_, binding)| &binding.mechanism)
 }
 
 fn select_host_operation_operands(
@@ -2226,11 +2313,17 @@ fn runtime_machine_string_descriptor_offset(
 fn text_place_for_buffer_target(
     target: &omega_typed_program::expression::Expression,
 ) -> Option<String> {
+    text_expression_for_buffer_target(target).map(|expression| expression.display_name())
+}
+
+fn text_expression_for_buffer_target(
+    target: &omega_typed_program::expression::Expression,
+) -> Option<Expression> {
     match target {
         omega_typed_program::expression::Expression::Name(path) => {
             let mut text_path = path.clone();
             text_path.push("text".to_owned());
-            Some(omega_typed_program::expression::Expression::Name(text_path).display_name())
+            Some(omega_typed_program::expression::Expression::Name(text_path))
         }
         _ => None,
     }

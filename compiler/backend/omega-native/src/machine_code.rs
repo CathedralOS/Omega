@@ -135,6 +135,11 @@ pub enum MachineInstructionKind {
         byte_offset: usize,
         byte_length: usize,
     },
+    RuntimeTextLineRead {
+        target_offset: usize,
+        byte_capacity: usize,
+        syscall_number: u32,
+    },
     RuntimeStorageCopy {
         source_offset: usize,
         target_offset: usize,
@@ -446,6 +451,23 @@ fn machine_instruction_shape(
             },
             runtime_machine_string_write_width(native_plan.target.architecture, *byte_length),
         ),
+        SelectedInstructionKind::ReadRuntimeTextLine {
+            target_offset,
+            byte_capacity,
+            syscall_number,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextLineRead {
+                target_offset: *target_offset,
+                byte_capacity: *byte_capacity,
+                syscall_number: *syscall_number,
+            },
+            runtime_text_line_read_width(
+                native_plan.target.architecture,
+                *byte_capacity,
+                *syscall_number,
+            ),
+        ),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
             target_offset,
@@ -693,6 +715,17 @@ fn encode_machine_instruction(
             native_plan.target.architecture,
             *byte_offset,
             *byte_length,
+        ),
+        SelectedInstructionKind::ReadRuntimeTextLine {
+            target_offset,
+            byte_capacity,
+            syscall_number,
+            ..
+        } => architecture::encode_runtime_text_line_read(
+            native_plan.target.architecture,
+            *target_offset,
+            *byte_capacity,
+            *syscall_number,
         ),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,
@@ -1059,6 +1092,14 @@ fn runtime_machine_string_write_width(
     byte_length: usize,
 ) -> usize {
     architecture::runtime_machine_string_write_width(architecture, byte_length)
+}
+
+fn runtime_text_line_read_width(
+    architecture: crate::target::Architecture,
+    byte_capacity: usize,
+    syscall_number: u32,
+) -> usize {
+    architecture::runtime_text_line_read_width(architecture, byte_capacity, syscall_number)
 }
 
 fn runtime_storage_copy_width(

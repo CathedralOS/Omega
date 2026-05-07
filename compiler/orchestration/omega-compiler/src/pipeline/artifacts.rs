@@ -2420,6 +2420,17 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
+        SelectedInstructionKind::ReadRuntimeTextLine {
+            buffer_symbol,
+            target_symbol,
+            target_offset,
+            byte_capacity,
+            syscall_number,
+        } => {
+            format!(
+                "read runtime text line syscall {syscall_number} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorage {
             source_symbol,
             source_offset,

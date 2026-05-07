@@ -154,6 +154,19 @@ pub fn runtime_machine_string_write_width(architecture: Architecture, byte_lengt
     }
 }
 
+pub fn runtime_text_line_read_width(
+    architecture: Architecture,
+    byte_capacity: usize,
+    syscall_number: u32,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_text_line_read_width(byte_capacity, syscall_number)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_storage_copy_width(architecture: Architecture, byte_count: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_copy_width(byte_count),
@@ -432,6 +445,20 @@ pub fn encode_runtime_machine_string_write(
     match architecture {
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_line_read(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_capacity: usize,
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_line_read(target_offset, byte_capacity, syscall_number)
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }

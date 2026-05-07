@@ -389,6 +389,31 @@ fn collect_function_relocations(
                     &machine_storage_symbol_name(&native_plan.entry_machine),
                 );
             }
+            SelectedInstructionKind::ReadRuntimeTextLine {
+                buffer_symbol,
+                target_symbol,
+                ..
+            } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    buffer_symbol,
+                );
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset
+                        + runtime_text_line_read_target_address_offset(
+                            native_plan.target.architecture,
+                        ),
+                    target_symbol,
+                );
+            }
             SelectedInstructionKind::CopyRuntimeStorage {
                 source_symbol,
                 target_symbol,
@@ -625,6 +650,13 @@ fn runtime_text_literal_append_target_address_offset(architecture: Architecture)
 fn runtime_text_buffer_materialize_target_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 8,
+    }
+}
+
+fn runtime_text_line_read_target_address_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 88,
         Architecture::X86_64 => 8,
     }
 }
