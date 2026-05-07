@@ -527,74 +527,67 @@ fn append_straight_line_branch_expansions(
     }
 }
 
-fn leaf_branch_bindings(
-    branch_bindings: &[(String, Expression)],
+fn leaf_branch_bindings<'a>(
+    branch_bindings: &'a [(String, Expression)],
     native_plan: &NativePlan,
-    branch_machine: &str,
-    branch_state: &str,
+    _branch_machine: &str,
+    _branch_state: &str,
     leaf_machine: &str,
     leaf_state: &str,
-    leaf_arguments: &[Expression],
-) -> Vec<RuntimeLeafBranchBinding> {
-    let mut bindings = branch_bindings
-        .iter()
-        .map(|(parameter_name, expression)| RuntimeLeafBranchBinding {
-            parameter_name: parameter_name.clone(),
-            expression: expression.clone(),
-            kind: RuntimeLeafBranchBindingKind::BranchParameter,
-        })
-        .collect::<Vec<_>>();
+    leaf_arguments: &'a [Expression],
+) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
+    let branch_parameter_bindings =
+        branch_bindings
+            .iter()
+            .map(|(parameter_name, expression)| RuntimeLeafBranchBinding {
+                parameter_name: parameter_name.clone(),
+                expression: expression.clone(),
+                kind: RuntimeLeafBranchBindingKind::BranchParameter,
+            });
 
     let leaf_parameters = state_parameters(native_plan, leaf_machine, leaf_state);
-    bindings.extend(leaf_parameters.iter().enumerate().filter_map(
-        |(parameter_index, parameter_name)| {
+    let leaf_parameter_bindings = leaf_parameters.into_iter().enumerate().filter_map(
+        move |(parameter_index, parameter_name)| {
             let expression = leaf_arguments.get(parameter_index)?;
             Some(RuntimeLeafBranchBinding {
-                parameter_name: parameter_name.clone(),
+                parameter_name,
                 expression: resolve_branch_expression(expression, &branch_bindings),
                 kind: RuntimeLeafBranchBindingKind::LeafParameter,
             })
         },
-    ));
+    );
 
-    if state_parameters(native_plan, branch_machine, branch_state).is_empty() {
-        return bindings;
-    }
-
-    bindings
+    branch_parameter_bindings.chain(leaf_parameter_bindings)
 }
 
-fn straight_line_branch_bindings(
-    branch_bindings: &[(String, Expression)],
+fn straight_line_branch_bindings<'a>(
+    branch_bindings: &'a [(String, Expression)],
     native_plan: &NativePlan,
     target_machine: &str,
     target_state: &str,
-    target_arguments: &[Expression],
-) -> Vec<RuntimeStraightLineBranchBinding> {
-    let mut bindings = branch_bindings
-        .iter()
-        .map(
-            |(parameter_name, expression)| RuntimeStraightLineBranchBinding {
-                parameter_name: parameter_name.clone(),
-                expression: expression.clone(),
-                kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
-            },
-        )
-        .collect::<Vec<_>>();
+    target_arguments: &'a [Expression],
+) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
+    let branch_parameter_bindings = branch_bindings.iter().map(|(parameter_name, expression)| {
+        RuntimeStraightLineBranchBinding {
+            parameter_name: parameter_name.clone(),
+            expression: expression.clone(),
+            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+        }
+    });
 
     let target_parameters = state_parameters(native_plan, target_machine, target_state);
-    bindings.extend(target_parameters.iter().enumerate().filter_map(
-        |(parameter_index, parameter_name)| {
+    let target_parameter_bindings = target_parameters.into_iter().enumerate().filter_map(
+        move |(parameter_index, parameter_name)| {
             let expression = target_arguments.get(parameter_index)?;
             Some(RuntimeStraightLineBranchBinding {
-                parameter_name: parameter_name.clone(),
+                parameter_name,
                 expression: resolve_branch_expression(expression, branch_bindings),
                 kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
             })
         },
-    ));
+    );
 
-    bindings
+    branch_parameter_bindings.chain(target_parameter_bindings)
 }
 
 fn resolve_branch_guard(
