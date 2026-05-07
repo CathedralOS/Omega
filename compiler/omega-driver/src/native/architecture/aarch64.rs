@@ -25,6 +25,10 @@ pub fn dispatch_case_leave_width() -> usize {
     4
 }
 
+pub fn dispatch_guard_compare_static_width() -> usize {
+    20
+}
+
 pub fn operand_width(operand: &InstructionOperand) -> usize {
     match &operand.kind {
         InstructionOperandKind::DataAddress { .. } => 8,
@@ -89,6 +93,31 @@ pub fn encode_dispatch_case_leave(loop_byte_distance: isize) -> Result<Vec<u8>, 
     encode_unconditional_branch(loop_byte_distance)
 }
 
+pub fn encode_dispatch_guard_compare_static(
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    skip_byte_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let expected_value = u32::try_from(expected_value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot compare negative guard value `{expected_value}` yet"
+        ))
+    })?;
+
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_w17_from_x16(byte_offset, byte_size)?);
+    bytes.extend(encode_compare_w17_immediate(expected_value)?);
+    bytes.extend(if branch_when_equal {
+        encode_conditional_branch_equal(skip_byte_distance)?
+    } else {
+        encode_conditional_branch_not_equal(skip_byte_distance)?
+    });
+    Ok(bytes)
+}
+
 fn encode_movz(register: u8, immediate: u16) -> Vec<u8> {
     encode_instruction(0xD2800000 | (u32::from(immediate) << 5) | u32::from(register))
 }
@@ -130,10 +159,57 @@ fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
     ))
 }
 
+fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
+    if value > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot compare guard value `{value}` yet"
+        )));
+    }
+
+    Ok(encode_instruction(
+        0x7100001F | (value << 10) | (u32::from(17u8) << 5),
+    ))
+}
+
+fn encode_load_w17_from_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u8>, Diagnostic> {
+    match byte_size {
+        1 => {
+            if byte_offset > 4095 {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load byte guard at offset `{byte_offset}` yet"
+                )));
+            }
+            Ok(encode_instruction(
+                0x39400000 | ((byte_offset as u32) << 10) | (u32::from(16u8) << 5) | 17,
+            ))
+        }
+        4 => {
+            if !byte_offset.is_multiple_of(4) || byte_offset / 4 > 4095 {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load u32 guard at offset `{byte_offset}` yet"
+                )));
+            }
+            Ok(encode_instruction(
+                0xB9400000 | (((byte_offset / 4) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+            ))
+        }
+        _ => Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot load {byte_size}-byte guard operands yet"
+        ))),
+    }
+}
+
 fn encode_conditional_branch_not_equal(byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ne")?;
     Ok(encode_instruction(
         0x54000001 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+fn encode_conditional_branch_equal(byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.eq")?;
+    Ok(encode_instruction(
+        0x54000000 | ((instruction_distance as u32 & 0x7ffff) << 5),
     ))
 }
 

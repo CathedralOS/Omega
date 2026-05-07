@@ -8,6 +8,7 @@ use crate::native::runtime_dispatch::loop_plan::{
 };
 use crate::native::runtime_text::RuntimeTextSource;
 use crate::native::state_guards::StateGuardLowering;
+use crate::native::state_guards::StateGuardOperator;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
@@ -84,6 +85,11 @@ pub enum SelectedInstructionKind {
     },
     EvaluateDispatchGuard {
         guard_lowering: StateGuardLowering,
+        operator: StateGuardOperator,
+        byte_offset: usize,
+        byte_size: usize,
+        expected_value: i64,
+        has_storage: bool,
     },
     SetDispatchState {
         dispatch_index: u32,
@@ -284,6 +290,11 @@ fn select_runtime_dispatch_edge(
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: edge.guard_lowering,
+            operator: edge.guard_operator,
+            byte_offset: edge.guard_byte_offset,
+            byte_size: edge.guard_byte_size,
+            expected_value: edge.guard_expected_value,
+            has_storage: edge.guard_has_storage,
         },
         source_machine: source_machine.to_owned(),
         source_state: source_state.to_owned(),

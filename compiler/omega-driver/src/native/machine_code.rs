@@ -2,6 +2,7 @@ use crate::diagnostics::Diagnostic;
 use crate::native::architecture;
 use crate::native::instructions::SelectedInstructionKind;
 use crate::native::plan::NativePlan;
+use crate::native::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::native::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -74,6 +75,12 @@ pub enum MachineInstructionKind {
     },
     DispatchCaseEnter {
         dispatch_index: u32,
+    },
+    DispatchGuardCompareStatic {
+        operator: StateGuardOperator,
+        byte_offset: usize,
+        byte_size: usize,
+        expected_value: i64,
     },
     DispatchStateWrite {
         dispatch_index: u32,
@@ -223,6 +230,23 @@ fn machine_instruction_shape(
             },
             dispatch_case_enter_width(native_plan.target.architecture),
         ),
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator: operator @ (StateGuardOperator::Equal | StateGuardOperator::NotEqual),
+            byte_offset,
+            byte_size,
+            expected_value,
+            has_storage: true,
+            ..
+        } => (
+            MachineInstructionKind::DispatchGuardCompareStatic {
+                operator: *operator,
+                byte_offset: *byte_offset,
+                byte_size: *byte_size,
+                expected_value: *expected_value,
+            },
+            dispatch_guard_compare_static_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => (
             MachineInstructionKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,
@@ -278,6 +302,22 @@ fn encode_machine_instruction(
                 byte_distance_to_case_end(machine_instructions, machine_instruction_index)?,
             )
         }
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: StateGuardLowering::CompareStaticValue,
+            operator: operator @ (StateGuardOperator::Equal | StateGuardOperator::NotEqual),
+            byte_offset,
+            byte_size,
+            expected_value,
+            has_storage: true,
+            ..
+        } => architecture::encode_dispatch_guard_compare_static(
+            native_plan.target.architecture,
+            *byte_offset,
+            *byte_size,
+            *expected_value,
+            byte_distance_to_next_state_write_end(machine_instructions, machine_instruction_index)?,
+            *operator == StateGuardOperator::NotEqual,
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             architecture::encode_dispatch_state_write(
                 native_plan.target.architecture,
@@ -322,6 +362,34 @@ fn byte_distance_to_case_end(
 
     let branch_program_counter = current.offset + 4;
     let target = case_leave.offset + case_leave.byte_width;
+    Ok(target as isize - branch_program_counter as isize)
+}
+
+fn byte_distance_to_next_state_write_end(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(state_write) = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                MachineInstructionKind::DispatchStateWrite { .. }
+            )
+        })
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode dispatch guard at byte {}: missing guarded state write",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + 16;
+    let target = state_write.offset + state_write.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }
 
@@ -374,4 +442,8 @@ fn dispatch_state_write_width(architecture: crate::native::target::Architecture)
 
 fn dispatch_case_leave_width(architecture: crate::native::target::Architecture) -> usize {
     architecture::dispatch_case_leave_width(architecture)
+}
+
+fn dispatch_guard_compare_static_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::dispatch_guard_compare_static_width(architecture)
 }

@@ -1106,6 +1106,14 @@ impl ArtifactWriter {
                                 edge.action,
                                 transition_guard_name(&edge.guard)
                             ));
+                            if edge.guard_has_storage {
+                                output.push_str(&format!(
+                                    " storage offset {} bytes {} expected {}",
+                                    edge.guard_byte_offset,
+                                    edge.guard_byte_size,
+                                    edge.guard_expected_value
+                                ));
+                            }
 
                             if edge.continuation != RuntimeTransitionTarget::None {
                                 output.push_str(&format!(
@@ -2276,8 +2284,21 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             dispatch_index,
             label,
         } => format!("enter dispatch case #{dispatch_index} `{label}`"),
-        SelectedInstructionKind::EvaluateDispatchGuard { guard_lowering } => {
-            format!("evaluate dispatch guard {guard_lowering:?}")
+        SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering,
+            operator,
+            byte_offset,
+            byte_size,
+            expected_value,
+            has_storage,
+        } => {
+            if *has_storage {
+                format!(
+                    "evaluate dispatch guard {guard_lowering:?}/{operator:?} offset {byte_offset} bytes {byte_size} expected {expected_value}"
+                )
+            } else {
+                format!("evaluate dispatch guard {guard_lowering:?}/{operator:?}")
+            }
         }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")

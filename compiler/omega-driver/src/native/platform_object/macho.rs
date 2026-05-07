@@ -13,7 +13,7 @@ pub fn emit_macho_arm64_object(
     let relocations = macho_text_relocations(native_plan)?;
     let symbols = macho_symbols(native_plan);
     let string_table = macho_string_table(&symbols);
-    let section_count = if data_bytes.is_empty() { 1 } else { 2 };
+    let section_count = 1 + usize::from(!data_bytes.is_empty()) + usize::from(bss_bytes > 0);
     let segment_command_size = 72 + section_count * 80;
     let sizeofcmds = segment_command_size + 24 + 24 + 80;
     let first_section_offset = 32 + sizeofcmds;
@@ -41,6 +41,14 @@ pub fn emit_macho_arm64_object(
     );
     if !data_bytes.is_empty() {
         write_macho_data_section(&mut bytes, text_bytes.len(), data_bytes.len(), data_offset);
+    }
+    if bss_bytes > 0 {
+        write_macho_bss_section(
+            &mut bytes,
+            text_bytes.len() + data_bytes.len(),
+            bss_bytes,
+            native_plan,
+        );
     }
     write_macho_build_version_command(&mut bytes);
     write_macho_symtab_command(
@@ -117,6 +125,11 @@ fn macho_symbols(native_plan: &NativePlan) -> Vec<MachOSymbol> {
     } else {
         2
     };
+    let bss_section_ordinal = if native_plan.data.bytes.is_empty() {
+        2
+    } else {
+        3
+    };
 
     for (_, symbol) in native_plan.object.symbols.iter() {
         if symbol.kind == SymbolKind::Object
@@ -128,6 +141,25 @@ fn macho_symbols(native_plan: &NativePlan) -> Vec<MachOSymbol> {
                 section_ordinal: data_section_ordinal,
                 value: u64::try_from(native_plan.machine_code.byte_count + symbol.offset)
                     .expect("Mach-O data symbol value overflow"),
+                kind: MachOSymbolKind::LocalSection,
+            });
+        }
+    }
+
+    for (_, symbol) in native_plan.object.symbols.iter() {
+        if symbol.kind == SymbolKind::Object
+            && symbol.size > 0
+            && symbol.section.as_deref() == Some("__DATA,__bss")
+        {
+            symbols.push(MachOSymbol {
+                name: symbol.name.clone(),
+                section_ordinal: bss_section_ordinal,
+                value: u64::try_from(
+                    native_plan.machine_code.byte_count
+                        + native_plan.data.bytes.len()
+                        + symbol.offset,
+                )
+                .expect("Mach-O bss symbol value overflow"),
                 kind: MachOSymbolKind::LocalSection,
             });
         }
@@ -335,6 +367,35 @@ fn write_macho_data_section(
     write_u32(bytes, 0);
 }
 
+fn write_macho_bss_section(
+    bytes: &mut Vec<u8>,
+    bss_address: usize,
+    bss_size: usize,
+    native_plan: &NativePlan,
+) {
+    write_fixed_string_16(bytes, "__bss");
+    write_fixed_string_16(bytes, "__DATA");
+    write_u64(
+        bytes,
+        u64::try_from(bss_address).expect("Mach-O bss address overflow"),
+    );
+    write_u64(
+        bytes,
+        u64::try_from(bss_size).expect("Mach-O bss size overflow"),
+    );
+    write_u32(bytes, 0);
+    write_u32(
+        bytes,
+        u32::try_from(bss_alignment_power(native_plan)).expect("Mach-O bss alignment overflow"),
+    );
+    write_u32(bytes, 0);
+    write_u32(bytes, 0);
+    write_u32(bytes, 1);
+    write_u32(bytes, 0);
+    write_u32(bytes, 0);
+    write_u32(bytes, 0);
+}
+
 fn write_macho_build_version_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x32);
     write_u32(bytes, 24);
@@ -466,6 +527,18 @@ fn bss_size(native_plan: &NativePlan) -> usize {
         .find(|(_, section)| section.kind == SectionKind::Bss)
         .map(|(_, section)| section.size)
         .unwrap_or(0)
+}
+
+fn bss_alignment_power(native_plan: &NativePlan) -> usize {
+    let alignment = native_plan
+        .object
+        .sections
+        .iter()
+        .find(|(_, section)| section.kind == SectionKind::Bss)
+        .map(|(_, section)| section.alignment.max(1))
+        .unwrap_or(1);
+
+    alignment.trailing_zeros() as usize
 }
 
 fn write_fixed_string_16(bytes: &mut Vec<u8>, value: &str) {

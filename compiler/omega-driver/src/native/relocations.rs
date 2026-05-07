@@ -4,7 +4,9 @@ use crate::native::architecture;
 use crate::native::instructions::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstructionKind,
 };
+use crate::native::object::machine_storage_symbol_name;
 use crate::native::plan::NativePlan;
+use crate::native::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::native::target::{Architecture, NativeTarget};
 use omega_core::arena::Arena;
 
@@ -82,15 +84,6 @@ fn collect_function_relocations(
     };
 
     for (offset, instruction) in instructions.iter().enumerate() {
-        let SelectedInstructionKind::HostOperation {
-            capability,
-            operation,
-            operands,
-        } = &instruction.kind
-        else {
-            continue;
-        };
-
         let selected_instruction_index = function
             .instructions
             .start()
@@ -101,39 +94,63 @@ fn collect_function_relocations(
         let selected_text_offset =
             selected_instruction_text_offset(native_plan, function, selected_instruction_index)?;
 
-        collect_data_address_relocations(
-            native_plan,
-            function,
-            selected_instruction_index,
-            *operands,
-            selected_text_offset,
-            relocation_plan,
-        );
+        match &instruction.kind {
+            SelectedInstructionKind::HostOperation {
+                capability,
+                operation,
+                operands,
+            } => {
+                collect_data_address_relocations(
+                    native_plan,
+                    function,
+                    selected_instruction_index,
+                    *operands,
+                    selected_text_offset,
+                    relocation_plan,
+                );
 
-        let Some(binding) = find_host_binding(native_plan, capability, operation) else {
-            continue;
-        };
+                let Some(binding) = find_host_binding(native_plan, capability, operation) else {
+                    continue;
+                };
 
-        let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
-            continue;
-        };
+                let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
+                    continue;
+                };
 
-        relocation_plan.records.insert(RelocationRecord {
-            function_symbol: function.symbol.clone(),
-            selected_instruction_index,
-            text_offset: external_call_relocation_offset(
-                native_plan.target.architecture,
-                selected_text_offset,
-                native_plan
-                    .instructions
-                    .operands
-                    .span(*operands)
-                    .unwrap_or(&[]),
-            ),
-            byte_width: external_call_relocation_width(native_plan.target.architecture),
-            symbol: symbol.clone(),
-            kind: external_call_relocation_kind(native_plan.target.architecture),
-        });
+                relocation_plan.records.insert(RelocationRecord {
+                    function_symbol: function.symbol.clone(),
+                    selected_instruction_index,
+                    text_offset: external_call_relocation_offset(
+                        native_plan.target.architecture,
+                        selected_text_offset,
+                        native_plan
+                            .instructions
+                            .operands
+                            .span(*operands)
+                            .unwrap_or(&[]),
+                    ),
+                    byte_width: external_call_relocation_width(native_plan.target.architecture),
+                    symbol: symbol.clone(),
+                    kind: external_call_relocation_kind(native_plan.target.architecture),
+                });
+            }
+            SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering: StateGuardLowering::CompareStaticValue,
+                operator: StateGuardOperator::Equal | StateGuardOperator::NotEqual,
+                has_storage: true,
+                ..
+            } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    &machine_storage_symbol_name(&native_plan.entry_machine),
+                );
+            }
+            _ => {}
+        }
     }
 
     Ok(())

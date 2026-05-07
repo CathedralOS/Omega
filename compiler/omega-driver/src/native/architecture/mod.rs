@@ -49,6 +49,13 @@ pub fn dispatch_case_leave_width(architecture: Architecture) -> usize {
     }
 }
 
+pub fn dispatch_guard_compare_static_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::dispatch_guard_compare_static_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn encode_host_call_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
@@ -105,6 +112,26 @@ pub fn encode_dispatch_case_leave(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_dispatch_case_leave(loop_byte_distance),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_dispatch_guard_compare_static(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    skip_byte_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static(
+            byte_offset,
+            byte_size,
+            expected_value,
+            skip_byte_distance,
+            branch_when_equal,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

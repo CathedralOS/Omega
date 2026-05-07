@@ -67,7 +67,7 @@ pub fn build_native_plan(
     let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
     let state_dispatch = build_state_dispatch_plan(&runtime_flow);
     let layouts = build_layout_plan(program, target)?;
-    let state_guards = build_state_guard_plan(&state_dispatch, &layouts);
+    let state_guards = build_state_guard_plan(&state_dispatch, &layouts, &entry_machine);
 
     let mut native_plan = NativePlan {
         target,

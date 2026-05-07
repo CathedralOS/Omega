@@ -13,7 +13,7 @@ use crate::native::runtime_text::{
     RuntimeTextSource, RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
 };
 use crate::native::state_calls::StateCallLowering;
-use crate::native::state_guards::StateGuardLowering;
+use crate::native::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::state_storage::StateMutationLowering;
 use crate::native::state_values::{StateValueKind, StateValueRole};
@@ -1176,8 +1176,7 @@ fn runtime_dispatch_loop_can_emit(native_plan: &NativePlan) -> bool {
         .edges
         .iter()
         .all(|(_, edge)| {
-            edge.guard_lowering == StateGuardLowering::NoOp
-                && edge.action != RuntimeDispatchLoopAction::Unknown
+            dispatch_loop_guard_can_emit(edge) && edge.action != RuntimeDispatchLoopAction::Unknown
         })
 }
 
@@ -1186,8 +1185,27 @@ fn first_unsupported_dispatch_guard(native_plan: &NativePlan) -> Option<StateGua
         .runtime_dispatch_loop
         .edges
         .iter()
-        .find(|(_, edge)| edge.guard_lowering != StateGuardLowering::NoOp)
+        .find(|(_, edge)| !dispatch_loop_guard_can_emit(edge))
         .map(|(_, edge)| edge.guard_lowering)
+}
+
+fn dispatch_loop_guard_can_emit(
+    edge: &crate::native::runtime_dispatch::loop_plan::RuntimeDispatchLoopEdge,
+) -> bool {
+    match edge.guard_lowering {
+        StateGuardLowering::NoOp => true,
+        StateGuardLowering::CompareStaticValue => {
+            edge.guard_has_storage
+                && matches!(
+                    edge.guard_operator,
+                    StateGuardOperator::Equal | StateGuardOperator::NotEqual
+                )
+                && matches!(edge.guard_byte_size, 1 | 4)
+        }
+        StateGuardLowering::CompareRuntimeValue | StateGuardLowering::NeedsRuntimeExpression => {
+            false
+        }
+    }
 }
 
 fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {

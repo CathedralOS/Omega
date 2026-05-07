@@ -177,7 +177,11 @@ fn entry_symbol_name(target: NativeTarget) -> String {
 }
 
 fn machine_storage_symbol(machine_layout: &MachineLayout) -> String {
-    format!("omega_machine_{}_storage", machine_layout.name)
+    machine_storage_symbol_name(&machine_layout.name)
+}
+
+pub fn machine_storage_symbol_name(machine_name: &str) -> String {
+    format!("omega_machine_{machine_name}_storage")
 }
 
 fn section_name(target: NativeTarget, kind: SectionKind) -> String {

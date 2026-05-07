@@ -130,6 +130,7 @@ pub enum StateGuardOperandStorage {
 pub fn build_state_guard_plan(
     state_dispatch: &StateDispatchPlan,
     layouts: &LayoutPlan,
+    entry_machine: &str,
 ) -> StateGuardPlan {
     let mut plan = StateGuardPlan::default();
 
@@ -142,6 +143,7 @@ pub fn build_state_guard_plan(
             plan.guards.insert(build_state_guard(
                 &mut plan.operands,
                 layouts,
+                entry_machine,
                 &state.machine,
                 &state.state,
                 state.dispatch_index,
@@ -177,6 +179,7 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 fn build_state_guard(
     operands: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
+    entry_machine: &str,
     source_machine: &str,
     source_state: &str,
     source_dispatch_index: u32,
@@ -184,7 +187,7 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let guard_operands = guard_operands(layouts, source_machine, &edge.guard);
+    let guard_operands = guard_operands(layouts, entry_machine, source_machine, &edge.guard);
     let lowering = guard_lowering(kind, operator, &guard_operands);
     let operands = operands.insert_many(guard_operands);
 
@@ -275,6 +278,7 @@ fn guard_operator(expression: &Expression) -> StateGuardOperator {
 
 fn guard_operands(
     layouts: &LayoutPlan,
+    entry_machine: &str,
     source_machine: &str,
     guard: &TransitionGuard,
 ) -> Vec<StateGuardOperand> {
@@ -286,7 +290,8 @@ fn guard_operands(
         .into_iter()
         .map(|expression| {
             let resolved_value = resolved_guard_operand_value(layouts, &expression);
-            let operand_layout = resolve_guard_operand_layout(layouts, source_machine, &expression);
+            let operand_layout =
+                resolve_guard_operand_layout(layouts, entry_machine, source_machine, &expression);
             StateGuardOperand {
                 kind: classify_guard_operand(&expression),
                 storage: operand_layout
@@ -318,6 +323,7 @@ struct ResolvedOperandLayout {
 
 fn resolve_guard_operand_layout(
     layouts: &LayoutPlan,
+    entry_machine: &str,
     source_machine: &str,
     expression: &Expression,
 ) -> Option<ResolvedOperandLayout> {
@@ -327,6 +333,7 @@ fn resolve_guard_operand_layout(
     let [root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
+    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts
         .iter()
@@ -337,10 +344,32 @@ fn resolve_guard_operand_layout(
     resolve_nested_field_layout(layouts, root_field, suffix).map(|(byte_offset, layout)| {
         ResolvedOperandLayout {
             storage: StateGuardOperandStorage::MachineOwned,
-            byte_offset,
+            byte_offset: machine_base_offset + byte_offset,
             layout,
         }
     })
+}
+
+fn machine_storage_offset(
+    layouts: &LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+) -> Option<usize> {
+    if entry_machine == source_machine {
+        return Some(0);
+    }
+
+    let entry_layout = layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.name == entry_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
+    let fields = layouts.fields.span(entry_layout.fields)?;
+
+    fields
+        .iter()
+        .find(|field| field.type_name == source_machine)
+        .map(|field| field.offset)
 }
 
 fn resolve_nested_field_layout(

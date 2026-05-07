@@ -1,7 +1,9 @@
 use crate::ir::statement::TransitionGuard;
 use crate::native::plan::NativePlan;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
-use crate::native::state_guards::StateGuardLowering;
+use crate::native::state_guards::{
+    StateGuardLowering, StateGuardOperandKind, StateGuardOperandStorage, StateGuardOperator,
+};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -47,6 +49,11 @@ pub struct RuntimeDispatchLoopEdge {
     pub continuation_dispatch_index: u32,
     pub guard: TransitionGuard,
     pub guard_lowering: StateGuardLowering,
+    pub guard_operator: StateGuardOperator,
+    pub guard_byte_offset: usize,
+    pub guard_byte_size: usize,
+    pub guard_expected_value: i64,
+    pub guard_has_storage: bool,
     pub action: RuntimeDispatchLoopAction,
     pub forms_cycle: bool,
 }
@@ -61,6 +68,11 @@ impl Default for RuntimeDispatchLoopEdge {
             continuation_dispatch_index: 0,
             guard: TransitionGuard::Always,
             guard_lowering: StateGuardLowering::NoOp,
+            guard_operator: StateGuardOperator::None,
+            guard_byte_offset: 0,
+            guard_byte_size: 0,
+            guard_expected_value: 0,
+            guard_has_storage: false,
             action: RuntimeDispatchLoopAction::Unknown,
             forms_cycle: false,
         }
@@ -101,16 +113,25 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
         let edges = dispatch_edges
             .iter()
             .enumerate()
-            .map(|(order, edge)| RuntimeDispatchLoopEdge {
-                order,
-                target: edge.target.clone(),
-                target_dispatch_index: edge.target_dispatch_index,
-                continuation: edge.continuation.clone(),
-                continuation_dispatch_index: edge.continuation_dispatch_index,
-                guard: edge.guard.clone(),
-                guard_lowering: guard_lowering(native_plan, state.dispatch_index, order),
-                action: dispatch_action(&edge.target),
-                forms_cycle: edge.forms_cycle,
+            .map(|(order, edge)| {
+                let guard_comparison =
+                    dispatch_guard_comparison(native_plan, state.dispatch_index, order);
+                RuntimeDispatchLoopEdge {
+                    order,
+                    target: edge.target.clone(),
+                    target_dispatch_index: edge.target_dispatch_index,
+                    continuation: edge.continuation.clone(),
+                    continuation_dispatch_index: edge.continuation_dispatch_index,
+                    guard: edge.guard.clone(),
+                    guard_lowering: guard_comparison.lowering,
+                    guard_operator: guard_comparison.operator,
+                    guard_byte_offset: guard_comparison.byte_offset,
+                    guard_byte_size: guard_comparison.byte_size,
+                    guard_expected_value: guard_comparison.expected_value,
+                    guard_has_storage: guard_comparison.has_storage,
+                    action: dispatch_action(&edge.target),
+                    forms_cycle: edge.forms_cycle,
+                }
             })
             .collect::<Vec<_>>();
         let operation_count = runtime_body_operation_count(native_plan, state.dispatch_index);
@@ -141,12 +162,22 @@ fn dispatch_index_for_state(native_plan: &NativePlan, machine: &str, state: &str
         .unwrap_or(0)
 }
 
-fn guard_lowering(
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct DispatchGuardComparison {
+    lowering: StateGuardLowering,
+    operator: StateGuardOperator,
+    byte_offset: usize,
+    byte_size: usize,
+    expected_value: i64,
+    has_storage: bool,
+}
+
+fn dispatch_guard_comparison(
     native_plan: &NativePlan,
     source_dispatch_index: u32,
     statement_order: usize,
-) -> StateGuardLowering {
-    native_plan
+) -> DispatchGuardComparison {
+    let Some(guard) = native_plan
         .state_guards
         .guards
         .iter()
@@ -154,8 +185,45 @@ fn guard_lowering(
             guard.source_dispatch_index == source_dispatch_index
                 && guard.statement_order == statement_order
         })
-        .map(|(_, guard)| guard.lowering)
-        .unwrap_or(StateGuardLowering::NeedsRuntimeExpression)
+        .map(|(_, guard)| guard)
+    else {
+        return DispatchGuardComparison {
+            lowering: StateGuardLowering::NeedsRuntimeExpression,
+            ..DispatchGuardComparison::default()
+        };
+    };
+
+    let Some(operands) = native_plan.state_guards.operands.span(guard.operands) else {
+        return DispatchGuardComparison {
+            lowering: guard.lowering,
+            operator: guard.operator,
+            ..DispatchGuardComparison::default()
+        };
+    };
+    let Some(place_operand) = operands.iter().find(|operand| {
+        operand.kind == StateGuardOperandKind::Place
+            && operand.storage == StateGuardOperandStorage::MachineOwned
+    }) else {
+        return DispatchGuardComparison {
+            lowering: guard.lowering,
+            operator: guard.operator,
+            ..DispatchGuardComparison::default()
+        };
+    };
+    let expected_value = operands
+        .iter()
+        .find(|operand| operand.has_resolved_value)
+        .map(|operand| operand.resolved_value)
+        .unwrap_or(0);
+
+    DispatchGuardComparison {
+        lowering: guard.lowering,
+        operator: guard.operator,
+        byte_offset: place_operand.byte_offset,
+        byte_size: place_operand.byte_size,
+        expected_value,
+        has_storage: true,
+    }
 }
 
 fn dispatch_action(target: &RuntimeTransitionTarget) -> RuntimeDispatchLoopAction {
