@@ -1565,6 +1565,18 @@ impl ArtifactWriter {
         output.push_str(&format!("bss bytes: {}\n", emitted_output.bss_bytes));
         output.push_str(&format!("symbols: {}\n", emitted_output.symbols));
         output.push_str(&format!("relocations: {}\n", emitted_output.relocations));
+        output.push_str(&format!(
+            "final image symbols: {}\n",
+            emitted_output.final_image_symbols
+        ));
+        output.push_str(&format!(
+            "final image imports: {}\n",
+            emitted_output.final_image_imports
+        ));
+        output.push_str(&format!(
+            "final image relocations: {}\n",
+            emitted_output.final_image_relocations
+        ));
 
         self.write("12_emitted_output.txt", &output)?;
 

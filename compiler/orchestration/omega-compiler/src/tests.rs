@@ -2967,6 +2967,9 @@ fn compile_emits_direct_linux_arm64_elf() {
 
     assert_eq!(&bytes[0..4], b"\x7fELF");
     assert!(emitted_report.contains("format: elf64-aarch64-executable"));
+    assert!(emitted_report.contains("kind: DirectExecutable"));
+    assert!(emitted_report.contains("final image symbols:"));
+    assert!(emitted_report.contains("final image relocations:"));
     assert!(finalization_report.contains("command: none"));
     assert!(finalization_report.contains("status: AlreadyExecutable"));
     assert!(output.summary.contains("finalized"));

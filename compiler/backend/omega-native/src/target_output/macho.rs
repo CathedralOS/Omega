@@ -80,6 +80,9 @@ pub fn emit_macho_arm64_object(
         bss_bytes,
         symbols: symbols.len(),
         relocations: relocations.len(),
+        final_image_symbols: 0,
+        final_image_imports: 0,
+        final_image_relocations: 0,
     })
 }
 

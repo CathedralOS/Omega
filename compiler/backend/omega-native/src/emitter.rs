@@ -16,6 +16,9 @@ pub struct EmittedNativeOutput {
     pub bss_bytes: usize,
     pub symbols: usize,
     pub relocations: usize,
+    pub final_image_symbols: usize,
+    pub final_image_imports: usize,
+    pub final_image_relocations: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +89,9 @@ fn emit_omega_native_container(
         bss_bytes,
         symbols: native_plan.object.symbols.len(),
         relocations: native_plan.relocations.records.len(),
+        final_image_symbols: 0,
+        final_image_imports: 0,
+        final_image_relocations: 0,
     })
 }
 

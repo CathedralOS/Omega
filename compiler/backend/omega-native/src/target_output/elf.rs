@@ -58,6 +58,9 @@ pub fn emit_elf_arm64_executable(
         bss_bytes: image.bss_size,
         symbols: image.symbols.len(),
         relocations: image.relocations.len(),
+        final_image_symbols: image.symbols.len(),
+        final_image_imports: image.imports.len(),
+        final_image_relocations: image.relocations.len(),
     })
 }
 
