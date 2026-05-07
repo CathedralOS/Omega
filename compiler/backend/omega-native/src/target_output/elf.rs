@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::emitter::EmittedNativeOutput;
-use crate::object::{SectionKind, SymbolKind};
+use crate::final_image::{FinalImage, FinalImageSection, build_final_image};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
 use omega_core::diagnostics::Diagnostic;
@@ -15,64 +15,61 @@ const PAGE_SIZE: usize = 0x1000;
 pub fn emit_elf_arm64_executable(
     native_plan: &NativePlan,
 ) -> Result<EmittedNativeOutput, Diagnostic> {
-    let mut text = native_plan.machine_code.bytes.storage_slice().to_vec();
-    let data = native_plan.data.bytes.storage_slice();
-    let bss_size = section_size(native_plan, SectionKind::Bss);
-    let bss_alignment = section_alignment(native_plan, SectionKind::Bss);
+    let mut image = build_final_image(native_plan);
     let text_offset = align_to(
         ELF_HEADER_SIZE + PROGRAM_HEADER_SIZE * PROGRAM_HEADER_COUNT,
         PAGE_SIZE,
     );
-    let data_offset = align_to(text_offset + text.len(), PAGE_SIZE);
+    let data_offset = align_to(text_offset + image.text.len(), PAGE_SIZE);
     let text_address = IMAGE_BASE + text_offset as u64;
     let data_address = IMAGE_BASE + data_offset as u64;
-    let bss_address = align_to_u64(data_address + data.len() as u64, bss_alignment as u64);
+    let bss_address = align_to_u64(
+        data_address + image.data.len() as u64,
+        image.bss_alignment as u64,
+    );
     let symbol_addresses =
-        collect_symbol_addresses(native_plan, text_address, data_address, bss_address);
+        collect_symbol_addresses(&image, text_address, data_address, bss_address);
 
-    apply_relocations(native_plan, &mut text, text_address, &symbol_addresses)?;
+    apply_relocations(&mut image, text_address, &symbol_addresses)?;
 
     let data_memory_size = (bss_address - data_address)
-        .checked_add(bss_size as u64)
+        .checked_add(image.bss_size as u64)
         .expect("ELF data memory size overflow");
-    let mut bytes = Vec::with_capacity(data_offset + data.len());
+    let mut bytes = Vec::with_capacity(data_offset + image.data.len());
     write_elf_header(&mut bytes, text_address, text_offset, data_offset);
-    write_text_program_header(&mut bytes, text_offset, text.len());
-    write_data_program_header(&mut bytes, data_offset, data.len(), data_memory_size);
+    write_text_program_header(&mut bytes, text_offset, image.text.len());
+    write_data_program_header(&mut bytes, data_offset, image.data.len(), data_memory_size);
     bytes.resize(text_offset, 0);
-    bytes.extend(&text);
+    bytes.extend(&image.text);
     bytes.resize(data_offset, 0);
-    bytes.extend(data);
+    bytes.extend(&image.data);
 
     Ok(EmittedNativeOutput {
         bytes,
         file_name: "omega-program".to_owned(),
         format: "elf64-aarch64-executable".to_owned(),
-        text_bytes: text.len(),
-        data_bytes: data.len(),
-        bss_bytes: bss_size,
-        symbols: native_plan.object.symbols.len(),
-        relocations: native_plan.relocations.records.len(),
+        text_bytes: image.text.len(),
+        data_bytes: image.data.len(),
+        bss_bytes: image.bss_size,
+        symbols: image.symbols.len(),
+        relocations: image.relocations.len(),
     })
 }
 
 fn collect_symbol_addresses(
-    native_plan: &NativePlan,
+    image: &FinalImage,
     text_address: u64,
     data_address: u64,
     bss_address: u64,
 ) -> BTreeMap<String, u64> {
     let mut symbol_addresses = BTreeMap::new();
 
-    for (_, symbol) in native_plan.object.symbols.iter() {
-        let Some(section) = symbol.section.as_deref() else {
-            continue;
-        };
-        let section_address = match section_kind(section) {
-            Some(SectionKind::Text) => text_address,
-            Some(SectionKind::Data) => data_address,
-            Some(SectionKind::Bss) => bss_address,
-            None => continue,
+    for (_, symbol) in image.symbols.iter() {
+        let section_address = match symbol.section {
+            FinalImageSection::Text => text_address,
+            FinalImageSection::Data => data_address,
+            FinalImageSection::Bss => bss_address,
+            FinalImageSection::None => continue,
         };
         symbol_addresses.insert(symbol.name.clone(), section_address + symbol.offset as u64);
     }
@@ -81,16 +78,13 @@ fn collect_symbol_addresses(
 }
 
 fn apply_relocations(
-    native_plan: &NativePlan,
-    text: &mut [u8],
+    image: &mut FinalImage,
     text_address: u64,
     symbol_addresses: &BTreeMap<String, u64>,
 ) -> Result<(), Diagnostic> {
-    for (_, relocation) in native_plan.relocations.records.iter() {
+    for (_, relocation) in image.relocations.iter() {
         let Some(symbol_address) = symbol_addresses.get(&relocation.symbol).copied() else {
-            if native_plan.object.symbols.iter().any(|(_, symbol)| {
-                symbol.name == relocation.symbol && symbol.kind == SymbolKind::Import
-            }) {
+            if image_imports_symbol(image, &relocation.symbol) {
                 return Err(Diagnostic::error(format!(
                     "ELF direct image cannot import `{}` yet; use syscalls or add dynamic linking",
                     relocation.symbol
@@ -106,18 +100,22 @@ fn apply_relocations(
         match relocation.kind {
             RelocationKind::Aarch64Page21 => {
                 patch_aarch64_adrp(
-                    text,
+                    &mut image.text,
                     relocation.text_offset,
                     text_address + relocation.text_offset as u64,
                     symbol_address,
                 )?;
             }
             RelocationKind::Aarch64PageOffset12 => {
-                patch_aarch64_add_page_offset(text, relocation.text_offset, symbol_address)?;
+                patch_aarch64_add_page_offset(
+                    &mut image.text,
+                    relocation.text_offset,
+                    symbol_address,
+                )?;
             }
             RelocationKind::Aarch64Branch26 => {
                 patch_aarch64_branch26(
-                    text,
+                    &mut image.text,
                     relocation.text_offset,
                     text_address + relocation.text_offset as u64,
                     symbol_address,
@@ -132,6 +130,13 @@ fn apply_relocations(
     }
 
     Ok(())
+}
+
+fn image_imports_symbol(image: &FinalImage, symbol_name: &str) -> bool {
+    image
+        .imports
+        .iter()
+        .any(|(_, import)| import.symbol == symbol_name)
 }
 
 fn patch_aarch64_adrp(
@@ -270,35 +275,6 @@ fn write_program_header(
     write_u64(bytes, file_size);
     write_u64(bytes, memory_size);
     write_u64(bytes, PAGE_SIZE as u64);
-}
-
-fn section_size(native_plan: &NativePlan, kind: SectionKind) -> usize {
-    native_plan
-        .object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.size)
-        .unwrap_or(0)
-}
-
-fn section_alignment(native_plan: &NativePlan, kind: SectionKind) -> usize {
-    native_plan
-        .object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.alignment)
-        .unwrap_or(1)
-}
-
-fn section_kind(section_name: &str) -> Option<SectionKind> {
-    match section_name {
-        ".text" => Some(SectionKind::Text),
-        ".data" => Some(SectionKind::Data),
-        ".bss" => Some(SectionKind::Bss),
-        _ => None,
-    }
 }
 
 fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, Diagnostic> {
