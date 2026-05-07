@@ -644,7 +644,8 @@ mod tests {
             .layouts
             .machine_layouts
             .iter()
-            .find(|layout| layout.name == "main")
+            .find(|(_, layout)| layout.name == "main")
+            .map(|(_, layout)| layout)
             .expect("main layout should exist");
         let main_fields = native_plan
             .layouts
@@ -686,7 +687,8 @@ mod tests {
             .layouts
             .data_layouts
             .iter()
-            .find(|layout| layout.name == "Counters")
+            .find(|(_, layout)| layout.name == "Counters")
+            .map(|(_, layout)| layout)
             .expect("Counters layout should exist");
         let crate::native::layout::DataShape::Record { fields } = &counters_layout.shape else {
             panic!("expected record layout");

@@ -72,7 +72,8 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         .layouts
         .machine_layouts
         .iter()
-        .find(|layout| layout.name == native_plan.entry_machine)
+        .find(|(_, layout)| layout.name == native_plan.entry_machine)
+        .map(|(_, layout)| layout)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "missing native layout for entry machine `{}`",

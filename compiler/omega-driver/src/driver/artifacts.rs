@@ -582,7 +582,7 @@ impl ArtifactWriter {
         ));
         output.push_str(&format!("fields: {}\n\n", native_plan.layouts.fields.len()));
 
-        for data_layout in &native_plan.layouts.data_layouts {
+        for (_, data_layout) in native_plan.layouts.data_layouts.iter() {
             output.push_str(&format!(
                 "- data {}: size {}, align {}\n",
                 data_layout.name, data_layout.layout.size, data_layout.layout.alignment
@@ -598,7 +598,7 @@ impl ArtifactWriter {
             }
         }
 
-        for machine_layout in &native_plan.layouts.machine_layouts {
+        for (_, machine_layout) in native_plan.layouts.machine_layouts.iter() {
             output.push_str(&format!(
                 "- machine {}: size {}, align {}\n",
                 machine_layout.name, machine_layout.layout.size, machine_layout.layout.alignment

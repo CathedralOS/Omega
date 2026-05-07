@@ -46,11 +46,29 @@ pub enum DataShape {
     Record { fields: HandleSpan<FieldLayout> },
 }
 
+impl Default for DataShape {
+    fn default() -> Self {
+        Self::Record {
+            fields: HandleSpan::empty(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataLayout {
     pub name: String,
     pub shape: DataShape,
     pub layout: TypeLayout,
+}
+
+impl Default for DataLayout {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            shape: DataShape::default(),
+            layout: TypeLayout::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,11 +78,21 @@ pub struct MachineLayout {
     pub layout: TypeLayout,
 }
 
+impl Default for MachineLayout {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            fields: HandleSpan::empty(),
+            layout: TypeLayout::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutPlan {
-    pub data_layouts: Vec<DataLayout>,
+    pub data_layouts: Arena<DataLayout>,
     pub fields: Arena<FieldLayout>,
-    pub machine_layouts: Vec<MachineLayout>,
+    pub machine_layouts: Arena<MachineLayout>,
 }
 
 pub fn build_layout_plan(
@@ -90,11 +118,11 @@ pub fn build_layout_plan(
 
 struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
-    data_layouts: Vec<DataLayout>,
+    data_layouts: Arena<DataLayout>,
     data_visiting: Vec<String>,
     fields: Arena<FieldLayout>,
     machine_definitions: &'program [Machine],
-    machine_layouts: Vec<MachineLayout>,
+    machine_layouts: Arena<MachineLayout>,
     machine_visiting: Vec<String>,
     target: NativeTarget,
     type_constraints: &'program Arena<TypeConstraint>,
@@ -104,11 +132,11 @@ impl<'program> LayoutBuilder<'program> {
     fn new(program: &'program Program, target: NativeTarget) -> Self {
         Self {
             data_definitions: &program.data_definitions,
-            data_layouts: Vec::new(),
+            data_layouts: Arena::new(),
             data_visiting: Vec::new(),
             fields: Arena::new(),
             machine_definitions: &program.machines,
-            machine_layouts: Vec::new(),
+            machine_layouts: Arena::new(),
             machine_visiting: Vec::new(),
             target,
             type_constraints: &program.type_constraints,
@@ -119,7 +147,8 @@ impl<'program> LayoutBuilder<'program> {
         if let Some(data_layout) = self
             .data_layouts
             .iter()
-            .find(|data_layout| data_layout.name == name)
+            .find(|(_, data_layout)| data_layout.name == name)
+            .map(|(_, data_layout)| data_layout)
         {
             return Ok(data_layout.layout);
         }
@@ -136,7 +165,7 @@ impl<'program> LayoutBuilder<'program> {
         let data_layout = self.compute_data_layout(definition)?;
         let layout = data_layout.layout;
 
-        self.data_layouts.push(data_layout);
+        self.data_layouts.insert(data_layout);
         self.data_visiting.pop();
 
         Ok(layout)
@@ -198,7 +227,8 @@ impl<'program> LayoutBuilder<'program> {
         if let Some(machine_layout) = self
             .machine_layouts
             .iter()
-            .find(|machine_layout| machine_layout.name == name)
+            .find(|(_, machine_layout)| machine_layout.name == name)
+            .map(|(_, machine_layout)| machine_layout)
         {
             return Ok(machine_layout.layout);
         }
@@ -219,7 +249,7 @@ impl<'program> LayoutBuilder<'program> {
         let machine_layout = self.compute_machine_layout(machine)?;
         let layout = machine_layout.layout;
 
-        self.machine_layouts.push(machine_layout);
+        self.machine_layouts.insert(machine_layout);
         self.machine_visiting.pop();
 
         Ok(layout)
