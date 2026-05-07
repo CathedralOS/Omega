@@ -2020,6 +2020,73 @@ fn selects_static_guarded_transition() {
 }
 
 #[test]
+fn propagates_static_state_call_arguments() {
+    let tokens = Lexer::new(
+        r#"
+            data CellId {
+                Empty,
+                A1,
+            }
+
+            data Exit {
+                destination: CellId;
+            }
+
+            data Room {
+                exits: [Exit; 2];
+            }
+
+            machine main {
+                owns room: Room;
+
+                state entry {
+                    build_room(mut room);
+                    append_exit(room.exits[0]);
+                    append_exit(room.exits[1]);
+                }
+
+                state build_room(mut out_room: Room) {
+                    out_room.exits[0] = Exit { destination: CellId::A1 };
+                    out_room.exits[1] = Exit { destination: CellId::Empty };
+                }
+
+                state append_exit(exit: Exit) {
+                    -> append_open_exit when exit.destination != CellId::Empty;
+                    ->
+                }
+
+                state append_open_exit {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should propagate static state arguments");
+    let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
+        .expect("entry schedule should evaluate helper-state guards");
+    let scheduled_states = schedule
+        .iter()
+        .map(|state| format!("{}.{}", state.machine, state.state))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        scheduled_states
+            .iter()
+            .filter(|state| state.as_str() == "main.append_open_exit")
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn lowers_mutable_output_host_call() {
     let tokens = Lexer::new(
         r#"
