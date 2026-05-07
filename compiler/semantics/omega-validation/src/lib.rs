@@ -1,4 +1,6 @@
-use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
+mod symbols;
+
+use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataMember, DataShapeKind};

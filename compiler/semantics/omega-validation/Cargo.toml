@@ -1,0 +1,13 @@
+[package]
+name = "omega-validation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_validation"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }

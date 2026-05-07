@@ -7,7 +7,6 @@ use crate::parser::parser::parse_file;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
-use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::infer_effects;
@@ -25,6 +24,7 @@ use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
 use omega_typed_program::lowering::lower_program;
 use omega_types::build_type_surface_report;
+use omega_validation::validate_program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {

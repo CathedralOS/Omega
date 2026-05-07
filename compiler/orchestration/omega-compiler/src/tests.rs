@@ -169,8 +169,8 @@ fn rejects_wrong_platform_argument_count() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -198,8 +198,8 @@ fn rejects_duplicate_local_data_in_state_body() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -230,8 +230,8 @@ fn rejects_duplicate_platform_states_and_parameters() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -261,8 +261,8 @@ fn rejects_unknown_contained_type() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -295,8 +295,8 @@ fn rejects_duplicate_machine_local_names() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -335,8 +335,8 @@ fn rejects_duplicate_machine_members_across_contains_and_owns() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -364,8 +364,8 @@ fn rejects_duplicate_data_members() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -393,8 +393,8 @@ fn rejects_mixed_data_shapes() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -420,8 +420,8 @@ fn rejects_empty_data_definition() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -451,8 +451,8 @@ fn rejects_machine_type_as_owned_data() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let diagnostics = crate::semantic::validation::validate_program(&program)
-        .expect_err("validation should fail");
+    let diagnostics =
+        omega_validation::validate_program(&program).expect_err("validation should fail");
 
     assert!(
         diagnostics
@@ -609,7 +609,7 @@ fn plans_native_layout_for_owned_data() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan =
         omega_native::plan::build_native_plan(&program, omega_native::target::NativeTarget::host())
             .expect("native planning should pass");
@@ -651,7 +651,7 @@ fn plans_native_layout_for_primitive_widths() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let target = omega_native::target::NativeTarget::host();
     let native_plan = omega_native::plan::build_native_plan(&program, target)
         .expect("native planning should pass");
@@ -1074,7 +1074,7 @@ fn plans_state_control_flow() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let control_flow = omega_native::control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
@@ -1120,7 +1120,7 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1178,7 +1178,7 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1228,7 +1228,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1293,7 +1293,7 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1347,7 +1347,7 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1415,7 +1415,7 @@ fn selects_runtime_dispatch_loop_instructions() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1497,7 +1497,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1584,7 +1584,7 @@ fn resolves_enum_guard_operand_values() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1648,7 +1648,7 @@ fn resolves_nested_guard_operand_offsets() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1710,7 +1710,7 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1770,7 +1770,7 @@ fn plans_runtime_branching_state_call_edges() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1849,7 +1849,7 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -1916,7 +1916,7 @@ fn plans_runtime_straight_line_branch_expansion() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2035,7 +2035,7 @@ fn plans_runtime_leaf_branch_argument_bindings() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2107,7 +2107,7 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2163,7 +2163,7 @@ fn selects_host_calls_inside_required_state_call_targets() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2217,7 +2217,7 @@ fn plans_state_calls_separately_from_host_calls() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2310,7 +2310,7 @@ fn marks_state_calls_required_through_transition_targets() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2354,7 +2354,7 @@ fn tracks_mutable_state_call_argument_bindings() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -2417,7 +2417,7 @@ fn plans_mid_state_transition_as_generated_segments() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let control_flow = omega_native::control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
@@ -2461,7 +2461,7 @@ fn builds_proof_obligations_for_bounds_and_guards() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
 
     assert_eq!(proof_plan.obligations.len(), 5);
@@ -2499,7 +2499,7 @@ fn plans_native_object_shape() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan =
         omega_native::plan::build_native_plan(&program, omega_native::target::NativeTarget::host())
             .expect("native planning should pass");
@@ -3378,7 +3378,7 @@ fn plans_state_storage_and_mutations() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -3468,7 +3468,7 @@ fn plans_required_state_value_uses() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),
@@ -3545,7 +3545,7 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(
         &program,
         omega_native::target::NativeTarget::macos_arm64(),

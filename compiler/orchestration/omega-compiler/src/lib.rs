@@ -1,5 +1,4 @@
 mod pipeline;
-mod semantic;
 
 pub(crate) use omega_abstract_syntax_tree as ast;
 pub(crate) use omega_core::source;
