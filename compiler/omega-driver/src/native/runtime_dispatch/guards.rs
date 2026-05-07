@@ -1,7 +1,7 @@
 use crate::ir::expression::Expression;
 use crate::ir::statement::TransitionGuard;
+use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
-use crate::native::state_dispatch::{DispatchEdge, StateDispatchPlan};
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
