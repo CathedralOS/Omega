@@ -63,6 +63,13 @@ pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &
     }
 }
 
+pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &str) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_literal_write_width(literal),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_machine_integer_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_integer_write_width(),
@@ -162,6 +169,16 @@ pub fn encode_runtime_text_literal_compare(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_compare(literal, failure_branch_distances)
         }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_write(
+    architecture: Architecture,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_write(literal),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

@@ -2306,6 +2306,12 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
+        SelectedInstructionKind::WriteRuntimeTextLiteral {
+            buffer_symbol,
+            literal,
+        } => {
+            format!("write runtime text `{buffer_symbol}` = {literal:?}")
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,

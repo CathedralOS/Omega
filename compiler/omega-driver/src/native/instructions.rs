@@ -5,6 +5,7 @@ use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::native::plan::NativePlan;
+use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
     RuntimeLeafBranchOperationKind,
@@ -12,7 +13,7 @@ use crate::native::runtime_dispatch::branching::{
 use crate::native::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
 };
-use crate::native::runtime_text::RuntimeTextSource;
+use crate::native::runtime_text::{RuntimeTextSource, RuntimeTextWriteKind};
 use crate::native::state_guards::StateGuardLowering;
 use crate::native::state_guards::StateGuardOperator;
 use crate::native::state_schedule::build_entry_state_schedule;
@@ -98,6 +99,10 @@ pub enum SelectedInstructionKind {
         has_storage: bool,
     },
     CompareRuntimeTextLiteral {
+        buffer_symbol: String,
+        literal: String,
+    },
+    WriteRuntimeTextLiteral {
         buffer_symbol: String,
         literal: String,
     },
@@ -260,6 +265,19 @@ fn select_runtime_dispatch_loop_instructions(
                     &operation.source_state,
                     operation.statement_index,
                 ) {
+                    if let Some((buffer_symbol, literal)) =
+                        runtime_text_literal_write_for_host_call(native_plan, host_call)
+                    {
+                        selected_instructions.push(SelectedInstruction {
+                            kind: SelectedInstructionKind::WriteRuntimeTextLiteral {
+                                buffer_symbol,
+                                literal,
+                            },
+                            source_machine: host_call.machine.clone(),
+                            source_state: host_call.state.clone(),
+                            source_statement: host_call.statement_index,
+                        });
+                    }
                     select_host_call(native_plan, host_call, operands, selected_instructions);
                 }
             }
@@ -748,16 +766,24 @@ fn select_host_operation_operands(
             operands
         }
         (_, "Stdout", "write" | "write_file") => {
-            let Some(data_object) = find_data_object(native_plan, host_call)
-                .or_else(|| find_runtime_text_input_buffer_data_object(native_plan, host_call))
-            else {
-                return Vec::new();
-            };
-            let byte_count = native_plan
-                .data
-                .bytes
-                .span(data_object.bytes)
-                .map_or(0, |bytes| bytes.len());
+            let (data_object, byte_count) =
+                if let Some(data_object) = find_data_object(native_plan, host_call) {
+                    let byte_count = native_plan
+                        .data
+                        .bytes
+                        .span(data_object.bytes)
+                        .map_or(0, |bytes| bytes.len());
+                    (data_object, byte_count)
+                } else if let Some(data_object) =
+                    find_runtime_text_input_buffer_data_object(native_plan, host_call)
+                {
+                    let byte_count = runtime_text_literal_for_host_call(native_plan, host_call)
+                        .map(|literal| literal.len())
+                        .unwrap_or(0);
+                    (data_object, byte_count)
+                } else {
+                    return Vec::new();
+                };
 
             let mut operands = Vec::new();
             if operation == "write" {
@@ -878,6 +904,119 @@ fn runtime_text_input_buffer_for_text_place<'plan>(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)
+}
+
+fn runtime_text_literal_write_for_host_call(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+) -> Option<(String, String)> {
+    let literal = runtime_text_literal_for_host_call(native_plan, host_call)?;
+    let data_object = find_runtime_text_input_buffer_data_object(native_plan, host_call)?;
+    Some((data_object.symbol.clone(), literal))
+}
+
+fn runtime_text_literal_for_host_call(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+) -> Option<String> {
+    let append_newline = match host_call.data {
+        crate::native::abi::PlatformCallData::FirstTextArgument { append_newline } => {
+            append_newline
+        }
+        crate::native::abi::PlatformCallData::MutableOutputBuffer { .. }
+        | crate::native::abi::PlatformCallData::None => return None,
+    };
+    if !host_call_uses_runtime_text_input_buffer(native_plan, host_call) {
+        return None;
+    }
+
+    let runtime_body = native_plan
+        .runtime_bodies
+        .bodies
+        .iter()
+        .find(|(_, body)| {
+            native_plan
+                .runtime_bodies
+                .operations
+                .span(body.operations)
+                .is_some_and(|operations| {
+                    operations.iter().any(|operation| {
+                        operation.source_machine == host_call.machine
+                            && operation.source_state == host_call.state
+                            && operation.statement_index == host_call.statement_index
+                            && matches!(
+                                operation.kind,
+                                RuntimeDispatchBodyOperationKind::HostCall { .. }
+                            )
+                    })
+                })
+        })
+        .map(|(_, body)| body)?;
+    let operations = native_plan
+        .runtime_bodies
+        .operations
+        .span(runtime_body.operations)?;
+    let mut latest_static_text = None;
+
+    for operation in operations {
+        if operation.source_machine == host_call.machine
+            && operation.source_state == host_call.state
+            && operation.statement_index == host_call.statement_index
+            && matches!(
+                operation.kind,
+                RuntimeDispatchBodyOperationKind::HostCall { .. }
+            )
+        {
+            break;
+        }
+
+        let Some(text_write) = runtime_text_write_for_operation(
+            native_plan,
+            &operation.source_machine,
+            &operation.source_state,
+            operation.statement_index,
+        ) else {
+            continue;
+        };
+        if text_write.kind != RuntimeTextWriteKind::StaticText {
+            continue;
+        }
+        let Expression::String(value) = &text_write.value else {
+            continue;
+        };
+        latest_static_text = Some(value.clone());
+    }
+
+    let mut literal = latest_static_text?;
+    if append_newline {
+        literal.push('\n');
+    }
+    Some(literal)
+}
+
+fn host_call_uses_runtime_text_input_buffer(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+) -> bool {
+    find_runtime_text_input_buffer_data_object(native_plan, host_call).is_some()
+}
+
+fn runtime_text_write_for_operation<'plan>(
+    native_plan: &'plan NativePlan,
+    machine: &str,
+    state: &str,
+    statement_index: usize,
+) -> Option<&'plan crate::native::runtime_text::RuntimeTextWrite> {
+    native_plan
+        .runtime_text
+        .writes
+        .iter()
+        .find(|(_, write)| {
+            write.machine == machine
+                && write.state == state
+                && write.statement_index == statement_index
+        })
+        .map(|(_, write)| write)
 }
 
 fn resolve_machine_owned_place(

@@ -85,6 +85,9 @@ pub enum MachineInstructionKind {
     RuntimeTextLiteralCompare {
         literal: String,
     },
+    RuntimeTextLiteralWrite {
+        literal: String,
+    },
     RuntimeMachineIntegerWrite {
         byte_offset: usize,
         byte_size: usize,
@@ -261,6 +264,12 @@ fn machine_instruction_shape(
             },
             runtime_text_literal_compare_width(native_plan.target.architecture, literal),
         ),
+        SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => (
+            MachineInstructionKind::RuntimeTextLiteralWrite {
+                literal: literal.clone(),
+            },
+            runtime_text_literal_write_width(native_plan.target.architecture, literal),
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
@@ -353,6 +362,12 @@ fn encode_machine_instruction(
                     machine_instruction_index,
                     literal,
                 )?,
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
+            architecture::encode_runtime_text_literal_write(
+                native_plan.target.architecture,
+                literal,
             )
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
@@ -560,6 +575,13 @@ fn runtime_text_literal_compare_width(
     literal: &str,
 ) -> usize {
     architecture::runtime_text_literal_compare_width(architecture, literal)
+}
+
+fn runtime_text_literal_write_width(
+    architecture: crate::native::target::Architecture,
+    literal: &str,
+) -> usize {
+    architecture::runtime_text_literal_write_width(architecture, literal)
 }
 
 fn runtime_machine_integer_write_width(architecture: crate::native::target::Architecture) -> usize {

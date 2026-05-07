@@ -33,6 +33,10 @@ pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
     8 + literal.len() * 12
 }
 
+pub fn runtime_text_literal_write_width(literal: &str) -> usize {
+    8 + literal.len() * 8
+}
+
 pub fn runtime_machine_integer_write_width() -> usize {
     16
 }
@@ -162,6 +166,18 @@ pub fn encode_runtime_text_literal_compare(
     Ok(bytes)
 }
 
+pub fn encode_runtime_text_literal_write(literal: &str) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+
+    for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
+        bytes.extend(encode_movz_w(17, u16::from(*byte)));
+        bytes.extend(encode_store_byte_w17_to_x16(byte_index)?);
+    }
+
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_integer_write(
     byte_offset: usize,
     byte_size: usize,
@@ -265,16 +281,7 @@ fn encode_load_byte_w17_from_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnost
 
 fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u8>, Diagnostic> {
     match byte_size {
-        1 => {
-            if byte_offset > 4095 {
-                return Err(Diagnostic::error(format!(
-                    "AArch64 MVP encoder cannot store byte at offset `{byte_offset}` yet"
-                )));
-            }
-            Ok(encode_instruction(
-                0x39000000 | ((byte_offset as u32) << 10) | (u32::from(16u8) << 5) | 17,
-            ))
-        }
+        1 => encode_store_byte_w17_to_x16(byte_offset),
         4 => {
             if !byte_offset.is_multiple_of(4) || byte_offset / 4 > 4095 {
                 return Err(Diagnostic::error(format!(
@@ -289,6 +296,17 @@ fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u
             "AArch64 MVP encoder cannot store {byte_size}-byte runtime integers yet"
         ))),
     }
+}
+
+fn encode_store_byte_w17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    if byte_offset > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store byte at offset `{byte_offset}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0x39000000 | ((byte_offset as u32) << 10) | (u32::from(16u8) << 5) | 17,
+    ))
 }
 
 fn encode_conditional_branch_not_equal(byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {

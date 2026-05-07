@@ -159,6 +159,16 @@ fn collect_function_relocations(
                     buffer_symbol,
                 );
             }
+            SelectedInstructionKind::WriteRuntimeTextLiteral { buffer_symbol, .. } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    buffer_symbol,
+                );
+            }
             SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
                 insert_data_address_relocations(
                     native_plan.target.architecture,
