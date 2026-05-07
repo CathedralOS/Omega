@@ -33,13 +33,23 @@ impl NativeTarget {
 
     pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
+            Some("linux_arm64") => Ok(Self::linux_arm64()),
             Some("linux_x64") => Ok(Self::linux_x64()),
             Some("macos_arm64") => Ok(Self::macos_arm64()),
             Some("windows_x64") => Ok(Self::windows_x64()),
             Some("cross_platform_cli") | Some("local_unchecked") | None => Ok(Self::host()),
             Some(target_name) => Err(Diagnostic::error(format!(
-                "unknown native target `{target_name}`; expected linux_x64, macos_arm64, windows_x64, cross_platform_cli, or local_unchecked"
+                "unknown native target `{target_name}`; expected linux_arm64, linux_x64, macos_arm64, windows_x64, cross_platform_cli, or local_unchecked"
             ))),
+        }
+    }
+
+    pub fn linux_arm64() -> Self {
+        Self {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
         }
     }
 

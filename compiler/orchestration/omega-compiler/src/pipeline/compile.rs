@@ -16,7 +16,7 @@ use omega_native::build_native_surface_report;
 use omega_native::control_flow::build_control_flow_plan;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_object;
-use omega_native::linker::link_native_object;
+use omega_native::linker::{LinkStatus, link_native_object};
 use omega_native::plan::build_native_plan;
 use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
@@ -262,16 +262,20 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_emitted_native_object(&emitted_object)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let executable_path = record_phase(&mut phase_timings, "link executable", || {
+    let link_output = record_phase(&mut phase_timings, "link executable", || {
         let link_output = link_native_object(&native_plan, &object_path, artifacts.root())
             .map_err(|diagnostic| vec![diagnostic])?;
-        let executable_path = link_output.executable_path.clone();
         artifacts
             .write_link_report(&link_output)
             .map_err(|diagnostic| vec![diagnostic])?;
 
-        Ok(executable_path)
+        Ok(link_output)
     })?;
+    let executable_path = link_output.executable_path.clone();
+    let executable_action = match link_output.status {
+        LinkStatus::Linked => "linked",
+        LinkStatus::Skipped => "finalized",
+    };
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -280,7 +284,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         artifacts_dir: artifacts.root().to_path_buf(),
         executable_path: executable_path.clone(),
         summary: format!(
-            "emitted {}; linked {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
+            "emitted {}; {executable_action} {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
             object_path.display(),
             executable_path.display(),
             artifacts.root().display(),

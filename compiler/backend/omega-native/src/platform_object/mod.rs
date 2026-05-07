@@ -1,3 +1,4 @@
+pub mod elf;
 pub mod macho;
 
 use crate::emitter::EmittedNativeObject;
@@ -8,18 +9,23 @@ use omega_core::diagnostics::Diagnostic;
 pub fn can_emit_target_object(target: NativeTarget) -> bool {
     matches!(
         (target.object_format, target.architecture),
-        (ObjectFormat::MachO, Architecture::Aarch64)
+        (ObjectFormat::Elf, Architecture::Aarch64) | (ObjectFormat::MachO, Architecture::Aarch64)
     )
 }
 
 pub fn emit_target_object(
     native_plan: &NativePlan,
 ) -> Option<Result<EmittedNativeObject, Diagnostic>> {
-    if native_plan.target.object_format == ObjectFormat::MachO
-        && native_plan.target.architecture == Architecture::Aarch64
-    {
-        Some(macho::emit_macho_arm64_object(native_plan))
-    } else {
-        None
+    match (
+        native_plan.target.object_format,
+        native_plan.target.architecture,
+    ) {
+        (ObjectFormat::Elf, Architecture::Aarch64) => {
+            Some(elf::emit_elf_arm64_executable(native_plan))
+        }
+        (ObjectFormat::MachO, Architecture::Aarch64) => {
+            Some(macho::emit_macho_arm64_object(native_plan))
+        }
+        _ => None,
     }
 }

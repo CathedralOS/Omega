@@ -1,4 +1,4 @@
-use crate::target::{NativeTarget, ObjectFormat};
+use crate::target::{Architecture, NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,10 +143,11 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
             );
         }
         ObjectFormat::Elf => {
+            let syscall_numbers = linux_syscall_numbers(target.architecture);
             plan.bindings.insert_many([
-                linux_syscall("Stdin", "read", 0),
-                linux_syscall("Stdout", "write", 1),
-                linux_syscall("Process", "exit_group", 231),
+                linux_syscall("Stdin", "read", syscall_numbers.read),
+                linux_syscall("Stdout", "write", syscall_numbers.write),
+                linux_syscall("Process", "exit_group", syscall_numbers.exit_group),
             ]);
             insert_platform_lowering(
                 &mut plan,
@@ -223,6 +224,28 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
     }
 
     plan
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LinuxSyscallNumbers {
+    read: u32,
+    write: u32,
+    exit_group: u32,
+}
+
+fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
+    match architecture {
+        Architecture::Aarch64 => LinuxSyscallNumbers {
+            read: 63,
+            write: 64,
+            exit_group: 94,
+        },
+        Architecture::X86_64 => LinuxSyscallNumbers {
+            read: 0,
+            write: 1,
+            exit_group: 231,
+        },
+    }
 }
 
 fn insert_platform_lowering<const COUNT: usize>(

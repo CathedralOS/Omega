@@ -62,6 +62,13 @@ cargo run -p omega-cli -- --target macos_arm64 samples/cli_mvp/main.omg
 ./samples/cli_mvp/build/omega-program
 ```
 
+Build the smallest CLI sample as a direct Linux ARM64 ELF image:
+
+```bash
+cargo run -p omega-cli -- --target linux_arm64 samples/cli_mvp/main.omg
+docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work alpine:3.20 ./samples/cli_mvp/build/omega-program
+```
+
 Check the richer samples:
 
 ```bash
@@ -94,6 +101,7 @@ The native path currently supports a small but real subset:
 
 - macOS ARM64 object emission.
 - System linker invocation for runnable `omega-program` output.
+- Linux ARM64 direct static ELF executable emission for tiny syscall-only programs.
 - Host calls for stdout, stdin read buffers, and process exit.
 - Unconditional state chains.
 - Simple nested machine continuations.
@@ -105,6 +113,7 @@ The native path currently supports a small but real subset:
 Current known limitation:
 
 - `console.read_line` is still lowered as a raw host read. Interactive terminal line mode can make the dungeon crawler usable, but piped multi-line input is not yet line-buffered and EOF is not handled cleanly. The next runtime milestone is explicit line discipline for stdin.
+- Linux ARM64 direct ELF currently targets the small CLI path first. More runtime dispatch coverage should move over once the direct image writer grows beyond the initial syscall proof.
 
 Targets without a real object writer still fall back to an Omega native object container so planned bytes remain inspectable.
 

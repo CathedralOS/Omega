@@ -14,6 +14,17 @@ pub fn host_call_sequence_width(
     }
 }
 
+pub fn syscall_sequence_width(
+    architecture: Architecture,
+    operands: &[InstructionOperand],
+    syscall_number: u32,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::syscall_sequence_width(operands, syscall_number),
+        Architecture::X86_64 => operands.len() * 8 + 7,
+    }
+}
+
 pub fn return_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::return_width(),
@@ -156,6 +167,17 @@ pub fn encode_host_call_sequence(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_host_call_sequence(operands),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_syscall_sequence(
+    architecture: Architecture,
+    operands: &[InstructionOperand],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_syscall_sequence(operands, syscall_number),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

@@ -1,3 +1,4 @@
+use crate::abi::HostBindingMechanism;
 use crate::architecture;
 use crate::instructions::SelectedInstructionKind;
 use crate::plan::NativePlan;
@@ -258,20 +259,31 @@ fn machine_instruction_shape(
             capability,
             operation,
             operands,
-        } => (
-            MachineInstructionKind::HostCallSequence {
-                capability: capability.clone(),
-                operation: operation.clone(),
-            },
-            host_call_sequence_width(
-                native_plan.target.architecture,
-                native_plan
-                    .instructions
-                    .operands
-                    .span(*operands)
-                    .unwrap_or(&[]),
-            ),
-        ),
+        } => {
+            let operands = native_plan
+                .instructions
+                .operands
+                .span(*operands)
+                .unwrap_or(&[]);
+            let byte_width = match host_binding_mechanism(native_plan, capability, operation) {
+                Some(HostBindingMechanism::Syscall { number, .. }) => {
+                    architecture::syscall_sequence_width(
+                        native_plan.target.architecture,
+                        operands,
+                        *number,
+                    )
+                }
+                _ => host_call_sequence_width(native_plan.target.architecture, operands),
+            };
+
+            (
+                MachineInstructionKind::HostCallSequence {
+                    capability: capability.clone(),
+                    operation: operation.clone(),
+                },
+                byte_width,
+            )
+        }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..
@@ -481,12 +493,28 @@ fn encode_machine_instruction(
     kind: &SelectedInstructionKind,
 ) -> Result<Vec<u8>, Diagnostic> {
     match kind {
-        SelectedInstructionKind::HostOperation { operands, .. } => {
+        SelectedInstructionKind::HostOperation {
+            capability,
+            operation,
+            operands,
+        } => {
             let Some(operands) = native_plan.instructions.operands.span(*operands) else {
                 return Ok(Vec::new());
             };
 
-            architecture::encode_host_call_sequence(native_plan.target.architecture, operands)
+            match host_binding_mechanism(native_plan, capability, operation) {
+                Some(HostBindingMechanism::Syscall { number, .. }) => {
+                    architecture::encode_syscall_sequence(
+                        native_plan.target.architecture,
+                        operands,
+                        *number,
+                    )
+                }
+                _ => architecture::encode_host_call_sequence(
+                    native_plan.target.architecture,
+                    operands,
+                ),
+            }
         }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
@@ -701,6 +729,19 @@ fn encode_machine_instruction(
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
     }
+}
+
+fn host_binding_mechanism<'plan>(
+    native_plan: &'plan NativePlan,
+    capability: &str,
+    operation: &str,
+) -> Option<&'plan HostBindingMechanism> {
+    native_plan
+        .host_abi
+        .bindings
+        .iter()
+        .find(|(_, binding)| binding.capability == capability && binding.operation == operation)
+        .map(|(_, binding)| &binding.mechanism)
 }
 
 fn byte_distance_to_case_end(

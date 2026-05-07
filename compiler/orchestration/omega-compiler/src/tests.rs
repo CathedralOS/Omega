@@ -2627,6 +2627,67 @@ fn selected_linux_target_plans_elf_and_syscalls() {
 }
 
 #[test]
+fn selected_linux_arm64_target_encodes_syscalls() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program = lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = omega_native::plan::build_native_plan(
+        &program,
+        omega_native::target::NativeTarget::linux_arm64(),
+    )
+    .expect("native planning should pass");
+    let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
+
+    assert_eq!(
+        native_plan.target.object_format,
+        omega_native::target::ObjectFormat::Elf
+    );
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(
+        native_plan.machine_code.bytes.len(),
+        native_plan.machine_code.byte_count
+    );
+    assert!(
+        native_plan
+            .host_abi
+            .bindings
+            .iter()
+            .any(|(_, binding)| matches!(
+                &binding.mechanism,
+                omega_native::abi::HostBindingMechanism::Syscall { number: 64, .. }
+            ))
+    );
+    assert!(
+        native_plan
+            .host_abi
+            .bindings
+            .iter()
+            .any(|(_, binding)| matches!(
+                &binding.mechanism,
+                omega_native::abi::HostBindingMechanism::Syscall { number: 94, .. }
+            ))
+    );
+}
+
+#[test]
 fn selected_macos_arm64_plans_relocation_byte_offsets() {
     let tokens = Lexer::new(
         r#"
@@ -2876,6 +2937,38 @@ fn compile_emits_native_object_bytes() {
             "compiled Omega binary should not write stderr"
         );
     }
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn compile_emits_direct_linux_arm64_elf() {
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-compiler-linux-elf-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../samples/cli_mvp/main.omg");
+
+    let output = crate::compile(crate::CompileOptions {
+        build_dir: Some(build_dir.clone()),
+        root_path,
+        target_name: Some("linux_arm64".to_owned()),
+    })
+    .expect("compile should emit direct Linux ELF bytes");
+
+    let bytes =
+        std::fs::read(&output.executable_path).expect("emitted executable should be readable");
+    let emitted_report =
+        std::fs::read_to_string(output.artifacts_dir.join("12_emitted_object.txt"))
+            .expect("emitted object report should be readable");
+    let link_report = std::fs::read_to_string(output.artifacts_dir.join("13_link.txt"))
+        .expect("link report should be readable");
+
+    assert_eq!(&bytes[0..4], b"\x7fELF");
+    assert!(emitted_report.contains("format: elf64-aarch64-executable"));
+    assert!(link_report.contains("command: none"));
+    assert!(link_report.contains("status: Skipped"));
+    assert!(output.summary.contains("finalized"));
 
     let _ = std::fs::remove_dir_all(build_dir);
 }
@@ -4165,7 +4258,10 @@ fn collect_entrypoints(path: &std::path::Path, entrypoints: &mut Vec<std::path::
         let path = entry.path();
 
         if path.is_dir() {
-            if path.file_name().is_some_and(|file_name| file_name == "build") {
+            if path
+                .file_name()
+                .is_some_and(|file_name| file_name == "build")
+            {
                 continue;
             }
             collect_entrypoints(&path, entrypoints);

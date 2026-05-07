@@ -57,9 +57,8 @@ fn sample_projects_ignore_local_build_output() {
 
     for project_root in sample_projects {
         let gitignore_path = project_root.join(".gitignore");
-        let gitignore = fs::read_to_string(&gitignore_path).unwrap_or_else(|error| {
-            panic!("failed to read {}: {error}", gitignore_path.display())
-        });
+        let gitignore = fs::read_to_string(&gitignore_path)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
 
         assert!(
             gitignore.lines().any(|line| line.trim() == "/build/"),
@@ -94,7 +93,10 @@ fn collect_omega_files(path: &Path, files: &mut Vec<PathBuf>) {
         let path = entry.path();
 
         if path.is_dir() {
-            if path.file_name().is_some_and(|file_name| file_name == "build") {
+            if path
+                .file_name()
+                .is_some_and(|file_name| file_name == "build")
+            {
                 continue;
             }
             collect_omega_files(&path, files);

@@ -33,6 +33,7 @@ pub fn link_native_object(
     build_dir: &Path,
 ) -> Result<LinkOutput, Diagnostic> {
     let Some(invocation) = plan_link_invocation(native_plan, object_path, build_dir) else {
+        mark_direct_executable_if_needed(object_path)?;
         return Ok(LinkOutput {
             executable_path: object_path.to_path_buf(),
             status: LinkStatus::Skipped,
@@ -64,6 +65,43 @@ pub fn link_native_object(
         stdout,
         stderr,
     })
+}
+
+fn mark_direct_executable_if_needed(path: &Path) -> Result<(), Diagnostic> {
+    if path
+        .file_name()
+        .is_some_and(|file_name| file_name == "omega-program")
+    {
+        mark_executable(path)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn mark_executable(path: &Path) -> Result<(), Diagnostic> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = std::fs::metadata(path)
+        .map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to read executable permissions {}: {error}",
+                path.display()
+            ))
+        })?
+        .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(path, permissions).map_err(|error| {
+        Diagnostic::error(format!(
+            "failed to mark executable {}: {error}",
+            path.display()
+        ))
+    })
+}
+
+#[cfg(not(unix))]
+fn mark_executable(_path: &Path) -> Result<(), Diagnostic> {
+    Ok(())
 }
 
 fn plan_link_invocation(

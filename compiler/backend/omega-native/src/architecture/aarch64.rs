@@ -5,6 +5,12 @@ pub fn host_call_sequence_width(operands: &[InstructionOperand]) -> usize {
     operands.iter().map(operand_width).sum::<usize>() + 4
 }
 
+pub fn syscall_sequence_width(operands: &[InstructionOperand], syscall_number: u32) -> usize {
+    operands.iter().map(operand_width).sum::<usize>()
+        + unsigned_immediate_width(u64::from(syscall_number))
+        + 4
+}
+
 pub fn return_width() -> usize {
     4
 }
@@ -138,6 +144,56 @@ pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Result<Vec<
     }
 
     bytes.extend(encode_branch_link_placeholder());
+    Ok(bytes)
+}
+
+pub fn encode_syscall_sequence(
+    operands: &[InstructionOperand],
+    syscall_number: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::new();
+    let mut next_register = 0u8;
+
+    for operand in operands {
+        match &operand.kind {
+            InstructionOperandKind::ImmediateInteger(value) => {
+                bytes.extend(encode_immediate(next_register, *value)?);
+                next_register += 1;
+            }
+            InstructionOperandKind::DataAddress { .. } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                next_register += 1;
+            }
+            InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                )?);
+                next_register += 1;
+            }
+            InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    byte_offset + 8,
+                )?);
+                next_register += 1;
+            }
+            InstructionOperandKind::ByteLength(value) => {
+                bytes.extend(encode_unsigned_immediate(next_register, *value as u64));
+                next_register += 1;
+            }
+        }
+    }
+
+    bytes.extend(encode_unsigned_immediate(8, u64::from(syscall_number)));
+    bytes.extend(encode_svc());
     Ok(bytes)
 }
 
@@ -536,6 +592,10 @@ fn encode_add_page_offset_placeholder(register: u8) -> Vec<u8> {
 
 fn encode_branch_link_placeholder() -> Vec<u8> {
     encode_instruction(0x94000000)
+}
+
+fn encode_svc() -> Vec<u8> {
+    encode_instruction(0xD4000001)
 }
 
 fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {

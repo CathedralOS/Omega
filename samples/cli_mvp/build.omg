@@ -41,6 +41,21 @@ target linux_x64 {
     trust omega::host::targets::linux
 }
 
+target linux_arm64 {
+    host: omega::host::targets::linux {
+        abi = syscall
+        stdout = fd(1)
+        process = enabled
+        filesystem = disabled
+        threads = disabled
+        clock = disabled
+        random = disabled
+    }
+
+    trust omega::host::contracts
+    trust omega::host::targets::linux
+}
+
 target macos_arm64 {
     host: omega::host::targets::darwin {
         abi = libSystem

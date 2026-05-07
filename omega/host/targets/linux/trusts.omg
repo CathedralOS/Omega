@@ -3,7 +3,7 @@ trust omega_linux_syscalls {
     reason "Linux syscall numbers and calling convention"
     scope {
         syscalls read, write, exit_group
-        abi linux_x64
+        abi linux_x64, linux_arm64
     }
 }
 
