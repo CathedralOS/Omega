@@ -2324,6 +2324,26 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!("write runtime text `{buffer_symbol}` = {literal:?}")
         }
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+            buffer_symbol,
+            byte_offset,
+            literal,
+        } => {
+            format!("write runtime text segment `{buffer_symbol}`@{byte_offset} = {literal:?}")
+        }
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer_symbol,
+            buffer_offset,
+            source_symbol,
+            source_offset,
+            target_symbol,
+            target_offset,
+            length_delta,
+        } => {
+            format!(
+                "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,

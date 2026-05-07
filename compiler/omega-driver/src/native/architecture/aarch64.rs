@@ -41,6 +41,14 @@ pub fn runtime_text_literal_write_width(literal: &str) -> usize {
     8 + literal.len() * 8
 }
 
+pub fn runtime_text_literal_segment_write_width(literal: &str) -> usize {
+    runtime_text_literal_write_width(literal)
+}
+
+pub fn runtime_text_stored_suffix_append_width() -> usize {
+    72
+}
+
 pub fn runtime_machine_integer_write_width() -> usize {
     16
 }
@@ -223,14 +231,50 @@ pub fn encode_runtime_storage_compare(
 }
 
 pub fn encode_runtime_text_literal_write(literal: &str) -> Result<Vec<u8>, Diagnostic> {
+    encode_runtime_text_literal_segment_write(0, literal)
+}
+
+pub fn encode_runtime_text_literal_segment_write(
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
 
     for (byte_index, byte) in literal.as_bytes().iter().enumerate() {
         bytes.extend(encode_movz_w(17, u16::from(*byte)));
-        bytes.extend(encode_store_byte_w17_to_x16(byte_index)?);
+        bytes.extend(encode_store_byte_w17_to_x16(byte_offset + byte_index)?);
     }
 
+    Ok(bytes)
+}
+
+pub fn encode_runtime_text_stored_suffix_append(
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+    length_delta: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_x_from_x(18, 17, source_offset)?);
+    bytes.extend(encode_load_x_from_x(19, 17, source_offset + 8)?);
+    bytes.extend(encode_move_x_register(23, 19));
+    bytes.extend(encode_add_x_immediate(22, 16, buffer_offset)?);
+
+    bytes.extend(encode_cbz_x(19, 20)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 18, 1)?);
+    bytes.extend(encode_store_byte_w_post_increment(21, 22, 1)?);
+    bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
+    bytes.extend(encode_conditional_branch_not_equal(-12)?);
+
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_store_x_to_x(16, 17, target_offset)?);
+    bytes.extend(encode_add_x_immediate(23, 23, length_delta)?);
+    bytes.extend(encode_store_x_to_x(23, 17, target_offset + 8)?);
     Ok(bytes)
 }
 
@@ -311,6 +355,12 @@ fn encode_movk(register: u8, immediate: u16, halfword_shift: u8) -> Vec<u8> {
             | (u32::from(halfword_shift) << 21)
             | (u32::from(immediate) << 5)
             | u32::from(register),
+    )
+}
+
+fn encode_move_x_register(destination_register: u8, source_register: u8) -> Vec<u8> {
+    encode_instruction(
+        0xAA0003E0 | (u32::from(source_register) << 16) | u32::from(destination_register),
     )
 }
 
@@ -502,6 +552,70 @@ fn encode_store_byte_w_to_x(
     ))
 }
 
+fn encode_load_byte_w_post_increment(
+    destination_register: u8,
+    base_register: u8,
+    byte_increment: i16,
+) -> Result<Vec<u8>, Diagnostic> {
+    let immediate = signed_memory_immediate_9(byte_increment, "post-increment byte load")?;
+    Ok(encode_instruction(
+        0x38400400
+            | (immediate << 12)
+            | (u32::from(base_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
+fn encode_store_byte_w_post_increment(
+    source_register: u8,
+    base_register: u8,
+    byte_increment: i16,
+) -> Result<Vec<u8>, Diagnostic> {
+    let immediate = signed_memory_immediate_9(byte_increment, "post-increment byte store")?;
+    Ok(encode_instruction(
+        0x38000400
+            | (immediate << 12)
+            | (u32::from(base_register) << 5)
+            | u32::from(source_register),
+    ))
+}
+
+fn encode_add_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    value: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if value > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot add immediate `{value}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0x91000000
+            | ((value as u32) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
+fn encode_subs_x_immediate(
+    destination_register: u8,
+    source_register: u8,
+    value: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if value > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot subtract immediate `{value}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0xF1000000
+            | ((value as u32) << 10)
+            | (u32::from(source_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
 fn encode_conditional_branch_not_equal(byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ne")?;
     Ok(encode_instruction(
@@ -516,11 +630,27 @@ fn encode_conditional_branch_equal(byte_distance: isize) -> Result<Vec<u8>, Diag
     ))
 }
 
+fn encode_cbz_x(register: u8, byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "cbz")?;
+    Ok(encode_instruction(
+        0xB4000000 | ((instruction_distance as u32 & 0x7ffff) << 5) | u32::from(register),
+    ))
+}
+
 fn encode_unconditional_branch(byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 26, "b")?;
     Ok(encode_instruction(
         0x14000000 | (instruction_distance as u32 & 0x03ff_ffff),
     ))
+}
+
+fn signed_memory_immediate_9(value: i16, instruction_name: &str) -> Result<u32, Diagnostic> {
+    if !(-256..=255).contains(&value) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 {instruction_name} immediate is out of range: {value}"
+        )));
+    }
+    Ok((i32::from(value) as u32) & 0x1ff)
 }
 
 fn checked_instruction_distance(

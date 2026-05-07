@@ -14,7 +14,9 @@ use crate::native::runtime_dispatch::branching::{
 use crate::native::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
 };
-use crate::native::runtime_text::{RuntimeTextSource, RuntimeTextWriteKind};
+use crate::native::runtime_text::{
+    RuntimeTextBuilderSegmentKind, RuntimeTextSource, RuntimeTextWriteKind,
+};
 use crate::native::state_guards::StateGuardLowering;
 use crate::native::state_guards::StateGuardOperator;
 use crate::native::state_schedule::build_entry_state_schedule;
@@ -121,6 +123,20 @@ pub enum SelectedInstructionKind {
     WriteRuntimeTextLiteral {
         buffer_symbol: String,
         literal: String,
+    },
+    WriteRuntimeTextLiteralSegment {
+        buffer_symbol: String,
+        byte_offset: usize,
+        literal: String,
+    },
+    AppendRuntimeTextStoredSuffix {
+        buffer_symbol: String,
+        buffer_offset: usize,
+        source_symbol: String,
+        source_offset: usize,
+        target_symbol: String,
+        target_offset: usize,
+        length_delta: usize,
     },
     WriteRuntimeMachineInteger {
         byte_offset: usize,
@@ -303,6 +319,13 @@ fn select_runtime_dispatch_loop_instructions(
                     selected_instructions,
                 );
 
+                select_runtime_leaf_branch_expansions_for_operation(
+                    native_plan,
+                    dispatch_case.dispatch_index,
+                    operation,
+                    selected_instructions,
+                );
+
                 if let Some(host_call) = host_call_for_statement(
                     native_plan,
                     &operation.source_machine,
@@ -326,12 +349,6 @@ fn select_runtime_dispatch_loop_instructions(
                 }
             }
         }
-
-        select_runtime_leaf_branch_expansions(
-            native_plan,
-            dispatch_case.dispatch_index,
-            selected_instructions,
-        );
 
         if let Some(edges) = native_plan
             .runtime_dispatch_loop
@@ -548,6 +565,26 @@ fn select_runtime_mutation_writes(
         return;
     }
 
+    if let Some(instructions) = runtime_text_builder_write(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        statement_index,
+        &resolved_target,
+        aliases,
+    ) {
+        for kind in instructions {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_machine: source_machine.to_owned(),
+                source_state: source_state.to_owned(),
+                source_statement: statement_index,
+            });
+        }
+        return;
+    }
+
     let resolved_value = resolve_runtime_alias_expression(value, source_machine, aliases);
     if let Some(copy) = runtime_storage_copy(
         native_plan,
@@ -599,6 +636,81 @@ fn select_runtime_mutation_writes(
         source_state: source_state.to_owned(),
         source_statement: statement_index,
     });
+}
+
+fn runtime_text_builder_write(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    resolved_target: &Expression,
+    aliases: &[RuntimeAliasBinding],
+) -> Option<Vec<SelectedInstructionKind>> {
+    let builder = native_plan
+        .runtime_text
+        .builders
+        .iter()
+        .find(|(_, builder)| {
+            builder.machine == source_machine
+                && builder.state == source_state
+                && builder.statement_index == statement_index
+        })
+        .map(|(_, builder)| builder)?;
+    let segments = native_plan
+        .runtime_text
+        .builder_segments
+        .span(builder.segments)?;
+    let [prefix, suffix] = segments else {
+        return None;
+    };
+    if prefix.kind != RuntimeTextBuilderSegmentKind::StaticText
+        || suffix.kind != RuntimeTextBuilderSegmentKind::StoredPlace
+    {
+        return None;
+    }
+    let Expression::String(prefix) = &prefix.expression else {
+        return None;
+    };
+
+    let buffer = runtime_text_input_buffer_for_text_place(native_plan, resolved_target)?;
+    let source = resolve_runtime_alias_expression(&suffix.expression, source_machine, aliases);
+    let source_place = resolve_runtime_storage_place(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        &source,
+    )?;
+    let target_place = resolve_runtime_storage_place(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        resolved_target,
+    )?;
+    if source_place.byte_count != native_plan.target.pointer_size * 2
+        || target_place.byte_count != native_plan.target.pointer_size * 2
+    {
+        return None;
+    }
+
+    Some(vec![
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+            buffer_symbol: buffer.symbol.clone(),
+            byte_offset: 0,
+            literal: prefix.clone(),
+        },
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer_symbol: buffer.symbol.clone(),
+            buffer_offset: prefix.len(),
+            source_symbol: source_place.symbol,
+            source_offset: source_place.byte_offset,
+            target_symbol: target_place.symbol,
+            target_offset: target_place.byte_offset,
+            length_delta: prefix.len(),
+        },
+    ])
 }
 
 fn runtime_storage_copy(
@@ -785,39 +897,53 @@ fn resolve_runtime_alias_expression(
     }
 }
 
-fn select_runtime_leaf_branch_expansions(
+fn select_runtime_leaf_branch_expansions_for_operation(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    operation: &crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperation,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     for (_, expansion) in native_plan
         .runtime_branching_calls
         .leaf_expansions
         .iter()
-        .filter(|(_, expansion)| expansion.dispatch_index == dispatch_index)
+        .filter(|(_, expansion)| {
+            expansion.dispatch_index == dispatch_index
+                && expansion.source_machine == operation.source_machine
+                && expansion.source_state == operation.source_state
+                && expansion.statement_index == operation.statement_index
+        })
     {
-        if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
-            selected_instructions.push(SelectedInstruction {
-                kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
-                    buffer_symbol,
-                    literal,
-                },
-                source_machine: expansion.source_machine.clone(),
-                source_state: expansion.source_state.clone(),
-                source_statement: expansion.statement_index,
-            });
-        } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
-            selected_instructions.push(SelectedInstruction {
-                kind: compare,
-                source_machine: expansion.source_machine.clone(),
-                source_state: expansion.source_state.clone(),
-                source_statement: expansion.statement_index,
-            });
-        } else {
-            continue;
-        }
-        select_runtime_leaf_branch_mutation_writes(native_plan, expansion, selected_instructions);
+        select_runtime_leaf_branch_expansion(native_plan, expansion, selected_instructions);
     }
+}
+
+fn select_runtime_leaf_branch_expansion(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
+                buffer_symbol,
+                literal,
+            },
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
+            source_statement: expansion.statement_index,
+        });
+    } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
+        selected_instructions.push(SelectedInstruction {
+            kind: compare,
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
+            source_statement: expansion.statement_index,
+        });
+    } else {
+        return;
+    }
+    select_runtime_leaf_branch_mutation_writes(native_plan, expansion, selected_instructions);
 }
 
 fn select_runtime_leaf_branch_mutation_writes(

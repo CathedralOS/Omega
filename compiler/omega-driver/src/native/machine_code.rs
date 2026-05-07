@@ -94,6 +94,16 @@ pub enum MachineInstructionKind {
     RuntimeTextLiteralWrite {
         literal: String,
     },
+    RuntimeTextLiteralSegmentWrite {
+        byte_offset: usize,
+        literal: String,
+    },
+    RuntimeTextStoredSuffixAppend {
+        buffer_offset: usize,
+        source_offset: usize,
+        target_offset: usize,
+        length_delta: usize,
+    },
     RuntimeMachineIntegerWrite {
         byte_offset: usize,
         byte_size: usize,
@@ -300,6 +310,32 @@ fn machine_instruction_shape(
             },
             runtime_text_literal_write_width(native_plan.target.architecture, literal),
         ),
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+            byte_offset,
+            literal,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextLiteralSegmentWrite {
+                byte_offset: *byte_offset,
+                literal: literal.clone(),
+            },
+            runtime_text_literal_segment_write_width(native_plan.target.architecture, literal),
+        ),
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextStoredSuffixAppend {
+                buffer_offset: *buffer_offset,
+                source_offset: *source_offset,
+                target_offset: *target_offset,
+                length_delta: *length_delta,
+            },
+            runtime_text_stored_suffix_append_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
@@ -441,6 +477,28 @@ fn encode_machine_instruction(
                 literal,
             )
         }
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+            byte_offset,
+            literal,
+            ..
+        } => architecture::encode_runtime_text_literal_segment_write(
+            native_plan.target.architecture,
+            *byte_offset,
+            literal,
+        ),
+        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+            ..
+        } => architecture::encode_runtime_text_stored_suffix_append(
+            native_plan.target.architecture,
+            *buffer_offset,
+            *source_offset,
+            *target_offset,
+            *length_delta,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
@@ -613,7 +671,7 @@ fn byte_distance_to_next_runtime_write_end(
         )));
     };
 
-    let branch_program_counter = current.offset + current.byte_width;
+    let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
     let target = machine_write.offset + machine_write.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }
@@ -705,6 +763,19 @@ fn runtime_text_literal_write_width(
     literal: &str,
 ) -> usize {
     architecture::runtime_text_literal_write_width(architecture, literal)
+}
+
+fn runtime_text_literal_segment_write_width(
+    architecture: crate::native::target::Architecture,
+    literal: &str,
+) -> usize {
+    architecture::runtime_text_literal_segment_write_width(architecture, literal)
+}
+
+fn runtime_text_stored_suffix_append_width(
+    architecture: crate::native::target::Architecture,
+) -> usize {
+    architecture::runtime_text_stored_suffix_append_width(architecture)
 }
 
 fn runtime_machine_integer_write_width(architecture: crate::native::target::Architecture) -> usize {

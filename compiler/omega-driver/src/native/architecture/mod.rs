@@ -77,6 +77,23 @@ pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &st
     }
 }
 
+pub fn runtime_text_literal_segment_write_width(
+    architecture: Architecture,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_literal_segment_write_width(literal),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_stored_suffix_append_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_stored_suffix_append_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_machine_integer_write_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_integer_write_width(),
@@ -220,6 +237,37 @@ pub fn encode_runtime_text_literal_write(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_literal_write(literal),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_segment_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_segment_write(byte_offset, literal)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_stored_suffix_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+    length_delta: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_suffix_append(
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
