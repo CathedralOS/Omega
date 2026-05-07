@@ -274,19 +274,19 @@ fn collect_machine_state_calls(
     }
 }
 
-fn build_call_arguments(
+fn build_call_arguments<'a>(
     native_plan: &NativePlan,
     target_machine: &str,
     target_state: &str,
     required: bool,
-    raw_arguments: &[Expression],
-) -> Vec<StateCallArgument> {
+    raw_arguments: &'a [Expression],
+) -> impl Iterator<Item = StateCallArgument> + 'a {
     let parameter_names = state_parameter_names(native_plan, target_machine, target_state);
 
     raw_arguments
         .iter()
         .enumerate()
-        .map(|(index, expression)| StateCallArgument {
+        .map(move |(index, expression)| StateCallArgument {
             index,
             parameter_name: parameter_names.get(index).cloned().unwrap_or_default(),
             expression: expression.clone(),
@@ -297,7 +297,6 @@ fn build_call_arguments(
             },
             required,
         })
-        .collect()
 }
 
 fn state_parameter_names(
