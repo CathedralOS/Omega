@@ -1,3 +1,4 @@
+use crate::native::control_flow::{OperationKind, StateFlow};
 use crate::native::plan::NativePlan;
 use crate::native::target::{Architecture, ObjectFormat};
 use omega_core::arena::Arena;
@@ -68,6 +69,8 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         }
     }
 
+    collect_entry_state_codegen_blockers(native_plan, &mut blockers);
+
     if !can_emit_real_object(native_plan) {
         blockers.insert_many([
             blocker(
@@ -96,6 +99,107 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         relocations: native_plan.relocations.records.len(),
         blockers,
     }
+}
+
+fn collect_entry_state_codegen_blockers(
+    native_plan: &NativePlan,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    let Some(entry_state) = entry_state_flow(native_plan) else {
+        blockers.insert(blocker(
+            "state codegen",
+            &format!(
+                "entry state {}.{} was not present in the control-flow plan",
+                native_plan.entry_machine, native_plan.entry_state
+            ),
+        ));
+        return;
+    };
+
+    if let Some(transitions) = native_plan
+        .control_flow
+        .transitions
+        .span(entry_state.transitions)
+    {
+        if !transitions.is_empty() {
+            blockers.insert(blocker(
+                "state codegen",
+                &format!(
+                    "{}.{} has {} transition(s); native emission currently supports straight-line entry states only",
+                    native_plan.entry_machine,
+                    native_plan.entry_state,
+                    transitions.len()
+                ),
+            ));
+        }
+    }
+
+    let Some(operations) = native_plan
+        .control_flow
+        .operations
+        .span(entry_state.operations)
+    else {
+        blockers.insert(blocker(
+            "state codegen",
+            &format!(
+                "{}.{} has an invalid operation span",
+                native_plan.entry_machine, native_plan.entry_state
+            ),
+        ));
+        return;
+    };
+
+    for operation in operations {
+        match operation.kind {
+            OperationKind::Call
+                if entry_statement_has_host_call(native_plan, operation.statement_index) => {}
+            OperationKind::Call => {
+                blockers.insert(blocker(
+                    "state codegen",
+                    &format!(
+                        "{}.{} statement {} is a call that is not lowered to a native host operation",
+                        native_plan.entry_machine,
+                        native_plan.entry_state,
+                        operation.statement_index
+                    ),
+                ));
+            }
+            _ => {
+                blockers.insert(blocker(
+                    "state codegen",
+                    &format!(
+                        "{}.{} statement {} {:?} is not supported by native emission yet",
+                        native_plan.entry_machine,
+                        native_plan.entry_state,
+                        operation.statement_index,
+                        operation.kind
+                    ),
+                ));
+            }
+        };
+    }
+}
+
+fn entry_state_flow(native_plan: &NativePlan) -> Option<&StateFlow> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|machine| machine.name == native_plan.entry_machine)
+        .and_then(|machine| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.name == native_plan.entry_state)
+        })
+}
+
+fn entry_statement_has_host_call(native_plan: &NativePlan, statement_index: usize) -> bool {
+    native_plan.host_calls.calls.iter().any(|(_, host_call)| {
+        host_call.machine == native_plan.entry_machine
+            && host_call.state == native_plan.entry_state
+            && host_call.statement_index == statement_index
+    })
 }
 
 fn can_emit_real_object(native_plan: &NativePlan) -> bool {

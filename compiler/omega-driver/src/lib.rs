@@ -1701,6 +1701,88 @@ mod tests {
     }
 
     #[test]
+    fn reports_entry_transitions_as_native_codegen_blockers() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    -> shutdown;
+                }
+
+                state shutdown {
+                    console.exit_process(0);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should preserve entry transition as blocker");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+        assert!(
+            emission_plan.blockers.iter().any(|(_, blocker)| {
+                blocker.stage == "state codegen"
+                    && blocker.reason.contains("straight-line entry states only")
+            }),
+            "expected entry transition codegen blocker"
+        );
+    }
+
+    #[test]
+    fn reports_entry_assignments_as_native_codegen_blockers() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+                owns return_code: i32 = 0;
+
+                state entry {
+                    return_code = 0;
+                    console.exit_process(return_code);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should preserve entry assignment as blocker");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+        assert!(
+            emission_plan.blockers.iter().any(|(_, blocker)| {
+                blocker.stage == "state codegen"
+                    && blocker.reason.contains("Assignment is not supported")
+            }),
+            "expected entry assignment codegen blocker"
+        );
+    }
+
+    #[test]
     fn selected_target_loads_only_referenced_host_package() {
         let build_dir = std::env::temp_dir().join(format!(
             "omega-driver-selected-target-{}",
