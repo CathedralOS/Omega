@@ -109,7 +109,14 @@ Targets without a real object writer still fall back to an Omega native object c
 
 ## Workspace Shape
 
-The repository is intentionally split into crates and sample folders. Names should explain the boundary. If a file name feels like compiler folklore, it probably needs another pass.
+The repository should grow toward a feature-first Rust workspace with strong layering and deliberately explicit crate names. The goal is not a tiny academic compiler layout. The goal is a production-grade toolchain layout that can carry Omega from language bring-up through multi-platform shipping without leaning on LLVM or native system linkers.
+
+Long-term design assumptions:
+
+- The compiler owns its full native pipeline: parse, analyze, lower, optimize, select instructions, encode machine code, write object containers, resolve/link, and emit final platform images.
+- All major executable formats are first-class: Mach-O, ELF, PE/COFF, and WebAssembly.
+- The backend is shared where it should be shared, but architecture and platform boundaries stay obvious in the tree.
+- The standard library, host contracts, startup/runtime, and platform ABI knowledge are versioned inside the workspace, not treated as mysterious external glue.
 
 Legend:
 
@@ -120,26 +127,121 @@ Legend:
 Omega/
 |-- Cargo.toml
 |-- README.md
-|-- omega-cli/
-|   `-- [CRATE] omega-cli/                              # User-facing `omega` command.
+|-- apps/
+|   |-- [CRATE] omega-cli/                              # User-facing `omega` command.
+|   |-- [CRATE] omega-lsp/                              # Editor/language-service server.
+|   `-- [CRATE] omega-doc/                              # Doc generation, package docs, symbol pages.
 |
 |-- compiler/
-|   |-- [CRATE] omega-core/                             # Cross-compiler foundations.
-|   |   |-- arena/                                      # Arena, paged arena, handles, handle spans, free stack.
-|   |   |-- diagnostics/                                # Diagnostic values and formatting.
-|   |   `-- source/                                     # Source files, source map, resolver.
+|   |-- foundation/
+|   |   |-- [CRATE] omega-base/                         # Small shared primitives, ids, interners, utility traits.
+|   |   |-- [CRATE] omega-arena/                        # Arena, paged arena, generational handles, handle spans.
+|   |   |-- [CRATE] omega-span/                         # Source positions, file spans, expansion spans.
+|   |   |-- [CRATE] omega-diagnostics/                  # Diagnostics, notes, labels, rendering, stable ids.
+|   |   |-- [CRATE] omega-source/                       # Source files, source db, virtual paths, line maps.
+|   |   |-- [CRATE] omega-vfs/                          # Real/fs overlay/package virtual filesystem.
+|   |   |-- [CRATE] omega-intern/                       # String/symbol interning.
+|   |   `-- [CRATE] omega-profiling/                    # Timings, phase counters, artifact metrics.
 |   |
-|   |-- [CRATE] omega-ast/                              # Parsed source tree structs.
-|   |-- [CRATE] omega-lexer/                            # Source text to tokens.
-|   |-- [CRATE] omega-parser/                           # Tokens to AST.
-|   |-- [CRATE] omega-resolve/                          # Import/definition/reference reporting.
-|   |-- [CRATE] omega-types/                            # Type surface and invariant constraint reporting.
-|   |-- [CRATE] omega-graph/                            # Source-level machine/state graph reporting.
-|   |-- [CRATE] omega-proof/                            # Source-level proof surface reporting.
-|   |-- [CRATE] omega-native/                           # Source-level native surface reporting.
+|   |-- frontend/
+|   |   |-- [CRATE] omega-token/                        # Token definitions and trivia model.
+|   |   |-- [CRATE] omega-lexer/                        # Source text to tokens.
+|   |   |-- [CRATE] omega-cst/                          # Concrete syntax tree and lossless parse nodes.
+|   |   |-- [CRATE] omega-parser/                       # Tokens to CST/AST.
+|   |   |-- [CRATE] omega-ast/                          # Parsed source tree structs for semantic entry.
+|   |   |-- [CRATE] omega-ast-lower/                    # AST to early semantic forms.
+|   |   `-- [CRATE] omega-format/                       # Formatter and syntax-preserving rewrites.
+|   |
+|   |-- packages/
+|   |   |-- [CRATE] omega-manifest/                     # Package manifests, target declarations, metadata.
+|   |   |-- [CRATE] omega-package-graph/                # Package discovery, dependency graph, workspace graph.
+|   |   |-- [CRATE] omega-loader/                       # Package/module loading over VFS/source db.
+|   |   `-- [CRATE] omega-registry/                     # Package registry/client logic for future distribution.
+|   |
+|   |-- semantics/
+|   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
+|   |   |-- [CRATE] omega-hir/                          # High-level semantic IR.
+|   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
+|   |   |-- [CRATE] omega-effects/                      # Effect surface, mutation/host capability checking.
+|   |   |-- [CRATE] omega-borrow/                       # Ownership, aliasing, lifetime-style checks as needed.
+|   |   |-- [CRATE] omega-consteval/                    # Compile-time evaluation and folding.
+|   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and validation.
+|   |   |-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
+|   |   `-- [CRATE] omega-sema/                         # Phase glue for semantic passes and canonical reports.
+|   |
+|   |-- intermediate-representations/
+|   |   |-- [CRATE] omega-mir/                          # Mid-level IR after semantic lowering.
+|   |   |-- [CRATE] omega-mir-build/                    # HIR to MIR lowering.
+|   |   |-- [CRATE] omega-dataflow/                     # CFG/dataflow framework.
+|   |   |-- [CRATE] omega-opt/                          # Machine-independent optimization passes.
+|   |   |-- [CRATE] omega-lir/                          # Low-level target-aware IR before final encoding.
+|   |   `-- [CRATE] omega-mono/                         # Monomorphization/specialization and code unit planning.
+|   |
+|   |-- backend/
+|   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
+|   |   |-- [CRATE] omega-calling-contracts/            # Calling conventions, ABI, parameter passing, unwind contracts.
+|   |   |-- [CRATE] omega-layout/                       # Type layout, alignments, field offsets, calling-convention records.
+|   |   |-- [CRATE] omega-instruction-selection/        # Shared instruction selection framework.
+|   |   |-- [CRATE] omega-regalloc/                     # Register allocation.
+|   |   |-- [CRATE] omega-machine/                      # Machine function model, blocks, virtual/physical regs.
+|   |   |-- isa/
+|   |   |   |-- [CRATE] omega-isa-aarch64/              # AArch64 instruction defs, encodings, lowering hooks.
+|   |   |   |-- [CRATE] omega-isa-x86_64/               # x86_64 instruction defs, encodings, lowering hooks.
+|   |   |   |-- [CRATE] omega-isa-riscv64/              # RISC-V 64 instruction defs, encodings, lowering hooks.
+|   |   |   `-- [CRATE] omega-isa-wasm32/               # Wasm codegen surface where native image rules differ.
+|   |   |
+|   |   |-- object/
+|   |   |   |-- [CRATE] omega-object/                   # Shared object model: sections, symbols, relocations.
+|   |   |   |-- [CRATE] omega-object-elf/               # ELF object/container writer.
+|   |   |   |-- [CRATE] omega-object-macho/             # Mach-O object/container writer.
+|   |   |   |-- [CRATE] omega-object-coff/              # COFF/PE object/container writer.
+|   |   |   `-- [CRATE] omega-object-wasm/              # Wasm module/object writer.
+|   |   |
+|   |   |-- link/
+|   |   |   |-- [CRATE] omega-link/                     # Compiler-owned linker driver and graph orchestration.
+|   |   |   |-- [CRATE] omega-link-base/                # Shared symbol resolution, relocation, gc, comdat rules.
+|   |   |   |-- [CRATE] omega-link-elf/                 # ELF executable/shared-object linking.
+|   |   |   |-- [CRATE] omega-link-macho/               # Mach-O executable/dylib linking.
+|   |   |   |-- [CRATE] omega-link-pe/                  # PE/COFF executable/dll linking.
+|   |   |   `-- [CRATE] omega-link-wasm/                # Wasm final module linking and import/export shaping.
+|   |   |
+|   |   `-- images/
+|   |       |-- [CRATE] omega-image-elf/                # Final ELF image layout, program headers, loaders.
+|   |       |-- [CRATE] omega-image-macho/              # Final Mach-O image layout, load commands, fixups.
+|   |       |-- [CRATE] omega-image-pe/                 # Final PE image layout, directories, imports, relocations.
+|   |       `-- [CRATE] omega-image-wasm/               # Final Wasm module packaging.
+|   |
+|   |-- runtime/
+|   |   |-- [CRATE] omega-runtime-core/                 # Shared runtime entry contracts and compiler intrinsics.
+|   |   |-- [CRATE] omega-runtime-memory/               # Allocator/runtime memory surfaces if language needs them.
+|   |   |-- [CRATE] omega-runtime-unwind/               # Panic/failure/unwind or abort-mode runtime surface.
+|   |   |-- [CRATE] omega-runtime-host/                 # Trusted host-call shims and platform bridge contracts.
+|   |   `-- startup/
+|   |       |-- [CRATE] omega-startup-macos/            # Process entry, startup runtime replacement, platform bootstrap.
+|   |       |-- [CRATE] omega-startup-linux/            # Process entry, startup runtime replacement, platform bootstrap.
+|   |       |-- [CRATE] omega-startup-windows/          # Process entry, startup runtime replacement, platform bootstrap.
+|   |       `-- [CRATE] omega-startup-wasm/             # Wasm start/export bootstrap.
+|   |
+|   |-- orchestration/
+|   |   |-- [CRATE] omega-queries/                      # Incremental/query engine and cache keys.
+|   |   |-- [CRATE] omega-artifacts/                    # Phase artifact models and text/binary dumping.
+|   |   |-- [CRATE] omega-session/                      # Compilation session, options, build graph, worker pools.
+|   |   `-- [CRATE] omega-compiler/                     # Top-level check/build API used by cli/lsp/tests.
+|   |
+|   `-- toolsupport/
+|       |-- [CRATE] omega-ide/                          # Semantic tokens, completion, hover, go-to-def support.
+|       `-- [CRATE] omega-doc-model/                    # Shared doc extraction model for cli/lsp/doc tooling.
 |
 |-- omega/
-|   `-- host/                                           # Bundled Omega host contracts and platform packages.
+|   |-- core/                                           # Language core package shipped with every toolchain.
+|   |-- alloc/                                          # Allocation/data-structure package if language needs it.
+|   |-- std/                                            # Higher-level standard package surface.
+|   |-- host/                                           # Trusted host contracts and audited platform surfaces.
+|   `-- platform/                                       # Platform-specific Omega packages and startup bindings.
+|
+|-- runtimes/
+|   |-- startup_objects/                                # Compiler-owned startup/runtime support objects.
+|   `-- platform/                                       # Link-time runtime assets and metadata by target family.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -150,22 +252,32 @@ Omega/
 |   |-- pass/                                           # Tiny feature canaries expected to check.
 |   `-- fail/                                           # Tiny negative canaries with expected diagnostics.
 |
-`-- wiki/                                               # Language design notes and guide drafts.
+|-- tests/
+|   |-- integration/                                    # End-to-end compiler tests.
+|   |-- target_corpus/                                  # Per-target ABI/object/link/image tests.
+|   `-- bootstrap/                                      # Future self-hosting/bootstrap tests.
+|
+`-- wiki/                                               # Language design notes, target notes, and guide drafts.
 ```
 
 ## Internal Placement Rules
 
 These are the current rules of thumb. They are allowed to evolve, but the README should stay current when they do.
 
-- `omega-cli` should stay thin. CLI parsing and invoking `omega_driver::check` or `omega_driver::compile` belongs there; compiler logic does not.
-- `omega-driver::pipeline` owns orchestration and artifacts, not language semantics.
-- `omega-driver::ir` owns lowered data structures, not parsing and not native details.
-- `omega-driver::semantic` owns checks over lowered IR before native planning.
-- `omega-driver::proof` owns proof obligations and proof checking.
-- `omega-driver::native` owns the current native backend, but should be split aggressively as files grow.
-- OS object file writers belong under `native/platform_object/`, not at the top level of native.
-- Architecture instruction encoding belongs under `native/architecture/`.
-- Host API/trust/platform-call lowering belongs in `native/abi.rs` and `native/host_calls.rs` for now, but should become more explicit as the host model matures.
+- `omega-cli`, `omega-lsp`, and `omega-doc` stay thin. They parse user intent and call `omega-compiler` or `omega-ide`; they do not own compiler semantics.
+- `foundation/` must stay dependency-light. If a crate there starts depending on HIR, MIR, or target details, it is in the wrong layer.
+- `frontend/` owns syntax and source-preserving structure only. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
+- `packages/` owns manifests, dependency graphs, and source loading. It should not grow semantic rules for the language itself.
+- `omega-hir` is the first meaning-bearing IR. Parser conveniences and concrete syntax trivia do not belong there.
+- `semantics/` proves and reports what the program means. `ir/` decides how that meaning is represented for optimization and code generation.
+- `omega-graph` and `omega-proof` stay semantic/model-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
+- `omega-mir` and `omega-lir` are long-lived boundaries. Do not skip straight from HIR to ad hoc backend structs once the compiler grows.
+- `backend/isa/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-isel`, not duplicated per ISA unless the target really demands it.
+- `backend/object/*` writes relocatable containers. `backend/link/*` resolves symbols, applies relocations, strips dead sections, and builds final images. Do not blur object writing and linking together.
+- `backend/images/*` owns final executable/shared-library layout rules. Platform image concerns should not leak upward into generic optimization crates.
+- Because Omega does not rely on native system linkers, import tables, export tables, load commands, dynamic loader metadata, startup entry selection, and final fixups are first-class compiler responsibilities.
+- `runtime/startup/*` owns entry bootstrap code and startup-runtime replacement logic. Keep process start rules out of random backend files.
+- `omega-queries` and `omega-session` own orchestration, caching, and artifact production. They should call phases, not absorb the phase logic itself.
 - Tests should not live in `lib.rs`; public crate roots should explain exports, not hide 2,000 lines of behavior.
 - `mod.rs` and `lib.rs` should declare boundaries, not become implementation junk drawers.
 
