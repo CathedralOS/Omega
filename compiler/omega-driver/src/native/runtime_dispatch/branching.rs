@@ -22,6 +22,7 @@ pub struct RuntimeBranchingCall {
     pub target_machine: String,
     pub target_state: String,
     pub argument_count: usize,
+    pub expansion: RuntimeBranchCallExpansion,
     pub edges: HandleSpan<RuntimeBranchingCallEdge>,
 }
 
@@ -35,6 +36,7 @@ impl Default for RuntimeBranchingCall {
             target_machine: String::new(),
             target_state: String::new(),
             argument_count: 0,
+            expansion: RuntimeBranchCallExpansion::Unplanned,
             edges: HandleSpan::empty(),
         }
     }
@@ -73,6 +75,17 @@ pub enum RuntimeBranchTargetLowering {
     Unknown,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeBranchCallExpansion {
+    GuardedLeaf,
+    GuardedLeafWithComplexGuards,
+    NeedsStraightLineTarget,
+    NeedsNestedBranchTarget,
+    UnknownTarget,
+    #[default]
+    Unplanned,
+}
+
 pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBranchingCallPlan {
     let mut plan = RuntimeBranchingCallPlan::default();
 
@@ -93,6 +106,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             };
 
             let branch_edges = build_branch_edges(native_plan, target_machine, target_state);
+            let expansion = classify_branch_call_expansion(&branch_edges);
             let edges = plan.edges.insert_many(branch_edges);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
@@ -102,12 +116,62 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 target_machine: target_machine.clone(),
                 target_state: target_state.clone(),
                 argument_count: *argument_count,
+                expansion,
                 edges,
             });
         }
     }
 
     plan
+}
+
+fn classify_branch_call_expansion(
+    edges: &[RuntimeBranchingCallEdge],
+) -> RuntimeBranchCallExpansion {
+    if edges.is_empty() {
+        return RuntimeBranchCallExpansion::Unplanned;
+    }
+
+    let mut has_unknown_target = false;
+    let mut has_straight_line_target = false;
+    let mut has_nested_branching_target = false;
+    let mut has_complex_guard = false;
+
+    for edge in edges {
+        match edge.lowering {
+            RuntimeBranchTargetLowering::Terminal | RuntimeBranchTargetLowering::InlineLeaf => {}
+            RuntimeBranchTargetLowering::InlineStraightLine => has_straight_line_target = true,
+            RuntimeBranchTargetLowering::InlineBranching => has_nested_branching_target = true,
+            RuntimeBranchTargetLowering::Unknown => has_unknown_target = true,
+        }
+
+        if !matches!(
+            edge.guard_kind,
+            StateGuardKind::Always
+                | StateGuardKind::RuntimeEquality
+                | StateGuardKind::RuntimeInequality
+        ) {
+            has_complex_guard = true;
+        }
+    }
+
+    if has_unknown_target {
+        return RuntimeBranchCallExpansion::UnknownTarget;
+    }
+
+    if has_nested_branching_target {
+        return RuntimeBranchCallExpansion::NeedsNestedBranchTarget;
+    }
+
+    if has_straight_line_target {
+        return RuntimeBranchCallExpansion::NeedsStraightLineTarget;
+    }
+
+    if has_complex_guard {
+        return RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards;
+    }
+
+    RuntimeBranchCallExpansion::GuardedLeaf
 }
 
 fn build_branch_edges(

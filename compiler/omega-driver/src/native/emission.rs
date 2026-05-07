@@ -5,7 +5,7 @@ use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::branching::{
-    RuntimeBranchTargetLowering, RuntimeBranchingCall,
+    RuntimeBranchCallExpansion, RuntimeBranchingCall,
 };
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_calls::StateCallLowering;
@@ -411,60 +411,13 @@ fn runtime_branching_call_expansion_reason(
         return "guarded state-call expansion".to_owned();
     }
 
-    let mut has_unknown_target = false;
-    let mut has_straight_line_target = false;
-    let mut has_nested_branching_target = false;
-    let mut has_complex_guard = false;
-    let mut has_edges = false;
+    let mut expansion = RuntimeBranchCallExpansion::GuardedLeaf;
 
     for call in matching_calls {
-        let Some(edges) = native_plan.runtime_branching_calls.edges.span(call.edges) else {
-            has_unknown_target = true;
-            continue;
-        };
-
-        for edge in edges {
-            has_edges = true;
-            match edge.lowering {
-                RuntimeBranchTargetLowering::Terminal | RuntimeBranchTargetLowering::InlineLeaf => {
-                }
-                RuntimeBranchTargetLowering::InlineStraightLine => has_straight_line_target = true,
-                RuntimeBranchTargetLowering::InlineBranching => has_nested_branching_target = true,
-                RuntimeBranchTargetLowering::Unknown => has_unknown_target = true,
-            }
-
-            if !matches!(
-                edge.guard_kind,
-                StateGuardKind::Always
-                    | StateGuardKind::RuntimeEquality
-                    | StateGuardKind::RuntimeInequality
-            ) {
-                has_complex_guard = true;
-            }
-        }
+        expansion = strongest_branch_expansion(expansion, call.expansion);
     }
 
-    if !has_edges {
-        return "guarded state-call expansion".to_owned();
-    }
-
-    if has_unknown_target {
-        return "guarded branch expansion with unknown target lowering".to_owned();
-    }
-
-    if has_nested_branching_target {
-        return "nested guarded branch expansion".to_owned();
-    }
-
-    if has_straight_line_target {
-        return "guarded branch expansion with straight-line target".to_owned();
-    }
-
-    if has_complex_guard {
-        return "guarded leaf branch expansion with complex guards".to_owned();
-    }
-
-    "guarded leaf branch expansion".to_owned()
+    runtime_branch_expansion_reason(expansion).to_owned()
 }
 
 fn runtime_branching_call_matches_grouped_blocker(
@@ -477,6 +430,45 @@ fn runtime_branching_call_matches_grouped_blocker(
         && call.target_machine == grouped_blocker.target_machine
         && call.target_state == grouped_blocker.target_state
         && call.argument_count == grouped_blocker.argument_count
+}
+
+fn strongest_branch_expansion(
+    current: RuntimeBranchCallExpansion,
+    next: RuntimeBranchCallExpansion,
+) -> RuntimeBranchCallExpansion {
+    if branch_expansion_rank(next) > branch_expansion_rank(current) {
+        next
+    } else {
+        current
+    }
+}
+
+fn branch_expansion_rank(expansion: RuntimeBranchCallExpansion) -> u8 {
+    match expansion {
+        RuntimeBranchCallExpansion::GuardedLeaf => 0,
+        RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards => 1,
+        RuntimeBranchCallExpansion::NeedsStraightLineTarget => 2,
+        RuntimeBranchCallExpansion::NeedsNestedBranchTarget => 3,
+        RuntimeBranchCallExpansion::UnknownTarget => 4,
+        RuntimeBranchCallExpansion::Unplanned => 5,
+    }
+}
+
+fn runtime_branch_expansion_reason(expansion: RuntimeBranchCallExpansion) -> &'static str {
+    match expansion {
+        RuntimeBranchCallExpansion::GuardedLeaf => "guarded leaf branch expansion",
+        RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards => {
+            "guarded leaf branch expansion with complex guards"
+        }
+        RuntimeBranchCallExpansion::NeedsStraightLineTarget => {
+            "guarded branch expansion with straight-line target"
+        }
+        RuntimeBranchCallExpansion::NeedsNestedBranchTarget => "nested guarded branch expansion",
+        RuntimeBranchCallExpansion::UnknownTarget => {
+            "guarded branch expansion with unknown target lowering"
+        }
+        RuntimeBranchCallExpansion::Unplanned => "guarded state-call expansion",
+    }
 }
 
 fn collect_unresolved_state_call_blockers(

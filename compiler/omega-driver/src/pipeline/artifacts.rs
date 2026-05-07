@@ -937,6 +937,7 @@ impl ArtifactWriter {
                 match native_plan.runtime_branching_calls.edges.span(call.edges) {
                     Some(edges) if edges.is_empty() => output.push_str("  edges: none\n"),
                     Some(edges) => {
+                        output.push_str(&format!("  expansion: {:?}\n", call.expansion));
                         output.push_str("  edges:\n");
                         for edge in edges {
                             output.push_str(&format!(

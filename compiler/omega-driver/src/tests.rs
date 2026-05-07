@@ -1409,6 +1409,10 @@ fn plans_runtime_branching_state_call_edges() {
         .span(branching_call.edges)
         .expect("branching call edges should resolve");
 
+    assert_eq!(
+        branching_call.expansion,
+        crate::native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
+    );
     assert_eq!(edges.len(), 2);
     assert!(matches!(
         edges[0].target,
@@ -1472,7 +1476,18 @@ fn reports_runtime_leaf_branch_expansion_blocker() {
     )
     .expect("native planning should build runtime branch blockers");
     let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let branching_call = native_plan
+        .runtime_branching_calls
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_state == "choose")
+        .map(|(_, call)| call)
+        .expect("branching call should be planned");
 
+    assert_eq!(
+        branching_call.expansion,
+        crate::native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeaf
+    );
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "state calls"
