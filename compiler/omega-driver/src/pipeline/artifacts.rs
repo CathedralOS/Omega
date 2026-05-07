@@ -871,6 +871,45 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Bodies\n");
+        output.push_str(&format!(
+            "bodies: {}\n",
+            native_plan.runtime_bodies.bodies.len()
+        ));
+        output.push_str(&format!(
+            "operations: {}\n",
+            native_plan.runtime_bodies.operations.len()
+        ));
+        if native_plan.runtime_bodies.bodies.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, body) in native_plan.runtime_bodies.bodies.iter() {
+                output.push_str(&format!(
+                    "- #{} {}.{}\n",
+                    body.dispatch_index, body.machine, body.state
+                ));
+
+                match native_plan.runtime_bodies.operations.span(body.operations) {
+                    Some(operations) if operations.is_empty() => {
+                        output.push_str("  operations: none\n");
+                    }
+                    Some(operations) => {
+                        output.push_str("  operations:\n");
+                        for operation in operations {
+                            output.push_str(&format!(
+                                "    - {}.{} statement {} {:?}\n",
+                                operation.source_machine,
+                                operation.source_state,
+                                operation.statement_index,
+                                operation.kind
+                            ));
+                        }
+                    }
+                    None => output.push_str("  operations: invalid span\n"),
+                }
+            }
+        }
+
         output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",

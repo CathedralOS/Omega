@@ -1303,6 +1303,64 @@ fn plans_runtime_guards_for_dispatch_edges() {
 }
 
 #[test]
+fn plans_runtime_bodies_with_leaf_state_call_expansion() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    hello();
+                    -> self;
+                }
+
+                state hello {
+                    console.write_line("body");
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build runtime bodies");
+    let entry_body = native_plan
+        .runtime_bodies
+        .bodies
+        .iter()
+        .find(|(_, body)| body.machine == "main" && body.state == "entry")
+        .map(|(_, body)| body)
+        .expect("entry runtime body should exist");
+    let operations = native_plan
+        .runtime_bodies
+        .operations
+        .span(entry_body.operations)
+        .expect("entry runtime body operations should resolve");
+
+    assert!(operations.iter().any(|operation| matches!(
+        operation.kind,
+        crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { ref target_state, .. }
+            if target_state == "hello"
+    )));
+    assert!(operations.iter().any(|operation| matches!(
+        operation.kind,
+        crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::HostCall { ref platform_call }
+            if platform_call == "console.write_line"
+    )));
+}
+
+#[test]
 fn selects_instructions_for_runtime_reachable_loop_states() {
     let tokens = Lexer::new(
         r#"
