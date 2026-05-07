@@ -164,6 +164,7 @@ fn collect_state_codegen_blockers(
                         ),
                     ));
                 }
+                OperationKind::ConstantIntegerAssignment => {}
                 _ => {
                     blockers.insert(blocker(
                         "state codegen",

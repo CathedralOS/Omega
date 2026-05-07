@@ -65,6 +65,7 @@ pub struct Operation {
 pub enum OperationKind {
     Assignment,
     Call,
+    ConstantIntegerAssignment,
     Expression,
     LocalData,
 }
@@ -262,12 +263,23 @@ fn segment_name(state_name: &str, segment_index: usize) -> String {
 
 fn operation_kind(statement: &Statement) -> OperationKind {
     match statement {
+        Statement::Assignment(assignment) if is_constant_integer_assignment(assignment) => {
+            OperationKind::ConstantIntegerAssignment
+        }
         Statement::Assignment(_) => OperationKind::Assignment,
         Statement::Call(_) => OperationKind::Call,
         Statement::Expression(_) => OperationKind::Expression,
         Statement::LocalData(_) => OperationKind::LocalData,
         Statement::Transition(_) => unreachable!("transitions are not operations"),
     }
+}
+
+fn is_constant_integer_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
+    matches!(
+        (&assignment.target, &assignment.value),
+        (crate::ir::expression::Expression::Name(path), crate::ir::expression::Expression::Integer(_))
+            if path.len() == 1
+    )
 }
 
 fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {

@@ -1885,9 +1885,10 @@ mod tests {
             machine main {
                 contains console: Console;
                 owns return_code: i32 = 0;
+                owns other_code: i32 = 1;
 
                 state entry {
-                    return_code = 0;
+                    return_code = other_code;
                     console.exit_process(return_code);
                 }
             }
@@ -1911,6 +1912,56 @@ mod tests {
                     && blocker.reason.contains("Assignment is not supported")
             }),
             "expected entry assignment codegen blocker"
+        );
+    }
+
+    #[test]
+    fn lowers_constant_integer_assignment_before_host_call() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+                owns return_code: i32 = 1;
+
+                state entry {
+                    return_code = 0;
+                    console.exit_process(return_code);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should track constant integer assignment");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+        let exit_call = native_plan
+            .host_calls
+            .calls
+            .iter()
+            .find(|(_, call)| call.platform_call == "console.exit_process")
+            .map(|(_, call)| call)
+            .expect("exit call should be lowered");
+        let arguments = native_plan
+            .host_calls
+            .arguments
+            .span(exit_call.arguments)
+            .expect("exit arguments should be present");
+
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(
+            arguments[0].kind,
+            crate::native::host_calls::HostCallArgumentKind::Integer(0)
         );
     }
 

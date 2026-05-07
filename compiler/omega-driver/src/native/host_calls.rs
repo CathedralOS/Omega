@@ -132,51 +132,126 @@ fn collect_state_host_calls(
     state: &State,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
+    let mut integer_values = initial_integer_values(machine);
+
     for (statement_index, statement) in state.statements.iter().enumerate() {
-        let Statement::Call(call) = statement else {
-            continue;
-        };
-
-        let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
-            continue;
-        };
-
-        let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
-            let platform_call = platform_call_name(call);
-            plan.unsupported_calls.insert(UnsupportedHostCall {
-                machine: machine.name.clone(),
-                state: state.name.clone(),
-                statement_index,
-                platform_call: platform_call.clone(),
-                reason: format!("no native lowering for target {target:?}"),
-            });
-            continue;
-        };
-
-        let operations = host_abi
-            .host_operations
-            .span(lowering.operations)
-            .map(|operations| {
-                plan.operations.insert_many(
-                    operations.iter().map(|operation| {
-                        host_operation(&operation.capability, &operation.operation)
-                    }),
-                )
-            })
-            .unwrap_or_else(HandleSpan::empty);
-        let arguments = plan.arguments.insert_many(lower_host_call_arguments(call));
-        plan.calls.insert(HostCall {
-            machine: machine.name.clone(),
-            state: state.name.clone(),
-            statement_index,
-            platform_call: platform_call_name(call),
-            data: lowering.data,
-            operations,
-            arguments,
-        });
+        match statement {
+            Statement::Assignment(assignment) => {
+                apply_integer_assignment(
+                    &mut integer_values,
+                    &assignment.target,
+                    &assignment.value,
+                );
+                continue;
+            }
+            Statement::Call(call) => {
+                collect_call_host_lowering(
+                    program,
+                    target,
+                    host_abi,
+                    machine,
+                    state,
+                    statement_index,
+                    call,
+                    &integer_values,
+                    plan,
+                )?;
+            }
+            _ => {}
+        }
     }
 
     Ok(())
+}
+
+fn collect_call_host_lowering(
+    program: &Program,
+    target: NativeTarget,
+    host_abi: &HostAbiPlan,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    call: &Call,
+    integer_values: &[(String, i64)],
+    plan: &mut HostCallPlan,
+) -> Result<(), Diagnostic> {
+    let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
+        return Ok(());
+    };
+
+    let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
+        let platform_call = platform_call_name(call);
+        plan.unsupported_calls.insert(UnsupportedHostCall {
+            machine: machine.name.clone(),
+            state: state.name.clone(),
+            statement_index,
+            platform_call: platform_call.clone(),
+            reason: format!("no native lowering for target {target:?}"),
+        });
+        return Ok(());
+    };
+
+    let operations = host_abi
+        .host_operations
+        .span(lowering.operations)
+        .map(|operations| {
+            plan.operations.insert_many(
+                operations
+                    .iter()
+                    .map(|operation| host_operation(&operation.capability, &operation.operation)),
+            )
+        })
+        .unwrap_or_else(HandleSpan::empty);
+    let arguments = plan
+        .arguments
+        .insert_many(lower_host_call_arguments(call, integer_values));
+    plan.calls.insert(HostCall {
+        machine: machine.name.clone(),
+        state: state.name.clone(),
+        statement_index,
+        platform_call: platform_call_name(call),
+        data: lowering.data,
+        operations,
+        arguments,
+    });
+    Ok(())
+}
+
+fn initial_integer_values(machine: &Machine) -> Vec<(String, i64)> {
+    machine
+        .owned_data
+        .iter()
+        .filter_map(|owned_data| {
+            let Some(Expression::Integer(value)) = owned_data.initial_value.as_ref() else {
+                return None;
+            };
+
+            Some((owned_data.name.clone(), *value))
+        })
+        .collect()
+}
+
+fn apply_integer_assignment(
+    integer_values: &mut Vec<(String, i64)>,
+    target: &Expression,
+    value: &Expression,
+) {
+    let (Expression::Name(path), Expression::Integer(value)) = (target, value) else {
+        return;
+    };
+
+    let [name] = path.as_slice() else {
+        return;
+    };
+
+    if let Some((_, existing_value)) = integer_values
+        .iter_mut()
+        .find(|(existing_name, _)| existing_name == name)
+    {
+        *existing_value = *value;
+    } else {
+        integer_values.push((name.clone(), *value));
+    }
 }
 
 fn platform_call_receiver_type(
@@ -235,19 +310,30 @@ fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {
     }
 }
 
-fn lower_host_call_arguments(call: &Call) -> Vec<HostCallArgument> {
+fn lower_host_call_arguments(
+    call: &Call,
+    integer_values: &[(String, i64)],
+) -> Vec<HostCallArgument> {
     call.arguments
         .iter()
         .map(|argument| HostCallArgument {
-            kind: lower_host_call_argument(argument),
+            kind: lower_host_call_argument(argument, integer_values),
         })
         .collect()
 }
 
-fn lower_host_call_argument(argument: &Expression) -> HostCallArgumentKind {
+fn lower_host_call_argument(
+    argument: &Expression,
+    integer_values: &[(String, i64)],
+) -> HostCallArgumentKind {
     match argument {
         Expression::String(value) => HostCallArgumentKind::Text(value.clone()),
         Expression::Integer(value) => HostCallArgumentKind::Integer(*value),
+        Expression::Name(path) if path.len() == 1 => integer_values
+            .iter()
+            .find(|(name, _)| name == &path[0])
+            .map(|(_, value)| HostCallArgumentKind::Integer(*value))
+            .unwrap_or_else(|| HostCallArgumentKind::Expression(argument.display_name())),
         _ => HostCallArgumentKind::Expression(argument.display_name()),
     }
 }
