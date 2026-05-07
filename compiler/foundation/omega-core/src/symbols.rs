@@ -10,6 +10,7 @@ pub enum SymbolKind {
     Unknown,
     Root,
     Module,
+    Invariant,
     Data,
     Field,
     Variant,

@@ -10,6 +10,7 @@ pub mod statement;
 pub mod types;
 
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
@@ -18,4 +19,5 @@ pub struct Program {
     pub machines: Vec<machine::Machine>,
     pub platforms: Vec<platform::Platform>,
     pub type_constraints: Arena<types::TypeConstraint>,
+    pub symbols: SymbolTable,
 }
