@@ -53,6 +53,7 @@ pub fn build_native_data_plan(
     for (_, host_call) in host_calls.calls.iter() {
         collect_host_call_data(host_calls, host_call, &mut data_plan);
     }
+    collect_newline_data(host_calls, &mut data_plan);
     collect_static_string_assignment_data(state_storage, &mut data_plan);
 
     data_plan
@@ -129,6 +130,40 @@ fn collect_mutable_output_buffer(
         source_machine: host_call.machine.clone(),
         source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
+    });
+}
+
+fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut NativeDataPlan) {
+    let needs_newline = host_calls.calls.iter().any(|(_, host_call)| {
+        if !matches!(
+            host_call.data,
+            PlatformCallData::FirstTextArgument {
+                append_newline: true
+            }
+        ) {
+            return false;
+        }
+        host_calls
+            .arguments
+            .span(host_call.arguments)
+            .and_then(|arguments| arguments.first())
+            .is_some_and(|argument| matches!(argument.kind, HostCallArgumentKind::Expression(_)))
+    });
+    if !needs_newline {
+        return;
+    }
+
+    let offset = data_plan.bytes.len();
+    let byte_span = data_plan.bytes.insert_many(vec![b'\n']);
+
+    data_plan.objects.insert(NativeDataObject {
+        symbol: "omega_newline".to_owned(),
+        offset,
+        bytes: byte_span,
+        alignment: 1,
+        source_machine: String::new(),
+        source_state: String::new(),
+        source_statement: usize::MAX,
     });
 }
 

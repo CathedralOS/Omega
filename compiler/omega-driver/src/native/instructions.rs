@@ -1516,6 +1516,29 @@ fn select_host_call(
             source_statement: host_call.statement_index,
         });
     }
+
+    if host_call_appends_newline(host_call)
+        && runtime_machine_string_descriptor_offset(native_plan, host_call).is_some()
+        && let Some(newline) = newline_data_object(native_plan)
+    {
+        let newline_operands = operands.insert_many(vec![
+            operand(InstructionOperandKind::ImmediateInteger(1)),
+            operand(InstructionOperandKind::DataAddress {
+                symbol: newline.symbol.clone(),
+            }),
+            operand(InstructionOperandKind::ByteLength(1)),
+        ]);
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::HostOperation {
+                capability: "Stdout".to_owned(),
+                operation: "write".to_owned(),
+                operands: newline_operands,
+            },
+            source_machine: host_call.machine.clone(),
+            source_state: host_call.state.clone(),
+            source_statement: host_call.statement_index,
+        });
+    }
 }
 
 fn select_host_operation_operands(
@@ -1620,6 +1643,15 @@ fn find_data_object<'plan>(
         .map(|(_, data_object)| data_object)
 }
 
+fn newline_data_object(native_plan: &NativePlan) -> Option<&NativeDataObject> {
+    native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| data_object.symbol == "omega_newline")
+        .map(|(_, data_object)| data_object)
+}
+
 fn find_runtime_text_input_buffer_data_object<'plan>(
     native_plan: &'plan NativePlan,
     host_call: &HostCall,
@@ -1666,6 +1698,15 @@ fn find_runtime_text_input_buffer_data_object<'plan>(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)
+}
+
+fn host_call_appends_newline(host_call: &HostCall) -> bool {
+    matches!(
+        host_call.data,
+        crate::native::abi::PlatformCallData::FirstTextArgument {
+            append_newline: true
+        }
+    )
 }
 
 fn runtime_machine_string_descriptor_offset(
