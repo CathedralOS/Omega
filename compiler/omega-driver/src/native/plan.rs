@@ -58,7 +58,7 @@ pub fn build_native_plan(
         entry_machine: "main".to_owned(),
         entry_state: "entry".to_owned(),
     };
-    native_plan.host_calls = build_host_call_plan(program, target)?;
+    native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);

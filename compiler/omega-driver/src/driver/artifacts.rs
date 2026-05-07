@@ -8,7 +8,7 @@ use crate::driver::trust::TrustReport;
 use crate::ir::Program;
 use crate::ir::data::DataMember;
 use crate::ir::statement::TransitionGuard;
-use crate::native::abi::{HostBinding, HostBindingMechanism};
+use crate::native::abi::{HostBinding, HostBindingMechanism, PlatformCallLowering};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
@@ -450,6 +450,13 @@ impl ArtifactWriter {
         ));
         for (_, binding) in native_plan.host_abi.bindings.iter() {
             write_host_binding(&mut output, binding);
+        }
+        output.push_str(&format!(
+            "platform lowerings: {}\n",
+            native_plan.host_abi.platform_call_lowerings.len()
+        ));
+        for (_, lowering) in native_plan.host_abi.platform_call_lowerings.iter() {
+            write_platform_call_lowering(&mut output, lowering);
         }
         output.push('\n');
 
@@ -1268,6 +1275,20 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
             ));
         }
     }
+}
+
+fn write_platform_call_lowering(output: &mut String, lowering: &PlatformCallLowering) {
+    let operations = lowering
+        .operations
+        .iter()
+        .map(|operation| format!("{}.{}", operation.capability, operation.operation))
+        .collect::<Vec<_>>()
+        .join(" -> ");
+
+    output.push_str(&format!(
+        "- {}.{} => {}\n",
+        lowering.platform, lowering.state, operations
+    ));
 }
 
 fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCall) {
