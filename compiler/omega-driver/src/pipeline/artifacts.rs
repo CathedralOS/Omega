@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
-use crate::driver::compile::{LoadedFile, LoadedProgram, PhaseTiming};
-use crate::driver::trust::TrustReport;
 use crate::ir::Program;
 use crate::ir::data::DataMember;
 use crate::ir::statement::TransitionGuard;
@@ -29,6 +27,8 @@ use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
+use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
+use crate::pipeline::trust::TrustReport;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};

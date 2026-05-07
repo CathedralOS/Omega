@@ -5,121 +5,121 @@ use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::parser::parse_file;
 use omega_lexer::Lexer;
 
-    #[test]
-    fn tokenizes_simple_source() {
-        let tokens = Lexer::new("let answer = 42")
-            .tokenize()
-            .expect("tokenization should succeed");
+#[test]
+fn tokenizes_simple_source() {
+    let tokens = Lexer::new("let answer = 42")
+        .tokenize()
+        .expect("tokenization should succeed");
 
-        assert_eq!(tokens.len(), 4);
-        assert_eq!(tokens[0].lexeme, "let");
-        assert_eq!(tokens[3].lexeme, "42");
-    }
+    assert_eq!(tokens.len(), 4);
+    assert_eq!(tokens[0].lexeme, "let");
+    assert_eq!(tokens[3].lexeme, "42");
+}
 
-    #[test]
-    fn parse_errors_carry_token_spans() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parse_errors_carry_token_spans() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 state entry {
                     let value i32;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let error = parse_file(&tokens).expect_err("parse should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let error = parse_file(&tokens).expect_err("parse should fail");
 
-        assert_eq!(error.message, "expected `:`");
-        assert!(error.span.is_some());
-    }
+    assert_eq!(error.message, "expected `:`");
+    assert!(error.span.is_some());
+}
 
-    #[test]
-    fn source_files_map_offsets_to_line_columns() {
-        let file = crate::source::SourceFile {
-            id: crate::source::FileId(0),
-            path: "sample.omg".into(),
-            source: "alpha\nbeta".to_owned(),
-        };
+#[test]
+fn source_files_map_offsets_to_line_columns() {
+    let file = crate::source::SourceFile {
+        id: crate::source::FileId(0),
+        path: "sample.omg".into(),
+        source: "alpha\nbeta".to_owned(),
+    };
 
-        assert_eq!(file.position_at(0).line, 1);
-        assert_eq!(file.position_at(0).column, 1);
-        assert_eq!(file.position_at(6).line, 2);
-        assert_eq!(file.position_at(6).column, 1);
-    }
+    assert_eq!(file.position_at(0).line, 1);
+    assert_eq!(file.position_at(0).column, 1);
+    assert_eq!(file.position_at(6).line, 2);
+    assert_eq!(file.position_at(6).column, 1);
+}
 
-    #[test]
-    fn parses_nested_transition_continuation() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_nested_transition_continuation() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 state running {
                     -> dungeon.entry -> shutdown;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
-        let Statement::Transition(transition) = &machine.states[0].statements[0] else {
-            panic!("expected a transition");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+    let Statement::Transition(transition) = &machine.states[0].statements[0] else {
+        panic!("expected a transition");
+    };
 
-        assert_eq!(
-            transition.target,
-            TransitionTarget::Named {
-                path: vec!["dungeon".to_owned(), "entry".to_owned()],
-                arguments: Vec::new(),
-            }
-        );
-        assert_eq!(
-            transition.continuation,
-            Some(TransitionTarget::Named {
-                path: vec!["shutdown".to_owned()],
-                arguments: Vec::new(),
-            })
-        );
-    }
+    assert_eq!(
+        transition.target,
+        TransitionTarget::Named {
+            path: vec!["dungeon".to_owned(), "entry".to_owned()],
+            arguments: Vec::new(),
+        }
+    );
+    assert_eq!(
+        transition.continuation,
+        Some(TransitionTarget::Named {
+            path: vec!["shutdown".to_owned()],
+            arguments: Vec::new(),
+        })
+    );
+}
 
-    #[test]
-    fn parses_platform_state_parameters() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_platform_state_parameters() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state read_line(mut out_line: ConsoleLine);
                 state exit_process(return_code: i32);
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Platform(platform) = &parsed.items[0] else {
-            panic!("expected a platform");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Platform(platform) = &parsed.items[0] else {
+        panic!("expected a platform");
+    };
 
-        assert_eq!(platform.states[0].name, "read_line");
-        assert_eq!(platform.states[0].parameters[0].name, "out_line");
-        assert_eq!(
-            platform.states[0].parameters[0].type_reference,
-            TypeReference::named("ConsoleLine")
-        );
-        assert!(platform.states[0].parameters[0].is_mutable);
-        assert_eq!(
-            platform.states[1].parameters[0].type_reference,
-            TypeReference::named("i32")
-        );
-    }
+    assert_eq!(platform.states[0].name, "read_line");
+    assert_eq!(platform.states[0].parameters[0].name, "out_line");
+    assert_eq!(
+        platform.states[0].parameters[0].type_reference,
+        TypeReference::named("ConsoleLine")
+    );
+    assert!(platform.states[0].parameters[0].is_mutable);
+    assert_eq!(
+        platform.states[1].parameters[0].type_reference,
+        TypeReference::named("i32")
+    );
+}
 
-    #[test]
-    fn parses_data_variants_and_fields() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_data_variants_and_fields() {
+    let tokens = Lexer::new(
+        r#"
             data CellId {
                 Empty,
                 A1,
@@ -130,27 +130,27 @@ use omega_lexer::Lexer;
                 room_count: u32;
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Data(cell_id) = &parsed.items[0] else {
-            panic!("expected data definition");
-        };
-        let Item::Data(level) = &parsed.items[1] else {
-            panic!("expected data definition");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Data(cell_id) = &parsed.items[0] else {
+        panic!("expected data definition");
+    };
+    let Item::Data(level) = &parsed.items[1] else {
+        panic!("expected data definition");
+    };
 
-        assert_eq!(cell_id.name, "CellId");
-        assert_eq!(cell_id.members.len(), 2);
-        assert_eq!(level.name, "Level");
-        assert_eq!(level.members.len(), 2);
-    }
+    assert_eq!(cell_id.name, "CellId");
+    assert_eq!(cell_id.members.len(), 2);
+    assert_eq!(level.name, "Level");
+    assert_eq!(level.members.len(), 2);
+}
 
-    #[test]
-    fn rejects_wrong_platform_argument_count() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_wrong_platform_argument_count() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
             }
@@ -163,26 +163,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("expects 1 argument"))
+    );
+}
 
-    #[test]
-    fn rejects_duplicate_local_data_in_state_body() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_duplicate_local_data_in_state_body() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 state bad_locals() {
                     let value: i32;
@@ -193,26 +193,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate local data `value`"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate local data `value`"))
+    );
+}
 
-    #[test]
-    fn rejects_duplicate_platform_states_and_parameters() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_duplicate_platform_states_and_parameters() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
                 state write_line(mut text: String);
@@ -226,31 +226,31 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate state"))
-        );
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate parameter"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate state"))
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate parameter"))
+    );
+}
 
-    #[test]
-    fn rejects_unknown_contained_type() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_unknown_contained_type() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 contains console: MissingConsole;
 
@@ -258,26 +258,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("unknown type"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("unknown type"))
+    );
+}
 
-    #[test]
-    fn rejects_duplicate_machine_local_names() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_duplicate_machine_local_names() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
             }
@@ -293,31 +293,31 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate contained object"))
-        );
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate state"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate contained object"))
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate state"))
+    );
+}
 
-    #[test]
-    fn rejects_duplicate_machine_members_across_contains_and_owns() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_duplicate_machine_members_across_contains_and_owns() {
+    let tokens = Lexer::new(
+        r#"
             data Value {
                 raw: i32;
             }
@@ -334,26 +334,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate member `output`"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate member `output`"))
+    );
+}
 
-    #[test]
-    fn rejects_duplicate_data_members() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_duplicate_data_members() {
+    let tokens = Lexer::new(
+        r#"
             data Broken {
                 value: i32;
                 value: u32;
@@ -364,26 +364,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("duplicate member"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("duplicate member"))
+    );
+}
 
-    #[test]
-    fn rejects_mixed_data_shapes() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_mixed_data_shapes() {
+    let tokens = Lexer::new(
+        r#"
             data Confused {
                 Ready,
                 value: i32;
@@ -394,26 +394,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("mixes fields and variants"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("mixes fields and variants"))
+    );
+}
 
-    #[test]
-    fn rejects_empty_data_definition() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_empty_data_definition() {
+    let tokens = Lexer::new(
+        r#"
             data Empty {
             }
 
@@ -422,26 +422,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("must declare at least one"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("must declare at least one"))
+    );
+}
 
-    #[test]
-    fn rejects_machine_type_as_owned_data() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn rejects_machine_type_as_owned_data() {
+    let tokens = Lexer::new(
+        r#"
             machine Worker {
                 state entry {
                 }
@@ -454,26 +454,26 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostics = crate::semantic::validation::validate_program(&program)
-            .expect_err("validation should fail");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let diagnostics = crate::semantic::validation::validate_program(&program)
+        .expect_err("validation should fail");
 
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("unknown data type `Worker`"))
-        );
-    }
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("unknown data type `Worker`"))
+    );
+}
 
-    #[test]
-    fn parses_named_and_mutable_call_arguments() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_named_and_mutable_call_arguments() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 contains console: Console;
 
@@ -483,32 +483,32 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
 
-        let Statement::Call(read_line) = &machine.states[0].statements[0] else {
-            panic!("expected state call");
-        };
-        let crate::ast::expression::Expression::Mutable(inner_expression) = &read_line.arguments[0]
-        else {
-            panic!("expected mutable argument");
-        };
-        let crate::ast::expression::Expression::Name(path) = inner_expression.as_ref() else {
-            panic!("expected named mutable argument");
-        };
+    let Statement::Call(read_line) = &machine.states[0].statements[0] else {
+        panic!("expected state call");
+    };
+    let crate::ast::expression::Expression::Mutable(inner_expression) = &read_line.arguments[0]
+    else {
+        panic!("expected mutable argument");
+    };
+    let crate::ast::expression::Expression::Name(path) = inner_expression.as_ref() else {
+        panic!("expected named mutable argument");
+    };
 
-        assert_eq!(path, &vec!["input".to_owned(), "line".to_owned()]);
-    }
+    assert_eq!(path, &vec!["input".to_owned(), "line".to_owned()]);
+}
 
-    #[test]
-    fn parses_assignment_statement() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_assignment_statement() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 state entry {
                     return_code = 0;
@@ -516,60 +516,60 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
-        let Statement::Assignment(first_assignment) = &machine.states[0].statements[0] else {
-            panic!("expected assignment");
-        };
-        let Statement::Assignment(second_assignment) = &machine.states[0].statements[1] else {
-            panic!("expected assignment");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+    let Statement::Assignment(first_assignment) = &machine.states[0].statements[0] else {
+        panic!("expected assignment");
+    };
+    let Statement::Assignment(second_assignment) = &machine.states[0].statements[1] else {
+        panic!("expected assignment");
+    };
 
-        assert_eq!(
-            first_assignment.target,
-            Expression::Name(vec!["return_code".to_owned()])
-        );
-        assert_eq!(
-            second_assignment.target,
-            Expression::Name(vec!["player".to_owned(), "position".to_owned()])
-        );
-    }
+    assert_eq!(
+        first_assignment.target,
+        Expression::Name(vec!["return_code".to_owned()])
+    );
+    assert_eq!(
+        second_assignment.target,
+        Expression::Name(vec!["player".to_owned(), "position".to_owned()])
+    );
+}
 
-    #[test]
-    fn parses_local_call_without_receiver() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_local_call_without_receiver() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 state entry {
                     write_current_cell(level, current_cell, mut command_line);
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
-        let Statement::Call(call) = &machine.states[0].statements[0] else {
-            panic!("expected state call");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+    let Statement::Call(call) = &machine.states[0].statements[0] else {
+        panic!("expected state call");
+    };
 
-        assert_eq!(call.receiver, None);
-        assert_eq!(call.target, "write_current_cell");
-        assert_eq!(call.arguments.len(), 3);
-    }
+    assert_eq!(call.receiver, None);
+    assert_eq!(call.target, "write_current_cell");
+    assert_eq!(call.arguments.len(), 3);
+}
 
-    #[test]
-    fn parses_owned_machine_data() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_owned_machine_data() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 owns return_code: i32 = 0;
                 owns current_cell: CellId = CellId::Empty;
@@ -578,24 +578,24 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
 
-        assert_eq!(machine.owned_data[0].name, "return_code");
-        assert_eq!(machine.owned_data[1].name, "current_cell");
-        assert!(machine.owned_data[0].initial_value.is_some());
-        assert!(machine.owned_data[1].initial_value.is_some());
-    }
+    assert_eq!(machine.owned_data[0].name, "return_code");
+    assert_eq!(machine.owned_data[1].name, "current_cell");
+    assert!(machine.owned_data[0].initial_value.is_some());
+    assert!(machine.owned_data[1].initial_value.is_some());
+}
 
-    #[test]
-    fn plans_native_layout_for_owned_data() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn plans_native_layout_for_owned_data() {
+    let tokens = Lexer::new(
+        r#"
             data CellId {
                 Empty,
                 A1,
@@ -613,39 +613,39 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::host(),
-        )
-        .expect("native planning should pass");
-        let main_layout = native_plan
-            .layouts
-            .machine_layouts
-            .iter()
-            .find(|(_, layout)| layout.name == "main")
-            .map(|(_, layout)| layout)
-            .expect("main layout should exist");
-        let main_fields = native_plan
-            .layouts
-            .fields
-            .span(main_layout.fields)
-            .expect("main fields should resolve");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::host(),
+    )
+    .expect("native planning should pass");
+    let main_layout = native_plan
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, layout)| layout.name == "main")
+        .map(|(_, layout)| layout)
+        .expect("main layout should exist");
+    let main_fields = native_plan
+        .layouts
+        .fields
+        .span(main_layout.fields)
+        .expect("main fields should resolve");
 
-        assert_eq!(main_fields[0].name, "player");
-        assert!(main_layout.layout.size >= 8);
-    }
+    assert_eq!(main_fields[0].name, "player");
+    assert!(main_layout.layout.size >= 8);
+}
 
-    #[test]
-    fn plans_native_layout_for_primitive_widths() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn plans_native_layout_for_primitive_widths() {
+    let tokens = Lexer::new(
+        r#"
             data Counters {
                 slot: usize;
                 label: String;
@@ -658,40 +658,40 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let target = crate::native::target::NativeTarget::host();
-        let native_plan = crate::native::plan::build_native_plan(&program, target)
-            .expect("native planning should pass");
-        let counters_layout = native_plan
-            .layouts
-            .data_layouts
-            .iter()
-            .find(|(_, layout)| layout.name == "Counters")
-            .map(|(_, layout)| layout)
-            .expect("Counters layout should exist");
-        let crate::native::layout::DataShape::Record { fields } = &counters_layout.shape else {
-            panic!("expected record layout");
-        };
-        let fields = native_plan
-            .layouts
-            .fields
-            .span(*fields)
-            .expect("counter fields should resolve");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let target = crate::native::target::NativeTarget::host();
+    let native_plan = crate::native::plan::build_native_plan(&program, target)
+        .expect("native planning should pass");
+    let counters_layout = native_plan
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, layout)| layout.name == "Counters")
+        .map(|(_, layout)| layout)
+        .expect("Counters layout should exist");
+    let crate::native::layout::DataShape::Record { fields } = &counters_layout.shape else {
+        panic!("expected record layout");
+    };
+    let fields = native_plan
+        .layouts
+        .fields
+        .span(*fields)
+        .expect("counter fields should resolve");
 
-        assert_eq!(fields[0].layout.size, target.pointer_size);
-        assert_eq!(fields[1].layout.size, target.pointer_size * 2);
-    }
+    assert_eq!(fields[0].layout.size, target.pointer_size);
+    assert_eq!(fields[1].layout.size, target.pointer_size * 2);
+}
 
-    #[test]
-    fn parses_state_body_statements() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_state_body_statements() {
+    let tokens = Lexer::new(
+        r#"
             machine Sample {
                 state write(mut out_level: Level) {
                     let room: Room;
@@ -700,79 +700,79 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
 
-        assert_eq!(machine.states[0].name, "write");
-        assert_eq!(machine.states[0].statements.len(), 3);
-    }
+    assert_eq!(machine.states[0].name, "write");
+    assert_eq!(machine.states[0].statements.len(), 3);
+}
 
-    #[test]
-    fn parses_terminal_completion_arrow() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_terminal_completion_arrow() {
+    let tokens = Lexer::new(
+        r#"
             machine Sample {
                 state done {
                     ->
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
-        let Statement::Transition(transition) = &machine.states[0].statements[0] else {
-            panic!("expected terminal transition");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+    let Statement::Transition(transition) = &machine.states[0].statements[0] else {
+        panic!("expected terminal transition");
+    };
 
-        assert_eq!(transition.target, TransitionTarget::Terminal);
-        assert_eq!(transition.continuation, None);
-        assert_eq!(transition.guard, TransitionGuard::Always);
-    }
+    assert_eq!(transition.target, TransitionTarget::Terminal);
+    assert_eq!(transition.continuation, None);
+    assert_eq!(transition.guard, TransitionGuard::Always);
+}
 
-    #[test]
-    fn parses_typed_state_final_expression_and_self_parameter() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_typed_state_final_expression_and_self_parameter() {
+    let tokens = Lexer::new(
+        r#"
             machine Math {
                 state clamp_done(&mut self, value: f32) -> f32 {
                     value
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
 
-        assert_eq!(
-            machine.states[0].return_type,
-            Some(TypeReference::named("f32"))
-        );
-        assert!(machine.states[0].parameters[0].is_self);
-        assert_eq!(machine.states[0].parameters[1].name, "value");
+    assert_eq!(
+        machine.states[0].return_type,
+        Some(TypeReference::named("f32"))
+    );
+    assert!(machine.states[0].parameters[0].is_self);
+    assert_eq!(machine.states[0].parameters[1].name, "value");
 
-        let Statement::Expression(Expression::Name(path)) = &machine.states[0].statements[0] else {
-            panic!("expected final expression");
-        };
-        assert_eq!(path, &vec!["value".to_owned()]);
-    }
+    let Statement::Expression(Expression::Name(path)) = &machine.states[0].statements[0] else {
+        panic!("expected final expression");
+    };
+    assert_eq!(path, &vec!["value".to_owned()]);
+}
 
-    #[test]
-    fn parses_transition_arguments_and_guarded_terminal_completion() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_transition_arguments_and_guarded_terminal_completion() {
+    let tokens = Lexer::new(
+        r#"
             machine Math {
                 state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
                     -> self.clamp_low(min) when value < min;
@@ -784,84 +784,84 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
 
-        let Statement::Transition(first_transition) = &machine.states[0].statements[0] else {
-            panic!("expected transition");
-        };
-        let TransitionTarget::Named { path, arguments } = &first_transition.target else {
-            panic!("expected named transition target");
-        };
-        assert_eq!(path, &vec!["self".to_owned(), "clamp_low".to_owned()]);
-        assert_eq!(arguments.len(), 1);
+    let Statement::Transition(first_transition) = &machine.states[0].statements[0] else {
+        panic!("expected transition");
+    };
+    let TransitionTarget::Named { path, arguments } = &first_transition.target else {
+        panic!("expected named transition target");
+    };
+    assert_eq!(path, &vec!["self".to_owned(), "clamp_low".to_owned()]);
+    assert_eq!(arguments.len(), 1);
 
-        let Statement::Transition(second_transition) = &machine.states[0].statements[1] else {
-            panic!("expected terminal transition");
-        };
-        assert_eq!(second_transition.target, TransitionTarget::Terminal);
-        let TransitionGuard::When(Expression::Binary(condition)) = &second_transition.guard else {
-            panic!("expected structured transition guard");
-        };
-        assert_eq!(condition.operator, BinaryOperator::Equal);
-    }
+    let Statement::Transition(second_transition) = &machine.states[0].statements[1] else {
+        panic!("expected terminal transition");
+    };
+    assert_eq!(second_transition.target, TransitionTarget::Terminal);
+    let TransitionGuard::When(Expression::Binary(condition)) = &second_transition.guard else {
+        panic!("expected structured transition guard");
+    };
+    assert_eq!(condition.operator, BinaryOperator::Equal);
+}
 
-    #[test]
-    fn parses_const_parameters_and_bounded_types() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_const_parameters_and_bounded_types() {
+    let tokens = Lexer::new(
+        r#"
             machine Math {
                 state clamp(value: i32, min: const i32, max: const i32) -> i32[range<min, max>] {
                     value
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Machine(machine) = &parsed.items[0] else {
-            panic!("expected a machine");
-        };
-        let TypeReference::Named(min_type) = &machine.states[0].parameters[1].type_reference else {
-            panic!("expected named const parameter type");
-        };
-        let TypeReference::Constrained {
-            base_type,
-            constraints,
-        } = machine.states[0]
-            .return_type
-            .as_ref()
-            .expect("return type should exist")
-        else {
-            panic!("expected constrained return type");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+    let TypeReference::Named(min_type) = &machine.states[0].parameters[1].type_reference else {
+        panic!("expected named const parameter type");
+    };
+    let TypeReference::Constrained {
+        base_type,
+        constraints,
+    } = machine.states[0]
+        .return_type
+        .as_ref()
+        .expect("return type should exist")
+    else {
+        panic!("expected constrained return type");
+    };
 
-        assert!(machine.states[0].parameters[1].is_const);
-        assert_eq!(min_type, "i32");
-        assert_eq!(base_type.as_ref(), &TypeReference::named("i32"));
-        let [TypeConstraint::Range { minimum, maximum }] = constraints.as_slice() else {
-            panic!("expected one range constraint");
-        };
-        let Expression::Name(minimum_path) = minimum else {
-            panic!("expected range minimum name");
-        };
-        let Expression::Name(maximum_path) = maximum else {
-            panic!("expected range maximum name");
-        };
-        assert_eq!(minimum_path, &vec!["min".to_owned()]);
-        assert_eq!(maximum_path, &vec!["max".to_owned()]);
-    }
+    assert!(machine.states[0].parameters[1].is_const);
+    assert_eq!(min_type, "i32");
+    assert_eq!(base_type.as_ref(), &TypeReference::named("i32"));
+    let [TypeConstraint::Range { minimum, maximum }] = constraints.as_slice() else {
+        panic!("expected one range constraint");
+    };
+    let Expression::Name(minimum_path) = minimum else {
+        panic!("expected range minimum name");
+    };
+    let Expression::Name(maximum_path) = maximum else {
+        panic!("expected range maximum name");
+    };
+    assert_eq!(minimum_path, &vec!["min".to_owned()]);
+    assert_eq!(maximum_path, &vec!["max".to_owned()]);
+}
 
-    #[test]
-    fn parses_targets_capabilities_and_generic_types() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn parses_targets_capabilities_and_generic_types() {
+    let tokens = Lexer::new(
+        r#"
             target local_unchecked {
                 host: StandardHost {
                     stdout = enabled
@@ -880,66 +880,66 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::Target(target) = &parsed.items[0] else {
-            panic!("expected a target");
-        };
-        let Item::Capability(capability) = &parsed.items[1] else {
-            panic!("expected a capability");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Target(target) = &parsed.items[0] else {
+        panic!("expected a target");
+    };
+    let Item::Capability(capability) = &parsed.items[1] else {
+        panic!("expected a capability");
+    };
 
-        assert_eq!(target.name, "local_unchecked");
-        assert_eq!(
-            target
-                .host
-                .as_ref()
-                .expect("host should exist")
-                .settings
-                .len(),
-            2
-        );
-        assert_eq!(target.trust_policies.len(), 2);
-
-        let crate::ast::item::CapabilityMember::State(state) = &capability.members[0] else {
-            panic!("expected capability state");
-        };
-        assert_eq!(state.contracts.len(), 3);
-
-        let TypeReference::Generic {
-            base_name,
-            arguments,
-        } = &state.signature.parameters[0].type_reference
-        else {
-            panic!("expected generic parameter type");
-        };
-        assert_eq!(base_name, "Slice");
-        assert_eq!(arguments, &vec![TypeReference::named("u8")]);
-
-        let TypeReference::Generic {
-            base_name,
-            arguments,
-        } = state
-            .signature
-            .return_type
+    assert_eq!(target.name, "local_unchecked");
+    assert_eq!(
+        target
+            .host
             .as_ref()
-            .expect("return type should exist")
-        else {
-            panic!("expected generic return type");
-        };
-        assert_eq!(base_name, "Result");
-        assert_eq!(
-            arguments,
-            &vec![TypeReference::Unit, TypeReference::named("IOError")]
-        );
-    }
+            .expect("host should exist")
+            .settings
+            .len(),
+        2
+    );
+    assert_eq!(target.trust_policies.len(), 2);
 
-    #[test]
-    fn parses_top_level_trust_definitions() {
-        let tokens = Lexer::new(
-            r#"
+    let crate::ast::item::CapabilityMember::State(state) = &capability.members[0] else {
+        panic!("expected capability state");
+    };
+    assert_eq!(state.contracts.len(), 3);
+
+    let TypeReference::Generic {
+        base_name,
+        arguments,
+    } = &state.signature.parameters[0].type_reference
+    else {
+        panic!("expected generic parameter type");
+    };
+    assert_eq!(base_name, "Slice");
+    assert_eq!(arguments, &vec![TypeReference::named("u8")]);
+
+    let TypeReference::Generic {
+        base_name,
+        arguments,
+    } = state
+        .signature
+        .return_type
+        .as_ref()
+        .expect("return type should exist")
+    else {
+        panic!("expected generic return type");
+    };
+    assert_eq!(base_name, "Result");
+    assert_eq!(
+        arguments,
+        &vec![TypeReference::Unit, TypeReference::named("IOError")]
+    );
+}
+
+#[test]
+fn parses_top_level_trust_definitions() {
+    let tokens = Lexer::new(
+        r#"
             trust omega_windows_kernel32 {
                 owner omega::host::windows
                 reason "Windows Kernel32 API contract"
@@ -949,22 +949,22 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let Item::TrustDefinition(trust_definition) = &parsed.items[0] else {
-            panic!("expected a trust definition");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::TrustDefinition(trust_definition) = &parsed.items[0] else {
+        panic!("expected a trust definition");
+    };
 
-        assert_eq!(trust_definition.name, "omega_windows_kernel32");
-        assert!(trust_definition.token_count > 0);
-    }
+    assert_eq!(trust_definition.name, "omega_windows_kernel32");
+    assert!(trust_definition.token_count > 0);
+}
 
-    #[test]
-    fn builds_trust_report_from_targets_and_capabilities() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn builds_trust_report_from_targets_and_capabilities() {
+    let tokens = Lexer::new(
+        r#"
             target local_unchecked {
                 host: StandardHost {
                     stdout = enabled
@@ -982,41 +982,41 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let trust_report = crate::driver::trust::build_trust_report(&parsed.items, None);
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let trust_report = crate::pipeline::trust::build_trust_report(&parsed.items, None);
 
-        assert_eq!(trust_report.targets.len(), 1);
-        assert_eq!(trust_report.trusted_contracts.len(), 1);
-        assert_eq!(trust_report.unchecked_policies.len(), 1);
+    assert_eq!(trust_report.targets.len(), 1);
+    assert_eq!(trust_report.trusted_contracts.len(), 1);
+    assert_eq!(trust_report.unchecked_policies.len(), 1);
 
-        let (_, target) = trust_report
-            .targets
-            .iter()
-            .next()
-            .expect("target should exist");
-        assert_eq!(target.host_provider, "StandardHost");
-        assert_eq!(target.checked_trusts, 1);
-        assert_eq!(target.unchecked_trusts, 1);
+    let (_, target) = trust_report
+        .targets
+        .iter()
+        .next()
+        .expect("target should exist");
+    assert_eq!(target.host_provider, "StandardHost");
+    assert_eq!(target.checked_trusts, 1);
+    assert_eq!(target.unchecked_trusts, 1);
 
-        let (_, contract) = trust_report
-            .trusted_contracts
-            .iter()
-            .next()
-            .expect("trusted contract should exist");
-        assert_eq!(contract.capability, "Process");
-        assert_eq!(contract.state, "exit");
-        assert_eq!(contract.trust_level, "host");
-        assert_eq!(contract.requires_count, 1);
-        assert_eq!(contract.ensures_count, 1);
-    }
+    let (_, contract) = trust_report
+        .trusted_contracts
+        .iter()
+        .next()
+        .expect("trusted contract should exist");
+    assert_eq!(contract.capability, "Process");
+    assert_eq!(contract.state, "exit");
+    assert_eq!(contract.trust_level, "host");
+    assert_eq!(contract.requires_count, 1);
+    assert_eq!(contract.ensures_count, 1);
+}
 
-    #[test]
-    fn expands_invariant_aliases_during_lowering() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn expands_invariant_aliases_during_lowering() {
+    let tokens = Lexer::new(
+        r#"
             invariant finite_value = [finite];
             invariant speed_range = [finite_value, range<0.0f, 100000.0f>];
 
@@ -1027,48 +1027,48 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let invariant_constraints = program
-            .type_constraints
-            .span(program.invariant_definitions[1].constraints)
-            .expect("invariant constraints should resolve");
-        let crate::ir::types::TypeReference::Constrained {
-            base_type,
-            constraints,
-        } = &program.machines[0].owned_data[0].type_reference
-        else {
-            panic!("expected constrained owned data");
-        };
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let invariant_constraints = program
+        .type_constraints
+        .span(program.invariant_definitions[1].constraints)
+        .expect("invariant constraints should resolve");
+    let crate::ir::types::TypeReference::Constrained {
+        base_type,
+        constraints,
+    } = &program.machines[0].owned_data[0].type_reference
+    else {
+        panic!("expected constrained owned data");
+    };
 
-        assert_eq!(
-            base_type.as_ref(),
-            &crate::ir::types::TypeReference::Named("f32".to_owned())
-        );
-        let owned_data_constraints = program
-            .type_constraints
-            .span(*constraints)
-            .expect("owned data constraints should resolve");
-        assert_eq!(owned_data_constraints.len(), 2);
-        assert_eq!(invariant_constraints, owned_data_constraints);
-        assert!(matches!(
-            owned_data_constraints[0],
-            crate::ir::types::TypeConstraint::Named(ref name) if name == "finite"
-        ));
-        assert!(matches!(
-            owned_data_constraints[1],
-            crate::ir::types::TypeConstraint::Range { .. }
-        ));
-    }
+    assert_eq!(
+        base_type.as_ref(),
+        &crate::ir::types::TypeReference::Named("f32".to_owned())
+    );
+    let owned_data_constraints = program
+        .type_constraints
+        .span(*constraints)
+        .expect("owned data constraints should resolve");
+    assert_eq!(owned_data_constraints.len(), 2);
+    assert_eq!(invariant_constraints, owned_data_constraints);
+    assert!(matches!(
+        owned_data_constraints[0],
+        crate::ir::types::TypeConstraint::Named(ref name) if name == "finite"
+    ));
+    assert!(matches!(
+        owned_data_constraints[1],
+        crate::ir::types::TypeConstraint::Range { .. }
+    ));
+}
 
-    #[test]
-    fn plans_state_control_flow() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn plans_state_control_flow() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 owns return_code: i32 = 0;
 
@@ -1083,39 +1083,39 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
-            .expect("control-flow planning should pass");
-        let (_, machine) = control_flow
-            .machines
-            .iter()
-            .next()
-            .expect("machine should exist");
-        let states = control_flow
-            .states
-            .span(machine.states)
-            .expect("machine states should resolve");
-        let entry_operations = control_flow
-            .operations
-            .span(states[0].operations)
-            .expect("entry operations should resolve");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
+        .expect("control-flow planning should pass");
+    let (_, machine) = control_flow
+        .machines
+        .iter()
+        .next()
+        .expect("machine should exist");
+    let states = control_flow
+        .states
+        .span(machine.states)
+        .expect("machine states should resolve");
+    let entry_operations = control_flow
+        .operations
+        .span(states[0].operations)
+        .expect("entry operations should resolve");
 
-        assert_eq!(entry_operations[0].statement_index, 0);
-        assert_eq!(entry_operations[1].statement_index, 1);
-        assert_eq!(states[0].transitions.len(), 1);
-        assert_eq!(states[1].transitions.len(), 1);
-    }
+    assert_eq!(entry_operations[0].statement_index, 0);
+    assert_eq!(entry_operations[1].statement_index, 1);
+    assert_eq!(states[0].transitions.len(), 1);
+    assert_eq!(states[1].transitions.len(), 1);
+}
 
-    #[test]
-    fn plans_mid_state_transition_as_generated_segments() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn plans_mid_state_transition_as_generated_segments() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 owns ready: bool = false;
 
@@ -1132,36 +1132,36 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
-            .expect("control-flow planning should pass");
-        let (_, machine) = control_flow
-            .machines
-            .iter()
-            .next()
-            .expect("machine should exist");
-        let states = control_flow
-            .states
-            .span(machine.states)
-            .expect("machine states should resolve");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let control_flow = crate::native::control_flow::build_control_flow_plan(&program)
+        .expect("control-flow planning should pass");
+    let (_, machine) = control_flow
+        .machines
+        .iter()
+        .next()
+        .expect("machine should exist");
+    let states = control_flow
+        .states
+        .span(machine.states)
+        .expect("machine states should resolve");
 
-        assert_eq!(states[0].name, "entry");
-        assert_eq!(states[1].name, "entry__segment_1");
-        assert_eq!(states[0].transitions.len(), 2);
-        assert_eq!(states[1].operations.len(), 1);
-        assert_eq!(states[1].transitions.len(), 1);
-    }
+    assert_eq!(states[0].name, "entry");
+    assert_eq!(states[1].name, "entry__segment_1");
+    assert_eq!(states[0].transitions.len(), 2);
+    assert_eq!(states[1].operations.len(), 1);
+    assert_eq!(states[1].transitions.len(), 1);
+}
 
-    #[test]
-    fn builds_proof_obligations_for_bounds_and_guards() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn builds_proof_obligations_for_bounds_and_guards() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 owns health: i32[range<1, 100>] = 100;
 
@@ -1177,38 +1177,38 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let proof_plan = crate::proof::obligations::build_proof_plan(&program);
+
+    assert_eq!(proof_plan.obligations.len(), 5);
+    assert!(proof_plan.obligations.iter().any(|obligation| {
+        matches!(
+            obligation,
+            crate::proof::obligations::ProofObligation::BoundedInitializer(
+                initializer_obligation
+            ) if initializer_obligation.owner == "machine `main` owned data `health`"
         )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let proof_plan = crate::proof::obligations::build_proof_plan(&program);
+    }));
+    assert!(proof_plan.obligations.iter().any(|obligation| {
+        matches!(
+            obligation,
+            crate::proof::obligations::ProofObligation::BoundedTransitionArgument(
+                transition_obligation
+            ) if transition_obligation.parameter == "amount"
+        )
+    }));
+}
 
-        assert_eq!(proof_plan.obligations.len(), 5);
-        assert!(proof_plan.obligations.iter().any(|obligation| {
-            matches!(
-                obligation,
-                crate::proof::obligations::ProofObligation::BoundedInitializer(
-                    initializer_obligation
-                ) if initializer_obligation.owner == "machine `main` owned data `health`"
-            )
-        }));
-        assert!(proof_plan.obligations.iter().any(|obligation| {
-            matches!(
-                obligation,
-                crate::proof::obligations::ProofObligation::BoundedTransitionArgument(
-                    transition_obligation
-                ) if transition_obligation.parameter == "amount"
-            )
-        }));
-    }
-
-    #[test]
-    fn plans_native_object_shape() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn plans_native_object_shape() {
+    let tokens = Lexer::new(
+        r#"
             machine main {
                 owns return_code: i32 = 0;
 
@@ -1216,223 +1216,223 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        crate::semantic::validation::validate_program(&program).expect("validation should pass");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::host(),
-        )
-        .expect("native planning should pass");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::host(),
+    )
+    .expect("native planning should pass");
 
-        assert_eq!(native_plan.object.sections.len(), 3);
-        assert!(!native_plan.instructions.functions.is_empty());
-        assert!(!native_plan.instructions.instructions.is_empty());
-        assert!(native_plan.machine_code.byte_count > 0);
-        assert!(
-            native_plan
-                .object
-                .symbols
-                .iter()
-                .any(|(_, symbol)| symbol.name.contains("main"))
-        );
-    }
-
-    #[test]
-    fn selected_windows_target_plans_coff_and_kernel32_imports() {
-        let tokens = Lexer::new(
-            r#"
-            platform Console {
-                state write_line(text: String);
-                state exit_process(return_code: i32);
-            }
-
-            machine main {
-                contains console: Console;
-
-                state entry {
-                    console.write_line("Hello.");
-                    console.exit_process(0);
-                }
-            }
-            "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::windows_x64(),
-        )
-        .expect("native planning should pass");
-
-        assert_eq!(
-            native_plan.target.object_format,
-            crate::native::target::ObjectFormat::Coff
-        );
-        assert!(
-            native_plan
-                .object
-                .symbols
-                .iter()
-                .any(|(_, symbol)| symbol.name == "WriteFile")
-        );
-        assert!(
-            native_plan
-                .host_abi
-                .bindings
-                .iter()
-                .any(|(_, binding)| binding.trust_policy == "omega::host::windows")
-        );
-        assert_eq!(native_plan.host_calls.calls.len(), 2);
-        assert_eq!(native_plan.host_calls.operations.len(), 3);
-        assert_eq!(native_plan.host_calls.arguments.len(), 2);
-        assert_eq!(native_plan.data.objects.len(), 1);
-        assert_eq!(native_plan.data.bytes.len(), 7);
-        assert!(native_plan.instructions.instructions.len() >= 5);
-        assert_eq!(native_plan.instructions.operands.len(), 4);
-        assert!(native_plan.machine_code.byte_count > 0);
-        assert_eq!(native_plan.relocations.records.len(), 4);
-    }
-
-    #[test]
-    fn selected_linux_target_plans_elf_and_syscalls() {
-        let tokens = Lexer::new(
-            r#"
-            platform Console {
-                state write_line(text: String);
-                state exit_process(return_code: i32);
-            }
-
-            machine main {
-                contains console: Console;
-
-                state entry {
-                    console.write_line("Hello.");
-                    console.exit_process(0);
-                }
-            }
-            "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::linux_x64(),
-        )
-        .expect("native planning should pass");
-
-        assert_eq!(
-            native_plan.target.object_format,
-            crate::native::target::ObjectFormat::Elf
-        );
-        assert_eq!(native_plan.object.symbols.len(), 3);
-        assert!(
-            native_plan
-                .host_abi
-                .bindings
-                .iter()
-                .any(|(_, binding)| binding.operation == "exit_group")
-        );
-        assert_eq!(native_plan.host_calls.calls.len(), 2);
-        assert_eq!(native_plan.host_calls.operations.len(), 2);
-        assert_eq!(native_plan.data.objects.len(), 1);
-        assert_eq!(native_plan.data.bytes.len(), 7);
-        assert!(native_plan.instructions.instructions.len() >= 4);
-        assert_eq!(native_plan.instructions.operands.len(), 4);
-        assert!(native_plan.machine_code.byte_count > 0);
-        assert_eq!(native_plan.relocations.records.len(), 1);
-    }
-
-    #[test]
-    fn selected_macos_arm64_plans_relocation_byte_offsets() {
-        let tokens = Lexer::new(
-            r#"
-            platform Console {
-                state write_line(text: String);
-                state exit_process(return_code: i32);
-            }
-
-            machine main {
-                contains console: Console;
-
-                state entry {
-                    console.write_line("Hello.");
-                    console.exit_process(0);
-                }
-            }
-            "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should pass");
-
-        let relocations = native_plan
-            .relocations
-            .records
+    assert_eq!(native_plan.object.sections.len(), 3);
+    assert!(!native_plan.instructions.functions.is_empty());
+    assert!(!native_plan.instructions.instructions.is_empty());
+    assert!(native_plan.machine_code.byte_count > 0);
+    assert!(
+        native_plan
+            .object
+            .symbols
             .iter()
-            .map(|(_, relocation)| {
-                (
-                    relocation.kind,
-                    relocation.text_offset,
-                    relocation.byte_width,
-                    relocation.symbol.as_str(),
-                )
-            })
-            .collect::<Vec<_>>();
+            .any(|(_, symbol)| symbol.name.contains("main"))
+    );
+}
 
-        assert_eq!(
-            relocations,
-            vec![
-                (
-                    crate::native::relocations::RelocationKind::Aarch64Page21,
-                    4,
-                    4,
-                    "omega_string_literal_1",
-                ),
-                (
-                    crate::native::relocations::RelocationKind::Aarch64PageOffset12,
-                    8,
-                    4,
-                    "omega_string_literal_1",
-                ),
-                (
-                    crate::native::relocations::RelocationKind::Aarch64Branch26,
-                    16,
-                    4,
-                    "_write",
-                ),
-                (
-                    crate::native::relocations::RelocationKind::Aarch64Branch26,
-                    24,
-                    4,
-                    "_exit",
-                ),
-            ]
-        );
-    }
+#[test]
+fn selected_windows_target_plans_coff_and_kernel32_imports() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
 
-    #[test]
-    fn encodes_aarch64_immediates_that_need_movk() {
-        let long_text = "a".repeat(70_000);
-        let source = format!(
-            r#"
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::windows_x64(),
+    )
+    .expect("native planning should pass");
+
+    assert_eq!(
+        native_plan.target.object_format,
+        crate::native::target::ObjectFormat::Coff
+    );
+    assert!(
+        native_plan
+            .object
+            .symbols
+            .iter()
+            .any(|(_, symbol)| symbol.name == "WriteFile")
+    );
+    assert!(
+        native_plan
+            .host_abi
+            .bindings
+            .iter()
+            .any(|(_, binding)| binding.trust_policy == "omega::host::windows")
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert_eq!(native_plan.host_calls.operations.len(), 3);
+    assert_eq!(native_plan.host_calls.arguments.len(), 2);
+    assert_eq!(native_plan.data.objects.len(), 1);
+    assert_eq!(native_plan.data.bytes.len(), 7);
+    assert!(native_plan.instructions.instructions.len() >= 5);
+    assert_eq!(native_plan.instructions.operands.len(), 4);
+    assert!(native_plan.machine_code.byte_count > 0);
+    assert_eq!(native_plan.relocations.records.len(), 4);
+}
+
+#[test]
+fn selected_linux_target_plans_elf_and_syscalls() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::linux_x64(),
+    )
+    .expect("native planning should pass");
+
+    assert_eq!(
+        native_plan.target.object_format,
+        crate::native::target::ObjectFormat::Elf
+    );
+    assert_eq!(native_plan.object.symbols.len(), 3);
+    assert!(
+        native_plan
+            .host_abi
+            .bindings
+            .iter()
+            .any(|(_, binding)| binding.operation == "exit_group")
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert_eq!(native_plan.host_calls.operations.len(), 2);
+    assert_eq!(native_plan.data.objects.len(), 1);
+    assert_eq!(native_plan.data.bytes.len(), 7);
+    assert!(native_plan.instructions.instructions.len() >= 4);
+    assert_eq!(native_plan.instructions.operands.len(), 4);
+    assert!(native_plan.machine_code.byte_count > 0);
+    assert_eq!(native_plan.relocations.records.len(), 1);
+}
+
+#[test]
+fn selected_macos_arm64_plans_relocation_byte_offsets() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should pass");
+
+    let relocations = native_plan
+        .relocations
+        .records
+        .iter()
+        .map(|(_, relocation)| {
+            (
+                relocation.kind,
+                relocation.text_offset,
+                relocation.byte_width,
+                relocation.symbol.as_str(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        relocations,
+        vec![
+            (
+                crate::native::relocations::RelocationKind::Aarch64Page21,
+                4,
+                4,
+                "omega_string_literal_1",
+            ),
+            (
+                crate::native::relocations::RelocationKind::Aarch64PageOffset12,
+                8,
+                4,
+                "omega_string_literal_1",
+            ),
+            (
+                crate::native::relocations::RelocationKind::Aarch64Branch26,
+                16,
+                4,
+                "_write",
+            ),
+            (
+                crate::native::relocations::RelocationKind::Aarch64Branch26,
+                24,
+                4,
+                "_exit",
+            ),
+        ]
+    );
+}
+
+#[test]
+fn encodes_aarch64_immediates_that_need_movk() {
+    let long_text = "a".repeat(70_000);
+    let source = format!(
+        r#"
             platform Console {{
                 state write_line(text: String);
             }}
@@ -1445,178 +1445,26 @@ use omega_lexer::Lexer;
                 }}
             }}
             "#
-        );
-        let tokens = Lexer::new(&source)
-            .tokenize()
-            .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should encode multi-instruction immediates");
-
-        assert_eq!(native_plan.machine_code.byte_count, 28);
-    }
-
-    #[test]
-    fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
-        let tokens = Lexer::new(
-            r#"
-            platform Console {
-                state write_error(text: String);
-            }
-
-            machine main {
-                contains console: Console;
-
-                state entry {
-                    console.write_error("nope");
-                }
-            }
-            "#,
-        )
+    );
+    let tokens = Lexer::new(&source)
         .tokenize()
         .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should preserve unsupported call as blocker");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should encode multi-instruction immediates");
 
-        assert!(
-            emission_plan.blockers.iter().any(|(_, blocker)| blocker
-                .reason
-                .contains("platform call `console.write_error`: no native lowering")),
-            "expected unsupported platform call blocker"
-        );
-    }
+    assert_eq!(native_plan.machine_code.byte_count, 28);
+}
 
-    #[test]
-    fn check_writes_phase_artifacts() {
-        let build_dir =
-            std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&build_dir);
-        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../samples/cli_mvp/main.omg");
-
-        let output = crate::check(crate::CompileOptions {
-            build_dir: Some(build_dir.clone()),
-            root_path,
-            target_name: None,
-        })
-        .expect("check should pass");
-
-        for file_name in [
-            "00_timings.txt",
-            "01_sources.txt",
-            "02_ast.txt",
-            "03_resolve.txt",
-            "04_types.txt",
-            "05_driver_ir.txt",
-            "06_validation.txt",
-            "07_graph.txt",
-            "08_proof.txt",
-            "09_native_plan.txt",
-            "10_trust.txt",
-            "11_emission.txt",
-        ] {
-            assert!(
-                output.artifacts_dir.join(file_name).is_file(),
-                "missing artifact {file_name}"
-            );
-        }
-        assert!(!output.phase_timings.is_empty());
-
-        let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
-            .expect("source artifact should be readable");
-        assert!(
-            sources.contains("omega/std/console.omg"),
-            "source artifact should include bundled omega std source"
-        );
-        let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
-            .expect("emission artifact should be readable");
-        assert!(emission.contains("status: ready to emit"));
-        assert!(emission.contains("data bytes:"));
-        assert!(emission.contains("selected instructions:"));
-        assert!(emission.contains("instruction operands:"));
-        assert!(emission.contains("machine code bytes:"));
-        assert!(emission.contains("encoded machine bytes:"));
-        assert!(emission.contains("relocations:"));
-
-        let _ = std::fs::remove_dir_all(build_dir);
-    }
-
-    #[test]
-    fn compile_emits_native_object_bytes() {
-        let build_dir =
-            std::env::temp_dir().join(format!("omega-driver-compile-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&build_dir);
-        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../samples/cli_mvp/main.omg");
-
-        let output = crate::compile(crate::CompileOptions {
-            build_dir: Some(build_dir.clone()),
-            root_path,
-            target_name: Some("macos_arm64".to_owned()),
-        })
-        .expect("compile should emit bytes");
-
-        assert!(output.executable_path.is_file());
-        assert!(output.artifacts_dir.join("12_emitted_object.txt").is_file());
-        assert!(output.artifacts_dir.join("13_link.txt").is_file());
-
-        let bytes =
-            std::fs::read(&output.executable_path).expect("emitted executable should be readable");
-        assert!(bytes.starts_with(&0xfeedfacfu32.to_le_bytes()));
-        assert!(bytes.len() > 32);
-        assert!(
-            output.summary.contains("emitted"),
-            "compile summary should report emitted output"
-        );
-        assert!(
-            output.summary.contains("linked"),
-            "compile summary should report linked output"
-        );
-
-        if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
-            let run_output = std::process::Command::new(&output.executable_path)
-                .output()
-                .expect("compiled Omega binary should run");
-
-            assert!(
-                run_output.status.success(),
-                "compiled Omega binary should exit successfully"
-            );
-            assert_eq!(
-                String::from_utf8_lossy(&run_output.stdout),
-                "Hello, Omega.\n"
-            );
-            assert!(
-                run_output.stderr.is_empty(),
-                "compiled Omega binary should not write stderr"
-            );
-        }
-
-        let _ = std::fs::remove_dir_all(build_dir);
-    }
-
-    #[test]
-    fn compile_rejects_emission_blockers() {
-        let build_dir =
-            std::env::temp_dir().join(format!("omega-driver-blocked-{}", std::process::id()));
-        let root_dir = build_dir.join("blocked_project");
-        let root_path = root_dir.join("main.omg");
-        std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
-        std::fs::write(
-            &root_path,
-            r#"
+#[test]
+fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_error(text: String);
             }
@@ -1629,42 +1477,194 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .expect("test source should be writable");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should preserve unsupported call as blocker");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        let diagnostics = crate::compile(crate::CompileOptions {
-            build_dir: Some(root_dir.join("build")),
-            root_path,
-            target_name: None,
-        })
-        .expect_err("compile should reject unresolved emission blockers");
-        let diagnostics_text = diagnostics
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
+    assert!(
+        emission_plan.blockers.iter().any(|(_, blocker)| blocker
+            .reason
+            .contains("platform call `console.write_error`: no native lowering")),
+        "expected unsupported platform call blocker"
+    );
+}
+
+#[test]
+fn check_writes_phase_artifacts() {
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-driver-artifacts-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    let root_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/cli_mvp/main.omg");
+
+    let output = crate::check(crate::CompileOptions {
+        build_dir: Some(build_dir.clone()),
+        root_path,
+        target_name: None,
+    })
+    .expect("check should pass");
+
+    for file_name in [
+        "00_timings.txt",
+        "01_sources.txt",
+        "02_ast.txt",
+        "03_resolve.txt",
+        "04_types.txt",
+        "05_driver_ir.txt",
+        "06_validation.txt",
+        "07_graph.txt",
+        "08_proof.txt",
+        "09_native_plan.txt",
+        "10_trust.txt",
+        "11_emission.txt",
+    ] {
+        assert!(
+            output.artifacts_dir.join(file_name).is_file(),
+            "missing artifact {file_name}"
+        );
+    }
+    assert!(!output.phase_timings.is_empty());
+
+    let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
+        .expect("source artifact should be readable");
+    assert!(
+        sources.contains("omega/std/console.omg"),
+        "source artifact should include bundled omega std source"
+    );
+    let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
+        .expect("emission artifact should be readable");
+    assert!(emission.contains("status: ready to emit"));
+    assert!(emission.contains("data bytes:"));
+    assert!(emission.contains("selected instructions:"));
+    assert!(emission.contains("instruction operands:"));
+    assert!(emission.contains("machine code bytes:"));
+    assert!(emission.contains("encoded machine bytes:"));
+    assert!(emission.contains("relocations:"));
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn compile_emits_native_object_bytes() {
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-driver-compile-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    let root_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/cli_mvp/main.omg");
+
+    let output = crate::compile(crate::CompileOptions {
+        build_dir: Some(build_dir.clone()),
+        root_path,
+        target_name: Some("macos_arm64".to_owned()),
+    })
+    .expect("compile should emit bytes");
+
+    assert!(output.executable_path.is_file());
+    assert!(output.artifacts_dir.join("12_emitted_object.txt").is_file());
+    assert!(output.artifacts_dir.join("13_link.txt").is_file());
+
+    let bytes =
+        std::fs::read(&output.executable_path).expect("emitted executable should be readable");
+    assert!(bytes.starts_with(&0xfeedfacfu32.to_le_bytes()));
+    assert!(bytes.len() > 32);
+    assert!(
+        output.summary.contains("emitted"),
+        "compile summary should report emitted output"
+    );
+    assert!(
+        output.summary.contains("linked"),
+        "compile summary should report linked output"
+    );
+
+    if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        let run_output = std::process::Command::new(&output.executable_path)
+            .output()
+            .expect("compiled Omega binary should run");
 
         assert!(
-            diagnostics_text.contains("cannot emit native binary; host lowering"),
-            "unexpected diagnostics:\n{}",
-            diagnostics_text
+            run_output.status.success(),
+            "compiled Omega binary should exit successfully"
         );
-
-        let _ = std::fs::remove_dir_all(build_dir);
+        assert_eq!(
+            String::from_utf8_lossy(&run_output.stdout),
+            "Hello, Omega.\n"
+        );
+        assert!(
+            run_output.stderr.is_empty(),
+            "compiled Omega binary should not write stderr"
+        );
     }
 
-    #[test]
-    fn compile_rejects_unknown_native_target_names() {
-        let build_dir = std::env::temp_dir().join(format!(
-            "omega-driver-unknown-target-{}",
-            std::process::id()
-        ));
-        let root_dir = build_dir.join("unknown_target_project");
-        let root_path = root_dir.join("main.omg");
-        std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
-        std::fs::write(
-            root_dir.join("build.omg"),
-            r#"
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn compile_rejects_emission_blockers() {
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-driver-blocked-{}", std::process::id()));
+    let root_dir = build_dir.join("blocked_project");
+    let root_path = root_dir.join("main.omg");
+    std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
+    std::fs::write(
+        &root_path,
+        r#"
+            platform Console {
+                state write_error(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_error("nope");
+                }
+            }
+            "#,
+    )
+    .expect("test source should be writable");
+
+    let diagnostics = crate::compile(crate::CompileOptions {
+        build_dir: Some(root_dir.join("build")),
+        root_path,
+        target_name: None,
+    })
+    .expect_err("compile should reject unresolved emission blockers");
+    let diagnostics_text = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(
+        diagnostics_text.contains("cannot emit native binary; host lowering"),
+        "unexpected diagnostics:\n{}",
+        diagnostics_text
+    );
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn compile_rejects_unknown_native_target_names() {
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-driver-unknown-target-{}",
+        std::process::id()
+    ));
+    let root_dir = build_dir.join("unknown_target_project");
+    let root_path = root_dir.join("main.omg");
+    std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
+    std::fs::write(
+        root_dir.join("build.omg"),
+        r#"
             target weird_box {
                 host: omega::host::standard {
                     stdout = enabled
@@ -1674,11 +1674,11 @@ use omega_lexer::Lexer;
                 trust omega::host::standard
             }
             "#,
-        )
-        .expect("test build policy should be writable");
-        std::fs::write(
-            &root_path,
-            r#"
+    )
+    .expect("test build policy should be writable");
+    std::fs::write(
+        &root_path,
+        r#"
             platform Console {
                 state write_line(text: String);
             }
@@ -1691,34 +1691,34 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .expect("test source should be writable");
+    )
+    .expect("test source should be writable");
 
-        let diagnostics = crate::compile(crate::CompileOptions {
-            build_dir: Some(root_dir.join("build")),
-            root_path,
-            target_name: Some("weird_box".to_owned()),
-        })
-        .expect_err("compile should reject unknown native target names");
-        let diagnostics_text = diagnostics
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n");
+    let diagnostics = crate::compile(crate::CompileOptions {
+        build_dir: Some(root_dir.join("build")),
+        root_path,
+        target_name: Some("weird_box".to_owned()),
+    })
+    .expect_err("compile should reject unknown native target names");
+    let diagnostics_text = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
 
-        assert!(
-            diagnostics_text.contains("unknown native target `weird_box`"),
-            "unexpected diagnostics:\n{}",
-            diagnostics_text
-        );
+    assert!(
+        diagnostics_text.contains("unknown native target `weird_box`"),
+        "unexpected diagnostics:\n{}",
+        diagnostics_text
+    );
 
-        let _ = std::fs::remove_dir_all(build_dir);
-    }
+    let _ = std::fs::remove_dir_all(build_dir);
+}
 
-    #[test]
-    fn ignores_host_calls_outside_entry_schedule() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn ignores_host_calls_outside_entry_schedule() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
                 state exit_process(return_code: i32);
@@ -1736,28 +1736,28 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should keep unreachable host call out of the schedule");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should keep unreachable host call out of the schedule");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(native_plan.host_calls.calls.len(), 2);
-        assert_eq!(native_plan.instructions.instructions.len(), 4);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert_eq!(native_plan.instructions.instructions.len(), 4);
+}
 
-    #[test]
-    fn emits_unconditional_entry_transition_chains() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn emits_unconditional_entry_transition_chains() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
                 state exit_process(return_code: i32);
@@ -1778,28 +1778,28 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should allow unconditional transition chain");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should allow unconditional transition chain");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(native_plan.host_calls.calls.len(), 3);
-        assert_eq!(native_plan.instructions.instructions.len(), 8);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(native_plan.host_calls.calls.len(), 3);
+    assert_eq!(native_plan.instructions.instructions.len(), 8);
+}
 
-    #[test]
-    fn emits_nested_machine_continuations_inline() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn emits_nested_machine_continuations_inline() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state write_line(text: String);
                 state exit_process(return_code: i32);
@@ -1827,37 +1827,37 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should allow nested continuation");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
-        let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
-            .expect("entry schedule should include nested state");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should allow nested continuation");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
+        .expect("entry schedule should include nested state");
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(
-            schedule
-                .iter()
-                .map(|state| format!("{}.{}", state.machine, state.state))
-                .collect::<Vec<_>>(),
-            vec!["main.entry", "Banner.entry", "main.shutdown"]
-        );
-        assert_eq!(native_plan.host_calls.calls.len(), 3);
-        assert_eq!(native_plan.instructions.instructions.len(), 8);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(
+        schedule
+            .iter()
+            .map(|state| format!("{}.{}", state.machine, state.state))
+            .collect::<Vec<_>>(),
+        vec!["main.entry", "Banner.entry", "main.shutdown"]
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 3);
+    assert_eq!(native_plan.instructions.instructions.len(), 8);
+}
 
-    #[test]
-    fn reports_entry_assignments_as_native_codegen_blockers() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn reports_entry_assignments_as_native_codegen_blockers() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state exit_process(return_code: i32);
             }
@@ -1873,32 +1873,32 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should preserve entry assignment as blocker");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should preserve entry assignment as blocker");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(
-            emission_plan.blockers.iter().any(|(_, blocker)| {
-                blocker.stage == "state codegen"
-                    && blocker.reason.contains("Assignment is not supported")
-            }),
-            "expected entry assignment codegen blocker"
-        );
-    }
+    assert!(
+        emission_plan.blockers.iter().any(|(_, blocker)| {
+            blocker.stage == "state codegen"
+                && blocker.reason.contains("Assignment is not supported")
+        }),
+        "expected entry assignment codegen blocker"
+    );
+}
 
-    #[test]
-    fn lowers_constant_integer_assignment_before_host_call() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn lowers_constant_integer_assignment_before_host_call() {
+    let tokens = Lexer::new(
+        r#"
             platform Console {
                 state exit_process(return_code: i32);
             }
@@ -1913,42 +1913,42 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should track constant integer assignment");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
-        let exit_call = native_plan
-            .host_calls
-            .calls
-            .iter()
-            .find(|(_, call)| call.platform_call == "console.exit_process")
-            .map(|(_, call)| call)
-            .expect("exit call should be lowered");
-        let arguments = native_plan
-            .host_calls
-            .arguments
-            .span(exit_call.arguments)
-            .expect("exit arguments should be present");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should track constant integer assignment");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let exit_call = native_plan
+        .host_calls
+        .calls
+        .iter()
+        .find(|(_, call)| call.platform_call == "console.exit_process")
+        .map(|(_, call)| call)
+        .expect("exit call should be lowered");
+    let arguments = native_plan
+        .host_calls
+        .arguments
+        .span(exit_call.arguments)
+        .expect("exit arguments should be present");
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(
-            arguments[0].kind,
-            crate::native::host_calls::HostCallArgumentKind::Integer(0)
-        );
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(
+        arguments[0].kind,
+        crate::native::host_calls::HostCallArgumentKind::Integer(0)
+    );
+}
 
-    #[test]
-    fn selects_static_guarded_transition() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn selects_static_guarded_transition() {
+    let tokens = Lexer::new(
+        r#"
             data CommandKind {
                 Quit,
                 Look,
@@ -1992,37 +1992,37 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should select a static guarded transition");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
-        let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
-            .expect("entry schedule should select look branch");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should select a static guarded transition");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
+        .expect("entry schedule should select look branch");
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(
-            schedule
-                .iter()
-                .map(|state| format!("{}.{}", state.machine, state.state))
-                .collect::<Vec<_>>(),
-            vec!["main.entry", "main.look"]
-        );
-        assert_eq!(native_plan.host_calls.calls.len(), 6);
-        assert_eq!(native_plan.instructions.instructions.len(), 6);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(
+        schedule
+            .iter()
+            .map(|state| format!("{}.{}", state.machine, state.state))
+            .collect::<Vec<_>>(),
+        vec!["main.entry", "main.look"]
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 6);
+    assert_eq!(native_plan.instructions.instructions.len(), 6);
+}
 
-    #[test]
-    fn lowers_mutable_output_host_call() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn lowers_mutable_output_host_call() {
+    let tokens = Lexer::new(
+        r#"
             data ConsoleLine {
                 text: String;
             }
@@ -2046,40 +2046,40 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should lower mutable output host call");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
-        let read_buffer = native_plan
-            .data
-            .objects
-            .iter()
-            .find(|(_, object)| object.source_statement == 1)
-            .map(|(_, object)| object)
-            .expect("read_line should allocate a mutable output buffer");
-        let read_buffer_bytes = native_plan
-            .data
-            .bytes
-            .span(read_buffer.bytes)
-            .expect("read buffer bytes should be present");
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should lower mutable output host call");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let read_buffer = native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, object)| object.source_statement == 1)
+        .map(|(_, object)| object)
+        .expect("read_line should allocate a mutable output buffer");
+    let read_buffer_bytes = native_plan
+        .data
+        .bytes
+        .span(read_buffer.bytes)
+        .expect("read buffer bytes should be present");
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(native_plan.host_calls.calls.len(), 4);
-        assert_eq!(read_buffer_bytes.len(), 256);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(native_plan.host_calls.calls.len(), 4);
+    assert_eq!(read_buffer_bytes.len(), 256);
+}
 
-    #[test]
-    fn lowers_static_record_array_field_text() {
-        let tokens = Lexer::new(
-            r#"
+#[test]
+fn lowers_static_record_array_field_text() {
+    let tokens = Lexer::new(
+        r#"
             data CellId {
                 Empty,
                 A1,
@@ -2117,245 +2117,244 @@ use omega_lexer::Lexer;
                 }
             }
             "#,
-        )
-        .tokenize()
-        .expect("tokenization should succeed");
-        let parsed = parse_file(&tokens).expect("parse should succeed");
-        let program =
-            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let native_plan = crate::native::plan::build_native_plan(
-            &program,
-            crate::native::target::NativeTarget::macos_arm64(),
-        )
-        .expect("native planning should lower static record field text");
-        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should lower static record field text");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
 
-        assert!(emission_plan.blockers.is_empty());
-        assert_eq!(native_plan.host_calls.calls.len(), 3);
-        assert_eq!(native_plan.data.objects.len(), 2);
-    }
+    assert!(emission_plan.blockers.is_empty());
+    assert_eq!(native_plan.host_calls.calls.len(), 3);
+    assert_eq!(native_plan.data.objects.len(), 2);
+}
 
-    #[test]
-    fn selected_target_loads_only_referenced_host_package() {
+#[test]
+fn selected_target_loads_only_referenced_host_package() {
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-driver-selected-target-{}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    let root_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../samples/cli_mvp/main.omg");
+
+    let output = crate::check(crate::CompileOptions {
+        build_dir: Some(build_dir.clone()),
+        root_path,
+        target_name: Some("windows_x64".to_owned()),
+    })
+    .expect("check should pass");
+    let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
+        .expect("source artifact should be readable");
+
+    assert!(sources.contains("omega/host/windows/mod.omg"));
+    assert!(sources.contains("omega/host/windows/kernel32.omg"));
+    assert!(sources.contains("omega/host/contracts/mod.omg"));
+    assert!(!sources.contains("omega/host/linux/mod.omg"));
+    assert!(!sources.contains("omega/host/darwin/mod.omg"));
+
+    let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
+        .expect("trust artifact should be readable");
+    assert!(trust.contains("targets: 1"));
+    assert!(trust.contains("trust roots: 7"));
+    assert!(trust.contains("unresolved trusts: 0"));
+    assert!(trust.contains("target `windows_x64`"));
+    assert!(trust.contains("trust `omega_windows_kernel32`"));
+    assert!(!trust.contains("target `linux_x64`"));
+    assert!(!trust.contains("unchecked `invariant_proofs`"));
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
+fn checks_every_sample_entrypoint() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("driver crate should live under compiler/omega-driver");
+    let sample_root = repo_root.join("samples");
+    let mut entrypoints = Vec::new();
+
+    collect_entrypoints(&sample_root, &mut entrypoints);
+    entrypoints.sort();
+
+    assert!(
+        !entrypoints.is_empty(),
+        "expected at least one sample entrypoint under {}",
+        sample_root.display()
+    );
+
+    for root_path in entrypoints {
         let build_dir = std::env::temp_dir().join(format!(
-            "omega-driver-selected-target-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&build_dir);
-        let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../samples/cli_mvp/main.omg");
-
-        let output = crate::check(crate::CompileOptions {
-            build_dir: Some(build_dir.clone()),
-            root_path,
-            target_name: Some("windows_x64".to_owned()),
-        })
-        .expect("check should pass");
-        let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
-            .expect("source artifact should be readable");
-
-        assert!(sources.contains("omega/host/windows/mod.omg"));
-        assert!(sources.contains("omega/host/windows/kernel32.omg"));
-        assert!(sources.contains("omega/host/contracts/mod.omg"));
-        assert!(!sources.contains("omega/host/linux/mod.omg"));
-        assert!(!sources.contains("omega/host/darwin/mod.omg"));
-
-        let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
-            .expect("trust artifact should be readable");
-        assert!(trust.contains("targets: 1"));
-        assert!(trust.contains("trust roots: 7"));
-        assert!(trust.contains("unresolved trusts: 0"));
-        assert!(trust.contains("target `windows_x64`"));
-        assert!(trust.contains("trust `omega_windows_kernel32`"));
-        assert!(!trust.contains("target `linux_x64`"));
-        assert!(!trust.contains("unchecked `invariant_proofs`"));
-
-        let _ = std::fs::remove_dir_all(build_dir);
-    }
-
-    #[test]
-    fn checks_every_sample_entrypoint() {
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .expect("driver crate should live under compiler/omega-driver");
-        let sample_root = repo_root.join("samples");
-        let mut entrypoints = Vec::new();
-
-        collect_entrypoints(&sample_root, &mut entrypoints);
-        entrypoints.sort();
-
-        assert!(
-            !entrypoints.is_empty(),
-            "expected at least one sample entrypoint under {}",
-            sample_root.display()
-        );
-
-        for root_path in entrypoints {
-            let build_dir = std::env::temp_dir().join(format!(
-                "omega-sample-check-{}-{}",
-                std::process::id(),
-                root_path
-                    .parent()
-                    .and_then(|parent| parent.file_name())
-                    .and_then(|name| name.to_str())
-                    .unwrap_or("sample")
-            ));
-            let _ = std::fs::remove_dir_all(&build_dir);
-
-            crate::check(crate::CompileOptions {
-                build_dir: Some(build_dir.clone()),
-                root_path: root_path.clone(),
-                target_name: None,
-            })
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "sample {} failed check:\n{}",
-                    root_path.display(),
-                    diagnostics
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            });
-
-            let _ = std::fs::remove_dir_all(build_dir);
-        }
-    }
-
-    #[test]
-    fn checks_passing_canaries() {
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .expect("driver crate should live under compiler/omega-driver");
-        let canary_root = repo_root.join("canaries/pass");
-        let mut entrypoints = Vec::new();
-
-        collect_entrypoints(&canary_root, &mut entrypoints);
-        entrypoints.sort();
-
-        assert!(
-            !entrypoints.is_empty(),
-            "expected at least one passing canary under {}",
-            canary_root.display()
-        );
-
-        for root_path in entrypoints {
-            let build_dir = temporary_build_dir("omega-canary-pass", &root_path);
-            let _ = std::fs::remove_dir_all(&build_dir);
-
-            crate::check(crate::CompileOptions {
-                build_dir: Some(build_dir.clone()),
-                root_path: root_path.clone(),
-                target_name: None,
-            })
-            .unwrap_or_else(|diagnostics| {
-                panic!(
-                    "passing canary {} failed check:\n{}",
-                    root_path.display(),
-                    diagnostics
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                )
-            });
-
-            let _ = std::fs::remove_dir_all(build_dir);
-        }
-    }
-
-    #[test]
-    fn rejects_failing_canaries() {
-        let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .nth(2)
-            .expect("driver crate should live under compiler/omega-driver");
-        let canary_root = repo_root.join("canaries/fail");
-        let mut entrypoints = Vec::new();
-
-        collect_entrypoints(&canary_root, &mut entrypoints);
-        entrypoints.sort();
-
-        assert!(
-            !entrypoints.is_empty(),
-            "expected at least one failing canary under {}",
-            canary_root.display()
-        );
-
-        for root_path in entrypoints {
-            let build_dir = temporary_build_dir("omega-canary-fail", &root_path);
-            let _ = std::fs::remove_dir_all(&build_dir);
-
-            let expected_diagnostic_path = root_path
-                .parent()
-                .expect("canary entrypoint should have a parent directory")
-                .join("expected.txt");
-            let expected_diagnostic = std::fs::read_to_string(&expected_diagnostic_path)
-                .unwrap_or_else(|error| {
-                    panic!(
-                        "failed to read expected diagnostic {}: {error}",
-                        expected_diagnostic_path.display()
-                    )
-                });
-            let diagnostics = crate::check(crate::CompileOptions {
-                build_dir: Some(build_dir.clone()),
-                root_path: root_path.clone(),
-                target_name: None,
-            })
-            .expect_err(&format!(
-                "failing canary {} unexpectedly passed",
-                root_path.display()
-            ));
-            let diagnostics_text = diagnostics
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join("\n");
-
-            assert!(
-                diagnostics_text.contains(expected_diagnostic.trim()),
-                "failing canary {} expected diagnostic containing `{}`, got:\n{}",
-                root_path.display(),
-                expected_diagnostic.trim(),
-                diagnostics_text
-            );
-
-            let _ = std::fs::remove_dir_all(build_dir);
-        }
-    }
-
-    fn collect_entrypoints(path: &std::path::Path, entrypoints: &mut Vec<std::path::PathBuf>) {
-        let entries = std::fs::read_dir(path)
-            .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
-
-        for entry in entries {
-            let entry =
-                entry.unwrap_or_else(|error| panic!("failed to read directory entry: {error}"));
-            let path = entry.path();
-
-            if path.is_dir() {
-                collect_entrypoints(&path, entrypoints);
-            } else if path
-                .file_name()
-                .is_some_and(|file_name| file_name == "main.omg")
-            {
-                entrypoints.push(path);
-            }
-        }
-    }
-
-    fn temporary_build_dir(prefix: &str, root_path: &std::path::Path) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "{}-{}-{}",
-            prefix,
+            "omega-sample-check-{}-{}",
             std::process::id(),
             root_path
                 .parent()
                 .and_then(|parent| parent.file_name())
                 .and_then(|name| name.to_str())
-                .unwrap_or("entrypoint")
-        ))
+                .unwrap_or("sample")
+        ));
+        let _ = std::fs::remove_dir_all(&build_dir);
+
+        crate::check(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path: root_path.clone(),
+            target_name: None,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "sample {} failed check:\n{}",
+                root_path.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let _ = std::fs::remove_dir_all(build_dir);
     }
+}
+
+#[test]
+fn checks_passing_canaries() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("driver crate should live under compiler/omega-driver");
+    let canary_root = repo_root.join("canaries/pass");
+    let mut entrypoints = Vec::new();
+
+    collect_entrypoints(&canary_root, &mut entrypoints);
+    entrypoints.sort();
+
+    assert!(
+        !entrypoints.is_empty(),
+        "expected at least one passing canary under {}",
+        canary_root.display()
+    );
+
+    for root_path in entrypoints {
+        let build_dir = temporary_build_dir("omega-canary-pass", &root_path);
+        let _ = std::fs::remove_dir_all(&build_dir);
+
+        crate::check(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path: root_path.clone(),
+            target_name: None,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "passing canary {} failed check:\n{}",
+                root_path.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+}
+
+#[test]
+fn rejects_failing_canaries() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("driver crate should live under compiler/omega-driver");
+    let canary_root = repo_root.join("canaries/fail");
+    let mut entrypoints = Vec::new();
+
+    collect_entrypoints(&canary_root, &mut entrypoints);
+    entrypoints.sort();
+
+    assert!(
+        !entrypoints.is_empty(),
+        "expected at least one failing canary under {}",
+        canary_root.display()
+    );
+
+    for root_path in entrypoints {
+        let build_dir = temporary_build_dir("omega-canary-fail", &root_path);
+        let _ = std::fs::remove_dir_all(&build_dir);
+
+        let expected_diagnostic_path = root_path
+            .parent()
+            .expect("canary entrypoint should have a parent directory")
+            .join("expected.txt");
+        let expected_diagnostic = std::fs::read_to_string(&expected_diagnostic_path)
+            .unwrap_or_else(|error| {
+                panic!(
+                    "failed to read expected diagnostic {}: {error}",
+                    expected_diagnostic_path.display()
+                )
+            });
+        let diagnostics = crate::check(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path: root_path.clone(),
+            target_name: None,
+        })
+        .expect_err(&format!(
+            "failing canary {} unexpectedly passed",
+            root_path.display()
+        ));
+        let diagnostics_text = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            diagnostics_text.contains(expected_diagnostic.trim()),
+            "failing canary {} expected diagnostic containing `{}`, got:\n{}",
+            root_path.display(),
+            expected_diagnostic.trim(),
+            diagnostics_text
+        );
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+}
+
+fn collect_entrypoints(path: &std::path::Path, entrypoints: &mut Vec<std::path::PathBuf>) {
+    let entries = std::fs::read_dir(path)
+        .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
+
+    for entry in entries {
+        let entry = entry.unwrap_or_else(|error| panic!("failed to read directory entry: {error}"));
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_entrypoints(&path, entrypoints);
+        } else if path
+            .file_name()
+            .is_some_and(|file_name| file_name == "main.omg")
+        {
+            entrypoints.push(path);
+        }
+    }
+}
+
+fn temporary_build_dir(prefix: &str, root_path: &std::path::Path) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "{}-{}-{}",
+        prefix,
+        std::process::id(),
+        root_path
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|name| name.to_str())
+            .unwrap_or("entrypoint")
+    ))
+}

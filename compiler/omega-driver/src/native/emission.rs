@@ -1,6 +1,6 @@
 use crate::native::control_flow::{OperationKind, StateFlow};
-use crate::native::platform_object::can_emit_target_object;
 use crate::native::plan::NativePlan;
+use crate::native::platform_object::can_emit_target_object;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::target::ObjectFormat;
 use omega_core::arena::Arena;
