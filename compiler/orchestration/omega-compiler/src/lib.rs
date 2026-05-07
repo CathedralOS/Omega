@@ -1,4 +1,3 @@
-mod native;
 mod pipeline;
 mod proof;
 mod semantic;

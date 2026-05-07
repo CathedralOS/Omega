@@ -3,33 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
-use crate::native::abi::{
-    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
-};
-use crate::native::control_flow::{
-    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
-};
-use crate::native::data::NativeDataObject;
-use crate::native::emission::EmissionPlan;
-use crate::native::emitter::EmittedNativeObject;
-use crate::native::host_calls::{
-    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
-};
-use crate::native::instructions::{
-    FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
-};
-use crate::native::layout::{DataShape, FieldLayout};
-use crate::native::linker::{LinkOutput, LinkStatus};
-use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
-use crate::native::object::{SectionPlan, SymbolPlan};
-use crate::native::plan::NativePlan;
-use crate::native::relocations::RelocationRecord;
-use crate::native::runtime_dispatch::branching::{
-    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
-    RuntimeStraightLineBranchOperationKind,
-};
-use crate::native::runtime_flow::RuntimeTransitionTarget;
-use crate::native::state_schedule::build_entry_state_schedule;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
@@ -37,6 +10,33 @@ use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
+use omega_native::abi::{
+    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
+};
+use omega_native::control_flow::{
+    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
+};
+use omega_native::data::NativeDataObject;
+use omega_native::emission::EmissionPlan;
+use omega_native::emitter::EmittedNativeObject;
+use omega_native::host_calls::{
+    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
+};
+use omega_native::instructions::{
+    FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
+};
+use omega_native::layout::{DataShape, FieldLayout};
+use omega_native::linker::{LinkOutput, LinkStatus};
+use omega_native::machine_code::{MachineFunctionCode, MachineInstruction};
+use omega_native::object::{SectionPlan, SymbolPlan};
+use omega_native::plan::NativePlan;
+use omega_native::relocations::RelocationRecord;
+use omega_native::runtime_dispatch::branching::{
+    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
+    RuntimeStraightLineBranchOperationKind,
+};
+use omega_native::runtime_flow::RuntimeTransitionTarget;
+use omega_native::state_schedule::build_entry_state_schedule;
 use omega_proof::ProofSurfaceReport;
 use omega_typed_program::Program;
 use omega_typed_program::data::DataMember;
@@ -2451,7 +2451,7 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
 
 fn selected_instruction_operands_name(
     native_plan: &NativePlan,
-    operands: omega_core::arena::HandleSpan<crate::native::instructions::InstructionOperand>,
+    operands: omega_core::arena::HandleSpan<omega_native::instructions::InstructionOperand>,
 ) -> String {
     let Some(operands) = native_plan.instructions.operands.span(operands) else {
         return "invalid operands".to_owned();

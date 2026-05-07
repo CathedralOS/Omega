@@ -1,11 +1,36 @@
-//! Native backend surface collection.
-//!
-//! Real layout, instruction selection, assembly, and object emission still live
-//! behind the driver today. This crate owns a source-facing native surface
-//! report so backend expectations can become explicit before emission exists.
+//! Native backend implementation and surface collection.
 
 use omega_abstract_syntax_tree::item::{Item, Machine, Platform};
 use omega_core::arena::Arena;
+
+pub mod abi;
+pub mod alias_flow;
+pub mod architecture;
+pub mod control_flow;
+pub mod data;
+pub mod emission;
+pub mod emitter;
+pub mod host_calls;
+pub mod instructions;
+pub mod layout;
+pub mod linker;
+pub mod machine_code;
+pub mod object;
+pub mod plan;
+pub mod platform_object;
+pub mod relocations;
+pub mod runtime_dispatch;
+pub mod runtime_flow;
+pub mod runtime_storage;
+pub mod runtime_text;
+pub mod state_calls;
+pub mod state_schedule;
+pub mod state_storage;
+pub mod state_values;
+pub mod target;
+
+pub use runtime_dispatch::guards as state_guards;
+pub use runtime_dispatch::states as state_dispatch;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NativeSurfaceReport {
