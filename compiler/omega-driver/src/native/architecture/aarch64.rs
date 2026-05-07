@@ -33,6 +33,10 @@ pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
     8 + literal.len() * 12
 }
 
+pub fn runtime_storage_compare_width() -> usize {
+    32
+}
+
 pub fn runtime_text_literal_write_width(literal: &str) -> usize {
     8 + literal.len() * 8
 }
@@ -43,6 +47,10 @@ pub fn runtime_machine_integer_write_width() -> usize {
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
+}
+
+pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
+    16 + (byte_count / 8) * 8
 }
 
 pub fn operand_width(operand: &InstructionOperand) -> usize {
@@ -192,6 +200,28 @@ pub fn encode_runtime_text_literal_compare(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_compare(
+    left_offset: usize,
+    right_offset: usize,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_w_from_x(18, 16, left_offset, byte_size)?);
+    bytes.extend(encode_load_w_from_x(19, 17, right_offset, byte_size)?);
+    bytes.extend(encode_compare_w_register(18, 19));
+    bytes.extend(if branch_when_equal {
+        encode_conditional_branch_equal(failure_branch_distance)?
+    } else {
+        encode_conditional_branch_not_equal(failure_branch_distance)?
+    });
+    Ok(bytes)
+}
+
 pub fn encode_runtime_text_literal_write(literal: &str) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
@@ -233,6 +263,30 @@ pub fn encode_runtime_machine_string_write(
     bytes.extend(encode_store_x17_to_x16(byte_offset)?);
     bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
     bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_storage_copy(
+    source_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !byte_count.is_multiple_of(8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) of runtime storage yet"
+        )));
+    }
+
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+
+    for offset in (0..byte_count).step_by(8) {
+        bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
+        bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
+    }
+
     Ok(bytes)
 }
 
@@ -289,9 +343,24 @@ fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
     ))
 }
 
+fn encode_compare_w_register(left_register: u8, right_register: u8) -> Vec<u8> {
+    encode_instruction(
+        0x6B00001F | (u32::from(right_register) << 16) | (u32::from(left_register) << 5),
+    )
+}
+
 fn encode_load_w17_from_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_load_w_from_x(17, 16, byte_offset, byte_size)
+}
+
+fn encode_load_w_from_x(
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     match byte_size {
-        1 => encode_load_byte_w17_from_x16(byte_offset),
+        1 => encode_load_byte_w_from_x(destination_register, base_register, byte_offset),
         4 => {
             if !byte_offset.is_multiple_of(4) || byte_offset / 4 > 4095 {
                 return Err(Diagnostic::error(format!(
@@ -299,7 +368,10 @@ fn encode_load_w17_from_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<
                 )));
             }
             Ok(encode_instruction(
-                0xB9400000 | (((byte_offset / 4) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+                0xB9400000
+                    | (((byte_offset / 4) as u32) << 10)
+                    | (u32::from(base_register) << 5)
+                    | u32::from(destination_register),
             ))
         }
         _ => Err(Diagnostic::error(format!(
@@ -309,13 +381,24 @@ fn encode_load_w17_from_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<
 }
 
 fn encode_load_byte_w17_from_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_load_byte_w_from_x(17, 16, byte_offset)
+}
+
+fn encode_load_byte_w_from_x(
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     if byte_offset > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot load byte at offset `{byte_offset}` yet"
         )));
     }
     Ok(encode_instruction(
-        0x39400000 | ((byte_offset as u32) << 10) | (u32::from(16u8) << 5) | 17,
+        0x39400000
+            | ((byte_offset as u32) << 10)
+            | (u32::from(base_register) << 5)
+            | u32::from(destination_register),
     ))
 }
 
@@ -339,13 +422,24 @@ fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u
 }
 
 fn encode_store_x17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_store_x_to_x(17, 16, byte_offset)
+}
+
+fn encode_store_x_to_x(
+    source_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot store u64 at offset `{byte_offset}` yet"
         )));
     }
     Ok(encode_instruction(
-        0xF9000000 | (((byte_offset / 8) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+        0xF9000000
+            | (((byte_offset / 8) as u32) << 10)
+            | (u32::from(base_register) << 5)
+            | u32::from(source_register),
     ))
 }
 

@@ -159,6 +159,31 @@ fn collect_function_relocations(
                     buffer_symbol,
                 );
             }
+            SelectedInstructionKind::CompareRuntimeStorage {
+                left_symbol,
+                right_symbol,
+                ..
+            } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    left_symbol,
+                );
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset
+                        + runtime_storage_compare_right_address_offset(
+                            native_plan.target.architecture,
+                        ),
+                    right_symbol,
+                );
+            }
             SelectedInstructionKind::WriteRuntimeTextLiteral { buffer_symbol, .. } => {
                 insert_data_address_relocations(
                     native_plan.target.architecture,
@@ -196,6 +221,31 @@ fn collect_function_relocations(
                     selected_text_offset
                         + string_descriptor_machine_address_offset(native_plan.target.architecture),
                     &machine_storage_symbol_name(&native_plan.entry_machine),
+                );
+            }
+            SelectedInstructionKind::CopyRuntimeStorage {
+                source_symbol,
+                target_symbol,
+                ..
+            } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    source_symbol,
+                );
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset
+                        + runtime_storage_copy_target_address_offset(
+                            native_plan.target.architecture,
+                        ),
+                    target_symbol,
                 );
             }
             _ => {}
@@ -351,6 +401,20 @@ fn external_call_relocation_offset(
 }
 
 fn string_descriptor_machine_address_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 8,
+    }
+}
+
+fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 8,
+    }
+}
+
+fn runtime_storage_compare_right_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
         Architecture::X86_64 => 8,

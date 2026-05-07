@@ -2306,6 +2306,18 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
+        SelectedInstructionKind::CompareRuntimeStorage {
+            left_symbol,
+            left_offset,
+            right_symbol,
+            right_offset,
+            byte_size,
+            operator,
+        } => {
+            format!(
+                "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeTextLiteral {
             buffer_symbol,
             literal,
@@ -2328,6 +2340,17 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeStorage {
+            source_symbol,
+            source_offset,
+            target_symbol,
+            target_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {

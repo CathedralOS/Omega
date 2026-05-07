@@ -85,6 +85,12 @@ pub enum MachineInstructionKind {
     RuntimeTextLiteralCompare {
         literal: String,
     },
+    RuntimeStorageCompare {
+        left_offset: usize,
+        right_offset: usize,
+        byte_size: usize,
+        operator: StateGuardOperator,
+    },
     RuntimeTextLiteralWrite {
         literal: String,
     },
@@ -96,6 +102,11 @@ pub enum MachineInstructionKind {
     RuntimeMachineStringWrite {
         byte_offset: usize,
         byte_length: usize,
+    },
+    RuntimeStorageCopy {
+        source_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
     },
     DispatchStateWrite {
         dispatch_index: u32,
@@ -268,6 +279,21 @@ fn machine_instruction_shape(
             },
             runtime_text_literal_compare_width(native_plan.target.architecture, literal),
         ),
+        SelectedInstructionKind::CompareRuntimeStorage {
+            left_offset,
+            right_offset,
+            byte_size,
+            operator,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeStorageCompare {
+                left_offset: *left_offset,
+                right_offset: *right_offset,
+                byte_size: *byte_size,
+                operator: *operator,
+            },
+            runtime_storage_compare_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => (
             MachineInstructionKind::RuntimeTextLiteralWrite {
                 literal: literal.clone(),
@@ -296,6 +322,19 @@ fn machine_instruction_shape(
                 byte_length: *byte_length,
             },
             runtime_machine_string_write_width(native_plan.target.architecture, *byte_length),
+        ),
+        SelectedInstructionKind::CopyRuntimeStorage {
+            source_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeStorageCopy {
+                source_offset: *source_offset,
+                target_offset: *target_offset,
+                byte_count: *byte_count,
+            },
+            runtime_storage_copy_width(native_plan.target.architecture, *byte_count),
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => (
             MachineInstructionKind::DispatchStateWrite {
@@ -379,6 +418,23 @@ fn encode_machine_instruction(
                 )?,
             )
         }
+        SelectedInstructionKind::CompareRuntimeStorage {
+            left_offset,
+            right_offset,
+            byte_size,
+            operator,
+            ..
+        } => architecture::encode_runtime_storage_compare(
+            native_plan.target.architecture,
+            *left_offset,
+            *right_offset,
+            *byte_size,
+            byte_distance_to_next_runtime_write_end(
+                machine_instructions,
+                machine_instruction_index,
+            )?,
+            *operator == StateGuardOperator::NotEqual,
+        ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
             architecture::encode_runtime_text_literal_write(
                 native_plan.target.architecture,
@@ -403,6 +459,17 @@ fn encode_machine_instruction(
             native_plan.target.architecture,
             *byte_offset,
             *byte_length,
+        ),
+        SelectedInstructionKind::CopyRuntimeStorage {
+            source_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => architecture::encode_runtime_storage_copy(
+            native_plan.target.architecture,
+            *source_offset,
+            *target_offset,
+            *byte_count,
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             architecture::encode_dispatch_state_write(
@@ -511,18 +578,10 @@ fn byte_distances_to_next_runtime_machine_write_end(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(Vec::new());
     };
-    let Some(machine_write) = machine_instructions
-        .iter()
-        .skip(machine_instruction_index + 1)
-        .find(|instruction| {
-            matches!(
-                instruction.kind,
-                MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
-            )
-        })
+    let Some(machine_write) = next_runtime_write(machine_instructions, machine_instruction_index)
     else {
         return Err(Diagnostic::error(format!(
-            "cannot encode runtime text guard at byte {}: missing guarded machine write",
+            "cannot encode runtime text guard at byte {}: missing guarded runtime write",
             current.offset
         )));
     };
@@ -537,6 +596,42 @@ fn byte_distances_to_next_runtime_machine_write_end(
             target as isize - branch_program_counter as isize
         })
         .collect())
+}
+
+fn byte_distance_to_next_runtime_write_end(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(machine_write) = next_runtime_write(machine_instructions, machine_instruction_index)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode runtime storage guard at byte {}: missing guarded runtime write",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + current.byte_width;
+    let target = machine_write.offset + machine_write.byte_width;
+    Ok(target as isize - branch_program_counter as isize)
+}
+
+fn next_runtime_write(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Option<&MachineInstruction> {
+    machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| {
+            matches!(
+                instruction.kind,
+                MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
+                    | MachineInstructionKind::RuntimeStorageCopy { .. }
+            )
+        })
 }
 
 fn byte_distance_to_dispatch_loop_start(
@@ -601,6 +696,10 @@ fn runtime_text_literal_compare_width(
     architecture::runtime_text_literal_compare_width(architecture, literal)
 }
 
+fn runtime_storage_compare_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::runtime_storage_compare_width(architecture)
+}
+
 fn runtime_text_literal_write_width(
     architecture: crate::native::target::Architecture,
     literal: &str,
@@ -617,4 +716,11 @@ fn runtime_machine_string_write_width(
     byte_length: usize,
 ) -> usize {
     architecture::runtime_machine_string_write_width(architecture, byte_length)
+}
+
+fn runtime_storage_copy_width(
+    architecture: crate::native::target::Architecture,
+    byte_count: usize,
+) -> usize {
+    architecture::runtime_storage_copy_width(architecture, byte_count)
 }

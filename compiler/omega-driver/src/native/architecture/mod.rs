@@ -63,6 +63,13 @@ pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &
     }
 }
 
+pub fn runtime_storage_compare_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_compare_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_literal_write_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_write_width(literal),
@@ -80,6 +87,13 @@ pub fn runtime_machine_integer_write_width(architecture: Architecture) -> usize 
 pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_storage_copy_width(architecture: Architecture, byte_count: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_copy_width(byte_count),
         Architecture::X86_64 => 0,
     }
 }
@@ -180,6 +194,26 @@ pub fn encode_runtime_text_literal_compare(
     }
 }
 
+pub fn encode_runtime_storage_compare(
+    architecture: Architecture,
+    left_offset: usize,
+    right_offset: usize,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_compare(
+            left_offset,
+            right_offset,
+            byte_size,
+            failure_branch_distance,
+            branch_when_equal,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_text_literal_write(
     architecture: Architecture,
     literal: &str,
@@ -212,6 +246,20 @@ pub fn encode_runtime_machine_string_write(
     match architecture {
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_storage_copy(
+    architecture: Architecture,
+    source_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }

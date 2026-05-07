@@ -4,6 +4,7 @@ use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
+use crate::native::object::{machine_storage_symbol_name, runtime_frame_storage_symbol_name};
 use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::branching::{
@@ -109,6 +110,14 @@ pub enum SelectedInstructionKind {
         buffer_symbol: String,
         literal: String,
     },
+    CompareRuntimeStorage {
+        left_symbol: String,
+        left_offset: usize,
+        right_symbol: String,
+        right_offset: usize,
+        byte_size: usize,
+        operator: StateGuardOperator,
+    },
     WriteRuntimeTextLiteral {
         buffer_symbol: String,
         literal: String,
@@ -122,6 +131,13 @@ pub enum SelectedInstructionKind {
         byte_offset: usize,
         data_symbol: String,
         byte_length: usize,
+    },
+    CopyRuntimeStorage {
+        source_symbol: String,
+        source_offset: usize,
+        target_symbol: String,
+        target_offset: usize,
+        byte_count: usize,
     },
     SetDispatchState {
         dispatch_index: u32,
@@ -722,35 +738,89 @@ fn select_runtime_leaf_branch_expansions(
         .iter()
         .filter(|(_, expansion)| expansion.dispatch_index == dispatch_index)
     {
-        let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion)
-        else {
+        if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
+                    buffer_symbol,
+                    literal,
+                },
+                source_machine: expansion.source_machine.clone(),
+                source_state: expansion.source_state.clone(),
+                source_statement: expansion.statement_index,
+            });
+        } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
+            selected_instructions.push(SelectedInstruction {
+                kind: compare,
+                source_machine: expansion.source_machine.clone(),
+                source_state: expansion.source_state.clone(),
+                source_statement: expansion.statement_index,
+            });
+        } else {
             continue;
-        };
-        let Some((byte_offset, byte_size, value)) =
-            runtime_leaf_machine_integer_write(native_plan, expansion)
-        else {
-            continue;
-        };
+        }
+        select_runtime_leaf_branch_mutation_writes(native_plan, expansion, selected_instructions);
+    }
+}
 
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
-                buffer_symbol,
-                literal,
-            },
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
-            source_statement: expansion.statement_index,
-        });
-        selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
-                byte_offset,
-                byte_size,
-                value,
-            },
-            source_machine: expansion.leaf_machine.clone(),
-            source_state: expansion.leaf_state.clone(),
-            source_statement: expansion.statement_index,
-        });
+fn select_runtime_leaf_branch_mutation_writes(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let Some(operations) = native_plan
+        .runtime_branching_calls
+        .leaf_operations
+        .span(expansion.operations)
+    else {
+        return;
+    };
+    let bindings = native_plan
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+
+    for operation in operations {
+        let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
+            continue;
+        };
+        let resolved_target = resolve_leaf_binding_expression(target, bindings);
+        let resolved_value = resolve_leaf_binding_expression(value, bindings);
+
+        if let Some((byte_offset, byte_size, value)) = runtime_leaf_machine_integer_write(
+            native_plan,
+            expansion,
+            &resolved_target,
+            &resolved_value,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                    byte_offset,
+                    byte_size,
+                    value,
+                },
+                source_machine: operation.source_machine.clone(),
+                source_state: operation.source_state.clone(),
+                source_statement: operation.statement_index,
+            });
+            continue;
+        }
+
+        if let Some(copy) = runtime_leaf_storage_copy(
+            native_plan,
+            expansion,
+            &operation.source_machine,
+            &operation.source_state,
+            &resolved_target,
+            &resolved_value,
+        ) {
+            selected_instructions.push(SelectedInstruction {
+                kind: copy,
+                source_machine: operation.source_machine.clone(),
+                source_state: operation.source_state.clone(),
+                source_statement: operation.statement_index,
+            });
+        }
     }
 }
 
@@ -777,35 +847,177 @@ fn runtime_text_literal_guard(
     Some((buffer.symbol.clone(), literal.clone()))
 }
 
+fn runtime_storage_guard(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+) -> Option<SelectedInstructionKind> {
+    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+        &expansion.resolved_guard
+    else {
+        return None;
+    };
+    let operator = match binary.operator {
+        crate::ir::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
+        crate::ir::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        _ => return None,
+    };
+    let left = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        &expansion.source_machine,
+        &expansion.source_state,
+        &binary.left,
+    )?;
+    let right = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        &expansion.source_machine,
+        &expansion.source_state,
+        &binary.right,
+    )?;
+    if left.byte_count != right.byte_count {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::CompareRuntimeStorage {
+        left_symbol: left.symbol,
+        left_offset: left.byte_offset,
+        right_symbol: right.symbol,
+        right_offset: right.byte_offset,
+        byte_size: left.byte_count,
+        operator,
+    })
+}
+
 fn runtime_leaf_machine_integer_write(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
+    target: &Expression,
+    value_expression: &Expression,
 ) -> Option<(usize, usize, i64)> {
-    let operations = native_plan
-        .runtime_branching_calls
-        .leaf_operations
-        .span(expansion.operations)?;
-    let operation = operations.iter().find_map(|operation| {
-        let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
-            return None;
-        };
-        Some((target, value))
-    })?;
-    let bindings = native_plan
-        .runtime_branching_calls
-        .leaf_bindings
-        .span(expansion.bindings)
-        .unwrap_or(&[]);
-    let target = resolve_leaf_binding_expression(operation.0, bindings);
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &native_plan.layouts,
         &native_plan.entry_machine,
         &expansion.source_machine,
-        &target,
+        target,
     )?;
-    let value = enum_variant_value(&native_plan.layouts, operation.1)?;
+    let value = enum_variant_value(&native_plan.layouts, value_expression)?;
 
     Some((byte_offset, byte_size, value))
+}
+
+fn runtime_leaf_storage_copy(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+    operation_machine: &str,
+    operation_state: &str,
+    target: &Expression,
+    value: &Expression,
+) -> Option<SelectedInstructionKind> {
+    let target_place = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        operation_machine,
+        operation_state,
+        target,
+    )?;
+    let source_place = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        operation_machine,
+        operation_state,
+        value,
+    )?;
+    if target_place.byte_count != source_place.byte_count || target_place.byte_count == 0 {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::CopyRuntimeStorage {
+        source_symbol: source_place.symbol,
+        source_offset: source_place.byte_offset,
+        target_symbol: target_place.symbol,
+        target_offset: target_place.byte_offset,
+        byte_count: target_place.byte_count,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeStoragePlace {
+    symbol: String,
+    byte_offset: usize,
+    byte_count: usize,
+}
+
+fn resolve_runtime_storage_place(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    source_machine: &str,
+    source_state: &str,
+    expression: &Expression,
+) -> Option<RuntimeStoragePlace> {
+    if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        source_machine,
+        expression,
+    ) {
+        return Some(RuntimeStoragePlace {
+            symbol: machine_storage_symbol_name(&native_plan.entry_machine),
+            byte_offset,
+            byte_count,
+        });
+    }
+
+    let expression = strip_mutable_expression(expression.clone());
+    let normalized_expression;
+    let expression = match &expression {
+        Expression::Indexed(indexed) => {
+            normalized_expression = Expression::Name(indexed_expression_path(indexed)?);
+            &normalized_expression
+        }
+        _ => &expression,
+    };
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    let [root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
+    let slot = native_plan
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find(|(_, slot)| {
+            slot.dispatch_index == dispatch_index
+                && slot.source_machine == source_machine
+                && slot.source_state == source_state
+                && slot.name == *root_name
+        })
+        .or_else(|| {
+            native_plan
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .find(|(_, slot)| slot.dispatch_index == dispatch_index && slot.name == *root_name)
+        })
+        .map(|(_, slot)| slot)?;
+    let root_field = FieldLayout {
+        name: slot.name.clone(),
+        offset: slot.byte_offset,
+        type_name: slot.type_name.clone(),
+        layout: TypeLayout {
+            size: slot.byte_size,
+            alignment: slot.alignment,
+        },
+    };
+    let (byte_offset, layout) =
+        resolve_nested_field_layout(&native_plan.layouts, &root_field, suffix)?;
+
+    Some(RuntimeStoragePlace {
+        symbol: runtime_frame_storage_symbol_name(),
+        byte_offset,
+        byte_count: layout.size,
+    })
 }
 
 fn resolve_leaf_binding_expression(
