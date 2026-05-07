@@ -2092,6 +2092,65 @@ mod tests {
     }
 
     #[test]
+    fn lowers_static_record_array_field_text() {
+        let tokens = Lexer::new(
+            r#"
+            data CellId {
+                Empty,
+                A1,
+                A2,
+            }
+
+            data Exit {
+                command: String;
+                destination: CellId;
+            }
+
+            data Room {
+                label: String;
+                exits: [Exit; 2];
+            }
+
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+                owns room: Room;
+                owns selected_exit: Exit;
+
+                state entry {
+                    room.label = "A1";
+                    room.exits[0] = Exit { command: "north", destination: CellId::A2 };
+                    selected_exit = room.exits[0];
+
+                    console.write_line(room.label);
+                    console.write_line(selected_exit.command);
+                    console.exit_process(0);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should lower static record field text");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(native_plan.host_calls.calls.len(), 3);
+        assert_eq!(native_plan.data.objects.len(), 2);
+    }
+
+    #[test]
     fn selected_target_loads_only_referenced_host_package() {
         let build_dir = std::env::temp_dir().join(format!(
             "omega-driver-selected-target-{}",

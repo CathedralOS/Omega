@@ -282,13 +282,20 @@ fn operation_kind(statement: &Statement) -> OperationKind {
 }
 
 fn is_static_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
-    matches!(
-        (&assignment.target, &assignment.value),
-        (
-            crate::ir::expression::Expression::Name(target),
-            crate::ir::expression::Expression::Name(value)
-        ) if !target.is_empty() && value.len() > 1
-    )
+    use crate::ir::expression::Expression;
+
+    let target_is_place = matches!(
+        assignment.target,
+        Expression::Name(_) | Expression::Indexed(_)
+    );
+    let value_is_static = match &assignment.value {
+        Expression::Integer(_) | Expression::String(_) | Expression::StructLiteral(_) => true,
+        Expression::Indexed(_) => true,
+        Expression::Name(path) => path.len() > 1,
+        _ => false,
+    };
+
+    target_is_place && value_is_static
 }
 
 fn is_constant_integer_assignment(assignment: &crate::ir::statement::Assignment) -> bool {

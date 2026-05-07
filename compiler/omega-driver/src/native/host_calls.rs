@@ -96,6 +96,13 @@ pub enum HostCallArgumentKind {
     Expression(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum StaticValue {
+    Integer(i64),
+    Symbol(String),
+    Text(String),
+}
+
 pub fn build_host_call_plan(
     program: &Program,
     target: NativeTarget,
@@ -132,16 +139,12 @@ fn collect_state_host_calls(
     state: &State,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let mut integer_values = initial_integer_values(machine);
+    let mut static_values = initial_static_values(machine);
 
     for (statement_index, statement) in state.statements.iter().enumerate() {
         match statement {
             Statement::Assignment(assignment) => {
-                apply_integer_assignment(
-                    &mut integer_values,
-                    &assignment.target,
-                    &assignment.value,
-                );
+                apply_static_assignment(&mut static_values, &assignment.target, &assignment.value);
                 continue;
             }
             Statement::Call(call) => {
@@ -153,7 +156,7 @@ fn collect_state_host_calls(
                     state,
                     statement_index,
                     call,
-                    &integer_values,
+                    &static_values,
                     plan,
                 )?;
             }
@@ -172,7 +175,7 @@ fn collect_call_host_lowering(
     state: &State,
     statement_index: usize,
     call: &Call,
-    integer_values: &[(String, i64)],
+    static_values: &[(String, StaticValue)],
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
     let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
@@ -204,7 +207,7 @@ fn collect_call_host_lowering(
         .unwrap_or_else(HandleSpan::empty);
     let arguments = plan
         .arguments
-        .insert_many(lower_host_call_arguments(call, integer_values));
+        .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
         machine: machine.name.clone(),
         state: state.name.clone(),
@@ -217,40 +220,123 @@ fn collect_call_host_lowering(
     Ok(())
 }
 
-fn initial_integer_values(machine: &Machine) -> Vec<(String, i64)> {
+fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
     machine
         .owned_data
         .iter()
         .filter_map(|owned_data| {
-            let Some(Expression::Integer(value)) = owned_data.initial_value.as_ref() else {
-                return None;
+            let value = match owned_data.initial_value.as_ref()? {
+                Expression::Integer(value) => StaticValue::Integer(*value),
+                Expression::String(value) => StaticValue::Text(value.clone()),
+                Expression::Name(path) if path.len() > 1 => {
+                    StaticValue::Symbol(Expression::Name(path.clone()).display_name())
+                }
+                _ => return None,
             };
 
-            Some((owned_data.name.clone(), *value))
+            Some((owned_data.name.clone(), value))
         })
         .collect()
 }
 
-fn apply_integer_assignment(
-    integer_values: &mut Vec<(String, i64)>,
+fn apply_static_assignment(
+    static_values: &mut Vec<(String, StaticValue)>,
     target: &Expression,
     value: &Expression,
 ) {
-    let (Expression::Name(path), Expression::Integer(value)) = (target, value) else {
+    let Some(target_name) = static_place_name(target) else {
         return;
     };
 
-    let [name] = path.as_slice() else {
+    if let Expression::StructLiteral(struct_literal) = value {
+        for field in &struct_literal.fields {
+            if let Some(field_value) = resolve_static_value(&field.value, static_values) {
+                set_static_value(
+                    static_values,
+                    format!("{target_name}::{}", field.name),
+                    field_value,
+                );
+            }
+        }
+        return;
+    }
+
+    if let Some(source_name) = static_place_name(value) {
+        copy_static_prefix(static_values, &source_name, &target_name);
+    }
+
+    let Some(value) = resolve_static_value(value, static_values) else {
         return;
     };
 
-    if let Some((_, existing_value)) = integer_values
+    set_static_value(static_values, target_name, value);
+}
+
+fn static_place_name(expression: &Expression) -> Option<String> {
+    match expression {
+        Expression::Name(path) if !path.is_empty() => Some(expression.display_name()),
+        Expression::Indexed(_) => Some(expression.display_name()),
+        _ => None,
+    }
+}
+
+fn resolve_static_value(
+    expression: &Expression,
+    static_values: &[(String, StaticValue)],
+) -> Option<StaticValue> {
+    match expression {
+        Expression::Integer(value) => Some(StaticValue::Integer(*value)),
+        Expression::String(value) => Some(StaticValue::Text(value.clone())),
+        Expression::Name(path) => {
+            let name = expression.display_name();
+            static_values
+                .iter()
+                .find(|(target, _)| target == &name)
+                .map(|(_, value)| value.clone())
+                .or_else(|| {
+                    if path.len() > 1 {
+                        Some(StaticValue::Symbol(name))
+                    } else {
+                        None
+                    }
+                })
+        }
+        _ => None,
+    }
+}
+
+fn set_static_value(
+    static_values: &mut Vec<(String, StaticValue)>,
+    target_name: String,
+    value: StaticValue,
+) {
+    if let Some((_, existing_value)) = static_values
         .iter_mut()
-        .find(|(existing_name, _)| existing_name == name)
+        .find(|(existing_name, _)| existing_name == &target_name)
     {
-        *existing_value = *value;
+        *existing_value = value;
     } else {
-        integer_values.push((name.clone(), *value));
+        static_values.push((target_name, value));
+    }
+}
+
+fn copy_static_prefix(
+    static_values: &mut Vec<(String, StaticValue)>,
+    source_name: &str,
+    target_name: &str,
+) {
+    let source_prefix = format!("{source_name}::");
+    let copied_values = static_values
+        .iter()
+        .filter_map(|(existing_name, value)| {
+            existing_name
+                .strip_prefix(&source_prefix)
+                .map(|suffix| (format!("{target_name}::{suffix}"), value.clone()))
+        })
+        .collect::<Vec<_>>();
+
+    for (copied_name, copied_value) in copied_values {
+        set_static_value(static_values, copied_name, copied_value);
     }
 }
 
@@ -312,29 +398,35 @@ fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {
 
 fn lower_host_call_arguments(
     call: &Call,
-    integer_values: &[(String, i64)],
+    static_values: &[(String, StaticValue)],
 ) -> Vec<HostCallArgument> {
     call.arguments
         .iter()
         .map(|argument| HostCallArgument {
-            kind: lower_host_call_argument(argument, integer_values),
+            kind: lower_host_call_argument(argument, static_values),
         })
         .collect()
 }
 
 fn lower_host_call_argument(
     argument: &Expression,
-    integer_values: &[(String, i64)],
+    static_values: &[(String, StaticValue)],
 ) -> HostCallArgumentKind {
     match argument {
         Expression::String(value) => HostCallArgumentKind::Text(value.clone()),
         Expression::Integer(value) => HostCallArgumentKind::Integer(*value),
-        Expression::Name(path) if path.len() == 1 => integer_values
-            .iter()
-            .find(|(name, _)| name == &path[0])
-            .map(|(_, value)| HostCallArgumentKind::Integer(*value))
+        Expression::Name(_) => resolve_static_value(argument, static_values)
+            .map(host_argument_from_static_value)
             .unwrap_or_else(|| HostCallArgumentKind::Expression(argument.display_name())),
         _ => HostCallArgumentKind::Expression(argument.display_name()),
+    }
+}
+
+fn host_argument_from_static_value(value: StaticValue) -> HostCallArgumentKind {
+    match value {
+        StaticValue::Integer(value) => HostCallArgumentKind::Integer(value),
+        StaticValue::Symbol(value) => HostCallArgumentKind::Expression(value),
+        StaticValue::Text(value) => HostCallArgumentKind::Text(value),
     }
 }
 
