@@ -7,6 +7,8 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Call, Statement};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
@@ -108,13 +110,95 @@ pub fn build_host_call_plan(
     target: NativeTarget,
     host_abi: &HostAbiPlan,
 ) -> Result<HostCallPlan, Diagnostic> {
+    if program.machines.is_empty() {
+        return Ok(HostCallPlan::default());
+    }
+
+    let next_index = AtomicUsize::new(0);
+    let worker_count = host_call_worker_count(program.machines.len());
+    let worker_results = thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+
+        for _ in 0..worker_count {
+            let next_index = &next_index;
+            handles.push(scope.spawn(move || {
+                let mut results = Vec::new();
+
+                loop {
+                    let index = next_index.fetch_add(1, Ordering::Relaxed);
+                    let Some(machine) = program.machines.get(index) else {
+                        break;
+                    };
+
+                    let mut machine_plan = HostCallPlan::default();
+                    let result = collect_machine_host_calls(
+                        program,
+                        target,
+                        host_abi,
+                        machine,
+                        &mut machine_plan,
+                    )
+                    .map(|_| machine_plan);
+                    results.push((index, result));
+                }
+
+                results
+            }));
+        }
+
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("host-call worker should not panic"))
+            .collect::<Vec<_>>()
+    });
+
+    let mut machine_plans = worker_results;
+    machine_plans.sort_by_key(|(index, _)| *index);
+
     let mut plan = HostCallPlan::default();
 
-    for machine in &program.machines {
-        collect_machine_host_calls(program, target, host_abi, machine, &mut plan)?;
+    for (_, machine_plan) in machine_plans {
+        merge_host_call_plan(&mut plan, machine_plan?);
     }
 
     Ok(plan)
+}
+
+fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
+    for (_, unsupported_call) in source.unsupported_calls.iter() {
+        target.unsupported_calls.insert(unsupported_call.clone());
+    }
+
+    for (_, call) in source.calls.iter() {
+        let operations = target.operations.insert_many(
+            source
+                .operations
+                .span_or_empty(call.operations)
+                .iter()
+                .cloned(),
+        );
+        let arguments = target.arguments.insert_many(
+            source
+                .arguments
+                .span_or_empty(call.arguments)
+                .iter()
+                .cloned(),
+        );
+
+        target.calls.insert(HostCall {
+            operations,
+            arguments,
+            ..call.clone()
+        });
+    }
+}
+
+fn host_call_worker_count(job_count: usize) -> usize {
+    let available = thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+
+    job_count.min(available).max(1)
 }
 
 fn collect_machine_host_calls(
