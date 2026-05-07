@@ -84,8 +84,8 @@ Important artifact files:
 - `08_proof.txt`: proof surface and obligations.
 - `09_native_plan.txt`: native target, host ABI, calls, data, instructions, object shape.
 - `10_trust.txt`: trusted contracts and unchecked obligations.
-- `11_emission_plan.txt`: whether native emission is currently possible.
-- `12_emit.txt`: emitted object/container information.
+- `11_emission.txt`: whether native emission is currently possible.
+- `12_emitted_object.txt`: emitted object/container information.
 - `13_link.txt`: linker invocation and result.
 
 ## Current Native Status
@@ -321,6 +321,7 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 ## Samples And Canaries
 
 Samples are language pressure tests. They may be pseudocode-ish if the language is still being shaped.
+Each sample is a copyable mini-project with its own `.gitignore`; local compiler output belongs in the ignored `build/` directory beside the entrypoint.
 
 Current samples:
 
@@ -329,15 +330,11 @@ Current samples:
 - `samples/point_and_click/`: windowed game sketch with room ownership and render-loop boundaries.
 
 Canaries are not samples. They isolate one compiler capability at a time.
+They live under `canaries/pass/<feature>/main.omg` when the compiler should accept them and `canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
 
-Current feature canaries include:
+Canary names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a feature canary such as `runtime_text_builder`, not `dungeon_step_04`.
 
-- `state_transition_chain`
-- `nested_machine_continuation`
-- `owned_assignment_before_exit`
-- `guarded_transition_dispatch`
-- `mutable_output_host_call`
-- `record_array_field_access`
+Generated canary `build/` directories are ignored. Permanent expectations belong in small checked-in files, not preserved build artifacts.
 
 ## Bundled Omega Packages
 
