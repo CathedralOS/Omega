@@ -37,6 +37,54 @@ fn parses_every_sample_and_canary_file() {
     }
 }
 
+#[test]
+fn sample_projects_ignore_local_build_output() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .expect("parser crate should live under compiler/frontend/omega-parser");
+    let sample_root = repo_root.join("samples");
+    let mut sample_projects = Vec::new();
+
+    collect_project_roots(&sample_root, &mut sample_projects);
+    sample_projects.sort();
+
+    assert!(
+        !sample_projects.is_empty(),
+        "expected at least one sample project under {}",
+        sample_root.display()
+    );
+
+    for project_root in sample_projects {
+        let gitignore_path = project_root.join(".gitignore");
+        let gitignore = fs::read_to_string(&gitignore_path).unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", gitignore_path.display())
+        });
+
+        assert!(
+            gitignore.lines().any(|line| line.trim() == "/build/"),
+            "sample project {} should ignore its local build directory",
+            project_root.display()
+        );
+    }
+}
+
+#[test]
+fn canaries_ignore_local_build_output() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .expect("parser crate should live under compiler/frontend/omega-parser");
+    let gitignore_path = repo_root.join("canaries/.gitignore");
+    let gitignore = fs::read_to_string(&gitignore_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
+
+    assert!(
+        gitignore.lines().any(|line| line.trim() == "**/build/"),
+        "canaries should ignore generated build directories at every feature depth"
+    );
+}
+
 fn collect_omega_files(path: &Path, files: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(path)
         .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
@@ -46,9 +94,30 @@ fn collect_omega_files(path: &Path, files: &mut Vec<PathBuf>) {
         let path = entry.path();
 
         if path.is_dir() {
+            if path.file_name().is_some_and(|file_name| file_name == "build") {
+                continue;
+            }
             collect_omega_files(&path, files);
         } else if path.extension().is_some_and(|extension| extension == "omg") {
             files.push(path);
+        }
+    }
+}
+
+fn collect_project_roots(path: &Path, projects: &mut Vec<PathBuf>) {
+    let entries = fs::read_dir(path)
+        .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", path.display()));
+
+    for entry in entries {
+        let entry = entry.unwrap_or_else(|error| panic!("failed to read directory entry: {error}"));
+        let path = entry.path();
+
+        if path.is_dir() {
+            if path.join("main.omg").is_file() {
+                projects.push(path);
+            } else {
+                collect_project_roots(&path, projects);
+            }
         }
     }
 }
