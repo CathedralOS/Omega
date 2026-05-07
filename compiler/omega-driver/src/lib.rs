@@ -1884,7 +1884,7 @@ mod tests {
         let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
             .expect("trust artifact should be readable");
         assert!(trust.contains("targets: 1"));
-        assert!(trust.contains("trust roots: 6"));
+        assert!(trust.contains("trust roots: 7"));
         assert!(trust.contains("unresolved trusts: 0"));
         assert!(trust.contains("target `windows_x64`"));
         assert!(trust.contains("trust `omega_windows_kernel32`"));

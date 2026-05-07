@@ -1,4 +1,5 @@
 use omega::host::contracts::process;
+use omega::host::contracts::stdin;
 use omega::host::contracts::stdout;
 use omega::host::contracts::types;
 
@@ -7,6 +8,7 @@ use omega::host::contracts::types;
 // Platform packages implement these contracts by trusting their ABI boundary.
 
 capability Host {
+    stdin: Stdin
     stdout: Stdout
     process: Process
 }

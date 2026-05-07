@@ -4,7 +4,7 @@ trust omega_windows_kernel32 {
     source "Microsoft documented Win32 API"
     scope {
         dll "Kernel32.dll"
-        symbols GetStdHandle, WriteFile, ExitProcess
+        symbols GetStdHandle, ReadFile, WriteFile, ExitProcess
         abi windows_x64
     }
 }
@@ -18,6 +18,12 @@ trust omega_windows_process_adapter {
 trust omega_windows_stdout_adapter {
     owner omega::host::windows
     reason "Omega adapter maps Stdout.write_line to Kernel32 stdout writes"
+    depends omega_windows_kernel32
+}
+
+trust omega_windows_stdin_adapter {
+    owner omega::host::windows
+    reason "Omega adapter maps Stdin.read_line to Kernel32 stdin reads"
     depends omega_windows_kernel32
 }
 

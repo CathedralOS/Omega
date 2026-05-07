@@ -1,5 +1,6 @@
 use omega::host::windows::kernel32;
 use omega::host::windows::process;
+use omega::host::windows::stdin;
 use omega::host::windows::stdout;
 use omega::host::windows::trusts;
 use omega::host::windows::types;
@@ -11,6 +12,7 @@ use omega::host::windows::types;
 
 capability WindowsHost {
     kernel32: WindowsKernel32
+    stdin: WindowsStdin
     stdout: WindowsStdout
     process: WindowsProcess
 }

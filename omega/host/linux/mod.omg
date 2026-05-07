@@ -1,4 +1,5 @@
 use omega::host::linux::process;
+use omega::host::linux::stdin;
 use omega::host::linux::stdout;
 use omega::host::linux::syscalls;
 use omega::host::linux::trusts;
@@ -11,6 +12,7 @@ use omega::host::linux::types;
 
 capability LinuxHost {
     syscalls: LinuxSyscalls
+    stdin: LinuxStdin
     stdout: LinuxStdout
     process: LinuxProcess
 }

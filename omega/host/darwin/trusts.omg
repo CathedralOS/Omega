@@ -3,7 +3,7 @@ trust omega_darwin_libsystem {
     reason "Darwin libSystem ABI and imported process/stdio calls"
     scope {
         dylib "libSystem.dylib"
-        symbols _write, _exit
+        symbols _read, _write, _exit
         abi macos_arm64
     }
 }
@@ -17,6 +17,12 @@ trust omega_darwin_process_adapter {
 trust omega_darwin_stdout_adapter {
     owner omega::host::darwin
     reason "Omega adapter maps Stdout.write_line to libSystem _write"
+    depends omega_darwin_libsystem
+}
+
+trust omega_darwin_stdin_adapter {
+    owner omega::host::darwin
+    reason "Omega adapter maps Stdin.read_line to libSystem _read"
     depends omega_darwin_libsystem
 }
 

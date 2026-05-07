@@ -6,6 +6,7 @@ use omega::host::contracts;
 // while keeping the accepted trust policy visible in `build.omg`.
 
 capability StandardHost {
+    stdin: Stdin
     stdout: Stdout
     process: Process
 }

@@ -1,5 +1,6 @@
 use omega::host::darwin::libsystem;
 use omega::host::darwin::process;
+use omega::host::darwin::stdin;
 use omega::host::darwin::stdout;
 use omega::host::darwin::trusts;
 use omega::host::darwin::types;
@@ -11,6 +12,7 @@ use omega::host::darwin::types;
 
 capability DarwinHost {
     libsystem: DarwinLibSystem
+    stdin: DarwinStdin
     stdout: DarwinStdout
     process: DarwinProcess
 }

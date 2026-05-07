@@ -2,7 +2,7 @@ trust omega_linux_syscalls {
     owner omega::host::linux
     reason "Linux syscall numbers and calling convention"
     scope {
-        syscalls write, exit_group
+        syscalls read, write, exit_group
         abi linux_x64
     }
 }
@@ -16,6 +16,12 @@ trust omega_linux_process_adapter {
 trust omega_linux_stdout_adapter {
     owner omega::host::linux
     reason "Omega adapter maps Stdout.write_line to Linux write"
+    depends omega_linux_syscalls
+}
+
+trust omega_linux_stdin_adapter {
+    owner omega::host::linux
+    reason "Omega adapter maps Stdin.read_line to Linux read"
     depends omega_linux_syscalls
 }
 

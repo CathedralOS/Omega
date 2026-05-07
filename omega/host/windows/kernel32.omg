@@ -2,7 +2,7 @@ use omega::host::windows::types;
 
 capability WindowsKernel32 {
     state get_std_handle(kind: u32) -> WinHandle where {
-        requires kind == std_output_handle
+        requires kind == std_input_handle || kind == std_output_handle
         ensures result.valid || result.invalid
         trust windows_loader
         trust win32_contracts
@@ -19,6 +19,22 @@ capability WindowsKernel32 {
         requires buffer.initialized
         requires bytes_to_write <= buffer.len
         ensures result.true => bytes_written <= bytes_to_write
+        ensures result.false => windows_last_error_available
+        trust windows_loader
+        trust win32_contracts
+        trust windows_x64_calling_convention
+    }
+
+    state read_file(
+        handle: WinHandle,
+        buffer: Slice<u8>,
+        bytes_to_read: u32,
+        mut bytes_read: u32,
+        overlapped: WinOverlapped
+    ) -> WinBool where {
+        requires buffer.writable
+        requires bytes_to_read <= buffer.len
+        ensures result.true => bytes_read <= bytes_to_read
         ensures result.false => windows_last_error_available
         trust windows_loader
         trust win32_contracts

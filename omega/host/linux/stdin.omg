@@ -1,0 +1,15 @@
+use omega::host::contracts::stdin;
+use omega::host::linux::syscalls;
+use omega::host::linux::types;
+
+capability LinuxStdin {
+    syscalls: LinuxSyscalls
+
+    state read_line(mut out_text: String) -> Result<(), IOError> where {
+        requires out_text.writable
+        ensures result.Ok => out_text.utf8
+        ensures result.Err(e) => e is IOError
+        trust omega_linux_stdin_adapter
+        trust omega_linux_syscalls
+    }
+}
