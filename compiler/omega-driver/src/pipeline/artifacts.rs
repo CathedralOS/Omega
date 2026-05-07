@@ -27,6 +27,7 @@ use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
+use crate::native::state_schedule::build_entry_state_schedule;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
@@ -569,6 +570,25 @@ impl ArtifactWriter {
                 "- machine {}: contains {}, owned data {}, states {}\n",
                 machine.name, machine.contained_objects, machine.owned_data, machine.states
             ));
+        }
+        output.push('\n');
+
+        output.push_str("## State Schedule\n");
+        match build_entry_state_schedule(native_plan) {
+            Ok(schedule) if schedule.is_empty() => output.push_str("states: 0\nnone\n"),
+            Ok(schedule) => {
+                output.push_str(&format!("states: {}\n", schedule.len()));
+                for scheduled_state in schedule {
+                    output.push_str(&format!(
+                        "- {}.{}\n",
+                        scheduled_state.machine, scheduled_state.state
+                    ));
+                }
+            }
+            Err(reason) => {
+                output.push_str("status: blocked\n");
+                output.push_str(&format!("reason: {reason}\n"));
+            }
         }
 
         output.push_str("\n## Layouts\n");
