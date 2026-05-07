@@ -1995,6 +1995,20 @@ fn plans_runtime_straight_line_branch_expansion() {
         } if target_state == "apply_default"
     )));
     assert!(
+        native_plan
+            .instructions
+            .instructions
+            .iter()
+            .any(|(_, instruction)| matches!(
+                instruction.kind,
+                crate::native::instructions::SelectedInstructionKind::WriteRuntimeMachineInteger {
+                    value: 2,
+                    ..
+                }
+            ) && instruction.source_state == "apply_default"),
+        "straight-line branch target should emit its nested leaf mutation"
+    );
+    assert!(
         !emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "state calls"
                 && blocker.reason.contains("main.entry")

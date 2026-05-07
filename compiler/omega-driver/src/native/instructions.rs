@@ -9,7 +9,9 @@ use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
-    RuntimeLeafBranchOperationKind,
+    RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
+    RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
+    RuntimeStraightLineBranchOperationKind,
 };
 use crate::native::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
@@ -352,6 +354,12 @@ fn select_runtime_dispatch_loop_instructions(
                 );
 
                 select_runtime_leaf_branch_expansions_for_operation(
+                    native_plan,
+                    dispatch_case.dispatch_index,
+                    operation,
+                    selected_instructions,
+                );
+                select_runtime_straight_line_branch_expansions_for_operation(
                     native_plan,
                     dispatch_case.dispatch_index,
                     operation,
@@ -1082,6 +1090,43 @@ fn select_runtime_leaf_branch_expansion(
     selected_instructions.extend(mutation_writes);
 }
 
+fn select_runtime_straight_line_branch_expansions_for_operation(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    operation: &crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperation,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    for (_, expansion) in native_plan
+        .runtime_branching_calls
+        .straight_line_expansions
+        .iter()
+        .filter(|(_, expansion)| {
+            expansion.dispatch_index == dispatch_index
+                && expansion.source_machine == operation.source_machine
+                && expansion.source_state == operation.source_state
+                && expansion.statement_index == operation.statement_index
+        })
+    {
+        select_runtime_straight_line_branch_expansion(
+            native_plan,
+            expansion,
+            selected_instructions,
+        );
+    }
+}
+
+fn select_runtime_straight_line_branch_expansion(
+    native_plan: &NativePlan,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    if expansion.resolved_guard != crate::ir::statement::TransitionGuard::Always {
+        return;
+    }
+
+    select_runtime_straight_line_branch_writes(native_plan, expansion, selected_instructions);
+}
+
 fn select_runtime_leaf_branch_mutation_writes(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
@@ -1161,6 +1206,175 @@ fn select_runtime_leaf_branch_mutation_writes(
                 source_statement: operation.statement_index,
             });
         }
+    }
+}
+
+fn select_runtime_straight_line_branch_writes(
+    native_plan: &NativePlan,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let Some(operations) = native_plan
+        .runtime_branching_calls
+        .straight_line_operations
+        .span(expansion.operations)
+    else {
+        return;
+    };
+    let bindings = native_plan
+        .runtime_branching_calls
+        .straight_line_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+
+    for operation in operations {
+        match &operation.kind {
+            RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
+                let resolved_target = resolve_straight_line_binding_expression(target, bindings);
+                let resolved_value = resolve_straight_line_binding_expression(value, bindings);
+                select_runtime_resolved_mutation_write(
+                    native_plan,
+                    expansion.dispatch_index,
+                    &expansion.source_machine,
+                    &operation.source_machine,
+                    &operation.source_state,
+                    operation.statement_index,
+                    &resolved_target,
+                    &resolved_value,
+                    selected_instructions,
+                );
+            }
+            RuntimeStraightLineBranchOperationKind::StateCall {
+                target_machine,
+                target_state,
+                lowering: crate::native::state_calls::StateCallLowering::InlineLeaf,
+                ..
+            } => select_runtime_straight_line_leaf_state_call_writes(
+                native_plan,
+                expansion,
+                operation,
+                bindings,
+                target_machine,
+                target_state,
+                selected_instructions,
+            ),
+            _ => {}
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_straight_line_leaf_state_call_writes(
+    native_plan: &NativePlan,
+    expansion: &RuntimeStraightLineBranchExpansion,
+    operation: &crate::native::runtime_dispatch::branching::RuntimeStraightLineBranchOperation,
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+    target_machine: &str,
+    target_state: &str,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let Some(state_call) = state_call_for_statement(
+        native_plan,
+        &operation.source_machine,
+        &operation.source_state,
+        operation.statement_index,
+    ) else {
+        return;
+    };
+    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+        return;
+    };
+    let leaf_parameters = state_parameters(native_plan, target_machine, target_state);
+    let leaf_bindings = leaf_parameters
+        .iter()
+        .enumerate()
+        .filter_map(|(parameter_index, parameter_name)| {
+            let argument = arguments.get(parameter_index)?;
+            Some(RuntimeLeafBranchBinding {
+                parameter_name: parameter_name.clone(),
+                expression: resolve_straight_line_binding_expression(
+                    &argument.expression,
+                    straight_line_bindings,
+                ),
+                kind: RuntimeLeafBranchBindingKind::LeafParameter,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let Some(operations) = state_operations(native_plan, target_machine, target_state) else {
+        return;
+    };
+    for leaf_operation in operations {
+        let Some(mutation) = state_mutation_for_statement(
+            native_plan,
+            target_machine,
+            target_state,
+            leaf_operation.statement_index,
+        ) else {
+            continue;
+        };
+        let resolved_target = resolve_leaf_binding_expression(&mutation.target, &leaf_bindings);
+        let resolved_value = resolve_leaf_binding_expression(&mutation.value, &leaf_bindings);
+        select_runtime_resolved_mutation_write(
+            native_plan,
+            expansion.dispatch_index,
+            &expansion.source_machine,
+            target_machine,
+            target_state,
+            leaf_operation.statement_index,
+            &resolved_target,
+            &resolved_value,
+            selected_instructions,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_mutation_write(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    source_machine: &str,
+    operation_machine: &str,
+    operation_state: &str,
+    statement_index: usize,
+    resolved_target: &Expression,
+    resolved_value: &Expression,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        source_machine,
+        resolved_target,
+    ) && let Some(value) = static_integer_value(&native_plan.layouts, resolved_value)
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+                byte_offset,
+                byte_size,
+                value,
+            },
+            source_machine: operation_machine.to_owned(),
+            source_state: operation_state.to_owned(),
+            source_statement: statement_index,
+        });
+        return;
+    }
+
+    if let Some(copy) = runtime_storage_copy(
+        native_plan,
+        dispatch_index,
+        operation_machine,
+        operation_state,
+        resolved_target,
+        resolved_value,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: copy,
+            source_machine: operation_machine.to_owned(),
+            source_state: operation_state.to_owned(),
+            source_statement: statement_index,
+        });
     }
 }
 
@@ -1327,7 +1541,7 @@ fn runtime_leaf_machine_integer_write(
         &expansion.source_machine,
         target,
     )?;
-    let value = enum_variant_value(&native_plan.layouts, value_expression)?;
+    let value = static_integer_value(&native_plan.layouts, value_expression)?;
 
     Some((byte_offset, byte_size, value))
 }
@@ -1340,31 +1554,14 @@ fn runtime_leaf_storage_copy(
     target: &Expression,
     value: &Expression,
 ) -> Option<SelectedInstructionKind> {
-    let target_place = resolve_runtime_storage_place(
+    runtime_storage_copy(
         native_plan,
         expansion.dispatch_index,
         operation_machine,
         operation_state,
         target,
-    )?;
-    let source_place = resolve_runtime_storage_place(
-        native_plan,
-        expansion.dispatch_index,
-        operation_machine,
-        operation_state,
         value,
-    )?;
-    if target_place.byte_count != source_place.byte_count || target_place.byte_count == 0 {
-        return None;
-    }
-
-    Some(SelectedInstructionKind::CopyRuntimeStorage {
-        source_symbol: source_place.symbol,
-        source_offset: source_place.byte_offset,
-        target_symbol: target_place.symbol,
-        target_offset: target_place.byte_offset,
-        byte_count: target_place.byte_count,
-    })
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1464,6 +1661,36 @@ fn resolve_leaf_binding_expression(
             .find(|binding| {
                 binding.parameter_name == path[0]
                     && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
+            })
+            .or_else(|| {
+                bindings
+                    .iter()
+                    .find(|binding| binding.parameter_name == path[0])
+            })
+            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
+}
+
+fn resolve_straight_line_binding_expression(
+    expression: &Expression,
+    bindings: &[RuntimeStraightLineBranchBinding],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target = resolve_straight_line_binding_expression(target, bindings);
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Name(path) if !path.is_empty() => bindings
+            .iter()
+            .find(|binding| {
+                binding.parameter_name == path[0]
+                    && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
             })
             .or_else(|| {
                 bindings
@@ -1649,6 +1876,33 @@ fn state_call_for_statement<'plan>(
                 && state_call.statement_index == statement_index
         })
         .map(|(_, state_call)| state_call)
+}
+
+fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> Vec<String> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .map(|state| state.parameters.clone())
+        .unwrap_or_default()
+}
+
+fn state_operations<'plan>(
+    native_plan: &'plan NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<&'plan [crate::native::control_flow::Operation]> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|state| native_plan.control_flow.operations.span(state.operations))
 }
 
 fn state_mutation_for_statement<'plan>(
@@ -2321,6 +2575,13 @@ fn enum_variant_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i
         .iter()
         .position(|variant| variant == variant_name)
         .and_then(|index| i64::try_from(index).ok())
+}
+
+fn static_integer_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {
+    match expression {
+        Expression::Integer(value) => Some(*value),
+        _ => enum_variant_value(layouts, expression),
+    }
 }
 
 fn exit_code(host_call: &HostCall, native_plan: &NativePlan) -> i64 {
