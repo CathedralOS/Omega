@@ -1560,6 +1560,17 @@ fn tracks_mutable_state_call_argument_bindings() {
         crate::native::state_calls::StateCallArgumentKind::MutableAlias
     );
     assert!(arguments[0].required);
+    let alias = native_plan
+        .alias_flow
+        .aliases
+        .iter()
+        .next()
+        .map(|(_, alias)| alias)
+        .expect("mutable argument should produce an alias binding");
+
+    assert_eq!(alias.parameter_name, "out_line");
+    assert_eq!(alias.argument.display_name(), "mut line");
+    assert!(alias.required);
 }
 
 #[test]

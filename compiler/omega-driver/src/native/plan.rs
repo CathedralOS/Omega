@@ -1,6 +1,7 @@
 use crate::diagnostics::Diagnostic;
 use crate::ir::Program;
 use crate::native::abi::{HostAbiPlan, build_host_abi_plan};
+use crate::native::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
 use crate::native::control_flow::{ControlFlowPlan, build_control_flow_plan};
 use crate::native::data::{NativeDataPlan, build_native_data_plan};
 use crate::native::host_calls::{HostCallPlan, build_host_call_plan};
@@ -22,6 +23,7 @@ pub struct NativePlan {
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
     pub state_calls: StateCallPlan,
+    pub alias_flow: AliasFlowPlan,
     pub state_storage: StateStoragePlan,
     pub state_values: StateValuePlan,
     pub data: NativeDataPlan,
@@ -52,6 +54,7 @@ pub fn build_native_plan(
         host_abi: build_host_abi_plan(target),
         host_calls: HostCallPlan::default(),
         state_calls: StateCallPlan::default(),
+        alias_flow: AliasFlowPlan::default(),
         state_storage: StateStoragePlan::default(),
         state_values: StateValuePlan::default(),
         data: NativeDataPlan::default(),
@@ -81,6 +84,7 @@ pub fn build_native_plan(
     };
     native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
     native_plan.state_calls = build_state_call_plan(&native_plan);
+    native_plan.alias_flow = build_alias_flow_plan(&native_plan);
     native_plan.state_storage = build_state_storage_plan(program, &native_plan);
     native_plan.state_values = build_state_value_plan(program, &native_plan);
     native_plan.data = build_native_data_plan(&native_plan.host_calls);

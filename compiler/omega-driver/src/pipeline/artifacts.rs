@@ -543,6 +543,30 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Alias Flow\n");
+        output.push_str(&format!(
+            "aliases: {}\n",
+            native_plan.alias_flow.aliases.len()
+        ));
+        if native_plan.alias_flow.aliases.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, alias) in native_plan.alias_flow.aliases.iter() {
+                output.push_str(&format!(
+                    "- {}.{} statement {} -> {}.{} `{}` aliases `{}` required {}\n",
+                    alias.caller_machine,
+                    alias.caller_state,
+                    alias.statement_index,
+                    alias.callee_machine,
+                    alias.callee_state,
+                    alias.parameter_name,
+                    alias.argument.display_name(),
+                    alias.required
+                ));
+            }
+        }
+        output.push('\n');
+
         output.push_str("## State Storage\n");
         output.push_str(&format!(
             "locals: {}\n",
