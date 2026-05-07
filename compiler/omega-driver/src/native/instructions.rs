@@ -113,6 +113,12 @@ pub enum SelectedInstructionKind {
         buffer_symbol: String,
         literal: String,
     },
+    CompareRuntimeTextStorage {
+        buffer_symbol: String,
+        source_symbol: String,
+        source_offset: usize,
+        operator: StateGuardOperator,
+    },
     CompareRuntimeStorage {
         left_symbol: String,
         left_offset: usize,
@@ -1056,6 +1062,13 @@ fn select_runtime_leaf_branch_expansion(
             source_state: expansion.source_state.clone(),
             source_statement: expansion.statement_index,
         });
+    } else if let Some(compare) = runtime_text_storage_guard(native_plan, expansion) {
+        selected_instructions.push(SelectedInstruction {
+            kind: compare,
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
+            source_statement: expansion.statement_index,
+        });
     } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: compare,
@@ -1172,6 +1185,63 @@ fn runtime_text_literal_guard(
 
     let buffer = runtime_text_input_buffer_for_text_place(native_plan, text_place)?;
     Some((buffer.symbol.clone(), literal.clone()))
+}
+
+fn runtime_text_storage_guard(
+    native_plan: &NativePlan,
+    expansion: &RuntimeLeafBranchExpansion,
+) -> Option<SelectedInstructionKind> {
+    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+        &expansion.resolved_guard
+    else {
+        return None;
+    };
+    if binary.operator != crate::ir::expression::BinaryOperator::Equal {
+        return None;
+    }
+    let operator = StateGuardOperator::Equal;
+
+    let left_place = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        &expansion.source_machine,
+        &expansion.source_state,
+        &binary.left,
+    );
+    let right_place = resolve_runtime_storage_place(
+        native_plan,
+        expansion.dispatch_index,
+        &expansion.source_machine,
+        &expansion.source_state,
+        &binary.right,
+    );
+    let left_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.left);
+    let right_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.right);
+    let string_descriptor_size = native_plan.target.pointer_size * 2;
+
+    if let (Some(source_place), Some(buffer)) = (left_place.clone(), right_buffer)
+        && source_place.byte_count == string_descriptor_size
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer_symbol: buffer.symbol.clone(),
+            source_symbol: source_place.symbol,
+            source_offset: source_place.byte_offset,
+            operator,
+        });
+    }
+
+    if let (Some(buffer), Some(source_place)) = (left_buffer, right_place)
+        && source_place.byte_count == string_descriptor_size
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer_symbol: buffer.symbol.clone(),
+            source_symbol: source_place.symbol,
+            source_offset: source_place.byte_offset,
+            operator,
+        });
+    }
+
+    None
 }
 
 fn runtime_storage_guard(

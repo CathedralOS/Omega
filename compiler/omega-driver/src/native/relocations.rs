@@ -159,6 +159,28 @@ fn collect_function_relocations(
                     buffer_symbol,
                 );
             }
+            SelectedInstructionKind::CompareRuntimeTextStorage {
+                buffer_symbol,
+                source_symbol,
+                ..
+            } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    buffer_symbol,
+                );
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset + 8,
+                    source_symbol,
+                );
+            }
             SelectedInstructionKind::CompareRuntimeStorage {
                 left_symbol,
                 right_symbol,

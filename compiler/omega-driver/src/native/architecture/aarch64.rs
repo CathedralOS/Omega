@@ -33,6 +33,10 @@ pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
     8 + literal.len() * 12
 }
 
+pub fn runtime_text_storage_compare_width() -> usize {
+    48
+}
+
 pub fn runtime_storage_compare_width() -> usize {
     32
 }
@@ -221,6 +225,31 @@ pub fn encode_runtime_text_literal_compare(
         )?);
     }
 
+    Ok(bytes)
+}
+
+pub fn encode_runtime_text_storage_compare(
+    source_offset: usize,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_adrp_placeholder(17));
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_load_x_from_x(18, 17, source_offset)?);
+    bytes.extend(encode_load_x_from_x(19, 17, source_offset + 8)?);
+
+    bytes.extend(encode_load_byte_w_post_increment(20, 18, 1)?);
+    bytes.extend(encode_load_byte_w_post_increment(21, 16, 1)?);
+    bytes.extend(encode_compare_w_register(20, 21));
+    bytes.extend(if branch_when_equal {
+        encode_conditional_branch_equal(failure_branch_distance)?
+    } else {
+        encode_conditional_branch_not_equal(failure_branch_distance)?
+    });
+    bytes.extend(encode_subs_x_immediate(19, 19, 1)?);
+    bytes.extend(encode_conditional_branch_not_equal(-20)?);
     Ok(bytes)
 }
 

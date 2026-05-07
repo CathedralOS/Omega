@@ -2306,6 +2306,16 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         } => {
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            buffer_symbol,
+            source_symbol,
+            source_offset,
+            operator,
+        } => {
+            format!(
+                "compare runtime text storage {source_symbol}@{source_offset} {operator:?} `{buffer_symbol}`"
+            )
+        }
         SelectedInstructionKind::CompareRuntimeStorage {
             left_symbol,
             left_offset,

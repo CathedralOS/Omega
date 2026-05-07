@@ -63,6 +63,13 @@ pub fn runtime_text_literal_compare_width(architecture: Architecture, literal: &
     }
 }
 
+pub fn runtime_text_storage_compare_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_storage_compare_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_storage_compare_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_compare_width(),
@@ -235,6 +242,22 @@ pub fn encode_runtime_text_literal_compare(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_text_literal_compare(literal, failure_branch_distances)
         }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_storage_compare(
+    architecture: Architecture,
+    source_offset: usize,
+    failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare(
+            source_offset,
+            failure_branch_distance,
+            branch_when_equal,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

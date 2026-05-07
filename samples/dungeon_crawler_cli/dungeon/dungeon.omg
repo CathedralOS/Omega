@@ -30,6 +30,7 @@ machine Dungeon {
         navigation.destination = CellId::Empty;
 
         resolve_command(level, current_cell, command_line, mut navigation);
+        resolve_exit(level, current_cell, command_line, mut navigation);
 
         -> finished when navigation.choice == NavigationChoice::Quit;
         -> look when navigation.choice == NavigationChoice::Look;
@@ -84,7 +85,6 @@ machine Dungeon {
         -> resolve_look(mut out_navigation) when line.text == "info";
         -> resolve_exits(mut out_navigation) when line.text == "exits";
         -> resolve_exits(mut out_navigation) when line.text == "help";
-        -> resolve_exit(level, cell, line, mut out_navigation);
     }
 
     state resolve_quit(mut out_navigation: Navigation) {
@@ -118,12 +118,8 @@ machine Dungeon {
     }
 
     state scan_exit(exit: Exit, command: String, mut out_navigation: Navigation) {
-        -> apply_exit(exit, mut out_navigation) when exit.command == command;
+        -> resolve_move(exit.destination, mut out_navigation) when exit.command == command;
         ->
-    }
-
-    state apply_exit(exit: Exit, mut out_navigation: Navigation) {
-        resolve_move(exit.destination, mut out_navigation);
     }
 
     state write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {

@@ -85,6 +85,10 @@ pub enum MachineInstructionKind {
     RuntimeTextLiteralCompare {
         literal: String,
     },
+    RuntimeTextStorageCompare {
+        source_offset: usize,
+        operator: StateGuardOperator,
+    },
     RuntimeStorageCompare {
         left_offset: usize,
         right_offset: usize,
@@ -306,6 +310,17 @@ fn machine_instruction_shape(
             },
             runtime_text_literal_compare_width(native_plan.target.architecture, literal),
         ),
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            source_offset,
+            operator,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeTextStorageCompare {
+                source_offset: *source_offset,
+                operator: *operator,
+            },
+            runtime_text_storage_compare_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::CompareRuntimeStorage {
             left_offset,
             right_offset,
@@ -514,6 +529,21 @@ fn encode_machine_instruction(
                 )?,
             )
         }
+        SelectedInstructionKind::CompareRuntimeTextStorage {
+            source_offset,
+            operator,
+            ..
+        } => architecture::encode_runtime_text_storage_compare(
+            native_plan.target.architecture,
+            *source_offset,
+            byte_distance_to_next_runtime_write_end_from_branch_offset(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
+                36,
+            )?,
+            *operator == StateGuardOperator::NotEqual,
+        ),
         SelectedInstructionKind::CompareRuntimeStorage {
             left_offset,
             right_offset,
@@ -769,6 +799,23 @@ fn byte_distance_to_next_runtime_write_end(
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
         return Ok(0);
     };
+    byte_distance_to_next_runtime_write_end_from_branch_offset(
+        native_plan,
+        machine_instructions,
+        machine_instruction_index,
+        current.byte_width.saturating_sub(4),
+    )
+}
+
+fn byte_distance_to_next_runtime_write_end_from_branch_offset(
+    native_plan: &NativePlan,
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+    branch_offset: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
     let Some(machine_write) =
         next_runtime_write_group_end(native_plan, machine_instructions, machine_instruction_index)
     else {
@@ -778,7 +825,7 @@ fn byte_distance_to_next_runtime_write_end(
         )));
     };
 
-    let branch_program_counter = current.offset + current.byte_width.saturating_sub(4);
+    let branch_program_counter = current.offset + branch_offset;
     let target = machine_write.offset + machine_write.byte_width;
     Ok(target as isize - branch_program_counter as isize)
 }
@@ -817,7 +864,7 @@ fn next_runtime_write_group_end<'instructions>(
 fn selected_instruction_source<'plan>(
     native_plan: &'plan NativePlan,
     instruction: &MachineInstruction,
-) -> Option<(&'plan str, &'plan str, usize)> {
+) -> Option<(&'plan str, &'plan str)> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
     if !native_plan.instructions.instructions.is_valid(handle) {
         return None;
@@ -826,7 +873,6 @@ fn selected_instruction_source<'plan>(
     Some((
         selected.source_machine.as_str(),
         selected.source_state.as_str(),
-        selected.source_statement,
     ))
 }
 
@@ -911,6 +957,10 @@ fn runtime_text_literal_compare_width(
     literal: &str,
 ) -> usize {
     architecture::runtime_text_literal_compare_width(architecture, literal)
+}
+
+fn runtime_text_storage_compare_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::runtime_text_storage_compare_width(architecture)
 }
 
 fn runtime_storage_compare_width(architecture: crate::native::target::Architecture) -> usize {
