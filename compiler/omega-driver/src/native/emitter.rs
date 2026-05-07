@@ -1,6 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::native::object::{SectionKind, SymbolKind};
-use crate::native::object_formats::macho::emit_macho_arm64_object;
+use crate::native::object_formats::emit_target_object;
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationKind;
 use crate::native::target::{Architecture, ObjectFormat};
@@ -27,10 +27,8 @@ pub fn emit_native_object(native_plan: &NativePlan) -> Result<EmittedNativeObjec
         )));
     }
 
-    if native_plan.target.object_format == ObjectFormat::MachO
-        && native_plan.target.architecture == Architecture::Aarch64
-    {
-        return emit_macho_arm64_object(native_plan);
+    if let Some(emitted_object) = emit_target_object(native_plan) {
+        return emitted_object;
     }
 
     emit_omega_native_container(native_plan)

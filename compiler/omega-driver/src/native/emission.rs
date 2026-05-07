@@ -1,6 +1,7 @@
 use crate::native::control_flow::{OperationKind, StateFlow};
+use crate::native::object_formats::can_emit_target_object;
 use crate::native::plan::NativePlan;
-use crate::native::target::{Architecture, ObjectFormat};
+use crate::native::target::ObjectFormat;
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -203,8 +204,7 @@ fn entry_statement_has_host_call(native_plan: &NativePlan, statement_index: usiz
 }
 
 fn can_emit_real_object(native_plan: &NativePlan) -> bool {
-    native_plan.target.object_format == ObjectFormat::MachO
-        && native_plan.target.architecture == Architecture::Aarch64
+    can_emit_target_object(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }
 
