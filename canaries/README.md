@@ -8,6 +8,8 @@ They are not samples, tutorials, or end-user examples.
 - `pass/<feature>/main.omg`: the compiler should accept this program.
 - `fail/<feature>/main.omg`: the compiler should reject this program.
 - `fail/<feature>/expected.txt`: the diagnostic fragment that must appear.
+- `run/<feature>/main.omg`: future executable behavior canary. These may carry
+  `input.txt` and `expected_stdout.txt` until the runtime canary runner exists.
 
 Feature names should describe the compiler behavior being pinned down, not the
 sample that happened to need it first. Prefer names like
@@ -30,3 +32,7 @@ Samples are miniature projects that should read like user code.
 Canaries are compiler tripwires. When a sample exposes a missing feature, add
 or extend the smallest canary that proves that feature in isolation, then return
 to the sample once the tripwire is green.
+
+Runtime canaries are the bridge between those two worlds. They should stay tiny
+like compiler canaries, but they are allowed to describe process behavior that
+only becomes checkable after native execution is mature enough.

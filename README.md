@@ -100,10 +100,11 @@ The native path currently supports a small but real subset:
 - Constant integer assignment into host-call arguments.
 - Static guarded transition selection for compile-time-known enum-style values.
 - Static record/array/field text lowering for simple sample data.
+- Enough runtime dispatch, storage, text building, and host calls to emit/link the dungeon crawler sample on macOS ARM64.
 
 Current known limitation:
 
-- The dungeon crawler reaches parameterized helper-state guards such as `room.cell == cell` and stops there. The next native milestone is argument/parameter binding for scheduled state calls.
+- `console.read_line` is still lowered as a raw host read. Interactive terminal line mode can make the dungeon crawler usable, but piped multi-line input is not yet line-buffered and EOF is not handled cleanly. The next runtime milestone is explicit line discipline for stdin.
 
 Targets without a real object writer still fall back to an Omega native object container so planned bytes remain inspectable.
 
@@ -331,6 +332,7 @@ Current samples:
 
 Canaries are not samples. They isolate one compiler capability at a time.
 They live under `canaries/pass/<feature>/main.omg` when the compiler should accept them and `canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
+Future executable behavior canaries live under `canaries/run/<feature>/` with small input/output expectation files.
 
 Canary names should describe the compiler behavior being pinned down, not the sample that exposed it. A dungeon crawler blocker should become a feature canary such as `runtime_text_builder`, not `dungeon_step_04`.
 
