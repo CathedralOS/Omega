@@ -1,7 +1,5 @@
 // CLI MVP build sketch.
 //
-// Build configuration is Omega source. No TOML/YAML side language.
-
 // Hello world needs only two host capabilities:
 //
 // - stdout.write_line: writes initialized UTF-8 bytes to process stdout.
