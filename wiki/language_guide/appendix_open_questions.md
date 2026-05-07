@@ -13,6 +13,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 - Typed states remain branch-free semantically. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states with explicit edges.
 - `state entry` is for implicit invocation, such as `machine main`, anonymous machines, and future thread/task machines. Ordinary machines can still be entered through explicit state names.
+- Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
 
 ## Still Open
 
@@ -22,3 +23,4 @@ This page tracks design pressure that is not fully nailed down yet.
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?
 - What syntax should Omega use for float optimization permissions, separate from float invariants?
 - Which float properties should be first-class invariants: `finite`, `non_nan`, `normal`, signed-zero policy, or something else?
+- Which words must be globally reserved, and which should remain contextual keywords only?
