@@ -830,6 +830,46 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Guards\n");
+        output.push_str(&format!(
+            "guards: {}\n",
+            native_plan.state_guards.guards.len()
+        ));
+        if native_plan.state_guards.guards.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, guard) in native_plan.state_guards.guards.iter() {
+                output.push_str(&format!(
+                    "- #{} {}.{} edge {} -> #{} {} {:?}",
+                    guard.source_dispatch_index,
+                    guard.source_machine,
+                    guard.source_state,
+                    guard.statement_order,
+                    guard.target_dispatch_index,
+                    runtime_transition_target_name(&guard.target),
+                    guard.kind
+                ));
+
+                if guard.has_expression {
+                    output.push_str(&format!(" `{}`", guard.expression.display_name()));
+                }
+
+                if guard.continuation != RuntimeTransitionTarget::None {
+                    output.push_str(&format!(
+                        " -> #{} {}",
+                        guard.continuation_dispatch_index,
+                        runtime_transition_target_name(&guard.continuation)
+                    ));
+                }
+
+                if guard.forms_cycle {
+                    output.push_str(" [cycle]");
+                }
+
+                output.push('\n');
+            }
+        }
+
         output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",

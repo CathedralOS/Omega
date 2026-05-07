@@ -1258,6 +1258,51 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
 }
 
 #[test]
+fn plans_runtime_guards_for_dispatch_edges() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                owns ready: bool = false;
+
+                state entry {
+                    -> done when ready == true;
+                    -> self;
+                }
+
+                state done {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build guard data");
+
+    assert_eq!(native_plan.state_guards.guards.len(), 2);
+    assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
+        guard.source_machine == "main"
+            && guard.source_state == "entry"
+            && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeBinary
+            && guard.expression.display_name() == "ready == true"
+    }));
+    assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
+        guard.source_machine == "main"
+            && guard.source_state == "entry"
+            && guard.kind == crate::native::state_guards::StateGuardKind::Always
+            && !guard.has_expression
+            && guard.forms_cycle
+    }));
+}
+
+#[test]
 fn selects_instructions_for_runtime_reachable_loop_states() {
     let tokens = Lexer::new(
         r#"

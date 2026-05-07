@@ -13,6 +13,7 @@ use crate::native::relocations::{RelocationPlan, build_relocation_plan};
 use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
 use crate::native::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::native::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
+use crate::native::state_guards::{StateGuardPlan, build_state_guard_plan};
 use crate::native::state_storage::{StateStoragePlan, build_state_storage_plan};
 use crate::native::state_values::{StateValuePlan, build_state_value_plan};
 use crate::native::target::NativeTarget;
@@ -31,6 +32,7 @@ pub struct NativePlan {
     pub control_flow: ControlFlowPlan,
     pub runtime_flow: RuntimeFlowPlan,
     pub state_dispatch: StateDispatchPlan,
+    pub state_guards: StateGuardPlan,
     pub layouts: LayoutPlan,
     pub machine_code: MachineCodePlan,
     pub object: ObjectPlan,
@@ -48,6 +50,7 @@ pub fn build_native_plan(
     let control_flow = build_control_flow_plan(program)?;
     let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
     let state_dispatch = build_state_dispatch_plan(&runtime_flow);
+    let state_guards = build_state_guard_plan(&state_dispatch);
 
     let mut native_plan = NativePlan {
         target,
@@ -67,6 +70,7 @@ pub fn build_native_plan(
         control_flow,
         runtime_flow,
         state_dispatch,
+        state_guards,
         layouts: build_layout_plan(program, target)?,
         machine_code: MachineCodePlan::default(),
         object: ObjectPlan {

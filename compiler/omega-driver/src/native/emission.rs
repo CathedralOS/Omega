@@ -3,9 +3,11 @@ use crate::native::control_flow::{OperationKind, StateFlow};
 use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
+use crate::native::runtime_flow::RuntimeTransitionTarget;
+use crate::native::state_guards::StateGuardKind;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::state_storage::StateMutationLowering;
-use crate::native::state_values::StateValueKind;
+use crate::native::state_values::{StateValueKind, StateValueRole};
 use crate::native::target::ObjectFormat;
 use omega_core::arena::Arena;
 
@@ -76,6 +78,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     collect_state_call_blockers(native_plan, &mut blockers);
     collect_state_storage_blockers(native_plan, &mut blockers);
     if needs_runtime_dispatch {
+        collect_state_guard_blockers(native_plan, &mut blockers);
         collect_state_value_blockers(native_plan, &mut blockers);
     }
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
@@ -198,6 +201,10 @@ fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
             continue;
         }
 
+        if value.role == StateValueRole::TransitionGuard {
+            continue;
+        }
+
         if state_value_is_static_assignment(native_plan, value) {
             continue;
         }
@@ -211,6 +218,29 @@ fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
                 value.statement_index,
                 value.role,
                 value.expression.display_name()
+            ),
+        ));
+    }
+}
+
+fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+    for (_, guard) in native_plan.state_guards.guards.iter() {
+        if guard.kind == StateGuardKind::Always {
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state guards",
+            &format!(
+                "#{} {}.{} edge {} -> #{} {} {:?} `{}` needs runtime guard lowering",
+                guard.source_dispatch_index,
+                guard.source_machine,
+                guard.source_state,
+                guard.statement_order,
+                guard.target_dispatch_index,
+                runtime_transition_target_name(&guard.target),
+                guard.kind,
+                guard.expression.display_name()
             ),
         ));
     }
@@ -494,6 +524,15 @@ fn collect_runtime_dispatch_blockers(
             "runtime dispatch",
             &format!("cycle {cycle_path} needs generated state dispatch before native emission"),
         ));
+    }
+}
+
+fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
+    match target {
+        RuntimeTransitionTarget::State { machine, state } => format!("{machine}.{state}"),
+        RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
+        RuntimeTransitionTarget::None => "none".to_owned(),
+        RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
 }
 
