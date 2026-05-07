@@ -111,6 +111,22 @@ pub fn build_runtime_storage_plan(native_plan: &NativePlan) -> RuntimeStoragePla
     plan
 }
 
+pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
+    plan.frame_slots
+        .iter()
+        .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+        .max()
+        .unwrap_or(0)
+}
+
+pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
+    plan.frame_slots
+        .iter()
+        .map(|(_, slot)| slot.alignment)
+        .max()
+        .unwrap_or(1)
+}
+
 fn layout_for_type_name(native_plan: &NativePlan, type_name: &str) -> TypeLayout {
     if let Some(data_layout) = native_plan
         .layouts
