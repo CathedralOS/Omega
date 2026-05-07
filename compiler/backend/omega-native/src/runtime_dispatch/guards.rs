@@ -177,7 +177,7 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 }
 
 fn build_state_guard(
-    operands: &mut Arena<StateGuardOperand>,
+    operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
     entry_machine: &str,
     source_machine: &str,
@@ -188,8 +188,10 @@ fn build_state_guard(
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
     let guard_operands = guard_operands(layouts, entry_machine, source_machine, &edge.guard);
-    let lowering = guard_lowering(kind, operator, &guard_operands);
-    let operands = operands.insert_many(guard_operands);
+    let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
+    let operands = guard_operands
+        .map(|operands| operands.insert_into(operand_arena))
+        .unwrap_or_default();
 
     StateGuard {
         source_machine: source_machine.to_owned(),
@@ -213,7 +215,7 @@ fn build_state_guard(
 fn guard_lowering(
     kind: StateGuardKind,
     operator: StateGuardOperator,
-    operands: &[StateGuardOperand],
+    operands: Option<&GuardOperands>,
 ) -> StateGuardLowering {
     if kind == StateGuardKind::Always {
         return StateGuardLowering::NoOp;
@@ -226,9 +228,11 @@ fn guard_lowering(
         return StateGuardLowering::NeedsRuntimeExpression;
     }
 
-    let [left, right] = operands else {
+    let Some(operands) = operands else {
         return StateGuardLowering::NeedsRuntimeExpression;
     };
+    let left = &operands.left;
+    let right = &operands.right;
 
     if left.kind == StateGuardOperandKind::Place && right.has_resolved_value {
         return StateGuardLowering::CompareStaticValue;
@@ -276,42 +280,60 @@ fn guard_operator(expression: &Expression) -> StateGuardOperator {
     }
 }
 
+struct GuardOperands {
+    left: StateGuardOperand,
+    right: StateGuardOperand,
+}
+
+impl GuardOperands {
+    fn insert_into(self, arena: &mut Arena<StateGuardOperand>) -> HandleSpan<StateGuardOperand> {
+        arena.insert_many([self.left, self.right])
+    }
+}
+
 fn guard_operands(
     layouts: &LayoutPlan,
     entry_machine: &str,
     source_machine: &str,
     guard: &TransitionGuard,
-) -> Vec<StateGuardOperand> {
+) -> Option<GuardOperands> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
-        return Vec::new();
+        return None;
     };
 
-    [binary.left.clone(), binary.right.clone()]
-        .into_iter()
-        .map(|expression| {
-            let resolved_value = resolved_guard_operand_value(layouts, &expression);
-            let operand_layout =
-                resolve_guard_operand_layout(layouts, entry_machine, source_machine, &expression);
-            StateGuardOperand {
-                kind: classify_guard_operand(&expression),
-                storage: operand_layout
-                    .as_ref()
-                    .map(|layout| layout.storage)
-                    .unwrap_or_default(),
-                byte_offset: operand_layout
-                    .as_ref()
-                    .map(|layout| layout.byte_offset)
-                    .unwrap_or(0),
-                byte_size: operand_layout
-                    .as_ref()
-                    .map(|layout| layout.layout.size)
-                    .unwrap_or(0),
-                expression,
-                resolved_value: resolved_value.unwrap_or(0),
-                has_resolved_value: resolved_value.is_some(),
-            }
-        })
-        .collect()
+    Some(GuardOperands {
+        left: guard_operand(layouts, entry_machine, source_machine, binary.left.clone()),
+        right: guard_operand(layouts, entry_machine, source_machine, binary.right.clone()),
+    })
+}
+
+fn guard_operand(
+    layouts: &LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+    expression: Expression,
+) -> StateGuardOperand {
+    let resolved_value = resolved_guard_operand_value(layouts, &expression);
+    let operand_layout =
+        resolve_guard_operand_layout(layouts, entry_machine, source_machine, &expression);
+    StateGuardOperand {
+        kind: classify_guard_operand(&expression),
+        storage: operand_layout
+            .as_ref()
+            .map(|layout| layout.storage)
+            .unwrap_or_default(),
+        byte_offset: operand_layout
+            .as_ref()
+            .map(|layout| layout.byte_offset)
+            .unwrap_or(0),
+        byte_size: operand_layout
+            .as_ref()
+            .map(|layout| layout.layout.size)
+            .unwrap_or(0),
+        expression,
+        resolved_value: resolved_value.unwrap_or(0),
+        has_resolved_value: resolved_value.is_some(),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
