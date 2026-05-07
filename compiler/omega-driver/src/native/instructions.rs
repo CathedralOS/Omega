@@ -156,6 +156,8 @@ impl Default for InstructionOperand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionOperandKind {
     DataAddress { symbol: String },
+    RuntimeMachineStringPointer { byte_offset: usize },
+    RuntimeMachineStringLength { byte_offset: usize },
     ImmediateInteger(i64),
     ByteLength(usize),
 }
@@ -1154,33 +1156,47 @@ fn select_host_operation_operands(
             operands
         }
         (_, "Stdout", "write" | "write_file") => {
-            let (data_object, byte_count) =
-                if let Some(data_object) = find_data_object(native_plan, host_call) {
-                    let byte_count = native_plan
-                        .data
-                        .bytes
-                        .span(data_object.bytes)
-                        .map_or(0, |bytes| bytes.len());
-                    (data_object, byte_count)
-                } else if let Some(data_object) =
-                    find_runtime_text_input_buffer_data_object(native_plan, host_call)
-                {
-                    let byte_count = runtime_text_literal_for_host_call(native_plan, host_call)
-                        .map(|literal| literal.len())
-                        .unwrap_or(0);
-                    (data_object, byte_count)
-                } else {
-                    return Vec::new();
-                };
-
             let mut operands = Vec::new();
             if operation == "write" {
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
             }
-            operands.push(operand(InstructionOperandKind::DataAddress {
-                symbol: data_object.symbol.clone(),
-            }));
-            operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
+
+            if let Some(data_object) = find_data_object(native_plan, host_call) {
+                let byte_count = native_plan
+                    .data
+                    .bytes
+                    .span(data_object.bytes)
+                    .map_or(0, |bytes| bytes.len());
+                operands.push(operand(InstructionOperandKind::DataAddress {
+                    symbol: data_object.symbol.clone(),
+                }));
+                operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
+                return operands;
+            }
+
+            if let Some(data_object) =
+                find_runtime_text_input_buffer_data_object(native_plan, host_call)
+                && let Some(literal) = runtime_text_literal_for_host_call(native_plan, host_call)
+            {
+                operands.push(operand(InstructionOperandKind::DataAddress {
+                    symbol: data_object.symbol.clone(),
+                }));
+                operands.push(operand(InstructionOperandKind::ByteLength(literal.len())));
+                return operands;
+            }
+
+            if let Some(byte_offset) =
+                runtime_machine_string_descriptor_offset(native_plan, host_call)
+            {
+                operands.push(operand(
+                    InstructionOperandKind::RuntimeMachineStringPointer { byte_offset },
+                ));
+                operands.push(operand(
+                    InstructionOperandKind::RuntimeMachineStringLength { byte_offset },
+                ));
+                return operands;
+            }
+
             operands
         }
         (_, "Process", "exit" | "exit_group" | "exit_process") => {
@@ -1254,6 +1270,27 @@ fn find_runtime_text_input_buffer_data_object<'plan>(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)
+}
+
+fn runtime_machine_string_descriptor_offset(
+    native_plan: &NativePlan,
+    host_call: &HostCall,
+) -> Option<usize> {
+    let first_argument = native_plan
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.first())?;
+    let HostCallArgumentKind::Expression(expression) = &first_argument.kind else {
+        return None;
+    };
+    let (byte_offset, byte_size) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        &host_call.machine,
+        expression,
+    )?;
+    (byte_size == native_plan.target.pointer_size * 2).then_some(byte_offset)
 }
 
 fn text_place_for_buffer_target(target: &crate::ir::expression::Expression) -> Option<String> {

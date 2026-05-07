@@ -220,20 +220,31 @@ fn collect_data_address_relocations(
     let mut operand_text_offset = selected_text_offset;
 
     for operand in operands {
-        let InstructionOperandKind::DataAddress { symbol } = &operand.kind else {
-            operand_text_offset +=
-                architecture::operand_width(native_plan.target.architecture, operand);
-            continue;
-        };
-
-        insert_data_address_relocations(
-            native_plan.target.architecture,
-            relocation_plan,
-            function,
-            selected_instruction_index,
-            operand_text_offset,
-            symbol,
-        );
+        match &operand.kind {
+            InstructionOperandKind::DataAddress { symbol } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    operand_text_offset,
+                    symbol,
+                );
+            }
+            InstructionOperandKind::RuntimeMachineStringPointer { .. }
+            | InstructionOperandKind::RuntimeMachineStringLength { .. } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    operand_text_offset,
+                    &machine_storage_symbol_name(&native_plan.entry_machine),
+                );
+            }
+            InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
+            }
+        }
 
         operand_text_offset +=
             architecture::operand_width(native_plan.target.architecture, operand);

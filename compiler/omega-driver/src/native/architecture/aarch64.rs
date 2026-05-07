@@ -48,6 +48,8 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 pub fn operand_width(operand: &InstructionOperand) -> usize {
     match &operand.kind {
         InstructionOperandKind::DataAddress { .. } => 8,
+        InstructionOperandKind::RuntimeMachineStringPointer { .. }
+        | InstructionOperandKind::RuntimeMachineStringLength { .. } => 12,
         InstructionOperandKind::ImmediateInteger(value) => immediate_width(*value),
         InstructionOperandKind::ByteLength(value) => unsigned_immediate_width(*value as u64),
     }
@@ -66,6 +68,26 @@ pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Result<Vec<
             InstructionOperandKind::DataAddress { .. } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
+                next_register += 1;
+            }
+            InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                )?);
+                next_register += 1;
+            }
+            InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_load_x_from_x(
+                    next_register,
+                    next_register,
+                    byte_offset + 8,
+                )?);
                 next_register += 1;
             }
             InstructionOperandKind::ByteLength(value) => {
@@ -324,6 +346,24 @@ fn encode_store_x17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
     }
     Ok(encode_instruction(
         0xF9000000 | (((byte_offset / 8) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+    ))
+}
+
+fn encode_load_x_from_x(
+    destination_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot load u64 at offset `{byte_offset}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0xF9400000
+            | (((byte_offset / 8) as u32) << 10)
+            | (u32::from(base_register) << 5)
+            | u32::from(destination_register),
     ))
 }
 

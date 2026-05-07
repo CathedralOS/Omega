@@ -2365,6 +2365,12 @@ fn selected_instruction_operands_name(
         .iter()
         .map(|operand| match &operand.kind {
             InstructionOperandKind::DataAddress { symbol } => format!("addr {symbol}"),
+            InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
+                format!("machine string ptr @{byte_offset}")
+            }
+            InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
+                format!("machine string len @{byte_offset}")
+            }
             InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
             InstructionOperandKind::ByteLength(value) => format!("len {value}"),
         })
