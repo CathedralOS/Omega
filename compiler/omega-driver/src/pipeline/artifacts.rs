@@ -27,6 +27,9 @@ use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
+use crate::native::runtime_dispatch::branching::{
+    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind,
+};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
@@ -1071,6 +1074,57 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Leaf Branch Expansions\n");
+        output.push_str(&format!(
+            "expansions: {}\n",
+            native_plan.runtime_branching_calls.leaf_expansions.len()
+        ));
+        output.push_str(&format!(
+            "operations: {}\n",
+            native_plan.runtime_branching_calls.leaf_operations.len()
+        ));
+        if native_plan
+            .runtime_branching_calls
+            .leaf_expansions
+            .is_empty()
+        {
+            output.push_str("none\n");
+        } else {
+            for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
+                output.push_str(&format!(
+                    "- #{} {}.{} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    expansion.dispatch_index,
+                    expansion.source_machine,
+                    expansion.source_state,
+                    expansion.statement_index,
+                    expansion.branch_machine,
+                    expansion.branch_state,
+                    expansion.edge_order,
+                    expansion.leaf_machine,
+                    expansion.leaf_state,
+                    expansion.guard_kind,
+                    transition_guard_name(&expansion.guard)
+                ));
+
+                match native_plan
+                    .runtime_branching_calls
+                    .leaf_operations
+                    .span(expansion.operations)
+                {
+                    Some(operations) if operations.is_empty() => {
+                        output.push_str("  operations: none\n");
+                    }
+                    Some(operations) => {
+                        output.push_str("  operations:\n");
+                        for operation in operations {
+                            write_runtime_leaf_branch_operation(&mut output, operation);
+                        }
+                    }
+                    None => output.push_str("  operations: invalid span\n"),
+                }
+            }
+        }
+
         output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",
@@ -2090,6 +2144,46 @@ fn write_state_flow(output: &mut String, control_flow: &ControlFlowPlan, state: 
             }
         }
         None => output.push_str("  transitions: invalid span\n"),
+    }
+}
+
+fn write_runtime_leaf_branch_operation(
+    output: &mut String,
+    operation: &RuntimeLeafBranchOperation,
+) {
+    match &operation.kind {
+        RuntimeLeafBranchOperationKind::HostCall { platform_call } => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} host call `{}`\n",
+                operation.source_machine,
+                operation.source_state,
+                operation.statement_index,
+                platform_call
+            ));
+        }
+        RuntimeLeafBranchOperationKind::Mutation {
+            mutation_kind,
+            lowering,
+            target,
+            value,
+        } => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                operation.source_machine,
+                operation.source_state,
+                operation.statement_index,
+                mutation_kind,
+                lowering,
+                target.display_name(),
+                value.display_name()
+            ));
+        }
+        RuntimeLeafBranchOperationKind::Other => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} other\n",
+                operation.source_machine, operation.source_state, operation.statement_index
+            ));
+        }
     }
 }
 

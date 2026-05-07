@@ -1413,6 +1413,7 @@ fn plans_runtime_branching_state_call_edges() {
         branching_call.expansion,
         crate::native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
     );
+    assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 2);
     assert_eq!(edges.len(), 2);
     assert!(matches!(
         edges[0].target,
