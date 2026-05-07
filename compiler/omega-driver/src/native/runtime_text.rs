@@ -7,6 +7,7 @@ use omega_core::arena::Arena;
 pub struct RuntimeTextPlan {
     pub uses: Arena<RuntimeTextUse>,
     pub buffers: Arena<RuntimeTextBuffer>,
+    pub slots: Arena<RuntimeTextSlot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +29,23 @@ pub struct RuntimeTextBuffer {
     pub platform_call: String,
     pub target: Expression,
     pub byte_capacity: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeTextSlot {
+    pub place: Expression,
+    pub byte_capacity: usize,
+    pub has_input_buffer: bool,
+}
+
+impl Default for RuntimeTextSlot {
+    fn default() -> Self {
+        Self {
+            place: Expression::String(String::new()),
+            byte_capacity: 0,
+            has_input_buffer: false,
+        }
+    }
 }
 
 impl Default for RuntimeTextBuffer {
@@ -72,6 +90,7 @@ pub fn build_runtime_text_plan(host_calls: &HostCallPlan) -> RuntimeTextPlan {
     for (_, host_call) in host_calls.calls.iter() {
         collect_host_call_runtime_text(host_calls, host_call, &mut plan);
     }
+    plan.slots = build_runtime_text_slots(&plan);
 
     plan
 }
@@ -160,5 +179,85 @@ fn classify_runtime_text_source(expression: &Expression) -> RuntimeTextSource {
         | Expression::Integer(_)
         | Expression::StructLiteral(_)
         | Expression::String(_) => RuntimeTextSource::OtherExpression,
+    }
+}
+
+fn build_runtime_text_slots(plan: &RuntimeTextPlan) -> Arena<RuntimeTextSlot> {
+    let mut slots = Vec::new();
+
+    for (_, text_use) in plan.uses.iter() {
+        if text_use.source != RuntimeTextSource::StoredPlace {
+            continue;
+        }
+
+        push_or_update_text_slot(
+            &mut slots,
+            text_use.expression.clone(),
+            text_slot_capacity_for_use(plan, &text_use.expression),
+            text_place_has_input_buffer(plan, &text_use.expression),
+        );
+    }
+
+    for (_, buffer) in plan.buffers.iter() {
+        if let Some(place) = text_place_for_buffer_target(&buffer.target) {
+            push_or_update_text_slot(&mut slots, place, buffer.byte_capacity, true);
+        }
+    }
+
+    let mut arena = Arena::new();
+    arena.insert_many(slots);
+    arena
+}
+
+fn push_or_update_text_slot(
+    slots: &mut Vec<RuntimeTextSlot>,
+    place: Expression,
+    byte_capacity: usize,
+    has_input_buffer: bool,
+) {
+    let place_name = place.display_name();
+    if let Some(existing_slot) = slots
+        .iter_mut()
+        .find(|slot| slot.place.display_name() == place_name)
+    {
+        existing_slot.byte_capacity = existing_slot.byte_capacity.max(byte_capacity);
+        existing_slot.has_input_buffer |= has_input_buffer;
+        return;
+    }
+
+    slots.push(RuntimeTextSlot {
+        place,
+        byte_capacity,
+        has_input_buffer,
+    });
+}
+
+fn text_slot_capacity_for_use(plan: &RuntimeTextPlan, expression: &Expression) -> usize {
+    plan.buffers
+        .iter()
+        .filter_map(|(_, buffer)| {
+            text_place_for_buffer_target(&buffer.target)
+                .is_some_and(|place| place.display_name() == expression.display_name())
+                .then_some(buffer.byte_capacity)
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn text_place_has_input_buffer(plan: &RuntimeTextPlan, expression: &Expression) -> bool {
+    plan.buffers.iter().any(|(_, buffer)| {
+        text_place_for_buffer_target(&buffer.target)
+            .is_some_and(|place| place.display_name() == expression.display_name())
+    })
+}
+
+fn text_place_for_buffer_target(target: &Expression) -> Option<Expression> {
+    match target {
+        Expression::Name(path) => {
+            let mut text_path = path.clone();
+            text_path.push("text".to_owned());
+            Some(Expression::Name(text_path))
+        }
+        _ => None,
     }
 }

@@ -628,6 +628,10 @@ impl ArtifactWriter {
             "buffers: {}\n",
             native_plan.runtime_text.buffers.len()
         ));
+        output.push_str(&format!(
+            "slots: {}\n",
+            native_plan.runtime_text.slots.len()
+        ));
         if native_plan.runtime_text.uses.is_empty() {
             output.push_str("uses: none\n");
         } else {
@@ -654,6 +658,18 @@ impl ArtifactWriter {
                     text_buffer.statement_index,
                     text_buffer.target.display_name(),
                     text_buffer.byte_capacity
+                ));
+            }
+        }
+        if native_plan.runtime_text.slots.is_empty() {
+            output.push_str("slots: none\n");
+        } else {
+            for (_, text_slot) in native_plan.runtime_text.slots.iter() {
+                output.push_str(&format!(
+                    "- slot `{}` bytes {} input_buffer {}\n",
+                    text_slot.place.display_name(),
+                    text_slot.byte_capacity,
+                    text_slot.has_input_buffer
                 ));
             }
         }

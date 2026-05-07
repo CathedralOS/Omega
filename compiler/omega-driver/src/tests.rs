@@ -3100,11 +3100,20 @@ fn lowers_mutable_output_host_call() {
         .find(|(_, buffer)| buffer.target.display_name() == "line")
         .map(|(_, buffer)| buffer)
         .expect("read_line should plan a runtime text buffer binding");
+    let runtime_text_slot = native_plan
+        .runtime_text
+        .slots
+        .iter()
+        .find(|(_, slot)| slot.place.display_name() == "line::text")
+        .map(|(_, slot)| slot)
+        .expect("read_line should plan a runtime text slot");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 4);
     assert_eq!(read_buffer_bytes.len(), 256);
     assert_eq!(runtime_text_buffer.byte_capacity, 256);
+    assert_eq!(runtime_text_slot.byte_capacity, 256);
+    assert!(runtime_text_slot.has_input_buffer);
 }
 
 #[test]
