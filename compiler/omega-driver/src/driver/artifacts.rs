@@ -1306,6 +1306,9 @@ fn write_platform_call_lowering(
         PlatformCallData::FirstTextArgument { append_newline } => output.push_str(&format!(
             " data first_text_argument append_newline={append_newline}"
         )),
+        PlatformCallData::MutableOutputBuffer { byte_capacity } => output.push_str(&format!(
+            " data mutable_output_buffer byte_capacity={byte_capacity}"
+        )),
     }
     output.push('\n');
 }

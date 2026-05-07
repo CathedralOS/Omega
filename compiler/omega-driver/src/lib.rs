@@ -2035,6 +2035,63 @@ mod tests {
     }
 
     #[test]
+    fn lowers_mutable_output_host_call() {
+        let tokens = Lexer::new(
+            r#"
+            data ConsoleLine {
+                text: String;
+            }
+
+            platform Console {
+                state write(text: String);
+                state write_line(text: String);
+                state read_line(mut out_line: ConsoleLine);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+                owns line: ConsoleLine;
+
+                state entry {
+                    console.write("> ");
+                    console.read_line(mut line);
+                    console.write_line("read");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should lower mutable output host call");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+        let read_buffer = native_plan
+            .data
+            .objects
+            .iter()
+            .find(|(_, object)| object.source_statement == 1)
+            .map(|(_, object)| object)
+            .expect("read_line should allocate a mutable output buffer");
+        let read_buffer_bytes = native_plan
+            .data
+            .bytes
+            .span(read_buffer.bytes)
+            .expect("read buffer bytes should be present");
+
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(native_plan.host_calls.calls.len(), 4);
+        assert_eq!(read_buffer_bytes.len(), 256);
+    }
+
+    #[test]
     fn selected_target_loads_only_referenced_host_package() {
         let build_dir = std::env::temp_dir().join(format!(
             "omega-driver-selected-target-{}",

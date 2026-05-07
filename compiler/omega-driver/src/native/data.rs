@@ -57,10 +57,23 @@ fn collect_host_call_data(
     host_call: &HostCall,
     data_plan: &mut NativeDataPlan,
 ) {
-    let PlatformCallData::FirstTextArgument { append_newline } = host_call.data else {
-        return;
-    };
+    match host_call.data {
+        PlatformCallData::FirstTextArgument { append_newline } => {
+            collect_text_argument_data(host_calls, host_call, data_plan, append_newline);
+        }
+        PlatformCallData::MutableOutputBuffer { byte_capacity } => {
+            collect_mutable_output_buffer(host_call, data_plan, byte_capacity);
+        }
+        PlatformCallData::None => {}
+    }
+}
 
+fn collect_text_argument_data(
+    host_calls: &HostCallPlan,
+    host_call: &HostCall,
+    data_plan: &mut NativeDataPlan,
+    append_newline: bool,
+) {
     let Some(arguments) = host_calls.arguments.span(host_call.arguments) else {
         return;
     };
@@ -87,6 +100,26 @@ fn collect_host_call_data(
         offset,
         bytes: byte_span,
         alignment: 1,
+        source_machine: host_call.machine.clone(),
+        source_state: host_call.state.clone(),
+        source_statement: host_call.statement_index,
+    });
+}
+
+fn collect_mutable_output_buffer(
+    host_call: &HostCall,
+    data_plan: &mut NativeDataPlan,
+    byte_capacity: usize,
+) {
+    let offset = data_plan.bytes.len();
+    let byte_span = data_plan.bytes.insert_many(vec![0; byte_capacity]);
+    let symbol_index = data_plan.objects.len() + 1;
+
+    data_plan.objects.insert(NativeDataObject {
+        symbol: format!("omega_mut_buffer_{symbol_index}"),
+        offset,
+        bytes: byte_span,
+        alignment: 16,
         source_machine: host_call.machine.clone(),
         source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,

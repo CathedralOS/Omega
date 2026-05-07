@@ -43,6 +43,9 @@ pub enum PlatformCallData {
     FirstTextArgument {
         append_newline: bool,
     },
+    MutableOutputBuffer {
+        byte_capacity: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +94,8 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
     match target.object_format {
         ObjectFormat::Coff => {
             plan.bindings.insert_many([
+                windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+                windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
                 windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
                 windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
                 windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
@@ -122,6 +127,16 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
             insert_platform_lowering(
                 &mut plan,
                 "*",
+                "read_line",
+                [
+                    host_operation("Stdin", "get_std_handle"),
+                    host_operation("Stdin", "read_file"),
+                ],
+                PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
                 "exit_process",
                 [host_operation("Process", "exit_process")],
                 PlatformCallData::None,
@@ -129,6 +144,7 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
         }
         ObjectFormat::Elf => {
             plan.bindings.insert_many([
+                linux_syscall("Stdin", "read", 0),
                 linux_syscall("Stdout", "write", 1),
                 linux_syscall("Process", "exit_group", 231),
             ]);
@@ -153,6 +169,13 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
             insert_platform_lowering(
                 &mut plan,
                 "*",
+                "read_line",
+                [host_operation("Stdin", "read")],
+                PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
                 "exit_process",
                 [host_operation("Process", "exit_group")],
                 PlatformCallData::None,
@@ -160,6 +183,7 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
         }
         ObjectFormat::MachO => {
             plan.bindings.insert_many([
+                darwin_import("Stdin", "read", "libSystem.dylib", "_read"),
                 darwin_import("Stdout", "write", "libSystem.dylib", "_write"),
                 darwin_import("Process", "exit", "libSystem.dylib", "_exit"),
             ]);
@@ -180,6 +204,13 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 PlatformCallData::FirstTextArgument {
                     append_newline: false,
                 },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "read_line",
+                [host_operation("Stdin", "read")],
+                PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
             );
             insert_platform_lowering(
                 &mut plan,

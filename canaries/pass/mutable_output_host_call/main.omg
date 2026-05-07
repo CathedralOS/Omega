@@ -17,7 +17,7 @@ machine main {
     state entry {
         console.write("> ");
         console.read_line(mut line);
-        console.write_line(line.text);
+        console.write_line("read");
         console.exit_process(0);
     }
 }

@@ -206,6 +206,29 @@ fn select_host_operation_operands(
         (ObjectFormat::Coff, "Stdout", "get_std_handle") => {
             vec![operand(InstructionOperandKind::ImmediateInteger(-11))]
         }
+        (ObjectFormat::Coff, "Stdin", "get_std_handle") => {
+            vec![operand(InstructionOperandKind::ImmediateInteger(-10))]
+        }
+        (_, "Stdin", "read" | "read_file") => {
+            let Some(data_object) = find_data_object(native_plan, host_call) else {
+                return Vec::new();
+            };
+            let byte_count = native_plan
+                .data
+                .bytes
+                .span(data_object.bytes)
+                .map_or(0, |bytes| bytes.len());
+
+            let mut operands = Vec::new();
+            if operation == "read" {
+                operands.push(operand(InstructionOperandKind::ImmediateInteger(0)));
+            }
+            operands.push(operand(InstructionOperandKind::DataAddress {
+                symbol: data_object.symbol.clone(),
+            }));
+            operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
+            operands
+        }
         (_, "Stdout", "write" | "write_file") => {
             let Some(data_object) = find_data_object(native_plan, host_call) else {
                 return Vec::new();
