@@ -1,9 +1,9 @@
-use crate::ir::expression::{BinaryOperator, Expression};
-use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{
     MachineFlow, OperationKind, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
 use crate::native::plan::NativePlan;
+use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledState {

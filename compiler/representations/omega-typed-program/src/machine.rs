@@ -1,6 +1,6 @@
-use crate::ir::expression::Expression;
-use crate::ir::state::State;
-use crate::ir::types::TypeReference;
+use crate::expression::Expression;
+use crate::state::State;
+use crate::types::TypeReference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {

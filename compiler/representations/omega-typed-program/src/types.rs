@@ -22,8 +22,8 @@ pub enum TypeReference {
 pub enum TypeConstraint {
     Named(String),
     Range {
-        minimum: crate::ir::expression::Expression,
-        maximum: crate::ir::expression::Expression,
+        minimum: crate::expression::Expression,
+        maximum: crate::expression::Expression,
     },
 }
 

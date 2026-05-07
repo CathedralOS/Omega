@@ -34,6 +34,7 @@ dependencies = [
  "omega-native",
  "omega-parser",
  "omega-proof",
+ "omega-typed-program",
  "omega-types",
 ]
 
@@ -86,6 +87,14 @@ dependencies = [
 
 [[package]]
 name = "omega-proof"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-syntax-tree",
+ "omega-core",
+]
+
+[[package]]
+name = "omega-typed-program"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",

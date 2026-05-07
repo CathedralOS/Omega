@@ -1,8 +1,8 @@
-use crate::ir::expression::Expression;
 use crate::native::control_flow::{ControlFlowPlan, MachineFlow, OperationKind};
 use crate::native::plan::NativePlan;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::Expression;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlan {

@@ -1,10 +1,13 @@
 //! Proof surface collection and invariant checking.
 //!
 //! This crate currently records the source-level invariant and bounded-type
-//! sites that should eventually become proof obligations. The driver still owns
-//! the deeper lowered proof plan until shared IR leaves `omega-compiler`.
+//! sites that should eventually become proof obligations. The orchestration
+//! crate still owns the deeper lowered proof plan while the proof pipeline is
+//! being split into its final crate boundaries.
 
-use omega_abstract_syntax_tree::item::{DataMember, Item, Machine, Platform, State, StateParameter, StateSignature};
+use omega_abstract_syntax_tree::item::{
+    DataMember, Item, Machine, Platform, State, StateParameter, StateSignature,
+};
 use omega_abstract_syntax_tree::statement::Statement;
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;

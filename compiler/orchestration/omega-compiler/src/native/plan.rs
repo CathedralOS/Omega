@@ -1,5 +1,4 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
 use crate::native::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::native::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
 use crate::native::control_flow::{ControlFlowPlan, build_control_flow_plan};
@@ -28,6 +27,7 @@ use crate::native::state_guards::{StateGuardPlan, build_state_guard_plan};
 use crate::native::state_storage::{StateStoragePlan, build_state_storage_plan};
 use crate::native::state_values::{StateValuePlan, build_state_value_plan};
 use crate::native::target::NativeTarget;
+use omega_typed_program::Program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {

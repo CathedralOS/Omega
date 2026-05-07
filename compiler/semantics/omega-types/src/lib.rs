@@ -2,7 +2,7 @@
 //!
 //! This crate currently owns the source-facing type surface report. Deeper
 //! ownership, borrow, and proof-aware type solving can grow here without living
-//! inside the driver orchestration crate.
+//! inside the compiler orchestration crate.
 
 use omega_abstract_syntax_tree::item::{
     CapabilityMember, DataMember, Item, Machine, State, StateParameter, StateSignature,
@@ -308,7 +308,9 @@ mod tests {
                     constraints: vec![
                         TypeConstraint::Named("finite".to_owned()),
                         TypeConstraint::Range {
-                            minimum: omega_abstract_syntax_tree::expression::Expression::Float("0.0f".to_owned()),
+                            minimum: omega_abstract_syntax_tree::expression::Expression::Float(
+                                "0.0f".to_owned(),
+                            ),
                             maximum: omega_abstract_syntax_tree::expression::Expression::Float(
                                 "100000.0f".to_owned(),
                             ),

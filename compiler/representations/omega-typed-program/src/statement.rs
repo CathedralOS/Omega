@@ -1,4 +1,4 @@
-use crate::ir::expression::Expression;
+use crate::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
@@ -18,7 +18,7 @@ pub struct Assignment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
     pub name: String,
-    pub type_reference: crate::ir::types::TypeReference,
+    pub type_reference: crate::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

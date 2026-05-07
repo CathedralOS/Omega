@@ -1,9 +1,9 @@
-use crate::ir::expression::{BinaryOperator, Expression};
-use crate::ir::statement::TransitionGuard;
 use crate::native::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGuardPlan {

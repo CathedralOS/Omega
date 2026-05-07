@@ -1,4 +1,4 @@
-use crate::ir::signature::StateSignature;
+use crate::signature::StateSignature;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {

@@ -1,6 +1,6 @@
-use crate::ir::statement::TransitionGuard;
 use crate::native::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {

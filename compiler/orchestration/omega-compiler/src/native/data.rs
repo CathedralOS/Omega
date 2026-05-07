@@ -1,8 +1,8 @@
-use crate::ir::expression::Expression;
 use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::native::state_storage::StateStoragePlan;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeDataPlan {

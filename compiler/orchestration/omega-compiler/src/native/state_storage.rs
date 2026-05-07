@@ -1,9 +1,9 @@
-use crate::ir::Program;
-use crate::ir::expression::Expression;
-use crate::ir::statement::Statement;
 use crate::native::control_flow::OperationKind;
 use crate::native::plan::NativePlan;
 use omega_core::arena::Arena;
+use omega_typed_program::Program;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::statement::Statement;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlan {
@@ -173,7 +173,7 @@ fn state_mutation_is_already_lowered(
 fn mutation_kind(
     program: &Program,
     machine_name: &str,
-    state: &crate::ir::state::State,
+    state: &omega_typed_program::state::State,
     target: &Expression,
 ) -> StateMutationKind {
     let Some(root_name) = root_place_name(target) else {

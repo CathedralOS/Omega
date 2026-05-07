@@ -1,4 +1,3 @@
-mod ir;
 mod native;
 mod pipeline;
 mod proof;

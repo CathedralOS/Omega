@@ -1,10 +1,10 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::data::{DataDefinition, DataMember, DataShapeKind};
-use crate::ir::machine::Machine;
-use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::native::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::Program;
+use omega_typed_program::data::{DataDefinition, DataMember, DataShapeKind};
+use omega_typed_program::machine::Machine;
+use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {

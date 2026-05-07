@@ -1,8 +1,8 @@
-use crate::ir::Program;
-use crate::ir::expression::Expression;
-use crate::ir::statement::{Statement, TransitionGuard};
 use crate::native::plan::NativePlan;
 use omega_core::arena::Arena;
+use omega_typed_program::Program;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::statement::{Statement, TransitionGuard};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateValuePlan {
@@ -156,10 +156,10 @@ fn collect_transition_arguments(
     machine: &str,
     state: &str,
     statement_index: usize,
-    target: &crate::ir::statement::TransitionTarget,
+    target: &omega_typed_program::statement::TransitionTarget,
     required: bool,
 ) {
-    let crate::ir::statement::TransitionTarget::Named { arguments, .. } = target else {
+    let omega_typed_program::statement::TransitionTarget::Named { arguments, .. } = target else {
         return;
     };
 

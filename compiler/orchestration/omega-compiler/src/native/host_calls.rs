@@ -1,12 +1,12 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::expression::Expression;
-use crate::ir::machine::Machine;
-use crate::ir::state::State;
-use crate::ir::statement::{Call, Statement};
 use crate::native::abi::{HostAbiPlan, PlatformCallData, PlatformCallLowering};
 use crate::native::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::Program;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::machine::Machine;
+use omega_typed_program::state::State;
+use omega_typed_program::statement::{Call, Statement};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {

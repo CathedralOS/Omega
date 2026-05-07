@@ -1,11 +1,13 @@
-use crate::ir::Program;
-use crate::ir::expression::Expression;
-use crate::ir::machine::Machine;
-use crate::ir::signature::StateParameter;
-use crate::ir::state::State;
-use crate::ir::statement::{Assignment, Call, Transition, TransitionGuard, TransitionTarget};
-use crate::ir::types::{TypeConstraint, TypeReference};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::Program;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::machine::Machine;
+use omega_typed_program::signature::StateParameter;
+use omega_typed_program::state::State;
+use omega_typed_program::statement::{
+    Assignment, Call, Transition, TransitionGuard, TransitionTarget,
+};
+use omega_typed_program::types::{TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofPlan {
@@ -163,7 +165,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 
             for statement in &state.statements {
                 let transition = match statement {
-                    crate::ir::statement::Statement::Assignment(assignment) => {
+                    omega_typed_program::statement::Statement::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
                             program,
                             machine,
@@ -173,7 +175,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         );
                         continue;
                     }
-                    crate::ir::statement::Statement::Call(call) => {
+                    omega_typed_program::statement::Statement::Call(call) => {
                         collect_bounded_call_argument_obligations(
                             program,
                             machine,
@@ -183,7 +185,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         );
                         continue;
                     }
-                    crate::ir::statement::Statement::Transition(transition) => transition,
+                    omega_typed_program::statement::Statement::Transition(transition) => transition,
                     _ => continue,
                 };
 
@@ -428,7 +430,9 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let Some(crate::ir::statement::Statement::Expression(value)) = state.statements.last() else {
+    let Some(omega_typed_program::statement::Statement::Expression(value)) =
+        state.statements.last()
+    else {
         return;
     };
 
@@ -614,7 +618,8 @@ fn expression_type_reference<'program>(
         .map(|parameter| &parameter.type_reference)
         .or_else(|| {
             state.statements.iter().find_map(|statement| {
-                let crate::ir::statement::Statement::LocalData(local_data) = statement else {
+                let omega_typed_program::statement::Statement::LocalData(local_data) = statement
+                else {
                     return None;
                 };
 

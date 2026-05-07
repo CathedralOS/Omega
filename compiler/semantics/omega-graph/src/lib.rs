@@ -1,11 +1,13 @@
 //! State graph and transition analysis.
 //!
 //! This crate currently builds a source-level graph report from the AST. The
-//! driver still owns the lowered control-flow plan until the shared IR boundary
-//! is ready to move out of `omega-compiler`.
+//! orchestration crate still owns the lowered control-flow plan until that
+//! boundary is ready for its own representation crate.
 
 use omega_abstract_syntax_tree::item::{Item, Machine, State};
-use omega_abstract_syntax_tree::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use omega_abstract_syntax_tree::statement::{
+    Statement, Transition, TransitionGuard, TransitionTarget,
+};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -109,7 +111,9 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 #[cfg(test)]
 mod tests {
     use omega_abstract_syntax_tree::item::{Item, Machine, State};
-    use omega_abstract_syntax_tree::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+    use omega_abstract_syntax_tree::statement::{
+        Statement, Transition, TransitionGuard, TransitionTarget,
+    };
 
     use super::build_source_graph_report;
 

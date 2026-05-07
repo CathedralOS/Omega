@@ -1,11 +1,11 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::data::{DataMember, DataShapeKind};
-use crate::ir::expression::Expression;
-use crate::ir::signature::StateParameter;
-use crate::ir::statement::{Statement, TransitionTarget};
-use crate::ir::types::{PrimitiveType, TypeConstraint, TypeReference};
 use crate::semantic::symbols::{MachineSymbols, ProgramSymbols};
+use omega_typed_program::Program;
+use omega_typed_program::data::{DataMember, DataShapeKind};
+use omega_typed_program::expression::Expression;
+use omega_typed_program::signature::StateParameter;
+use omega_typed_program::statement::{Statement, TransitionTarget};
+use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -143,7 +143,7 @@ fn validate_local_data_names(
 
 fn validate_state_statement(
     program: &Program,
-    machine: &crate::ir::machine::Machine,
+    machine: &omega_typed_program::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
@@ -331,7 +331,7 @@ fn validate_state_signature_types<'program>(
 }
 
 fn validate_platform_state_names(
-    platform: &crate::ir::platform::Platform,
+    platform: &omega_typed_program::platform::Platform,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut state_names = Vec::new();
@@ -393,7 +393,7 @@ fn validate_data_field_types(
 }
 
 fn validate_data_shape(
-    data_definition: &crate::ir::data::DataDefinition,
+    data_definition: &omega_typed_program::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match data_definition.shape_kind() {
@@ -410,7 +410,7 @@ fn validate_data_shape(
 }
 
 fn validate_data_member_names(
-    data_definition: &crate::ir::data::DataDefinition,
+    data_definition: &omega_typed_program::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut member_names = Vec::new();
@@ -563,7 +563,7 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
 }
 
 fn validate_contained_types(
-    machine: &crate::ir::machine::Machine,
+    machine: &omega_typed_program::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -579,7 +579,7 @@ fn validate_contained_types(
 
 fn validate_owned_data(
     program: &Program,
-    machine: &crate::ir::machine::Machine,
+    machine: &omega_typed_program::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -628,8 +628,8 @@ fn validate_initial_value(
 
 fn validate_call(
     program: &Program,
-    call: &crate::ir::statement::Call,
-    current_machine: &crate::ir::machine::Machine,
+    call: &omega_typed_program::statement::Call,
+    current_machine: &omega_typed_program::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,

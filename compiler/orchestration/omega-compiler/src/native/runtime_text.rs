@@ -1,8 +1,8 @@
-use crate::ir::expression::{BinaryOperator, Expression};
 use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::native::plan::NativePlan;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::{BinaryOperator, Expression};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeTextPlan {

@@ -34,7 +34,7 @@ impl Default for StateEffects {
     }
 }
 
-pub fn infer_effects(program: &crate::ir::Program) -> EffectPlan {
+pub fn infer_effects(program: &omega_typed_program::Program) -> EffectPlan {
     let mut effect_plan = EffectPlan::default();
 
     for machine in &program.machines {
@@ -54,9 +54,9 @@ pub fn infer_effects(program: &crate::ir::Program) -> EffectPlan {
 }
 
 fn infer_state_effect(
-    program: &crate::ir::Program,
-    machine: &crate::ir::machine::Machine,
-    state: &crate::ir::state::State,
+    program: &omega_typed_program::Program,
+    machine: &omega_typed_program::machine::Machine,
+    state: &omega_typed_program::state::State,
 ) -> Effect {
     let mut effect = Effect::Pure;
 
@@ -76,29 +76,32 @@ fn infer_state_effect(
 }
 
 fn infer_statement_effect(
-    program: &crate::ir::Program,
-    machine: &crate::ir::machine::Machine,
-    statement: &crate::ir::statement::Statement,
+    program: &omega_typed_program::Program,
+    machine: &omega_typed_program::machine::Machine,
+    statement: &omega_typed_program::statement::Statement,
 ) -> Effect {
     match statement {
-        crate::ir::statement::Statement::Assignment(_) => Effect::Mutates,
-        crate::ir::statement::Statement::Call(call) => infer_call_effect(program, machine, call),
-        crate::ir::statement::Statement::Expression(_)
-        | crate::ir::statement::Statement::LocalData(_)
-        | crate::ir::statement::Statement::Transition(_) => Effect::Pure,
+        omega_typed_program::statement::Statement::Assignment(_) => Effect::Mutates,
+        omega_typed_program::statement::Statement::Call(call) => {
+            infer_call_effect(program, machine, call)
+        }
+        omega_typed_program::statement::Statement::Expression(_)
+        | omega_typed_program::statement::Statement::LocalData(_)
+        | omega_typed_program::statement::Statement::Transition(_) => Effect::Pure,
     }
 }
 
 fn infer_call_effect(
-    program: &crate::ir::Program,
-    machine: &crate::ir::machine::Machine,
-    call: &crate::ir::statement::Call,
+    program: &omega_typed_program::Program,
+    machine: &omega_typed_program::machine::Machine,
+    call: &omega_typed_program::statement::Call,
 ) -> Effect {
-    if call
-        .arguments
-        .iter()
-        .any(|argument| matches!(argument, crate::ir::expression::Expression::Mutable(_)))
-    {
+    if call.arguments.iter().any(|argument| {
+        matches!(
+            argument,
+            omega_typed_program::expression::Expression::Mutable(_)
+        )
+    }) {
         return Effect::Mutates;
     }
 

@@ -1,10 +1,10 @@
-use crate::ir::expression::Expression;
-use crate::ir::types::PrimitiveType;
 use crate::native::layout::TypeLayout;
 use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::Arena;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::types::PrimitiveType;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {

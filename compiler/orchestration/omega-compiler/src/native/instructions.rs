@@ -1,4 +1,3 @@
-use crate::ir::expression::Expression;
 use crate::native::control_flow::OperationKind;
 use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
@@ -24,6 +23,7 @@ use crate::native::state_guards::StateGuardOperator;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeAliasBinding {
@@ -998,8 +998,8 @@ fn resolve_runtime_alias_expression(
         Expression::Mutable(target) => Expression::Mutable(Box::new(
             resolve_runtime_alias_expression(target, source_machine, source_state, aliases),
         )),
-        Expression::Indexed(indexed) => {
-            Expression::Indexed(Box::new(crate::ir::expression::IndexedExpression {
+        Expression::Indexed(indexed) => Expression::Indexed(Box::new(
+            omega_typed_program::expression::IndexedExpression {
                 collection: resolve_runtime_alias_expression(
                     &indexed.collection,
                     source_machine,
@@ -1012,8 +1012,8 @@ fn resolve_runtime_alias_expression(
                     source_state,
                     aliases,
                 ),
-            }))
-        }
+            },
+        )),
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
@@ -1120,7 +1120,7 @@ fn select_runtime_straight_line_branch_expansion(
     expansion: &RuntimeStraightLineBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    if expansion.resolved_guard != crate::ir::statement::TransitionGuard::Always {
+    if expansion.resolved_guard != omega_typed_program::statement::TransitionGuard::Always {
         return;
     }
 
@@ -1382,12 +1382,12 @@ fn runtime_text_literal_guard(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<(String, String)> {
-    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
-    if binary.operator != crate::ir::expression::BinaryOperator::Equal {
+    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
         return None;
     }
 
@@ -1405,12 +1405,12 @@ fn runtime_text_storage_guard(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
-    if binary.operator != crate::ir::expression::BinaryOperator::Equal {
+    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
         return None;
     }
     let operator = StateGuardOperator::Equal;
@@ -1462,14 +1462,14 @@ fn runtime_storage_guard(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let crate::ir::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
     let operator = match binary.operator {
-        crate::ir::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
-        crate::ir::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        omega_typed_program::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
+        omega_typed_program::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
         _ => return None,
     };
     let left = resolve_runtime_storage_place(
@@ -1730,7 +1730,7 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
 }
 
 fn indexed_expression_path(
-    indexed: &crate::ir::expression::IndexedExpression,
+    indexed: &omega_typed_program::expression::IndexedExpression,
 ) -> Option<Vec<String>> {
     let Expression::Integer(index) = &indexed.index else {
         return None;
@@ -2227,12 +2227,14 @@ fn runtime_machine_string_descriptor_offset(
     (byte_size == native_plan.target.pointer_size * 2).then_some(byte_offset)
 }
 
-fn text_place_for_buffer_target(target: &crate::ir::expression::Expression) -> Option<String> {
+fn text_place_for_buffer_target(
+    target: &omega_typed_program::expression::Expression,
+) -> Option<String> {
     match target {
-        crate::ir::expression::Expression::Name(path) => {
+        omega_typed_program::expression::Expression::Name(path) => {
             let mut text_path = path.clone();
             text_path.push("text".to_owned());
-            Some(crate::ir::expression::Expression::Name(text_path).display_name())
+            Some(omega_typed_program::expression::Expression::Name(text_path).display_name())
         }
         _ => None,
     }

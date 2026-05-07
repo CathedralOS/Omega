@@ -3,9 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::data::DataMember;
-use crate::ir::statement::TransitionGuard;
 use crate::native::abi::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
@@ -38,9 +35,12 @@ use crate::pipeline::trust::TrustReport;
 use crate::proof::obligations::{ProofObligation, ProofPlan};
 use crate::semantic::effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
+use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
 use omega_proof::ProofSurfaceReport;
-use omega_names::ResolveReport;
+use omega_typed_program::Program;
+use omega_typed_program::data::DataMember;
+use omega_typed_program::statement::TransitionGuard;
 use omega_types::TypeSurfaceReport;
 
 pub(crate) struct ArtifactWriter {
@@ -126,10 +126,10 @@ impl ArtifactWriter {
         self.write("03_resolve.txt", &output)
     }
 
-    pub(crate) fn write_ir(&self, program: &Program) -> Result<(), Diagnostic> {
+    pub(crate) fn write_typed_program(&self, program: &Program) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        output.push_str("# Omega Driver IR\n\n");
+        output.push_str("# Omega Typed Program\n\n");
         output.push_str(&format!(
             "data definitions: {}\n",
             program.data_definitions.len()
@@ -145,12 +145,12 @@ impl ArtifactWriter {
             program.type_constraints.len()
         ));
 
-        write_ir_data_definitions(&mut output, program);
-        write_ir_invariants(&mut output, program);
-        write_ir_platforms(&mut output, program);
-        write_ir_machines(&mut output, program);
+        write_typed_program_data_definitions(&mut output, program);
+        write_typed_program_invariants(&mut output, program);
+        write_typed_program_platforms(&mut output, program);
+        write_typed_program_machines(&mut output, program);
 
-        self.write("05_driver_ir.txt", &output)
+        self.write("05_typed_program.txt", &output)
     }
 
     pub(crate) fn write_type_surface_and_effects(
@@ -1734,7 +1734,7 @@ fn ast_item_summary(item: &Item) -> String {
     }
 }
 
-fn write_ir_data_definitions(output: &mut String, program: &Program) {
+fn write_typed_program_data_definitions(output: &mut String, program: &Program) {
     output.push_str("## Data Definitions\n");
 
     if program.data_definitions.is_empty() {
@@ -1769,7 +1769,7 @@ fn write_ir_data_definitions(output: &mut String, program: &Program) {
     output.push('\n');
 }
 
-fn write_ir_invariants(output: &mut String, program: &Program) {
+fn write_typed_program_invariants(output: &mut String, program: &Program) {
     output.push_str("## Invariants\n");
 
     if program.invariant_definitions.is_empty() {
@@ -1781,14 +1781,14 @@ fn write_ir_invariants(output: &mut String, program: &Program) {
         output.push_str(&format!(
             "- invariant `{}` = {}\n",
             invariant.name,
-            ir_constraint_span_name(program, invariant.constraints)
+            typed_program_constraint_span_name(program, invariant.constraints)
         ));
     }
 
     output.push('\n');
 }
 
-fn write_ir_platforms(output: &mut String, program: &Program) {
+fn write_typed_program_platforms(output: &mut String, program: &Program) {
     output.push_str("## Platforms\n");
 
     if program.platforms.is_empty() {
@@ -1807,8 +1807,8 @@ fn write_ir_platforms(output: &mut String, program: &Program) {
             output.push_str(&format!(
                 "  - state {}({}){}\n",
                 state.name,
-                ir_parameters_name(program, &state.parameters),
-                ir_return_type_name(program, state.return_type.as_ref())
+                typed_program_parameters_name(program, &state.parameters),
+                typed_program_return_type_name(program, state.return_type.as_ref())
             ));
         }
     }
@@ -1816,7 +1816,7 @@ fn write_ir_platforms(output: &mut String, program: &Program) {
     output.push('\n');
 }
 
-fn write_ir_machines(output: &mut String, program: &Program) {
+fn write_typed_program_machines(output: &mut String, program: &Program) {
     output.push_str("## Machines\n");
 
     if program.machines.is_empty() {
@@ -1859,8 +1859,8 @@ fn write_ir_machines(output: &mut String, program: &Program) {
             output.push_str(&format!(
                 "  - state {}({}){}: statements {}\n",
                 state.name,
-                ir_parameters_name(program, &state.parameters),
-                ir_return_type_name(program, state.return_type.as_ref()),
+                typed_program_parameters_name(program, &state.parameters),
+                typed_program_return_type_name(program, state.return_type.as_ref()),
                 state.statements.len()
             ));
         }
@@ -1869,9 +1869,9 @@ fn write_ir_machines(output: &mut String, program: &Program) {
     output.push('\n');
 }
 
-fn ir_constraint_span_name(
+fn typed_program_constraint_span_name(
     program: &Program,
-    span: omega_core::arena::HandleSpan<crate::ir::types::TypeConstraint>,
+    span: omega_core::arena::HandleSpan<omega_typed_program::types::TypeConstraint>,
 ) -> String {
     let Some(constraints) = program.type_constraints.span(span) else {
         return "[invalid constraint span]".to_owned();
@@ -1896,9 +1896,9 @@ fn ir_constraint_span_name(
     output
 }
 
-fn ir_parameters_name(
+fn typed_program_parameters_name(
     program: &Program,
-    parameters: &[crate::ir::signature::StateParameter],
+    parameters: &[omega_typed_program::signature::StateParameter],
 ) -> String {
     let mut output = String::new();
 
@@ -1932,9 +1932,9 @@ fn ir_parameters_name(
     output
 }
 
-fn ir_return_type_name(
+fn typed_program_return_type_name(
     program: &Program,
-    return_type: Option<&crate::ir::types::TypeReference>,
+    return_type: Option<&omega_typed_program::types::TypeReference>,
 ) -> String {
     return_type
         .map(|return_type| {
@@ -2050,7 +2050,7 @@ fn write_proof_obligation(
 
 fn proof_constraints_name(
     proof_plan: &ProofPlan,
-    constraints: omega_core::arena::HandleSpan<crate::ir::types::TypeConstraint>,
+    constraints: omega_core::arena::HandleSpan<omega_typed_program::types::TypeConstraint>,
 ) -> String {
     let Some(constraints) = proof_plan.type_constraints.span(constraints) else {
         return "[invalid constraint span]".to_owned();
@@ -2064,17 +2064,19 @@ fn proof_constraints_name(
         "[{}]",
         constraints
             .iter()
-            .map(crate::ir::types::TypeConstraint::display_name)
+            .map(omega_typed_program::types::TypeConstraint::display_name)
             .collect::<Vec<_>>()
             .join(", ")
     )
 }
 
-fn proof_transition_target_name(target: &crate::ir::statement::TransitionTarget) -> String {
+fn proof_transition_target_name(
+    target: &omega_typed_program::statement::TransitionTarget,
+) -> String {
     match target {
-        crate::ir::statement::TransitionTarget::Named { path, .. } => path.join("."),
-        crate::ir::statement::TransitionTarget::SelfTarget => "self".to_owned(),
-        crate::ir::statement::TransitionTarget::Terminal => "terminal".to_owned(),
+        omega_typed_program::statement::TransitionTarget::Named { path, .. } => path.join("."),
+        omega_typed_program::statement::TransitionTarget::SelfTarget => "self".to_owned(),
+        omega_typed_program::statement::TransitionTarget::Terminal => "terminal".to_owned(),
     }
 }
 

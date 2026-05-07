@@ -17,4 +17,5 @@ omega-native = { path = "../../backend/omega-native" }
 omega-parser = { path = "../../frontend/omega-parser" }
 omega-proof = { path = "../../semantics/omega-proof" }
 omega-names = { path = "../../semantics/omega-names" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }
 omega-types = { path = "../../semantics/omega-types" }

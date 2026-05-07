@@ -1,10 +1,10 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::expression::Expression;
-use crate::ir::machine::Machine;
-use crate::ir::state::State;
-use crate::ir::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::Program;
+use omega_typed_program::expression::Expression;
+use omega_typed_program::machine::Machine;
+use omega_typed_program::state::State;
+use omega_typed_program::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
@@ -327,8 +327,8 @@ fn operation_kind(statement: &Statement) -> OperationKind {
     }
 }
 
-fn is_static_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
-    use crate::ir::expression::Expression;
+fn is_static_assignment(assignment: &omega_typed_program::statement::Assignment) -> bool {
+    use omega_typed_program::expression::Expression;
 
     let target_is_place = matches!(
         assignment.target,
@@ -344,10 +344,10 @@ fn is_static_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
     target_is_place && value_is_static
 }
 
-fn is_constant_integer_assignment(assignment: &crate::ir::statement::Assignment) -> bool {
+fn is_constant_integer_assignment(assignment: &omega_typed_program::statement::Assignment) -> bool {
     matches!(
         (&assignment.target, &assignment.value),
-        (crate::ir::expression::Expression::Name(path), crate::ir::expression::Expression::Integer(_))
+        (omega_typed_program::expression::Expression::Name(path), omega_typed_program::expression::Expression::Integer(_))
             if path.len() == 1
     )
 }

@@ -1,12 +1,12 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::expression::{BinaryOperator, Expression};
-use crate::ir::statement::TransitionGuard;
-use crate::ir::types::TypeConstraint;
 use crate::proof::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
 };
 use omega_core::arena::HandleSpan;
+use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::statement::TransitionGuard;
+use omega_typed_program::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct IntegerRange {

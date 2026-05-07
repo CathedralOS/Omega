@@ -1,4 +1,4 @@
-use crate::ir::types::TypeReference;
+use crate::types::TypeReference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {

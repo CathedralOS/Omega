@@ -6,7 +6,9 @@
 //! That gives later phases a concrete spine to grow from.
 
 use omega_abstract_syntax_tree::expression::Expression;
-use omega_abstract_syntax_tree::item::{CapabilityMember, DataMember, Item, Machine, State, StateSignature};
+use omega_abstract_syntax_tree::item::{
+    CapabilityMember, DataMember, Item, Machine, State, StateSignature,
+};
 use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
@@ -413,8 +415,12 @@ fn insert_reference(
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::item::{Contains, Item, Machine, OwnedData, State, StateParameter, UseItem};
-    use omega_abstract_syntax_tree::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+    use omega_abstract_syntax_tree::item::{
+        Contains, Item, Machine, OwnedData, State, StateParameter, UseItem,
+    };
+    use omega_abstract_syntax_tree::statement::{
+        Statement, Transition, TransitionGuard, TransitionTarget,
+    };
     use omega_abstract_syntax_tree::types::TypeReference;
 
     use super::{ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report};

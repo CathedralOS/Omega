@@ -78,7 +78,7 @@ Important artifact files:
 - `02_ast.txt`: parsed source item summary.
 - `03_resolve.txt`: imports, definitions, references.
 - `04_types.txt`: type surface and effects.
-- `05_driver_ir.txt`: lowered compiler representation.
+- `05_typed_program.txt`: lowered compiler representation.
 - `06_validation.txt`: semantic validation summary.
 - `07_graph.txt`: source and lowered state graph.
 - `08_proof.txt`: proof surface and obligations.

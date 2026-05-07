@@ -3,7 +3,6 @@ use std::time::Instant;
 
 use crate::ast::item::Item;
 use crate::diagnostics::Diagnostic;
-use crate::ir::lowering::lower_program;
 use crate::lexer::{Lexer, Span};
 use crate::native::control_flow::build_control_flow_plan;
 use crate::native::emission::build_emission_plan;
@@ -21,9 +20,10 @@ use crate::semantic::effects::infer_effects;
 use crate::semantic::validation::validate_program;
 use crate::source::{Resolver, SourceFile};
 use omega_graph::build_source_graph_report;
+use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
 use omega_proof::build_proof_surface_report;
-use omega_names::build_resolve_report;
+use omega_typed_program::lowering::lower_program;
 use omega_types::build_type_surface_report;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,7 +73,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "driver ir lowering", || {
+    let program = record_phase(&mut phase_timings, "typed program lowering", || {
         lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "types/effects", || {
@@ -83,9 +83,9 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "driver ir", || {
+    record_phase(&mut phase_timings, "typed program", || {
         artifacts
-            .write_ir(&program)
+            .write_typed_program(&program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "validation", || {
@@ -179,7 +179,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "driver ir lowering", || {
+    let program = record_phase(&mut phase_timings, "typed program lowering", || {
         lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "types/effects", || {
@@ -189,9 +189,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "driver ir", || {
+    record_phase(&mut phase_timings, "typed program", || {
         artifacts
-            .write_ir(&program)
+            .write_typed_program(&program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "validation", || {
@@ -498,7 +498,7 @@ fn bundled_omega_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(3)
-        .expect("compiler crate should live under compiler/omega-compiler")
+        .expect("compiler crate should live under compiler/orchestration/omega-compiler")
         .join("omega")
 }
 

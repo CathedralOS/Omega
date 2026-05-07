@@ -1,21 +1,21 @@
-use crate::ast;
-use crate::diagnostics::Diagnostic;
-use crate::ir::Program;
-use crate::ir::data::{DataDefinition, DataField, DataMember, DataVariant};
-use crate::ir::expression::{
+use crate::Program;
+use crate::data::{DataDefinition, DataField, DataMember, DataVariant};
+use crate::expression::{
     BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
-use crate::ir::invariant::InvariantDefinition;
-use crate::ir::machine::{ContainedObject, Machine, OwnedData};
-use crate::ir::platform::Platform;
-use crate::ir::signature::{StateParameter, StateSignature};
-use crate::ir::state::State;
-use crate::ir::statement::{
+use crate::invariant::InvariantDefinition;
+use crate::machine::{ContainedObject, Machine, OwnedData};
+use crate::platform::Platform;
+use crate::signature::{StateParameter, StateSignature};
+use crate::state::State;
+use crate::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
-use crate::ir::types::{TypeConstraint, TypeReference};
+use crate::types::{TypeConstraint, TypeReference};
+use omega_abstract_syntax_tree as ast;
 use omega_core::arena::Arena;
+use omega_core::diagnostics::Diagnostic;
 
 struct InvariantAliases<'ast> {
     items: Vec<&'ast ast::item::InvariantDefinition>,

@@ -1,7 +1,7 @@
-use crate::ir::expression::Expression;
 use crate::native::plan::NativePlan;
 use crate::native::state_calls::StateCallArgumentKind;
 use omega_core::arena::Arena;
+use omega_typed_program::expression::Expression;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AliasFlowPlan {

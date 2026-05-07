@@ -1,5 +1,3 @@
-use crate::ir::expression::Expression;
-use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget};
 use crate::native::host_calls::HostCall;
 use crate::native::plan::NativePlan;
@@ -9,6 +7,8 @@ use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_calls::{StateCall, StateCallArgumentKind, StateCallLowering};
 use crate::native::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::expression::Expression;
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeBranchingCallPlan {
@@ -704,8 +704,8 @@ fn resolve_runtime_branch_alias_expression(
                 Expression::Mutable(Box::new(resolved_target))
             }
         }
-        Expression::Indexed(indexed) => {
-            Expression::Indexed(Box::new(crate::ir::expression::IndexedExpression {
+        Expression::Indexed(indexed) => Expression::Indexed(Box::new(
+            omega_typed_program::expression::IndexedExpression {
                 collection: resolve_runtime_branch_alias_expression(
                     &indexed.collection,
                     source_machine,
@@ -718,8 +718,8 @@ fn resolve_runtime_branch_alias_expression(
                     source_state,
                     aliases,
                 ),
-            }))
-        }
+            },
+        )),
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
@@ -752,13 +752,13 @@ fn resolve_branch_expression(
             .find(|(parameter_name, _)| parameter_name == &path[0])
             .map(|(_, bound_expression)| append_place_suffix(bound_expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
-        Expression::Binary(binary) => {
-            Expression::Binary(Box::new(crate::ir::expression::BinaryExpression {
+        Expression::Binary(binary) => Expression::Binary(Box::new(
+            omega_typed_program::expression::BinaryExpression {
                 left: resolve_branch_expression(&binary.left, branch_bindings),
                 operator: binary.operator,
                 right: resolve_branch_expression(&binary.right, branch_bindings),
-            }))
-        }
+            },
+        )),
         _ => expression.clone(),
     }
 }
@@ -790,7 +790,7 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
 }
 
 fn indexed_expression_path(
-    indexed: &crate::ir::expression::IndexedExpression,
+    indexed: &omega_typed_program::expression::IndexedExpression,
 ) -> Option<Vec<String>> {
     let Expression::Integer(index) = &indexed.index else {
         return None;

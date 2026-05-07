@@ -1,9 +1,9 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::statement::TransitionGuard;
 use crate::native::control_flow::{
     ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow,
 };
 use omega_core::arena::{Arena, HandleSpan};
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeFlowPlan {
