@@ -1,7 +1,6 @@
-use crate::ir::expression::Expression;
 use crate::native::abi::PlatformCallData;
 use crate::native::control_flow::{OperationKind, StateFlow};
-use crate::native::host_calls::HostCallArgumentKind;
+use crate::native::host_calls::{HostCall, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
@@ -9,6 +8,7 @@ use crate::native::runtime_dispatch::branching::{
     RuntimeBranchCallExpansion, RuntimeBranchingCall,
 };
 use crate::native::runtime_flow::RuntimeTransitionTarget;
+use crate::native::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::native::state_calls::StateCallLowering;
 use crate::native::state_guards::StateGuardKind;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
@@ -159,36 +159,56 @@ fn collect_host_argument_blockers(
         };
 
         if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
+            let runtime_text_use = runtime_text_use_for_host_call(native_plan, host_call);
             blockers.insert(blocker(
                 "host arguments",
-                &host_text_argument_blocker_reason(host_call, expression),
+                &runtime_text_use
+                    .map(host_text_argument_blocker_reason)
+                    .unwrap_or_else(|| {
+                        format!(
+                            "{}.{} statement {} text argument `{}` needs runtime text lowering",
+                            host_call.machine,
+                            host_call.state,
+                            host_call.statement_index,
+                            expression.display_name()
+                        )
+                    }),
             ));
         }
     }
 }
 
-fn host_text_argument_blocker_reason(
-    host_call: &crate::native::host_calls::HostCall,
-    expression: &Expression,
-) -> String {
-    let lowering_need = match expression {
-        Expression::Name(_) | Expression::Indexed(_) => "runtime string storage lowering",
-        Expression::Binary(_) => "runtime string builder lowering",
-        Expression::Mutable(_) => "runtime mutable string place lowering",
-        Expression::ArrayLiteral(_)
-        | Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::StructLiteral(_)
-        | Expression::String(_) => "runtime string expression lowering",
+fn runtime_text_use_for_host_call<'plan>(
+    native_plan: &'plan NativePlan,
+    host_call: &HostCall,
+) -> Option<&'plan RuntimeTextUse> {
+    native_plan
+        .runtime_text
+        .uses
+        .iter()
+        .find(|(_, text_use)| {
+            text_use.machine == host_call.machine
+                && text_use.state == host_call.state
+                && text_use.statement_index == host_call.statement_index
+                && text_use.platform_call == host_call.platform_call
+        })
+        .map(|(_, text_use)| text_use)
+}
+
+fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
+    let lowering_need = match text_use.source {
+        RuntimeTextSource::StoredPlace => "runtime string storage lowering",
+        RuntimeTextSource::GeneratedString => "runtime string builder lowering",
+        RuntimeTextSource::MutablePlace => "runtime mutable string place lowering",
+        RuntimeTextSource::OtherExpression => "runtime string expression lowering",
     };
 
     format!(
         "{}.{} statement {} text argument `{}` needs {lowering_need}",
-        host_call.machine,
-        host_call.state,
-        host_call.statement_index,
-        expression.display_name()
+        text_use.machine,
+        text_use.state,
+        text_use.statement_index,
+        text_use.expression.display_name()
     )
 }
 

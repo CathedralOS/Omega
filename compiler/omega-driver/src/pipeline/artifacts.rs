@@ -622,6 +622,25 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Runtime Text\n");
+        output.push_str(&format!("uses: {}\n", native_plan.runtime_text.uses.len()));
+        if native_plan.runtime_text.uses.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, text_use) in native_plan.runtime_text.uses.iter() {
+                output.push_str(&format!(
+                    "- {}.{} statement {} `{}` {:?} newline {}\n",
+                    text_use.machine,
+                    text_use.state,
+                    text_use.statement_index,
+                    text_use.expression.display_name(),
+                    text_use.source,
+                    text_use.append_newline
+                ));
+            }
+        }
+        output.push('\n');
+
         output.push_str("## Native Data\n");
         output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
         output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));

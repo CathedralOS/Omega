@@ -2250,6 +2250,9 @@ fn check_writes_phase_artifacts() {
     );
     let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
         .expect("emission artifact should be readable");
+    let native_plan = std::fs::read_to_string(output.artifacts_dir.join("09_native_plan.txt"))
+        .expect("native plan artifact should be readable");
+    assert!(native_plan.contains("## Runtime Text"));
     assert!(emission.contains("status: ready to emit"));
     assert!(emission.contains("data bytes:"));
     assert!(emission.contains("selected instructions:"));
@@ -2713,7 +2716,18 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
     )
     .expect("native planning should preserve dynamic text argument");
     let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let runtime_text = native_plan
+        .runtime_text
+        .uses
+        .iter()
+        .find(|(_, text_use)| text_use.expression.display_name() == "line::text")
+        .map(|(_, text_use)| text_use)
+        .expect("dynamic text argument should be planned");
 
+    assert_eq!(
+        runtime_text.source,
+        crate::native::runtime_text::RuntimeTextSource::StoredPlace
+    );
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "host arguments"

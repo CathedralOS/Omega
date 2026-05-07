@@ -17,6 +17,7 @@ use crate::native::runtime_dispatch::branching::{
     RuntimeBranchingCallPlan, build_runtime_branching_call_plan,
 };
 use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
+use crate::native::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
 use crate::native::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::native::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::native::state_guards::{StateGuardPlan, build_state_guard_plan};
@@ -41,6 +42,7 @@ pub struct NativePlan {
     pub state_guards: StateGuardPlan,
     pub runtime_bodies: RuntimeDispatchBodyPlan,
     pub runtime_branching_calls: RuntimeBranchingCallPlan,
+    pub runtime_text: RuntimeTextPlan,
     pub layouts: LayoutPlan,
     pub machine_code: MachineCodePlan,
     pub object: ObjectPlan,
@@ -81,6 +83,7 @@ pub fn build_native_plan(
         state_guards,
         runtime_bodies: RuntimeDispatchBodyPlan::default(),
         runtime_branching_calls: RuntimeBranchingCallPlan::default(),
+        runtime_text: RuntimeTextPlan::default(),
         layouts: build_layout_plan(program, target)?,
         machine_code: MachineCodePlan::default(),
         object: ObjectPlan {
@@ -103,6 +106,7 @@ pub fn build_native_plan(
     native_plan.state_values = build_state_value_plan(program, &native_plan);
     native_plan.runtime_bodies = build_runtime_dispatch_body_plan(&native_plan);
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
+    native_plan.runtime_text = build_runtime_text_plan(&native_plan.host_calls);
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);
