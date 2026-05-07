@@ -84,6 +84,7 @@ pub enum StateCallResolution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateCallLowering {
+    InlineLeaf,
     InlineExpansion,
     #[default]
     Unresolved,
@@ -116,7 +117,7 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     let calls = calls
         .into_iter()
         .map(|call| {
-            let lowering = state_call_lowering(&call);
+            let lowering = state_call_lowering(native_plan, &call);
             let arguments = plan.arguments.insert_many(build_call_arguments(
                 native_plan,
                 &call.target_machine,
@@ -145,12 +146,59 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     plan
 }
 
-fn state_call_lowering(call: &CollectedStateCall) -> StateCallLowering {
+fn state_call_lowering(native_plan: &NativePlan, call: &CollectedStateCall) -> StateCallLowering {
     if call.target_machine.is_empty() {
         StateCallLowering::Unresolved
+    } else if state_call_targets_leaf(native_plan, call) {
+        StateCallLowering::InlineLeaf
     } else {
         StateCallLowering::InlineExpansion
     }
+}
+
+fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) -> bool {
+    let Some(machine) = native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == call.target_machine)
+        .map(|(_, machine)| machine)
+    else {
+        return false;
+    };
+    let Some(state) = native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.name == call.target_state))
+    else {
+        return false;
+    };
+
+    let transitions_are_empty = native_plan
+        .control_flow
+        .transitions
+        .span(state.transitions)
+        .is_none_or(|transitions| transitions.is_empty());
+    if !transitions_are_empty {
+        return false;
+    }
+
+    native_plan
+        .control_flow
+        .operations
+        .span(state.operations)
+        .is_none_or(|operations| {
+            operations.iter().all(|operation| {
+                !matches!(operation.kind, OperationKind::Call { .. })
+                    || state_statement_has_host_call(
+                        native_plan,
+                        &call.target_machine,
+                        &call.target_state,
+                        operation.statement_index,
+                    )
+            })
+        })
 }
 
 fn collect_machine_state_calls(

@@ -1497,7 +1497,7 @@ fn plans_state_calls_separately_from_host_calls() {
     );
     assert_eq!(
         prepare_call.lowering,
-        crate::native::state_calls::StateCallLowering::InlineExpansion
+        crate::native::state_calls::StateCallLowering::InlineLeaf
     );
     assert_eq!(native_plan.host_calls.calls.len(), 1);
     assert!(
