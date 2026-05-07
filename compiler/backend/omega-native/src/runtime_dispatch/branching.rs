@@ -969,40 +969,36 @@ fn branch_target_lowering(
     }
 }
 
-fn leaf_operations(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Vec<RuntimeLeafBranchOperation> {
-    let Some(machine) = machine_flow(native_plan, machine_name) else {
-        return Vec::new();
-    };
-    let Some(state) = native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-    else {
-        return Vec::new();
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        return Vec::new();
-    };
-
-    operations
-        .iter()
-        .map(|operation| RuntimeLeafBranchOperation {
-            source_machine: machine_name.to_owned(),
-            source_state: state_name.to_owned(),
-            statement_index: operation.statement_index,
-            kind: leaf_operation_kind(
-                native_plan,
-                machine_name,
-                state_name,
-                operation.statement_index,
-            ),
+fn leaf_operations<'a>(
+    native_plan: &'a NativePlan,
+    machine_name: &'a str,
+    state_name: &'a str,
+) -> impl Iterator<Item = RuntimeLeafBranchOperation> + 'a {
+    let operations = machine_flow(native_plan, machine_name)
+        .and_then(|machine| {
+            native_plan
+                .control_flow
+                .states
+                .span(machine.states)
+                .and_then(|states| states.iter().find(|state| state.name == state_name))
         })
-        .collect()
+        .and_then(|state| native_plan.control_flow.operations.span(state.operations));
+
+    operations.into_iter().flat_map(move |operations| {
+        operations
+            .iter()
+            .map(move |operation| RuntimeLeafBranchOperation {
+                source_machine: machine_name.to_owned(),
+                source_state: state_name.to_owned(),
+                statement_index: operation.statement_index,
+                kind: leaf_operation_kind(
+                    native_plan,
+                    machine_name,
+                    state_name,
+                    operation.statement_index,
+                ),
+            })
+    })
 }
 
 fn leaf_operation_kind(
@@ -1033,41 +1029,37 @@ fn leaf_operation_kind(
     RuntimeLeafBranchOperationKind::Other
 }
 
-fn straight_line_operations(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Vec<RuntimeStraightLineBranchOperation> {
-    let Some(machine) = machine_flow(native_plan, machine_name) else {
-        return Vec::new();
-    };
-    let Some(state) = native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-    else {
-        return Vec::new();
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        return Vec::new();
-    };
-
-    operations
-        .iter()
-        .map(|operation| RuntimeStraightLineBranchOperation {
-            source_machine: machine_name.to_owned(),
-            source_state: state_name.to_owned(),
-            statement_index: operation.statement_index,
-            kind: straight_line_operation_kind(
-                native_plan,
-                machine_name,
-                state_name,
-                operation.statement_index,
-                &operation.kind,
-            ),
+fn straight_line_operations<'a>(
+    native_plan: &'a NativePlan,
+    machine_name: &'a str,
+    state_name: &'a str,
+) -> impl Iterator<Item = RuntimeStraightLineBranchOperation> + 'a {
+    let operations = machine_flow(native_plan, machine_name)
+        .and_then(|machine| {
+            native_plan
+                .control_flow
+                .states
+                .span(machine.states)
+                .and_then(|states| states.iter().find(|state| state.name == state_name))
         })
-        .collect()
+        .and_then(|state| native_plan.control_flow.operations.span(state.operations));
+
+    operations.into_iter().flat_map(move |operations| {
+        operations
+            .iter()
+            .map(move |operation| RuntimeStraightLineBranchOperation {
+                source_machine: machine_name.to_owned(),
+                source_state: state_name.to_owned(),
+                statement_index: operation.statement_index,
+                kind: straight_line_operation_kind(
+                    native_plan,
+                    machine_name,
+                    state_name,
+                    operation.statement_index,
+                    &operation.kind,
+                ),
+            })
+    })
 }
 
 fn straight_line_operation_kind(
