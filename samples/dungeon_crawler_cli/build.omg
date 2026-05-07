@@ -1,0 +1,63 @@
+target cross_platform_cli {
+    host: omega::host::standard {
+        abi = target_default
+        stdin = enabled
+        stdout = enabled
+        process = enabled
+        filesystem = disabled
+        threads = disabled
+        clock = disabled
+        random = disabled
+    }
+
+    trust omega::host::contracts
+    trust omega::host::standard
+}
+
+target macos_arm64 {
+    host: omega::host::darwin {
+        abi = libSystem
+        stdin = fd(0)
+        stdout = fd(1)
+        process = enabled
+        filesystem = disabled
+        threads = disabled
+        clock = disabled
+        random = disabled
+    }
+
+    trust omega::host::contracts
+    trust omega::host::darwin
+}
+
+target linux_x64 {
+    host: omega::host::linux {
+        abi = syscall
+        stdin = fd(0)
+        stdout = fd(1)
+        process = enabled
+        filesystem = disabled
+        threads = disabled
+        clock = disabled
+        random = disabled
+    }
+
+    trust omega::host::contracts
+    trust omega::host::linux
+}
+
+target windows_x64 {
+    host: omega::host::windows {
+        abi = win32
+        stdin = standard_handle(stdin)
+        stdout = standard_handle(stdout)
+        process = enabled
+        filesystem = disabled
+        threads = disabled
+        clock = disabled
+        random = disabled
+    }
+
+    trust omega::host::contracts
+    trust omega::host::windows
+}

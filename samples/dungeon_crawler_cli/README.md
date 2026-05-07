@@ -20,11 +20,14 @@ Current loop:
 - read a user command
 - classify the command into owned navigation data
 - move if the command names an adjacent room
+- print room details for `look` or `info`
+- print command and exit help for `exits` or `help`
 - otherwise print an invalid-command message and ask again
 - complete back to parent control flow from the terminal dungeon state
 
 Sample layout:
 
+- `build.omg`: host policy for console input, output, and process exit
 - `main.omg`: process-level runner
 - `dungeon/`: generic dungeon flow, room movement, and command classification
 - `levels/`: hardcoded sample level data

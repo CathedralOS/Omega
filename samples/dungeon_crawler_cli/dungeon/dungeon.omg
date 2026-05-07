@@ -29,12 +29,27 @@ machine Dungeon {
         navigation.choice = NavigationChoice::Invalid;
         navigation.destination = CellId::Empty;
 
-        -> finished when command_line.text == "quit";
-
         resolve_command(level, current_cell, command_line, mut navigation);
 
+        -> finished when navigation.choice == NavigationChoice::Quit;
+        -> look when navigation.choice == NavigationChoice::Look;
+        -> exits when navigation.choice == NavigationChoice::Exits;
         -> move when navigation.choice == NavigationChoice::Move;
         -> invalid_command;
+    }
+
+    state look {
+        write_room_info(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+
+        -> prompt;
+    }
+
+    state exits {
+        write_adjacent_rooms(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+
+        -> prompt;
     }
 
     state move {
@@ -64,7 +79,29 @@ machine Dungeon {
     }
 
     state resolve_command(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
-        resolve_exit(level, cell, line, mut out_navigation);
+        -> resolve_quit(mut out_navigation) when line.text == "quit";
+        -> resolve_look(mut out_navigation) when line.text == "look";
+        -> resolve_look(mut out_navigation) when line.text == "info";
+        -> resolve_exits(mut out_navigation) when line.text == "exits";
+        -> resolve_exits(mut out_navigation) when line.text == "help";
+        -> resolve_exit(level, cell, line, mut out_navigation);
+    }
+
+    state resolve_quit(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Quit;
+    }
+
+    state resolve_look(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Look;
+    }
+
+    state resolve_exits(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Exits;
+    }
+
+    state resolve_move(destination: CellId, mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Move;
+        out_navigation.destination = destination;
     }
 
     state resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
@@ -86,14 +123,19 @@ machine Dungeon {
     }
 
     state apply_exit(exit: Exit, mut out_navigation: Navigation) {
-        out_navigation.choice = NavigationChoice::Move;
-        out_navigation.destination = exit.destination;
+        resolve_move(exit.destination, mut out_navigation);
     }
 
     state write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
         let room: Room;
         find_room(level, cell, mut room);
-        out_line.text = room.label;
+        out_line.text = "Room " + room.label;
+    }
+
+    state write_room_info(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+        let room: Room;
+        find_room(level, cell, mut room);
+        out_line.text = room.description;
     }
 
     state write_adjacent_rooms(level: Level, cell: CellId, mut out_line: ConsoleLine) {
@@ -119,12 +161,11 @@ machine Dungeon {
     }
 
     state format_exits(room: Room, mut out_line: ConsoleLine) {
-        out_line.text = "Exits: ";
+        out_line.text = "Commands: look info exits help quit ";
         append_exit(room.exits[0], mut out_line);
         append_exit(room.exits[1], mut out_line);
         append_exit(room.exits[2], mut out_line);
         append_exit(room.exits[3], mut out_line);
-        append_quit(mut out_line);
     }
 
     state append_exit(exit: Exit, mut out_line: ConsoleLine) {
@@ -134,9 +175,5 @@ machine Dungeon {
 
     state append_open_exit(exit: Exit, mut out_line: ConsoleLine) {
         out_line.text = out_line.text + exit.command + " ";
-    }
-
-    state append_quit(mut out_line: ConsoleLine) {
-        out_line.text = out_line.text + "quit";
     }
 }

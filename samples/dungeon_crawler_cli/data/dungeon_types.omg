@@ -8,6 +8,8 @@ data CellId {
 
 data NavigationChoice {
     Quit,
+    Look,
+    Exits,
     Move,
     Invalid,
 }
@@ -24,6 +26,7 @@ data Exit {
 data Room {
     cell: CellId;
     label: String;
+    description: String;
     exits: [Exit; 4];
     exit_count: u32;
 }
