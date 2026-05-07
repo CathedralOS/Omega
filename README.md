@@ -160,21 +160,21 @@ Omega/
 |   |
 |   |-- semantics/
 |   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
-|   |   |-- [CRATE] omega-hir/                          # High-level semantic IR.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-effects/                      # Effect surface, mutation/host capability checking.
 |   |   |-- [CRATE] omega-borrow/                       # Ownership, aliasing, lifetime-style checks as needed.
 |   |   |-- [CRATE] omega-consteval/                    # Compile-time evaluation and folding.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and validation.
 |   |   |-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
-|   |   `-- [CRATE] omega-sema/                         # Phase glue for semantic passes and canonical reports.
+|   |   `-- [CRATE] omega-semantics/                    # Phase glue for semantic passes and canonical reports.
 |   |
 |   |-- intermediate-representations/
-|   |   |-- [CRATE] omega-mir/                          # Mid-level IR after semantic lowering.
-|   |   |-- [CRATE] omega-mir-build/                    # HIR to MIR lowering.
 |   |   |-- [CRATE] omega-dataflow/                     # CFG/dataflow framework.
 |   |   |-- [CRATE] omega-opt/                          # Machine-independent optimization passes.
+|   |   |-- [CRATE] omega-hir/                          # High-level semantic IR.
 |   |   |-- [CRATE] omega-lir/                          # Low-level target-aware IR before final encoding.
+|   |   |-- [CRATE] omega-mir/                          # Mid-level IR after semantic lowering.
+|   |   |-- [CRATE] omega-mir-build/                    # HIR to MIR lowering.
 |   |   `-- [CRATE] omega-mono/                         # Monomorphization/specialization and code unit planning.
 |   |
 |   |-- backend/
@@ -184,7 +184,7 @@ Omega/
 |   |   |-- [CRATE] omega-instruction-selection/        # Shared instruction selection framework.
 |   |   |-- [CRATE] omega-regalloc/                     # Register allocation.
 |   |   |-- [CRATE] omega-machine/                      # Machine function model, blocks, virtual/physical regs.
-|   |   |-- isa/
+|   |   |-- instruction_set_architectures/
 |   |   |   |-- [CRATE] omega-isa-aarch64/              # AArch64 instruction defs, encodings, lowering hooks.
 |   |   |   |-- [CRATE] omega-isa-x86_64/               # x86_64 instruction defs, encodings, lowering hooks.
 |   |   |   |-- [CRATE] omega-isa-riscv64/              # RISC-V 64 instruction defs, encodings, lowering hooks.
@@ -197,13 +197,13 @@ Omega/
 |   |   |   |-- [CRATE] omega-object-coff/              # COFF/PE object/container writer.
 |   |   |   `-- [CRATE] omega-object-wasm/              # Wasm module/object writer.
 |   |   |
-|   |   |-- link/
-|   |   |   |-- [CRATE] omega-link/                     # Compiler-owned linker driver and graph orchestration.
-|   |   |   |-- [CRATE] omega-link-base/                # Shared symbol resolution, relocation, gc, comdat rules.
-|   |   |   |-- [CRATE] omega-link-elf/                 # ELF executable/shared-object linking.
-|   |   |   |-- [CRATE] omega-link-macho/               # Mach-O executable/dylib linking.
-|   |   |   |-- [CRATE] omega-link-pe/                  # PE/COFF executable/dll linking.
-|   |   |   `-- [CRATE] omega-link-wasm/                # Wasm final module linking and import/export shaping.
+|   |   |-- linker/
+|   |   |   |-- [CRATE] omega-linker/                   # Compiler-owned linker driver and graph orchestration.
+|   |   |   |-- [CRATE] omega-linker-base/              # Shared symbol resolution, relocation, gc, comdat rules.
+|   |   |   |-- [CRATE] omega-linker-elf/               # ELF executable/shared-object linking.
+|   |   |   |-- [CRATE] omega-linker-macho/             # Mach-O executable/dylib linking.
+|   |   |   |-- [CRATE] omega-linker-pe/                # PE/COFF executable/dll linking.
+|   |   |   `-- [CRATE] omega-linker-wasm/              # Wasm final module linking and import/export shaping.
 |   |   |
 |   |   `-- images/
 |   |       |-- [CRATE] omega-image-elf/                # Final ELF image layout, program headers, loaders.
@@ -228,7 +228,7 @@ Omega/
 |   |   |-- [CRATE] omega-session/                      # Compilation session, options, build graph, worker pools.
 |   |   `-- [CRATE] omega-compiler/                     # Top-level check/build API used by cli/lsp/tests.
 |   |
-|   `-- toolsupport/
+|   `-- tool_support/
 |       |-- [CRATE] omega-ide/                          # Semantic tokens, completion, hover, go-to-def support.
 |       `-- [CRATE] omega-doc-model/                    # Shared doc extraction model for cli/lsp/doc tooling.
 |
