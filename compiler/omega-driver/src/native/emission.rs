@@ -157,6 +157,17 @@ fn collect_state_codegen_blockers(
                 }
                 OperationKind::ConstantIntegerAssignment
                 | OperationKind::StaticAssignment { .. } => {}
+                OperationKind::Assignment { .. } => {
+                    blockers.insert(blocker(
+                        "state codegen",
+                        &format!(
+                            "{}.{} statement {} Assignment is not supported by native emission yet",
+                            scheduled_state.machine,
+                            scheduled_state.state,
+                            operation.statement_index
+                        ),
+                    ));
+                }
                 _ => {
                     blockers.insert(blocker(
                         "state codegen",

@@ -17,6 +17,8 @@ machine SampleLevel {
         room.exit_count = 2;
         room.exits[0] = Exit { command: "north", destination: CellId::A2 };
         room.exits[1] = Exit { command: "east", destination: CellId::B1 };
+        room.exits[2] = Exit { command: "", destination: CellId::Empty };
+        room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
     state write_room_a2(mut room: Room) {
@@ -26,6 +28,8 @@ machine SampleLevel {
         room.exit_count = 2;
         room.exits[0] = Exit { command: "south", destination: CellId::A1 };
         room.exits[1] = Exit { command: "east", destination: CellId::B2 };
+        room.exits[2] = Exit { command: "", destination: CellId::Empty };
+        room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
     state write_room_b1(mut room: Room) {
@@ -35,6 +39,8 @@ machine SampleLevel {
         room.exit_count = 2;
         room.exits[0] = Exit { command: "north", destination: CellId::B2 };
         room.exits[1] = Exit { command: "west", destination: CellId::A1 };
+        room.exits[2] = Exit { command: "", destination: CellId::Empty };
+        room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
     state write_room_b2(mut room: Room) {
@@ -44,5 +50,7 @@ machine SampleLevel {
         room.exit_count = 2;
         room.exits[0] = Exit { command: "south", destination: CellId::B1 };
         room.exits[1] = Exit { command: "west", destination: CellId::A2 };
+        room.exits[2] = Exit { command: "", destination: CellId::Empty };
+        room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 }

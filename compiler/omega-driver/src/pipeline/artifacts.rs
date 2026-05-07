@@ -1622,7 +1622,9 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 fn transition_target_name(target: &PlannedTransitionTarget) -> String {
     match target {
         PlannedTransitionTarget::State { name, .. } => name.clone(),
-        PlannedTransitionTarget::Nested { receiver, state } => format!("{receiver}.{state}"),
+        PlannedTransitionTarget::Nested {
+            receiver, state, ..
+        } => format!("{receiver}.{state}"),
         PlannedTransitionTarget::SelfTarget => "self".to_owned(),
         PlannedTransitionTarget::Terminal => "terminal".to_owned(),
     }

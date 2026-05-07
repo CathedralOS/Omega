@@ -1,4 +1,5 @@
 use crate::diagnostics::Diagnostic;
+use crate::ir::expression::Expression;
 use crate::ir::Program;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
@@ -40,6 +41,7 @@ pub struct ContainedFlow {
 pub struct StateFlow {
     pub name: String,
     pub index: usize,
+    pub parameters: Vec<String>,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
 }
@@ -49,6 +51,7 @@ impl Default for StateFlow {
         Self {
             name: String::new(),
             index: 0,
+            parameters: Vec::new(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
@@ -63,17 +66,21 @@ pub struct Operation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
-    Assignment,
+    Assignment {
+        target: Expression,
+        value: Expression,
+    },
     Call {
         receiver: Option<String>,
         target: String,
+        arguments: Vec<Expression>,
     },
     ConstantIntegerAssignment,
     Expression,
     LocalData,
     StaticAssignment {
-        target: String,
-        value: String,
+        target: Expression,
+        value: Expression,
     },
 }
 
@@ -95,8 +102,16 @@ pub struct TransitionFlow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlannedTransitionTarget {
-    State { index: usize, name: String },
-    Nested { receiver: String, state: String },
+    State {
+        index: usize,
+        name: String,
+        arguments: Vec<Expression>,
+    },
+    Nested {
+        receiver: String,
+        state: String,
+        arguments: Vec<Expression>,
+    },
     SelfTarget,
     Terminal,
 }
@@ -165,6 +180,7 @@ fn build_machine_flow(
                         target: PlannedTransitionTarget::State {
                             index: next_index,
                             name: next_segment_name.clone(),
+                            arguments: Vec::new(),
                         },
                         continuation: None,
                         guard: TransitionGuard::Always,
@@ -180,6 +196,7 @@ fn build_machine_flow(
             Ok(StateFlow {
                 name: segment.name.clone(),
                 index,
+                parameters: segment.parameters.clone(),
                 operations,
                 transitions,
             })
@@ -204,6 +221,7 @@ fn build_machine_flow(
 #[derive(Debug, Clone)]
 struct StateSegment<'program> {
     name: String,
+    parameters: Vec<String>,
     operations: Vec<Operation>,
     transitions: Vec<&'program Transition>,
     next_segment_name: Option<String>,
@@ -226,6 +244,7 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
         if transition_section_started {
             segments.push(StateSegment {
                 name: segment_name(&state.name, segment_index),
+                parameters: state_parameters_for_segment(state, segment_index),
                 operations,
                 transitions,
                 next_segment_name: None,
@@ -245,6 +264,7 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
 
     segments.push(StateSegment {
         name: segment_name(&state.name, segment_index),
+        parameters: state_parameters_for_segment(state, segment_index),
         operations,
         transitions,
         next_segment_name: None,
@@ -268,21 +288,38 @@ fn segment_name(state_name: &str, segment_index: usize) -> String {
     }
 }
 
+fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<String> {
+    if segment_index > 0 {
+        return Vec::new();
+    }
+
+    state
+        .parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .map(|parameter| parameter.name.clone())
+        .collect()
+}
+
 fn operation_kind(statement: &Statement) -> OperationKind {
     match statement {
         Statement::Assignment(assignment) if is_static_assignment(assignment) => {
             OperationKind::StaticAssignment {
-                target: assignment.target.display_name(),
-                value: assignment.value.display_name(),
+                target: assignment.target.clone(),
+                value: assignment.value.clone(),
             }
         }
         Statement::Assignment(assignment) if is_constant_integer_assignment(assignment) => {
             OperationKind::ConstantIntegerAssignment
         }
-        Statement::Assignment(_) => OperationKind::Assignment,
+        Statement::Assignment(assignment) => OperationKind::Assignment {
+            target: assignment.target.clone(),
+            value: assignment.value.clone(),
+        },
         Statement::Call(call) => OperationKind::Call {
             receiver: call.receiver.clone(),
             target: call.target.clone(),
+            arguments: call.arguments.clone(),
         },
         Statement::Expression(_) => OperationKind::Expression,
         Statement::LocalData(_) => OperationKind::LocalData,
@@ -342,7 +379,9 @@ fn plan_transition_target(
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
-        TransitionTarget::Named { path, .. }
+        TransitionTarget::Named {
+            path, arguments, ..
+        }
             if path.len() == 1 || path.len() == 2 && path[0] == "self" =>
         {
             let name = path.last().expect("named transition has a state").clone();
@@ -354,12 +393,19 @@ fn plan_transition_target(
                     Diagnostic::error(format!("unknown state transition target `{name}`"))
                 })?;
 
-            Ok(PlannedTransitionTarget::State { index, name })
+            Ok(PlannedTransitionTarget::State {
+                index,
+                name,
+                arguments: arguments.clone(),
+            })
         }
-        TransitionTarget::Named { path, .. } if path.len() == 2 => {
+        TransitionTarget::Named {
+            path, arguments, ..
+        } if path.len() == 2 => {
             Ok(PlannedTransitionTarget::Nested {
                 receiver: path[0].clone(),
                 state: path[1].clone(),
+                arguments: arguments.clone(),
             })
         }
         TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
