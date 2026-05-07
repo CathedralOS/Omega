@@ -2095,6 +2095,51 @@ fn reports_entry_assignments_as_native_codegen_blockers() {
 }
 
 #[test]
+fn reports_dynamic_text_arguments_as_native_blockers() {
+    let tokens = Lexer::new(
+        r#"
+            data ConsoleLine {
+                text: String;
+            }
+
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+                owns line: ConsoleLine;
+
+                state entry {
+                    console.write_line(line.text);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should preserve dynamic text argument");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert!(
+        emission_plan.blockers.iter().any(|(_, blocker)| {
+            blocker.stage == "host arguments"
+                && blocker
+                    .reason
+                    .contains("text argument `line::text` needs runtime string lowering")
+        }),
+        "expected dynamic text argument blocker"
+    );
+}
+
+#[test]
 fn lowers_constant_integer_assignment_before_host_call() {
     let tokens = Lexer::new(
         r#"

@@ -1,4 +1,6 @@
+use crate::native::abi::PlatformCallData;
 use crate::native::control_flow::{OperationKind, StateFlow};
+use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
@@ -35,7 +37,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         Err(reason) => {
             blockers.insert(blocker("state schedule", &reason));
             collect_runtime_dispatch_blockers(native_plan, &mut blockers);
-            Vec::new()
+            runtime_reachable_states(native_plan)
         }
     };
 
@@ -68,6 +70,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         ));
     }
 
+    collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
 
     if !can_emit_real_object(native_plan) {
@@ -97,6 +100,52 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         encoded_machine_bytes: native_plan.machine_code.bytes.len(),
         relocations: native_plan.relocations.records.len(),
         blockers,
+    }
+}
+
+fn collect_host_argument_blockers(
+    native_plan: &NativePlan,
+    state_schedule: &[crate::native::state_schedule::ScheduledState],
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, host_call) in native_plan.host_calls.calls.iter() {
+        if !scheduled_state_contains(state_schedule, &host_call.machine, &host_call.state) {
+            continue;
+        }
+
+        let PlatformCallData::FirstTextArgument { .. } = host_call.data else {
+            continue;
+        };
+        let Some(arguments) = native_plan.host_calls.arguments.span(host_call.arguments) else {
+            blockers.insert(blocker(
+                "host arguments",
+                &format!(
+                    "{}.{} statement {} has an invalid argument span",
+                    host_call.machine, host_call.state, host_call.statement_index
+                ),
+            ));
+            continue;
+        };
+        let Some(first_argument) = arguments.first() else {
+            blockers.insert(blocker(
+                "host arguments",
+                &format!(
+                    "{}.{} statement {} needs a text argument",
+                    host_call.machine, host_call.state, host_call.statement_index
+                ),
+            ));
+            continue;
+        };
+
+        if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
+            blockers.insert(blocker(
+                "host arguments",
+                &format!(
+                    "{}.{} statement {} text argument `{expression}` needs runtime string lowering",
+                    host_call.machine, host_call.state, host_call.statement_index
+                ),
+            ));
+        }
     }
 }
 
@@ -184,6 +233,20 @@ fn collect_state_codegen_blockers(
             };
         }
     }
+}
+
+fn runtime_reachable_states(
+    native_plan: &NativePlan,
+) -> Vec<crate::native::state_schedule::ScheduledState> {
+    native_plan
+        .runtime_flow
+        .states
+        .iter()
+        .map(|(_, state)| crate::native::state_schedule::ScheduledState {
+            machine: state.machine.clone(),
+            state: state.state.clone(),
+        })
+        .collect()
 }
 
 fn collect_runtime_dispatch_blockers(
