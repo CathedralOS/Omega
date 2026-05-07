@@ -3133,6 +3133,66 @@ fn plans_required_state_value_uses() {
 }
 
 #[test]
+fn skips_state_value_blocker_for_planned_runtime_text_builder() {
+    let tokens = Lexer::new(
+        r#"
+            data Line {
+                text: String;
+            }
+
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+                owns line: Line;
+
+                state entry {
+                    line.text = "Room " + "A1";
+                    console.write_line(line.text);
+
+                    -> self;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build runtime text builder");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert!(
+        native_plan
+            .runtime_text
+            .builders
+            .iter()
+            .any(|(_, builder)| builder.target.display_name() == "line::text")
+    );
+    assert!(
+        !emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "state values"),
+        "planned text builders should not report a duplicate state-value blocker"
+    );
+    assert!(
+        emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "state mutation")
+    );
+}
+
+#[test]
 fn lowers_constant_integer_assignment_before_host_call() {
     let tokens = Lexer::new(
         r#"

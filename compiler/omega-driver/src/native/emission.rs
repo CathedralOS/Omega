@@ -564,11 +564,31 @@ fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
             continue;
         }
 
+        if state_value_has_planned_text_builder(native_plan, value) {
+            continue;
+        }
+
         blockers.insert(blocker(
             "state values",
             &runtime_value_blocker_reason(native_plan, value),
         ));
     }
+}
+
+fn state_value_has_planned_text_builder(
+    native_plan: &NativePlan,
+    value: &crate::native::state_values::StateValueUse,
+) -> bool {
+    runtime_text_write_for_statement(
+        native_plan,
+        &value.machine,
+        &value.state,
+        value.statement_index,
+    )
+    .is_some_and(|text_write| {
+        text_write.kind == RuntimeTextWriteKind::GeneratedString
+            && runtime_text_builder_for_write(native_plan, text_write).is_some()
+    })
 }
 
 fn runtime_value_blocker_reason(
@@ -618,6 +638,23 @@ fn runtime_text_write_for_statement<'plan>(
                 && text_write.statement_index == statement_index
         })
         .map(|(_, text_write)| text_write)
+}
+
+fn runtime_text_builder_for_write<'plan>(
+    native_plan: &'plan NativePlan,
+    text_write: &RuntimeTextWrite,
+) -> Option<&'plan crate::native::runtime_text::RuntimeTextBuilder> {
+    native_plan
+        .runtime_text
+        .builders
+        .iter()
+        .find(|(_, builder)| {
+            builder.machine == text_write.machine
+                && builder.state == text_write.state
+                && builder.statement_index == text_write.statement_index
+                && builder.target.display_name() == text_write.target.display_name()
+        })
+        .map(|(_, builder)| builder)
 }
 
 fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static str {
