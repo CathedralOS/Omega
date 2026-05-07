@@ -1,5 +1,7 @@
+use crate::ir::expression::Expression;
 use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
+use crate::native::state_storage::StateStoragePlan;
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,12 +44,16 @@ impl Default for NativeDataObject {
     }
 }
 
-pub fn build_native_data_plan(host_calls: &HostCallPlan) -> NativeDataPlan {
+pub fn build_native_data_plan(
+    host_calls: &HostCallPlan,
+    state_storage: &StateStoragePlan,
+) -> NativeDataPlan {
     let mut data_plan = NativeDataPlan::default();
 
     for (_, host_call) in host_calls.calls.iter() {
         collect_host_call_data(host_calls, host_call, &mut data_plan);
     }
+    collect_static_string_assignment_data(state_storage, &mut data_plan);
 
     data_plan
 }
@@ -124,4 +130,32 @@ fn collect_mutable_output_buffer(
         source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
+}
+
+fn collect_static_string_assignment_data(
+    state_storage: &StateStoragePlan,
+    data_plan: &mut NativeDataPlan,
+) {
+    for (_, mutation) in state_storage.mutations.iter() {
+        let Expression::String(value) = &mutation.value else {
+            continue;
+        };
+        if !mutation.required {
+            continue;
+        }
+
+        let offset = data_plan.bytes.len();
+        let byte_span = data_plan.bytes.insert_many(value.as_bytes().to_vec());
+        let symbol_index = data_plan.objects.len() + 1;
+
+        data_plan.objects.insert(NativeDataObject {
+            symbol: format!("omega_string_literal_{symbol_index}"),
+            offset,
+            bytes: byte_span,
+            alignment: 1,
+            source_machine: mutation.machine.clone(),
+            source_state: mutation.state.clone(),
+            source_statement: mutation.statement_index,
+        });
+    }
 }

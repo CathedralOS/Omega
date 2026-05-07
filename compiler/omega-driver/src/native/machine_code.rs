@@ -93,6 +93,10 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    RuntimeMachineStringWrite {
+        byte_offset: usize,
+        byte_length: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
     },
@@ -282,6 +286,17 @@ fn machine_instruction_shape(
             },
             runtime_machine_integer_write_width(native_plan.target.architecture),
         ),
+        SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset,
+            byte_length,
+            ..
+        } => (
+            MachineInstructionKind::RuntimeMachineStringWrite {
+                byte_offset: *byte_offset,
+                byte_length: *byte_length,
+            },
+            runtime_machine_string_write_width(native_plan.target.architecture, *byte_length),
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => (
             MachineInstructionKind::DispatchStateWrite {
                 dispatch_index: *dispatch_index,
@@ -379,6 +394,15 @@ fn encode_machine_instruction(
             *byte_offset,
             *byte_size,
             *value,
+        ),
+        SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset,
+            byte_length,
+            ..
+        } => architecture::encode_runtime_machine_string_write(
+            native_plan.target.architecture,
+            *byte_offset,
+            *byte_length,
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             architecture::encode_dispatch_state_write(
@@ -586,4 +610,11 @@ fn runtime_text_literal_write_width(
 
 fn runtime_machine_integer_write_width(architecture: crate::native::target::Architecture) -> usize {
     architecture::runtime_machine_integer_write_width(architecture)
+}
+
+fn runtime_machine_string_write_width(
+    architecture: crate::native::target::Architecture,
+    byte_length: usize,
+) -> usize {
+    architecture::runtime_machine_string_write_width(architecture, byte_length)
 }

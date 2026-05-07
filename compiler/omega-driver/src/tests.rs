@@ -3944,7 +3944,14 @@ fn lowers_static_record_array_field_text() {
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 3);
-    assert_eq!(native_plan.data.objects.len(), 2);
+    assert_eq!(native_plan.data.objects.len(), 3);
+    assert!(native_plan.data.objects.iter().any(|(_, data_object)| {
+        native_plan
+            .data
+            .bytes
+            .span(data_object.bytes)
+            .is_some_and(|bytes| bytes == b"A1")
+    }));
 }
 
 #[test]

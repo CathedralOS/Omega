@@ -179,6 +179,25 @@ fn collect_function_relocations(
                     &machine_storage_symbol_name(&native_plan.entry_machine),
                 );
             }
+            SelectedInstructionKind::WriteRuntimeMachineString { data_symbol, .. } => {
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset,
+                    data_symbol,
+                );
+                insert_data_address_relocations(
+                    native_plan.target.architecture,
+                    relocation_plan,
+                    function,
+                    selected_instruction_index,
+                    selected_text_offset
+                        + string_descriptor_machine_address_offset(native_plan.target.architecture),
+                    &machine_storage_symbol_name(&native_plan.entry_machine),
+                );
+            }
             _ => {}
         }
     }
@@ -318,6 +337,13 @@ fn external_call_relocation_offset(
             Architecture::Aarch64 => 0,
             Architecture::X86_64 => 1,
         }
+}
+
+fn string_descriptor_machine_address_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 8,
+    }
 }
 
 fn external_call_relocation_width(architecture: Architecture) -> usize {

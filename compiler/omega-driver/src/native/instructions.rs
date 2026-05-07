@@ -118,6 +118,11 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeMachineString {
+        byte_offset: usize,
+        data_symbol: String,
+        byte_length: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },
@@ -507,6 +512,19 @@ fn select_runtime_mutation_writes(
         return;
     }
 
+    if let Expression::String(value) = value {
+        select_runtime_string_descriptor_write(
+            native_plan,
+            source_machine,
+            source_state,
+            statement_index,
+            &resolved_target,
+            value,
+            selected_instructions,
+        );
+        return;
+    }
+
     let Some(value) = resolve_runtime_static_integer_value(
         native_plan,
         source_machine,
@@ -540,6 +558,72 @@ fn select_runtime_mutation_writes(
         source_state: source_state.to_owned(),
         source_statement: statement_index,
     });
+}
+
+fn select_runtime_string_descriptor_write(
+    native_plan: &NativePlan,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    resolved_target: &Expression,
+    value: &str,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        source_machine,
+        resolved_target,
+    ) else {
+        return;
+    };
+    if byte_size != native_plan.target.pointer_size * 2 {
+        return;
+    }
+    let Some(data_object) = string_literal_data_object(
+        native_plan,
+        source_machine,
+        source_state,
+        statement_index,
+        value,
+    ) else {
+        return;
+    };
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset,
+            data_symbol: data_object.symbol.clone(),
+            byte_length: value.len(),
+        },
+        source_machine: source_machine.to_owned(),
+        source_state: source_state.to_owned(),
+        source_statement: statement_index,
+    });
+}
+
+fn string_literal_data_object<'plan>(
+    native_plan: &'plan NativePlan,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    value: &str,
+) -> Option<&'plan NativeDataObject> {
+    native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_machine == source_machine
+                && data_object.source_state == source_state
+                && data_object.source_statement == statement_index
+                && native_plan
+                    .data
+                    .bytes
+                    .span(data_object.bytes)
+                    .is_some_and(|bytes| bytes == value.as_bytes())
+        })
+        .map(|(_, data_object)| data_object)
 }
 
 fn resolve_runtime_static_integer_value(

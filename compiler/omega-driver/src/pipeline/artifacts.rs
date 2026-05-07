@@ -2321,6 +2321,15 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 "write runtime machine integer offset {byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineString {
+            byte_offset,
+            data_symbol,
+            byte_length,
+        } => {
+            format!(
+                "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")
         }

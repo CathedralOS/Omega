@@ -41,6 +41,10 @@ pub fn runtime_machine_integer_write_width() -> usize {
     16
 }
 
+pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
+    24 + unsigned_immediate_width(byte_length as u64)
+}
+
 pub fn operand_width(operand: &InstructionOperand) -> usize {
     match &operand.kind {
         InstructionOperandKind::DataAddress { .. } => 8,
@@ -196,6 +200,20 @@ pub fn encode_runtime_machine_integer_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_machine_string_write(
+    byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(17);
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+    bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
+    bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    Ok(bytes)
+}
+
 fn encode_movz(register: u8, immediate: u16) -> Vec<u8> {
     encode_instruction(0xD2800000 | (u32::from(immediate) << 5) | u32::from(register))
 }
@@ -296,6 +314,17 @@ fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u
             "AArch64 MVP encoder cannot store {byte_size}-byte runtime integers yet"
         ))),
     }
+}
+
+fn encode_store_x17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    if !byte_offset.is_multiple_of(8) || byte_offset / 8 > 4095 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store u64 at offset `{byte_offset}` yet"
+        )));
+    }
+    Ok(encode_instruction(
+        0xF9000000 | (((byte_offset / 8) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+    ))
 }
 
 fn encode_store_byte_w17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {

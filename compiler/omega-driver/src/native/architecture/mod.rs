@@ -77,6 +77,13 @@ pub fn runtime_machine_integer_write_width(architecture: Architecture) -> usize 
     }
 }
 
+pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn encode_host_call_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
@@ -192,6 +199,19 @@ pub fn encode_runtime_machine_integer_write(
     match architecture {
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_integer_write(byte_offset, byte_size, value)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_machine_string_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }
