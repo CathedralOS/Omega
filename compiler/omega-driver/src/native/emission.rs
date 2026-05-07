@@ -161,8 +161,11 @@ fn collect_host_argument_blockers(
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
-                    "{}.{} statement {} text argument `{expression}` needs runtime string lowering",
-                    host_call.machine, host_call.state, host_call.statement_index
+                    "{}.{} statement {} text argument `{}` needs runtime string lowering",
+                    host_call.machine,
+                    host_call.state,
+                    host_call.statement_index,
+                    expression.display_name()
                 ),
             ));
         }

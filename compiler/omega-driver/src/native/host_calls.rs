@@ -84,7 +84,7 @@ pub struct HostCallArgument {
 impl Default for HostCallArgument {
     fn default() -> Self {
         Self {
-            kind: HostCallArgumentKind::Expression(String::new()),
+            kind: HostCallArgumentKind::Expression(Expression::Integer(0)),
         }
     }
 }
@@ -93,13 +93,13 @@ impl Default for HostCallArgument {
 pub enum HostCallArgumentKind {
     Text(String),
     Integer(i64),
-    Expression(String),
+    Expression(Expression),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StaticValue {
     Integer(i64),
-    Symbol(String),
+    Expression(Expression),
     Text(String),
 }
 
@@ -229,7 +229,7 @@ fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
                 Expression::Integer(value) => StaticValue::Integer(*value),
                 Expression::String(value) => StaticValue::Text(value.clone()),
                 Expression::Name(path) if is_static_symbol_path(path) => {
-                    StaticValue::Symbol(Expression::Name(path.clone()).display_name())
+                    StaticValue::Expression(Expression::Name(path.clone()))
                 }
                 _ => return None,
             };
@@ -295,7 +295,7 @@ fn resolve_static_value(
                 .map(|(_, value)| value.clone())
                 .or_else(|| {
                     if is_static_symbol_path(path) {
-                        Some(StaticValue::Symbol(name))
+                        Some(StaticValue::Expression(Expression::Name(path.clone())))
                     } else {
                         None
                     }
@@ -423,15 +423,15 @@ fn lower_host_call_argument(
         Expression::Integer(value) => HostCallArgumentKind::Integer(*value),
         Expression::Name(_) => resolve_static_value(argument, static_values)
             .map(host_argument_from_static_value)
-            .unwrap_or_else(|| HostCallArgumentKind::Expression(argument.display_name())),
-        _ => HostCallArgumentKind::Expression(argument.display_name()),
+            .unwrap_or_else(|| HostCallArgumentKind::Expression(argument.clone())),
+        _ => HostCallArgumentKind::Expression(argument.clone()),
     }
 }
 
 fn host_argument_from_static_value(value: StaticValue) -> HostCallArgumentKind {
     match value {
         StaticValue::Integer(value) => HostCallArgumentKind::Integer(value),
-        StaticValue::Symbol(value) => HostCallArgumentKind::Expression(value),
+        StaticValue::Expression(value) => HostCallArgumentKind::Expression(value),
         StaticValue::Text(value) => HostCallArgumentKind::Text(value),
     }
 }

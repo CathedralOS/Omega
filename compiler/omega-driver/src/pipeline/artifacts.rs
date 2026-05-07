@@ -1739,7 +1739,9 @@ fn write_host_call_argument(output: &mut String, argument: &HostCallArgument) {
     let argument_name = match &argument.kind {
         HostCallArgumentKind::Text(text) => format!("text {text:?}"),
         HostCallArgumentKind::Integer(value) => format!("integer {value}"),
-        HostCallArgumentKind::Expression(expression) => format!("expression {expression}"),
+        HostCallArgumentKind::Expression(expression) => {
+            format!("expression {}", expression.display_name())
+        }
     };
 
     output.push_str(&format!("  - {argument_name}\n"));
