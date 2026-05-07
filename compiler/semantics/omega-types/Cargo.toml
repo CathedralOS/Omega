@@ -1,0 +1,13 @@
+[package]
+name = "omega-types"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_types"
+path = "src/lib.rs"
+
+[dependencies]
+omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
+omega-core = { path = "../../foundation/omega-core" }

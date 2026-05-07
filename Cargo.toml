@@ -1,16 +1,16 @@
 [workspace]
 members = [
-    "compiler/omega-core",
-    "compiler/omega-ast",
-    "compiler/omega-lexer",
-    "compiler/omega-parser",
-    "compiler/omega-resolve",
-    "compiler/omega-types",
-    "compiler/omega-graph",
-    "compiler/omega-proof",
-    "compiler/omega-native",
-    "compiler/omega-driver",
-    "omega-cli",
+    "apps/omega-cli",
+    "compiler/foundation/omega-core",
+    "compiler/frontend/omega-abstract-syntax-tree",
+    "compiler/frontend/omega-lexer",
+    "compiler/frontend/omega-parser",
+    "compiler/semantics/omega-names",
+    "compiler/semantics/omega-types",
+    "compiler/semantics/omega-graph",
+    "compiler/semantics/omega-proof",
+    "compiler/backend/omega-native",
+    "compiler/orchestration/omega-compiler",
 ]
 resolver = "3"
 

@@ -12,14 +12,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-ast"
+name = "omega-abstract-syntax-tree"
 version = "0.1.0"
 
 [[package]]
 name = "omega-cli"
 version = "0.1.0"
 dependencies = [
- "omega-driver",
+ "omega-compiler",
+]
+
+[[package]]
+name = "omega-compiler"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-syntax-tree",
+ "omega-core",
+ "omega-graph",
+ "omega-lexer",
+ "omega-names",
+ "omega-native",
+ "omega-parser",
+ "omega-proof",
+ "omega-types",
 ]
 
 [[package]]
@@ -30,25 +45,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-driver"
-version = "0.1.0"
-dependencies = [
- "omega-ast",
- "omega-core",
- "omega-graph",
- "omega-lexer",
- "omega-native",
- "omega-parser",
- "omega-proof",
- "omega-resolve",
- "omega-types",
-]
-
-[[package]]
 name = "omega-graph"
 version = "0.1.0"
 dependencies = [
- "omega-ast",
+ "omega-abstract-syntax-tree",
  "omega-core",
 ]
 
@@ -60,10 +60,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-names"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-syntax-tree",
+ "omega-core",
+]
+
+[[package]]
 name = "omega-native"
 version = "0.1.0"
 dependencies = [
- "omega-ast",
+ "omega-abstract-syntax-tree",
  "omega-core",
 ]
 
@@ -71,7 +79,7 @@ dependencies = [
 name = "omega-parser"
 version = "0.1.0"
 dependencies = [
- "omega-ast",
+ "omega-abstract-syntax-tree",
  "omega-core",
  "omega-lexer",
 ]
@@ -80,15 +88,7 @@ dependencies = [
 name = "omega-proof"
 version = "0.1.0"
 dependencies = [
- "omega-ast",
- "omega-core",
-]
-
-[[package]]
-name = "omega-resolve"
-version = "0.1.0"
-dependencies = [
- "omega-ast",
+ "omega-abstract-syntax-tree",
  "omega-core",
 ]
 
@@ -96,7 +96,7 @@ dependencies = [
 name = "omega-types"
 version = "0.1.0"
 dependencies = [
- "omega-ast",
+ "omega-abstract-syntax-tree",
  "omega-core",
 ]
 

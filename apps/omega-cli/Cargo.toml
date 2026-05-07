@@ -1,0 +1,13 @@
+[package]
+name = "omega-cli"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "omega"
+path = "src/main.rs"
+test = false
+
+[dependencies]
+omega-compiler = { path = "../../compiler/orchestration/omega-compiler" }
