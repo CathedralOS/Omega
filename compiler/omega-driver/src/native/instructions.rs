@@ -296,6 +296,7 @@ fn select_runtime_dispatch_loop_instructions(
 
                 select_runtime_storage_write_for_operation(
                     native_plan,
+                    dispatch_case.dispatch_index,
                     operation,
                     &runtime_aliases,
                     &mut runtime_static_values,
@@ -467,6 +468,7 @@ fn set_runtime_alias(aliases: &mut Vec<RuntimeAliasBinding>, alias: RuntimeAlias
 
 fn select_runtime_storage_write_for_operation(
     native_plan: &NativePlan,
+    dispatch_index: u32,
     operation: &crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperation,
     aliases: &[RuntimeAliasBinding],
     static_values: &mut Vec<(String, i64)>,
@@ -486,6 +488,7 @@ fn select_runtime_storage_write_for_operation(
 
     select_runtime_mutation_writes(
         native_plan,
+        dispatch_index,
         &operation.source_machine,
         &operation.source_state,
         mutation.statement_index,
@@ -500,6 +503,7 @@ fn select_runtime_storage_write_for_operation(
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_mutation_writes(
     native_plan: &NativePlan,
+    dispatch_index: u32,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -517,6 +521,7 @@ fn select_runtime_mutation_writes(
                 append_place_suffix(&resolved_target, std::slice::from_ref(&field.name));
             select_runtime_mutation_writes(
                 native_plan,
+                dispatch_index,
                 source_machine,
                 source_state,
                 statement_index,
@@ -540,6 +545,24 @@ fn select_runtime_mutation_writes(
             value,
             selected_instructions,
         );
+        return;
+    }
+
+    let resolved_value = resolve_runtime_alias_expression(value, source_machine, aliases);
+    if let Some(copy) = runtime_storage_copy(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        &resolved_target,
+        &resolved_value,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: copy,
+            source_machine: source_machine.to_owned(),
+            source_state: source_state.to_owned(),
+            source_statement: statement_index,
+        });
         return;
     }
 
@@ -576,6 +599,41 @@ fn select_runtime_mutation_writes(
         source_state: source_state.to_owned(),
         source_statement: statement_index,
     });
+}
+
+fn runtime_storage_copy(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    source_machine: &str,
+    source_state: &str,
+    target: &Expression,
+    value: &Expression,
+) -> Option<SelectedInstructionKind> {
+    let target_place = resolve_runtime_storage_place(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        target,
+    )?;
+    let source_place = resolve_runtime_storage_place(
+        native_plan,
+        dispatch_index,
+        source_machine,
+        source_state,
+        value,
+    )?;
+    if target_place.byte_count != source_place.byte_count || target_place.byte_count == 0 {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::CopyRuntimeStorage {
+        source_symbol: source_place.symbol,
+        source_offset: source_place.byte_offset,
+        target_symbol: target_place.symbol,
+        target_offset: target_place.byte_offset,
+        byte_count: target_place.byte_count,
+    })
 }
 
 fn select_runtime_string_descriptor_write(

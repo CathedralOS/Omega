@@ -50,7 +50,7 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 }
 
 pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
-    16 + (byte_count / 8) * 8
+    16 + runtime_storage_copy_data_width(byte_count)
 }
 
 pub fn operand_width(operand: &InstructionOperand) -> usize {
@@ -271,20 +271,27 @@ pub fn encode_runtime_storage_copy(
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    if !byte_count.is_multiple_of(8) {
-        return Err(Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) of runtime storage yet"
-        )));
-    }
-
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
 
-    for offset in (0..byte_count).step_by(8) {
-        bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
-        bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
+    match byte_count {
+        1 | 4 => {
+            bytes.extend(encode_load_w_from_x(18, 16, source_offset, byte_count)?);
+            bytes.extend(encode_store_w_to_x(18, 17, target_offset, byte_count)?);
+        }
+        _ if byte_count.is_multiple_of(8) => {
+            for offset in (0..byte_count).step_by(8) {
+                bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
+                bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
+            }
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) of runtime storage yet"
+            )));
+        }
     }
 
     Ok(bytes)
@@ -403,8 +410,17 @@ fn encode_load_byte_w_from_x(
 }
 
 fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_store_w_to_x(17, 16, byte_offset, byte_size)
+}
+
+fn encode_store_w_to_x(
+    source_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+    byte_size: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     match byte_size {
-        1 => encode_store_byte_w17_to_x16(byte_offset),
+        1 => encode_store_byte_w_to_x(source_register, base_register, byte_offset),
         4 => {
             if !byte_offset.is_multiple_of(4) || byte_offset / 4 > 4095 {
                 return Err(Diagnostic::error(format!(
@@ -412,7 +428,10 @@ fn encode_store_w17_to_x16(byte_offset: usize, byte_size: usize) -> Result<Vec<u
                 )));
             }
             Ok(encode_instruction(
-                0xB9000000 | (((byte_offset / 4) as u32) << 10) | (u32::from(16u8) << 5) | 17,
+                0xB9000000
+                    | (((byte_offset / 4) as u32) << 10)
+                    | (u32::from(base_register) << 5)
+                    | u32::from(source_register),
             ))
         }
         _ => Err(Diagnostic::error(format!(
@@ -462,13 +481,24 @@ fn encode_load_x_from_x(
 }
 
 fn encode_store_byte_w17_to_x16(byte_offset: usize) -> Result<Vec<u8>, Diagnostic> {
+    encode_store_byte_w_to_x(17, 16, byte_offset)
+}
+
+fn encode_store_byte_w_to_x(
+    source_register: u8,
+    base_register: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
     if byte_offset > 4095 {
         return Err(Diagnostic::error(format!(
             "AArch64 MVP encoder cannot store byte at offset `{byte_offset}` yet"
         )));
     }
     Ok(encode_instruction(
-        0x39000000 | ((byte_offset as u32) << 10) | (u32::from(16u8) << 5) | 17,
+        0x39000000
+            | ((byte_offset as u32) << 10)
+            | (u32::from(base_register) << 5)
+            | u32::from(source_register),
     ))
 }
 
@@ -556,6 +586,14 @@ fn unsigned_immediate_width(value: u64) -> usize {
         .count();
 
     4 + high_nonzero_halfwords * 4
+}
+
+fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
+    match byte_count {
+        1 | 4 => 8,
+        _ if byte_count.is_multiple_of(8) => (byte_count / 8) * 8,
+        _ => 0,
+    }
 }
 
 fn halfword(value: u64, halfword_shift: u8) -> u16 {
