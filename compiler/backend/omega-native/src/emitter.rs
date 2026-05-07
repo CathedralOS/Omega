@@ -10,11 +10,19 @@ pub struct EmittedNativeOutput {
     pub bytes: Vec<u8>,
     pub file_name: String,
     pub format: String,
+    pub kind: NativeOutputKind,
     pub text_bytes: usize,
     pub data_bytes: usize,
     pub bss_bytes: usize,
     pub symbols: usize,
     pub relocations: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeOutputKind {
+    DirectExecutable,
+    LinkableObject,
+    NativeContainer,
 }
 
 pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedNativeOutput, Diagnostic> {
@@ -72,6 +80,7 @@ fn emit_omega_native_container(
         bytes,
         file_name: "omega-native.omgobj".to_owned(),
         format: "omega-native-object-container".to_owned(),
+        kind: NativeOutputKind::NativeContainer,
         text_bytes: text_bytes.len(),
         data_bytes: data_bytes.len(),
         bss_bytes,

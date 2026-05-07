@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::emitter::EmittedNativeOutput;
+use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
 use crate::final_image::{FinalImage, FinalImageSection, build_final_image};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
@@ -48,6 +48,7 @@ pub fn emit_elf_arm64_executable(
         bytes,
         file_name: "omega-program".to_owned(),
         format: "elf64-aarch64-executable".to_owned(),
+        kind: NativeOutputKind::DirectExecutable,
         text_bytes: image.text.len(),
         data_bytes: image.data.len(),
         bss_bytes: image.bss_size,

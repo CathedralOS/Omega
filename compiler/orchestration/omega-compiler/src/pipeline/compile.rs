@@ -255,17 +255,23 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             })
             .collect());
     }
-    let native_output_path = record_phase(&mut phase_timings, "emit native output", || {
-        let emitted_output =
-            emit_native_output(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
-        artifacts
-            .write_emitted_native_output(&emitted_output)
-            .map_err(|diagnostic| vec![diagnostic])
-    })?;
-    let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
-        let executable_finalization =
-            finalize_native_output(&native_plan, &native_output_path, artifacts.root())
+    let (native_output_path, emitted_output) =
+        record_phase(&mut phase_timings, "emit native output", || {
+            let emitted_output =
+                emit_native_output(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
+            let native_output_path = artifacts
+                .write_emitted_native_output(&emitted_output)
                 .map_err(|diagnostic| vec![diagnostic])?;
+            Ok((native_output_path, emitted_output))
+        })?;
+    let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
+        let executable_finalization = finalize_native_output(
+            &native_plan,
+            &emitted_output,
+            &native_output_path,
+            artifacts.root(),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_executable_finalization_report(&executable_finalization)
             .map_err(|diagnostic| vec![diagnostic])?;

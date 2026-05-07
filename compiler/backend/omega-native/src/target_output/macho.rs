@@ -1,4 +1,4 @@
-use crate::emitter::EmittedNativeOutput;
+use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
 use crate::relocations::{RelocationKind, RelocationRecord};
@@ -74,6 +74,7 @@ pub fn emit_macho_arm64_object(
         bytes,
         file_name: "omega-native.o".to_owned(),
         format: "mach-o-arm64-object".to_owned(),
+        kind: NativeOutputKind::LinkableObject,
         text_bytes: text_bytes.len(),
         data_bytes: data_bytes.len(),
         bss_bytes,

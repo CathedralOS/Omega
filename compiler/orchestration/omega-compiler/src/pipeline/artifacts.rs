@@ -1558,6 +1558,7 @@ impl ArtifactWriter {
         output.push_str("# Omega Emitted Native Output\n\n");
         output.push_str(&format!("path: {}\n", output_path.display()));
         output.push_str(&format!("format: {}\n", emitted_output.format));
+        output.push_str(&format!("kind: {:?}\n", emitted_output.kind));
         output.push_str(&format!("bytes: {}\n", emitted_output.bytes.len()));
         output.push_str(&format!("text bytes: {}\n", emitted_output.text_bytes));
         output.push_str(&format!("data bytes: {}\n", emitted_output.data_bytes));

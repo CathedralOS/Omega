@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
 use crate::plan::NativePlan;
 use crate::target::{Architecture, ObjectFormat};
 use omega_core::diagnostics::Diagnostic;
@@ -29,12 +30,12 @@ struct ExternalLinkerInvocation {
 
 pub fn finalize_native_output(
     native_plan: &NativePlan,
+    emitted_output: &EmittedNativeOutput,
     output_path: &Path,
     build_dir: &Path,
 ) -> Result<ExecutableFinalization, Diagnostic> {
-    let Some(invocation) = plan_external_linker_invocation(native_plan, output_path, build_dir)
-    else {
-        mark_direct_executable_if_needed(output_path)?;
+    if emitted_output.kind == NativeOutputKind::DirectExecutable {
+        mark_executable_if_needed(output_path)?;
         return Ok(ExecutableFinalization {
             executable_path: output_path.to_path_buf(),
             status: ExecutableFinalizationStatus::AlreadyExecutable,
@@ -42,6 +43,14 @@ pub fn finalize_native_output(
             stdout: String::new(),
             stderr: "external linker skipped: native output is already finalized".to_owned(),
         });
+    }
+
+    let Some(invocation) = plan_external_linker_invocation(native_plan, output_path, build_dir)
+    else {
+        return Err(Diagnostic::error(format!(
+            "native output `{}` is {:?}, but no executable finalizer exists for {:?}",
+            emitted_output.format, emitted_output.kind, native_plan.target
+        )));
     };
 
     let command = external_linker_command(&invocation);
@@ -68,19 +77,8 @@ pub fn finalize_native_output(
     })
 }
 
-fn mark_direct_executable_if_needed(path: &Path) -> Result<(), Diagnostic> {
-    if path
-        .file_name()
-        .is_some_and(|file_name| file_name == "omega-program")
-    {
-        mark_executable(path)?;
-    }
-
-    Ok(())
-}
-
 #[cfg(unix)]
-fn mark_executable(path: &Path) -> Result<(), Diagnostic> {
+fn mark_executable_if_needed(path: &Path) -> Result<(), Diagnostic> {
     use std::os::unix::fs::PermissionsExt;
 
     let mut permissions = std::fs::metadata(path)
@@ -101,7 +99,7 @@ fn mark_executable(path: &Path) -> Result<(), Diagnostic> {
 }
 
 #[cfg(not(unix))]
-fn mark_executable(_path: &Path) -> Result<(), Diagnostic> {
+fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
     Ok(())
 }
 
