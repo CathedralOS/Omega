@@ -1097,6 +1097,17 @@ impl ArtifactWriter {
                                 transition_guard_name(&edge.guard)
                             ));
 
+                            if !edge.target_arguments.is_empty() {
+                                output.push_str(&format!(
+                                    " args ({})",
+                                    edge.target_arguments
+                                        .iter()
+                                        .map(|argument| argument.display_name())
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                ));
+                            }
+
                             if edge.continuation != RuntimeTransitionTarget::None {
                                 output.push_str(&format!(
                                     " -> {}",
@@ -1121,6 +1132,10 @@ impl ArtifactWriter {
             "operations: {}\n",
             native_plan.runtime_branching_calls.leaf_operations.len()
         ));
+        output.push_str(&format!(
+            "bindings: {}\n",
+            native_plan.runtime_branching_calls.leaf_bindings.len()
+        ));
         if native_plan
             .runtime_branching_calls
             .leaf_expansions
@@ -1143,6 +1158,28 @@ impl ArtifactWriter {
                     expansion.guard_kind,
                     transition_guard_name(&expansion.guard)
                 ));
+
+                match native_plan
+                    .runtime_branching_calls
+                    .leaf_bindings
+                    .span(expansion.bindings)
+                {
+                    Some(bindings) if bindings.is_empty() => {
+                        output.push_str("  bindings: none\n");
+                    }
+                    Some(bindings) => {
+                        output.push_str("  bindings:\n");
+                        for binding in bindings {
+                            output.push_str(&format!(
+                                "    - {:?} `{}` = `{}`\n",
+                                binding.kind,
+                                binding.parameter_name,
+                                binding.expression.display_name()
+                            ));
+                        }
+                    }
+                    None => output.push_str("  bindings: invalid span\n"),
+                }
 
                 match native_plan
                     .runtime_branching_calls

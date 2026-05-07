@@ -6,7 +6,7 @@ use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::guards::{StateGuardKind, classify_transition_guard};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
-use crate::native::state_calls::StateCallLowering;
+use crate::native::state_calls::{StateCall, StateCallArgumentKind, StateCallLowering};
 use crate::native::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -16,6 +16,7 @@ pub struct RuntimeBranchingCallPlan {
     pub edges: Arena<RuntimeBranchingCallEdge>,
     pub leaf_expansions: Arena<RuntimeLeafBranchExpansion>,
     pub leaf_operations: Arena<RuntimeLeafBranchOperation>,
+    pub leaf_bindings: Arena<RuntimeLeafBranchBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +54,7 @@ pub struct RuntimeBranchingCallEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
+    pub target_arguments: Vec<Expression>,
     pub guard_kind: StateGuardKind,
     pub lowering: RuntimeBranchTargetLowering,
 }
@@ -64,6 +66,7 @@ impl Default for RuntimeBranchingCallEdge {
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
+            target_arguments: Vec::new(),
             guard_kind: StateGuardKind::Always,
             lowering: RuntimeBranchTargetLowering::Unknown,
         }
@@ -104,6 +107,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub guard_kind: StateGuardKind,
     pub leaf_machine: String,
     pub leaf_state: String,
+    pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
     pub operations: HandleSpan<RuntimeLeafBranchOperation>,
 }
 
@@ -121,9 +125,34 @@ impl Default for RuntimeLeafBranchExpansion {
             guard_kind: StateGuardKind::Always,
             leaf_machine: String::new(),
             leaf_state: String::new(),
+            bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeLeafBranchBinding {
+    pub parameter_name: String,
+    pub expression: Expression,
+    pub kind: RuntimeLeafBranchBindingKind,
+}
+
+impl Default for RuntimeLeafBranchBinding {
+    fn default() -> Self {
+        Self {
+            parameter_name: String::new(),
+            expression: Expression::Integer(0),
+            kind: RuntimeLeafBranchBindingKind::BranchParameter,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeLeafBranchBindingKind {
+    #[default]
+    BranchParameter,
+    LeafParameter,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -179,6 +208,14 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 continue;
             };
 
+            let Some(state_call) = state_call_for_operation(
+                native_plan,
+                &operation.source_machine,
+                &operation.source_state,
+                operation.statement_index,
+            ) else {
+                continue;
+            };
             let branch_edges = build_branch_edges(native_plan, target_machine, target_state);
             let expansion = classify_branch_call_expansion(&branch_edges);
             if matches!(
@@ -196,6 +233,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                     target_machine,
                     target_state,
                     &branch_edges,
+                    state_call,
                 );
             }
             let edges = plan.edges.insert_many(branch_edges);
@@ -227,6 +265,7 @@ fn append_leaf_branch_expansions(
     branch_machine: &str,
     branch_state: &str,
     edges: &[RuntimeBranchingCallEdge],
+    state_call: &StateCall,
 ) {
     for edge in edges {
         if edge.lowering != RuntimeBranchTargetLowering::InlineLeaf {
@@ -241,6 +280,15 @@ fn append_leaf_branch_expansions(
             continue;
         };
 
+        let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
+            native_plan,
+            state_call,
+            branch_machine,
+            branch_state,
+            leaf_machine,
+            leaf_state,
+            &edge.target_arguments,
+        ));
         let operations = plan.leaf_operations.insert_many(leaf_operations(
             native_plan,
             leaf_machine,
@@ -259,8 +307,113 @@ fn append_leaf_branch_expansions(
             guard_kind: edge.guard_kind,
             leaf_machine: leaf_machine.clone(),
             leaf_state: leaf_state.clone(),
+            bindings,
             operations,
         });
+    }
+}
+
+fn leaf_branch_bindings(
+    native_plan: &NativePlan,
+    state_call: &StateCall,
+    branch_machine: &str,
+    branch_state: &str,
+    leaf_machine: &str,
+    leaf_state: &str,
+    leaf_arguments: &[Expression],
+) -> Vec<RuntimeLeafBranchBinding> {
+    let branch_bindings = branch_parameter_bindings(native_plan, state_call);
+    let mut bindings = branch_bindings
+        .iter()
+        .map(|(parameter_name, expression)| RuntimeLeafBranchBinding {
+            parameter_name: parameter_name.clone(),
+            expression: expression.clone(),
+            kind: RuntimeLeafBranchBindingKind::BranchParameter,
+        })
+        .collect::<Vec<_>>();
+
+    let leaf_parameters = state_parameters(native_plan, leaf_machine, leaf_state);
+    bindings.extend(leaf_parameters.iter().enumerate().filter_map(
+        |(parameter_index, parameter_name)| {
+            let expression = leaf_arguments.get(parameter_index)?;
+            Some(RuntimeLeafBranchBinding {
+                parameter_name: parameter_name.clone(),
+                expression: resolve_branch_expression(expression, &branch_bindings),
+                kind: RuntimeLeafBranchBindingKind::LeafParameter,
+            })
+        },
+    ));
+
+    if state_parameters(native_plan, branch_machine, branch_state).is_empty() {
+        return bindings;
+    }
+
+    bindings
+}
+
+fn branch_parameter_bindings(
+    native_plan: &NativePlan,
+    state_call: &StateCall,
+) -> Vec<(String, Expression)> {
+    native_plan
+        .state_calls
+        .arguments
+        .span(state_call.arguments)
+        .map(|arguments| {
+            arguments
+                .iter()
+                .map(|argument| {
+                    let expression = if argument.kind == StateCallArgumentKind::MutableAlias
+                        && !matches!(argument.expression, Expression::Mutable(_))
+                    {
+                        Expression::Mutable(Box::new(argument.expression.clone()))
+                    } else {
+                        argument.expression.clone()
+                    };
+                    (argument.parameter_name.clone(), expression)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn resolve_branch_expression(
+    expression: &Expression,
+    branch_bindings: &[(String, Expression)],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target = resolve_branch_expression(target, branch_bindings);
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Name(path) if !path.is_empty() => branch_bindings
+            .iter()
+            .find(|(parameter_name, _)| parameter_name == &path[0])
+            .map(|(_, bound_expression)| append_place_suffix(bound_expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
+}
+
+fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression {
+    if suffix.is_empty() {
+        return expression.clone();
+    }
+
+    match expression {
+        Expression::Name(path) => {
+            let mut resolved_path = path.clone();
+            resolved_path.extend_from_slice(suffix);
+            Expression::Name(resolved_path)
+        }
+        Expression::Mutable(target) => {
+            Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
+        }
+        _ => expression.clone(),
     }
 }
 
@@ -349,11 +502,20 @@ fn build_branch_edges(
                         runtime_transition_target(machine, state_name, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
+                target_arguments: transition_target_arguments(&transition.target),
                 guard_kind: classify_transition_guard(&transition.guard),
                 guard: transition.guard.clone(),
             }
         })
         .collect()
+}
+
+fn transition_target_arguments(target: &PlannedTransitionTarget) -> Vec<Expression> {
+    match target {
+        PlannedTransitionTarget::State { arguments, .. }
+        | PlannedTransitionTarget::Nested { arguments, .. } => arguments.clone(),
+        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => Vec::new(),
+    }
 }
 
 fn branch_target_lowering(
@@ -524,6 +686,32 @@ fn machine_flow<'plan>(
         .iter()
         .find(|(_, machine)| machine.name == machine_name)
         .map(|(_, machine)| machine)
+}
+
+fn state_call_for_operation<'plan>(
+    native_plan: &'plan NativePlan,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+) -> Option<&'plan StateCall> {
+    native_plan
+        .state_calls
+        .calls
+        .iter()
+        .find(|(_, state_call)| {
+            state_call.source_machine == source_machine
+                && state_call.source_state == source_state
+                && state_call.statement_index == statement_index
+        })
+        .map(|(_, state_call)| state_call)
+}
+
+fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> Vec<String> {
+    machine_flow(native_plan, machine_name)
+        .and_then(|machine| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .map(|state| state.parameters.clone())
+        .unwrap_or_default()
 }
 
 fn state_statement_has_host_call(

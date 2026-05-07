@@ -1501,6 +1501,78 @@ fn reports_runtime_leaf_branch_expansion_blocker() {
 }
 
 #[test]
+fn plans_runtime_leaf_branch_argument_bindings() {
+    let tokens = Lexer::new(
+        r#"
+            data CellId {
+                Empty,
+                A1,
+                A2,
+            }
+
+            data Cell {
+                id: CellId;
+            }
+
+            machine main {
+                owns selected: Cell;
+                owns first: Cell = Cell { id: CellId::A1 };
+
+                state entry {
+                    scan(first, CellId::A1, mut selected);
+                    -> self;
+                }
+
+                state scan(cell: Cell, id: CellId, mut out_cell: Cell) {
+                    -> apply(cell, mut out_cell) when cell.id == id;
+                    ->
+                }
+
+                state apply(cell: Cell, mut out_cell: Cell) {
+                    out_cell = cell;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build leaf branch bindings");
+    let expansion = native_plan
+        .runtime_branching_calls
+        .leaf_expansions
+        .iter()
+        .find(|(_, expansion)| expansion.leaf_state == "apply")
+        .map(|(_, expansion)| expansion)
+        .expect("apply leaf expansion should be planned");
+    let bindings = native_plan
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .expect("leaf branch bindings should resolve");
+
+    assert!(bindings.iter().any(|binding| {
+        binding.kind
+            == crate::native::runtime_dispatch::branching::RuntimeLeafBranchBindingKind::BranchParameter
+            && binding.parameter_name == "cell"
+            && binding.expression.display_name() == "first"
+    }));
+    assert!(bindings.iter().any(|binding| {
+        binding.kind
+            == crate::native::runtime_dispatch::branching::RuntimeLeafBranchBindingKind::LeafParameter
+            && binding.parameter_name == "out_cell"
+            && binding.expression.display_name() == "mut selected"
+    }));
+}
+
+#[test]
 fn selects_instructions_for_runtime_reachable_loop_states() {
     let tokens = Lexer::new(
         r#"
