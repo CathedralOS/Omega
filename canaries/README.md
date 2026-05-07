@@ -13,3 +13,4 @@ Current feature canaries:
 6. `record_array_field_access` checks simple records, arrays, and field reads.
 7. `runtime_text_storage` checks dynamic text slots fed by literals and console input.
 8. `guarded_leaf_branch_expansion` checks small guarded helper states with leaf-body writes.
+9. `runtime_text_builder` checks generated text assembled from static and stored segments.

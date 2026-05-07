@@ -2933,6 +2933,29 @@ fn plans_required_state_value_uses() {
                         == crate::native::runtime_text::RuntimeTextWriteKind::GeneratedString
             })
     );
+    let (_, builder) = native_plan
+        .runtime_text
+        .builders
+        .iter()
+        .find(|(_, builder)| builder.target.display_name() == "line::text")
+        .expect("generated text write should have a string builder plan");
+    let segments = native_plan
+        .runtime_text
+        .builder_segments
+        .span(builder.segments)
+        .expect("builder segments should resolve");
+
+    assert_eq!(segments.len(), 2);
+    assert_eq!(segments[0].expression.display_name(), "\"Room \"");
+    assert_eq!(
+        segments[0].kind,
+        crate::native::runtime_text::RuntimeTextBuilderSegmentKind::StaticText
+    );
+    assert_eq!(segments[1].expression.display_name(), "\"A1\"");
+    assert_eq!(
+        segments[1].kind,
+        crate::native::runtime_text::RuntimeTextBuilderSegmentKind::StaticText
+    );
 }
 
 #[test]

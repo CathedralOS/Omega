@@ -1,8 +1,8 @@
-use crate::ir::expression::Expression;
+use crate::ir::expression::{BinaryOperator, Expression};
 use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::native::plan::NativePlan;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeTextPlan {
@@ -10,6 +10,8 @@ pub struct RuntimeTextPlan {
     pub buffers: Arena<RuntimeTextBuffer>,
     pub slots: Arena<RuntimeTextSlot>,
     pub writes: Arena<RuntimeTextWrite>,
+    pub builders: Arena<RuntimeTextBuilder>,
+    pub builder_segments: Arena<RuntimeTextBuilderSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +52,21 @@ pub struct RuntimeTextWrite {
     pub kind: RuntimeTextWriteKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeTextBuilder {
+    pub machine: String,
+    pub state: String,
+    pub statement_index: usize,
+    pub target: Expression,
+    pub segments: HandleSpan<RuntimeTextBuilderSegment>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeTextBuilderSegment {
+    pub expression: Expression,
+    pub kind: RuntimeTextBuilderSegmentKind,
+}
+
 impl Default for RuntimeTextWrite {
     fn default() -> Self {
         Self {
@@ -63,11 +80,40 @@ impl Default for RuntimeTextWrite {
     }
 }
 
+impl Default for RuntimeTextBuilder {
+    fn default() -> Self {
+        Self {
+            machine: String::new(),
+            state: String::new(),
+            statement_index: 0,
+            target: Expression::String(String::new()),
+            segments: HandleSpan::empty(),
+        }
+    }
+}
+
+impl Default for RuntimeTextBuilderSegment {
+    fn default() -> Self {
+        Self {
+            expression: Expression::String(String::new()),
+            kind: RuntimeTextBuilderSegmentKind::OtherExpression,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RuntimeTextWriteKind {
     StaticText,
     StoredCopy,
     GeneratedString,
+    #[default]
+    OtherExpression,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeTextBuilderSegmentKind {
+    StaticText,
+    StoredPlace,
     #[default]
     OtherExpression,
 }
@@ -125,6 +171,7 @@ pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
         collect_host_call_runtime_text(&native_plan.host_calls, host_call, &mut plan);
     }
     collect_runtime_text_writes(native_plan, &mut plan);
+    collect_runtime_text_builders(&mut plan);
     plan.slots = build_runtime_text_slots(&plan);
 
     plan
@@ -315,6 +362,63 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
             value: mutation.value.clone(),
             kind: classify_runtime_text_write(&mutation.value),
         });
+    }
+}
+
+fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
+    let writes = plan
+        .writes
+        .iter()
+        .map(|(_, write)| write.clone())
+        .collect::<Vec<_>>();
+
+    for write in writes {
+        if write.kind != RuntimeTextWriteKind::GeneratedString {
+            continue;
+        }
+
+        let mut segments = Vec::new();
+        collect_builder_segments(&write.value, &mut segments);
+        let segment_span = plan.builder_segments.insert_many(segments);
+        plan.builders.insert(RuntimeTextBuilder {
+            machine: write.machine,
+            state: write.state,
+            statement_index: write.statement_index,
+            target: write.target,
+            segments: segment_span,
+        });
+    }
+}
+
+fn collect_builder_segments(
+    expression: &Expression,
+    segments: &mut Vec<RuntimeTextBuilderSegment>,
+) {
+    if let Expression::Binary(binary) = expression
+        && binary.operator == BinaryOperator::Add
+    {
+        collect_builder_segments(&binary.left, segments);
+        collect_builder_segments(&binary.right, segments);
+        return;
+    }
+
+    segments.push(RuntimeTextBuilderSegment {
+        expression: expression.clone(),
+        kind: classify_runtime_text_builder_segment(expression),
+    });
+}
+
+fn classify_runtime_text_builder_segment(expression: &Expression) -> RuntimeTextBuilderSegmentKind {
+    match expression {
+        Expression::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
+        Expression::Name(_) | Expression::Indexed(_) => RuntimeTextBuilderSegmentKind::StoredPlace,
+        Expression::ArrayLiteral(_)
+        | Expression::Binary(_)
+        | Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::Mutable(_)
+        | Expression::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
     }
 }
 

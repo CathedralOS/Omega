@@ -674,6 +674,14 @@ impl ArtifactWriter {
             "writes: {}\n",
             native_plan.runtime_text.writes.len()
         ));
+        output.push_str(&format!(
+            "builders: {}\n",
+            native_plan.runtime_text.builders.len()
+        ));
+        output.push_str(&format!(
+            "builder segments: {}\n",
+            native_plan.runtime_text.builder_segments.len()
+        ));
         if native_plan.runtime_text.uses.is_empty() {
             output.push_str("uses: none\n");
         } else {
@@ -728,6 +736,33 @@ impl ArtifactWriter {
                     text_write.value.display_name(),
                     text_write.kind
                 ));
+            }
+        }
+        if native_plan.runtime_text.builders.is_empty() {
+            output.push_str("builders: none\n");
+        } else {
+            for (_, text_builder) in native_plan.runtime_text.builders.iter() {
+                output.push_str(&format!(
+                    "- builder {}.{} statement {} `{}` segments {}\n",
+                    text_builder.machine,
+                    text_builder.state,
+                    text_builder.statement_index,
+                    text_builder.target.display_name(),
+                    text_builder.segments.count()
+                ));
+                if let Some(segments) = native_plan
+                    .runtime_text
+                    .builder_segments
+                    .span(text_builder.segments)
+                {
+                    for segment in segments {
+                        output.push_str(&format!(
+                            "  - segment `{}` {:?}\n",
+                            segment.expression.display_name(),
+                            segment.kind
+                        ));
+                    }
+                }
             }
         }
         output.push('\n');

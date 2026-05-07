@@ -1,0 +1,26 @@
+data Room {
+    label: String;
+}
+
+data Line {
+    text: String;
+}
+
+platform Console {
+    state write_line(text: String);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    owns room: Room;
+    owns line: Line;
+
+    state entry {
+        room.label = "A1";
+        line.text = "Room " + room.label;
+        console.write_line(line.text);
+        console.exit_process(0);
+    }
+}
