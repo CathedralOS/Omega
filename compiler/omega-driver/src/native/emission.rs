@@ -5,6 +5,7 @@ use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::state_storage::StateMutationLowering;
+use crate::native::state_values::StateValueKind;
 use crate::native::target::ObjectFormat;
 use omega_core::arena::Arena;
 
@@ -33,12 +34,12 @@ pub struct EmissionBlocker {
 
 pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     let mut blockers = Arena::new();
-    let state_schedule = match build_entry_state_schedule(native_plan) {
-        Ok(state_schedule) => state_schedule,
+    let (state_schedule, needs_runtime_dispatch) = match build_entry_state_schedule(native_plan) {
+        Ok(state_schedule) => (state_schedule, false),
         Err(reason) => {
             blockers.insert(blocker("state schedule", &reason));
             collect_runtime_dispatch_blockers(native_plan, &mut blockers);
-            runtime_and_required_states(native_plan)
+            (runtime_and_required_states(native_plan), true)
         }
     };
 
@@ -74,6 +75,9 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
     collect_state_call_blockers(native_plan, &mut blockers);
     collect_state_storage_blockers(native_plan, &mut blockers);
+    if needs_runtime_dispatch {
+        collect_state_value_blockers(native_plan, &mut blockers);
+    }
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
 
     if !can_emit_real_object(native_plan) {
@@ -186,6 +190,50 @@ fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<Em
             ),
         ));
     }
+}
+
+fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+    for (_, value) in native_plan.state_values.values.iter() {
+        if !value.required || value.kind != StateValueKind::Binary {
+            continue;
+        }
+
+        if state_value_is_static_assignment(native_plan, value) {
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state values",
+            &format!(
+                "{}.{} statement {} {:?} binary expression `{}` needs runtime value lowering",
+                value.machine,
+                value.state,
+                value.statement_index,
+                value.role,
+                value.expression.display_name()
+            ),
+        ));
+    }
+}
+
+fn state_value_is_static_assignment(
+    native_plan: &NativePlan,
+    value: &crate::native::state_values::StateValueUse,
+) -> bool {
+    if value.role != crate::native::state_values::StateValueRole::AssignmentValue {
+        return false;
+    }
+    let Some(state) = state_flow(native_plan, &value.machine, &value.state) else {
+        return false;
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return false;
+    };
+
+    operations.iter().any(|operation| {
+        operation.statement_index == value.statement_index
+            && matches!(operation.kind, OperationKind::StaticAssignment { .. })
+    })
 }
 
 fn collect_state_storage_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {

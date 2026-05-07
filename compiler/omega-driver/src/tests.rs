@@ -2393,6 +2393,46 @@ fn plans_state_storage_and_mutations() {
 }
 
 #[test]
+fn plans_required_state_value_uses() {
+    let tokens = Lexer::new(
+        r#"
+            data Line {
+                text: String;
+            }
+
+            machine main {
+                owns line: Line;
+
+                state entry {
+                    line.text = "Room " + "A1";
+                    -> done when line.text == "Room A1";
+                }
+
+                state done {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should collect value uses");
+
+    assert!(native_plan.state_values.values.iter().any(|(_, value)| {
+        value.required
+            && value.kind == crate::native::state_values::StateValueKind::Binary
+            && value.role == crate::native::state_values::StateValueRole::TransitionGuard
+    }));
+}
+
+#[test]
 fn lowers_constant_integer_assignment_before_host_call() {
     let tokens = Lexer::new(
         r#"

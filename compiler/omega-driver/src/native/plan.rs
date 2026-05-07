@@ -13,6 +13,7 @@ use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
 use crate::native::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::native::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::native::state_storage::{StateStoragePlan, build_state_storage_plan};
+use crate::native::state_values::{StateValuePlan, build_state_value_plan};
 use crate::native::target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +23,7 @@ pub struct NativePlan {
     pub host_calls: HostCallPlan,
     pub state_calls: StateCallPlan,
     pub state_storage: StateStoragePlan,
+    pub state_values: StateValuePlan,
     pub data: NativeDataPlan,
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
@@ -51,6 +53,7 @@ pub fn build_native_plan(
         host_calls: HostCallPlan::default(),
         state_calls: StateCallPlan::default(),
         state_storage: StateStoragePlan::default(),
+        state_values: StateValuePlan::default(),
         data: NativeDataPlan::default(),
         instructions: InstructionPlan {
             target,
@@ -79,6 +82,7 @@ pub fn build_native_plan(
     native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
     native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.state_storage = build_state_storage_plan(program, &native_plan);
+    native_plan.state_values = build_state_value_plan(program, &native_plan);
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);

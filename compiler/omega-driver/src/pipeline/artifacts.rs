@@ -558,6 +558,25 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## State Values\n");
+        output.push_str(&format!(
+            "values: {}\n",
+            native_plan.state_values.values.len()
+        ));
+        for (_, value) in native_plan.state_values.values.iter() {
+            output.push_str(&format!(
+                "- {}.{} statement {} {:?}/{:?}: `{}` required {}\n",
+                value.machine,
+                value.state,
+                value.statement_index,
+                value.role,
+                value.kind,
+                value.expression.display_name(),
+                value.required
+            ));
+        }
+        output.push('\n');
+
         output.push_str("## Native Data\n");
         output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
         output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));
