@@ -21,6 +21,13 @@ use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeAliasBinding {
+    machine: String,
+    parameter_name: String,
+    expression: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionPlan {
     pub target: NativeTarget,
     pub functions: Arena<FunctionInstructionPlan>,
@@ -258,7 +265,20 @@ fn select_runtime_dispatch_loop_instructions(
                 .operations
                 .span(runtime_body.operations)
         {
+            let mut runtime_aliases = Vec::new();
+            let mut runtime_static_values = Vec::new();
+
             for operation in operations {
+                bind_runtime_operation_aliases(native_plan, operation, &mut runtime_aliases);
+
+                select_runtime_storage_write_for_operation(
+                    native_plan,
+                    operation,
+                    &runtime_aliases,
+                    &mut runtime_static_values,
+                    selected_instructions,
+                );
+
                 if let Some(host_call) = host_call_for_statement(
                     native_plan,
                     &operation.source_machine,
@@ -360,6 +380,248 @@ fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Unknown => {}
+    }
+}
+
+fn bind_runtime_operation_aliases(
+    native_plan: &NativePlan,
+    operation: &crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperation,
+    aliases: &mut Vec<RuntimeAliasBinding>,
+) {
+    match &operation.kind {
+        RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
+        | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
+        RuntimeDispatchBodyOperationKind::HostCall { .. }
+        | RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+        | RuntimeDispatchBodyOperationKind::Mutation { .. }
+        | RuntimeDispatchBodyOperationKind::Other => return,
+    }
+
+    let Some(state_call) = state_call_for_statement(
+        native_plan,
+        &operation.source_machine,
+        &operation.source_state,
+        operation.statement_index,
+    ) else {
+        return;
+    };
+    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+        return;
+    };
+
+    for argument in arguments {
+        if argument.kind != crate::native::state_calls::StateCallArgumentKind::MutableAlias {
+            continue;
+        }
+
+        let expression = strip_mutable_expression(resolve_runtime_alias_expression(
+            &argument.expression,
+            &state_call.source_machine,
+            aliases,
+        ));
+        set_runtime_alias(
+            aliases,
+            RuntimeAliasBinding {
+                machine: state_call.target_machine.clone(),
+                parameter_name: argument.parameter_name.clone(),
+                expression,
+            },
+        );
+    }
+}
+
+fn set_runtime_alias(aliases: &mut Vec<RuntimeAliasBinding>, alias: RuntimeAliasBinding) {
+    if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
+        existing_alias.machine == alias.machine
+            && existing_alias.parameter_name == alias.parameter_name
+    }) {
+        *existing_alias = alias;
+    } else {
+        aliases.push(alias);
+    }
+}
+
+fn select_runtime_storage_write_for_operation(
+    native_plan: &NativePlan,
+    operation: &crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperation,
+    aliases: &[RuntimeAliasBinding],
+    static_values: &mut Vec<(String, i64)>,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let RuntimeDispatchBodyOperationKind::Mutation { .. } = &operation.kind else {
+        return;
+    };
+    let Some(mutation) = state_mutation_for_statement(
+        native_plan,
+        &operation.source_machine,
+        &operation.source_state,
+        operation.statement_index,
+    ) else {
+        return;
+    };
+
+    select_runtime_mutation_writes(
+        native_plan,
+        &operation.source_machine,
+        &operation.source_state,
+        mutation.statement_index,
+        &mutation.target,
+        &mutation.value,
+        aliases,
+        static_values,
+        selected_instructions,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_mutation_writes(
+    native_plan: &NativePlan,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    target: &Expression,
+    value: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    static_values: &mut Vec<(String, i64)>,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    let resolved_target = resolve_runtime_alias_expression(target, source_machine, aliases);
+
+    if let Expression::StructLiteral(struct_literal) = value {
+        for field in &struct_literal.fields {
+            let field_target =
+                append_place_suffix(&resolved_target, std::slice::from_ref(&field.name));
+            select_runtime_mutation_writes(
+                native_plan,
+                source_machine,
+                source_state,
+                statement_index,
+                &field_target,
+                &field.value,
+                aliases,
+                static_values,
+                selected_instructions,
+            );
+        }
+        return;
+    }
+
+    let Some(value) = resolve_runtime_static_integer_value(
+        native_plan,
+        source_machine,
+        value,
+        aliases,
+        static_values,
+    ) else {
+        return;
+    };
+    let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
+        &native_plan.layouts,
+        &native_plan.entry_machine,
+        source_machine,
+        &resolved_target,
+    ) else {
+        return;
+    };
+
+    set_runtime_static_value(
+        static_values,
+        strip_mutable_expression(resolved_target.clone()).display_name(),
+        value,
+    );
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
+            byte_offset,
+            byte_size,
+            value,
+        },
+        source_machine: source_machine.to_owned(),
+        source_state: source_state.to_owned(),
+        source_statement: statement_index,
+    });
+}
+
+fn resolve_runtime_static_integer_value(
+    native_plan: &NativePlan,
+    source_machine: &str,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    static_values: &[(String, i64)],
+) -> Option<i64> {
+    match expression {
+        Expression::Integer(value) => Some(*value),
+        Expression::Name(_) => enum_variant_value(&native_plan.layouts, expression).or_else(|| {
+            let resolved_expression =
+                resolve_runtime_alias_expression(expression, source_machine, aliases);
+            let resolved_expression = strip_mutable_expression(resolved_expression);
+            static_values
+                .iter()
+                .find(|(target, _)| target == &resolved_expression.display_name())
+                .map(|(_, value)| *value)
+        }),
+        Expression::Indexed(_) | Expression::Mutable(_) => {
+            let resolved_expression =
+                resolve_runtime_alias_expression(expression, source_machine, aliases);
+            let resolved_expression = strip_mutable_expression(resolved_expression);
+            static_values
+                .iter()
+                .find(|(target, _)| target == &resolved_expression.display_name())
+                .map(|(_, value)| *value)
+        }
+        Expression::Boolean(value) => Some(i64::from(*value)),
+        Expression::ArrayLiteral(_)
+        | Expression::Binary(_)
+        | Expression::Float(_)
+        | Expression::String(_)
+        | Expression::StructLiteral(_) => None,
+    }
+}
+
+fn set_runtime_static_value(static_values: &mut Vec<(String, i64)>, target: String, value: i64) {
+    if let Some((_, existing_value)) = static_values
+        .iter_mut()
+        .find(|(existing_target, _)| existing_target == &target)
+    {
+        *existing_value = value;
+    } else {
+        static_values.push((target, value));
+    }
+}
+
+fn strip_mutable_expression(expression: Expression) -> Expression {
+    match expression {
+        Expression::Mutable(target) => *target,
+        _ => expression,
+    }
+}
+
+fn resolve_runtime_alias_expression(
+    expression: &Expression,
+    source_machine: &str,
+    aliases: &[RuntimeAliasBinding],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => Expression::Mutable(Box::new(
+            resolve_runtime_alias_expression(target, source_machine, aliases),
+        )),
+        Expression::Indexed(indexed) => {
+            Expression::Indexed(Box::new(crate::ir::expression::IndexedExpression {
+                collection: resolve_runtime_alias_expression(
+                    &indexed.collection,
+                    source_machine,
+                    aliases,
+                ),
+                index: resolve_runtime_alias_expression(&indexed.index, source_machine, aliases),
+            }))
+        }
+        Expression::Name(path) if !path.is_empty() => aliases
+            .iter()
+            .rev()
+            .find(|alias| alias.machine == source_machine && alias.parameter_name == path[0])
+            .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
     }
 }
 
@@ -501,11 +763,35 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
             resolved_path.extend_from_slice(suffix);
             Expression::Name(resolved_path)
         }
+        Expression::Indexed(indexed) => {
+            if let Some(mut indexed_path) = indexed_expression_path(indexed) {
+                indexed_path.extend_from_slice(suffix);
+                Expression::Name(indexed_path)
+            } else {
+                expression.clone()
+            }
+        }
         Expression::Mutable(target) => {
             Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
         }
         _ => expression.clone(),
     }
+}
+
+fn indexed_expression_path(
+    indexed: &crate::ir::expression::IndexedExpression,
+) -> Option<Vec<String>> {
+    let Expression::Integer(index) = &indexed.index else {
+        return None;
+    };
+    let mut path = match &indexed.collection {
+        Expression::Name(path) => path.clone(),
+        Expression::Indexed(inner_indexed) => indexed_expression_path(inner_indexed)?,
+        _ => return None,
+    };
+    let last_segment = path.last_mut()?;
+    *last_segment = format!("{last_segment}[{index}]");
+    Some(path)
 }
 
 fn select_state_body_instructions(
@@ -639,6 +925,24 @@ fn state_call_for_statement<'plan>(
                 && state_call.statement_index == statement_index
         })
         .map(|(_, state_call)| state_call)
+}
+
+fn state_mutation_for_statement<'plan>(
+    native_plan: &'plan NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> Option<&'plan crate::native::state_storage::StateMutation> {
+    native_plan
+        .state_storage
+        .mutations
+        .iter()
+        .find(|(_, mutation)| {
+            mutation.machine == machine_name
+                && mutation.state == state_name
+                && mutation.statement_index == statement_index
+        })
+        .map(|(_, mutation)| mutation)
 }
 
 fn runtime_reachable_states(
@@ -1029,12 +1333,55 @@ fn resolve_machine_owned_place(
         Expression::Mutable(target) => target.as_ref(),
         _ => expression,
     };
+    let normalized_expression;
+    let expression = match expression {
+        Expression::Indexed(indexed) => {
+            normalized_expression = Expression::Name(indexed_expression_path(indexed)?);
+            &normalized_expression
+        }
+        _ => expression,
+    };
     let Expression::Name(path) = expression else {
         return None;
     };
     let [root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
+    let (machine_base_offset, root_field) =
+        root_machine_field_layout(layouts, entry_machine, source_machine, root_name)?;
+    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+
+    Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+fn root_machine_field_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+    root_name: &str,
+) -> Option<(usize, &'plan FieldLayout)> {
+    root_machine_field_layout_for_machine(layouts, entry_machine, source_machine, root_name)
+        .or_else(|| {
+            layouts
+                .machine_layouts
+                .iter()
+                .find_map(|(_, machine_layout)| {
+                    root_machine_field_layout_for_machine(
+                        layouts,
+                        entry_machine,
+                        &machine_layout.name,
+                        root_name,
+                    )
+                })
+        })
+}
+
+fn root_machine_field_layout_for_machine<'plan>(
+    layouts: &'plan LayoutPlan,
+    entry_machine: &str,
+    source_machine: &str,
+    root_name: &str,
+) -> Option<(usize, &'plan FieldLayout)> {
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts
@@ -1042,9 +1389,7 @@ fn resolve_machine_owned_place(
         .find(|(_, machine_layout)| machine_layout.name == source_machine)
         .map(|(_, machine_layout)| machine_layout)?;
     let root_field = field_layout(layouts, machine_layout.fields, root_name)?;
-    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
-
-    Some((machine_base_offset + field_offset, field_layout.size))
+    Some((machine_base_offset, root_field))
 }
 
 fn machine_storage_offset(
@@ -1079,6 +1424,7 @@ fn resolve_nested_field_layout(
     let mut layout = root_field.layout;
 
     for field_name in suffix {
+        let field_segment = parse_field_segment(field_name)?;
         let data_layout = layouts
             .data_layouts
             .iter()
@@ -1087,13 +1433,60 @@ fn resolve_nested_field_layout(
         let DataShape::Record { fields } = &data_layout.shape else {
             return None;
         };
-        let field = field_layout(layouts, *fields, field_name)?;
+        let field = field_layout(layouts, *fields, field_segment.name)?;
         byte_offset += field.offset;
         type_name = &field.type_name;
         layout = field.layout;
+
+        if let Some(index) = field_segment.index {
+            let array = parse_array_type_name(type_name)?;
+            if index >= array.length {
+                return None;
+            }
+            let element_layout = TypeLayout {
+                size: layout.size / array.length,
+                alignment: layout.alignment,
+            };
+            byte_offset += element_layout.size * index;
+            type_name = array.element_type_name;
+            layout = element_layout;
+        }
     }
 
     Some((byte_offset, layout))
+}
+
+struct FieldSegment<'name> {
+    name: &'name str,
+    index: Option<usize>,
+}
+
+fn parse_field_segment(segment: &str) -> Option<FieldSegment<'_>> {
+    let Some((field_name, index_suffix)) = segment.split_once('[') else {
+        return Some(FieldSegment {
+            name: segment,
+            index: None,
+        });
+    };
+    let index = index_suffix.strip_suffix(']')?.parse::<usize>().ok()?;
+    Some(FieldSegment {
+        name: field_name,
+        index: Some(index),
+    })
+}
+
+struct ArrayTypeName<'name> {
+    element_type_name: &'name str,
+    length: usize,
+}
+
+fn parse_array_type_name(type_name: &str) -> Option<ArrayTypeName<'_>> {
+    let inner = type_name.strip_prefix('[')?.strip_suffix(']')?;
+    let (element_type_name, length) = inner.split_once(';')?;
+    Some(ArrayTypeName {
+        element_type_name: element_type_name.trim(),
+        length: length.trim().parse::<usize>().ok()?,
+    })
 }
 
 fn field_layout<'plan>(
