@@ -11,3 +11,5 @@ Current feature canaries:
 4. `guarded_transition_dispatch` checks ordered transitions from parsed command data.
 5. `mutable_output_host_call` checks host calls that write through mutable output data.
 6. `record_array_field_access` checks simple records, arrays, and field reads.
+7. `runtime_text_storage` checks dynamic text slots fed by literals and console input.
+8. `guarded_leaf_branch_expansion` checks small guarded helper states with leaf-body writes.

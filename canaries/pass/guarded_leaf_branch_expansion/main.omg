@@ -1,0 +1,45 @@
+data CellId {
+    Empty,
+    A1,
+    A2,
+}
+
+data Cell {
+    id: CellId;
+    label: String;
+}
+
+data CellLine {
+    text: String;
+}
+
+platform Console {
+    state write_line(text: String);
+}
+
+machine main {
+    contains console: Console;
+
+    owns selected: Cell;
+    owns line: CellLine;
+    owns first: Cell = Cell { id: CellId::A1, label: "A1" };
+    owns second: Cell = Cell { id: CellId::A2, label: "A2" };
+
+    state entry {
+        scan(first, CellId::A2, mut selected);
+        scan(second, CellId::A2, mut selected);
+        line.text = selected.label;
+        console.write_line(line.text);
+
+        -> self;
+    }
+
+    state scan(cell: Cell, id: CellId, mut out_cell: Cell) {
+        -> apply(cell, mut out_cell) when cell.id == id;
+        ->
+    }
+
+    state apply(cell: Cell, mut out_cell: Cell) {
+        out_cell = cell;
+    }
+}

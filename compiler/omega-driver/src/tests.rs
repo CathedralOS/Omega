@@ -2741,6 +2741,66 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
 }
 
 #[test]
+fn invalidates_static_text_after_mutable_host_output() {
+    let tokens = Lexer::new(
+        r#"
+            data ConsoleLine {
+                text: String;
+            }
+
+            platform Console {
+                state write_line(text: String);
+                state read_line(mut out_line: ConsoleLine);
+            }
+
+            machine main {
+                contains console: Console;
+                owns line: ConsoleLine;
+
+                state entry {
+                    line.text = "ready";
+                    console.write_line(line.text);
+                    console.read_line(mut line);
+                    console.write_line(line.text);
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should invalidate static text after mutable output");
+
+    assert!(native_plan.runtime_text.uses.iter().any(|(_, text_use)| {
+        text_use.statement_index == 3
+            && text_use.expression.display_name() == "line::text"
+            && text_use.source == crate::native::runtime_text::RuntimeTextSource::StoredPlace
+    }));
+    assert!(
+        native_plan
+            .host_calls
+            .arguments
+            .iter()
+            .any(|(_, argument)| matches!(
+                &argument.kind,
+                crate::native::host_calls::HostCallArgumentKind::Expression(expression)
+                    if expression.display_name() == "line::text"
+            ))
+    );
+    assert!(native_plan.data.objects.iter().all(|(_, object)| {
+        !(object.source_machine == "main"
+            && object.source_state == "entry"
+            && object.source_statement == 3)
+    }));
+}
+
+#[test]
 fn plans_state_storage_and_mutations() {
     let tokens = Lexer::new(
         r#"

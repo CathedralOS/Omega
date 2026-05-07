@@ -159,6 +159,7 @@ fn collect_state_host_calls(
                     &static_values,
                     plan,
                 )?;
+                apply_call_static_effects(&mut static_values, call);
             }
             _ => {}
         }
@@ -344,6 +345,27 @@ fn copy_static_prefix(
     for (copied_name, copied_value) in copied_values {
         set_static_value(static_values, copied_name, copied_value);
     }
+}
+
+fn apply_call_static_effects(static_values: &mut Vec<(String, StaticValue)>, call: &Call) {
+    for argument in &call.arguments {
+        let Expression::Mutable(target) = argument else {
+            continue;
+        };
+
+        let Some(target_name) = static_place_name(target) else {
+            continue;
+        };
+
+        invalidate_static_prefix(static_values, &target_name);
+    }
+}
+
+fn invalidate_static_prefix(static_values: &mut Vec<(String, StaticValue)>, target_name: &str) {
+    let target_prefix = format!("{target_name}::");
+    static_values.retain(|(existing_name, _)| {
+        existing_name != target_name && !existing_name.starts_with(&target_prefix)
+    });
 }
 
 fn platform_call_receiver_type(

@@ -1,0 +1,25 @@
+data ConsoleLine {
+    text: String;
+}
+
+platform Console {
+    state write(text: String);
+    state write_line(text: String);
+    state read_line(mut out_line: ConsoleLine);
+    state exit_process(return_code: i32);
+}
+
+machine main {
+    contains console: Console;
+
+    owns line: ConsoleLine;
+
+    state entry {
+        line.text = "ready";
+        console.write_line(line.text);
+        console.write("> ");
+        console.read_line(mut line);
+        console.write_line(line.text);
+        console.exit_process(0);
+    }
+}
