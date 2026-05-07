@@ -83,7 +83,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         needs_runtime_dispatch,
         &mut blockers,
     );
-    collect_state_storage_blockers(native_plan, &mut blockers);
+    collect_state_storage_blockers(native_plan, needs_runtime_dispatch, &mut blockers);
     if needs_runtime_dispatch {
         collect_state_guard_blockers(native_plan, &mut blockers);
         collect_state_value_blockers(native_plan, &mut blockers);
@@ -395,7 +395,16 @@ fn state_value_is_static_assignment(
     })
 }
 
-fn collect_state_storage_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+fn collect_state_storage_blockers(
+    native_plan: &NativePlan,
+    needs_runtime_dispatch: bool,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    if needs_runtime_dispatch {
+        collect_runtime_body_storage_blockers(native_plan, blockers);
+        return;
+    }
+
     for (_, local) in native_plan.state_storage.locals.iter() {
         if !local.required {
             continue;
@@ -432,6 +441,64 @@ fn collect_state_storage_blockers(native_plan: &NativePlan, blockers: &mut Arena
                 mutation.value.display_name()
             ),
         ));
+    }
+}
+
+fn collect_runtime_body_storage_blockers(
+    native_plan: &NativePlan,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
+        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
+            blockers.insert(blocker(
+                "runtime bodies",
+                &format!(
+                    "#{} {}.{} has an invalid runtime body operation span",
+                    body.dispatch_index, body.machine, body.state
+                ),
+            ));
+            continue;
+        };
+
+        for operation in operations {
+            match operation.kind {
+                RuntimeDispatchBodyOperationKind::LocalStorage {
+                    ref name,
+                    ref type_name,
+                } => {
+                    blockers.insert(blocker(
+                        "state storage",
+                        &format!(
+                            "#{} {}.{} statement {} local `{}`: {} needs runtime body local storage lowering",
+                            body.dispatch_index,
+                            operation.source_machine,
+                            operation.source_state,
+                            operation.statement_index,
+                            name,
+                            type_name
+                        ),
+                    ));
+                }
+                RuntimeDispatchBodyOperationKind::Mutation {
+                    mutation_kind,
+                    lowering,
+                } if lowering != StateMutationLowering::AlreadyLowered => {
+                    blockers.insert(blocker(
+                        "state mutation",
+                        &format!(
+                            "#{} {}.{} statement {} {:?}/{:?} needs runtime body mutation lowering",
+                            body.dispatch_index,
+                            operation.source_machine,
+                            operation.source_state,
+                            operation.statement_index,
+                            mutation_kind,
+                            lowering
+                        ),
+                    ));
+                }
+                _ => {}
+            }
+        }
     }
 }
 
