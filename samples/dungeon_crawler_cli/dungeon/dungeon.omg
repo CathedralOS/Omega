@@ -85,6 +85,7 @@ machine Dungeon {
         -> resolve_look(mut out_navigation) when line.text == "info";
         -> resolve_exits(mut out_navigation) when line.text == "exits";
         -> resolve_exits(mut out_navigation) when line.text == "help";
+        ->
     }
 
     state resolve_quit(mut out_navigation: Navigation) {
