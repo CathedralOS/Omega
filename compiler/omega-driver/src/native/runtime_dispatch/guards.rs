@@ -1,6 +1,6 @@
 use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
-use crate::native::layout::{DataShape, LayoutPlan};
+use crate::native::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
@@ -90,6 +90,9 @@ pub enum StateGuardLowering {
 pub struct StateGuardOperand {
     pub expression: Expression,
     pub kind: StateGuardOperandKind,
+    pub storage: StateGuardOperandStorage,
+    pub byte_offset: usize,
+    pub byte_size: usize,
     pub resolved_value: i64,
     pub has_resolved_value: bool,
 }
@@ -99,6 +102,9 @@ impl Default for StateGuardOperand {
         Self {
             expression: Expression::Boolean(true),
             kind: StateGuardOperandKind::OtherExpression,
+            storage: StateGuardOperandStorage::Unknown,
+            byte_offset: 0,
+            byte_size: 0,
             resolved_value: 0,
             has_resolved_value: false,
         }
@@ -112,6 +118,13 @@ pub enum StateGuardOperandKind {
     Literal,
     #[default]
     OtherExpression,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateGuardOperandStorage {
+    MachineOwned,
+    #[default]
+    Unknown,
 }
 
 pub fn build_state_guard_plan(
@@ -171,7 +184,7 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let guard_operands = guard_operands(layouts, &edge.guard);
+    let guard_operands = guard_operands(layouts, source_machine, &edge.guard);
     let lowering = guard_lowering(kind, operator, &guard_operands);
     let operands = operands.insert_many(guard_operands);
 
@@ -260,7 +273,11 @@ fn guard_operator(expression: &Expression) -> StateGuardOperator {
     }
 }
 
-fn guard_operands(layouts: &LayoutPlan, guard: &TransitionGuard) -> Vec<StateGuardOperand> {
+fn guard_operands(
+    layouts: &LayoutPlan,
+    source_machine: &str,
+    guard: &TransitionGuard,
+) -> Vec<StateGuardOperand> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return Vec::new();
     };
@@ -269,14 +286,100 @@ fn guard_operands(layouts: &LayoutPlan, guard: &TransitionGuard) -> Vec<StateGua
         .into_iter()
         .map(|expression| {
             let resolved_value = resolved_guard_operand_value(layouts, &expression);
+            let operand_layout = resolve_guard_operand_layout(layouts, source_machine, &expression);
             StateGuardOperand {
                 kind: classify_guard_operand(&expression),
+                storage: operand_layout
+                    .as_ref()
+                    .map(|layout| layout.storage)
+                    .unwrap_or_default(),
+                byte_offset: operand_layout
+                    .as_ref()
+                    .map(|layout| layout.byte_offset)
+                    .unwrap_or(0),
+                byte_size: operand_layout
+                    .as_ref()
+                    .map(|layout| layout.layout.size)
+                    .unwrap_or(0),
                 expression,
                 resolved_value: resolved_value.unwrap_or(0),
                 has_resolved_value: resolved_value.is_some(),
             }
         })
         .collect()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ResolvedOperandLayout {
+    storage: StateGuardOperandStorage,
+    byte_offset: usize,
+    layout: TypeLayout,
+}
+
+fn resolve_guard_operand_layout(
+    layouts: &LayoutPlan,
+    source_machine: &str,
+    expression: &Expression,
+) -> Option<ResolvedOperandLayout> {
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    let [root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
+    let machine_layout = layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.name == source_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
+    let root_field = field_layout(layouts, machine_layout.fields, root_name)?;
+
+    resolve_nested_field_layout(layouts, root_field, suffix).map(|(byte_offset, layout)| {
+        ResolvedOperandLayout {
+            storage: StateGuardOperandStorage::MachineOwned,
+            byte_offset,
+            layout,
+        }
+    })
+}
+
+fn resolve_nested_field_layout(
+    layouts: &LayoutPlan,
+    root_field: &FieldLayout,
+    suffix: &[String],
+) -> Option<(usize, TypeLayout)> {
+    let mut byte_offset = root_field.offset;
+    let mut type_name = root_field.type_name.as_str();
+    let mut layout = root_field.layout;
+
+    for segment in suffix {
+        let data_layout = layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.name == type_name)
+            .map(|(_, data_layout)| data_layout)?;
+        let DataShape::Record { fields } = &data_layout.shape else {
+            return None;
+        };
+        let field = field_layout(layouts, *fields, segment)?;
+        byte_offset += field.offset;
+        type_name = &field.type_name;
+        layout = field.layout;
+    }
+
+    Some((byte_offset, layout))
+}
+
+fn field_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    fields: HandleSpan<FieldLayout>,
+    field_name: &str,
+) -> Option<&'plan FieldLayout> {
+    layouts
+        .fields
+        .span(fields)?
+        .iter()
+        .find(|field| field.name == field_name)
 }
 
 fn resolved_guard_operand_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {

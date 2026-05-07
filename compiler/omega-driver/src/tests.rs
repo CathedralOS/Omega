@@ -1558,6 +1558,12 @@ fn plans_runtime_guards_for_dispatch_edges() {
         guard_operands[0].kind,
         crate::native::state_guards::StateGuardOperandKind::Place
     );
+    assert_eq!(
+        guard_operands[0].storage,
+        crate::native::state_guards::StateGuardOperandStorage::MachineOwned
+    );
+    assert_eq!(guard_operands[0].byte_offset, 0);
+    assert_eq!(guard_operands[0].byte_size, 1);
     assert_eq!(guard_operands[1].expression.display_name(), "true");
     assert_eq!(
         guard_operands[1].kind,
@@ -1631,6 +1637,74 @@ fn resolves_enum_guard_operand_values() {
         crate::native::state_guards::StateGuardOperandKind::StaticSymbol
     );
     assert!(guard_operands[1].has_resolved_value);
+    assert_eq!(guard_operands[1].resolved_value, 1);
+}
+
+#[test]
+fn resolves_nested_guard_operand_offsets() {
+    let tokens = Lexer::new(
+        r#"
+            data Choice {
+                Quit,
+                Look,
+            }
+
+            data Navigation {
+                choice: Choice;
+                destination: Choice;
+            }
+
+            machine main {
+                owns navigation: Navigation;
+
+                state entry {
+                    -> done when navigation.destination == Choice::Look;
+                    -> self;
+                }
+
+                state done {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should resolve nested guard operand offsets");
+    let equality_guard = native_plan
+        .state_guards
+        .guards
+        .iter()
+        .find(|(_, guard)| {
+            guard.source_machine == "main"
+                && guard.source_state == "entry"
+                && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
+        })
+        .map(|(_, guard)| guard)
+        .expect("runtime equality guard should be planned");
+    let guard_operands = native_plan
+        .state_guards
+        .operands
+        .span(equality_guard.operands)
+        .expect("runtime guard operands should resolve");
+
+    assert_eq!(
+        guard_operands[0].expression.display_name(),
+        "navigation::destination"
+    );
+    assert_eq!(
+        guard_operands[0].storage,
+        crate::native::state_guards::StateGuardOperandStorage::MachineOwned
+    );
+    assert_eq!(guard_operands[0].byte_offset, 4);
+    assert_eq!(guard_operands[0].byte_size, 4);
     assert_eq!(guard_operands[1].resolved_value, 1);
 }
 

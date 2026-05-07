@@ -1028,9 +1028,12 @@ impl ArtifactWriter {
                 {
                     for operand in operands {
                         output.push_str(&format!(
-                            "  - operand `{}` {:?}\n",
+                            "  - operand `{}` {:?} {:?} offset {} bytes {}\n",
                             operand.expression.display_name(),
-                            operand.kind
+                            operand.kind,
+                            operand.storage,
+                            operand.byte_offset,
+                            operand.byte_size
                         ));
                         if operand.has_resolved_value {
                             output.push_str(&format!(
