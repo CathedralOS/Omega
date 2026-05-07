@@ -2849,6 +2849,17 @@ fn plans_required_state_value_uses() {
             && value.kind == crate::native::state_values::StateValueKind::Binary
             && value.role == crate::native::state_values::StateValueRole::TransitionGuard
     }));
+    assert!(
+        native_plan
+            .runtime_text
+            .writes
+            .iter()
+            .any(|(_, text_write)| {
+                text_write.target.display_name() == "line::text"
+                    && text_write.kind
+                        == crate::native::runtime_text::RuntimeTextWriteKind::GeneratedString
+            })
+    );
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use crate::ir::expression::Expression;
 use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
+use crate::native::plan::NativePlan;
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -8,6 +9,7 @@ pub struct RuntimeTextPlan {
     pub uses: Arena<RuntimeTextUse>,
     pub buffers: Arena<RuntimeTextBuffer>,
     pub slots: Arena<RuntimeTextSlot>,
+    pub writes: Arena<RuntimeTextWrite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,6 +38,38 @@ pub struct RuntimeTextSlot {
     pub place: Expression,
     pub byte_capacity: usize,
     pub has_input_buffer: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeTextWrite {
+    pub machine: String,
+    pub state: String,
+    pub statement_index: usize,
+    pub target: Expression,
+    pub value: Expression,
+    pub kind: RuntimeTextWriteKind,
+}
+
+impl Default for RuntimeTextWrite {
+    fn default() -> Self {
+        Self {
+            machine: String::new(),
+            state: String::new(),
+            statement_index: 0,
+            target: Expression::String(String::new()),
+            value: Expression::String(String::new()),
+            kind: RuntimeTextWriteKind::OtherExpression,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeTextWriteKind {
+    StaticText,
+    StoredCopy,
+    GeneratedString,
+    #[default]
+    OtherExpression,
 }
 
 impl Default for RuntimeTextSlot {
@@ -84,12 +118,13 @@ pub enum RuntimeTextSource {
     OtherExpression,
 }
 
-pub fn build_runtime_text_plan(host_calls: &HostCallPlan) -> RuntimeTextPlan {
+pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
     let mut plan = RuntimeTextPlan::default();
 
-    for (_, host_call) in host_calls.calls.iter() {
-        collect_host_call_runtime_text(host_calls, host_call, &mut plan);
+    for (_, host_call) in native_plan.host_calls.calls.iter() {
+        collect_host_call_runtime_text(&native_plan.host_calls, host_call, &mut plan);
     }
+    collect_runtime_text_writes(native_plan, &mut plan);
     plan.slots = build_runtime_text_slots(&plan);
 
     plan
@@ -204,6 +239,10 @@ fn build_runtime_text_slots(plan: &RuntimeTextPlan) -> Arena<RuntimeTextSlot> {
         }
     }
 
+    for (_, write) in plan.writes.iter() {
+        push_or_update_text_slot(&mut slots, write.target.clone(), 0, false);
+    }
+
     let mut arena = Arena::new();
     arena.insert_many(slots);
     arena
@@ -259,5 +298,45 @@ fn text_place_for_buffer_target(target: &Expression) -> Option<Expression> {
             Some(Expression::Name(text_path))
         }
         _ => None,
+    }
+}
+
+fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextPlan) {
+    for (_, mutation) in native_plan.state_storage.mutations.iter() {
+        if !is_text_place(&mutation.target) {
+            continue;
+        }
+
+        plan.writes.insert(RuntimeTextWrite {
+            machine: mutation.machine.clone(),
+            state: mutation.state.clone(),
+            statement_index: mutation.statement_index,
+            target: mutation.target.clone(),
+            value: mutation.value.clone(),
+            kind: classify_runtime_text_write(&mutation.value),
+        });
+    }
+}
+
+fn is_text_place(expression: &Expression) -> bool {
+    match expression {
+        Expression::Name(path) => path.last().is_some_and(|segment| segment == "text"),
+        Expression::Indexed(indexed) => is_text_place(&indexed.collection),
+        Expression::Mutable(expression) => is_text_place(expression),
+        _ => false,
+    }
+}
+
+fn classify_runtime_text_write(expression: &Expression) -> RuntimeTextWriteKind {
+    match expression {
+        Expression::String(_) => RuntimeTextWriteKind::StaticText,
+        Expression::Name(_) | Expression::Indexed(_) => RuntimeTextWriteKind::StoredCopy,
+        Expression::Binary(_) => RuntimeTextWriteKind::GeneratedString,
+        Expression::ArrayLiteral(_)
+        | Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::Mutable(_)
+        | Expression::StructLiteral(_) => RuntimeTextWriteKind::OtherExpression,
     }
 }

@@ -106,7 +106,7 @@ pub fn build_native_plan(
     native_plan.state_values = build_state_value_plan(program, &native_plan);
     native_plan.runtime_bodies = build_runtime_dispatch_body_plan(&native_plan);
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
-    native_plan.runtime_text = build_runtime_text_plan(&native_plan.host_calls);
+    native_plan.runtime_text = build_runtime_text_plan(&native_plan);
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);

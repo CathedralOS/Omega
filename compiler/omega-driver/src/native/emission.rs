@@ -8,7 +8,9 @@ use crate::native::runtime_dispatch::branching::{
     RuntimeBranchCallExpansion, RuntimeBranchingCall,
 };
 use crate::native::runtime_flow::RuntimeTransitionTarget;
-use crate::native::runtime_text::{RuntimeTextSource, RuntimeTextUse};
+use crate::native::runtime_text::{
+    RuntimeTextSource, RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
+};
 use crate::native::state_calls::StateCallLowering;
 use crate::native::state_guards::StateGuardKind;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
@@ -553,15 +555,66 @@ fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
 
         blockers.insert(blocker(
             "state values",
-            &format!(
-                "{}.{} statement {} {:?} binary expression `{}` needs runtime value lowering",
-                value.machine,
-                value.state,
-                value.statement_index,
-                value.role,
-                value.expression.display_name()
-            ),
+            &runtime_value_blocker_reason(native_plan, value),
         ));
+    }
+}
+
+fn runtime_value_blocker_reason(
+    native_plan: &NativePlan,
+    value: &crate::native::state_values::StateValueUse,
+) -> String {
+    if let Some(text_write) = runtime_text_write_for_statement(
+        native_plan,
+        &value.machine,
+        &value.state,
+        value.statement_index,
+    ) {
+        return format!(
+            "{}.{} statement {} text write `{}` = `{}` needs {}",
+            text_write.machine,
+            text_write.state,
+            text_write.statement_index,
+            text_write.target.display_name(),
+            text_write.value.display_name(),
+            runtime_text_write_lowering_name(text_write)
+        );
+    }
+
+    format!(
+        "{}.{} statement {} {:?} binary expression `{}` needs runtime value lowering",
+        value.machine,
+        value.state,
+        value.statement_index,
+        value.role,
+        value.expression.display_name()
+    )
+}
+
+fn runtime_text_write_for_statement<'plan>(
+    native_plan: &'plan NativePlan,
+    machine: &str,
+    state: &str,
+    statement_index: usize,
+) -> Option<&'plan RuntimeTextWrite> {
+    native_plan
+        .runtime_text
+        .writes
+        .iter()
+        .find(|(_, text_write)| {
+            text_write.machine == machine
+                && text_write.state == state
+                && text_write.statement_index == statement_index
+        })
+        .map(|(_, text_write)| text_write)
+}
+
+fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static str {
+    match text_write.kind {
+        RuntimeTextWriteKind::StaticText => "runtime text literal storage",
+        RuntimeTextWriteKind::StoredCopy => "runtime text copy lowering",
+        RuntimeTextWriteKind::GeneratedString => "runtime string builder lowering",
+        RuntimeTextWriteKind::OtherExpression => "runtime text expression lowering",
     }
 }
 

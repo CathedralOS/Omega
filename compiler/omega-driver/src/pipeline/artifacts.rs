@@ -632,6 +632,10 @@ impl ArtifactWriter {
             "slots: {}\n",
             native_plan.runtime_text.slots.len()
         ));
+        output.push_str(&format!(
+            "writes: {}\n",
+            native_plan.runtime_text.writes.len()
+        ));
         if native_plan.runtime_text.uses.is_empty() {
             output.push_str("uses: none\n");
         } else {
@@ -670,6 +674,21 @@ impl ArtifactWriter {
                     text_slot.place.display_name(),
                     text_slot.byte_capacity,
                     text_slot.has_input_buffer
+                ));
+            }
+        }
+        if native_plan.runtime_text.writes.is_empty() {
+            output.push_str("writes: none\n");
+        } else {
+            for (_, text_write) in native_plan.runtime_text.writes.iter() {
+                output.push_str(&format!(
+                    "- write {}.{} statement {} `{}` = `{}` {:?}\n",
+                    text_write.machine,
+                    text_write.state,
+                    text_write.statement_index,
+                    text_write.target.display_name(),
+                    text_write.value.display_name(),
+                    text_write.kind
                 ));
             }
         }
