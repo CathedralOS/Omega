@@ -2719,7 +2719,7 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
             blocker.stage == "host arguments"
                 && blocker
                     .reason
-                    .contains("text argument `line::text` needs runtime string lowering")
+                    .contains("text argument `line::text` needs runtime string storage lowering")
         }),
         "expected dynamic text argument blocker"
     );

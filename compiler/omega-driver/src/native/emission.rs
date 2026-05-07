@@ -1,3 +1,4 @@
+use crate::ir::expression::Expression;
 use crate::native::abi::PlatformCallData;
 use crate::native::control_flow::{OperationKind, StateFlow};
 use crate::native::host_calls::HostCallArgumentKind;
@@ -160,16 +161,35 @@ fn collect_host_argument_blockers(
         if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
             blockers.insert(blocker(
                 "host arguments",
-                &format!(
-                    "{}.{} statement {} text argument `{}` needs runtime string lowering",
-                    host_call.machine,
-                    host_call.state,
-                    host_call.statement_index,
-                    expression.display_name()
-                ),
+                &host_text_argument_blocker_reason(host_call, expression),
             ));
         }
     }
+}
+
+fn host_text_argument_blocker_reason(
+    host_call: &crate::native::host_calls::HostCall,
+    expression: &Expression,
+) -> String {
+    let lowering_need = match expression {
+        Expression::Name(_) | Expression::Indexed(_) => "runtime string storage lowering",
+        Expression::Binary(_) => "runtime string builder lowering",
+        Expression::Mutable(_) => "runtime mutable string place lowering",
+        Expression::ArrayLiteral(_)
+        | Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::StructLiteral(_)
+        | Expression::String(_) => "runtime string expression lowering",
+    };
+
+    format!(
+        "{}.{} statement {} text argument `{}` needs {lowering_need}",
+        host_call.machine,
+        host_call.state,
+        host_call.statement_index,
+        expression.display_name()
+    )
 }
 
 fn collect_state_call_blockers(
