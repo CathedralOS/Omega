@@ -1332,6 +1332,66 @@ fn plans_runtime_guards_for_dispatch_edges() {
 }
 
 #[test]
+fn resolves_enum_guard_operand_values() {
+    let tokens = Lexer::new(
+        r#"
+            data Choice {
+                Quit,
+                Look,
+            }
+
+            machine main {
+                owns choice: Choice = Choice::Quit;
+
+                state entry {
+                    -> done when choice == Choice::Look;
+                    -> self;
+                }
+
+                state done {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should resolve enum guard operands");
+    let equality_guard = native_plan
+        .state_guards
+        .guards
+        .iter()
+        .find(|(_, guard)| {
+            guard.source_machine == "main"
+                && guard.source_state == "entry"
+                && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
+        })
+        .map(|(_, guard)| guard)
+        .expect("runtime equality guard should be planned");
+    let guard_operands = native_plan
+        .state_guards
+        .operands
+        .span(equality_guard.operands)
+        .expect("runtime guard operands should resolve");
+
+    assert_eq!(guard_operands.len(), 2);
+    assert_eq!(guard_operands[1].expression.display_name(), "Choice::Look");
+    assert_eq!(
+        guard_operands[1].kind,
+        crate::native::state_guards::StateGuardOperandKind::StaticSymbol
+    );
+    assert!(guard_operands[1].has_resolved_value);
+    assert_eq!(guard_operands[1].resolved_value, 1);
+}
+
+#[test]
 fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     let tokens = Lexer::new(
         r#"

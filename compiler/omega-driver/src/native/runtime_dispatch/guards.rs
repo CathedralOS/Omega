@@ -1,5 +1,6 @@
 use crate::ir::expression::{BinaryOperator, Expression};
 use crate::ir::statement::TransitionGuard;
+use crate::native::layout::{DataShape, LayoutPlan};
 use crate::native::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
@@ -78,6 +79,8 @@ pub enum StateGuardOperator {
 pub struct StateGuardOperand {
     pub expression: Expression,
     pub kind: StateGuardOperandKind,
+    pub resolved_value: i64,
+    pub has_resolved_value: bool,
 }
 
 impl Default for StateGuardOperand {
@@ -85,6 +88,8 @@ impl Default for StateGuardOperand {
         Self {
             expression: Expression::Boolean(true),
             kind: StateGuardOperandKind::OtherExpression,
+            resolved_value: 0,
+            has_resolved_value: false,
         }
     }
 }
@@ -98,7 +103,10 @@ pub enum StateGuardOperandKind {
     OtherExpression,
 }
 
-pub fn build_state_guard_plan(state_dispatch: &StateDispatchPlan) -> StateGuardPlan {
+pub fn build_state_guard_plan(
+    state_dispatch: &StateDispatchPlan,
+    layouts: &LayoutPlan,
+) -> StateGuardPlan {
     let mut plan = StateGuardPlan::default();
 
     for (_, state) in state_dispatch.states.iter() {
@@ -109,6 +117,7 @@ pub fn build_state_guard_plan(state_dispatch: &StateDispatchPlan) -> StateGuardP
         for (statement_order, edge) in edges.iter().enumerate() {
             plan.guards.insert(build_state_guard(
                 &mut plan.operands,
+                layouts,
                 &state.machine,
                 &state.state,
                 state.dispatch_index,
@@ -143,6 +152,7 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 
 fn build_state_guard(
     operands: &mut Arena<StateGuardOperand>,
+    layouts: &LayoutPlan,
     source_machine: &str,
     source_state: &str,
     source_dispatch_index: u32,
@@ -150,7 +160,7 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let operands = operands.insert_many(guard_operands(&edge.guard));
+    let operands = operands.insert_many(guard_operands(layouts, &edge.guard));
 
     StateGuard {
         source_machine: source_machine.to_owned(),
@@ -205,18 +215,44 @@ fn guard_operator(expression: &Expression) -> StateGuardOperator {
     }
 }
 
-fn guard_operands(guard: &TransitionGuard) -> Vec<StateGuardOperand> {
+fn guard_operands(layouts: &LayoutPlan, guard: &TransitionGuard) -> Vec<StateGuardOperand> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return Vec::new();
     };
 
     [binary.left.clone(), binary.right.clone()]
         .into_iter()
-        .map(|expression| StateGuardOperand {
-            kind: classify_guard_operand(&expression),
-            expression,
+        .map(|expression| {
+            let resolved_value = static_symbol_value(layouts, &expression);
+            StateGuardOperand {
+                kind: classify_guard_operand(&expression),
+                expression,
+                resolved_value: resolved_value.unwrap_or(0),
+                has_resolved_value: resolved_value.is_some(),
+            }
         })
         .collect()
+}
+
+fn static_symbol_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    let [type_name, variant_name] = path.as_slice() else {
+        return None;
+    };
+
+    layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .and_then(|(_, data_layout)| match &data_layout.shape {
+            DataShape::Enum { variants } => variants
+                .iter()
+                .position(|candidate| candidate == variant_name)
+                .and_then(|index| i64::try_from(index).ok()),
+            DataShape::Record { .. } => None,
+        })
 }
 
 fn classify_guard_operand(expression: &Expression) -> StateGuardOperandKind {

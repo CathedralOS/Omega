@@ -1030,6 +1030,12 @@ impl ArtifactWriter {
                             operand.expression.display_name(),
                             operand.kind
                         ));
+                        if operand.has_resolved_value {
+                            output.push_str(&format!(
+                                "    resolved value: {}\n",
+                                operand.resolved_value
+                            ));
+                        }
                     }
                 }
             }
