@@ -17,6 +17,9 @@ pub struct RuntimeBranchingCallPlan {
     pub leaf_expansions: Arena<RuntimeLeafBranchExpansion>,
     pub leaf_operations: Arena<RuntimeLeafBranchOperation>,
     pub leaf_bindings: Arena<RuntimeLeafBranchBinding>,
+    pub straight_line_expansions: Arena<RuntimeStraightLineBranchExpansion>,
+    pub straight_line_operations: Arena<RuntimeStraightLineBranchOperation>,
+    pub straight_line_bindings: Arena<RuntimeStraightLineBranchBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +194,110 @@ pub enum RuntimeLeafBranchOperationKind {
     Other,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeStraightLineBranchExpansion {
+    pub dispatch_index: u32,
+    pub source_machine: String,
+    pub source_state: String,
+    pub statement_index: usize,
+    pub branch_machine: String,
+    pub branch_state: String,
+    pub edge_order: usize,
+    pub guard: TransitionGuard,
+    pub resolved_guard: TransitionGuard,
+    pub guard_kind: StateGuardKind,
+    pub target_machine: String,
+    pub target_state: String,
+    pub bindings: HandleSpan<RuntimeStraightLineBranchBinding>,
+    pub operations: HandleSpan<RuntimeStraightLineBranchOperation>,
+}
+
+impl Default for RuntimeStraightLineBranchExpansion {
+    fn default() -> Self {
+        Self {
+            dispatch_index: 0,
+            source_machine: String::new(),
+            source_state: String::new(),
+            statement_index: 0,
+            branch_machine: String::new(),
+            branch_state: String::new(),
+            edge_order: 0,
+            guard: TransitionGuard::Always,
+            resolved_guard: TransitionGuard::Always,
+            guard_kind: StateGuardKind::Always,
+            target_machine: String::new(),
+            target_state: String::new(),
+            bindings: HandleSpan::empty(),
+            operations: HandleSpan::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeStraightLineBranchBinding {
+    pub parameter_name: String,
+    pub expression: Expression,
+    pub kind: RuntimeStraightLineBranchBindingKind,
+}
+
+impl Default for RuntimeStraightLineBranchBinding {
+    fn default() -> Self {
+        Self {
+            parameter_name: String::new(),
+            expression: Expression::Integer(0),
+            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeStraightLineBranchBindingKind {
+    #[default]
+    BranchParameter,
+    TargetParameter,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeStraightLineBranchOperation {
+    pub source_machine: String,
+    pub source_state: String,
+    pub statement_index: usize,
+    pub kind: RuntimeStraightLineBranchOperationKind,
+}
+
+impl Default for RuntimeStraightLineBranchOperation {
+    fn default() -> Self {
+        Self {
+            source_machine: String::new(),
+            source_state: String::new(),
+            statement_index: 0,
+            kind: RuntimeStraightLineBranchOperationKind::Other,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum RuntimeStraightLineBranchOperationKind {
+    HostCall {
+        platform_call: String,
+    },
+    Mutation {
+        mutation_kind: StateMutationKind,
+        lowering: StateMutationLowering,
+        target: Expression,
+        value: Expression,
+    },
+    StateCall {
+        target_machine: String,
+        target_state: String,
+        argument_count: usize,
+        lowering: StateCallLowering,
+    },
+    LocalData,
+    #[default]
+    Other,
+}
+
 pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBranchingCallPlan {
     let mut plan = RuntimeBranchingCallPlan::default();
 
@@ -224,8 +331,23 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 expansion,
                 RuntimeBranchCallExpansion::GuardedLeaf
                     | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
+                    | RuntimeBranchCallExpansion::NeedsStraightLineTarget
             ) {
                 append_leaf_branch_expansions(
+                    native_plan,
+                    &mut plan,
+                    &operation.source_machine,
+                    &operation.source_state,
+                    operation.statement_index,
+                    body.dispatch_index,
+                    target_machine,
+                    target_state,
+                    &branch_edges,
+                    state_call,
+                );
+            }
+            if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
+                append_straight_line_branch_expansions(
                     native_plan,
                     &mut plan,
                     &operation.source_machine,
@@ -317,6 +439,70 @@ fn append_leaf_branch_expansions(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn append_straight_line_branch_expansions(
+    native_plan: &NativePlan,
+    plan: &mut RuntimeBranchingCallPlan,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    dispatch_index: u32,
+    branch_machine: &str,
+    branch_state: &str,
+    edges: &[RuntimeBranchingCallEdge],
+    state_call: &StateCall,
+) {
+    for edge in edges {
+        if edge.lowering != RuntimeBranchTargetLowering::InlineStraightLine {
+            continue;
+        }
+
+        let RuntimeTransitionTarget::State {
+            machine: target_machine,
+            state: target_state,
+        } = &edge.target
+        else {
+            continue;
+        };
+
+        let branch_bindings = branch_parameter_bindings(native_plan, state_call);
+        let bindings = plan
+            .straight_line_bindings
+            .insert_many(straight_line_branch_bindings(
+                &branch_bindings,
+                native_plan,
+                target_machine,
+                target_state,
+                &edge.target_arguments,
+            ));
+        let operations = plan
+            .straight_line_operations
+            .insert_many(straight_line_operations(
+                native_plan,
+                target_machine,
+                target_state,
+            ));
+
+        plan.straight_line_expansions
+            .insert(RuntimeStraightLineBranchExpansion {
+                dispatch_index,
+                source_machine: source_machine.to_owned(),
+                source_state: source_state.to_owned(),
+                statement_index,
+                branch_machine: branch_machine.to_owned(),
+                branch_state: branch_state.to_owned(),
+                edge_order: edge.order,
+                guard: edge.guard.clone(),
+                resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
+                guard_kind: edge.guard_kind,
+                target_machine: target_machine.clone(),
+                target_state: target_state.clone(),
+                bindings,
+                operations,
+            });
+    }
+}
+
 fn leaf_branch_bindings(
     branch_bindings: &[(String, Expression)],
     native_plan: &NativePlan,
@@ -350,6 +536,39 @@ fn leaf_branch_bindings(
     if state_parameters(native_plan, branch_machine, branch_state).is_empty() {
         return bindings;
     }
+
+    bindings
+}
+
+fn straight_line_branch_bindings(
+    branch_bindings: &[(String, Expression)],
+    native_plan: &NativePlan,
+    target_machine: &str,
+    target_state: &str,
+    target_arguments: &[Expression],
+) -> Vec<RuntimeStraightLineBranchBinding> {
+    let mut bindings = branch_bindings
+        .iter()
+        .map(
+            |(parameter_name, expression)| RuntimeStraightLineBranchBinding {
+                parameter_name: parameter_name.clone(),
+                expression: expression.clone(),
+                kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+            },
+        )
+        .collect::<Vec<_>>();
+
+    let target_parameters = state_parameters(native_plan, target_machine, target_state);
+    bindings.extend(target_parameters.iter().enumerate().filter_map(
+        |(parameter_index, parameter_name)| {
+            let expression = target_arguments.get(parameter_index)?;
+            Some(RuntimeStraightLineBranchBinding {
+                parameter_name: parameter_name.clone(),
+                expression: resolve_branch_expression(expression, branch_bindings),
+                kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
+            })
+        },
+    ));
 
     bindings
 }
@@ -660,6 +879,87 @@ fn leaf_operation_kind(
     }
 
     RuntimeLeafBranchOperationKind::Other
+}
+
+fn straight_line_operations(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Vec<RuntimeStraightLineBranchOperation> {
+    let Some(machine) = machine_flow(native_plan, machine_name) else {
+        return Vec::new();
+    };
+    let Some(state) = native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+    else {
+        return Vec::new();
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return Vec::new();
+    };
+
+    operations
+        .iter()
+        .map(|operation| RuntimeStraightLineBranchOperation {
+            source_machine: machine_name.to_owned(),
+            source_state: state_name.to_owned(),
+            statement_index: operation.statement_index,
+            kind: straight_line_operation_kind(
+                native_plan,
+                machine_name,
+                state_name,
+                operation.statement_index,
+                &operation.kind,
+            ),
+        })
+        .collect()
+}
+
+fn straight_line_operation_kind(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+    operation_kind: &OperationKind,
+) -> RuntimeStraightLineBranchOperationKind {
+    if let Some(host_call) =
+        host_call_for_statement(native_plan, machine_name, state_name, statement_index)
+    {
+        return RuntimeStraightLineBranchOperationKind::HostCall {
+            platform_call: host_call.platform_call.clone(),
+        };
+    }
+
+    if let Some(mutation) =
+        mutation_for_statement(native_plan, machine_name, state_name, statement_index)
+    {
+        return RuntimeStraightLineBranchOperationKind::Mutation {
+            mutation_kind: mutation.mutation_kind,
+            lowering: mutation.lowering,
+            target: mutation.target.clone(),
+            value: mutation.value.clone(),
+        };
+    }
+
+    if let Some(state_call) =
+        state_call_for_operation(native_plan, machine_name, state_name, statement_index)
+    {
+        return RuntimeStraightLineBranchOperationKind::StateCall {
+            target_machine: state_call.target_machine.clone(),
+            target_state: state_call.target_state.clone(),
+            argument_count: state_call.argument_count,
+            lowering: state_call.lowering,
+        };
+    }
+
+    if matches!(operation_kind, OperationKind::LocalData) {
+        return RuntimeStraightLineBranchOperationKind::LocalData;
+    }
+
+    RuntimeStraightLineBranchOperationKind::Other
 }
 
 fn host_call_for_statement<'plan>(

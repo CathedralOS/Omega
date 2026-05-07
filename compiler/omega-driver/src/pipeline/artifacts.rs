@@ -28,7 +28,8 @@ use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
 use crate::native::runtime_dispatch::branching::{
-    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind,
+    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
+    RuntimeStraightLineBranchOperationKind,
 };
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_schedule::build_entry_state_schedule;
@@ -1229,6 +1230,102 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Straight-Line Branch Expansions\n");
+        output.push_str(&format!(
+            "expansions: {}\n",
+            native_plan
+                .runtime_branching_calls
+                .straight_line_expansions
+                .len()
+        ));
+        output.push_str(&format!(
+            "operations: {}\n",
+            native_plan
+                .runtime_branching_calls
+                .straight_line_operations
+                .len()
+        ));
+        output.push_str(&format!(
+            "bindings: {}\n",
+            native_plan
+                .runtime_branching_calls
+                .straight_line_bindings
+                .len()
+        ));
+        if native_plan
+            .runtime_branching_calls
+            .straight_line_expansions
+            .is_empty()
+        {
+            output.push_str("none\n");
+        } else {
+            for (_, expansion) in native_plan
+                .runtime_branching_calls
+                .straight_line_expansions
+                .iter()
+            {
+                output.push_str(&format!(
+                    "- #{} {}.{} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    expansion.dispatch_index,
+                    expansion.source_machine,
+                    expansion.source_state,
+                    expansion.statement_index,
+                    expansion.branch_machine,
+                    expansion.branch_state,
+                    expansion.edge_order,
+                    expansion.target_machine,
+                    expansion.target_state,
+                    expansion.guard_kind,
+                    transition_guard_name(&expansion.guard)
+                ));
+                if expansion.resolved_guard != expansion.guard {
+                    output.push_str(&format!(
+                        "  resolved guard: {}\n",
+                        transition_guard_name(&expansion.resolved_guard)
+                    ));
+                }
+
+                match native_plan
+                    .runtime_branching_calls
+                    .straight_line_bindings
+                    .span(expansion.bindings)
+                {
+                    Some(bindings) if bindings.is_empty() => {
+                        output.push_str("  bindings: none\n");
+                    }
+                    Some(bindings) => {
+                        output.push_str("  bindings:\n");
+                        for binding in bindings {
+                            output.push_str(&format!(
+                                "    - {:?} `{}` = `{}`\n",
+                                binding.kind,
+                                binding.parameter_name,
+                                binding.expression.display_name()
+                            ));
+                        }
+                    }
+                    None => output.push_str("  bindings: invalid span\n"),
+                }
+
+                match native_plan
+                    .runtime_branching_calls
+                    .straight_line_operations
+                    .span(expansion.operations)
+                {
+                    Some(operations) if operations.is_empty() => {
+                        output.push_str("  operations: none\n");
+                    }
+                    Some(operations) => {
+                        output.push_str("  operations:\n");
+                        for operation in operations {
+                            write_runtime_straight_line_branch_operation(&mut output, operation);
+                        }
+                    }
+                    None => output.push_str("  operations: invalid span\n"),
+                }
+            }
+        }
+
         output.push_str("\n## Layouts\n");
         output.push_str(&format!(
             "data layouts: {}\n",
@@ -2283,6 +2380,69 @@ fn write_runtime_leaf_branch_operation(
             ));
         }
         RuntimeLeafBranchOperationKind::Other => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} other\n",
+                operation.source_machine, operation.source_state, operation.statement_index
+            ));
+        }
+    }
+}
+
+fn write_runtime_straight_line_branch_operation(
+    output: &mut String,
+    operation: &RuntimeStraightLineBranchOperation,
+) {
+    match &operation.kind {
+        RuntimeStraightLineBranchOperationKind::HostCall { platform_call } => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} host call `{}`\n",
+                operation.source_machine,
+                operation.source_state,
+                operation.statement_index,
+                platform_call
+            ));
+        }
+        RuntimeStraightLineBranchOperationKind::Mutation {
+            mutation_kind,
+            lowering,
+            target,
+            value,
+        } => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                operation.source_machine,
+                operation.source_state,
+                operation.statement_index,
+                mutation_kind,
+                lowering,
+                target.display_name(),
+                value.display_name()
+            ));
+        }
+        RuntimeStraightLineBranchOperationKind::StateCall {
+            target_machine,
+            target_state,
+            argument_count,
+            lowering,
+        } => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} state call {}.{} args {} {:?}\n",
+                operation.source_machine,
+                operation.source_state,
+                operation.statement_index,
+                target_machine,
+                target_state,
+                argument_count,
+                lowering
+            ));
+        }
+        RuntimeStraightLineBranchOperationKind::LocalData => {
+            output.push_str(&format!(
+                "    - {}.{} statement {} local data\n",
+                operation.source_machine, operation.source_state, operation.statement_index
+            ));
+        }
+        RuntimeStraightLineBranchOperationKind::Other => {
             output.push_str(&format!(
                 "    - {}.{} statement {} other\n",
                 operation.source_machine, operation.source_state, operation.statement_index

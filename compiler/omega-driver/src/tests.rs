@@ -1594,6 +1594,106 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
 }
 
 #[test]
+fn plans_runtime_straight_line_branch_expansion() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                owns ready: bool = false;
+                owns selected: i32 = 0;
+
+                state entry {
+                    choose(ready, mut selected);
+                    -> self;
+                }
+
+                state choose(flag: bool, mut out_selected: i32) {
+                    -> yes(mut out_selected) when flag == true;
+                    -> fallback(flag, mut out_selected);
+                }
+
+                state yes(mut out_selected: i32) {
+                    out_selected = 1;
+                }
+
+                state fallback(flag: bool, mut out_selected: i32) {
+                    apply_default(mut out_selected);
+                }
+
+                state apply_default(mut out_selected: i32) {
+                    out_selected = 2;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build straight-line branch expansion");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+    let branching_call = native_plan
+        .runtime_branching_calls
+        .calls
+        .iter()
+        .find(|(_, call)| call.target_state == "choose")
+        .map(|(_, call)| call)
+        .expect("branching call should be planned");
+    let expansion = native_plan
+        .runtime_branching_calls
+        .straight_line_expansions
+        .iter()
+        .find(|(_, expansion)| expansion.target_state == "fallback")
+        .map(|(_, expansion)| expansion)
+        .expect("fallback straight-line expansion should be planned");
+    let bindings = native_plan
+        .runtime_branching_calls
+        .straight_line_bindings
+        .span(expansion.bindings)
+        .expect("straight-line branch bindings should resolve");
+    let operations = native_plan
+        .runtime_branching_calls
+        .straight_line_operations
+        .span(expansion.operations)
+        .expect("straight-line branch operations should resolve");
+
+    assert_eq!(
+        branching_call.expansion,
+        crate::native::runtime_dispatch::branching::RuntimeBranchCallExpansion::NeedsStraightLineTarget
+    );
+    assert!(bindings.iter().any(|binding| {
+        binding.kind
+            == crate::native::runtime_dispatch::branching::RuntimeStraightLineBranchBindingKind::TargetParameter
+            && binding.parameter_name == "out_selected"
+            && binding.expression.display_name() == "mut selected"
+    }));
+    assert!(operations.iter().any(|operation| matches!(
+        operation.kind,
+        crate::native::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::StateCall {
+            ref target_state,
+            lowering: crate::native::state_calls::StateCallLowering::InlineLeaf,
+            ..
+        } if target_state == "apply_default"
+    )));
+    assert!(
+        !emission_plan.blockers.iter().any(|(_, blocker)| {
+            blocker.stage == "state calls"
+                && blocker.reason.contains("main.entry")
+                && blocker.reason.contains("main.choose")
+                && blocker
+                    .reason
+                    .contains("guarded branch expansion with straight-line target")
+        }),
+        "planned straight-line branch expansion should not report a stale state-call blocker"
+    );
+}
+
+#[test]
 fn plans_runtime_leaf_branch_argument_bindings() {
     let tokens = Lexer::new(
         r#"
