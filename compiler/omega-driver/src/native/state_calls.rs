@@ -23,6 +23,7 @@ pub struct StateCall {
     pub reachable: bool,
     pub required: bool,
     pub resolution: StateCallResolution,
+    pub lowering: StateCallLowering,
 }
 
 impl Default for StateCall {
@@ -39,6 +40,7 @@ impl Default for StateCall {
             reachable: false,
             required: false,
             resolution: StateCallResolution::Unresolved,
+            lowering: StateCallLowering::Unresolved,
         }
     }
 }
@@ -80,6 +82,13 @@ pub enum StateCallResolution {
     Unresolved,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateCallLowering {
+    InlineExpansion,
+    #[default]
+    Unresolved,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CollectedStateCall {
     source_machine: String,
@@ -107,6 +116,7 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     let calls = calls
         .into_iter()
         .map(|call| {
+            let lowering = state_call_lowering(&call);
             let arguments = plan.arguments.insert_many(build_call_arguments(
                 native_plan,
                 &call.target_machine,
@@ -126,12 +136,21 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
                 arguments,
                 reachable: call.reachable,
                 required: call.required,
+                lowering,
                 resolution: call.resolution,
             }
         })
         .collect::<Vec<_>>();
     plan.calls.insert_many(calls);
     plan
+}
+
+fn state_call_lowering(call: &CollectedStateCall) -> StateCallLowering {
+    if call.target_machine.is_empty() {
+        StateCallLowering::Unresolved
+    } else {
+        StateCallLowering::InlineExpansion
+    }
 }
 
 fn collect_machine_state_calls(

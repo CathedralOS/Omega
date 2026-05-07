@@ -4,6 +4,7 @@ use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
+use crate::native::state_calls::StateCallLowering;
 use crate::native::state_guards::StateGuardKind;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::state_storage::StateMutationLowering;
@@ -180,18 +181,31 @@ fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<Em
             continue;
         }
 
-        blockers.insert(blocker(
-            "state calls",
-            &format!(
-                "{}.{} statement {} calls {}.{} with {} argument(s); native emission needs state call lowering",
-                state_call.source_machine,
-                state_call.source_state,
-                state_call.statement_index,
-                state_call.target_machine,
-                state_call.target_state,
-                state_call.argument_count
-            ),
-        ));
+        match state_call.lowering {
+            StateCallLowering::InlineExpansion => blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "{}.{} statement {} calls {}.{} with {} argument(s); native emission needs inline state-call expansion",
+                    state_call.source_machine,
+                    state_call.source_state,
+                    state_call.statement_index,
+                    state_call.target_machine,
+                    state_call.target_state,
+                    state_call.argument_count
+                ),
+            )),
+            StateCallLowering::Unresolved => blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "{}.{} statement {} calls unresolved state `{}` through `{}`",
+                    state_call.source_machine,
+                    state_call.source_state,
+                    state_call.statement_index,
+                    state_call.target_state,
+                    state_call.receiver
+                ),
+            )),
+        };
     }
 }
 

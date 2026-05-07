@@ -1495,6 +1495,10 @@ fn plans_state_calls_separately_from_host_calls() {
         prepare_arguments[0].kind,
         crate::native::state_calls::StateCallArgumentKind::Value
     );
+    assert_eq!(
+        prepare_call.lowering,
+        crate::native::state_calls::StateCallLowering::InlineExpansion
+    );
     assert_eq!(native_plan.host_calls.calls.len(), 1);
     assert!(
         emission_plan

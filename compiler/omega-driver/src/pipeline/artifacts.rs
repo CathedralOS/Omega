@@ -503,7 +503,7 @@ impl ArtifactWriter {
         } else {
             for (_, state_call) in native_plan.state_calls.calls.iter() {
                 output.push_str(&format!(
-                    "- {}.{} statement {} `{}` -> {}.{} args {} {:?} reachable {} required {}\n",
+                    "- {}.{} statement {} `{}` -> {}.{} args {} {:?}/{:?} reachable {} required {}\n",
                     state_call.source_machine,
                     state_call.source_state,
                     state_call.statement_index,
@@ -516,6 +516,7 @@ impl ArtifactWriter {
                     state_call.target_state,
                     state_call.argument_count,
                     state_call.resolution,
+                    state_call.lowering,
                     state_call.reachable,
                     state_call.required
                 ));
