@@ -1536,7 +1536,7 @@ fn plans_runtime_branching_state_call_edges() {
 }
 
 #[test]
-fn reports_runtime_leaf_branch_expansion_blocker() {
+fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     let tokens = Lexer::new(
         r#"
             machine main {
@@ -1567,7 +1567,7 @@ fn reports_runtime_leaf_branch_expansion_blocker() {
         &program,
         crate::native::target::NativeTarget::macos_arm64(),
     )
-    .expect("native planning should build runtime branch blockers");
+    .expect("native planning should build runtime branch expansion");
     let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
     let branching_call = native_plan
         .runtime_branching_calls
@@ -1581,14 +1581,15 @@ fn reports_runtime_leaf_branch_expansion_blocker() {
         branching_call.expansion,
         crate::native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeaf
     );
+    assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 1);
     assert!(
-        emission_plan.blockers.iter().any(|(_, blocker)| {
+        !emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "state calls"
                 && blocker.reason.contains("main.entry")
                 && blocker.reason.contains("main.choose")
                 && blocker.reason.contains("guarded leaf branch expansion")
         }),
-        "expected runtime branch blocker to identify guarded leaf expansion"
+        "planned guarded leaf expansion should not report a stale state-call blocker"
     );
 }
 

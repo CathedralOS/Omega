@@ -376,6 +376,10 @@ fn collect_runtime_body_state_call_blockers(
     }
 
     for grouped_blocker in grouped_blockers {
+        if runtime_body_state_call_has_planned_expansion(native_plan, &grouped_blocker) {
+            continue;
+        }
+
         let expansion_reason =
             runtime_body_state_call_expansion_reason(native_plan, &grouped_blocker);
         blockers.insert(blocker(
@@ -426,6 +430,52 @@ fn push_runtime_body_state_call_blocker(
     }
 
     grouped_blockers.push(blocker);
+}
+
+fn runtime_body_state_call_has_planned_expansion(
+    native_plan: &NativePlan,
+    grouped_blocker: &RuntimeBodyStateCallBlocker,
+) -> bool {
+    if grouped_blocker.lowering != StateCallLowering::InlineBranching {
+        return false;
+    }
+
+    let mut matching_calls = native_plan
+        .runtime_branching_calls
+        .calls
+        .iter()
+        .filter_map(|(_, call)| {
+            runtime_branching_call_matches_grouped_blocker(call, grouped_blocker).then_some(call)
+        })
+        .peekable();
+
+    if matching_calls.peek().is_none() {
+        return false;
+    }
+
+    matching_calls.all(|call| {
+        call.expansion == RuntimeBranchCallExpansion::GuardedLeaf
+            && runtime_branching_call_leaf_expansion_count(native_plan, call) > 0
+    })
+}
+
+fn runtime_branching_call_leaf_expansion_count(
+    native_plan: &NativePlan,
+    call: &RuntimeBranchingCall,
+) -> usize {
+    native_plan
+        .runtime_branching_calls
+        .leaf_expansions
+        .iter()
+        .filter(|(_, expansion)| {
+            expansion.dispatch_index == call.dispatch_index
+                && expansion.source_machine == call.source_machine
+                && expansion.source_state == call.source_state
+                && expansion.statement_index == call.statement_index
+                && expansion.branch_machine == call.target_machine
+                && expansion.branch_state == call.target_state
+        })
+        .count()
 }
 
 fn repeated_count_suffix(count: usize) -> String {
