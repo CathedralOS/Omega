@@ -1,4 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
 use std::time::Instant;
 
 use crate::ast::item::Item;
@@ -7,7 +10,7 @@ use crate::parser::parser::parse_file;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
-use crate::source::{Resolver, SourceFile};
+use crate::source::{FileId, SourceFile};
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
@@ -379,7 +382,6 @@ impl LoadedProgram {
 }
 
 fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<Diagnostic>> {
-    let mut resolver = Resolver::default();
     let root_dir = options
         .root_path
         .parent()
@@ -398,73 +400,79 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
 
     pending.push(options.root_path.clone());
 
-    while let Some(path) = pending.pop() {
-        let normalized = normalize_path(&path)?;
+    while !pending.is_empty() {
+        let mut batch_paths = Vec::new();
+        while let Some(path) = pending.pop() {
+            let normalized = normalize_path(&path)?;
 
-        if seen.contains(&normalized) {
-            continue;
-        }
-
-        seen.push(normalized.clone());
-
-        let file = resolver
-            .load_root(&normalized)
-            .map_err(|diagnostic| vec![diagnostic])?;
-        let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
-            vec![Diagnostic::error(format_source_span(
-                file,
-                error.span,
-                &error.message,
-            ))]
-        })?;
-        let ast_file = parse_file(&tokens).map_err(|error| {
-            vec![Diagnostic::error(match error.span {
-                Some(span) => format_source_span(file, span, &error.message),
-                None => format!("{}: {}", file.path.display(), error.message),
-            })]
-        })?;
-        let first_item = items.len();
-        let item_count = ast_file.items.len();
-
-        for item in &ast_file.items {
-            match item {
-                Item::Use(use_item) => {
-                    pending.push(resolve_source_path(&root_dir, &use_item.path));
-                }
-                Item::Target(target) => {
-                    let target_is_selected = options
-                        .target_name
-                        .as_ref()
-                        .is_none_or(|target_name| target.name == *target_name);
-
-                    if target_is_selected {
-                        selected_target_found = true;
-                    } else {
-                        continue;
-                    }
-
-                    if let Some(host) = &target.host {
-                        if is_bundled_omega_path(&host.provider) {
-                            pending.push(resolve_source_path(&root_dir, &host.provider));
-                        }
-                    }
-
-                    for trust_policy in &target.trust_policies {
-                        if is_bundled_omega_path(&trust_policy.path) {
-                            pending.push(resolve_source_path(&root_dir, &trust_policy.path));
-                        }
-                    }
-                }
-                _ => {}
+            if seen.contains(&normalized) {
+                continue;
             }
+
+            seen.push(normalized.clone());
+            batch_paths.push(normalized);
         }
 
-        loaded_files.push(LoadedFile {
-            path: file.path.clone(),
-            first_item,
-            item_count,
-        });
-        items.extend(ast_file.items);
+        let first_file_id = seen.len() - batch_paths.len();
+        let files = load_source_batch(batch_paths, first_file_id)?;
+
+        for file in &files {
+            let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
+                vec![Diagnostic::error(format_source_span(
+                    file,
+                    error.span,
+                    &error.message,
+                ))]
+            })?;
+            let ast_file = parse_file(&tokens).map_err(|error| {
+                vec![Diagnostic::error(match error.span {
+                    Some(span) => format_source_span(file, span, &error.message),
+                    None => format!("{}: {}", file.path.display(), error.message),
+                })]
+            })?;
+            let first_item = items.len();
+            let item_count = ast_file.items.len();
+
+            for item in &ast_file.items {
+                match item {
+                    Item::Use(use_item) => {
+                        pending.push(resolve_source_path(&root_dir, &use_item.path));
+                    }
+                    Item::Target(target) => {
+                        let target_is_selected = options
+                            .target_name
+                            .as_ref()
+                            .is_none_or(|target_name| target.name == *target_name);
+
+                        if target_is_selected {
+                            selected_target_found = true;
+                        } else {
+                            continue;
+                        }
+
+                        if let Some(host) = &target.host {
+                            if is_bundled_omega_path(&host.provider) {
+                                pending.push(resolve_source_path(&root_dir, &host.provider));
+                            }
+                        }
+
+                        for trust_policy in &target.trust_policies {
+                            if is_bundled_omega_path(&trust_policy.path) {
+                                pending.push(resolve_source_path(&root_dir, &trust_policy.path));
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            loaded_files.push(LoadedFile {
+                path: file.path.clone(),
+                first_item,
+                item_count,
+            });
+            items.extend(ast_file.items);
+        }
     }
 
     if !selected_target_found {
@@ -481,6 +489,72 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         items,
         files: loaded_files,
     })
+}
+
+fn load_source_batch(
+    paths: Vec<PathBuf>,
+    first_file_id: usize,
+) -> Result<Vec<SourceFile>, Vec<Diagnostic>> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let paths = Arc::new(paths);
+    let next_index = AtomicUsize::new(0);
+    let worker_count = source_worker_count(paths.len());
+    let worker_results = thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+
+        for _ in 0..worker_count {
+            let paths = Arc::clone(&paths);
+            let next_index = &next_index;
+            handles.push(scope.spawn(move || {
+                let mut results = Vec::new();
+
+                loop {
+                    let index = next_index.fetch_add(1, Ordering::Relaxed);
+                    let Some(path) = paths.get(index).cloned() else {
+                        break;
+                    };
+
+                    let source = std::fs::read_to_string(&path).map_err(|error| {
+                        Diagnostic::error(format!("failed to read {}: {error}", path.display()))
+                    });
+                    results.push((index, path, source));
+                }
+
+                results
+            }));
+        }
+
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("source worker should not panic"))
+            .collect::<Vec<_>>()
+    });
+
+    let mut loaded = worker_results;
+    loaded.sort_by_key(|(index, _, _)| *index);
+
+    let mut files = Vec::with_capacity(loaded.len());
+    for (index, path, source) in loaded {
+        let source = source.map_err(|diagnostic| vec![diagnostic])?;
+        files.push(SourceFile {
+            id: FileId(first_file_id + index),
+            path,
+            source,
+        });
+    }
+
+    Ok(files)
+}
+
+fn source_worker_count(job_count: usize) -> usize {
+    let available = thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1);
+
+    job_count.min(available).max(1)
 }
 
 fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
