@@ -4122,6 +4122,9 @@ fn collect_entrypoints(path: &std::path::Path, entrypoints: &mut Vec<std::path::
         let path = entry.path();
 
         if path.is_dir() {
+            if path.file_name().is_some_and(|file_name| file_name == "build") {
+                continue;
+            }
             collect_entrypoints(&path, entrypoints);
         } else if path
             .file_name()
