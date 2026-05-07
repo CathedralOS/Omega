@@ -1,5 +1,5 @@
 use crate::ir::statement::TransitionGuard;
-use crate::native::control_flow::{MachineFlow, PlannedTransitionTarget};
+use crate::native::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget};
 use crate::native::plan::NativePlan;
 use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
@@ -45,6 +45,7 @@ pub struct RuntimeBranchingCallEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
+    pub lowering: RuntimeBranchTargetLowering,
 }
 
 impl Default for RuntimeBranchingCallEdge {
@@ -54,8 +55,19 @@ impl Default for RuntimeBranchingCallEdge {
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
+            lowering: RuntimeBranchTargetLowering::Unknown,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeBranchTargetLowering {
+    Terminal,
+    InlineLeaf,
+    InlineStraightLine,
+    InlineBranching,
+    #[default]
+    Unknown,
 }
 
 pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBranchingCallPlan {
@@ -118,17 +130,81 @@ fn build_branch_edges(
     transitions
         .iter()
         .enumerate()
-        .map(|(order, transition)| RuntimeBranchingCallEdge {
-            order,
-            target: runtime_transition_target(machine, state_name, &transition.target),
-            continuation: transition
-                .continuation
-                .as_ref()
-                .map(|continuation| runtime_transition_target(machine, state_name, continuation))
-                .unwrap_or(RuntimeTransitionTarget::None),
-            guard: transition.guard.clone(),
+        .map(|(order, transition)| {
+            let target = runtime_transition_target(machine, state_name, &transition.target);
+            RuntimeBranchingCallEdge {
+                order,
+                lowering: branch_target_lowering(native_plan, &target),
+                target,
+                continuation: transition
+                    .continuation
+                    .as_ref()
+                    .map(|continuation| {
+                        runtime_transition_target(machine, state_name, continuation)
+                    })
+                    .unwrap_or(RuntimeTransitionTarget::None),
+                guard: transition.guard.clone(),
+            }
         })
         .collect()
+}
+
+fn branch_target_lowering(
+    native_plan: &NativePlan,
+    target: &RuntimeTransitionTarget,
+) -> RuntimeBranchTargetLowering {
+    let RuntimeTransitionTarget::State { machine, state } = target else {
+        return match target {
+            RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
+                RuntimeBranchTargetLowering::Terminal
+            }
+            RuntimeTransitionTarget::Unknown { .. } => RuntimeBranchTargetLowering::Unknown,
+            RuntimeTransitionTarget::State { .. } => unreachable!(),
+        };
+    };
+
+    let Some(target_machine) = machine_flow(native_plan, machine) else {
+        return RuntimeBranchTargetLowering::Unknown;
+    };
+    let Some(target_state) = native_plan
+        .control_flow
+        .states
+        .span(target_machine.states)
+        .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+    else {
+        return RuntimeBranchTargetLowering::Unknown;
+    };
+
+    if native_plan
+        .control_flow
+        .transitions
+        .span(target_state.transitions)
+        .is_some_and(|transitions| !transitions.is_empty())
+    {
+        return RuntimeBranchTargetLowering::InlineBranching;
+    }
+
+    let has_state_call = native_plan
+        .control_flow
+        .operations
+        .span(target_state.operations)
+        .is_some_and(|operations| {
+            operations.iter().any(|operation| {
+                matches!(operation.kind, OperationKind::Call { .. })
+                    && !state_statement_has_host_call(
+                        native_plan,
+                        machine,
+                        state,
+                        operation.statement_index,
+                    )
+            })
+        });
+
+    if has_state_call {
+        RuntimeBranchTargetLowering::InlineStraightLine
+    } else {
+        RuntimeBranchTargetLowering::InlineLeaf
+    }
 }
 
 fn machine_flow<'plan>(
@@ -141,6 +217,19 @@ fn machine_flow<'plan>(
         .iter()
         .find(|(_, machine)| machine.name == machine_name)
         .map(|(_, machine)| machine)
+}
+
+fn state_statement_has_host_call(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    native_plan.host_calls.calls.iter().any(|(_, host_call)| {
+        host_call.machine == machine_name
+            && host_call.state == state_name
+            && host_call.statement_index == statement_index
+    })
 }
 
 fn runtime_transition_target(

@@ -1415,11 +1415,19 @@ fn plans_runtime_branching_state_call_edges() {
         crate::native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
             if state == "yes"
     ));
+    assert_eq!(
+        edges[0].lowering,
+        crate::native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
+    );
     assert!(matches!(
         edges[1].target,
         crate::native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
             if state == "no"
     ));
+    assert_eq!(
+        edges[1].lowering,
+        crate::native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
+    );
 }
 
 #[test]

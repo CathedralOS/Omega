@@ -940,9 +940,10 @@ impl ArtifactWriter {
                         output.push_str("  edges:\n");
                         for edge in edges {
                             output.push_str(&format!(
-                                "    - #{} -> {} {}",
+                                "    - #{} -> {} {:?} {}",
                                 edge.order,
                                 runtime_transition_target_name(&edge.target),
+                                edge.lowering,
                                 transition_guard_name(&edge.guard)
                             ));
 
