@@ -1558,6 +1558,13 @@ fn plans_runtime_leaf_branch_argument_bindings() {
         .span(expansion.bindings)
         .expect("leaf branch bindings should resolve");
 
+    assert_eq!(
+        match &expansion.resolved_guard {
+            crate::ir::statement::TransitionGuard::When(expression) => expression.display_name(),
+            crate::ir::statement::TransitionGuard::Always => "always".to_owned(),
+        },
+        "first::id == CellId::A1"
+    );
     assert!(bindings.iter().any(|binding| {
         binding.kind
             == crate::native::runtime_dispatch::branching::RuntimeLeafBranchBindingKind::BranchParameter

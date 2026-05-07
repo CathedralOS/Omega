@@ -1158,6 +1158,12 @@ impl ArtifactWriter {
                     expansion.guard_kind,
                     transition_guard_name(&expansion.guard)
                 ));
+                if expansion.resolved_guard != expansion.guard {
+                    output.push_str(&format!(
+                        "  resolved guard: {}\n",
+                        transition_guard_name(&expansion.resolved_guard)
+                    ));
+                }
 
                 match native_plan
                     .runtime_branching_calls

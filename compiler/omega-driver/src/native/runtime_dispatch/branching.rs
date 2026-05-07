@@ -104,6 +104,7 @@ pub struct RuntimeLeafBranchExpansion {
     pub branch_state: String,
     pub edge_order: usize,
     pub guard: TransitionGuard,
+    pub resolved_guard: TransitionGuard,
     pub guard_kind: StateGuardKind,
     pub leaf_machine: String,
     pub leaf_state: String,
@@ -122,6 +123,7 @@ impl Default for RuntimeLeafBranchExpansion {
             branch_state: String::new(),
             edge_order: 0,
             guard: TransitionGuard::Always,
+            resolved_guard: TransitionGuard::Always,
             guard_kind: StateGuardKind::Always,
             leaf_machine: String::new(),
             leaf_state: String::new(),
@@ -280,9 +282,10 @@ fn append_leaf_branch_expansions(
             continue;
         };
 
+        let branch_bindings = branch_parameter_bindings(native_plan, state_call);
         let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
+            &branch_bindings,
             native_plan,
-            state_call,
             branch_machine,
             branch_state,
             leaf_machine,
@@ -304,6 +307,7 @@ fn append_leaf_branch_expansions(
             branch_state: branch_state.to_owned(),
             edge_order: edge.order,
             guard: edge.guard.clone(),
+            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
             guard_kind: edge.guard_kind,
             leaf_machine: leaf_machine.clone(),
             leaf_state: leaf_state.clone(),
@@ -314,15 +318,14 @@ fn append_leaf_branch_expansions(
 }
 
 fn leaf_branch_bindings(
+    branch_bindings: &[(String, Expression)],
     native_plan: &NativePlan,
-    state_call: &StateCall,
     branch_machine: &str,
     branch_state: &str,
     leaf_machine: &str,
     leaf_state: &str,
     leaf_arguments: &[Expression],
 ) -> Vec<RuntimeLeafBranchBinding> {
-    let branch_bindings = branch_parameter_bindings(native_plan, state_call);
     let mut bindings = branch_bindings
         .iter()
         .map(|(parameter_name, expression)| RuntimeLeafBranchBinding {
@@ -349,6 +352,18 @@ fn leaf_branch_bindings(
     }
 
     bindings
+}
+
+fn resolve_branch_guard(
+    guard: &TransitionGuard,
+    branch_bindings: &[(String, Expression)],
+) -> TransitionGuard {
+    match guard {
+        TransitionGuard::Always => TransitionGuard::Always,
+        TransitionGuard::When(expression) => {
+            TransitionGuard::When(resolve_branch_expression(expression, branch_bindings))
+        }
+    }
 }
 
 fn branch_parameter_bindings(
@@ -395,6 +410,13 @@ fn resolve_branch_expression(
             .find(|(parameter_name, _)| parameter_name == &path[0])
             .map(|(_, bound_expression)| append_place_suffix(bound_expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
+        Expression::Binary(binary) => {
+            Expression::Binary(Box::new(crate::ir::expression::BinaryExpression {
+                left: resolve_branch_expression(&binary.left, branch_bindings),
+                operator: binary.operator,
+                right: resolve_branch_expression(&binary.right, branch_bindings),
+            }))
+        }
         _ => expression.clone(),
     }
 }
