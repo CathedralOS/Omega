@@ -1292,6 +1292,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
             && guard.source_state == "entry"
             && guard.kind == crate::native::state_guards::StateGuardKind::RuntimeEquality
             && guard.operator == crate::native::state_guards::StateGuardOperator::Equal
+            && guard.lowering == crate::native::state_guards::StateGuardLowering::CompareStaticValue
             && guard.expression.display_name() == "ready == true"
     }));
     let equality_guard = native_plan
@@ -1322,6 +1323,8 @@ fn plans_runtime_guards_for_dispatch_edges() {
         guard_operands[1].kind,
         crate::native::state_guards::StateGuardOperandKind::Literal
     );
+    assert!(guard_operands[1].has_resolved_value);
+    assert_eq!(guard_operands[1].resolved_value, 1);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         guard.source_machine == "main"
             && guard.source_state == "entry"

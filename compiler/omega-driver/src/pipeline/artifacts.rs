@@ -993,7 +993,7 @@ impl ArtifactWriter {
         } else {
             for (_, guard) in native_plan.state_guards.guards.iter() {
                 output.push_str(&format!(
-                    "- #{} {}.{} edge {} -> #{} {} {:?}/{:?}",
+                    "- #{} {}.{} edge {} -> #{} {} {:?}/{:?}/{:?}",
                     guard.source_dispatch_index,
                     guard.source_machine,
                     guard.source_state,
@@ -1001,7 +1001,8 @@ impl ArtifactWriter {
                     guard.target_dispatch_index,
                     runtime_transition_target_name(&guard.target),
                     guard.kind,
-                    guard.operator
+                    guard.operator,
+                    guard.lowering
                 ));
 
                 if guard.has_expression {

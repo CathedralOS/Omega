@@ -12,7 +12,7 @@ use crate::native::runtime_text::{
     RuntimeTextSource, RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
 };
 use crate::native::state_calls::StateCallLowering;
-use crate::native::state_guards::StateGuardKind;
+use crate::native::state_guards::StateGuardLowering;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
 use crate::native::state_storage::StateMutationLowering;
 use crate::native::state_values::{StateValueKind, StateValueRole};
@@ -668,14 +668,17 @@ fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static s
 
 fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
     for (_, guard) in native_plan.state_guards.guards.iter() {
-        if guard.kind == StateGuardKind::Always {
+        if matches!(
+            guard.lowering,
+            StateGuardLowering::NoOp | StateGuardLowering::CompareStaticValue
+        ) {
             continue;
         }
 
         blockers.insert(blocker(
             "state guards",
             &format!(
-                "#{} {}.{} edge {} -> #{} {} {:?} `{}` needs runtime guard lowering",
+                "#{} {}.{} edge {} -> #{} {} {:?}/{:?} `{}` needs runtime guard lowering",
                 guard.source_dispatch_index,
                 guard.source_machine,
                 guard.source_state,
@@ -683,6 +686,7 @@ fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
                 guard.target_dispatch_index,
                 runtime_transition_target_name(&guard.target),
                 guard.kind,
+                guard.lowering,
                 guard.expression.display_name()
             ),
         ));

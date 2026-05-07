@@ -23,6 +23,7 @@ pub struct StateGuard {
     pub statement_order: usize,
     pub kind: StateGuardKind,
     pub operator: StateGuardOperator,
+    pub lowering: StateGuardLowering,
     pub expression: Expression,
     pub operands: HandleSpan<StateGuardOperand>,
     pub has_expression: bool,
@@ -42,6 +43,7 @@ impl Default for StateGuard {
             statement_order: 0,
             kind: StateGuardKind::Always,
             operator: StateGuardOperator::None,
+            lowering: StateGuardLowering::NoOp,
             expression: Expression::Boolean(true),
             operands: HandleSpan::empty(),
             has_expression: false,
@@ -73,6 +75,15 @@ pub enum StateGuardOperator {
     Add,
     And,
     Or,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateGuardLowering {
+    NoOp,
+    CompareStaticValue,
+    CompareRuntimeValue,
+    #[default]
+    NeedsRuntimeExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,7 +171,9 @@ fn build_state_guard(
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let operands = operands.insert_many(guard_operands(layouts, &edge.guard));
+    let guard_operands = guard_operands(layouts, &edge.guard);
+    let lowering = guard_lowering(kind, operator, &guard_operands);
+    let operands = operands.insert_many(guard_operands);
 
     StateGuard {
         source_machine: source_machine.to_owned(),
@@ -173,11 +186,43 @@ fn build_state_guard(
         statement_order,
         kind,
         operator,
+        lowering,
         expression,
         operands,
         has_expression,
         forms_cycle: edge.forms_cycle,
     }
+}
+
+fn guard_lowering(
+    kind: StateGuardKind,
+    operator: StateGuardOperator,
+    operands: &[StateGuardOperand],
+) -> StateGuardLowering {
+    if kind == StateGuardKind::Always {
+        return StateGuardLowering::NoOp;
+    }
+
+    if !matches!(
+        operator,
+        StateGuardOperator::Equal | StateGuardOperator::NotEqual
+    ) {
+        return StateGuardLowering::NeedsRuntimeExpression;
+    }
+
+    let [left, right] = operands else {
+        return StateGuardLowering::NeedsRuntimeExpression;
+    };
+
+    if left.kind == StateGuardOperandKind::Place && right.has_resolved_value {
+        return StateGuardLowering::CompareStaticValue;
+    }
+
+    if left.kind == StateGuardOperandKind::Place && right.kind == StateGuardOperandKind::Place {
+        return StateGuardLowering::CompareRuntimeValue;
+    }
+
+    StateGuardLowering::NeedsRuntimeExpression
 }
 
 fn guard_data(guard: &TransitionGuard) -> (StateGuardKind, StateGuardOperator, Expression, bool) {
@@ -223,7 +268,7 @@ fn guard_operands(layouts: &LayoutPlan, guard: &TransitionGuard) -> Vec<StateGua
     [binary.left.clone(), binary.right.clone()]
         .into_iter()
         .map(|expression| {
-            let resolved_value = static_symbol_value(layouts, &expression);
+            let resolved_value = resolved_guard_operand_value(layouts, &expression);
             StateGuardOperand {
                 kind: classify_guard_operand(&expression),
                 expression,
@@ -234,7 +279,13 @@ fn guard_operands(layouts: &LayoutPlan, guard: &TransitionGuard) -> Vec<StateGua
         .collect()
 }
 
-fn static_symbol_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {
+fn resolved_guard_operand_value(layouts: &LayoutPlan, expression: &Expression) -> Option<i64> {
+    match expression {
+        Expression::Boolean(value) => return Some(i64::from(*value)),
+        Expression::Integer(value) => return Some(*value),
+        _ => {}
+    }
+
     let Expression::Name(path) = expression else {
         return None;
     };
