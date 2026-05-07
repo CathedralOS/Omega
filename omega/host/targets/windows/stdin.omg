@@ -1,0 +1,15 @@
+use omega::host::contracts::stdin;
+use omega::host::targets::windows::kernel32;
+use omega::host::targets::windows::types;
+
+capability WindowsStdin {
+    kernel32: WindowsKernel32
+
+    state read_line(mut out_text: String) -> Result<(), IOError> where {
+        requires out_text.writable
+        ensures result.Ok => out_text.utf8
+        ensures result.Err(e) => e is IOError
+        trust omega_windows_stdin_adapter
+        trust omega_windows_kernel32
+    }
+}

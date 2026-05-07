@@ -256,7 +256,7 @@ fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str
             library: library.to_owned(),
             symbol: symbol.to_owned(),
         },
-        trust_policy: "omega::host::windows".to_owned(),
+        trust_policy: "omega::host::targets::windows".to_owned(),
     }
 }
 
@@ -268,7 +268,7 @@ fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding 
             name: operation.to_owned(),
             number,
         },
-        trust_policy: "omega::host::linux".to_owned(),
+        trust_policy: "omega::host::targets::linux".to_owned(),
     }
 }
 
@@ -280,6 +280,6 @@ fn darwin_import(capability: &str, operation: &str, library: &str, symbol: &str)
             library: library.to_owned(),
             symbol: symbol.to_owned(),
         },
-        trust_policy: "omega::host::darwin".to_owned(),
+        trust_policy: "omega::host::targets::darwin".to_owned(),
     }
 }

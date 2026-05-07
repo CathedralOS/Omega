@@ -941,7 +941,7 @@ fn parses_top_level_trust_definitions() {
     let tokens = Lexer::new(
         r#"
             trust omega_windows_kernel32 {
-                owner omega::host::windows
+                owner omega::host::targets::windows
                 reason "Windows Kernel32 API contract"
                 scope {
                     dll "Kernel32.dll"
@@ -2601,7 +2601,7 @@ fn selected_windows_target_plans_coff_and_kernel32_imports() {
             .host_abi
             .bindings
             .iter()
-            .any(|(_, binding)| binding.trust_policy == "omega::host::windows")
+            .any(|(_, binding)| binding.trust_policy == "omega::host::targets::windows")
     );
     assert_eq!(native_plan.host_calls.calls.len(), 2);
     assert_eq!(native_plan.host_calls.operations.len(), 3);
@@ -2850,7 +2850,7 @@ fn check_writes_phase_artifacts() {
     let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
         .expect("source artifact should be readable");
     assert!(
-        sources.contains("omega/std/console.omg"),
+        sources.contains("omega/language/std/console.omg"),
         "source artifact should include bundled omega std source"
     );
     let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
@@ -2936,14 +2936,14 @@ fn compile_emits_static_inline_state_call() {
         build_path,
         r#"
             target macos_arm64 {
-                host: omega::host::darwin {
+                host: omega::host::targets::darwin {
                     abi = libSystem
                     stdout = fd(1)
                     process = enabled
                 }
 
                 trust omega::host::contracts
-                trust omega::host::darwin
+                trust omega::host::targets::darwin
             }
             "#,
     )
@@ -3998,11 +3998,11 @@ fn selected_target_loads_only_referenced_host_package() {
     let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
         .expect("source artifact should be readable");
 
-    assert!(sources.contains("omega/host/windows/mod.omg"));
-    assert!(sources.contains("omega/host/windows/kernel32.omg"));
+    assert!(sources.contains("omega/host/targets/windows/mod.omg"));
+    assert!(sources.contains("omega/host/targets/windows/kernel32.omg"));
     assert!(sources.contains("omega/host/contracts/mod.omg"));
-    assert!(!sources.contains("omega/host/linux/mod.omg"));
-    assert!(!sources.contains("omega/host/darwin/mod.omg"));
+    assert!(!sources.contains("omega/host/targets/linux/mod.omg"));
+    assert!(!sources.contains("omega/host/targets/darwin/mod.omg"));
 
     let trust = std::fs::read_to_string(output.artifacts_dir.join("10_trust.txt"))
         .expect("trust artifact should be readable");

@@ -27,7 +27,7 @@ target cross_platform_cli {
 }
 
 target linux_x64 {
-    host: omega::host::linux {
+    host: omega::host::targets::linux {
         abi = syscall
         stdout = fd(1)
         process = enabled
@@ -38,11 +38,11 @@ target linux_x64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::linux
+    trust omega::host::targets::linux
 }
 
 target macos_arm64 {
-    host: omega::host::darwin {
+    host: omega::host::targets::darwin {
         abi = libSystem
         stdout = fd(1)
         process = enabled
@@ -53,11 +53,11 @@ target macos_arm64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::darwin
+    trust omega::host::targets::darwin
 }
 
 target windows_x64 {
-    host: omega::host::windows {
+    host: omega::host::targets::windows {
         abi = win32
         stdout = standard_handle(stdout)
         process = enabled
@@ -68,7 +68,7 @@ target windows_x64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::windows
+    trust omega::host::targets::windows
 }
 
 // A permissive development build should still be auditable.

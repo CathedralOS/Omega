@@ -19,7 +19,7 @@ Omega should prove the literal is initialized/UTF-8 and that errors are handled 
 
 The standard library should be ordinary Omega code wherever possible: strings, slices, math, collections, parsing helpers, portable console helpers, and so on.
 
-The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the trusted root that adapts those portable capabilities to a target ABI. Each platform is folder-backed and split by domain, for example `omega::host::windows` loads `windows/mod.omg`, then pulls in `kernel32`, `stdout`, `process`, and local platform types.
+The host bindings are different. Files under the toolchain-provided `omega::host` package sketch the trusted root that adapts those portable capabilities to a target ABI. Each platform target is folder-backed and split by domain, for example `omega::host::targets::windows` loads `targets/windows/mod.omg`, then pulls in `kernel32`, `stdout`, `process`, and local platform types.
 
 - Windows uses documented Win32 imports like `Kernel32.dll!WriteFile` and `ExitProcess`.
 - Linux can plausibly use raw syscalls for `write` and `exit_group`.

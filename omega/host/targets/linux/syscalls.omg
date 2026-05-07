@@ -1,0 +1,30 @@
+use omega::host::targets::linux::types;
+
+capability LinuxSyscalls {
+    state read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+        requires fd == 0
+        requires buffer.writable
+        requires byte_count <= buffer.len
+        ensures result.Ok(n) => n <= byte_count
+        ensures result.Err(e) => e is LinuxErrno
+        trust linux_syscall_abi
+        trust host
+    }
+
+    state write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+        requires fd == 1
+        requires buffer.initialized
+        requires byte_count <= buffer.len
+        ensures result.Ok(n) => n <= byte_count
+        ensures result.Err(e) => e is LinuxErrno
+        trust linux_syscall_abi
+        trust host
+    }
+
+    state exit_group(return_code: i32) -> Terminal where {
+        requires linux_accepts_exit_code(return_code)
+        ensures process_terminated
+        trust linux_syscall_abi
+        trust host
+    }
+}

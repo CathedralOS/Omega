@@ -339,7 +339,7 @@ Current feature canaries include:
 
 Imports beginning with `omega::` resolve to bundled Omega source packages under `omega/`.
 
-Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::windows` can live in folders and shard their contracts by domain.
+Package paths can resolve to either `name.omg` or `name/mod.omg`, so larger packages such as `omega::host::targets::windows` can live in folders and shard their contracts by domain.
 
 Set `OMEGA_LIBRARY_ROOT` to point at a different bundled library root when testing an installed or alternate toolchain layout.
 
@@ -386,8 +386,8 @@ cargo run -p omega-cli -- --target macos_arm64 samples/cli_mvp/main.omg
 Inspect canaries:
 
 ```bash
-cargo test -p omega-driver checks_passing_canaries
-cargo test -p omega-driver rejects_failing_canaries
+cargo test -p omega-compiler checks_passing_canaries
+cargo test -p omega-compiler rejects_failing_canaries
 ```
 
 ## Design Notes

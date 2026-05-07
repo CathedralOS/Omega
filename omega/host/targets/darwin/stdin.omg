@@ -1,0 +1,15 @@
+use omega::host::contracts::stdin;
+use omega::host::targets::darwin::libsystem;
+use omega::host::targets::darwin::types;
+
+capability DarwinStdin {
+    libsystem: DarwinLibSystem
+
+    state read_line(mut out_text: String) -> Result<(), IOError> where {
+        requires out_text.writable
+        ensures result.Ok => out_text.utf8
+        ensures result.Err(e) => e is IOError
+        trust omega_darwin_stdin_adapter
+        trust omega_darwin_libsystem
+    }
+}

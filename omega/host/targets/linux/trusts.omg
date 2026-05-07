@@ -1,0 +1,31 @@
+trust omega_linux_syscalls {
+    owner omega::host::targets::linux
+    reason "Linux syscall numbers and calling convention"
+    scope {
+        syscalls read, write, exit_group
+        abi linux_x64
+    }
+}
+
+trust omega_linux_process_adapter {
+    owner omega::host::targets::linux
+    reason "Omega adapter maps Process.exit to Linux exit_group"
+    depends omega_linux_syscalls
+}
+
+trust omega_linux_stdout_adapter {
+    owner omega::host::targets::linux
+    reason "Omega adapter maps Stdout.write_line to Linux write"
+    depends omega_linux_syscalls
+}
+
+trust omega_linux_stdin_adapter {
+    owner omega::host::targets::linux
+    reason "Omega adapter maps Stdin.read_line to Linux read"
+    depends omega_linux_syscalls
+}
+
+trust linux_syscall_abi {
+    owner omega::host::targets::linux
+    reason "Generated syscall sequences obey the Linux syscall ABI"
+}

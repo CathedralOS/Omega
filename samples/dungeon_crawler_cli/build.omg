@@ -15,7 +15,7 @@ target cross_platform_cli {
 }
 
 target macos_arm64 {
-    host: omega::host::darwin {
+    host: omega::host::targets::darwin {
         abi = libSystem
         stdin = fd(0)
         stdout = fd(1)
@@ -27,11 +27,11 @@ target macos_arm64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::darwin
+    trust omega::host::targets::darwin
 }
 
 target linux_x64 {
-    host: omega::host::linux {
+    host: omega::host::targets::linux {
         abi = syscall
         stdin = fd(0)
         stdout = fd(1)
@@ -43,11 +43,11 @@ target linux_x64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::linux
+    trust omega::host::targets::linux
 }
 
 target windows_x64 {
-    host: omega::host::windows {
+    host: omega::host::targets::windows {
         abi = win32
         stdin = standard_handle(stdin)
         stdout = standard_handle(stdout)
@@ -59,5 +59,5 @@ target windows_x64 {
     }
 
     trust omega::host::contracts
-    trust omega::host::windows
+    trust omega::host::targets::windows
 }
