@@ -3,6 +3,7 @@ use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
+use crate::native::runtime_text::RuntimeTextSource;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
@@ -421,7 +422,9 @@ fn select_host_operation_operands(
             operands
         }
         (_, "Stdout", "write" | "write_file") => {
-            let Some(data_object) = find_data_object(native_plan, host_call) else {
+            let Some(data_object) = find_data_object(native_plan, host_call)
+                .or_else(|| find_runtime_text_input_buffer_data_object(native_plan, host_call))
+            else {
                 return Vec::new();
             };
             let byte_count = native_plan
@@ -463,6 +466,65 @@ fn find_data_object<'plan>(
                 && data_object.source_statement == host_call.statement_index
         })
         .map(|(_, data_object)| data_object)
+}
+
+fn find_runtime_text_input_buffer_data_object<'plan>(
+    native_plan: &'plan NativePlan,
+    host_call: &HostCall,
+) -> Option<&'plan NativeDataObject> {
+    let text_use = native_plan
+        .runtime_text
+        .uses
+        .iter()
+        .find(|(_, text_use)| {
+            text_use.machine == host_call.machine
+                && text_use.state == host_call.state
+                && text_use.statement_index == host_call.statement_index
+                && text_use.platform_call == host_call.platform_call
+                && text_use.source == RuntimeTextSource::StoredPlace
+        })
+        .map(|(_, text_use)| text_use)?;
+
+    let text_slot = native_plan
+        .runtime_text
+        .slots
+        .iter()
+        .find(|(_, slot)| {
+            slot.place.display_name() == text_use.expression.display_name() && slot.has_input_buffer
+        })
+        .map(|(_, slot)| slot)?;
+
+    let buffer = native_plan
+        .runtime_text
+        .buffers
+        .iter()
+        .find(|(_, buffer)| {
+            text_place_for_buffer_target(&buffer.target)
+                .is_some_and(|place_name| place_name == text_slot.place.display_name())
+        })
+        .map(|(_, buffer)| buffer)?;
+
+    native_plan
+        .data
+        .objects
+        .iter()
+        .find(|(_, data_object)| {
+            data_object.source_machine == buffer.machine
+                && data_object.source_state == buffer.state
+                && data_object.source_statement == buffer.statement_index
+        })
+        .map(|(_, data_object)| data_object)
+}
+
+fn text_place_for_buffer_target(target: &crate::ir::expression::Expression) -> Option<String> {
+    match target {
+        crate::ir::expression::Expression::Name(path) => {
+            let mut text_path = path.clone();
+            text_path.push("text".to_owned());
+            Some(crate::ir::expression::Expression::Name(text_path).display_name())
+        }
+        _ => None,
+    }
 }
 
 fn exit_code(host_call: &HostCall, native_plan: &NativePlan) -> i64 {

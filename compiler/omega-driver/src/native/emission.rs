@@ -162,6 +162,11 @@ fn collect_host_argument_blockers(
 
         if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
             let runtime_text_use = runtime_text_use_for_host_call(native_plan, host_call);
+            if runtime_text_use
+                .is_some_and(|text_use| runtime_text_use_has_input_buffer(native_plan, text_use))
+            {
+                continue;
+            }
             blockers.insert(blocker(
                 "host arguments",
                 &runtime_text_use
@@ -195,6 +200,12 @@ fn runtime_text_use_for_host_call<'plan>(
                 && text_use.platform_call == host_call.platform_call
         })
         .map(|(_, text_use)| text_use)
+}
+
+fn runtime_text_use_has_input_buffer(native_plan: &NativePlan, text_use: &RuntimeTextUse) -> bool {
+    native_plan.runtime_text.slots.iter().any(|(_, slot)| {
+        slot.place.display_name() == text_use.expression.display_name() && slot.has_input_buffer
+    })
 }
 
 fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {

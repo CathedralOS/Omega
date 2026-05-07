@@ -3171,7 +3171,7 @@ fn lowers_mutable_output_host_call() {
                 state entry {
                     console.write("> ");
                     console.read_line(mut line);
-                    console.write_line("read");
+                    console.write_line(line.text);
                     console.exit_process(0);
                 }
             }
@@ -3217,6 +3217,18 @@ fn lowers_mutable_output_host_call() {
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 4);
+    assert!(
+        native_plan
+            .instructions
+            .operands
+            .iter()
+            .any(|(_, operand)| matches!(
+                &operand.kind,
+                crate::native::instructions::InstructionOperandKind::DataAddress { symbol }
+                    if symbol == &read_buffer.symbol
+            )),
+        "stdout should be able to reuse the input buffer as a runtime text operand"
+    );
     assert_eq!(read_buffer_bytes.len(), 256);
     assert_eq!(runtime_text_buffer.byte_capacity, 256);
     assert_eq!(runtime_text_slot.byte_capacity, 256);
