@@ -10,6 +10,7 @@ use crate::native::machine_code::{MachineCodePlan, build_machine_code_plan};
 use crate::native::object::{ObjectPlan, build_object_plan};
 use crate::native::relocations::{RelocationPlan, build_relocation_plan};
 use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
+use crate::native::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::native::target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +22,7 @@ pub struct NativePlan {
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
     pub runtime_flow: RuntimeFlowPlan,
+    pub state_dispatch: StateDispatchPlan,
     pub layouts: LayoutPlan,
     pub machine_code: MachineCodePlan,
     pub object: ObjectPlan,
@@ -37,6 +39,7 @@ pub fn build_native_plan(
     let entry_state = "entry".to_owned();
     let control_flow = build_control_flow_plan(program)?;
     let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
+    let state_dispatch = build_state_dispatch_plan(&runtime_flow);
 
     let mut native_plan = NativePlan {
         target,
@@ -51,6 +54,7 @@ pub fn build_native_plan(
         },
         control_flow,
         runtime_flow,
+        state_dispatch,
         layouts: build_layout_plan(program, target)?,
         machine_code: MachineCodePlan::default(),
         object: ObjectPlan {

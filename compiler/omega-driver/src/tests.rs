@@ -1209,6 +1209,55 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
 }
 
 #[test]
+fn plans_runtime_dispatch_indices_for_state_cycles() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build dispatch data");
+    let prompt = native_plan
+        .state_dispatch
+        .states
+        .iter()
+        .find(|(_, state)| state.machine == "main" && state.state == "prompt")
+        .map(|(_, state)| state)
+        .expect("prompt dispatch state should exist");
+    let prompt_edges = native_plan
+        .state_dispatch
+        .edges
+        .span(prompt.edges)
+        .expect("prompt edges should resolve");
+
+    assert_eq!(prompt.dispatch_index, 2);
+    assert_eq!(prompt.label, "omega_state_main_prompt");
+    assert_eq!(prompt_edges.len(), 1);
+    assert_eq!(prompt_edges[0].target_dispatch_index, 3);
+}
+
+#[test]
 fn plans_mid_state_transition_as_generated_segments() {
     let tokens = Lexer::new(
         r#"
