@@ -4,6 +4,7 @@ use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
 use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
+use crate::native::state_storage::StateMutationLowering;
 use crate::native::target::ObjectFormat;
 use omega_core::arena::Arena;
 
@@ -207,50 +208,24 @@ fn collect_state_storage_blockers(native_plan: &NativePlan, blockers: &mut Arena
             continue;
         }
 
-        if state_mutation_is_already_lowered(
-            native_plan,
-            &mutation.machine,
-            &mutation.state,
-            mutation.statement_index,
-        ) {
+        if mutation.lowering == StateMutationLowering::AlreadyLowered {
             continue;
         }
 
         blockers.insert(blocker(
             "state mutation",
             &format!(
-                "{}.{} statement {} {:?} `{}` = `{}` needs mutation lowering",
+                "{}.{} statement {} {:?}/{:?} `{}` = `{}` needs mutation lowering",
                 mutation.machine,
                 mutation.state,
                 mutation.statement_index,
                 mutation.mutation_kind,
+                mutation.lowering,
                 mutation.target.display_name(),
                 mutation.value.display_name()
             ),
         ));
     }
-}
-
-fn state_mutation_is_already_lowered(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-    statement_index: usize,
-) -> bool {
-    let Some(state) = state_flow(native_plan, machine_name, state_name) else {
-        return false;
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        return false;
-    };
-
-    operations.iter().any(|operation| {
-        operation.statement_index == statement_index
-            && matches!(
-                operation.kind,
-                OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment { .. }
-            )
-    })
 }
 
 fn collect_state_codegen_blockers(

@@ -545,11 +545,12 @@ impl ArtifactWriter {
         ));
         for (_, mutation) in native_plan.state_storage.mutations.iter() {
             output.push_str(&format!(
-                "- {}.{} statement {} {:?}: `{}` = `{}` required {}\n",
+                "- {}.{} statement {} {:?}/{:?}: `{}` = `{}` required {}\n",
                 mutation.machine,
                 mutation.state,
                 mutation.statement_index,
                 mutation.mutation_kind,
+                mutation.lowering,
                 mutation.target.display_name(),
                 mutation.value.display_name(),
                 mutation.required

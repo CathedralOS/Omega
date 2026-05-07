@@ -2363,6 +2363,22 @@ fn plans_state_storage_and_mutations() {
                 == crate::native::state_storage::StateMutationKind::MachineOwned)
     );
     assert!(
+        native_plan
+            .state_storage
+            .mutations
+            .iter()
+            .any(|(_, mutation)| mutation.lowering
+                == crate::native::state_storage::StateMutationLowering::AlreadyLowered)
+    );
+    assert!(
+        native_plan
+            .state_storage
+            .mutations
+            .iter()
+            .any(|(_, mutation)| mutation.lowering
+                == crate::native::state_storage::StateMutationLowering::NeedsLocalWrite)
+    );
+    assert!(
         emission_plan
             .blockers
             .iter()

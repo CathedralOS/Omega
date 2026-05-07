@@ -1,6 +1,7 @@
 use crate::ir::Program;
 use crate::ir::expression::Expression;
 use crate::ir::statement::Statement;
+use crate::native::control_flow::OperationKind;
 use crate::native::plan::NativePlan;
 use omega_core::arena::Arena;
 
@@ -28,6 +29,7 @@ pub struct StateMutation {
     pub target: Expression,
     pub value: Expression,
     pub mutation_kind: StateMutationKind,
+    pub lowering: StateMutationLowering,
     pub required: bool,
 }
 
@@ -40,6 +42,7 @@ impl Default for StateMutation {
             target: Expression::Integer(0),
             value: Expression::Integer(0),
             mutation_kind: StateMutationKind::Unknown,
+            lowering: StateMutationLowering::Unknown,
             required: false,
         }
     }
@@ -50,6 +53,16 @@ pub enum StateMutationKind {
     Local,
     MachineOwned,
     ParameterOrAlias,
+    #[default]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateMutationLowering {
+    AlreadyLowered,
+    NeedsLocalWrite,
+    NeedsMachineOwnedWrite,
+    NeedsAliasWrite,
     #[default]
     Unknown,
 }
@@ -74,17 +87,21 @@ pub fn build_state_storage_plan(program: &Program, native_plan: &NativePlan) -> 
                         });
                     }
                     Statement::Assignment(assignment) => {
+                        let mutation_kind =
+                            mutation_kind(program, &machine.name, state, &assignment.target);
                         plan.mutations.insert(StateMutation {
                             machine: machine.name.clone(),
                             state: state.name.clone(),
                             statement_index,
                             target: assignment.target.clone(),
                             value: assignment.value.clone(),
-                            mutation_kind: mutation_kind(
-                                program,
+                            mutation_kind,
+                            lowering: mutation_lowering(
+                                native_plan,
                                 &machine.name,
-                                state,
-                                &assignment.target,
+                                &state.name,
+                                statement_index,
+                                mutation_kind,
                             ),
                             required,
                         });
@@ -96,6 +113,61 @@ pub fn build_state_storage_plan(program: &Program, native_plan: &NativePlan) -> 
     }
 
     plan
+}
+
+fn mutation_lowering(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+    mutation_kind: StateMutationKind,
+) -> StateMutationLowering {
+    if state_mutation_is_already_lowered(native_plan, machine_name, state_name, statement_index) {
+        return StateMutationLowering::AlreadyLowered;
+    }
+
+    match mutation_kind {
+        StateMutationKind::Local => StateMutationLowering::NeedsLocalWrite,
+        StateMutationKind::MachineOwned => StateMutationLowering::NeedsMachineOwnedWrite,
+        StateMutationKind::ParameterOrAlias => StateMutationLowering::NeedsAliasWrite,
+        StateMutationKind::Unknown => StateMutationLowering::Unknown,
+    }
+}
+
+fn state_mutation_is_already_lowered(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> bool {
+    let Some(machine) = native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .map(|(_, machine)| machine)
+    else {
+        return false;
+    };
+    let Some(state) = native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+    else {
+        return false;
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return false;
+    };
+
+    operations.iter().any(|operation| {
+        operation.statement_index == statement_index
+            && matches!(
+                operation.kind,
+                OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment { .. }
+            )
+    })
 }
 
 fn mutation_kind(
