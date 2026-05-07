@@ -1501,10 +1501,11 @@ fn plans_state_calls_separately_from_host_calls() {
     );
     assert_eq!(native_plan.host_calls.calls.len(), 1);
     assert!(
-        emission_plan
+        !emission_plan
             .blockers
             .iter()
-            .any(|(_, blocker)| blocker.stage == "state calls")
+            .any(|(_, blocker)| blocker.stage == "state calls"),
+        "acyclic state calls should be flattened by the static state schedule"
     );
 }
 

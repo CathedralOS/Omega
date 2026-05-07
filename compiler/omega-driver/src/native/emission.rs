@@ -76,7 +76,12 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 
     collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
-    collect_state_call_blockers(native_plan, &mut blockers);
+    collect_state_call_blockers(
+        native_plan,
+        &state_schedule,
+        needs_runtime_dispatch,
+        &mut blockers,
+    );
     collect_state_storage_blockers(native_plan, &mut blockers);
     if needs_runtime_dispatch {
         collect_state_guard_blockers(native_plan, &mut blockers);
@@ -160,7 +165,12 @@ fn collect_host_argument_blockers(
     }
 }
 
-fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
+fn collect_state_call_blockers(
+    native_plan: &NativePlan,
+    state_schedule: &[crate::native::state_schedule::ScheduledState],
+    needs_runtime_dispatch: bool,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
     for (_, state_call) in native_plan.state_calls.calls.iter() {
         if !state_call.required {
             continue;
@@ -178,6 +188,22 @@ fn collect_state_call_blockers(native_plan: &NativePlan, blockers: &mut Arena<Em
                     state_call.receiver
                 ),
             ));
+            continue;
+        }
+
+        if state_call.lowering == StateCallLowering::InlineExpansion
+            && !needs_runtime_dispatch
+            && scheduled_state_contains(
+                state_schedule,
+                &state_call.source_machine,
+                &state_call.source_state,
+            )
+            && scheduled_state_contains(
+                state_schedule,
+                &state_call.target_machine,
+                &state_call.target_state,
+            )
+        {
             continue;
         }
 
