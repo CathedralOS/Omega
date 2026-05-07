@@ -1,3 +1,4 @@
+use crate::diagnostics::Diagnostic;
 use crate::native::abi::{HostBinding, HostBindingMechanism};
 use crate::native::architecture;
 use crate::native::instructions::{
@@ -54,30 +55,30 @@ pub enum RelocationKind {
     X86_64Relative32,
 }
 
-pub fn build_relocation_plan(native_plan: &NativePlan) -> RelocationPlan {
+pub fn build_relocation_plan(native_plan: &NativePlan) -> Result<RelocationPlan, Diagnostic> {
     let mut relocation_plan = RelocationPlan {
         target: native_plan.target,
         records: Arena::new(),
     };
 
     for (_, function) in native_plan.instructions.functions.iter() {
-        collect_function_relocations(native_plan, function, &mut relocation_plan);
+        collect_function_relocations(native_plan, function, &mut relocation_plan)?;
     }
 
-    relocation_plan
+    Ok(relocation_plan)
 }
 
 fn collect_function_relocations(
     native_plan: &NativePlan,
     function: &FunctionInstructionPlan,
     relocation_plan: &mut RelocationPlan,
-) {
+) -> Result<(), Diagnostic> {
     let Some(instructions) = native_plan
         .instructions
         .instructions
         .span(function.instructions)
     else {
-        return;
+        return Ok(());
     };
 
     for (offset, instruction) in instructions.iter().enumerate() {
@@ -98,7 +99,7 @@ fn collect_function_relocations(
             .expect("instruction index overflow");
 
         let selected_text_offset =
-            selected_instruction_text_offset(native_plan, selected_instruction_index);
+            selected_instruction_text_offset(native_plan, function, selected_instruction_index)?;
 
         collect_data_address_relocations(
             native_plan,
@@ -134,6 +135,8 @@ fn collect_function_relocations(
             kind: external_call_relocation_kind(native_plan.target.architecture),
         });
     }
+
+    Ok(())
 }
 
 fn collect_data_address_relocations(
@@ -213,17 +216,43 @@ fn insert_data_address_relocations(
 
 fn selected_instruction_text_offset(
     native_plan: &NativePlan,
+    function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
-) -> usize {
-    native_plan
+) -> Result<usize, Diagnostic> {
+    let Some(machine_function) = native_plan
+        .machine_code
+        .functions
+        .iter()
+        .find(|(_, machine_function)| machine_function.symbol == function.symbol)
+        .map(|(_, machine_function)| machine_function)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot plan relocations for `{}`: missing machine-code function",
+            function.symbol
+        )));
+    };
+
+    let Some(machine_instructions) = native_plan
         .machine_code
         .instructions
+        .span(machine_function.instructions)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot plan relocations for `{}`: invalid machine instruction span",
+            function.symbol
+        )));
+    };
+
+    machine_instructions
         .iter()
-        .find(|(_, instruction)| {
-            instruction.selected_instruction_index == selected_instruction_index
+        .find(|instruction| instruction.selected_instruction_index == selected_instruction_index)
+        .map(|instruction| instruction.offset)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "cannot plan relocation for `{}` selected instruction #{}: missing machine-code instruction",
+                function.symbol, selected_instruction_index
+            ))
         })
-        .map(|(_, instruction)| instruction.offset)
-        .unwrap_or(0)
 }
 
 fn external_call_relocation_offset(
