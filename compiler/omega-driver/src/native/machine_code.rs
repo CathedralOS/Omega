@@ -184,6 +184,13 @@ fn machine_instruction_shape(
             return_width(native_plan.target.architecture),
         ),
         SelectedInstructionKind::EnterFunction
+        | SelectedInstructionKind::EnterDispatchLoop { .. }
+        | SelectedInstructionKind::EnterDispatchCase { .. }
+        | SelectedInstructionKind::EvaluateDispatchGuard { .. }
+        | SelectedInstructionKind::SetDispatchState { .. }
+        | SelectedInstructionKind::TerminateDispatch
+        | SelectedInstructionKind::LeaveDispatchCase
+        | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => (MachineInstructionKind::NoBytes, 0),
     }
 }
@@ -204,6 +211,13 @@ fn encode_machine_instruction(
             architecture::encode_return(native_plan.target.architecture)
         }
         SelectedInstructionKind::EnterFunction
+        | SelectedInstructionKind::EnterDispatchLoop { .. }
+        | SelectedInstructionKind::EnterDispatchCase { .. }
+        | SelectedInstructionKind::EvaluateDispatchGuard { .. }
+        | SelectedInstructionKind::SetDispatchState { .. }
+        | SelectedInstructionKind::TerminateDispatch
+        | SelectedInstructionKind::LeaveDispatchCase
+        | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
     }
 }

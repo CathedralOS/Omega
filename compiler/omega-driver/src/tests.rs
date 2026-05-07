@@ -1324,6 +1324,99 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
 }
 
 #[test]
+fn selects_runtime_dispatch_loop_instructions() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    console.write_line("prompt");
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    console.write_line("invalid");
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should select dispatch loop instructions");
+
+    assert!(
+        native_plan
+            .instructions
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                matches!(
+                    instruction.kind,
+                    crate::native::instructions::SelectedInstructionKind::EnterDispatchLoop { .. }
+                )
+            })
+    );
+    assert!(
+        native_plan
+            .instructions
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                matches!(
+                    instruction.kind,
+                    crate::native::instructions::SelectedInstructionKind::EnterDispatchCase {
+                        ref label,
+                        ..
+                    } if label == "omega_state_main_prompt"
+                )
+            })
+    );
+    assert!(
+        native_plan
+            .instructions
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                matches!(
+                    instruction.kind,
+                    crate::native::instructions::SelectedInstructionKind::SetDispatchState { .. }
+                )
+            })
+    );
+    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert!(
+        native_plan
+            .instructions
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                matches!(
+                    instruction.kind,
+                    crate::native::instructions::SelectedInstructionKind::HostOperation { .. }
+                )
+            })
+    );
+}
+
+#[test]
 fn plans_runtime_guards_for_dispatch_edges() {
     let tokens = Lexer::new(
         r#"

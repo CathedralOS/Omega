@@ -2253,6 +2253,25 @@ fn write_selected_instruction(
 fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructionKind) -> String {
     match kind {
         SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
+        SelectedInstructionKind::EnterDispatchLoop {
+            current_state_slot,
+            next_state_slot,
+        } => format!(
+            "enter dispatch loop current `{current_state_slot}` next `{next_state_slot}`"
+        ),
+        SelectedInstructionKind::EnterDispatchCase {
+            dispatch_index,
+            label,
+        } => format!("enter dispatch case #{dispatch_index} `{label}`"),
+        SelectedInstructionKind::EvaluateDispatchGuard { guard_lowering } => {
+            format!("evaluate dispatch guard {guard_lowering:?}")
+        }
+        SelectedInstructionKind::SetDispatchState { dispatch_index } => {
+            format!("set dispatch state #{dispatch_index}")
+        }
+        SelectedInstructionKind::TerminateDispatch => "terminate dispatch".to_owned(),
+        SelectedInstructionKind::LeaveDispatchCase => "leave dispatch case".to_owned(),
+        SelectedInstructionKind::LeaveDispatchLoop => "leave dispatch loop".to_owned(),
         SelectedInstructionKind::BeginPlatformCall { platform_call } => {
             format!("begin platform call `{platform_call}`")
         }

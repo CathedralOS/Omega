@@ -3,7 +3,11 @@ use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
+use crate::native::runtime_dispatch::loop_plan::{
+    RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
+};
 use crate::native::runtime_text::RuntimeTextSource;
+use crate::native::state_guards::StateGuardLowering;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
@@ -68,6 +72,23 @@ impl Default for SelectedInstruction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
     EnterFunction,
+    EnterDispatchLoop {
+        current_state_slot: String,
+        next_state_slot: String,
+    },
+    EnterDispatchCase {
+        dispatch_index: u32,
+        label: String,
+    },
+    EvaluateDispatchGuard {
+        guard_lowering: StateGuardLowering,
+    },
+    SetDispatchState {
+        dispatch_index: u32,
+    },
+    TerminateDispatch,
+    LeaveDispatchCase,
+    LeaveDispatchLoop,
     BeginPlatformCall {
         platform_call: String,
     },
@@ -139,7 +160,13 @@ fn select_entry_instructions(
 
     selected_instructions.push(entry_instruction(native_plan));
 
-    if can_inline_state_calls {
+    if native_plan.runtime_dispatch_loop.needed {
+        select_runtime_dispatch_loop_instructions(
+            native_plan,
+            operands,
+            &mut selected_instructions,
+        );
+    } else if can_inline_state_calls {
         select_state_body_instructions(
             native_plan,
             &native_plan.entry_machine,
@@ -162,6 +189,124 @@ fn select_entry_instructions(
 
     selected_instructions.push(exit_instruction(native_plan));
     selected_instructions
+}
+
+fn select_runtime_dispatch_loop_instructions(
+    native_plan: &NativePlan,
+    operands: &mut Arena<InstructionOperand>,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::EnterDispatchLoop {
+            current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
+            next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
+        },
+        source_machine: native_plan.entry_machine.clone(),
+        source_state: native_plan.entry_state.clone(),
+        source_statement: 0,
+    });
+
+    for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EnterDispatchCase {
+                dispatch_index: dispatch_case.dispatch_index,
+                label: dispatch_case.label.clone(),
+            },
+            source_machine: dispatch_case.machine.clone(),
+            source_state: dispatch_case.state.clone(),
+            source_statement: 0,
+        });
+
+        if let Some(runtime_body) = native_plan
+            .runtime_bodies
+            .bodies
+            .iter()
+            .find(|(_, body)| body.dispatch_index == dispatch_case.dispatch_index)
+            .map(|(_, body)| body)
+            && let Some(operations) = native_plan
+                .runtime_bodies
+                .operations
+                .span(runtime_body.operations)
+        {
+            for operation in operations {
+                if let Some(host_call) = host_call_for_statement(
+                    native_plan,
+                    &operation.source_machine,
+                    &operation.source_state,
+                    operation.statement_index,
+                ) {
+                    select_host_call(native_plan, host_call, operands, selected_instructions);
+                }
+            }
+        }
+
+        if let Some(edges) = native_plan
+            .runtime_dispatch_loop
+            .edges
+            .span(dispatch_case.edges)
+        {
+            for edge in edges {
+                select_runtime_dispatch_edge(
+                    edge,
+                    &dispatch_case.machine,
+                    &dispatch_case.state,
+                    selected_instructions,
+                );
+            }
+        }
+
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::LeaveDispatchCase,
+            source_machine: dispatch_case.machine.clone(),
+            source_state: dispatch_case.state.clone(),
+            source_statement: 0,
+        });
+    }
+
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::LeaveDispatchLoop,
+        source_machine: native_plan.entry_machine.clone(),
+        source_state: native_plan.entry_state.clone(),
+        source_statement: 0,
+    });
+}
+
+fn select_runtime_dispatch_edge(
+    edge: &RuntimeDispatchLoopEdge,
+    source_machine: &str,
+    source_state: &str,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: edge.guard_lowering,
+        },
+        source_machine: source_machine.to_owned(),
+        source_state: source_state.to_owned(),
+        source_statement: edge.order,
+    });
+
+    match edge.action {
+        RuntimeDispatchLoopAction::EnterState => {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::SetDispatchState {
+                    dispatch_index: edge.target_dispatch_index,
+                },
+                source_machine: source_machine.to_owned(),
+                source_state: source_state.to_owned(),
+                source_statement: edge.order,
+            });
+        }
+        RuntimeDispatchLoopAction::Terminate => {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::TerminateDispatch,
+                source_machine: source_machine.to_owned(),
+                source_state: source_state.to_owned(),
+                source_statement: edge.order,
+            });
+        }
+        RuntimeDispatchLoopAction::Unknown => {}
+    }
 }
 
 fn select_state_body_instructions(
