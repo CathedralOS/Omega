@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use crate::ast::item::Item;
 use crate::lexer::{Lexer, Span};
+use crate::parser::AstFile;
 use crate::parser::parser::parse_file;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
@@ -416,20 +417,9 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         let first_file_id = seen.len() - batch_paths.len();
         let files = load_source_batch(batch_paths, first_file_id)?;
 
-        for file in &files {
-            let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
-                vec![Diagnostic::error(format_source_span(
-                    file,
-                    error.span,
-                    &error.message,
-                ))]
-            })?;
-            let ast_file = parse_file(&tokens).map_err(|error| {
-                vec![Diagnostic::error(match error.span {
-                    Some(span) => format_source_span(file, span, &error.message),
-                    None => format!("{}: {}", file.path.display(), error.message),
-                })]
-            })?;
+        let ast_files = parse_source_batch(&files)?;
+
+        for (file, ast_file) in files.iter().zip(ast_files) {
             let first_item = items.len();
             let item_count = ast_file.items.len();
 
@@ -547,6 +537,68 @@ fn load_source_batch(
     }
 
     Ok(files)
+}
+
+fn parse_source_batch(files: &[SourceFile]) -> Result<Vec<AstFile>, Vec<Diagnostic>> {
+    if files.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let next_index = AtomicUsize::new(0);
+    let worker_count = source_worker_count(files.len());
+    let worker_results = thread::scope(|scope| {
+        let mut handles = Vec::with_capacity(worker_count);
+
+        for _ in 0..worker_count {
+            let next_index = &next_index;
+            handles.push(scope.spawn(move || {
+                let mut results = Vec::new();
+
+                loop {
+                    let index = next_index.fetch_add(1, Ordering::Relaxed);
+                    let Some(file) = files.get(index) else {
+                        break;
+                    };
+
+                    results.push((index, parse_source_file(file)));
+                }
+
+                results
+            }));
+        }
+
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("parser worker should not panic"))
+            .collect::<Vec<_>>()
+    });
+
+    let mut parsed = worker_results;
+    parsed.sort_by_key(|(index, _)| *index);
+
+    let mut ast_files = Vec::with_capacity(parsed.len());
+    for (_, ast_file) in parsed {
+        ast_files.push(ast_file?);
+    }
+
+    Ok(ast_files)
+}
+
+fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
+    let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
+        vec![Diagnostic::error(format_source_span(
+            file,
+            error.span,
+            &error.message,
+        ))]
+    })?;
+
+    parse_file(&tokens).map_err(|error| {
+        vec![Diagnostic::error(match error.span {
+            Some(span) => format_source_span(file, span, &error.message),
+            None => format!("{}: {}", file.path.display(), error.message),
+        })]
+    })
 }
 
 fn source_worker_count(job_count: usize) -> usize {
