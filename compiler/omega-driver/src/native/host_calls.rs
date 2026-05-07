@@ -220,7 +220,7 @@ fn lowering_matches(
     platform_name: &str,
     state_name: &str,
 ) -> bool {
-    lowering.platform == platform_name && lowering.state == state_name
+    (lowering.platform == "*" || lowering.platform == platform_name) && lowering.state == state_name
 }
 
 fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {

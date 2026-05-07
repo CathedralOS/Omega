@@ -56,9 +56,13 @@ fn collect_host_call_data(
     host_call: &HostCall,
     data_plan: &mut NativeDataPlan,
 ) {
-    if !host_call.platform_call.ends_with(".write_line") {
+    let append_newline = if host_call.platform_call.ends_with(".write_line") {
+        true
+    } else if host_call.platform_call.ends_with(".write") {
+        false
+    } else {
         return;
-    }
+    };
 
     let Some(arguments) = host_calls.arguments.span(host_call.arguments) else {
         return;
@@ -73,7 +77,9 @@ fn collect_host_call_data(
     };
 
     let mut bytes = text.as_bytes().to_vec();
-    bytes.push(b'\n');
+    if append_newline {
+        bytes.push(b'\n');
+    }
 
     let offset = data_plan.bytes.len();
     let byte_span = data_plan.bytes.insert_many(bytes);

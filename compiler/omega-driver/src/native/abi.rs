@@ -75,7 +75,7 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
             ]);
             plan.platform_call_lowerings.insert_many([
                 platform_lowering(
-                    "Console",
+                    "*",
                     "write_line",
                     [
                         host_operation("Stdout", "get_std_handle"),
@@ -83,7 +83,15 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                     ],
                 ),
                 platform_lowering(
-                    "Console",
+                    "*",
+                    "write",
+                    [
+                        host_operation("Stdout", "get_std_handle"),
+                        host_operation("Stdout", "write_file"),
+                    ],
+                ),
+                platform_lowering(
+                    "*",
                     "exit_process",
                     [host_operation("Process", "exit_process")],
                 ),
@@ -95,9 +103,10 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 linux_syscall("Process", "exit_group", 231),
             ]);
             plan.platform_call_lowerings.insert_many([
-                platform_lowering("Console", "write_line", [host_operation("Stdout", "write")]),
+                platform_lowering("*", "write_line", [host_operation("Stdout", "write")]),
+                platform_lowering("*", "write", [host_operation("Stdout", "write")]),
                 platform_lowering(
-                    "Console",
+                    "*",
                     "exit_process",
                     [host_operation("Process", "exit_group")],
                 ),
@@ -109,12 +118,9 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 darwin_import("Process", "exit", "libSystem.dylib", "_exit"),
             ]);
             plan.platform_call_lowerings.insert_many([
-                platform_lowering("Console", "write_line", [host_operation("Stdout", "write")]),
-                platform_lowering(
-                    "Console",
-                    "exit_process",
-                    [host_operation("Process", "exit")],
-                ),
+                platform_lowering("*", "write_line", [host_operation("Stdout", "write")]),
+                platform_lowering("*", "write", [host_operation("Stdout", "write")]),
+                platform_lowering("*", "exit_process", [host_operation("Process", "exit")]),
             ]);
         }
     }

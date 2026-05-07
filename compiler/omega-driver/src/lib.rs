@@ -1657,6 +1657,50 @@ mod tests {
     }
 
     #[test]
+    fn reports_host_calls_outside_compiled_entry_state_as_blockers() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.exit_process(0);
+                }
+
+                state later {
+                    console.write_line("not yet");
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should preserve non-entry host call as blocker");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+        assert!(
+            emission_plan
+                .blockers
+                .iter()
+                .any(|(_, blocker)| blocker.stage == "state codegen"
+                    && blocker.reason.contains("main.later statement 0")),
+            "expected non-entry host call blocker"
+        );
+    }
+
+    #[test]
     fn selected_target_loads_only_referenced_host_package() {
         let build_dir = std::env::temp_dir().join(format!(
             "omega-driver-selected-target-{}",

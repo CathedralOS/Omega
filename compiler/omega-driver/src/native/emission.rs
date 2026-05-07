@@ -49,6 +49,25 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         ));
     }
 
+    for (_, host_call) in native_plan.host_calls.calls.iter() {
+        if host_call.machine != native_plan.entry_machine
+            || host_call.state != native_plan.entry_state
+        {
+            blockers.insert(blocker(
+                "state codegen",
+                &format!(
+                    "{}.{} statement {} platform call `{}` is outside compiled entry state {}.{}",
+                    host_call.machine,
+                    host_call.state,
+                    host_call.statement_index,
+                    host_call.platform_call,
+                    native_plan.entry_machine,
+                    native_plan.entry_state
+                ),
+            ));
+        }
+    }
+
     if !can_emit_real_object(native_plan) {
         blockers.insert_many([
             blocker(
