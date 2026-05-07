@@ -1,5 +1,6 @@
 use crate::native::control_flow::{ControlFlowPlan, MachineFlow, OperationKind};
 use crate::native::plan::NativePlan;
+use crate::native::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -152,12 +153,124 @@ fn mark_required_state_calls(native_plan: &NativePlan, calls: &mut [StateCall]) 
                 continue;
             }
 
-            let target = (call.target_machine.clone(), call.target_state.clone());
-            if !required_states.contains(&target) {
-                required_states.push(target);
-                changed = true;
+            changed |= push_required_state(
+                &mut required_states,
+                call.target_machine.clone(),
+                call.target_state.clone(),
+            );
+        }
+
+        let states_snapshot = required_states.clone();
+        for (machine_name, state_name) in states_snapshot {
+            for target in transition_targets_from(native_plan, &machine_name, &state_name) {
+                if let RuntimeTransitionTarget::State { machine, state } = target {
+                    changed |= push_required_state(&mut required_states, machine, state);
+                }
             }
         }
+    }
+
+    for call in calls {
+        call.required = required_states
+            .iter()
+            .any(|(machine, state)| machine == &call.source_machine && state == &call.source_state);
+    }
+}
+
+fn transition_targets_from(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Vec<RuntimeTransitionTarget> {
+    let Some(machine) = native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .map(|(_, machine)| machine)
+    else {
+        return Vec::new();
+    };
+    let Some(state) = native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+    else {
+        return Vec::new();
+    };
+    let Some(transitions) = native_plan.control_flow.transitions.span(state.transitions) else {
+        return Vec::new();
+    };
+
+    transitions
+        .iter()
+        .flat_map(|transition| {
+            let mut targets = vec![runtime_transition_target(
+                machine,
+                state_name,
+                &transition.target,
+            )];
+            if let Some(continuation) = &transition.continuation {
+                targets.push(runtime_transition_target(machine, state_name, continuation));
+            }
+            targets
+        })
+        .collect()
+}
+
+fn runtime_transition_target(
+    machine: &MachineFlow,
+    current_state: &str,
+    target: &crate::native::control_flow::PlannedTransitionTarget,
+) -> RuntimeTransitionTarget {
+    match target {
+        crate::native::control_flow::PlannedTransitionTarget::State { name, .. } => {
+            RuntimeTransitionTarget::State {
+                machine: machine.name.clone(),
+                state: name.clone(),
+            }
+        }
+        crate::native::control_flow::PlannedTransitionTarget::Nested {
+            receiver, state, ..
+        } => machine
+            .contains
+            .iter()
+            .find(|contained| contained.name == *receiver)
+            .map(|contained| RuntimeTransitionTarget::State {
+                machine: contained.type_name.clone(),
+                state: state.clone(),
+            })
+            .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
+                name: format!("{receiver}.{state}"),
+            }),
+        crate::native::control_flow::PlannedTransitionTarget::SelfTarget => {
+            RuntimeTransitionTarget::State {
+                machine: machine.name.clone(),
+                state: current_state.to_owned(),
+            }
+        }
+        crate::native::control_flow::PlannedTransitionTarget::Terminal => {
+            RuntimeTransitionTarget::Terminal
+        }
+    }
+}
+
+fn push_required_state(
+    required_states: &mut Vec<(String, String)>,
+    machine: String,
+    state: String,
+) -> bool {
+    if required_states
+        .iter()
+        .any(|(required_machine, required_state)| {
+            required_machine == &machine && required_state == &state
+        })
+    {
+        false
+    } else {
+        required_states.push((machine, state));
+        true
     }
 }
 

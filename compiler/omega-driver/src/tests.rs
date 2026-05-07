@@ -1384,6 +1384,57 @@ fn plans_state_calls_separately_from_host_calls() {
 }
 
 #[test]
+fn marks_state_calls_required_through_transition_targets() {
+    let tokens = Lexer::new(
+        r#"
+            machine Helper {
+                state write {
+                }
+            }
+
+            machine main {
+                contains helper: Helper;
+
+                state entry {
+                    decide();
+                }
+
+                state decide {
+                    -> branch;
+                }
+
+                state branch {
+                    helper.write();
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should trace required calls through transitions");
+    let branch_call = native_plan
+        .state_calls
+        .calls
+        .iter()
+        .find(|(_, state_call)| {
+            state_call.source_machine == "main" && state_call.source_state == "branch"
+        })
+        .map(|(_, state_call)| state_call)
+        .expect("branch state call should be planned");
+
+    assert!(branch_call.required);
+    assert!(!branch_call.reachable);
+}
+
+#[test]
 fn plans_mid_state_transition_as_generated_segments() {
     let tokens = Lexer::new(
         r#"
