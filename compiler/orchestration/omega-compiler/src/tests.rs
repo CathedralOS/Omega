@@ -3054,6 +3054,61 @@ fn compile_emits_static_inline_state_call() {
 }
 
 #[test]
+fn compile_runs_dungeon_cli_script() {
+    if !(cfg!(target_os = "macos") && cfg!(target_arch = "aarch64")) {
+        return;
+    }
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-compiler-dungeon-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    let root_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../samples/dungeon_crawler_cli/main.omg");
+
+    let output = crate::compile(crate::CompileOptions {
+        build_dir: Some(build_dir.clone()),
+        root_path,
+        target_name: Some("macos_arm64".to_owned()),
+    })
+    .expect("compile should emit dungeon CLI binary");
+
+    let mut child = std::process::Command::new(&output.executable_path)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("compiled dungeon binary should start");
+
+    {
+        use std::io::Write;
+        let stdin = child.stdin.as_mut().expect("dungeon stdin should be piped");
+        stdin
+            .write_all(b"look\nnorth\nquit\n")
+            .expect("dungeon script should write to stdin");
+    }
+
+    let run_output = child
+        .wait_with_output()
+        .expect("compiled dungeon binary should finish");
+    let stdout = String::from_utf8_lossy(&run_output.stdout);
+
+    assert!(
+        run_output.status.success(),
+        "compiled dungeon binary should exit successfully"
+    );
+    assert!(stdout.contains("Omega Dungeon"));
+    assert!(stdout.contains("A1: a cold stone entry with a faded map on the wall."));
+    assert!(stdout.contains("Room A2"));
+    assert!(stdout.contains("Goodbye."));
+    assert!(
+        run_output.stderr.is_empty(),
+        "compiled dungeon binary should not write stderr"
+    );
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn compile_rejects_emission_blockers() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-compiler-blocked-{}", std::process::id()));
