@@ -1431,6 +1431,25 @@ fn plans_state_calls_separately_from_host_calls() {
             ("main", "entry", "Helper", "write", 0, true),
         ]
     );
+    let prepare_call = native_plan
+        .state_calls
+        .calls
+        .iter()
+        .find(|(_, state_call)| state_call.target_state == "prepare")
+        .map(|(_, state_call)| state_call)
+        .expect("prepare state call should be planned");
+    let prepare_arguments = native_plan
+        .state_calls
+        .arguments
+        .span(prepare_call.arguments)
+        .expect("prepare call arguments should resolve");
+
+    assert_eq!(prepare_arguments.len(), 1);
+    assert_eq!(prepare_arguments[0].parameter_name, "value");
+    assert_eq!(
+        prepare_arguments[0].kind,
+        crate::native::state_calls::StateCallArgumentKind::Value
+    );
     assert_eq!(native_plan.host_calls.calls.len(), 1);
     assert!(
         emission_plan
@@ -1489,6 +1508,58 @@ fn marks_state_calls_required_through_transition_targets() {
 
     assert!(branch_call.required);
     assert!(!branch_call.reachable);
+}
+
+#[test]
+fn tracks_mutable_state_call_argument_bindings() {
+    let tokens = Lexer::new(
+        r#"
+            data Line {
+                text: String;
+            }
+
+            machine main {
+                owns line: Line;
+
+                state entry {
+                    fill(mut line);
+                }
+
+                state fill(mut out_line: Line) {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should collect mutable call argument binding");
+    let state_call = native_plan
+        .state_calls
+        .calls
+        .iter()
+        .next()
+        .map(|(_, state_call)| state_call)
+        .expect("state call should be planned");
+    let arguments = native_plan
+        .state_calls
+        .arguments
+        .span(state_call.arguments)
+        .expect("state call arguments should resolve");
+
+    assert_eq!(arguments[0].parameter_name, "out_line");
+    assert_eq!(
+        arguments[0].kind,
+        crate::native::state_calls::StateCallArgumentKind::MutableAlias
+    );
+    assert!(arguments[0].required);
 }
 
 #[test]

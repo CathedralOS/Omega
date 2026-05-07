@@ -519,6 +519,26 @@ impl ArtifactWriter {
                     state_call.reachable,
                     state_call.required
                 ));
+
+                match native_plan.state_calls.arguments.span(state_call.arguments) {
+                    Some(arguments) if arguments.is_empty() => {
+                        output.push_str("  arguments: none\n");
+                    }
+                    Some(arguments) => {
+                        output.push_str("  arguments:\n");
+                        for argument in arguments {
+                            output.push_str(&format!(
+                                "    - #{} `{}` {:?}: `{}` required {}\n",
+                                argument.index,
+                                argument.parameter_name,
+                                argument.kind,
+                                argument.expression.display_name(),
+                                argument.required
+                            ));
+                        }
+                    }
+                    None => output.push_str("  arguments: invalid span\n"),
+                }
             }
         }
         output.push('\n');
