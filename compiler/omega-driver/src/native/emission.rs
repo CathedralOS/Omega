@@ -3,6 +3,7 @@ use crate::native::control_flow::{OperationKind, StateFlow};
 use crate::native::host_calls::HostCallArgumentKind;
 use crate::native::plan::NativePlan;
 use crate::native::platform_object::can_emit_target_object;
+use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_calls::StateCallLowering;
 use crate::native::state_guards::StateGuardKind;
@@ -171,6 +172,12 @@ fn collect_state_call_blockers(
     needs_runtime_dispatch: bool,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
+    if needs_runtime_dispatch {
+        collect_runtime_body_state_call_blockers(native_plan, blockers);
+        collect_unresolved_state_call_blockers(native_plan, blockers);
+        return;
+    }
+
     for (_, state_call) in native_plan.state_calls.calls.iter() {
         if !state_call.required {
             continue;
@@ -246,6 +253,74 @@ fn collect_state_call_blockers(
                 ),
             )),
         };
+    }
+}
+
+fn collect_runtime_body_state_call_blockers(
+    native_plan: &NativePlan,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
+        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
+            blockers.insert(blocker(
+                "runtime bodies",
+                &format!(
+                    "#{} {}.{} has an invalid runtime body operation span",
+                    body.dispatch_index, body.machine, body.state
+                ),
+            ));
+            continue;
+        };
+
+        for operation in operations {
+            let RuntimeDispatchBodyOperationKind::StateCall {
+                target_machine,
+                target_state,
+                argument_count,
+                lowering,
+            } = &operation.kind
+            else {
+                continue;
+            };
+
+            blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "#{} {}.{} statement {} calls {}.{} with {} argument(s); runtime dispatch body needs {:?} state-call expansion",
+                    body.dispatch_index,
+                    operation.source_machine,
+                    operation.source_state,
+                    operation.statement_index,
+                    target_machine,
+                    target_state,
+                    argument_count,
+                    lowering
+                ),
+            ));
+        }
+    }
+}
+
+fn collect_unresolved_state_call_blockers(
+    native_plan: &NativePlan,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, state_call) in native_plan.state_calls.calls.iter() {
+        if !state_call.required || !state_call.target_machine.is_empty() {
+            continue;
+        }
+
+        blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "{}.{} statement {} calls unresolved state `{}` through `{}`",
+                state_call.source_machine,
+                state_call.source_state,
+                state_call.statement_index,
+                state_call.target_state,
+                state_call.receiver
+            ),
+        ));
     }
 }
 
