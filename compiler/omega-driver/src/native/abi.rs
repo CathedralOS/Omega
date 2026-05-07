@@ -1,10 +1,11 @@
 use crate::native::target::{NativeTarget, ObjectFormat};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostAbiPlan {
     pub target: NativeTarget,
     pub bindings: Arena<HostBinding>,
+    pub host_operations: Arena<HostOperationReference>,
     pub platform_call_lowerings: Arena<PlatformCallLowering>,
 }
 
@@ -20,7 +21,7 @@ pub struct HostBinding {
 pub struct PlatformCallLowering {
     pub platform: String,
     pub state: String,
-    pub operations: Vec<HostOperationReference>,
+    pub operations: HandleSpan<HostOperationReference>,
     pub data: PlatformCallData,
 }
 
@@ -29,7 +30,7 @@ impl Default for PlatformCallLowering {
         Self {
             platform: String::new(),
             state: String::new(),
-            operations: Vec::new(),
+            operations: HandleSpan::empty(),
             data: PlatformCallData::None,
         }
     }
@@ -48,6 +49,15 @@ pub enum PlatformCallData {
 pub struct HostOperationReference {
     pub capability: String,
     pub operation: String,
+}
+
+impl Default for HostOperationReference {
+    fn default() -> Self {
+        Self {
+            capability: String::new(),
+            operation: String::new(),
+        }
+    }
 }
 
 impl Default for HostBinding {
@@ -74,6 +84,7 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
     let mut plan = HostAbiPlan {
         target,
         bindings: Arena::new(),
+        host_operations: Arena::new(),
         platform_call_lowerings: Arena::new(),
     };
 
@@ -84,114 +95,119 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
                 windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
             ]);
-            plan.platform_call_lowerings.insert_many([
-                platform_lowering(
-                    "*",
-                    "write_line",
-                    [
-                        host_operation("Stdout", "get_std_handle"),
-                        host_operation("Stdout", "write_file"),
-                    ],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: true,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "write",
-                    [
-                        host_operation("Stdout", "get_std_handle"),
-                        host_operation("Stdout", "write_file"),
-                    ],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: false,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "exit_process",
-                    [host_operation("Process", "exit_process")],
-                    PlatformCallData::None,
-                ),
-            ]);
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write_line",
+                [
+                    host_operation("Stdout", "get_std_handle"),
+                    host_operation("Stdout", "write_file"),
+                ],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: true,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write",
+                [
+                    host_operation("Stdout", "get_std_handle"),
+                    host_operation("Stdout", "write_file"),
+                ],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: false,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "exit_process",
+                [host_operation("Process", "exit_process")],
+                PlatformCallData::None,
+            );
         }
         ObjectFormat::Elf => {
             plan.bindings.insert_many([
                 linux_syscall("Stdout", "write", 1),
                 linux_syscall("Process", "exit_group", 231),
             ]);
-            plan.platform_call_lowerings.insert_many([
-                platform_lowering(
-                    "*",
-                    "write_line",
-                    [host_operation("Stdout", "write")],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: true,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "write",
-                    [host_operation("Stdout", "write")],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: false,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "exit_process",
-                    [host_operation("Process", "exit_group")],
-                    PlatformCallData::None,
-                ),
-            ]);
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write_line",
+                [host_operation("Stdout", "write")],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: true,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write",
+                [host_operation("Stdout", "write")],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: false,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "exit_process",
+                [host_operation("Process", "exit_group")],
+                PlatformCallData::None,
+            );
         }
         ObjectFormat::MachO => {
             plan.bindings.insert_many([
                 darwin_import("Stdout", "write", "libSystem.dylib", "_write"),
                 darwin_import("Process", "exit", "libSystem.dylib", "_exit"),
             ]);
-            plan.platform_call_lowerings.insert_many([
-                platform_lowering(
-                    "*",
-                    "write_line",
-                    [host_operation("Stdout", "write")],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: true,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "write",
-                    [host_operation("Stdout", "write")],
-                    PlatformCallData::FirstTextArgument {
-                        append_newline: false,
-                    },
-                ),
-                platform_lowering(
-                    "*",
-                    "exit_process",
-                    [host_operation("Process", "exit")],
-                    PlatformCallData::None,
-                ),
-            ]);
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write_line",
+                [host_operation("Stdout", "write")],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: true,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "write",
+                [host_operation("Stdout", "write")],
+                PlatformCallData::FirstTextArgument {
+                    append_newline: false,
+                },
+            );
+            insert_platform_lowering(
+                &mut plan,
+                "*",
+                "exit_process",
+                [host_operation("Process", "exit")],
+                PlatformCallData::None,
+            );
         }
     }
 
     plan
 }
 
-fn platform_lowering<const COUNT: usize>(
+fn insert_platform_lowering<const COUNT: usize>(
+    plan: &mut HostAbiPlan,
     platform: &str,
     state: &str,
     operations: [HostOperationReference; COUNT],
     data: PlatformCallData,
-) -> PlatformCallLowering {
-    PlatformCallLowering {
+) {
+    let operations = plan.host_operations.insert_many(operations);
+    plan.platform_call_lowerings.insert(PlatformCallLowering {
         platform: platform.to_owned(),
         state: state.to_owned(),
-        operations: operations.into_iter().collect(),
+        operations,
         data,
-    }
+    });
 }
 
 fn host_operation(capability: &str, operation: &str) -> HostOperationReference {

@@ -458,7 +458,7 @@ impl ArtifactWriter {
             native_plan.host_abi.platform_call_lowerings.len()
         ));
         for (_, lowering) in native_plan.host_abi.platform_call_lowerings.iter() {
-            write_platform_call_lowering(&mut output, lowering);
+            write_platform_call_lowering(&mut output, native_plan, lowering);
         }
         output.push('\n');
 
@@ -1279,13 +1279,23 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
     }
 }
 
-fn write_platform_call_lowering(output: &mut String, lowering: &PlatformCallLowering) {
-    let operations = lowering
-        .operations
-        .iter()
-        .map(|operation| format!("{}.{}", operation.capability, operation.operation))
-        .collect::<Vec<_>>()
-        .join(" -> ");
+fn write_platform_call_lowering(
+    output: &mut String,
+    native_plan: &NativePlan,
+    lowering: &PlatformCallLowering,
+) {
+    let operations = native_plan
+        .host_abi
+        .host_operations
+        .span(lowering.operations)
+        .map(|operations| {
+            operations
+                .iter()
+                .map(|operation| format!("{}.{}", operation.capability, operation.operation))
+                .collect::<Vec<_>>()
+                .join(" -> ")
+        })
+        .unwrap_or_else(|| "invalid operation span".to_owned());
 
     output.push_str(&format!(
         "- {}.{} => {}",

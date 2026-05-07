@@ -153,12 +153,17 @@ fn collect_state_host_calls(
             continue;
         };
 
-        let operations = plan.operations.insert_many(
-            lowering
-                .operations
-                .iter()
-                .map(|operation| host_operation(&operation.capability, &operation.operation)),
-        );
+        let operations = host_abi
+            .host_operations
+            .span(lowering.operations)
+            .map(|operations| {
+                plan.operations.insert_many(
+                    operations.iter().map(|operation| {
+                        host_operation(&operation.capability, &operation.operation)
+                    }),
+                )
+            })
+            .unwrap_or_else(HandleSpan::empty);
         let arguments = plan.arguments.insert_many(lower_host_call_arguments(call));
         plan.calls.insert(HostCall {
             machine: machine.name.clone(),
