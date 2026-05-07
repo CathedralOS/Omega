@@ -1,3 +1,4 @@
+use crate::native::control_flow::OperationKind;
 use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
@@ -125,25 +126,174 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
 ) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
-    let state_schedule = build_entry_state_schedule(native_plan)
-        .unwrap_or_else(|_| runtime_reachable_states(native_plan));
+    let state_schedule_result = build_entry_state_schedule(native_plan);
+    let can_inline_state_calls = state_schedule_result.is_ok()
+        && native_plan
+            .state_calls
+            .calls
+            .iter()
+            .any(|(_, call)| call.required);
+    let state_schedule =
+        state_schedule_result.unwrap_or_else(|_| runtime_reachable_states(native_plan));
 
     selected_instructions.push(entry_instruction(native_plan));
 
-    for scheduled_state in &state_schedule {
-        for (_, host_call) in native_plan.host_calls.calls.iter() {
-            if host_call.machine != scheduled_state.machine
-                || host_call.state != scheduled_state.state
-            {
-                continue;
-            }
-
-            select_host_call(native_plan, host_call, operands, &mut selected_instructions);
+    if can_inline_state_calls {
+        select_state_body_instructions(
+            native_plan,
+            &native_plan.entry_machine,
+            &native_plan.entry_state,
+            operands,
+            &mut selected_instructions,
+            &mut Vec::new(),
+        );
+    } else {
+        for scheduled_state in &state_schedule {
+            select_state_host_calls(
+                native_plan,
+                &scheduled_state.machine,
+                &scheduled_state.state,
+                operands,
+                &mut selected_instructions,
+            );
         }
     }
 
     selected_instructions.push(exit_instruction(native_plan));
     selected_instructions
+}
+
+fn select_state_body_instructions(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    operands: &mut Arena<InstructionOperand>,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+    visiting: &mut Vec<(String, String)>,
+) {
+    if visiting
+        .iter()
+        .any(|(machine, state)| machine == machine_name && state == state_name)
+    {
+        return;
+    }
+
+    visiting.push((machine_name.to_owned(), state_name.to_owned()));
+
+    let Some(machine) = native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .map(|(_, machine)| machine)
+    else {
+        visiting.pop();
+        return;
+    };
+    let Some(state) = native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.name == state_name))
+    else {
+        visiting.pop();
+        return;
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        visiting.pop();
+        return;
+    };
+
+    for operation in operations {
+        if let Some(host_call) = host_call_for_statement(
+            native_plan,
+            machine_name,
+            state_name,
+            operation.statement_index,
+        ) {
+            select_host_call(native_plan, host_call, operands, selected_instructions);
+            continue;
+        }
+
+        let OperationKind::Call { .. } = &operation.kind else {
+            continue;
+        };
+        let Some(state_call) = state_call_for_statement(
+            native_plan,
+            machine_name,
+            state_name,
+            operation.statement_index,
+        ) else {
+            continue;
+        };
+
+        if state_call.target_machine.is_empty() {
+            continue;
+        }
+
+        select_state_body_instructions(
+            native_plan,
+            &state_call.target_machine,
+            &state_call.target_state,
+            operands,
+            selected_instructions,
+            visiting,
+        );
+    }
+
+    visiting.pop();
+}
+
+fn select_state_host_calls(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    operands: &mut Arena<InstructionOperand>,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
+    for (_, host_call) in native_plan.host_calls.calls.iter() {
+        if host_call.machine != machine_name || host_call.state != state_name {
+            continue;
+        }
+
+        select_host_call(native_plan, host_call, operands, selected_instructions);
+    }
+}
+
+fn host_call_for_statement<'plan>(
+    native_plan: &'plan NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> Option<&'plan HostCall> {
+    native_plan
+        .host_calls
+        .calls
+        .iter()
+        .find(|(_, host_call)| {
+            host_call.machine == machine_name
+                && host_call.state == state_name
+                && host_call.statement_index == statement_index
+        })
+        .map(|(_, host_call)| host_call)
+}
+
+fn state_call_for_statement<'plan>(
+    native_plan: &'plan NativePlan,
+    machine_name: &str,
+    state_name: &str,
+    statement_index: usize,
+) -> Option<&'plan crate::native::state_calls::StateCall> {
+    native_plan
+        .state_calls
+        .calls
+        .iter()
+        .find(|(_, state_call)| {
+            state_call.source_machine == machine_name
+                && state_call.source_state == state_name
+                && state_call.statement_index == statement_index
+        })
+        .map(|(_, state_call)| state_call)
 }
 
 fn runtime_reachable_states(

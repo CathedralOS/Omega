@@ -2119,6 +2119,82 @@ fn compile_emits_native_object_bytes() {
 }
 
 #[test]
+fn compile_emits_static_inline_state_call() {
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-driver-inline-call-{}", std::process::id()));
+    let root_dir = build_dir.join("project");
+    let root_path = root_dir.join("main.omg");
+    let build_path = root_dir.join("build.omg");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
+    std::fs::write(
+        build_path,
+        r#"
+            target macos_arm64 {
+                host: omega::host::darwin {
+                    abi = libSystem
+                    stdout = fd(1)
+                    process = enabled
+                }
+
+                trust omega::host::contracts
+                trust omega::host::darwin
+            }
+            "#,
+    )
+    .expect("test build policy should be writable");
+    std::fs::write(
+        &root_path,
+        r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    hello();
+                    console.exit_process(0);
+                }
+
+                state hello {
+                    console.write_line("Inline state call.");
+                }
+            }
+            "#,
+    )
+    .expect("test source should be writable");
+
+    let output = crate::compile(crate::CompileOptions {
+        build_dir: Some(build_dir.join("build")),
+        root_path,
+        target_name: Some("macos_arm64".to_owned()),
+    })
+    .expect("compile should emit static inline state call");
+
+    assert!(output.executable_path.is_file());
+
+    if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        let run_output = std::process::Command::new(&output.executable_path)
+            .output()
+            .expect("compiled Omega binary should run");
+
+        assert!(
+            run_output.status.success(),
+            "compiled Omega binary should exit successfully"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&run_output.stdout),
+            "Inline state call.\n"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(build_dir);
+}
+
+#[test]
 fn compile_rejects_emission_blockers() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-driver-blocked-{}", std::process::id()));
