@@ -4054,6 +4054,49 @@ fn checks_passing_canaries() {
 }
 
 #[test]
+fn checks_runtime_canaries() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(3)
+        .expect("compiler crate should live under compiler/orchestration/omega-compiler");
+    let canary_root = repo_root.join("canaries/run");
+    let mut entrypoints = Vec::new();
+
+    collect_entrypoints(&canary_root, &mut entrypoints);
+    entrypoints.sort();
+
+    assert!(
+        !entrypoints.is_empty(),
+        "expected at least one runtime canary under {}",
+        canary_root.display()
+    );
+
+    for root_path in entrypoints {
+        let build_dir = temporary_build_dir("omega-canary-run", &root_path);
+        let _ = std::fs::remove_dir_all(&build_dir);
+
+        crate::check(crate::CompileOptions {
+            build_dir: Some(build_dir.clone()),
+            root_path: root_path.clone(),
+            target_name: None,
+        })
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "runtime canary {} failed check:\n{}",
+                root_path.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+}
+
+#[test]
 fn rejects_failing_canaries() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
