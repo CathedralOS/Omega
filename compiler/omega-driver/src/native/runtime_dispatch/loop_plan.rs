@@ -7,6 +7,8 @@ use omega_core::arena::{Arena, HandleSpan};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopPlan {
     pub needed: bool,
+    pub entry_dispatch_index: u32,
+    pub terminal_dispatch_index: u32,
     pub current_state_slot: String,
     pub next_state_slot: String,
     pub cases: Arena<RuntimeDispatchLoopCase>,
@@ -76,6 +78,12 @@ pub enum RuntimeDispatchLoopAction {
 pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDispatchLoopPlan {
     let mut plan = RuntimeDispatchLoopPlan {
         needed: !native_plan.runtime_flow.cycles.is_empty(),
+        entry_dispatch_index: dispatch_index_for_state(
+            native_plan,
+            &native_plan.entry_machine,
+            &native_plan.entry_state,
+        ),
+        terminal_dispatch_index: 0,
         current_state_slot: "omega_current_state".to_owned(),
         next_state_slot: "omega_next_state".to_owned(),
         cases: Arena::new(),
@@ -119,6 +127,18 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
     }
 
     plan
+}
+
+fn dispatch_index_for_state(native_plan: &NativePlan, machine: &str, state: &str) -> u32 {
+    native_plan
+        .state_dispatch
+        .states
+        .iter()
+        .find(|(_, dispatch_state)| {
+            dispatch_state.machine == machine && dispatch_state.state == state
+        })
+        .map(|(_, dispatch_state)| dispatch_state.dispatch_index)
+        .unwrap_or(0)
 }
 
 fn guard_lowering(

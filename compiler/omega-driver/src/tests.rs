@@ -1308,6 +1308,8 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
         .expect("prompt dispatch loop edges should resolve");
 
     assert!(native_plan.runtime_dispatch_loop.needed);
+    assert_eq!(native_plan.runtime_dispatch_loop.entry_dispatch_index, 1);
+    assert_eq!(native_plan.runtime_dispatch_loop.terminal_dispatch_index, 0);
     assert_eq!(
         native_plan.runtime_dispatch_loop.current_state_slot,
         "omega_current_state"

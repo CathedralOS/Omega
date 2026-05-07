@@ -73,6 +73,8 @@ impl Default for SelectedInstruction {
 pub enum SelectedInstructionKind {
     EnterFunction,
     EnterDispatchLoop {
+        entry_dispatch_index: u32,
+        terminal_dispatch_index: u32,
         current_state_slot: String,
         next_state_slot: String,
     },
@@ -198,6 +200,8 @@ fn select_runtime_dispatch_loop_instructions(
 ) {
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index: native_plan.runtime_dispatch_loop.entry_dispatch_index,
+            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
             current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
             next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
         },

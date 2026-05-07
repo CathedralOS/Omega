@@ -1049,6 +1049,14 @@ impl ArtifactWriter {
             native_plan.runtime_dispatch_loop.needed
         ));
         output.push_str(&format!(
+            "entry dispatch index: #{}\n",
+            native_plan.runtime_dispatch_loop.entry_dispatch_index
+        ));
+        output.push_str(&format!(
+            "terminal dispatch index: #{}\n",
+            native_plan.runtime_dispatch_loop.terminal_dispatch_index
+        ));
+        output.push_str(&format!(
             "current state slot: `{}`\n",
             native_plan.runtime_dispatch_loop.current_state_slot
         ));
@@ -2254,10 +2262,12 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
     match kind {
         SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
         SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index,
+            terminal_dispatch_index,
             current_state_slot,
             next_state_slot,
         } => format!(
-            "enter dispatch loop current `{current_state_slot}` next `{next_state_slot}`"
+            "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
         ),
         SelectedInstructionKind::EnterDispatchCase {
             dispatch_index,
