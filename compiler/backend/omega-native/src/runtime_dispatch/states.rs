@@ -56,26 +56,27 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
     let mut plan = StateDispatchPlan::default();
 
     for (state_handle, runtime_state) in runtime_flow.states.iter() {
-        let dispatch_edges = runtime_flow
-            .edges
-            .iter()
-            .filter(|(_, edge)| {
-                edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
-            })
-            .map(|(_, edge)| DispatchEdge {
-                target_dispatch_index: target_dispatch_index(runtime_flow, &edge.target),
-                target: edge.target.clone(),
-                continuation_dispatch_index: target_dispatch_index(
-                    runtime_flow,
-                    &edge.continuation,
-                ),
-                continuation: edge.continuation.clone(),
-                guard: edge.guard.clone(),
-                forms_cycle: edge.forms_cycle,
-            })
-            .chain(terminal_continuation_edges(runtime_flow, runtime_state))
-            .collect::<Vec<_>>();
-        let edges = plan.edges.insert_many(dispatch_edges);
+        let edges = plan.edges.insert_many(
+            runtime_flow
+                .edges
+                .iter()
+                .filter(|(_, edge)| {
+                    edge.from_machine == runtime_state.machine
+                        && edge.from_state == runtime_state.state
+                })
+                .map(|(_, edge)| DispatchEdge {
+                    target_dispatch_index: target_dispatch_index(runtime_flow, &edge.target),
+                    target: edge.target.clone(),
+                    continuation_dispatch_index: target_dispatch_index(
+                        runtime_flow,
+                        &edge.continuation,
+                    ),
+                    continuation: edge.continuation.clone(),
+                    guard: edge.guard.clone(),
+                    forms_cycle: edge.forms_cycle,
+                })
+                .chain(terminal_continuation_edges(runtime_flow, runtime_state)),
+        );
 
         plan.states.insert(DispatchState {
             machine: runtime_state.machine.clone(),

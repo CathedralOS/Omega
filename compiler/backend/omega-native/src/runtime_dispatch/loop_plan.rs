@@ -110,10 +110,9 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
         let Some(dispatch_edges) = native_plan.state_dispatch.edges.span(state.edges) else {
             continue;
         };
-        let edges = dispatch_edges
-            .iter()
-            .enumerate()
-            .map(|(order, edge)| {
+        let edges = plan
+            .edges
+            .insert_many(dispatch_edges.iter().enumerate().map(|(order, edge)| {
                 let guard_comparison =
                     dispatch_guard_comparison(native_plan, state.dispatch_index, order);
                 RuntimeDispatchLoopEdge {
@@ -132,10 +131,8 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
                     action: dispatch_action(&edge.target),
                     forms_cycle: edge.forms_cycle,
                 }
-            })
-            .collect::<Vec<_>>();
+            }));
         let operation_count = runtime_body_operation_count(native_plan, state.dispatch_index);
-        let edges = plan.edges.insert_many(edges);
 
         plan.cases.insert(RuntimeDispatchLoopCase {
             machine: state.machine.clone(),
