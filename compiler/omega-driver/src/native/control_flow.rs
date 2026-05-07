@@ -16,6 +16,7 @@ pub struct ControlFlowPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
     pub name: String,
+    pub contains: Vec<ContainedFlow>,
     pub states: HandleSpan<StateFlow>,
 }
 
@@ -23,9 +24,16 @@ impl Default for MachineFlow {
     fn default() -> Self {
         Self {
             name: String::new(),
+            contains: Vec::new(),
             states: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ContainedFlow {
+    pub name: String,
+    pub type_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +181,14 @@ fn build_machine_flow(
 
     Ok(MachineFlow {
         name: machine.name.clone(),
+        contains: machine
+            .contains
+            .iter()
+            .map(|contained| ContainedFlow {
+                name: contained.name.clone(),
+                type_name: contained.type_name.clone(),
+            })
+            .collect(),
         states,
     })
 }

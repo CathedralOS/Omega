@@ -114,9 +114,11 @@ fn collect_state_codegen_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for scheduled_state in state_schedule {
-        let Some(state_flow) =
-            state_flow(native_plan, &scheduled_state.machine, &scheduled_state.state)
-        else {
+        let Some(state_flow) = state_flow(
+            native_plan,
+            &scheduled_state.machine,
+            &scheduled_state.state,
+        ) else {
             blockers.insert(blocker(
                 "state codegen",
                 &format!(
@@ -127,7 +129,10 @@ fn collect_state_codegen_blockers(
             continue;
         };
 
-        let Some(operations) = native_plan.control_flow.operations.span(state_flow.operations)
+        let Some(operations) = native_plan
+            .control_flow
+            .operations
+            .span(state_flow.operations)
         else {
             blockers.insert(blocker(
                 "state codegen",

@@ -1817,6 +1817,64 @@ mod tests {
     }
 
     #[test]
+    fn emits_nested_machine_continuations_inline() {
+        let tokens = Lexer::new(
+            r#"
+            platform Console {
+                state write_line(text: String);
+                state exit_process(return_code: i32);
+            }
+
+            machine Banner {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("nested");
+                }
+            }
+
+            machine main {
+                contains banner: Banner;
+                contains console: Console;
+
+                state entry {
+                    -> banner.entry -> shutdown;
+                }
+
+                state shutdown {
+                    console.write_line("continued");
+                    console.exit_process(0);
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let program =
+            crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+        let native_plan = crate::native::plan::build_native_plan(
+            &program,
+            crate::native::target::NativeTarget::macos_arm64(),
+        )
+        .expect("native planning should allow nested continuation");
+        let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+        let schedule = crate::native::state_schedule::build_entry_state_schedule(&native_plan)
+            .expect("entry schedule should include nested state");
+
+        assert!(emission_plan.blockers.is_empty());
+        assert_eq!(
+            schedule
+                .iter()
+                .map(|state| format!("{}.{}", state.machine, state.state))
+                .collect::<Vec<_>>(),
+            vec!["main.entry", "Banner.entry", "main.shutdown"]
+        );
+        assert_eq!(native_plan.host_calls.calls.len(), 3);
+        assert_eq!(native_plan.instructions.instructions.len(), 8);
+    }
+
+    #[test]
     fn reports_entry_assignments_as_native_codegen_blockers() {
         let tokens = Lexer::new(
             r#"

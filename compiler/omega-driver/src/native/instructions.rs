@@ -2,7 +2,7 @@ use crate::native::data::NativeDataObject;
 use crate::native::host_calls::HostCall;
 use crate::native::host_calls::{HostCallArgument, HostCallArgumentKind};
 use crate::native::plan::NativePlan;
-use crate::native::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
+use crate::native::state_schedule::build_entry_state_schedule;
 use crate::native::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -130,12 +130,16 @@ fn select_entry_instructions(
 
     selected_instructions.push(entry_instruction(native_plan));
 
-    for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if !scheduled_state_contains(&state_schedule, &host_call.machine, &host_call.state) {
-            continue;
-        }
+    for scheduled_state in &state_schedule {
+        for (_, host_call) in native_plan.host_calls.calls.iter() {
+            if host_call.machine != scheduled_state.machine
+                || host_call.state != scheduled_state.state
+            {
+                continue;
+            }
 
-        select_host_call(native_plan, host_call, operands, &mut selected_instructions);
+            select_host_call(native_plan, host_call, operands, &mut selected_instructions);
+        }
     }
 
     selected_instructions.push(exit_instruction(native_plan));
