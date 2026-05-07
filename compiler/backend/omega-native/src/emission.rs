@@ -2,7 +2,6 @@ use crate::abi::PlatformCallData;
 use crate::control_flow::{OperationKind, StateFlow};
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
-use crate::platform_object::can_emit_target_object;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_dispatch::branching::{RuntimeBranchCallExpansion, RuntimeBranchingCall};
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction;
@@ -16,6 +15,7 @@ use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains
 use crate::state_storage::StateMutationLowering;
 use crate::state_values::{StateValueKind, StateValueRole};
 use crate::target::ObjectFormat;
+use crate::target_output::can_emit_target_output;
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1243,7 +1243,7 @@ fn state_statement_has_host_call(
 }
 
 fn can_emit_real_object(native_plan: &NativePlan) -> bool {
-    can_emit_target_object(native_plan.target)
+    can_emit_target_output(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }
 

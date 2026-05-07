@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::emitter::EmittedNativeObject;
+use crate::emitter::EmittedNativeOutput;
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
@@ -14,7 +14,7 @@ const PAGE_SIZE: usize = 0x1000;
 
 pub fn emit_elf_arm64_executable(
     native_plan: &NativePlan,
-) -> Result<EmittedNativeObject, Diagnostic> {
+) -> Result<EmittedNativeOutput, Diagnostic> {
     let mut text = native_plan.machine_code.bytes.storage_slice().to_vec();
     let data = native_plan.data.bytes.storage_slice();
     let bss_size = section_size(native_plan, SectionKind::Bss);
@@ -44,7 +44,7 @@ pub fn emit_elf_arm64_executable(
     bytes.resize(data_offset, 0);
     bytes.extend(data);
 
-    Ok(EmittedNativeObject {
+    Ok(EmittedNativeOutput {
         bytes,
         file_name: "omega-program".to_owned(),
         format: "elf64-aarch64-executable".to_owned(),

@@ -1,4 +1,4 @@
-use crate::emitter::EmittedNativeObject;
+use crate::emitter::EmittedNativeOutput;
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
 use crate::relocations::{RelocationKind, RelocationRecord};
@@ -6,7 +6,7 @@ use omega_core::diagnostics::Diagnostic;
 
 pub fn emit_macho_arm64_object(
     native_plan: &NativePlan,
-) -> Result<EmittedNativeObject, Diagnostic> {
+) -> Result<EmittedNativeOutput, Diagnostic> {
     let text_bytes = native_plan.machine_code.bytes.storage_slice();
     let data_bytes = native_plan.data.bytes.storage_slice();
     let bss_bytes = bss_size(native_plan);
@@ -70,7 +70,7 @@ pub fn emit_macho_arm64_object(
     }
     bytes.extend(string_table.bytes);
 
-    Ok(EmittedNativeObject {
+    Ok(EmittedNativeOutput {
         bytes,
         file_name: "omega-native.o".to_owned(),
         format: "mach-o-arm64-object".to_owned(),

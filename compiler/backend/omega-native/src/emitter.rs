@@ -1,12 +1,12 @@
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
-use crate::platform_object::emit_target_object;
 use crate::relocations::RelocationKind;
 use crate::target::{Architecture, ObjectFormat};
+use crate::target_output::emit_target_output;
 use omega_core::diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EmittedNativeObject {
+pub struct EmittedNativeOutput {
     pub bytes: Vec<u8>,
     pub file_name: String,
     pub format: String,
@@ -17,18 +17,18 @@ pub struct EmittedNativeObject {
     pub relocations: usize,
 }
 
-pub fn emit_native_object(native_plan: &NativePlan) -> Result<EmittedNativeObject, Diagnostic> {
+pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedNativeOutput, Diagnostic> {
     if native_plan.machine_code.bytes.len() != native_plan.machine_code.byte_count {
         return Err(Diagnostic::error(format!(
-            "cannot emit native object for {:?}: encoded {} machine byte(s), planned {} byte(s)",
+            "cannot emit native output for {:?}: encoded {} machine byte(s), planned {} byte(s)",
             native_plan.target,
             native_plan.machine_code.bytes.len(),
             native_plan.machine_code.byte_count
         )));
     }
 
-    if let Some(emitted_object) = emit_target_object(native_plan) {
-        return emitted_object;
+    if let Some(emitted_output) = emit_target_output(native_plan) {
+        return emitted_output;
     }
 
     emit_omega_native_container(native_plan)
@@ -36,7 +36,7 @@ pub fn emit_native_object(native_plan: &NativePlan) -> Result<EmittedNativeObjec
 
 fn emit_omega_native_container(
     native_plan: &NativePlan,
-) -> Result<EmittedNativeObject, Diagnostic> {
+) -> Result<EmittedNativeOutput, Diagnostic> {
     let text_bytes = native_plan.machine_code.bytes.storage_slice();
     let data_bytes = native_plan.data.bytes.storage_slice();
     let bss_bytes = bss_size(native_plan);
@@ -68,7 +68,7 @@ fn emit_omega_native_container(
     bytes.extend(text_bytes);
     bytes.extend(data_bytes);
 
-    Ok(EmittedNativeObject {
+    Ok(EmittedNativeOutput {
         bytes,
         file_name: "omega-native.omgobj".to_owned(),
         format: "omega-native-object-container".to_owned(),

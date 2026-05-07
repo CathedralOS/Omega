@@ -6,44 +6,45 @@ use crate::target::{Architecture, ObjectFormat};
 use omega_core::diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LinkOutput {
+pub struct ExecutableFinalization {
     pub executable_path: PathBuf,
-    pub status: LinkStatus,
+    pub status: ExecutableFinalizationStatus,
     pub command: Vec<String>,
     pub stdout: String,
     pub stderr: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LinkStatus {
-    Linked,
-    Skipped,
+pub enum ExecutableFinalizationStatus {
+    UsedExternalLinker,
+    AlreadyExecutable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LinkInvocation {
+struct ExternalLinkerInvocation {
     program: String,
     arguments: Vec<String>,
     executable_path: PathBuf,
 }
 
-pub fn link_native_object(
+pub fn finalize_native_output(
     native_plan: &NativePlan,
-    object_path: &Path,
+    output_path: &Path,
     build_dir: &Path,
-) -> Result<LinkOutput, Diagnostic> {
-    let Some(invocation) = plan_link_invocation(native_plan, object_path, build_dir) else {
-        mark_direct_executable_if_needed(object_path)?;
-        return Ok(LinkOutput {
-            executable_path: object_path.to_path_buf(),
-            status: LinkStatus::Skipped,
+) -> Result<ExecutableFinalization, Diagnostic> {
+    let Some(invocation) = plan_external_linker_invocation(native_plan, output_path, build_dir)
+    else {
+        mark_direct_executable_if_needed(output_path)?;
+        return Ok(ExecutableFinalization {
+            executable_path: output_path.to_path_buf(),
+            status: ExecutableFinalizationStatus::AlreadyExecutable,
             command: Vec::new(),
             stdout: String::new(),
-            stderr: "link skipped: target object cannot be linked by this host yet".to_owned(),
+            stderr: "external linker skipped: native output is already finalized".to_owned(),
         });
     };
 
-    let command = link_command(&invocation);
+    let command = external_linker_command(&invocation);
     let output = Command::new(&invocation.program)
         .args(&invocation.arguments)
         .output()
@@ -58,9 +59,9 @@ pub fn link_native_object(
         )));
     }
 
-    Ok(LinkOutput {
+    Ok(ExecutableFinalization {
         executable_path: invocation.executable_path,
-        status: LinkStatus::Linked,
+        status: ExecutableFinalizationStatus::UsedExternalLinker,
         command,
         stdout,
         stderr,
@@ -104,21 +105,21 @@ fn mark_executable(_path: &Path) -> Result<(), Diagnostic> {
     Ok(())
 }
 
-fn plan_link_invocation(
+fn plan_external_linker_invocation(
     native_plan: &NativePlan,
-    object_path: &Path,
+    output_path: &Path,
     build_dir: &Path,
-) -> Option<LinkInvocation> {
+) -> Option<ExternalLinkerInvocation> {
     if native_plan.target.object_format == ObjectFormat::MachO
         && native_plan.target.architecture == Architecture::Aarch64
         && cfg!(target_os = "macos")
         && cfg!(target_arch = "aarch64")
     {
         let executable_path = build_dir.join("omega-program");
-        return Some(LinkInvocation {
+        return Some(ExternalLinkerInvocation {
             program: "cc".to_owned(),
             arguments: vec![
-                object_path.display().to_string(),
+                output_path.display().to_string(),
                 "-o".to_owned(),
                 executable_path.display().to_string(),
             ],
@@ -129,7 +130,7 @@ fn plan_link_invocation(
     None
 }
 
-fn link_command(invocation: &LinkInvocation) -> Vec<String> {
+fn external_linker_command(invocation: &ExternalLinkerInvocation) -> Vec<String> {
     let mut command = vec![invocation.program.clone()];
     command.extend(invocation.arguments.iter().cloned());
     command

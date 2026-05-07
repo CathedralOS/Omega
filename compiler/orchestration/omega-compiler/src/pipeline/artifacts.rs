@@ -17,7 +17,8 @@ use omega_native::control_flow::{
 };
 use omega_native::data::NativeDataObject;
 use omega_native::emission::EmissionPlan;
-use omega_native::emitter::EmittedNativeObject;
+use omega_native::emitter::EmittedNativeOutput;
+use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFinalizationStatus};
 use omega_native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
@@ -25,7 +26,6 @@ use omega_native::instructions::{
     FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use omega_native::layout::{DataShape, FieldLayout};
-use omega_native::linker::{LinkOutput, LinkStatus};
 use omega_native::machine_code::{MachineFunctionCode, MachineInstruction};
 use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;
@@ -1538,63 +1538,68 @@ impl ArtifactWriter {
         self.write("11_emission.txt", &output)
     }
 
-    pub(crate) fn write_emitted_native_object(
+    pub(crate) fn write_emitted_native_output(
         &self,
-        emitted_object: &EmittedNativeObject,
+        emitted_output: &EmittedNativeOutput,
     ) -> Result<PathBuf, Diagnostic> {
-        let object_path = self.root.join(&emitted_object.file_name);
-        fs::write(&object_path, &emitted_object.bytes).map_err(|error| {
+        let output_path = self.root.join(&emitted_output.file_name);
+        fs::write(&output_path, &emitted_output.bytes).map_err(|error| {
             Diagnostic::error(format!(
-                "failed to write native object {}: {error}",
-                object_path.display()
+                "failed to write native output {}: {error}",
+                output_path.display()
             ))
         })?;
 
         let mut output = String::new();
-        output.push_str("# Omega Emitted Native Object\n\n");
-        output.push_str(&format!("path: {}\n", object_path.display()));
-        output.push_str(&format!("format: {}\n", emitted_object.format));
-        output.push_str(&format!("bytes: {}\n", emitted_object.bytes.len()));
-        output.push_str(&format!("text bytes: {}\n", emitted_object.text_bytes));
-        output.push_str(&format!("data bytes: {}\n", emitted_object.data_bytes));
-        output.push_str(&format!("bss bytes: {}\n", emitted_object.bss_bytes));
-        output.push_str(&format!("symbols: {}\n", emitted_object.symbols));
-        output.push_str(&format!("relocations: {}\n", emitted_object.relocations));
+        output.push_str("# Omega Emitted Native Output\n\n");
+        output.push_str(&format!("path: {}\n", output_path.display()));
+        output.push_str(&format!("format: {}\n", emitted_output.format));
+        output.push_str(&format!("bytes: {}\n", emitted_output.bytes.len()));
+        output.push_str(&format!("text bytes: {}\n", emitted_output.text_bytes));
+        output.push_str(&format!("data bytes: {}\n", emitted_output.data_bytes));
+        output.push_str(&format!("bss bytes: {}\n", emitted_output.bss_bytes));
+        output.push_str(&format!("symbols: {}\n", emitted_output.symbols));
+        output.push_str(&format!("relocations: {}\n", emitted_output.relocations));
 
-        self.write("12_emitted_object.txt", &output)?;
+        self.write("12_emitted_output.txt", &output)?;
 
-        Ok(object_path)
+        Ok(output_path)
     }
 
-    pub(crate) fn write_link_report(&self, link_output: &LinkOutput) -> Result<(), Diagnostic> {
+    pub(crate) fn write_executable_finalization_report(
+        &self,
+        finalization: &ExecutableFinalization,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        output.push_str("# Omega Link\n\n");
-        output.push_str(&format!("status: {:?}\n", link_output.status));
+        output.push_str("# Omega Executable Finalization\n\n");
+        output.push_str(&format!("status: {:?}\n", finalization.status));
         output.push_str(&format!(
             "output: {}\n",
-            link_output.executable_path.display()
+            finalization.executable_path.display()
         ));
-        if link_output.command.is_empty() {
+        if finalization.command.is_empty() {
             output.push_str("command: none\n");
         } else {
-            output.push_str(&format!("command: {}\n", link_output.command.join(" ")));
+            output.push_str(&format!("command: {}\n", finalization.command.join(" ")));
         }
-        if !link_output.stdout.is_empty() {
+        if !finalization.stdout.is_empty() {
             output.push_str("\n## stdout\n");
-            output.push_str(&link_output.stdout);
+            output.push_str(&finalization.stdout);
             output.push('\n');
         }
-        if !link_output.stderr.is_empty() {
+        if !finalization.stderr.is_empty() {
             output.push_str("\n## stderr\n");
-            output.push_str(&link_output.stderr);
+            output.push_str(&finalization.stderr);
             output.push('\n');
         }
-        if link_output.status == LinkStatus::Skipped {
-            output.push_str("\nlinking was skipped; compile output is the native object file.\n");
+        if finalization.status == ExecutableFinalizationStatus::AlreadyExecutable {
+            output.push_str(
+                "\nexternal linking was skipped; compile output is already executable.\n",
+            );
         }
 
-        self.write("13_link.txt", &output)
+        self.write("13_finalization.txt", &output)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {

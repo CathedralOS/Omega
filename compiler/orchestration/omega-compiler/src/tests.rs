@@ -2888,7 +2888,7 @@ fn check_writes_phase_artifacts() {
 }
 
 #[test]
-fn compile_emits_native_object_bytes() {
+fn compile_emits_native_output_bytes() {
     let build_dir =
         std::env::temp_dir().join(format!("omega-compiler-compile-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -2903,8 +2903,8 @@ fn compile_emits_native_object_bytes() {
     .expect("compile should emit bytes");
 
     assert!(output.executable_path.is_file());
-    assert!(output.artifacts_dir.join("12_emitted_object.txt").is_file());
-    assert!(output.artifacts_dir.join("13_link.txt").is_file());
+    assert!(output.artifacts_dir.join("12_emitted_output.txt").is_file());
+    assert!(output.artifacts_dir.join("13_finalization.txt").is_file());
 
     let bytes =
         std::fs::read(&output.executable_path).expect("emitted executable should be readable");
@@ -2959,15 +2959,16 @@ fn compile_emits_direct_linux_arm64_elf() {
     let bytes =
         std::fs::read(&output.executable_path).expect("emitted executable should be readable");
     let emitted_report =
-        std::fs::read_to_string(output.artifacts_dir.join("12_emitted_object.txt"))
-            .expect("emitted object report should be readable");
-    let link_report = std::fs::read_to_string(output.artifacts_dir.join("13_link.txt"))
-        .expect("link report should be readable");
+        std::fs::read_to_string(output.artifacts_dir.join("12_emitted_output.txt"))
+            .expect("emitted output report should be readable");
+    let finalization_report =
+        std::fs::read_to_string(output.artifacts_dir.join("13_finalization.txt"))
+            .expect("finalization report should be readable");
 
     assert_eq!(&bytes[0..4], b"\x7fELF");
     assert!(emitted_report.contains("format: elf64-aarch64-executable"));
-    assert!(link_report.contains("command: none"));
-    assert!(link_report.contains("status: Skipped"));
+    assert!(finalization_report.contains("command: none"));
+    assert!(finalization_report.contains("status: AlreadyExecutable"));
     assert!(output.summary.contains("finalized"));
 
     let _ = std::fs::remove_dir_all(build_dir);

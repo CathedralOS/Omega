@@ -15,8 +15,8 @@ use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
 use omega_native::control_flow::build_control_flow_plan;
 use omega_native::emission::build_emission_plan;
-use omega_native::emitter::emit_native_object;
-use omega_native::linker::{LinkStatus, link_native_object};
+use omega_native::emitter::emit_native_output;
+use omega_native::executable_finalization::{ExecutableFinalizationStatus, finalize_native_output};
 use omega_native::plan::build_native_plan;
 use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
@@ -255,26 +255,27 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             })
             .collect());
     }
-    let object_path = record_phase(&mut phase_timings, "emit native object", || {
-        let emitted_object =
-            emit_native_object(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
+    let native_output_path = record_phase(&mut phase_timings, "emit native output", || {
+        let emitted_output =
+            emit_native_output(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_emitted_native_object(&emitted_object)
+            .write_emitted_native_output(&emitted_output)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let link_output = record_phase(&mut phase_timings, "link executable", || {
-        let link_output = link_native_object(&native_plan, &object_path, artifacts.root())
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
+        let executable_finalization =
+            finalize_native_output(&native_plan, &native_output_path, artifacts.root())
+                .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
-            .write_link_report(&link_output)
+            .write_executable_finalization_report(&executable_finalization)
             .map_err(|diagnostic| vec![diagnostic])?;
 
-        Ok(link_output)
+        Ok(executable_finalization)
     })?;
-    let executable_path = link_output.executable_path.clone();
-    let executable_action = match link_output.status {
-        LinkStatus::Linked => "linked",
-        LinkStatus::Skipped => "finalized",
+    let executable_path = executable_finalization.executable_path.clone();
+    let executable_action = match executable_finalization.status {
+        ExecutableFinalizationStatus::UsedExternalLinker => "linked",
+        ExecutableFinalizationStatus::AlreadyExecutable => "finalized",
     };
     artifacts
         .write_timings(&phase_timings)
@@ -285,7 +286,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         executable_path: executable_path.clone(),
         summary: format!(
             "emitted {}; {executable_action} {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
-            object_path.display(),
+            native_output_path.display(),
             executable_path.display(),
             artifacts.root().display(),
             format_phase_timings(&phase_timings),

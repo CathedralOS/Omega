@@ -1,0 +1,68 @@
+use crate::abi::{
+    HostAbiPlan, HostBinding, HostBindingMechanism, PlatformCallData, host_operation,
+    insert_platform_lowering,
+};
+
+pub(super) fn populate(plan: &mut HostAbiPlan) {
+    plan.bindings.insert_many([
+        windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+        windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
+        windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+        windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
+        windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
+    ]);
+
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_line",
+        [
+            host_operation("Stdout", "get_std_handle"),
+            host_operation("Stdout", "write_file"),
+        ],
+        PlatformCallData::FirstTextArgument {
+            append_newline: true,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write",
+        [
+            host_operation("Stdout", "get_std_handle"),
+            host_operation("Stdout", "write_file"),
+        ],
+        PlatformCallData::FirstTextArgument {
+            append_newline: false,
+        },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "read_line",
+        [
+            host_operation("Stdin", "get_std_handle"),
+            host_operation("Stdin", "read_file"),
+        ],
+        PlatformCallData::MutableOutputBuffer { byte_capacity: 256 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "exit_process",
+        [host_operation("Process", "exit_process")],
+        PlatformCallData::None,
+    );
+}
+
+fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str) -> HostBinding {
+    HostBinding {
+        capability: capability.to_owned(),
+        operation: operation.to_owned(),
+        mechanism: HostBindingMechanism::Import {
+            library: library.to_owned(),
+            symbol: symbol.to_owned(),
+        },
+        trust_policy: "omega::host::targets::windows".to_owned(),
+    }
+}

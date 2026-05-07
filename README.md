@@ -92,8 +92,8 @@ Important artifact files:
 - `09_native_plan.txt`: native target, host ABI, calls, data, instructions, object shape.
 - `10_trust.txt`: trusted contracts and unchecked obligations.
 - `11_emission.txt`: whether native emission is currently possible.
-- `12_emitted_object.txt`: emitted object/container information.
-- `13_link.txt`: linker invocation and result.
+- `12_emitted_output.txt`: emitted native output information.
+- `13_finalization.txt`: executable finalization, including any temporary system linker bridge.
 
 ## Current Native Status
 
