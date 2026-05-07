@@ -1503,15 +1503,39 @@ mod tests {
 
         assert!(output.executable_path.is_file());
         assert!(output.artifacts_dir.join("12_emitted_object.txt").is_file());
+        assert!(output.artifacts_dir.join("13_link.txt").is_file());
 
-        let bytes = std::fs::read(&output.executable_path)
-            .expect("emitted native object should be readable");
+        let bytes =
+            std::fs::read(&output.executable_path).expect("emitted executable should be readable");
         assert!(bytes.starts_with(&0xfeedfacfu32.to_le_bytes()));
         assert!(bytes.len() > 32);
         assert!(
             output.summary.contains("emitted"),
             "compile summary should report emitted output"
         );
+        assert!(
+            output.summary.contains("linked"),
+            "compile summary should report linked output"
+        );
+
+        if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+            let run_output = std::process::Command::new(&output.executable_path)
+                .output()
+                .expect("compiled Omega binary should run");
+
+            assert!(
+                run_output.status.success(),
+                "compiled Omega binary should exit successfully"
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&run_output.stdout),
+                "Hello, Omega.\n"
+            );
+            assert!(
+                run_output.stderr.is_empty(),
+                "compiled Omega binary should not write stderr"
+            );
+        }
 
         let _ = std::fs::remove_dir_all(build_dir);
     }
