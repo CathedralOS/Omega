@@ -1200,11 +1200,12 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "runtime dispatch"
+                && blocker.reason.contains("dispatch loop planned")
                 && blocker
                     .reason
-                    .contains("main.prompt -> main.invalid_command -> main.prompt")
+                    .contains("native emission needs dispatch loop byte emission")
         }),
-        "expected runtime dispatch blocker for loop"
+        "expected dispatch loop emission blocker"
     );
 }
 
@@ -1255,6 +1256,71 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
     assert_eq!(prompt.label, "omega_state_main_prompt");
     assert_eq!(prompt_edges.len(), 1);
     assert_eq!(prompt_edges[0].target_dispatch_index, 3);
+}
+
+#[test]
+fn plans_runtime_dispatch_loop_for_state_cycles() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                owns ready: bool = false;
+
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    -> done when ready == false;
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    -> prompt;
+                }
+
+                state done {
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should build dispatch loop data");
+    let prompt_case = native_plan
+        .runtime_dispatch_loop
+        .cases
+        .iter()
+        .find(|(_, dispatch_case)| dispatch_case.state == "prompt")
+        .map(|(_, dispatch_case)| dispatch_case)
+        .expect("prompt dispatch loop case should exist");
+    let prompt_edges = native_plan
+        .runtime_dispatch_loop
+        .edges
+        .span(prompt_case.edges)
+        .expect("prompt dispatch loop edges should resolve");
+
+    assert!(native_plan.runtime_dispatch_loop.needed);
+    assert_eq!(
+        native_plan.runtime_dispatch_loop.current_state_slot,
+        "omega_current_state"
+    );
+    assert_eq!(prompt_edges.len(), 2);
+    assert!(prompt_edges.iter().any(|edge| {
+        edge.action
+            == crate::native::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction::EnterState
+            && edge.target_dispatch_index != 0
+    }));
+    assert!(prompt_edges.iter().any(|edge| {
+        edge.guard_lowering == crate::native::state_guards::StateGuardLowering::CompareStaticValue
+    }));
 }
 
 #[test]

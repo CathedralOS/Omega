@@ -47,8 +47,12 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     let (state_schedule, needs_runtime_dispatch) = match build_entry_state_schedule(native_plan) {
         Ok(state_schedule) => (state_schedule, false),
         Err(reason) => {
-            blockers.insert(blocker("state schedule", &reason));
-            collect_runtime_dispatch_blockers(native_plan, &mut blockers);
+            if native_plan.runtime_dispatch_loop.needed {
+                blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+            } else {
+                blockers.insert(blocker("state schedule", &reason));
+                collect_runtime_dispatch_blockers(native_plan, &mut blockers);
+            }
             (runtime_and_required_states(native_plan), true)
         }
     };
@@ -1137,6 +1141,18 @@ fn collect_runtime_dispatch_blockers(
             &format!("cycle {cycle_path} needs generated state dispatch before native emission"),
         ));
     }
+}
+
+fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> EmissionBlocker {
+    blocker(
+        "runtime dispatch",
+        &format!(
+            "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); native emission needs dispatch loop byte emission",
+            native_plan.runtime_dispatch_loop.cases.len(),
+            native_plan.runtime_dispatch_loop.edges.len(),
+            native_plan.runtime_flow.cycles.len()
+        ),
+    )
 }
 
 fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {

@@ -1043,6 +1043,79 @@ impl ArtifactWriter {
             }
         }
 
+        output.push_str("\n## Runtime Dispatch Loop\n");
+        output.push_str(&format!(
+            "needed: {}\n",
+            native_plan.runtime_dispatch_loop.needed
+        ));
+        output.push_str(&format!(
+            "current state slot: `{}`\n",
+            native_plan.runtime_dispatch_loop.current_state_slot
+        ));
+        output.push_str(&format!(
+            "next state slot: `{}`\n",
+            native_plan.runtime_dispatch_loop.next_state_slot
+        ));
+        output.push_str(&format!(
+            "cases: {}\n",
+            native_plan.runtime_dispatch_loop.cases.len()
+        ));
+        output.push_str(&format!(
+            "edges: {}\n",
+            native_plan.runtime_dispatch_loop.edges.len()
+        ));
+        if native_plan.runtime_dispatch_loop.cases.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
+                output.push_str(&format!(
+                    "- #{} {}.{} label `{}` operations {}\n",
+                    dispatch_case.dispatch_index,
+                    dispatch_case.machine,
+                    dispatch_case.state,
+                    dispatch_case.label,
+                    dispatch_case.operation_count
+                ));
+
+                match native_plan
+                    .runtime_dispatch_loop
+                    .edges
+                    .span(dispatch_case.edges)
+                {
+                    Some(edges) if edges.is_empty() => output.push_str("  edges: none\n"),
+                    Some(edges) => {
+                        output.push_str("  edges:\n");
+                        for edge in edges {
+                            output.push_str(&format!(
+                                "    - #{} -> #{} {} {:?}/{:?} {}",
+                                edge.order,
+                                edge.target_dispatch_index,
+                                runtime_transition_target_name(&edge.target),
+                                edge.guard_lowering,
+                                edge.action,
+                                transition_guard_name(&edge.guard)
+                            ));
+
+                            if edge.continuation != RuntimeTransitionTarget::None {
+                                output.push_str(&format!(
+                                    " -> #{} {}",
+                                    edge.continuation_dispatch_index,
+                                    runtime_transition_target_name(&edge.continuation)
+                                ));
+                            }
+
+                            if edge.forms_cycle {
+                                output.push_str(" [cycle]");
+                            }
+
+                            output.push('\n');
+                        }
+                    }
+                    None => output.push_str("  edges: invalid span\n"),
+                }
+            }
+        }
+
         output.push_str("\n## Runtime Bodies\n");
         output.push_str(&format!(
             "bodies: {}\n",
