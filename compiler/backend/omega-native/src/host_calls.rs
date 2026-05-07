@@ -2,13 +2,13 @@ use crate::abi::{HostAbiPlan, PlatformCallData, PlatformCallLowering};
 use crate::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Call, Statement};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
@@ -110,54 +110,41 @@ pub fn build_host_call_plan(
     target: NativeTarget,
     host_abi: &HostAbiPlan,
 ) -> Result<HostCallPlan, Diagnostic> {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_host_call_plan_with_workers(
+        Arc::new(program.clone()),
+        target,
+        Arc::new(host_abi.clone()),
+        workers.handle(),
+    )
+}
+
+pub fn build_host_call_plan_with_workers(
+    program: Arc<Program>,
+    target: NativeTarget,
+    host_abi: Arc<HostAbiPlan>,
+    workers: WorkerPoolHandle,
+) -> Result<HostCallPlan, Diagnostic> {
     if program.machines.is_empty() {
         return Ok(HostCallPlan::default());
     }
 
-    let next_index = AtomicUsize::new(0);
-    let worker_count = host_call_worker_count(program.machines.len());
-    let worker_results = thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(worker_count);
+    let machine_count = program.machines.len();
+    let machine_plans = workers.map_ordered(machine_count, move |index| {
+        let machine = program
+            .machines
+            .get(index)
+            .expect("host-call worker index should be in range");
+        let mut machine_plan = HostCallPlan::default();
 
-        for _ in 0..worker_count {
-            let next_index = &next_index;
-            handles.push(scope.spawn(move || {
-                let mut results = Vec::new();
-
-                loop {
-                    let index = next_index.fetch_add(1, Ordering::Relaxed);
-                    let Some(machine) = program.machines.get(index) else {
-                        break;
-                    };
-
-                    let mut machine_plan = HostCallPlan::default();
-                    let result = collect_machine_host_calls(
-                        program,
-                        target,
-                        host_abi,
-                        machine,
-                        &mut machine_plan,
-                    )
-                    .map(|_| machine_plan);
-                    results.push((index, result));
-                }
-
-                results
-            }));
-        }
-
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("host-call worker should not panic"))
-            .collect::<Vec<_>>()
+        collect_machine_host_calls(&program, target, &host_abi, machine, &mut machine_plan)
+            .map(|_| machine_plan)
     });
-
-    let mut machine_plans = worker_results;
-    machine_plans.sort_by_key(|(index, _)| *index);
 
     let mut plan = HostCallPlan::default();
 
-    for (_, machine_plan) in machine_plans {
+    for machine_plan in machine_plans {
         merge_host_call_plan(&mut plan, machine_plan?);
     }
 
@@ -191,14 +178,6 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
             ..call.clone()
         });
     }
-}
-
-fn host_call_worker_count(job_count: usize) -> usize {
-    let available = thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1);
-
-    job_count.min(available).max(1)
 }
 
 fn collect_machine_host_calls(

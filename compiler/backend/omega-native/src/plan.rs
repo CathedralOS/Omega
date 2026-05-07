@@ -2,7 +2,7 @@ use crate::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
 use crate::control_flow::{ControlFlowPlan, build_control_flow_plan};
 use crate::data::{NativeDataPlan, build_native_data_plan};
-use crate::host_calls::{HostCallPlan, build_host_call_plan};
+use crate::host_calls::{HostCallPlan, build_host_call_plan_with_workers};
 use crate::instructions::{InstructionPlan, build_instruction_plan};
 use crate::layout::{LayoutPlan, build_layout_plan};
 use crate::machine_code::{MachineCodePlan, build_machine_code_plan};
@@ -25,8 +25,9 @@ use crate::state_storage::{StateStoragePlan, build_state_storage_plan};
 use crate::state_values::{StateValuePlan, build_state_value_plan};
 use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
-use std::thread;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {
@@ -60,24 +61,36 @@ pub fn build_native_plan(
     program: &Program,
     target: NativeTarget,
 ) -> Result<NativePlan, Diagnostic> {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_native_plan_with_workers(Arc::new(program.clone()), target, workers.handle())
+}
+
+pub fn build_native_plan_with_workers(
+    program: Arc<Program>,
+    target: NativeTarget,
+    workers: WorkerPoolHandle,
+) -> Result<NativePlan, Diagnostic> {
     let entry_machine = "main".to_owned();
     let entry_state = "entry".to_owned();
     let host_abi = build_host_abi_plan(target);
-    let (control_flow, layouts, host_calls) = thread::scope(|scope| {
-        let control_flow = scope.spawn(|| build_control_flow_plan(program));
-        let layouts = scope.spawn(|| build_layout_plan(program, target));
-        let host_calls = scope.spawn(|| build_host_call_plan(program, target, &host_abi));
-
-        (
-            control_flow
-                .join()
-                .expect("control-flow planner should not panic"),
-            layouts.join().expect("layout planner should not panic"),
-            host_calls
-                .join()
-                .expect("host-call planner should not panic"),
-        )
-    });
+    let host_call_program = Arc::clone(&program);
+    let layout_program = Arc::clone(&program);
+    let control_flow_program = Arc::clone(&program);
+    let host_call_abi = Arc::new(host_abi.clone());
+    let host_call_workers = workers.clone();
+    let (control_flow, layouts, host_calls) = workers.join3(
+        move || build_control_flow_plan(&control_flow_program),
+        move || build_layout_plan(&layout_program, target),
+        move || {
+            build_host_call_plan_with_workers(
+                host_call_program,
+                target,
+                host_call_abi,
+                host_call_workers,
+            )
+        },
+    );
     let control_flow = control_flow?;
     let layouts = layouts?;
     let host_calls = host_calls?;
@@ -126,8 +139,8 @@ pub fn build_native_plan(
     };
     native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.alias_flow = build_alias_flow_plan(&native_plan);
-    native_plan.state_storage = build_state_storage_plan(program, &native_plan);
-    native_plan.state_values = build_state_value_plan(program, &native_plan);
+    native_plan.state_storage = build_state_storage_plan(&program, &native_plan);
+    native_plan.state_values = build_state_value_plan(&program, &native_plan);
     native_plan.runtime_bodies = build_runtime_dispatch_body_plan(&native_plan);
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
     native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan(&native_plan);

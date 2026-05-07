@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
 use std::time::Instant;
 
 use crate::ast::item::Item;
@@ -13,6 +11,7 @@ use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile};
 use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::WorkerPool;
 use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
 use omega_names::build_resolve_report;
@@ -21,7 +20,7 @@ use omega_native::control_flow::build_control_flow_plan;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
 use omega_native::executable_finalization::{ExecutableFinalizationStatus, finalize_native_output};
-use omega_native::plan::build_native_plan;
+use omega_native::plan::build_native_plan_with_workers;
 use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
@@ -54,9 +53,10 @@ pub struct PhaseTiming {
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     let build_dir = options.build_dir();
     let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
+    let workers = WorkerPool::with_available_parallelism();
     let mut phase_timings = Vec::new();
     let loaded_program = record_phase(&mut phase_timings, "sources", || {
-        let loaded_program = load_program_sources(&options)?;
+        let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
             .write_sources(&loaded_program)
@@ -77,9 +77,11 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "typed program lowering", || {
-        lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
-    })?;
+    let program = Arc::new(record_phase(
+        &mut phase_timings,
+        "typed program lowering",
+        || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
+    )?);
     record_phase(&mut phase_timings, "types/effects", || {
         let type_surface = build_type_surface_report(&loaded_program.items);
         let effect_plan = infer_effects(&program);
@@ -126,7 +128,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
         let native_plan =
-            build_native_plan(&program, target).map_err(|diagnostic| vec![diagnostic])?;
+            build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
+                .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -135,7 +138,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
         let native_plan =
-            build_native_plan(&program, target).map_err(|diagnostic| vec![diagnostic])?;
+            build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
+                .map_err(|diagnostic| vec![diagnostic])?;
         let emission_plan = build_emission_plan(&native_plan);
         artifacts
             .write_emission_plan(&emission_plan)
@@ -160,9 +164,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
 pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
     let build_dir = options.build_dir();
     let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
+    let workers = WorkerPool::with_available_parallelism();
     let mut phase_timings = Vec::new();
     let loaded_program = record_phase(&mut phase_timings, "sources", || {
-        let loaded_program = load_program_sources(&options)?;
+        let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
             .write_sources(&loaded_program)
@@ -183,9 +188,11 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let program = record_phase(&mut phase_timings, "typed program lowering", || {
-        lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic])
-    })?;
+    let program = Arc::new(record_phase(
+        &mut phase_timings,
+        "typed program lowering",
+        || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
+    )?);
     record_phase(&mut phase_timings, "types/effects", || {
         let type_surface = build_type_surface_report(&loaded_program.items);
         let effect_plan = infer_effects(&program);
@@ -232,7 +239,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
         let native_plan =
-            build_native_plan(&program, target).map_err(|diagnostic| vec![diagnostic])?;
+            build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
+                .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -382,7 +390,10 @@ impl LoadedProgram {
     }
 }
 
-fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<Diagnostic>> {
+fn load_program_sources(
+    options: &CompileOptions,
+    workers: &WorkerPool,
+) -> Result<LoadedProgram, Vec<Diagnostic>> {
     let root_dir = options
         .root_path
         .parent()
@@ -415,9 +426,9 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
         }
 
         let first_file_id = seen.len() - batch_paths.len();
-        let files = load_source_batch(batch_paths, first_file_id)?;
+        let files = Arc::new(load_source_batch(&workers, batch_paths, first_file_id)?);
 
-        let ast_files = parse_source_batch(&files)?;
+        let ast_files = parse_source_batch(&workers, Arc::clone(&files))?;
 
         for (file, ast_file) in files.iter().zip(ast_files) {
             let first_item = items.len();
@@ -482,6 +493,7 @@ fn load_program_sources(options: &CompileOptions) -> Result<LoadedProgram, Vec<D
 }
 
 fn load_source_batch(
+    workers: &WorkerPool,
     paths: Vec<PathBuf>,
     first_file_id: usize,
 ) -> Result<Vec<SourceFile>, Vec<Diagnostic>> {
@@ -490,41 +502,17 @@ fn load_source_batch(
     }
 
     let paths = Arc::new(paths);
-    let next_index = AtomicUsize::new(0);
-    let worker_count = source_worker_count(paths.len());
-    let worker_results = thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(worker_count);
+    let loaded = workers.map_ordered(paths.len(), move |index| {
+        let path = paths
+            .get(index)
+            .cloned()
+            .expect("source worker index should be in range");
+        let source = std::fs::read_to_string(&path).map_err(|error| {
+            Diagnostic::error(format!("failed to read {}: {error}", path.display()))
+        });
 
-        for _ in 0..worker_count {
-            let paths = Arc::clone(&paths);
-            let next_index = &next_index;
-            handles.push(scope.spawn(move || {
-                let mut results = Vec::new();
-
-                loop {
-                    let index = next_index.fetch_add(1, Ordering::Relaxed);
-                    let Some(path) = paths.get(index).cloned() else {
-                        break;
-                    };
-
-                    let source = std::fs::read_to_string(&path).map_err(|error| {
-                        Diagnostic::error(format!("failed to read {}: {error}", path.display()))
-                    });
-                    results.push((index, path, source));
-                }
-
-                results
-            }));
-        }
-
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("source worker should not panic"))
-            .collect::<Vec<_>>()
+        (index, path, source)
     });
-
-    let mut loaded = worker_results;
-    loaded.sort_by_key(|(index, _, _)| *index);
 
     let mut files = Vec::with_capacity(loaded.len());
     for (index, path, source) in loaded {
@@ -539,45 +527,24 @@ fn load_source_batch(
     Ok(files)
 }
 
-fn parse_source_batch(files: &[SourceFile]) -> Result<Vec<AstFile>, Vec<Diagnostic>> {
+fn parse_source_batch(
+    workers: &WorkerPool,
+    files: Arc<Vec<SourceFile>>,
+) -> Result<Vec<AstFile>, Vec<Diagnostic>> {
     if files.is_empty() {
         return Ok(Vec::new());
     }
 
-    let next_index = AtomicUsize::new(0);
-    let worker_count = source_worker_count(files.len());
-    let worker_results = thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(worker_count);
+    let parsed = workers.map_ordered(files.len(), move |index| {
+        let file = files
+            .get(index)
+            .expect("parser worker index should be in range");
 
-        for _ in 0..worker_count {
-            let next_index = &next_index;
-            handles.push(scope.spawn(move || {
-                let mut results = Vec::new();
-
-                loop {
-                    let index = next_index.fetch_add(1, Ordering::Relaxed);
-                    let Some(file) = files.get(index) else {
-                        break;
-                    };
-
-                    results.push((index, parse_source_file(file)));
-                }
-
-                results
-            }));
-        }
-
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("parser worker should not panic"))
-            .collect::<Vec<_>>()
+        parse_source_file(file)
     });
 
-    let mut parsed = worker_results;
-    parsed.sort_by_key(|(index, _)| *index);
-
     let mut ast_files = Vec::with_capacity(parsed.len());
-    for (_, ast_file) in parsed {
+    for ast_file in parsed {
         ast_files.push(ast_file?);
     }
 
@@ -599,14 +566,6 @@ fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
             None => format!("{}: {}", file.path.display(), error.message),
         })]
     })
-}
-
-fn source_worker_count(job_count: usize) -> usize {
-    let available = thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1);
-
-    job_count.min(available).max(1)
 }
 
 fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {

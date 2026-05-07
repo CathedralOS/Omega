@@ -1,5 +1,6 @@
 pub mod arena;
 pub mod diagnostics;
+pub mod parallel;
 pub mod source;
 pub mod span;
 pub mod symbols;
