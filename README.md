@@ -161,6 +161,7 @@ Omega/
 |   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-effects/                      # Effect surface, mutation/host capability checking.
+|   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.
 |   |   |-- [CRATE] omega-borrow/                       # Ownership, aliasing, lifetime-style checks as needed.
 |   |   |-- [CRATE] omega-consteval/                    # Compile-time evaluation and folding.
 |   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and validation.
