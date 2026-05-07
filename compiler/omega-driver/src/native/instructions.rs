@@ -125,8 +125,8 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
 ) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
-    let state_schedule =
-        build_entry_state_schedule(native_plan).unwrap_or_else(|_| native_entry_only(native_plan));
+    let state_schedule = build_entry_state_schedule(native_plan)
+        .unwrap_or_else(|_| runtime_reachable_states(native_plan));
 
     selected_instructions.push(entry_instruction(native_plan));
 
@@ -146,13 +146,18 @@ fn select_entry_instructions(
     selected_instructions
 }
 
-fn native_entry_only(
+fn runtime_reachable_states(
     native_plan: &NativePlan,
 ) -> Vec<crate::native::state_schedule::ScheduledState> {
-    vec![crate::native::state_schedule::ScheduledState {
-        machine: native_plan.entry_machine.clone(),
-        state: native_plan.entry_state.clone(),
-    }]
+    native_plan
+        .runtime_flow
+        .states
+        .iter()
+        .map(|(_, state)| crate::native::state_schedule::ScheduledState {
+            machine: state.machine.clone(),
+            state: state.state.clone(),
+        })
+        .collect()
 }
 
 fn select_host_call(
