@@ -200,7 +200,9 @@ fn collect_state_call_blockers(
 
         if matches!(
             state_call.lowering,
-            StateCallLowering::InlineLeaf | StateCallLowering::InlineExpansion
+            StateCallLowering::InlineLeaf
+                | StateCallLowering::InlineBranching
+                | StateCallLowering::InlineExpansion
         ) && !needs_runtime_dispatch
             && scheduled_state_contains(
                 state_schedule,
@@ -221,6 +223,18 @@ fn collect_state_call_blockers(
                 "state calls",
                 &format!(
                     "{}.{} statement {} calls leaf state {}.{} with {} argument(s); native emission needs leaf state-call inlining",
+                    state_call.source_machine,
+                    state_call.source_state,
+                    state_call.statement_index,
+                    state_call.target_machine,
+                    state_call.target_state,
+                    state_call.argument_count
+                ),
+            )),
+            StateCallLowering::InlineBranching => blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "{}.{} statement {} calls branching state {}.{} with {} argument(s); native emission needs guarded state-call expansion",
                     state_call.source_machine,
                     state_call.source_state,
                     state_call.statement_index,

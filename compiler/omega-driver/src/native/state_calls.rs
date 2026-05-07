@@ -85,6 +85,7 @@ pub enum StateCallResolution {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateCallLowering {
     InlineLeaf,
+    InlineBranching,
     InlineExpansion,
     #[default]
     Unresolved,
@@ -151,9 +152,23 @@ fn state_call_lowering(native_plan: &NativePlan, call: &CollectedStateCall) -> S
         StateCallLowering::Unresolved
     } else if state_call_targets_leaf(native_plan, call) {
         StateCallLowering::InlineLeaf
+    } else if state_call_targets_branching_state(native_plan, call) {
+        StateCallLowering::InlineBranching
     } else {
         StateCallLowering::InlineExpansion
     }
+}
+
+fn state_call_targets_branching_state(native_plan: &NativePlan, call: &CollectedStateCall) -> bool {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == call.target_machine)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| states.iter().find(|state| state.name == call.target_state))
+        .and_then(|state| native_plan.control_flow.transitions.span(state.transitions))
+        .is_some_and(|transitions| !transitions.is_empty())
 }
 
 fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) -> bool {
