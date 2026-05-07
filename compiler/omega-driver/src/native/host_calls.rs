@@ -4,7 +4,7 @@ use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
 use crate::ir::statement::{Call, Statement};
-use crate::native::abi::{HostAbiPlan, PlatformCallLowering};
+use crate::native::abi::{HostAbiPlan, PlatformCallData, PlatformCallLowering};
 use crate::native::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -42,6 +42,7 @@ pub struct HostCall {
     pub state: String,
     pub statement_index: usize,
     pub platform_call: String,
+    pub data: PlatformCallData,
     pub operations: HandleSpan<LoweredHostOperation>,
     pub arguments: HandleSpan<HostCallArgument>,
 }
@@ -53,6 +54,7 @@ impl Default for HostCall {
             state: String::new(),
             statement_index: 0,
             platform_call: String::new(),
+            data: PlatformCallData::None,
             operations: HandleSpan::empty(),
             arguments: HandleSpan::empty(),
         }
@@ -139,8 +141,7 @@ fn collect_state_host_calls(
             continue;
         };
 
-        let lowered_operations = lower_platform_call(host_abi, &platform_name, call);
-        if lowered_operations.is_empty() {
+        let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
             let platform_call = platform_call_name(call);
             plan.unsupported_calls.insert(UnsupportedHostCall {
                 machine: machine.name.clone(),
@@ -150,15 +151,21 @@ fn collect_state_host_calls(
                 reason: format!("no native lowering for target {target:?}"),
             });
             continue;
-        }
+        };
 
-        let operations = plan.operations.insert_many(lowered_operations);
+        let operations = plan.operations.insert_many(
+            lowering
+                .operations
+                .iter()
+                .map(|operation| host_operation(&operation.capability, &operation.operation)),
+        );
         let arguments = plan.arguments.insert_many(lower_host_call_arguments(call));
         plan.calls.insert(HostCall {
             machine: machine.name.clone(),
             state: state.name.clone(),
             statement_index,
             platform_call: platform_call_name(call),
+            data: lowering.data,
             operations,
             arguments,
         });
@@ -196,23 +203,16 @@ fn platform_call_receiver_type(
     }
 }
 
-fn lower_platform_call(
-    host_abi: &HostAbiPlan,
+fn find_platform_call_lowering<'abi>(
+    host_abi: &'abi HostAbiPlan,
     platform_name: &str,
     call: &Call,
-) -> Vec<LoweredHostOperation> {
+) -> Option<&'abi PlatformCallLowering> {
     host_abi
         .platform_call_lowerings
         .iter()
         .find(|(_, lowering)| lowering_matches(lowering, platform_name, &call.target))
-        .map(|(_, lowering)| {
-            lowering
-                .operations
-                .iter()
-                .map(|operation| host_operation(&operation.capability, &operation.operation))
-                .collect()
-        })
-        .unwrap_or_default()
+        .map(|(_, lowering)| lowering)
 }
 
 fn lowering_matches(

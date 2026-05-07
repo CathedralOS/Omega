@@ -8,7 +8,9 @@ use crate::driver::trust::TrustReport;
 use crate::ir::Program;
 use crate::ir::data::DataMember;
 use crate::ir::statement::TransitionGuard;
-use crate::native::abi::{HostBinding, HostBindingMechanism, PlatformCallLowering};
+use crate::native::abi::{
+    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
+};
 use crate::native::control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
 };
@@ -1286,9 +1288,16 @@ fn write_platform_call_lowering(output: &mut String, lowering: &PlatformCallLowe
         .join(" -> ");
 
     output.push_str(&format!(
-        "- {}.{} => {}\n",
+        "- {}.{} => {}",
         lowering.platform, lowering.state, operations
     ));
+    match lowering.data {
+        PlatformCallData::None => {}
+        PlatformCallData::FirstTextArgument { append_newline } => output.push_str(&format!(
+            " data first_text_argument append_newline={append_newline}"
+        )),
+    }
+    output.push('\n');
 }
 
 fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCall) {

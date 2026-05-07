@@ -21,6 +21,7 @@ pub struct PlatformCallLowering {
     pub platform: String,
     pub state: String,
     pub operations: Vec<HostOperationReference>,
+    pub data: PlatformCallData,
 }
 
 impl Default for PlatformCallLowering {
@@ -29,8 +30,18 @@ impl Default for PlatformCallLowering {
             platform: String::new(),
             state: String::new(),
             operations: Vec::new(),
+            data: PlatformCallData::None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PlatformCallData {
+    #[default]
+    None,
+    FirstTextArgument {
+        append_newline: bool,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,6 +92,9 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                         host_operation("Stdout", "get_std_handle"),
                         host_operation("Stdout", "write_file"),
                     ],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: true,
+                    },
                 ),
                 platform_lowering(
                     "*",
@@ -89,11 +103,15 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                         host_operation("Stdout", "get_std_handle"),
                         host_operation("Stdout", "write_file"),
                     ],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: false,
+                    },
                 ),
                 platform_lowering(
                     "*",
                     "exit_process",
                     [host_operation("Process", "exit_process")],
+                    PlatformCallData::None,
                 ),
             ]);
         }
@@ -103,12 +121,27 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 linux_syscall("Process", "exit_group", 231),
             ]);
             plan.platform_call_lowerings.insert_many([
-                platform_lowering("*", "write_line", [host_operation("Stdout", "write")]),
-                platform_lowering("*", "write", [host_operation("Stdout", "write")]),
+                platform_lowering(
+                    "*",
+                    "write_line",
+                    [host_operation("Stdout", "write")],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: true,
+                    },
+                ),
+                platform_lowering(
+                    "*",
+                    "write",
+                    [host_operation("Stdout", "write")],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: false,
+                    },
+                ),
                 platform_lowering(
                     "*",
                     "exit_process",
                     [host_operation("Process", "exit_group")],
+                    PlatformCallData::None,
                 ),
             ]);
         }
@@ -118,9 +151,28 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
                 darwin_import("Process", "exit", "libSystem.dylib", "_exit"),
             ]);
             plan.platform_call_lowerings.insert_many([
-                platform_lowering("*", "write_line", [host_operation("Stdout", "write")]),
-                platform_lowering("*", "write", [host_operation("Stdout", "write")]),
-                platform_lowering("*", "exit_process", [host_operation("Process", "exit")]),
+                platform_lowering(
+                    "*",
+                    "write_line",
+                    [host_operation("Stdout", "write")],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: true,
+                    },
+                ),
+                platform_lowering(
+                    "*",
+                    "write",
+                    [host_operation("Stdout", "write")],
+                    PlatformCallData::FirstTextArgument {
+                        append_newline: false,
+                    },
+                ),
+                platform_lowering(
+                    "*",
+                    "exit_process",
+                    [host_operation("Process", "exit")],
+                    PlatformCallData::None,
+                ),
             ]);
         }
     }
@@ -132,11 +184,13 @@ fn platform_lowering<const COUNT: usize>(
     platform: &str,
     state: &str,
     operations: [HostOperationReference; COUNT],
+    data: PlatformCallData,
 ) -> PlatformCallLowering {
     PlatformCallLowering {
         platform: platform.to_owned(),
         state: state.to_owned(),
         operations: operations.into_iter().collect(),
+        data,
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::native::abi::PlatformCallData;
 use crate::native::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -56,11 +57,7 @@ fn collect_host_call_data(
     host_call: &HostCall,
     data_plan: &mut NativeDataPlan,
 ) {
-    let append_newline = if host_call.platform_call.ends_with(".write_line") {
-        true
-    } else if host_call.platform_call.ends_with(".write") {
-        false
-    } else {
+    let PlatformCallData::FirstTextArgument { append_newline } = host_call.data else {
         return;
     };
 
