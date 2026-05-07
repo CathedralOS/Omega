@@ -2839,7 +2839,13 @@ fn plans_state_storage_and_mutations() {
             .runtime_storage
             .frame_slots
             .iter()
-            .any(|(_, slot)| { slot.name == "scratch" && slot.type_name == "Room" })
+            .any(|(_, slot)| {
+                slot.name == "scratch"
+                    && slot.type_name == "Room"
+                    && slot.byte_offset == 0
+                    && slot.byte_size == 16
+                    && slot.alignment == 8
+            })
     );
     assert!(native_plan.runtime_storage.writes.iter().any(|(_, write)| {
         write.target.display_name() == "scratch"

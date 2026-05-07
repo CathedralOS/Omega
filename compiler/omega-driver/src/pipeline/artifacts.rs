@@ -613,13 +613,16 @@ impl ArtifactWriter {
         ));
         for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
             output.push_str(&format!(
-                "- #{} {}.{} statement {} local `{}`: {}\n",
+                "- #{} {}.{} statement {} local `{}`: {} offset {} bytes {} align {}\n",
                 slot.dispatch_index,
                 slot.source_machine,
                 slot.source_state,
                 slot.statement_index,
                 slot.name,
-                slot.type_name
+                slot.type_name,
+                slot.byte_offset,
+                slot.byte_size,
+                slot.alignment
             ));
         }
         output.push_str(&format!(

@@ -726,10 +726,14 @@ fn collect_runtime_body_storage_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
+        if slot.byte_size > 0 {
+            continue;
+        }
+
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "#{} {}.{} statement {} local `{}`: {} needs runtime frame slot lowering",
+                "#{} {}.{} statement {} local `{}`: {} needs runtime frame slot layout",
                 slot.dispatch_index,
                 slot.source_machine,
                 slot.source_state,
