@@ -714,57 +714,36 @@ fn collect_runtime_body_storage_blockers(
     native_plan: &NativePlan,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
-            blockers.insert(blocker(
-                "runtime bodies",
-                &format!(
-                    "#{} {}.{} has an invalid runtime body operation span",
-                    body.dispatch_index, body.machine, body.state
-                ),
-            ));
-            continue;
-        };
+    for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
+        blockers.insert(blocker(
+            "state storage",
+            &format!(
+                "#{} {}.{} statement {} local `{}`: {} needs runtime frame slot lowering",
+                slot.dispatch_index,
+                slot.source_machine,
+                slot.source_state,
+                slot.statement_index,
+                slot.name,
+                slot.type_name
+            ),
+        ));
+    }
 
-        for operation in operations {
-            match operation.kind {
-                RuntimeDispatchBodyOperationKind::LocalStorage {
-                    ref name,
-                    ref type_name,
-                } => {
-                    blockers.insert(blocker(
-                        "state storage",
-                        &format!(
-                            "#{} {}.{} statement {} local `{}`: {} needs runtime body local storage lowering",
-                            body.dispatch_index,
-                            operation.source_machine,
-                            operation.source_state,
-                            operation.statement_index,
-                            name,
-                            type_name
-                        ),
-                    ));
-                }
-                RuntimeDispatchBodyOperationKind::Mutation {
-                    mutation_kind,
-                    lowering,
-                } if lowering != StateMutationLowering::AlreadyLowered => {
-                    blockers.insert(blocker(
-                        "state mutation",
-                        &format!(
-                            "#{} {}.{} statement {} {:?}/{:?} needs runtime body mutation lowering",
-                            body.dispatch_index,
-                            operation.source_machine,
-                            operation.source_state,
-                            operation.statement_index,
-                            mutation_kind,
-                            lowering
-                        ),
-                    ));
-                }
-                _ => {}
-            }
-        }
+    for (_, write) in native_plan.runtime_storage.writes.iter() {
+        blockers.insert(blocker(
+            "state mutation",
+            &format!(
+                "#{} {}.{} statement {} {:?}/{:?} `{}` = `{}` needs runtime storage write lowering",
+                write.dispatch_index,
+                write.source_machine,
+                write.source_state,
+                write.statement_index,
+                write.mutation_kind,
+                write.lowering,
+                write.target.display_name(),
+                write.value.display_name()
+            ),
+        ));
     }
 }
 

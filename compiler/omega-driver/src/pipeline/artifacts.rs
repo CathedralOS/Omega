@@ -603,6 +603,41 @@ impl ArtifactWriter {
         }
         output.push('\n');
 
+        output.push_str("## Runtime Storage\n");
+        output.push_str(&format!(
+            "frame slots: {}\n",
+            native_plan.runtime_storage.frame_slots.len()
+        ));
+        for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
+            output.push_str(&format!(
+                "- #{} {}.{} statement {} local `{}`: {}\n",
+                slot.dispatch_index,
+                slot.source_machine,
+                slot.source_state,
+                slot.statement_index,
+                slot.name,
+                slot.type_name
+            ));
+        }
+        output.push_str(&format!(
+            "writes: {}\n",
+            native_plan.runtime_storage.writes.len()
+        ));
+        for (_, write) in native_plan.runtime_storage.writes.iter() {
+            output.push_str(&format!(
+                "- #{} {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                write.dispatch_index,
+                write.source_machine,
+                write.source_state,
+                write.statement_index,
+                write.mutation_kind,
+                write.lowering,
+                write.target.display_name(),
+                write.value.display_name()
+            ));
+        }
+        output.push('\n');
+
         output.push_str("## State Values\n");
         output.push_str(&format!(
             "values: {}\n",

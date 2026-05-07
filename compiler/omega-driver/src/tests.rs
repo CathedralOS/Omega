@@ -2775,6 +2775,18 @@ fn plans_state_storage_and_mutations() {
     assert_eq!(native_plan.state_storage.mutations.len(), 2);
     assert!(
         native_plan
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .any(|(_, slot)| { slot.name == "scratch" && slot.type_name == "Room" })
+    );
+    assert!(native_plan.runtime_storage.writes.iter().any(|(_, write)| {
+        write.target.display_name() == "scratch"
+            && write.lowering
+                == crate::native::state_storage::StateMutationLowering::NeedsLocalWrite
+    }));
+    assert!(
+        native_plan
             .state_storage
             .mutations
             .iter()
