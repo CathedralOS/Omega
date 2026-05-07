@@ -651,11 +651,35 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
             resolved_path.extend_from_slice(suffix);
             Expression::Name(resolved_path)
         }
+        Expression::Indexed(indexed) => {
+            if let Some(mut indexed_path) = indexed_expression_path(indexed) {
+                indexed_path.extend_from_slice(suffix);
+                Expression::Name(indexed_path)
+            } else {
+                expression.clone()
+            }
+        }
         Expression::Mutable(target) => {
             Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
         }
         _ => expression.clone(),
     }
+}
+
+fn indexed_expression_path(
+    indexed: &crate::ir::expression::IndexedExpression,
+) -> Option<Vec<String>> {
+    let Expression::Integer(index) = &indexed.index else {
+        return None;
+    };
+    let mut path = match &indexed.collection {
+        Expression::Name(path) => path.clone(),
+        Expression::Indexed(inner_indexed) => indexed_expression_path(inner_indexed)?,
+        _ => return None,
+    };
+    let last_segment = path.last_mut()?;
+    *last_segment = format!("{last_segment}[{index}]");
+    Some(path)
 }
 
 fn classify_branch_call_expansion(
