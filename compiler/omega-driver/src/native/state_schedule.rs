@@ -346,7 +346,14 @@ fn next_state(
                     arguments,
                 }) => {
                     validate_state_index(native_plan, machine, *index, machine_name, &state.name)?;
-                    bind_state_arguments(native_plan, machine_name, name, arguments, aliases, values)?;
+                    bind_state_arguments(
+                        native_plan,
+                        machine_name,
+                        name,
+                        arguments,
+                        aliases,
+                        values,
+                    )?;
                     Ok(Some(ScheduledState {
                         machine: machine_name.to_owned(),
                         state: name.clone(),
@@ -516,7 +523,9 @@ fn resolve_static_value(
     values: &[(String, String)],
 ) -> Option<String> {
     match expression {
-        Expression::Mutable(inner_expression) => resolve_static_value(inner_expression, aliases, values),
+        Expression::Mutable(inner_expression) => {
+            resolve_static_value(inner_expression, aliases, values)
+        }
         Expression::Name(_) | Expression::Indexed(_) => {
             let name = canonical_place_name(expression, aliases)?;
             values
@@ -549,7 +558,9 @@ fn argument_binding_place_name(
     aliases: &[(String, String)],
 ) -> Option<String> {
     match expression {
-        Expression::Mutable(inner_expression) => shallow_canonical_place_name(inner_expression, aliases),
+        Expression::Mutable(inner_expression) => {
+            shallow_canonical_place_name(inner_expression, aliases)
+        }
         _ => canonical_place_name(expression, aliases),
     }
 }
@@ -592,11 +603,16 @@ fn resolve_alias_once(name: &str, aliases: &[(String, String)]) -> String {
         .iter()
         .rev()
         .find(|(alias, _)| alias_applies(name, alias))
-        .map_or_else(|| name.to_owned(), |(alias, target)| replace_alias_prefix(name, alias, target))
+        .map_or_else(
+            || name.to_owned(),
+            |(alias, target)| replace_alias_prefix(name, alias, target),
+        )
 }
 
 fn alias_applies(name: &str, alias: &str) -> bool {
-    name == alias || name.starts_with(&format!("{alias}::")) || name.starts_with(&format!("{alias}["))
+    name == alias
+        || name.starts_with(&format!("{alias}::"))
+        || name.starts_with(&format!("{alias}["))
 }
 
 fn replace_alias_prefix(name: &str, alias: &str, target: &str) -> String {

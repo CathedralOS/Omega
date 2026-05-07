@@ -9,6 +9,7 @@ use crate::native::layout::{LayoutPlan, build_layout_plan};
 use crate::native::machine_code::{MachineCodePlan, build_machine_code_plan};
 use crate::native::object::{ObjectPlan, build_object_plan};
 use crate::native::relocations::{RelocationPlan, build_relocation_plan};
+use crate::native::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
 use crate::native::target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +20,7 @@ pub struct NativePlan {
     pub data: NativeDataPlan,
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
+    pub runtime_flow: RuntimeFlowPlan,
     pub layouts: LayoutPlan,
     pub machine_code: MachineCodePlan,
     pub object: ObjectPlan,
@@ -31,6 +33,11 @@ pub fn build_native_plan(
     program: &Program,
     target: NativeTarget,
 ) -> Result<NativePlan, Diagnostic> {
+    let entry_machine = "main".to_owned();
+    let entry_state = "entry".to_owned();
+    let control_flow = build_control_flow_plan(program)?;
+    let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
+
     let mut native_plan = NativePlan {
         target,
         host_abi: build_host_abi_plan(target),
@@ -42,7 +49,8 @@ pub fn build_native_plan(
             instructions: omega_core::arena::Arena::new(),
             operands: omega_core::arena::Arena::new(),
         },
-        control_flow: build_control_flow_plan(program)?,
+        control_flow,
+        runtime_flow,
         layouts: build_layout_plan(program, target)?,
         machine_code: MachineCodePlan::default(),
         object: ObjectPlan {
@@ -55,8 +63,8 @@ pub fn build_native_plan(
             target,
             records: omega_core::arena::Arena::new(),
         },
-        entry_machine: "main".to_owned(),
-        entry_state: "entry".to_owned(),
+        entry_machine,
+        entry_state,
     };
     native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
     native_plan.data = build_native_data_plan(&native_plan.host_calls);

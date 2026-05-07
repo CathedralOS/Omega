@@ -27,6 +27,7 @@ use crate::native::machine_code::{MachineFunctionCode, MachineInstruction};
 use crate::native::object::{SectionPlan, SymbolPlan};
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationRecord;
+use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::state_schedule::build_entry_state_schedule;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
@@ -588,6 +589,69 @@ impl ArtifactWriter {
             Err(reason) => {
                 output.push_str("status: blocked\n");
                 output.push_str(&format!("reason: {reason}\n"));
+            }
+        }
+
+        output.push_str("\n## Runtime State Flow\n");
+        output.push_str(&format!(
+            "states: {}\n",
+            native_plan.runtime_flow.states.len()
+        ));
+        output.push_str(&format!(
+            "edges: {}\n",
+            native_plan.runtime_flow.edges.len()
+        ));
+        output.push_str(&format!(
+            "cycles: {}\n",
+            native_plan.runtime_flow.cycles.len()
+        ));
+        if native_plan.runtime_flow.states.is_empty() {
+            output.push_str("none\n");
+        } else {
+            output.push_str("states:\n");
+            for (_, state) in native_plan.runtime_flow.states.iter() {
+                output.push_str(&format!("- {}.{}\n", state.machine, state.state));
+            }
+        }
+        if !native_plan.runtime_flow.edges.is_empty() {
+            output.push_str("edges:\n");
+            for (_, edge) in native_plan.runtime_flow.edges.iter() {
+                output.push_str(&format!(
+                    "- {}.{} -> {} {}",
+                    edge.from_machine,
+                    edge.from_state,
+                    runtime_transition_target_name(&edge.target),
+                    transition_guard_name(&edge.guard)
+                ));
+
+                if edge.continuation != RuntimeTransitionTarget::None {
+                    output.push_str(&format!(
+                        " -> {}",
+                        runtime_transition_target_name(&edge.continuation)
+                    ));
+                }
+
+                if edge.forms_cycle {
+                    output.push_str(" [cycle]");
+                }
+
+                output.push('\n');
+            }
+        }
+        if !native_plan.runtime_flow.cycles.is_empty() {
+            output.push_str("cycle paths:\n");
+            for (_, cycle) in native_plan.runtime_flow.cycles.iter() {
+                match native_plan.runtime_flow.cycle_states.span(cycle.states) {
+                    Some(states) => {
+                        let path = states
+                            .iter()
+                            .map(|state| format!("{}.{}", state.machine, state.state))
+                            .collect::<Vec<_>>()
+                            .join(" -> ");
+                        output.push_str(&format!("- {path}\n"));
+                    }
+                    None => output.push_str("- invalid cycle span\n"),
+                }
             }
         }
 
@@ -1647,5 +1711,14 @@ fn transition_target_name(target: &PlannedTransitionTarget) -> String {
         } => format!("{receiver}.{state}"),
         PlannedTransitionTarget::SelfTarget => "self".to_owned(),
         PlannedTransitionTarget::Terminal => "terminal".to_owned(),
+    }
+}
+
+fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
+    match target {
+        RuntimeTransitionTarget::State { machine, state } => format!("{machine}.{state}"),
+        RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
+        RuntimeTransitionTarget::None => "none".to_owned(),
+        RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
 }

@@ -1113,6 +1113,59 @@ fn plans_state_control_flow() {
 }
 
 #[test]
+fn plans_runtime_state_flow_without_rejecting_cycles() {
+    let tokens = Lexer::new(
+        r#"
+            machine main {
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should preserve runtime loops");
+    let runtime_states = native_plan
+        .runtime_flow
+        .states
+        .iter()
+        .map(|(_, state)| format!("{}.{}", state.machine, state.state))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        runtime_states,
+        vec!["main.entry", "main.prompt", "main.invalid_command",]
+    );
+    assert_eq!(native_plan.runtime_flow.edges.len(), 3);
+    assert_eq!(native_plan.runtime_flow.cycles.len(), 1);
+    assert!(
+        native_plan
+            .runtime_flow
+            .edges
+            .iter()
+            .any(|(_, edge)| edge.forms_cycle),
+        "expected the prompt loop to be represented as a cycle edge"
+    );
+}
+
+#[test]
 fn plans_mid_state_transition_as_generated_segments() {
     let tokens = Lexer::new(
         r#"

@@ -1,6 +1,6 @@
 use crate::diagnostics::Diagnostic;
-use crate::ir::expression::Expression;
 use crate::ir::Program;
+use crate::ir::expression::Expression;
 use crate::ir::machine::Machine;
 use crate::ir::state::State;
 use crate::ir::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -381,9 +381,7 @@ fn plan_transition_target(
     match target {
         TransitionTarget::Named {
             path, arguments, ..
-        }
-            if path.len() == 1 || path.len() == 2 && path[0] == "self" =>
-        {
+        } if path.len() == 1 || path.len() == 2 && path[0] == "self" => {
             let name = path.last().expect("named transition has a state").clone();
             let index = state_indexes
                 .iter()
@@ -401,13 +399,11 @@ fn plan_transition_target(
         }
         TransitionTarget::Named {
             path, arguments, ..
-        } if path.len() == 2 => {
-            Ok(PlannedTransitionTarget::Nested {
-                receiver: path[0].clone(),
-                state: path[1].clone(),
-                arguments: arguments.clone(),
-            })
-        }
+        } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
+            receiver: path[0].clone(),
+            state: path[1].clone(),
+            arguments: arguments.clone(),
+        }),
         TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
             "unsupported transition target `{}`",
             path.join(".")
