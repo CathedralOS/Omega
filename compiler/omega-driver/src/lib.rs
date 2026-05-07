@@ -1432,7 +1432,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_aarch64_values_that_mvp_encoder_would_truncate() {
+    fn encodes_aarch64_immediates_that_need_movk() {
         let long_text = "a".repeat(70_000);
         let source = format!(
             r#"
@@ -1455,19 +1455,13 @@ mod tests {
         let parsed = parse_file(&tokens).expect("parse should succeed");
         let program =
             crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
-        let diagnostic = crate::native::plan::build_native_plan(
+        let native_plan = crate::native::plan::build_native_plan(
             &program,
             crate::native::target::NativeTarget::macos_arm64(),
         )
-        .expect_err("native planning should reject unsupported immediate widths");
+        .expect("native planning should encode multi-instruction immediates");
 
-        assert!(
-            diagnostic
-                .message
-                .contains("AArch64 MVP encoder cannot encode byte length"),
-            "unexpected diagnostic: {}",
-            diagnostic.message
-        );
+        assert_eq!(native_plan.machine_code.byte_count, 28);
     }
 
     #[test]
