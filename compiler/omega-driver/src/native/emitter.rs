@@ -1,6 +1,6 @@
 use crate::diagnostics::Diagnostic;
 use crate::native::object::{SectionKind, SymbolKind};
-use crate::native::object_formats::emit_target_object;
+use crate::native::platform_object::emit_target_object;
 use crate::native::plan::NativePlan;
 use crate::native::relocations::RelocationKind;
 use crate::native::target::{Architecture, ObjectFormat};

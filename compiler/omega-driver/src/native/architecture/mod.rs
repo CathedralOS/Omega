@@ -1,7 +1,7 @@
 pub mod aarch64;
 
 use crate::diagnostics::Diagnostic;
-use crate::native::instructions::{InstructionOperand, InstructionOperandKind};
+use crate::native::instructions::InstructionOperand;
 use crate::native::target::Architecture;
 
 pub fn host_call_sequence_width(
@@ -47,8 +47,4 @@ pub fn operand_width(architecture: Architecture, operand: &InstructionOperand) -
 
 fn x86_64_operand_width(_operand: &InstructionOperand) -> usize {
     8
-}
-
-pub fn operand_is_data_address(operand: &InstructionOperand) -> bool {
-    matches!(operand.kind, InstructionOperandKind::DataAddress { .. })
 }

@@ -107,12 +107,6 @@ impl<'program> ProgramSymbols<'program> {
         symbols
     }
 
-    pub fn has_type(&self, name: &str) -> bool {
-        self.data_definition(name).is_some()
-            || self.machine(name).is_some()
-            || self.platform(name).is_some()
-    }
-
     pub fn has_data_definition(&self, name: &str) -> bool {
         self.data_definition(name).is_some()
     }
@@ -245,14 +239,6 @@ impl<'program> MachineSymbols<'program> {
             .iter()
             .find(|symbol| symbol.name == name)
             .map(|symbol| symbol.type_name)
-    }
-
-    pub fn member_names(&self) -> impl Iterator<Item = &'program str> + '_ {
-        self.member_names.iter().copied()
-    }
-
-    pub fn owned_data_names(&self) -> impl Iterator<Item = &'program str> + '_ {
-        self.owned_data_names.iter().copied()
     }
 
     pub fn has_state(&self, name: &str) -> bool {
