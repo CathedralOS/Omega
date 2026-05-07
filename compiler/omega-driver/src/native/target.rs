@@ -1,3 +1,5 @@
+use crate::diagnostics::Diagnostic;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Architecture {
     Aarch64,
@@ -29,13 +31,15 @@ impl NativeTarget {
         }
     }
 
-    pub fn from_omega_target_name(target_name: Option<&str>) -> Self {
+    pub fn from_omega_target_name(target_name: Option<&str>) -> Result<Self, Diagnostic> {
         match target_name {
-            Some("linux_x64") => Self::linux_x64(),
-            Some("macos_arm64") => Self::macos_arm64(),
-            Some("windows_x64") => Self::windows_x64(),
-            Some("cross_platform_cli") | Some("local_unchecked") | None => Self::host(),
-            Some(_) => Self::host(),
+            Some("linux_x64") => Ok(Self::linux_x64()),
+            Some("macos_arm64") => Ok(Self::macos_arm64()),
+            Some("windows_x64") => Ok(Self::windows_x64()),
+            Some("cross_platform_cli") | Some("local_unchecked") | None => Ok(Self::host()),
+            Some(target_name) => Err(Diagnostic::error(format!(
+                "unknown native target `{target_name}`; expected linux_x64, macos_arm64, windows_x64, cross_platform_cli, or local_unchecked"
+            ))),
         }
     }
 

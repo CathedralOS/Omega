@@ -1657,6 +1657,68 @@ mod tests {
     }
 
     #[test]
+    fn compile_rejects_unknown_native_target_names() {
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-driver-unknown-target-{}",
+            std::process::id()
+        ));
+        let root_dir = build_dir.join("unknown_target_project");
+        let root_path = root_dir.join("main.omg");
+        std::fs::create_dir_all(&root_dir).expect("test project dir should be creatable");
+        std::fs::write(
+            root_dir.join("build.omg"),
+            r#"
+            target weird_box {
+                host: omega::host::standard {
+                    stdout = enabled
+                    process = enabled
+                }
+
+                trust omega::host::standard
+            }
+            "#,
+        )
+        .expect("test build policy should be writable");
+        std::fs::write(
+            &root_path,
+            r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    console.write_line("Hello.");
+                }
+            }
+            "#,
+        )
+        .expect("test source should be writable");
+
+        let diagnostics = crate::compile(crate::CompileOptions {
+            build_dir: Some(root_dir.join("build")),
+            root_path,
+            target_name: Some("weird_box".to_owned()),
+        })
+        .expect_err("compile should reject unknown native target names");
+        let diagnostics_text = diagnostics
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(
+            diagnostics_text.contains("unknown native target `weird_box`"),
+            "unexpected diagnostics:\n{}",
+            diagnostics_text
+        );
+
+        let _ = std::fs::remove_dir_all(build_dir);
+    }
+
+    #[test]
     fn reports_host_calls_outside_compiled_entry_state_as_blockers() {
         let tokens = Lexer::new(
             r#"
