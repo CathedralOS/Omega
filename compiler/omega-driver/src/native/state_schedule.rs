@@ -67,6 +67,15 @@ fn append_state_chain(
 
         let machine = machine_flow(native_plan, &current.machine)?;
         let state = state_flow(native_plan, machine, &current.state)?;
+        append_local_state_calls(
+            native_plan,
+            &current,
+            machine,
+            state,
+            schedule,
+            visited,
+            values,
+        )?;
         apply_static_operations(native_plan, state, values);
 
         let transitions = native_plan
@@ -100,6 +109,91 @@ fn append_state_chain(
             }
         }
     }
+}
+
+fn append_local_state_calls(
+    native_plan: &NativePlan,
+    current: &ScheduledState,
+    machine: &MachineFlow,
+    state: &StateFlow,
+    schedule: &mut Vec<ScheduledState>,
+    visited: &mut Vec<ScheduledState>,
+    values: &mut Vec<(String, String)>,
+) -> Result<(), String> {
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return Err(format!(
+            "{}.{} has an invalid operation span",
+            current.machine, current.state
+        ));
+    };
+
+    for operation in operations {
+        let OperationKind::Call { receiver, target } = &operation.kind else {
+            continue;
+        };
+
+        let is_platform_call = native_plan.host_calls.calls.iter().any(|(_, host_call)| {
+            host_call.machine == current.machine
+                && host_call.state == current.state
+                && host_call.statement_index == operation.statement_index
+        }) || native_plan.host_calls.unsupported_calls.iter().any(
+            |(_, host_call)| {
+                host_call.machine == current.machine
+                    && host_call.state == current.state
+                    && host_call.statement_index == operation.statement_index
+            },
+        );
+
+        if is_platform_call {
+            continue;
+        }
+
+        let target_machine = resolve_state_call_machine(native_plan, machine, receiver.as_deref())
+            .ok_or_else(|| {
+                format!(
+                    "{}.{} statement {} calls unknown state receiver `{}`",
+                    current.machine,
+                    current.state,
+                    operation.statement_index,
+                    receiver.as_deref().unwrap_or("self")
+                )
+            })?;
+
+        append_state_chain(
+            native_plan,
+            &target_machine,
+            target,
+            schedule,
+            visited,
+            values,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn resolve_state_call_machine(
+    native_plan: &NativePlan,
+    machine: &MachineFlow,
+    receiver: Option<&str>,
+) -> Option<String> {
+    let Some(receiver) = receiver else {
+        return Some(machine.name.clone());
+    };
+
+    machine
+        .contains
+        .iter()
+        .find(|contained| contained.name == receiver)
+        .map(|contained| contained.type_name.clone())
+        .or_else(|| {
+            native_plan
+                .control_flow
+                .machines
+                .iter()
+                .find(|(_, candidate)| candidate.name == receiver)
+                .map(|(_, candidate)| candidate.name.clone())
+        })
 }
 
 fn next_state(
@@ -257,12 +351,28 @@ fn resolve_static_value(expression: &Expression, values: &[(String, String)]) ->
                 .iter()
                 .find(|(target, _)| target == &name)
                 .map(|(_, value)| value.clone())
-                .or(Some(name))
+                .or_else(|| static_symbol_name(expression))
         }
         Expression::Boolean(value) => Some(value.to_string()),
         Expression::Integer(value) => Some(value.to_string()),
         Expression::String(value) => Some(value.clone()),
         _ => None,
+    }
+}
+
+fn static_symbol_name(expression: &Expression) -> Option<String> {
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+
+    if path
+        .first()
+        .and_then(|segment| segment.chars().next())
+        .is_some_and(char::is_uppercase)
+    {
+        Some(expression.display_name())
+    } else {
+        None
     }
 }
 

@@ -228,7 +228,7 @@ fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
             let value = match owned_data.initial_value.as_ref()? {
                 Expression::Integer(value) => StaticValue::Integer(*value),
                 Expression::String(value) => StaticValue::Text(value.clone()),
-                Expression::Name(path) if path.len() > 1 => {
+                Expression::Name(path) if is_static_symbol_path(path) => {
                     StaticValue::Symbol(Expression::Name(path.clone()).display_name())
                 }
                 _ => return None,
@@ -294,7 +294,7 @@ fn resolve_static_value(
                 .find(|(target, _)| target == &name)
                 .map(|(_, value)| value.clone())
                 .or_else(|| {
-                    if path.len() > 1 {
+                    if is_static_symbol_path(path) {
                         Some(StaticValue::Symbol(name))
                     } else {
                         None
@@ -303,6 +303,12 @@ fn resolve_static_value(
         }
         _ => None,
     }
+}
+
+fn is_static_symbol_path(path: &[String]) -> bool {
+    path.first()
+        .and_then(|segment| segment.chars().next())
+        .is_some_and(char::is_uppercase)
 }
 
 fn set_static_value(

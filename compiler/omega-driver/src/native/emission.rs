@@ -137,14 +137,14 @@ fn collect_state_codegen_blockers(
 
         for operation in operations {
             match operation.kind {
-                OperationKind::Call
+                OperationKind::Call { .. }
                     if state_statement_has_host_call(
                         native_plan,
                         &scheduled_state.machine,
                         &scheduled_state.state,
                         operation.statement_index,
                     ) => {}
-                OperationKind::Call => {
+                OperationKind::Call { .. } => {
                     blockers.insert(blocker(
                         "state codegen",
                         &format!(

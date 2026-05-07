@@ -64,11 +64,17 @@ pub struct Operation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
     Assignment,
-    Call,
+    Call {
+        receiver: Option<String>,
+        target: String,
+    },
     ConstantIntegerAssignment,
     Expression,
     LocalData,
-    StaticAssignment { target: String, value: String },
+    StaticAssignment {
+        target: String,
+        value: String,
+    },
 }
 
 impl Default for Operation {
@@ -274,7 +280,10 @@ fn operation_kind(statement: &Statement) -> OperationKind {
             OperationKind::ConstantIntegerAssignment
         }
         Statement::Assignment(_) => OperationKind::Assignment,
-        Statement::Call(_) => OperationKind::Call,
+        Statement::Call(call) => OperationKind::Call {
+            receiver: call.receiver.clone(),
+            target: call.target.clone(),
+        },
         Statement::Expression(_) => OperationKind::Expression,
         Statement::LocalData(_) => OperationKind::LocalData,
         Statement::Transition(_) => unreachable!("transitions are not operations"),
