@@ -26,6 +26,7 @@ use crate::state_values::{StateValuePlan, build_state_value_plan};
 use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::Program;
+use std::thread;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {
@@ -61,16 +62,33 @@ pub fn build_native_plan(
 ) -> Result<NativePlan, Diagnostic> {
     let entry_machine = "main".to_owned();
     let entry_state = "entry".to_owned();
-    let control_flow = build_control_flow_plan(program)?;
+    let host_abi = build_host_abi_plan(target);
+    let (control_flow, layouts, host_calls) = thread::scope(|scope| {
+        let control_flow = scope.spawn(|| build_control_flow_plan(program));
+        let layouts = scope.spawn(|| build_layout_plan(program, target));
+        let host_calls = scope.spawn(|| build_host_call_plan(program, target, &host_abi));
+
+        (
+            control_flow
+                .join()
+                .expect("control-flow planner should not panic"),
+            layouts.join().expect("layout planner should not panic"),
+            host_calls
+                .join()
+                .expect("host-call planner should not panic"),
+        )
+    });
+    let control_flow = control_flow?;
+    let layouts = layouts?;
+    let host_calls = host_calls?;
     let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
     let state_dispatch = build_state_dispatch_plan(&runtime_flow);
-    let layouts = build_layout_plan(program, target)?;
     let state_guards = build_state_guard_plan(&state_dispatch, &layouts, &entry_machine);
 
     let mut native_plan = NativePlan {
         target,
-        host_abi: build_host_abi_plan(target),
-        host_calls: HostCallPlan::default(),
+        host_abi,
+        host_calls,
         state_calls: StateCallPlan::default(),
         alias_flow: AliasFlowPlan::default(),
         state_storage: StateStoragePlan::default(),
@@ -106,7 +124,6 @@ pub fn build_native_plan(
         entry_machine,
         entry_state,
     };
-    native_plan.host_calls = build_host_call_plan(program, target, &native_plan.host_abi)?;
     native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.alias_flow = build_alias_flow_plan(&native_plan);
     native_plan.state_storage = build_state_storage_plan(program, &native_plan);
