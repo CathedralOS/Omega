@@ -4,6 +4,12 @@ Smallest console-style Omega sketch: print one line, then exit.
 
 This sample intentionally avoids input so the entry and platform boundary are easy to inspect.
 
+## Build Output
+
+The compiler writes phase artifacts and executable output to local `build/`.
+That directory is ignored by this sample on purpose so the project can be copied
+without bringing stale compiler output with it.
+
 ## Trusted Root Sketch
 
 `build.omg` references compiler-provided `omega::host` packages from each `target` item. The host package bodies are still ahead of full validation, but the compiler now records their structure and emits a trust report so we can design the boundary in Omega source instead of inventing a sidecar config format.

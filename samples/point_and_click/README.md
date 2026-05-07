@@ -38,6 +38,11 @@ Sample layout:
 - `rooms/`: room ownership, dispatch, and room-specific behavior
 - `platform/`: explicit platform boundary machines
 
+Build output:
+
+- `build/`: ignored local phase artifacts generated beside this pseudocode
+  project when the compiler is pointed at the sample
+
 Questions this sample should help answer next:
 
 - Should `query` be able to write into arbitrary output structs, or should views be preallocated owned buffers only?
