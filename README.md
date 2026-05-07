@@ -310,6 +310,8 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 - `backend/object/*` writes relocatable containers. `backend/linker/*` resolves symbols, applies relocations, strips dead sections, and builds final images. Do not blur object writing and linking together.
 - `backend/images/*` owns final executable/shared-library layout rules. Platform image concerns should not leak upward into generic optimization crates.
 - Because Omega does not rely on native system linkers, import tables, export tables, load commands, dynamic loader metadata, startup entry selection, and final fixups are first-class compiler responsibilities.
+- `.o` emission is a compatibility/debug bridge, not the default long-term architecture. The compiler should move toward direct executable image construction from machine program data.
+- Internal symbols should be handle-first, not string-first. A symbol's identity should come from a generational arena handle; parentage, kind, linkage, and optional debug/display strings are metadata. Names needed by final images, imports, exports, diagnostics, or debug info should be generated or retained at the edge, not propagated through every lowering layer.
 - `runtime/startup/*` owns entry bootstrap code and startup-runtime replacement logic. Keep process start rules out of random backend files.
 - `omega-queries` and `omega-session` own orchestration, caching, and artifact production. They should call phases, not absorb the phase logic itself.
 - Tests should not live in `lib.rs`; public crate roots should explain exports, not hide 2,000 lines of behavior.
