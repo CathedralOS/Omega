@@ -1,3 +1,4 @@
+use crate::diagnostics::Diagnostic;
 use crate::native::architecture;
 use crate::native::instructions::SelectedInstructionKind;
 use crate::native::plan::NativePlan;
@@ -75,7 +76,7 @@ pub enum MachineInstructionKind {
     Return,
 }
 
-pub fn build_machine_code_plan(native_plan: &NativePlan) -> MachineCodePlan {
+pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePlan, Diagnostic> {
     let mut machine_code_plan = MachineCodePlan {
         target: native_plan.target,
         functions: Arena::new(),
@@ -91,7 +92,7 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> MachineCodePlan {
             function_offset,
             function,
             &mut machine_code_plan.bytes,
-        );
+        )?;
         let function_byte_count = machine_instructions
             .iter()
             .map(|instruction| instruction.byte_width)
@@ -109,7 +110,7 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> MachineCodePlan {
         machine_code_plan.byte_count += function_byte_count;
     }
 
-    machine_code_plan
+    Ok(machine_code_plan)
 }
 
 fn select_machine_instructions(
@@ -117,13 +118,13 @@ fn select_machine_instructions(
     function_offset: usize,
     function: &crate::native::instructions::FunctionInstructionPlan,
     bytes: &mut Arena<u8>,
-) -> Vec<MachineInstruction> {
+) -> Result<Vec<MachineInstruction>, Diagnostic> {
     let Some(selected_instructions) = native_plan
         .instructions
         .instructions
         .span(function.instructions)
     else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
 
     let mut offset = function_offset;
@@ -140,7 +141,7 @@ fn select_machine_instructions(
         let byte_span = bytes.insert_many(encode_machine_instruction(
             native_plan,
             &selected_instruction.kind,
-        ));
+        )?);
 
         machine_instructions.push(MachineInstruction {
             selected_instruction_index,
@@ -152,7 +153,7 @@ fn select_machine_instructions(
         offset += byte_width;
     }
 
-    machine_instructions
+    Ok(machine_instructions)
 }
 
 fn machine_instruction_shape(
@@ -187,11 +188,14 @@ fn machine_instruction_shape(
     }
 }
 
-fn encode_machine_instruction(native_plan: &NativePlan, kind: &SelectedInstructionKind) -> Vec<u8> {
+fn encode_machine_instruction(
+    native_plan: &NativePlan,
+    kind: &SelectedInstructionKind,
+) -> Result<Vec<u8>, Diagnostic> {
     match kind {
         SelectedInstructionKind::HostOperation { operands, .. } => {
             let Some(operands) = native_plan.instructions.operands.span(*operands) else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
 
             architecture::encode_host_call_sequence(native_plan.target.architecture, operands)
@@ -200,7 +204,7 @@ fn encode_machine_instruction(native_plan: &NativePlan, kind: &SelectedInstructi
             architecture::encode_return(native_plan.target.architecture)
         }
         SelectedInstructionKind::EnterFunction
-        | SelectedInstructionKind::BeginPlatformCall { .. } => Vec::new(),
+        | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
     }
 }
 

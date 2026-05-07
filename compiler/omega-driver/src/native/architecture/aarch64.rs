@@ -1,3 +1,4 @@
+use crate::diagnostics::Diagnostic;
 use crate::native::instructions::{InstructionOperand, InstructionOperandKind};
 
 pub fn host_call_sequence_width(operands: &[InstructionOperand]) -> usize {
@@ -15,14 +16,17 @@ pub fn operand_width(operand: &InstructionOperand) -> usize {
     }
 }
 
-pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Vec<u8> {
+pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
     let mut next_register = 0u8;
 
     for operand in operands {
         match &operand.kind {
             InstructionOperandKind::ImmediateInteger(value) => {
-                bytes.extend(encode_movz(next_register, *value as u16));
+                bytes.extend(encode_movz(
+                    next_register,
+                    checked_u16(*value, "immediate")?,
+                ));
                 next_register += 1;
             }
             InstructionOperandKind::DataAddress { .. } => {
@@ -31,14 +35,17 @@ pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Vec<u8> {
                 next_register += 1;
             }
             InstructionOperandKind::ByteLength(value) => {
-                bytes.extend(encode_movz(next_register, *value as u16));
+                bytes.extend(encode_movz(
+                    next_register,
+                    checked_usize_u16(*value, "byte length")?,
+                ));
                 next_register += 1;
             }
         }
     }
 
     bytes.extend(encode_branch_link_placeholder());
-    bytes
+    Ok(bytes)
 }
 
 pub fn encode_return() -> Vec<u8> {
@@ -63,4 +70,20 @@ fn encode_branch_link_placeholder() -> Vec<u8> {
 
 fn encode_instruction(instruction: u32) -> Vec<u8> {
     instruction.to_le_bytes().to_vec()
+}
+
+fn checked_u16(value: i64, label: &str) -> Result<u16, Diagnostic> {
+    u16::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot encode {label} `{value}` yet"
+        ))
+    })
+}
+
+fn checked_usize_u16(value: usize, label: &str) -> Result<u16, Diagnostic> {
+    u16::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot encode {label} `{value}` yet"
+        ))
+    })
 }

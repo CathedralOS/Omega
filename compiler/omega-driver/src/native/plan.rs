@@ -61,7 +61,7 @@ pub fn build_native_plan(
     native_plan.data = build_native_data_plan(&native_plan.host_calls);
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.instructions = build_instruction_plan(&native_plan);
-    native_plan.machine_code = build_machine_code_plan(&native_plan);
+    native_plan.machine_code = build_machine_code_plan(&native_plan)?;
     native_plan.object = build_object_plan(&native_plan)?;
     native_plan.relocations = build_relocation_plan(&native_plan);
 

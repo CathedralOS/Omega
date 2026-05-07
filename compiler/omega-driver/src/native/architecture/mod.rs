@@ -1,5 +1,6 @@
 pub mod aarch64;
 
+use crate::diagnostics::Diagnostic;
 use crate::native::instructions::{InstructionOperand, InstructionOperandKind};
 use crate::native::target::Architecture;
 
@@ -23,17 +24,17 @@ pub fn return_width(architecture: Architecture) -> usize {
 pub fn encode_host_call_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_host_call_sequence(operands),
-        Architecture::X86_64 => Vec::new(),
+        Architecture::X86_64 => Ok(Vec::new()),
     }
 }
 
-pub fn encode_return(architecture: Architecture) -> Vec<u8> {
+pub fn encode_return(architecture: Architecture) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_return(),
-        Architecture::X86_64 => Vec::new(),
+        Architecture::Aarch64 => Ok(aarch64::encode_return()),
+        Architecture::X86_64 => Ok(Vec::new()),
     }
 }
 
