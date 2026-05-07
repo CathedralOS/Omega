@@ -21,6 +21,34 @@ pub fn return_width(architecture: Architecture) -> usize {
     }
 }
 
+pub fn dispatch_loop_enter_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::dispatch_loop_enter_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn dispatch_case_enter_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::dispatch_case_enter_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn dispatch_state_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::dispatch_state_write_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn dispatch_case_leave_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::dispatch_case_leave_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn encode_host_call_sequence(
     architecture: Architecture,
     operands: &[InstructionOperand],
@@ -34,6 +62,49 @@ pub fn encode_host_call_sequence(
 pub fn encode_return(architecture: Architecture) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => Ok(aarch64::encode_return()),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_dispatch_loop_enter(
+    architecture: Architecture,
+    entry_dispatch_index: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_dispatch_loop_enter(entry_dispatch_index),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_dispatch_case_enter(
+    architecture: Architecture,
+    dispatch_index: u32,
+    skip_byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_dispatch_case_enter(dispatch_index, skip_byte_distance)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_dispatch_state_write(
+    architecture: Architecture,
+    dispatch_index: u32,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_dispatch_state_write(dispatch_index),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_dispatch_case_leave(
+    architecture: Architecture,
+    loop_byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_dispatch_case_leave(loop_byte_distance),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

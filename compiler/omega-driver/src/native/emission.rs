@@ -7,6 +7,7 @@ use crate::native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::native::runtime_dispatch::branching::{
     RuntimeBranchCallExpansion, RuntimeBranchingCall,
 };
+use crate::native::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction;
 use crate::native::runtime_flow::RuntimeTransitionTarget;
 use crate::native::runtime_text::{
     RuntimeTextSource, RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
@@ -48,7 +49,9 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         Ok(state_schedule) => (state_schedule, false),
         Err(reason) => {
             if native_plan.runtime_dispatch_loop.needed {
-                blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+                if !runtime_dispatch_loop_can_emit(native_plan) {
+                    blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+                }
             } else {
                 blockers.insert(blocker("state schedule", &reason));
                 collect_runtime_dispatch_blockers(native_plan, &mut blockers);
@@ -1144,6 +1147,18 @@ fn collect_runtime_dispatch_blockers(
 }
 
 fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> EmissionBlocker {
+    if let Some(guard_lowering) = first_unsupported_dispatch_guard(native_plan) {
+        return blocker(
+            "runtime dispatch",
+            &format!(
+                "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); guard lowering {guard_lowering:?} needs runtime state comparison byte emission",
+                native_plan.runtime_dispatch_loop.cases.len(),
+                native_plan.runtime_dispatch_loop.edges.len(),
+                native_plan.runtime_flow.cycles.len()
+            ),
+        );
+    }
+
     blocker(
         "runtime dispatch",
         &format!(
@@ -1153,6 +1168,26 @@ fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> EmissionBlocker {
             native_plan.runtime_flow.cycles.len()
         ),
     )
+}
+
+fn runtime_dispatch_loop_can_emit(native_plan: &NativePlan) -> bool {
+    native_plan
+        .runtime_dispatch_loop
+        .edges
+        .iter()
+        .all(|(_, edge)| {
+            edge.guard_lowering == StateGuardLowering::NoOp
+                && edge.action != RuntimeDispatchLoopAction::Unknown
+        })
+}
+
+fn first_unsupported_dispatch_guard(native_plan: &NativePlan) -> Option<StateGuardLowering> {
+    native_plan
+        .runtime_dispatch_loop
+        .edges
+        .iter()
+        .find(|(_, edge)| edge.guard_lowering != StateGuardLowering::NoOp)
+        .map(|(_, edge)| edge.guard_lowering)
 }
 
 fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {

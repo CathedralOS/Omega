@@ -69,6 +69,19 @@ impl Default for MachineInstruction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstructionKind {
     NoBytes,
+    DispatchLoopEnter {
+        entry_dispatch_index: u32,
+    },
+    DispatchCaseEnter {
+        dispatch_index: u32,
+    },
+    DispatchStateWrite {
+        dispatch_index: u32,
+    },
+    DispatchTerminate {
+        terminal_dispatch_index: u32,
+    },
+    DispatchCaseLeave,
     HostCallSequence {
         capability: String,
         operation: String,
@@ -128,29 +141,45 @@ fn select_machine_instructions(
     };
 
     let mut offset = function_offset;
-    let mut machine_instructions = Vec::new();
+    let mut machine_instructions = selected_instructions
+        .iter()
+        .enumerate()
+        .map(|(selected_offset, selected_instruction)| {
+            let selected_instruction_index = function
+                .instructions
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
+                .expect("selected instruction overflow");
+            let (kind, byte_width) =
+                machine_instruction_shape(native_plan, &selected_instruction.kind);
+            let instruction = MachineInstruction {
+                selected_instruction_index,
+                offset,
+                byte_width,
+                bytes: HandleSpan::empty(),
+                kind,
+            };
+            offset += byte_width;
+            instruction
+        })
+        .collect::<Vec<_>>();
 
     for (selected_offset, selected_instruction) in selected_instructions.iter().enumerate() {
-        let selected_instruction_index = function
-            .instructions
-            .start()
-            .arena_index()
-            .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
-            .expect("selected instruction overflow");
-        let (kind, byte_width) = machine_instruction_shape(native_plan, &selected_instruction.kind);
+        let selected_instruction_index =
+            machine_instructions[selected_offset].selected_instruction_index;
         let byte_span = bytes.insert_many(encode_machine_instruction(
             native_plan,
+            &machine_instructions,
+            selected_offset,
             &selected_instruction.kind,
         )?);
 
-        machine_instructions.push(MachineInstruction {
+        debug_assert_eq!(
             selected_instruction_index,
-            offset,
-            byte_width,
-            bytes: byte_span,
-            kind,
-        });
-        offset += byte_width;
+            machine_instructions[selected_offset].selected_instruction_index
+        );
+        machine_instructions[selected_offset].bytes = byte_span;
     }
 
     Ok(machine_instructions)
@@ -179,17 +208,43 @@ fn machine_instruction_shape(
                     .unwrap_or(&[]),
             ),
         ),
+        SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index,
+            ..
+        } => (
+            MachineInstructionKind::DispatchLoopEnter {
+                entry_dispatch_index: *entry_dispatch_index,
+            },
+            dispatch_loop_enter_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => (
+            MachineInstructionKind::DispatchCaseEnter {
+                dispatch_index: *dispatch_index,
+            },
+            dispatch_case_enter_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::SetDispatchState { dispatch_index } => (
+            MachineInstructionKind::DispatchStateWrite {
+                dispatch_index: *dispatch_index,
+            },
+            dispatch_state_write_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::TerminateDispatch => (
+            MachineInstructionKind::DispatchTerminate {
+                terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+            },
+            dispatch_state_write_width(native_plan.target.architecture),
+        ),
+        SelectedInstructionKind::LeaveDispatchCase => (
+            MachineInstructionKind::DispatchCaseLeave,
+            dispatch_case_leave_width(native_plan.target.architecture),
+        ),
         SelectedInstructionKind::LeaveFunction => (
             MachineInstructionKind::Return,
             return_width(native_plan.target.architecture),
         ),
         SelectedInstructionKind::EnterFunction
-        | SelectedInstructionKind::EnterDispatchLoop { .. }
-        | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
-        | SelectedInstructionKind::SetDispatchState { .. }
-        | SelectedInstructionKind::TerminateDispatch
-        | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => (MachineInstructionKind::NoBytes, 0),
     }
@@ -197,6 +252,8 @@ fn machine_instruction_shape(
 
 fn encode_machine_instruction(
     native_plan: &NativePlan,
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
     kind: &SelectedInstructionKind,
 ) -> Result<Vec<u8>, Diagnostic> {
     match kind {
@@ -207,19 +264,89 @@ fn encode_machine_instruction(
 
             architecture::encode_host_call_sequence(native_plan.target.architecture, operands)
         }
+        SelectedInstructionKind::EnterDispatchLoop {
+            entry_dispatch_index,
+            ..
+        } => architecture::encode_dispatch_loop_enter(
+            native_plan.target.architecture,
+            *entry_dispatch_index,
+        ),
+        SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
+            architecture::encode_dispatch_case_enter(
+                native_plan.target.architecture,
+                *dispatch_index,
+                byte_distance_to_case_end(machine_instructions, machine_instruction_index)?,
+            )
+        }
+        SelectedInstructionKind::SetDispatchState { dispatch_index } => {
+            architecture::encode_dispatch_state_write(
+                native_plan.target.architecture,
+                *dispatch_index,
+            )
+        }
+        SelectedInstructionKind::TerminateDispatch => architecture::encode_dispatch_state_write(
+            native_plan.target.architecture,
+            native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+        ),
+        SelectedInstructionKind::LeaveDispatchCase => architecture::encode_dispatch_case_leave(
+            native_plan.target.architecture,
+            byte_distance_to_dispatch_loop_start(machine_instructions, machine_instruction_index)?,
+        ),
         SelectedInstructionKind::LeaveFunction => {
             architecture::encode_return(native_plan.target.architecture)
         }
         SelectedInstructionKind::EnterFunction
-        | SelectedInstructionKind::EnterDispatchLoop { .. }
-        | SelectedInstructionKind::EnterDispatchCase { .. }
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
-        | SelectedInstructionKind::SetDispatchState { .. }
-        | SelectedInstructionKind::TerminateDispatch
-        | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
     }
+}
+
+fn byte_distance_to_case_end(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(case_leave) = machine_instructions
+        .iter()
+        .skip(machine_instruction_index + 1)
+        .find(|instruction| instruction.kind == MachineInstructionKind::DispatchCaseLeave)
+    else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode dispatch case at byte {}: missing matching leave case",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset + 4;
+    let target = case_leave.offset + case_leave.byte_width;
+    Ok(target as isize - branch_program_counter as isize)
+}
+
+fn byte_distance_to_dispatch_loop_start(
+    machine_instructions: &[MachineInstruction],
+    machine_instruction_index: usize,
+) -> Result<isize, Diagnostic> {
+    let Some(current) = machine_instructions.get(machine_instruction_index) else {
+        return Ok(0);
+    };
+    let Some(loop_enter) = machine_instructions.iter().find(|instruction| {
+        matches!(
+            instruction.kind,
+            MachineInstructionKind::DispatchLoopEnter { .. }
+        )
+    }) else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode dispatch case leave at byte {}: missing dispatch loop entry",
+            current.offset
+        )));
+    };
+
+    let branch_program_counter = current.offset;
+    let target = loop_enter.offset + loop_enter.byte_width;
+    Ok(target as isize - branch_program_counter as isize)
 }
 
 fn host_call_sequence_width(
@@ -231,4 +358,20 @@ fn host_call_sequence_width(
 
 fn return_width(architecture: crate::native::target::Architecture) -> usize {
     architecture::return_width(architecture)
+}
+
+fn dispatch_loop_enter_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::dispatch_loop_enter_width(architecture)
+}
+
+fn dispatch_case_enter_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::dispatch_case_enter_width(architecture)
+}
+
+fn dispatch_state_write_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::dispatch_state_write_width(architecture)
+}
+
+fn dispatch_case_leave_width(architecture: crate::native::target::Architecture) -> usize {
+    architecture::dispatch_case_leave_width(architecture)
 }

@@ -1170,16 +1170,22 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     let tokens = Lexer::new(
         r#"
             machine main {
+                owns ready: bool = false;
+
                 state entry {
                     -> prompt;
                 }
 
                 state prompt {
+                    -> done when ready;
                     -> invalid_command;
                 }
 
                 state invalid_command {
                     -> prompt;
+                }
+
+                state done {
                 }
             }
             "#,
@@ -1200,12 +1206,85 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "runtime dispatch"
-                && blocker.reason.contains("dispatch loop planned")
                 && blocker
                     .reason
-                    .contains("native emission needs dispatch loop byte emission")
+                    .contains("runtime state comparison byte emission")
         }),
-        "expected dispatch loop emission blocker"
+        "expected guarded dispatch loop emission blocker"
+    );
+}
+
+#[test]
+fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
+    let tokens = Lexer::new(
+        r#"
+            platform Console {
+                state write_line(text: String);
+            }
+
+            machine main {
+                contains console: Console;
+
+                state entry {
+                    -> prompt;
+                }
+
+                state prompt {
+                    console.write_line("prompt");
+                    -> invalid_command;
+                }
+
+                state invalid_command {
+                    console.write_line("invalid");
+                    -> prompt;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let program =
+        crate::ir::lowering::lower_program(&parsed.items).expect("lowering should succeed");
+    crate::semantic::validation::validate_program(&program).expect("validation should pass");
+    let native_plan = crate::native::plan::build_native_plan(
+        &program,
+        crate::native::target::NativeTarget::macos_arm64(),
+    )
+    .expect("native planning should emit unguarded dispatch loop bytes");
+    let emission_plan = crate::native::emission::build_emission_plan(&native_plan);
+
+    assert!(
+        !emission_plan
+            .blockers
+            .iter()
+            .any(|(_, blocker)| blocker.stage == "runtime dispatch"),
+        "unguarded dispatch loops should not report a runtime dispatch blocker"
+    );
+    assert!(
+        native_plan
+            .machine_code
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                matches!(
+                    instruction.kind,
+                    crate::native::machine_code::MachineInstructionKind::DispatchCaseEnter { .. }
+                ) && instruction.byte_width == 8
+                    && instruction.bytes.count() == 8
+            })
+    );
+    assert!(
+        native_plan
+            .machine_code
+            .instructions
+            .iter()
+            .any(|(_, instruction)| {
+                instruction.kind
+                    == crate::native::machine_code::MachineInstructionKind::DispatchCaseLeave
+                    && instruction.byte_width == 4
+                    && instruction.bytes.count() == 4
+            })
     );
 }
 
