@@ -1612,7 +1612,7 @@ impl ArtifactWriter {
         }
         if finalization.status == ExecutableFinalizationStatus::AlreadyExecutable {
             output.push_str(
-                "\nexternal linking was skipped; compile output is already executable.\n",
+                "\nno finalization command was needed; the backend emitted an executable image directly.\n",
             );
         }
 

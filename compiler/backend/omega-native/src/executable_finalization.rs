@@ -40,8 +40,8 @@ pub fn finalize_native_output(
             executable_path: output_path.to_path_buf(),
             status: ExecutableFinalizationStatus::AlreadyExecutable,
             command: Vec::new(),
-            stdout: String::new(),
-            stderr: "external linker skipped: native output is already finalized".to_owned(),
+            stdout: "native output is already an executable image".to_owned(),
+            stderr: String::new(),
         });
     }
 
