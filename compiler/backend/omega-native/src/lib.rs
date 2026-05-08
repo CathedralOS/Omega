@@ -102,6 +102,7 @@ fn collect_platform(report: &mut NativeSurfaceReport, platform: &Platform) {
 
 #[cfg(test)]
 mod tests {
+    use omega_abstract_syntax_tree::identifier::Identifier;
     use omega_abstract_syntax_tree::item::{Item, Machine, Platform, State, StateSignature};
 
     use super::build_native_surface_report;
@@ -110,19 +111,19 @@ mod tests {
     fn collects_entry_machine_and_platforms() {
         let report = build_native_surface_report(&[
             Item::Platform(Platform {
-                name: "Console".to_owned(),
+                name: Identifier::generated("Console"),
                 states: vec![StateSignature {
-                    name: "write_line".to_owned(),
+                    name: Identifier::generated("write_line"),
                     parameters: Vec::new(),
                     return_type: None,
                 }],
             }),
             Item::Machine(Machine {
-                name: "main".to_owned(),
+                name: Identifier::generated("main"),
                 contains: Vec::new(),
                 owned_data: Vec::new(),
                 states: vec![State {
-                    name: "entry".to_owned(),
+                    name: Identifier::generated("entry"),
                     parameters: Vec::new(),
                     return_type: None,
                     statements: Vec::new(),

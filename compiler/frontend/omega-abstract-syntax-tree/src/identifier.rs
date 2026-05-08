@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use omega_core::source::SourceSpan;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Eq)]
 pub struct Identifier {
     text: String,
     source_span: SourceSpan,
@@ -37,6 +37,18 @@ impl Identifier {
     }
 }
 
+impl From<&str> for Identifier {
+    fn from(text: &str) -> Self {
+        Self::generated(text)
+    }
+}
+
+impl From<String> for Identifier {
+    fn from(text: String) -> Self {
+        Self::generated(text)
+    }
+}
+
 impl Deref for Identifier {
     type Target = str;
 
@@ -48,6 +60,12 @@ impl Deref for Identifier {
 impl fmt::Display for Identifier {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+impl PartialEq for Identifier {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_str() == other.as_str()
     }
 }
 
@@ -91,6 +109,14 @@ impl IdentifierPath {
 
     pub fn first(&self) -> Option<&Identifier> {
         self.members.first()
+    }
+
+    pub fn push(&mut self, member: Identifier) {
+        self.members.push(member);
+    }
+
+    pub fn as_slice(&self) -> &[Identifier] {
+        &self.members
     }
 
     pub fn join(&self, separator: &str) -> String {

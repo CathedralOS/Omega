@@ -291,6 +291,7 @@ fn insert_reference(
 
 #[cfg(test)]
 mod tests {
+    use omega_abstract_syntax_tree::identifier::Identifier;
     use omega_abstract_syntax_tree::item::{Item, Machine, OwnedData, State, StateParameter};
     use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 
@@ -299,14 +300,14 @@ mod tests {
     #[test]
     fn collects_state_signatures_and_constraints() {
         let report = build_type_surface_report(&[Item::Machine(Machine {
-            name: "main".to_owned(),
+            name: Identifier::generated("main"),
             contains: Vec::new(),
             owned_data: vec![OwnedData {
-                name: "speed".to_owned(),
+                name: Identifier::generated("speed"),
                 type_reference: TypeReference::Constrained {
                     base_type: Box::new(TypeReference::named("f32")),
                     constraints: vec![
-                        TypeConstraint::Named("finite".to_owned()),
+                        TypeConstraint::Named(Identifier::generated("finite")),
                         TypeConstraint::Range {
                             minimum: omega_abstract_syntax_tree::expression::Expression::Float(
                                 "0.0f".to_owned(),
@@ -320,9 +321,9 @@ mod tests {
                 initial_value: None,
             }],
             states: vec![State {
-                name: "entry".to_owned(),
+                name: Identifier::generated("entry"),
                 parameters: vec![StateParameter {
-                    name: "value".to_owned(),
+                    name: Identifier::generated("value"),
                     type_reference: TypeReference::named("f32"),
                     is_const: false,
                     is_mutable: false,

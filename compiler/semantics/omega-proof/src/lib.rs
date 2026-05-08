@@ -223,6 +223,7 @@ fn constraint_name(constraint: &TypeConstraint) -> String {
 
 #[cfg(test)]
 mod tests {
+    use omega_abstract_syntax_tree::identifier::Identifier;
     use omega_abstract_syntax_tree::item::{InvariantDefinition, Item, Machine, OwnedData};
     use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 
@@ -232,17 +233,19 @@ mod tests {
     fn collects_invariants_and_bounded_type_sites() {
         let report = build_proof_surface_report(&[
             Item::Invariant(InvariantDefinition {
-                name: "speed_range".to_owned(),
-                constraints: vec![TypeConstraint::Named("finite".to_owned())],
+                name: Identifier::generated("speed_range"),
+                constraints: vec![TypeConstraint::Named(Identifier::generated("finite"))],
             }),
             Item::Machine(Machine {
-                name: "main".to_owned(),
+                name: Identifier::generated("main"),
                 contains: Vec::new(),
                 owned_data: vec![OwnedData {
-                    name: "speed".to_owned(),
+                    name: Identifier::generated("speed"),
                     type_reference: TypeReference::Constrained {
                         base_type: Box::new(TypeReference::named("f32")),
-                        constraints: vec![TypeConstraint::Named("speed_range".to_owned())],
+                        constraints: vec![TypeConstraint::Named(Identifier::generated(
+                            "speed_range",
+                        ))],
                     },
                     initial_value: None,
                 }],

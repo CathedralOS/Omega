@@ -110,6 +110,7 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 
 #[cfg(test)]
 mod tests {
+    use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
     use omega_abstract_syntax_tree::item::{Item, Machine, State};
     use omega_abstract_syntax_tree::statement::{
         Statement, Transition, TransitionGuard, TransitionTarget,
@@ -117,19 +118,28 @@ mod tests {
 
     use super::build_source_graph_report;
 
+    fn identifier_path(members: &[&str]) -> IdentifierPath {
+        members
+            .iter()
+            .copied()
+            .map(Identifier::generated)
+            .collect::<Vec<_>>()
+            .into()
+    }
+
     #[test]
     fn collects_machine_state_transitions() {
         let report = build_source_graph_report(&[Item::Machine(Machine {
-            name: "main".to_owned(),
+            name: Identifier::generated("main"),
             contains: Vec::new(),
             owned_data: Vec::new(),
             states: vec![State {
-                name: "entry".to_owned(),
+                name: Identifier::generated("entry"),
                 parameters: Vec::new(),
                 return_type: None,
                 statements: vec![Statement::Transition(Transition {
                     target: TransitionTarget::Named {
-                        path: vec!["running".to_owned()],
+                        path: identifier_path(&["running"]),
                         arguments: Vec::new(),
                     },
                     continuation: None,

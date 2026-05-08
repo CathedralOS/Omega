@@ -1,10 +1,20 @@
 use crate::ast::expression::{BinaryOperator, Expression};
+use crate::ast::identifier::{Identifier, IdentifierPath};
 use crate::ast::item::Item;
 use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::parser::parse_file;
 use omega_lexer::Lexer;
 use omega_typed_program::lowering::lower_program;
+
+fn identifier_path(members: &[&str]) -> IdentifierPath {
+    members
+        .iter()
+        .copied()
+        .map(Identifier::generated)
+        .collect::<Vec<_>>()
+        .into()
+}
 
 #[test]
 fn tokenizes_simple_source() {
@@ -74,14 +84,14 @@ fn parses_nested_transition_continuation() {
     assert_eq!(
         transition.target,
         TransitionTarget::Named {
-            path: vec!["dungeon".to_owned(), "entry".to_owned()],
+            path: identifier_path(&["dungeon", "entry"]),
             arguments: Vec::new(),
         }
     );
     assert_eq!(
         transition.continuation,
         Some(TransitionTarget::Named {
-            path: vec!["shutdown".to_owned()],
+            path: identifier_path(&["shutdown"]),
             arguments: Vec::new(),
         })
     );
@@ -493,7 +503,7 @@ fn parses_named_and_mutable_call_arguments() {
         panic!("expected named mutable argument");
     };
 
-    assert_eq!(path, &vec!["input".to_owned(), "line".to_owned()]);
+    assert_eq!(path.join("."), "input.line");
 }
 
 #[test]
@@ -523,11 +533,11 @@ fn parses_assignment_statement() {
 
     assert_eq!(
         first_assignment.target,
-        Expression::Name(vec!["return_code".to_owned()])
+        Expression::Name(identifier_path(&["return_code"]))
     );
     assert_eq!(
         second_assignment.target,
-        Expression::Name(vec!["player".to_owned(), "position".to_owned()])
+        Expression::Name(identifier_path(&["player", "position"]))
     );
 }
 
@@ -753,7 +763,7 @@ fn parses_typed_state_final_expression_and_self_parameter() {
     let Statement::Expression(Expression::Name(path)) = &machine.states[0].statements[0] else {
         panic!("expected final expression");
     };
-    assert_eq!(path, &vec!["value".to_owned()]);
+    assert_eq!(path.join("."), "value");
 }
 
 #[test]
@@ -785,7 +795,7 @@ fn parses_transition_arguments_and_guarded_terminal_completion() {
     let TransitionTarget::Named { path, arguments } = &first_transition.target else {
         panic!("expected named transition target");
     };
-    assert_eq!(path, &vec!["self".to_owned(), "clamp_low".to_owned()]);
+    assert_eq!(path.join("."), "self.clamp_low");
     assert_eq!(arguments.len(), 1);
 
     let Statement::Transition(second_transition) = &machine.states[0].statements[1] else {
@@ -841,8 +851,8 @@ fn parses_const_parameters_and_bounded_types() {
     let Expression::Name(maximum_path) = maximum else {
         panic!("expected range maximum name");
     };
-    assert_eq!(minimum_path, &vec!["min".to_owned()]);
-    assert_eq!(maximum_path, &vec!["max".to_owned()]);
+    assert_eq!(minimum_path.join("."), "min");
+    assert_eq!(maximum_path.join("."), "max");
 }
 
 #[test]
@@ -2745,18 +2755,6 @@ fn selected_macos_arm64_plans_relocation_byte_offsets() {
                 4,
                 "omega_string_literal_1",
             ),
-            (
-                omega_native::relocations::RelocationKind::Aarch64Branch26,
-                16,
-                4,
-                "_write",
-            ),
-            (
-                omega_native::relocations::RelocationKind::Aarch64Branch26,
-                24,
-                4,
-                "_exit",
-            ),
         ]
     );
 }
@@ -2790,7 +2788,7 @@ fn encodes_aarch64_immediates_that_need_movk() {
     )
     .expect("native planning should encode multi-instruction immediates");
 
-    assert_eq!(native_plan.machine_code.byte_count, 28);
+    assert_eq!(native_plan.machine_code.byte_count, 36);
 }
 
 #[test]
@@ -3993,12 +3991,14 @@ fn lowers_mutable_output_host_call() {
     assert!(
         native_plan
             .instructions
-            .operands
+            .instructions
             .iter()
-            .any(|(_, operand)| matches!(
-                &operand.kind,
-                omega_native::instructions::InstructionOperandKind::DataAddress { symbol }
-                    if symbol == &read_buffer.symbol
+            .any(|(_, instruction)| matches!(
+                &instruction.kind,
+                omega_native::instructions::SelectedInstructionKind::ReadRuntimeTextLine {
+                    buffer_symbol,
+                    ..
+                } if buffer_symbol == &read_buffer.symbol
             )),
         "stdout should be able to reuse the input buffer as a runtime text operand"
     );

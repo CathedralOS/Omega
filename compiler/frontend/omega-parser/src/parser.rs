@@ -622,10 +622,10 @@ impl Parser<'_, '_> {
                 return Ok(TransitionTarget::SelfTarget);
             }
 
-            let mut path = vec![String::from("self")];
+            let mut path = vec![Identifier::generated("self")];
 
             while self.consume(".") {
-                path.push(self.expect_identifier_text()?);
+                path.push(self.expect_identifier()?);
             }
 
             let arguments = if self.consume("(") {
@@ -634,13 +634,16 @@ impl Parser<'_, '_> {
                 Vec::new()
             };
 
-            return Ok(TransitionTarget::Named { path, arguments });
+            return Ok(TransitionTarget::Named {
+                path: path.into(),
+                arguments,
+            });
         }
 
-        let mut path = vec![self.expect_identifier_text()?];
+        let mut path = vec![self.expect_identifier()?];
 
         while self.consume(".") {
-            path.push(self.expect_identifier_text()?);
+            path.push(self.expect_identifier()?);
         }
 
         let arguments = if self.consume("(") {
@@ -649,7 +652,10 @@ impl Parser<'_, '_> {
             Vec::new()
         };
 
-        Ok(TransitionTarget::Named { path, arguments })
+        Ok(TransitionTarget::Named {
+            path: path.into(),
+            arguments,
+        })
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
@@ -671,13 +677,13 @@ impl Parser<'_, '_> {
             return Ok(Statement::Expression(expression));
         }
 
-        let first_name = self.expect_identifier_text()?;
+        let first_name = self.expect_identifier()?;
 
         if self.consume("=") {
             let value = self.parse_expression()?;
             self.expect(";")?;
             return Ok(Statement::Assignment(Assignment {
-                target: Expression::Name(vec![first_name]),
+                target: Expression::Name(vec![first_name].into()),
                 value,
             }));
         }
@@ -693,15 +699,17 @@ impl Parser<'_, '_> {
         }
 
         if self.check("}") {
-            return Ok(Statement::Expression(Expression::Name(vec![first_name])));
+            return Ok(Statement::Expression(Expression::Name(
+                vec![first_name].into(),
+            )));
         }
 
         self.expect(".")?;
-        let second_name = self.expect_identifier_text()?;
+        let second_name = self.expect_identifier()?;
 
         if !self.check("(") {
             let target =
-                self.parse_reference_tail(Expression::Name(vec![first_name, second_name]))?;
+                self.parse_reference_tail(Expression::Name(vec![first_name, second_name].into()))?;
 
             self.expect("=")?;
             let value = self.parse_expression()?;
@@ -720,7 +728,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_local_data(&mut self) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier_text()?;
+        let name = self.expect_identifier()?;
         self.expect(":")?;
         let type_reference = self.parse_type_reference()?;
         self.expect(";")?;
@@ -842,6 +850,7 @@ impl Parser<'_, '_> {
             return self.parse_array_literal();
         }
 
+        let file_id = self.file_id;
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token
@@ -860,16 +869,23 @@ impl Parser<'_, '_> {
                         return Ok(Expression::Boolean(false));
                     }
 
-                    let mut path = vec![token.lexeme.as_str().to_owned()];
+                    let mut path = vec![Identifier::new(
+                        token.lexeme.as_str(),
+                        omega_core::source::SourceSpan::new(file_id, token.span),
+                    )];
 
                     while self.consume(".") || self.consume("::") {
-                        path.push(self.expect_identifier_text()?);
+                        path.push(self.expect_identifier()?);
                     }
 
                     if self.check("{") && path.len() == 1 {
-                        self.parse_struct_literal(path.remove(0))
+                        self.parse_struct_literal(
+                            path.into_iter()
+                                .next()
+                                .expect("struct literal type path should have one member"),
+                        )
                     } else {
-                        self.parse_reference_tail(Expression::Name(path))
+                        self.parse_reference_tail(Expression::Name(path.into()))
                     }
                 }
                 TokenKind::String => Ok(Expression::String(token.lexeme.as_str().to_owned())),
@@ -893,7 +909,7 @@ impl Parser<'_, '_> {
                     index,
                 }));
             } else if self.consume(".") {
-                let name = self.expect_identifier_text()?;
+                let name = self.expect_identifier()?;
                 expression = match expression {
                     Expression::Name(mut path) => {
                         path.push(name);
@@ -937,12 +953,12 @@ impl Parser<'_, '_> {
         Ok(Expression::ArrayLiteral(values))
     }
 
-    fn parse_struct_literal(&mut self, type_name: String) -> Result<Expression, ParseError> {
+    fn parse_struct_literal(&mut self, type_name: Identifier) -> Result<Expression, ParseError> {
         self.expect("{")?;
         let mut fields = Vec::new();
 
         while !self.consume("}") {
-            let name = self.expect_identifier_text()?;
+            let name = self.expect_identifier()?;
             self.expect(":")?;
             let value = self.parse_expression()?;
             fields.push(StructLiteralField { name, value });
@@ -1064,10 +1080,6 @@ impl Parser<'_, '_> {
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
-    }
-
-    fn expect_identifier_text(&mut self) -> Result<String, ParseError> {
-        Ok(self.expect_identifier()?.into_string())
     }
 
     fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {

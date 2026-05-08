@@ -1,3 +1,5 @@
+use crate::identifier::{Identifier, IdentifierPath};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
     Assignment(Assignment),
@@ -15,14 +17,14 @@ pub struct Assignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
-    pub name: String,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    pub receiver: Option<String>,
-    pub target: String,
+    pub receiver: Option<Identifier>,
+    pub target: Identifier,
     pub arguments: Vec<crate::expression::Expression>,
 }
 
@@ -42,7 +44,7 @@ pub enum TransitionGuard {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named {
-        path: Vec<String>,
+        path: IdentifierPath,
         arguments: Vec<crate::expression::Expression>,
     },
     SelfTarget,

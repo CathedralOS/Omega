@@ -739,8 +739,8 @@ fn lower_statement(
             }))
         }
         ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
-            receiver: call.receiver.clone(),
-            target: call.target.clone(),
+            receiver: call.receiver.as_ref().map(ToString::to_string),
+            target: call.target.to_string(),
             arguments: call
                 .arguments
                 .iter()
@@ -751,7 +751,7 @@ fn lower_statement(
             Ok(Statement::Expression(lower_expression(expression)?))
         }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
-            name: local_data.name.clone(),
+            name: local_data.name.to_string(),
             type_reference: lower_type_reference(
                 &local_data.type_reference,
                 aliases,
@@ -783,6 +783,10 @@ fn lower_transition_guard(
     }
 }
 
+fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> Vec<String> {
+    path.iter().map(ToString::to_string).collect()
+}
+
 fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
     match expression {
         ast::expression::Expression::ArrayLiteral(values) => Ok(Expression::ArrayLiteral(
@@ -810,16 +814,18 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
         ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
             Box::new(lower_expression(inner_expression)?),
         )),
-        ast::expression::Expression::Name(path) => Ok(Expression::Name(path.clone())),
+        ast::expression::Expression::Name(path) => {
+            Ok(Expression::Name(lower_identifier_path(path)))
+        }
         ast::expression::Expression::StructLiteral(struct_literal) => {
             Ok(Expression::StructLiteral(StructLiteral {
-                type_name: struct_literal.type_name.clone(),
+                type_name: struct_literal.type_name.to_string(),
                 fields: struct_literal
                     .fields
                     .iter()
                     .map(|field| {
                         Ok(StructLiteralField {
-                            name: field.name.clone(),
+                            name: field.name.to_string(),
                             value: lower_expression(&field.value)?,
                         })
                     })
@@ -850,7 +856,7 @@ fn lower_transition_target(
     match target {
         ast::statement::TransitionTarget::Named { path, arguments } => {
             Ok(TransitionTarget::Named {
-                path: path.clone(),
+                path: lower_identifier_path(path),
                 arguments: arguments
                     .iter()
                     .map(lower_expression)

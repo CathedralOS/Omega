@@ -1,3 +1,5 @@
+use crate::identifier::{Identifier, IdentifierPath};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     ArrayLiteral(Vec<Expression>),
@@ -7,7 +9,7 @@ pub enum Expression {
     Indexed(Box<IndexedExpression>),
     Integer(i64),
     Mutable(Box<Expression>),
-    Name(Vec<String>),
+    Name(IdentifierPath),
     StructLiteral(StructLiteral),
     String(String),
 }
@@ -40,13 +42,13 @@ pub struct IndexedExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteral {
-    pub type_name: String,
+    pub type_name: Identifier,
     pub fields: Vec<StructLiteralField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteralField {
-    pub name: String,
+    pub name: Identifier,
     pub value: Expression,
 }
 
@@ -76,7 +78,7 @@ impl Expression {
             Expression::Integer(value) => value.to_string(),
             Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
             Expression::Name(path) => path.join("::"),
-            Expression::StructLiteral(struct_literal) => struct_literal.type_name.clone(),
+            Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => format!("{value:?}"),
         }
     }

@@ -269,7 +269,7 @@ fn collect_statement(report: &mut ResolveReport, statement: &Statement, owner: &
                 .receiver
                 .as_ref()
                 .map(|receiver| format!("{receiver}::{}", call.target))
-                .unwrap_or_else(|| call.target.clone());
+                .unwrap_or_else(|| call.target.to_string());
 
             insert_reference(report, &target, ResolvedReferenceKind::CallTarget, owner);
 
@@ -415,6 +415,7 @@ fn insert_reference(
 
 #[cfg(test)]
 mod tests {
+    use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
     use omega_abstract_syntax_tree::item::{
         Contains, Item, Machine, OwnedData, State, StateParameter, UseItem,
     };
@@ -425,27 +426,36 @@ mod tests {
 
     use super::{ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report};
 
+    fn identifier_path(members: &[&str]) -> IdentifierPath {
+        members
+            .iter()
+            .copied()
+            .map(Identifier::generated)
+            .collect::<Vec<_>>()
+            .into()
+    }
+
     #[test]
     fn collects_definitions_imports_and_references() {
         let report = build_resolve_report(&[
             Item::Use(UseItem {
-                path: vec!["platform".to_owned(), "console".to_owned()],
+                path: identifier_path(&["platform", "console"]),
             }),
             Item::Machine(Machine {
-                name: "main".to_owned(),
+                name: Identifier::generated("main"),
                 contains: vec![Contains {
-                    name: "console".to_owned(),
-                    type_name: "Console".to_owned(),
+                    name: Identifier::generated("console"),
+                    type_name: Identifier::generated("Console"),
                 }],
                 owned_data: vec![OwnedData {
-                    name: "score".to_owned(),
+                    name: Identifier::generated("score"),
                     type_reference: TypeReference::named("i32"),
                     initial_value: None,
                 }],
                 states: vec![State {
-                    name: "entry".to_owned(),
+                    name: Identifier::generated("entry"),
                     parameters: vec![StateParameter {
-                        name: "amount".to_owned(),
+                        name: Identifier::generated("amount"),
                         type_reference: TypeReference::named("i32"),
                         is_const: false,
                         is_mutable: false,
@@ -454,7 +464,7 @@ mod tests {
                     return_type: None,
                     statements: vec![Statement::Transition(Transition {
                         target: TransitionTarget::Named {
-                            path: vec!["finish".to_owned()],
+                            path: identifier_path(&["finish"]),
                             arguments: Vec::new(),
                         },
                         continuation: None,
