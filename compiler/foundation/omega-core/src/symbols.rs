@@ -177,6 +177,24 @@ impl SymbolTable {
         self.find_child_by_name(parent, debug_name)
     }
 
+    pub fn find_descendant_by_path<'name>(
+        &self,
+        root: SymbolHandle,
+        names: impl IntoIterator<Item = &'name str>,
+    ) -> Option<SymbolHandle> {
+        if !root.is_valid() {
+            return None;
+        }
+
+        let mut current = root;
+
+        for name in names {
+            current = self.find_child_by_name(current, name)?;
+        }
+
+        Some(current)
+    }
+
     pub fn path_from_members(
         &mut self,
         root: SymbolHandle,
@@ -397,6 +415,30 @@ mod tests {
         assert_eq!(names, vec!["main", "entry"]);
         let missing_path = symbols.resolve_child_path(root, ["main", "missing"]);
         assert!(symbols.path_members(missing_path).is_empty());
+    }
+
+    #[test]
+    fn resolves_descendant_without_storing_path_members() {
+        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
+            SymbolKind::Root,
+            "root",
+            [SymbolDefinition::with_children(
+                SymbolKind::Machine,
+                "main",
+                [SymbolDefinition::named(SymbolKind::State, "entry")],
+            )],
+        ));
+        let root = symbols.root();
+        let entry = symbols
+            .find_descendant_by_path(root, ["main", "entry"])
+            .expect("entry should resolve");
+
+        assert_eq!(symbols.name(entry), "entry");
+        assert_eq!(
+            symbols.find_descendant_by_path(root, ["main", "missing"]),
+            None
+        );
+        assert_eq!(symbols.path_member_arena().len(), 0);
     }
 
     #[test]
