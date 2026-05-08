@@ -1,25 +1,27 @@
 use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction;
-use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
-use crate::state_guards::{StateGuardLowering, StateGuardOperator};
-use crate::state_schedule::{
-    build_entry_state_schedule, scheduled_state_contains_key, scheduled_state_key,
-};
+use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
 use crate::target::ObjectFormat;
 use crate::target_output::can_emit_target_output;
 use omega_core::arena::Arena;
 
+mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
 mod state_call_blockers;
 mod state_codegen_blockers;
+mod state_guard_blockers;
 mod storage_blockers;
 
+use runtime_dispatch_blockers::{
+    collect_runtime_dispatch_blockers, runtime_and_required_states, runtime_dispatch_loop_blocker,
+    runtime_dispatch_loop_can_emit,
+};
 use runtime_text_blockers::collect_state_value_blockers;
 use state_call_blockers::collect_state_call_blockers;
 use state_codegen_blockers::collect_state_codegen_blockers;
+use state_guard_blockers::collect_state_guard_blockers;
 use storage_blockers::collect_state_storage_blockers;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -227,181 +229,6 @@ fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
         text_use.statement_index,
         text_use.expression.display_name()
     )
-}
-
-fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
-    for (_, guard) in native_plan.state_guards.guards.iter() {
-        if matches!(
-            guard.lowering,
-            StateGuardLowering::NoOp | StateGuardLowering::CompareStaticValue
-        ) {
-            continue;
-        }
-
-        blockers.insert(blocker(
-            "state guards",
-            &format!(
-                "#{} {}.{} edge {} -> #{} {} {:?}/{:?} `{}` needs runtime guard lowering",
-                guard.source_dispatch_index,
-                guard.source_machine,
-                guard.source_state,
-                guard.statement_order,
-                guard.target_dispatch_index,
-                runtime_transition_target_name(&guard.target),
-                guard.kind,
-                guard.lowering,
-                guard.expression.display_name()
-            ),
-        ));
-    }
-}
-
-fn runtime_and_required_states(
-    native_plan: &NativePlan,
-) -> Vec<crate::state_schedule::ScheduledState> {
-    let mut states = Vec::new();
-
-    for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
-    }
-
-    for (_, state_call) in native_plan.state_calls.calls.iter() {
-        if state_call.required {
-            push_scheduled_state(
-                native_plan,
-                &mut states,
-                &state_call.source_machine,
-                &state_call.source_state,
-            );
-
-            if !state_call.target_machine.is_empty() {
-                push_scheduled_state(
-                    native_plan,
-                    &mut states,
-                    &state_call.target_machine,
-                    &state_call.target_state,
-                );
-            }
-        }
-    }
-
-    states
-}
-
-fn push_scheduled_state(
-    native_plan: &NativePlan,
-    states: &mut Vec<crate::state_schedule::ScheduledState>,
-    machine: &str,
-    state: &str,
-) {
-    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
-        return;
-    };
-
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
-    }
-
-    states.push(crate::state_schedule::ScheduledState { key });
-}
-
-fn collect_runtime_dispatch_blockers(
-    native_plan: &NativePlan,
-    blockers: &mut Arena<EmissionBlocker>,
-) {
-    for (_, cycle) in native_plan.runtime_flow.cycles.iter() {
-        let Some(states) = native_plan.runtime_flow.cycle_states.span(cycle.states) else {
-            blockers.insert(blocker(
-                "runtime dispatch",
-                "invalid runtime cycle span in native flow plan",
-            ));
-            continue;
-        };
-        let cycle_path = states
-            .iter()
-            .map(|state| format!("{}.{}", state.machine, state.state))
-            .collect::<Vec<_>>()
-            .join(" -> ");
-
-        blockers.insert(blocker(
-            "runtime dispatch",
-            &format!("cycle {cycle_path} needs generated state dispatch before native emission"),
-        ));
-    }
-}
-
-fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> EmissionBlocker {
-    if let Some(guard_lowering) = first_unsupported_dispatch_guard(native_plan) {
-        return blocker(
-            "runtime dispatch",
-            &format!(
-                "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); guard lowering {guard_lowering:?} needs runtime state comparison byte emission",
-                native_plan.runtime_dispatch_loop.cases.len(),
-                native_plan.runtime_dispatch_loop.edges.len(),
-                native_plan.runtime_flow.cycles.len()
-            ),
-        );
-    }
-
-    blocker(
-        "runtime dispatch",
-        &format!(
-            "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); native emission needs dispatch loop byte emission",
-            native_plan.runtime_dispatch_loop.cases.len(),
-            native_plan.runtime_dispatch_loop.edges.len(),
-            native_plan.runtime_flow.cycles.len()
-        ),
-    )
-}
-
-fn runtime_dispatch_loop_can_emit(native_plan: &NativePlan) -> bool {
-    native_plan
-        .runtime_dispatch_loop
-        .edges
-        .iter()
-        .all(|(_, edge)| {
-            dispatch_loop_guard_can_emit(edge) && edge.action != RuntimeDispatchLoopAction::Unknown
-        })
-}
-
-fn first_unsupported_dispatch_guard(native_plan: &NativePlan) -> Option<StateGuardLowering> {
-    native_plan
-        .runtime_dispatch_loop
-        .edges
-        .iter()
-        .find(|(_, edge)| !dispatch_loop_guard_can_emit(edge))
-        .map(|(_, edge)| edge.guard_lowering)
-}
-
-fn dispatch_loop_guard_can_emit(
-    edge: &crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopEdge,
-) -> bool {
-    match edge.guard_lowering {
-        StateGuardLowering::NoOp => true,
-        StateGuardLowering::CompareStaticValue => {
-            edge.guard_has_storage
-                && matches!(
-                    edge.guard_operator,
-                    StateGuardOperator::Equal | StateGuardOperator::NotEqual
-                )
-                && matches!(edge.guard_byte_size, 1 | 4)
-        }
-        StateGuardLowering::CompareRuntimeValue | StateGuardLowering::NeedsRuntimeExpression => {
-            false
-        }
-    }
-}
-
-fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
-    match target {
-        RuntimeTransitionTarget::State { machine, state, .. } => format!("{machine}.{state}"),
-        RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
-        RuntimeTransitionTarget::None => "none".to_owned(),
-        RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
-    }
 }
 
 fn can_emit_real_object(native_plan: &NativePlan) -> bool {
