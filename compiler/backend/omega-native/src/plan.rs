@@ -35,10 +35,12 @@ use crate::state_guards::{StateGuardPlan, build_state_guard_plan};
 use crate::state_storage::{StateStoragePlan, build_state_storage_plan_with_workers};
 use crate::state_values::{StateValuePlan, build_state_value_plan_with_workers};
 use crate::target::NativeTarget;
+use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use std::sync::Arc;
+use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {
@@ -66,6 +68,14 @@ pub struct NativePlan {
     pub relocations: RelocationPlan,
     pub entry_machine: String,
     pub entry_state: String,
+    pub phase_timings: Vec<NativePlanPhaseTiming>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativePlanPhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
+    pub allocations: AllocationDelta,
 }
 
 pub fn build_native_plan(
@@ -84,35 +94,49 @@ pub fn build_native_plan_with_workers(
 ) -> Result<NativePlan, Diagnostic> {
     let entry_machine = "main".to_owned();
     let entry_state = "entry".to_owned();
-    let host_abi = build_host_abi_plan(target);
+    let mut phase_timings = Vec::new();
+    let host_abi = record_native_phase(&mut phase_timings, "host abi", || {
+        build_host_abi_plan(target)
+    });
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
     let control_flow_program = Arc::clone(&program);
     let host_call_abi = Arc::new(host_abi.clone());
     let control_flow_workers = workers.clone();
     let host_call_workers = workers.clone();
-    let (control_flow, layouts, host_calls) = workers.join3(
-        move || build_control_flow_plan_with_workers(control_flow_program, control_flow_workers),
-        move || build_layout_plan(&layout_program, target),
-        move || {
-            build_host_call_plan_with_workers(
-                host_call_program,
-                target,
-                host_call_abi,
-                host_call_workers,
+    let (control_flow, layouts, host_calls) =
+        record_native_phase(&mut phase_timings, "control/layout/host calls", || {
+            workers.join3(
+                move || {
+                    build_control_flow_plan_with_workers(control_flow_program, control_flow_workers)
+                },
+                move || build_layout_plan(&layout_program, target),
+                move || {
+                    build_host_call_plan_with_workers(
+                        host_call_program,
+                        target,
+                        host_call_abi,
+                        host_call_workers,
+                    )
+                },
             )
-        },
-    );
+        });
     let control_flow = control_flow?;
     let layouts = layouts?;
     let host_calls = host_calls?;
-    let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
-    let state_dispatch = build_state_dispatch_plan_with_workers(
-        Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
-        runtime_state_inputs(&runtime_flow),
-        workers.clone(),
-    );
-    let state_guards = build_state_guard_plan(&state_dispatch, &layouts, &entry_machine);
+    let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
+        build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)
+    })?;
+    let state_dispatch = record_native_phase(&mut phase_timings, "state dispatch", || {
+        build_state_dispatch_plan_with_workers(
+            Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
+            runtime_state_inputs(&runtime_flow),
+            workers.clone(),
+        )
+    });
+    let state_guards = record_native_phase(&mut phase_timings, "state guards", || {
+        build_state_guard_plan(&state_dispatch, &layouts, &entry_machine)
+    });
 
     let mut native_plan = NativePlan {
         target,
@@ -152,12 +176,18 @@ pub fn build_native_plan_with_workers(
         },
         entry_machine,
         entry_state,
+        phase_timings,
     };
-    native_plan.state_calls = build_state_call_plan_with_workers(
-        Arc::new(StateAnalysisContext::from_native_plan(&native_plan)),
-        workers.clone(),
-    );
-    native_plan.alias_flow = build_alias_flow_plan(&native_plan);
+    let mut phase_timings = std::mem::take(&mut native_plan.phase_timings);
+    native_plan.state_calls = record_native_phase(&mut phase_timings, "state calls", || {
+        build_state_call_plan_with_workers(
+            Arc::new(StateAnalysisContext::from_native_plan(&native_plan)),
+            workers.clone(),
+        )
+    });
+    native_plan.alias_flow = record_native_phase(&mut phase_timings, "alias flow", || {
+        build_alias_flow_plan(&native_plan)
+    });
     let state_analysis_context = Arc::new(StateAnalysisContext::from_native_plan(&native_plan));
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
@@ -165,66 +195,112 @@ pub fn build_native_plan_with_workers(
     let state_values_context = Arc::clone(&state_analysis_context);
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();
-    let (state_storage, state_values) = workers.join2(
-        move || {
-            build_state_storage_plan_with_workers(
-                state_storage_program,
-                state_storage_context,
-                state_storage_workers,
+    let (state_storage, state_values) =
+        record_native_phase(&mut phase_timings, "state storage/values", || {
+            workers.join2(
+                move || {
+                    build_state_storage_plan_with_workers(
+                        state_storage_program,
+                        state_storage_context,
+                        state_storage_workers,
+                    )
+                },
+                move || {
+                    build_state_value_plan_with_workers(
+                        state_values_program,
+                        state_values_context,
+                        state_values_workers,
+                    )
+                },
             )
-        },
-        move || {
-            build_state_value_plan_with_workers(
-                state_values_program,
-                state_values_context,
-                state_values_workers,
-            )
-        },
-    );
+        });
     native_plan.state_storage = state_storage;
     native_plan.state_values = state_values;
-    native_plan.runtime_bodies = build_runtime_dispatch_body_plan_with_workers(
-        Arc::new(RuntimeDispatchBodyContext::from_native_plan(&native_plan)),
-        native_plan
-            .state_dispatch
-            .states
-            .iter()
-            .map(|(_, dispatch_state)| dispatch_state.clone())
-            .collect(),
-        workers.clone(),
-    );
+    native_plan.runtime_bodies = record_native_phase(&mut phase_timings, "runtime bodies", || {
+        build_runtime_dispatch_body_plan_with_workers(
+            Arc::new(RuntimeDispatchBodyContext::from_native_plan(&native_plan)),
+            native_plan
+                .state_dispatch
+                .states
+                .iter()
+                .map(|(_, dispatch_state)| dispatch_state.clone())
+                .collect(),
+            workers.clone(),
+        )
+    });
     let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan));
     let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan);
     let runtime_loop_workers = workers.clone();
     let runtime_storage_context = Arc::new(RuntimeStorageContext::from_native_plan(&native_plan));
     let runtime_storage_inputs = runtime_storage_body_inputs(&native_plan);
     let runtime_storage_workers = workers.clone();
-    let (runtime_dispatch_loop, runtime_storage) = workers.join2(
-        move || {
-            build_runtime_dispatch_loop_plan_with_workers(
-                runtime_loop_context,
-                runtime_loop_inputs,
-                runtime_loop_workers,
+    let (runtime_dispatch_loop, runtime_storage) =
+        record_native_phase(&mut phase_timings, "runtime loop/storage", || {
+            workers.join2(
+                move || {
+                    build_runtime_dispatch_loop_plan_with_workers(
+                        runtime_loop_context,
+                        runtime_loop_inputs,
+                        runtime_loop_workers,
+                    )
+                },
+                move || {
+                    build_runtime_storage_plan_with_workers(
+                        runtime_storage_context,
+                        runtime_storage_inputs,
+                        runtime_storage_workers,
+                    )
+                },
             )
-        },
-        move || {
-            build_runtime_storage_plan_with_workers(
-                runtime_storage_context,
-                runtime_storage_inputs,
-                runtime_storage_workers,
-            )
-        },
-    );
-    native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
+        });
+    native_plan.runtime_branching_calls =
+        record_native_phase(&mut phase_timings, "runtime branching", || {
+            build_runtime_branching_call_plan(&native_plan)
+        });
     native_plan.runtime_dispatch_loop = runtime_dispatch_loop;
     native_plan.runtime_storage = runtime_storage;
-    native_plan.runtime_text = build_runtime_text_plan(&native_plan);
-    native_plan.data = build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage);
-    native_plan.object = build_object_plan(&native_plan)?;
-    native_plan.instructions = build_instruction_plan(&native_plan);
-    native_plan.machine_code = build_machine_code_plan(&native_plan)?;
-    native_plan.object = build_object_plan(&native_plan)?;
-    native_plan.relocations = build_relocation_plan(&native_plan)?;
+    native_plan.runtime_text = record_native_phase(&mut phase_timings, "runtime text", || {
+        build_runtime_text_plan(&native_plan)
+    });
+    native_plan.data = record_native_phase(&mut phase_timings, "native data", || {
+        build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage)
+    });
+    native_plan.object = record_native_phase(&mut phase_timings, "object plan", || {
+        build_object_plan(&native_plan)
+    })?;
+    native_plan.instructions = record_native_phase(&mut phase_timings, "instructions", || {
+        build_instruction_plan(&native_plan)
+    });
+    native_plan.machine_code = record_native_phase(&mut phase_timings, "machine code", || {
+        build_machine_code_plan(&native_plan)
+    })?;
+    native_plan.object = record_native_phase(&mut phase_timings, "object plan final", || {
+        build_object_plan(&native_plan)
+    })?;
+    native_plan.relocations = record_native_phase(&mut phase_timings, "relocations", || {
+        build_relocation_plan(&native_plan)
+    })?;
+    native_plan.phase_timings = phase_timings;
 
     Ok(native_plan)
+}
+
+fn record_native_phase<T>(
+    timings: &mut Vec<NativePlanPhaseTiming>,
+    phase: &str,
+    work: impl FnOnce() -> T,
+) -> T {
+    let allocation_start = allocation_snapshot();
+    let time_start = Instant::now();
+    let result = work();
+    let microseconds = time_start.elapsed().as_micros();
+    let allocations = allocation_snapshot().delta_since(allocation_start);
+
+    timings.push(NativePlanPhaseTiming {
+        phase: phase.to_owned(),
+        microseconds,
+        allocations,
+    });
+
+    result
 }

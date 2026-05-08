@@ -685,6 +685,8 @@ impl ArtifactWriter {
             native_plan.entry_machine, native_plan.entry_state, native_plan.object.entry_symbol
         ));
 
+        write_native_phase_timings(&mut output, native_plan);
+
         output.push_str("## Host ABI\n");
         output.push_str(&format!(
             "bindings: {}\n",
@@ -2580,6 +2582,84 @@ fn proof_transition_target_name(
         omega_typed_program::statement::TransitionTarget::SelfTarget => "self".to_owned(),
         omega_typed_program::statement::TransitionTarget::Terminal => "terminal".to_owned(),
     }
+}
+
+fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
+    let timings = &native_plan.phase_timings;
+
+    output.push_str("## Native Subphases\n");
+    if timings.is_empty() {
+        output.push_str("none\n\n");
+        return;
+    }
+
+    let total_microseconds = timings
+        .iter()
+        .map(|timing| timing.microseconds)
+        .sum::<u128>();
+    let total_allocations = timings
+        .iter()
+        .map(|timing| timing.allocations.allocation_calls)
+        .sum::<u64>();
+    let total_allocated_bytes = timings
+        .iter()
+        .map(|timing| timing.allocations.allocated_bytes)
+        .sum::<u64>();
+    let phase_width = timings
+        .iter()
+        .map(|timing| timing.phase.len())
+        .chain(std::iter::once("subphase".len()))
+        .max()
+        .unwrap_or("subphase".len());
+    let duration_width = timings
+        .iter()
+        .map(|timing| format_duration(timing.microseconds).len())
+        .chain(std::iter::once("time".len()))
+        .max()
+        .unwrap_or("time".len());
+    let alloc_width = timings
+        .iter()
+        .map(|timing| format_integer(u128::from(timing.allocations.allocation_calls)).len())
+        .chain(std::iter::once("allocs".len()))
+        .max()
+        .unwrap_or("allocs".len());
+    let allocated_width = timings
+        .iter()
+        .map(|timing| format_bytes(timing.allocations.allocated_bytes).len())
+        .chain(std::iter::once("allocated".len()))
+        .max()
+        .unwrap_or("allocated".len());
+
+    output.push_str(&format!(
+        "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>alloc_width$}  {:>allocated_width$}\n",
+        "subphase", "time", "share", "allocs", "allocated"
+    ));
+    output.push_str(&format!(
+        "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<alloc_width$}  {:-<allocated_width$}\n",
+        "", "", "", "", ""
+    ));
+    for timing in timings {
+        output.push_str(&format!(
+            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>alloc_width$}  {:>allocated_width$}\n",
+            timing.phase,
+            format_duration(timing.microseconds),
+            format_percentage(timing.microseconds, total_microseconds),
+            format_integer(u128::from(timing.allocations.allocation_calls)),
+            format_bytes(timing.allocations.allocated_bytes)
+        ));
+    }
+    output.push_str(&format!(
+        "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<alloc_width$}  {:-<allocated_width$}\n",
+        "", "", "", "", ""
+    ));
+    output.push_str(&format!(
+        "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>alloc_width$}  {:>allocated_width$}\n\n",
+        "total",
+        format_duration(total_microseconds),
+        "100.00%",
+        format_integer(u128::from(total_allocations)),
+        format_bytes(total_allocated_bytes)
+    ));
 }
 
 fn write_field_layouts(
