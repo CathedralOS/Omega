@@ -5,6 +5,7 @@ use omega_typed_program::Program;
 use std::sync::Arc;
 
 mod builder;
+mod entry;
 mod model;
 mod timing;
 

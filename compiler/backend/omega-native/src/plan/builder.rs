@@ -1,4 +1,5 @@
 use super::NativePlan;
+use super::entry::{ENTRY_MACHINE_NAME, ENTRY_STATE_NAME, resolve_native_entry_point};
 use super::timing::record_native_phase;
 use crate::abi::build_host_abi_plan;
 use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
@@ -41,9 +42,6 @@ use omega_core::parallel::WorkerPoolHandle;
 use omega_typed_program::Program;
 use std::sync::Arc;
 
-const ENTRY_MACHINE_NAME: &str = "main";
-const ENTRY_STATE_NAME: &str = "entry";
-
 pub(super) fn build_native_plan_with_workers(
     program: Arc<Program>,
     target: NativeTarget,
@@ -51,14 +49,7 @@ pub(super) fn build_native_plan_with_workers(
 ) -> Result<NativePlan, Diagnostic> {
     let entry_machine = ENTRY_MACHINE_NAME.to_owned();
     let entry_state = ENTRY_STATE_NAME.to_owned();
-    let entry_machine_symbol = program
-        .symbols
-        .find_child_by_name(program.symbols.root(), ENTRY_MACHINE_NAME)
-        .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
-    let entry_state_symbol = program
-        .symbols
-        .find_child_by_name(entry_machine_symbol, ENTRY_STATE_NAME)
-        .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
+    let entry_point = resolve_native_entry_point(&program)?;
     let mut phase_timings = Vec::new();
     let host_abi = record_native_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
@@ -91,7 +82,7 @@ pub(super) fn build_native_plan_with_workers(
     let mut host_calls = host_calls?;
     attach_host_call_state_keys(&mut host_calls, &control_flow);
     let entry_key = control_flow
-        .state_key_by_symbols(entry_machine_symbol, entry_state_symbol)
+        .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
     let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
         build_runtime_flow_plan(&control_flow, entry_key)
