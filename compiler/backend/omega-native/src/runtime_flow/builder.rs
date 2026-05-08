@@ -3,9 +3,7 @@ mod lookups;
 use super::model::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
 };
-use crate::control_flow::{
-    ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow,
-};
+use crate::control_flow::{ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::name::ProgramName;
 

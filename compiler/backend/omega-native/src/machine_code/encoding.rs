@@ -1,19 +1,15 @@
-use crate::abi::HostBindingMechanism;
+mod dispatch;
+mod host;
+mod runtime_storage;
+mod runtime_text;
+
 use crate::architecture;
 use crate::instructions::SelectedInstructionKind;
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use omega_core::diagnostics::Diagnostic;
 
-use super::branch_distances::{
-    byte_distance_to_case_end, byte_distance_to_case_leave, byte_distance_to_dispatch_loop_start,
-    byte_distance_to_next_runtime_write_end,
-    byte_distance_to_next_runtime_write_end_from_branch_offset,
-    byte_distance_to_next_state_write_end, byte_distances_to_next_runtime_machine_write_end,
-};
-use super::host_bindings::host_binding_mechanism;
 use super::model::MachineInstruction;
-use super::widths::runtime_text_storage_compare_width;
 
 pub(super) fn encode_machine_instruction(
     native_plan: &NativePlan,
@@ -31,37 +27,18 @@ pub(super) fn encode_machine_instruction(
                 return Ok(Vec::new());
             };
 
-            match host_binding_mechanism(native_plan, capability, operation) {
-                Some(HostBindingMechanism::Syscall {
-                    number,
-                    number_register,
-                    supervisor_call,
-                    ..
-                }) => architecture::encode_syscall_sequence(
-                    native_plan.target.architecture,
-                    operands,
-                    *number,
-                    *number_register,
-                    *supervisor_call,
-                ),
-                _ => architecture::encode_host_call_sequence(
-                    native_plan.target.architecture,
-                    operands,
-                ),
-            }
+            host::encode_host_operation(native_plan, capability, operation, operands)
         }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..
-        } => architecture::encode_dispatch_loop_enter(
-            native_plan.target.architecture,
-            *entry_dispatch_index,
-        ),
+        } => dispatch::encode_dispatch_loop_enter(native_plan, *entry_dispatch_index),
         SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
-            architecture::encode_dispatch_case_enter(
-                native_plan.target.architecture,
+            dispatch::encode_dispatch_case_enter(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
                 *dispatch_index,
-                byte_distance_to_case_end(machine_instructions, machine_instruction_index)?,
             )
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
@@ -72,52 +49,33 @@ pub(super) fn encode_machine_instruction(
             expected_value,
             has_storage: true,
             ..
-        } => architecture::encode_dispatch_guard_compare_static(
-            native_plan.target.architecture,
+        } => dispatch::encode_dispatch_guard_compare_static(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
             *byte_offset,
             *byte_size,
             *expected_value,
-            byte_distance_to_next_state_write_end(machine_instructions, machine_instruction_index)?,
-            *operator == StateGuardOperator::NotEqual,
+            *operator,
         ),
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
-            architecture::encode_runtime_text_literal_compare(
-                native_plan.target.architecture,
+            runtime_text::encode_runtime_text_literal_compare(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
                 literal,
-                byte_distances_to_next_runtime_machine_write_end(
-                    native_plan,
-                    machine_instructions,
-                    machine_instruction_index,
-                    literal,
-                )?,
-                byte_distance_to_next_runtime_write_end(
-                    native_plan,
-                    machine_instructions,
-                    machine_instruction_index,
-                )?,
             )
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
             source_offset,
             operator,
             ..
-        } => architecture::encode_runtime_text_storage_compare(
-            native_plan.target.architecture,
+        } => runtime_text::encode_runtime_text_storage_compare(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
             *source_offset,
-            byte_distance_to_next_runtime_write_end_from_branch_offset(
-                native_plan,
-                machine_instructions,
-                machine_instruction_index,
-                40,
-            )?,
-            byte_distance_to_next_runtime_write_end_from_branch_offset(
-                native_plan,
-                machine_instructions,
-                machine_instruction_index,
-                runtime_text_storage_compare_width(native_plan.target.architecture)
-                    .saturating_sub(4),
-            )?,
-            *operator == StateGuardOperator::NotEqual,
+            *operator,
         ),
         SelectedInstructionKind::CompareRuntimeStorage {
             left_offset,
@@ -125,17 +83,14 @@ pub(super) fn encode_machine_instruction(
             byte_size,
             operator,
             ..
-        } => architecture::encode_runtime_storage_compare(
-            native_plan.target.architecture,
+        } => runtime_storage::encode_runtime_storage_compare(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
             *left_offset,
             *right_offset,
             *byte_size,
-            byte_distance_to_next_runtime_write_end(
-                native_plan,
-                machine_instructions,
-                machine_instruction_index,
-            )?,
-            *operator == StateGuardOperator::NotEqual,
+            *operator,
         ),
         SelectedInstructionKind::CompareRuntimeStorageValue {
             byte_offset,
@@ -143,30 +98,24 @@ pub(super) fn encode_machine_instruction(
             expected_value,
             operator,
             ..
-        } => architecture::encode_runtime_storage_value_compare(
-            native_plan.target.architecture,
+        } => runtime_storage::encode_runtime_storage_value_compare(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
             *byte_offset,
             *byte_size,
             *expected_value,
-            byte_distance_to_next_runtime_write_end(
-                native_plan,
-                machine_instructions,
-                machine_instruction_index,
-            )?,
-            *operator == StateGuardOperator::NotEqual,
+            *operator,
         ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
-            architecture::encode_runtime_text_literal_write(
-                native_plan.target.architecture,
-                literal,
-            )
+            runtime_text::encode_runtime_text_literal_write(native_plan, literal)
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
             byte_offset,
             literal,
             ..
-        } => architecture::encode_runtime_text_literal_segment_write(
-            native_plan.target.architecture,
+        } => runtime_text::encode_runtime_text_literal_segment_write(
+            native_plan,
             *byte_offset,
             literal,
         ),
@@ -176,8 +125,8 @@ pub(super) fn encode_machine_instruction(
             target_offset,
             length_delta,
             ..
-        } => architecture::encode_runtime_text_stored_suffix_append(
-            native_plan.target.architecture,
+        } => runtime_text::encode_runtime_text_stored_suffix_append(
+            native_plan,
             *buffer_offset,
             *source_offset,
             *target_offset,
@@ -187,9 +136,8 @@ pub(super) fn encode_machine_instruction(
             source_offset,
             target_offset,
             ..
-        } => architecture::encode_runtime_text_stored_place_append(
-            native_plan.target.architecture,
-            0,
+        } => runtime_text::encode_runtime_text_stored_place_append(
+            native_plan,
             *source_offset,
             *target_offset,
         ),
@@ -197,24 +145,16 @@ pub(super) fn encode_machine_instruction(
             target_offset,
             literal,
             ..
-        } => architecture::encode_runtime_text_literal_append(
-            native_plan.target.architecture,
-            0,
-            *target_offset,
-            literal,
-        ),
+        } => runtime_text::encode_runtime_text_literal_append(native_plan, *target_offset, literal),
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
-            architecture::encode_runtime_text_buffer_materialize(
-                native_plan.target.architecture,
-                *target_offset,
-            )
+            runtime_text::encode_runtime_text_buffer_materialize(native_plan, *target_offset)
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
             value,
-        } => architecture::encode_runtime_machine_integer_write(
-            native_plan.target.architecture,
+        } => runtime_storage::encode_runtime_machine_integer_write(
+            native_plan,
             *byte_offset,
             *byte_size,
             *value,
@@ -223,8 +163,8 @@ pub(super) fn encode_machine_instruction(
             byte_offset,
             byte_length,
             ..
-        } => architecture::encode_runtime_machine_string_write(
-            native_plan.target.architecture,
+        } => runtime_storage::encode_runtime_machine_string_write(
+            native_plan,
             *byte_offset,
             *byte_length,
         ),
@@ -235,8 +175,8 @@ pub(super) fn encode_machine_instruction(
             syscall_number_register,
             supervisor_call,
             ..
-        } => architecture::encode_runtime_text_line_read(
-            native_plan.target.architecture,
+        } => runtime_text::encode_runtime_text_line_read(
+            native_plan,
             *target_offset,
             *byte_capacity,
             *syscall_number,
@@ -248,27 +188,29 @@ pub(super) fn encode_machine_instruction(
             target_offset,
             byte_count,
             ..
-        } => architecture::encode_runtime_storage_copy(
-            native_plan.target.architecture,
+        } => runtime_storage::encode_runtime_storage_copy(
+            native_plan,
             *source_offset,
             *target_offset,
             *byte_count,
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
-            architecture::encode_dispatch_state_write(
-                native_plan.target.architecture,
+            dispatch::encode_dispatch_state_write(
+                native_plan,
+                machine_instructions,
+                machine_instruction_index,
                 *dispatch_index,
-                byte_distance_to_case_leave(machine_instructions, machine_instruction_index)?,
             )
         }
-        SelectedInstructionKind::TerminateDispatch => architecture::encode_dispatch_state_write(
-            native_plan.target.architecture,
-            native_plan.runtime_dispatch_loop.terminal_dispatch_index,
-            byte_distance_to_case_leave(machine_instructions, machine_instruction_index)?,
+        SelectedInstructionKind::TerminateDispatch => dispatch::encode_dispatch_terminal_write(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
         ),
-        SelectedInstructionKind::LeaveDispatchCase => architecture::encode_dispatch_case_leave(
-            native_plan.target.architecture,
-            byte_distance_to_dispatch_loop_start(machine_instructions, machine_instruction_index)?,
+        SelectedInstructionKind::LeaveDispatchCase => dispatch::encode_dispatch_case_leave(
+            native_plan,
+            machine_instructions,
+            machine_instruction_index,
         ),
         SelectedInstructionKind::LeaveFunction => {
             architecture::encode_return(native_plan.target.architecture)
