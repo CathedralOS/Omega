@@ -178,8 +178,8 @@ fn collect_static_string_assignment_data(
 
         collect_static_string_expression_data(
             &mutation.value,
-            &mutation.machine,
-            &mutation.state,
+            mutation.machine.as_str(),
+            mutation.state.as_str(),
             mutation.statement_index,
             data_plan,
         );

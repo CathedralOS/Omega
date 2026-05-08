@@ -356,8 +356,8 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
         }
 
         plan.writes.insert(RuntimeTextWrite {
-            machine: mutation.machine.clone(),
-            state: mutation.state.clone(),
+            machine: mutation.machine.to_string(),
+            state: mutation.state.to_string(),
             statement_index: mutation.statement_index,
             target: mutation.target.clone(),
             value: mutation.value.clone(),

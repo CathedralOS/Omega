@@ -196,14 +196,14 @@ fn count_state_call_strings(native_plan: &NativePlan, storage: &mut NativeString
 
 fn count_state_storage_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, local) in native_plan.state_storage.locals.iter() {
-        storage.count_identity(&local.machine);
-        storage.count_identity(&local.state);
-        storage.count_identity(&local.name);
+        storage.count_program_name_identity(&local.machine);
+        storage.count_program_name_identity(&local.state);
+        storage.count_program_name_identity(&local.name);
         storage.count_identity(&local.type_name);
     }
     for (_, mutation) in native_plan.state_storage.mutations.iter() {
-        storage.count_identity(&mutation.machine);
-        storage.count_identity(&mutation.state);
+        storage.count_program_name_identity(&mutation.machine);
+        storage.count_program_name_identity(&mutation.state);
         count_expression_strings(&mutation.target, storage);
         count_expression_strings(&mutation.value, storage);
     }

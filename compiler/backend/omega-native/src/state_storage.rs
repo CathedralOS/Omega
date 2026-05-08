@@ -5,6 +5,7 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::Statement;
 use std::sync::Arc;
 
@@ -16,18 +17,18 @@ pub struct StateStoragePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StateLocalStorage {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
-    pub name: String,
+    pub name: ProgramName,
     pub type_name: String,
     pub required: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateMutation {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -39,8 +40,8 @@ pub struct StateMutation {
 impl Default for StateMutation {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::Integer(0),
             value: Expression::Integer(0),
@@ -129,10 +130,10 @@ fn build_machine_state_storage_plan(
             match statement {
                 Statement::LocalData(local_data) => {
                     plan.locals.insert(StateLocalStorage {
-                        machine: machine.name.to_string(),
-                        state: state.name.to_string(),
+                        machine: machine.name.clone(),
+                        state: state.name.clone(),
                         statement_index,
-                        name: local_data.name.to_string(),
+                        name: local_data.name.clone(),
                         type_name: local_data.type_reference.display_name(),
                         required,
                     });
@@ -141,8 +142,8 @@ fn build_machine_state_storage_plan(
                     let mutation_kind =
                         mutation_kind(program, &machine.name, state, &assignment.target);
                     plan.mutations.insert(StateMutation {
-                        machine: machine.name.to_string(),
-                        state: state.name.to_string(),
+                        machine: machine.name.clone(),
+                        state: state.name.clone(),
                         statement_index,
                         target: assignment.target.clone(),
                         value: assignment.value.clone(),

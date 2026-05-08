@@ -241,7 +241,7 @@ fn append_state_body_operations(
                 state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::LocalStorage {
-                    name: local_storage.name.clone(),
+                    name: local_storage.name.to_string(),
                     type_name: local_storage.type_name.clone(),
                 },
             ));
