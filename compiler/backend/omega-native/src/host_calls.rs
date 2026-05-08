@@ -1,4 +1,5 @@
 use crate::abi::{HostAbiPlan, PlatformCallData, PlatformCallLowering};
+use crate::control_flow::{ControlFlowPlan, StateKey};
 use crate::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -41,6 +42,7 @@ pub struct UnsupportedHostCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCall {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -53,6 +55,7 @@ pub struct HostCall {
 impl Default for HostCall {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -274,6 +277,7 @@ fn collect_call_host_lowering(
         .arguments
         .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
+        source_key: StateKey::default(),
         machine: machine.name.clone(),
         state: state.name.clone(),
         statement_index,
@@ -283,6 +287,31 @@ fn collect_call_host_lowering(
         arguments,
     });
     Ok(())
+}
+
+pub fn attach_host_call_state_keys(plan: &mut HostCallPlan, control_flow: &ControlFlowPlan) {
+    plan.calls.for_each_mut(|_, call| {
+        call.source_key =
+            state_key_by_names(control_flow, &call.machine, &call.state).unwrap_or_default();
+    });
+}
+
+fn state_key_by_names(
+    control_flow: &ControlFlowPlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<StateKey> {
+    control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| control_flow.states.span(machine.states))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.name == state_name)
+                .map(|state| state.key)
+        })
 }
 
 fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {

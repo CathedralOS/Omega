@@ -226,9 +226,8 @@ fn state_call_targets_leaf(context: &StateAnalysisContext, call: &CollectedState
         .is_none_or(|operations| {
             operations.iter().all(|operation| {
                 !matches!(operation.kind, OperationKind::Call { .. })
-                    || context.state_statement_has_host_call(
-                        &call.target_machine,
-                        &call.target_state,
+                    || context.state_statement_has_host_call_by_key(
+                        call.target_key,
                         operation.statement_index,
                     )
             })
@@ -260,11 +259,7 @@ fn collect_machine_state_calls(
                 continue;
             };
 
-            if context.state_statement_has_host_call(
-                &machine.name,
-                &state.name,
-                operation.statement_index,
-            ) {
+            if context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
                 continue;
             }
 

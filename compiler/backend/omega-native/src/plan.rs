@@ -2,7 +2,9 @@ use crate::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
 use crate::control_flow::{ControlFlowPlan, build_control_flow_plan_with_workers};
 use crate::data::{NativeDataPlan, build_native_data_plan};
-use crate::host_calls::{HostCallPlan, build_host_call_plan_with_workers};
+use crate::host_calls::{
+    HostCallPlan, attach_host_call_state_keys, build_host_call_plan_with_workers,
+};
 use crate::instructions::{InstructionPlan, build_instruction_plan};
 use crate::layout::{LayoutPlan, build_layout_plan};
 use crate::machine_code::{MachineCodePlan, build_machine_code_plan};
@@ -123,7 +125,8 @@ pub fn build_native_plan_with_workers(
         });
     let control_flow = control_flow?;
     let layouts = layouts?;
-    let host_calls = host_calls?;
+    let mut host_calls = host_calls?;
+    attach_host_call_state_keys(&mut host_calls, &control_flow);
     let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
         build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)
     })?;

@@ -180,6 +180,7 @@ fn build_dispatch_body(
     let mut operations = Vec::new();
     append_state_body_operations(
         context,
+        dispatch_state.key,
         &dispatch_state.machine,
         &dispatch_state.state,
         &mut operations,
@@ -197,27 +198,25 @@ fn build_dispatch_body(
 
 fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
+    state_key: StateKey,
     machine_name: &ProgramName,
     state_name: &ProgramName,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
-    visiting: &mut Vec<(ProgramName, ProgramName)>,
+    visiting: &mut Vec<StateKey>,
 ) {
-    if visiting
-        .iter()
-        .any(|(machine, state)| machine == machine_name && state == state_name)
-    {
+    if visiting.contains(&state_key) {
         return;
     }
-    visiting.push((machine_name.clone(), state_name.clone()));
+    visiting.push(state_key);
 
-    let Some(state_operations) = state_operations(context, machine_name, state_name) else {
+    let Some(state_operations) = state_operations(context, state_key) else {
         visiting.pop();
         return;
     };
 
     for operation in state_operations {
         if let Some(host_call) =
-            host_call_for_statement(context, machine_name, state_name, operation.statement_index)
+            host_call_for_statement(context, state_key, operation.statement_index)
         {
             operations.push(body_operation(
                 machine_name,
@@ -231,18 +230,15 @@ fn append_state_body_operations(
         }
 
         if let Some(state_call) =
-            state_call_for_statement(context, machine_name, state_name, operation.statement_index)
+            state_call_for_statement(context, state_key, operation.statement_index)
         {
             append_state_call_body_operation(context, state_call, operations, visiting);
             continue;
         }
 
-        if let Some(local_storage) = local_storage_for_statement(
-            context,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) {
+        if let Some(local_storage) =
+            local_storage_for_statement(context, state_key, operation.statement_index)
+        {
             operations.push(body_operation(
                 machine_name,
                 state_name,
@@ -256,7 +252,7 @@ fn append_state_body_operations(
         }
 
         if let Some(mutation) =
-            mutation_for_statement(context, machine_name, state_name, operation.statement_index)
+            mutation_for_statement(context, state_key, operation.statement_index)
         {
             operations.push(body_operation(
                 machine_name,
@@ -287,7 +283,7 @@ fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
-    visiting: &mut Vec<(ProgramName, ProgramName)>,
+    visiting: &mut Vec<StateKey>,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.push(body_operation(
@@ -302,6 +298,7 @@ fn append_state_call_body_operation(
         ));
         append_state_body_operations(
             context,
+            state_call.target_key,
             &state_call.target_machine,
             &state_call.target_state,
             operations,
@@ -310,11 +307,7 @@ fn append_state_call_body_operation(
         return;
     }
 
-    if state_has_no_transitions(
-        context,
-        &state_call.target_machine,
-        &state_call.target_state,
-    ) {
+    if state_has_no_transitions(context, state_call.target_key) {
         operations.push(body_operation(
             &state_call.source_machine,
             &state_call.source_state,
@@ -328,6 +321,7 @@ fn append_state_call_body_operation(
         ));
         append_state_body_operations(
             context,
+            state_call.target_key,
             &state_call.target_machine,
             &state_call.target_state,
             operations,
@@ -365,39 +359,33 @@ fn body_operation(
 
 fn state_operations<'plan>(
     context: &'plan RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
 ) -> Option<&'plan [Operation]> {
     context
         .control_flow
         .machines
         .iter()
-        .find(|(_, machine)| machine.name == machine_name)
+        .find(|(_, machine)| machine.symbol == state_key.machine)
         .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|states| states.iter().find(|state| state.key == state_key))
         .and_then(|state| context.control_flow.operations.span(state.operations))
 }
 
-fn state_has_no_transitions(
-    context: &RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
-) -> bool {
+fn state_has_no_transitions(context: &RuntimeDispatchBodyContext, state_key: StateKey) -> bool {
     context
         .control_flow
         .machines
         .iter()
-        .find(|(_, machine)| machine.name == machine_name)
+        .find(|(_, machine)| machine.symbol == state_key.machine)
         .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|states| states.iter().find(|state| state.key == state_key))
         .and_then(|state| context.control_flow.transitions.span(state.transitions))
         .is_none_or(|transitions| transitions.is_empty())
 }
 
 fn host_call_for_statement<'plan>(
     context: &'plan RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan HostCall> {
     context
@@ -405,17 +393,14 @@ fn host_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, host_call)| {
-            host_call.machine == machine_name
-                && host_call.state == state_name
-                && host_call.statement_index == statement_index
+            host_call.source_key == state_key && host_call.statement_index == statement_index
         })
         .map(|(_, host_call)| host_call)
 }
 
 fn state_call_for_statement<'plan>(
     context: &'plan RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
     context
@@ -423,17 +408,14 @@ fn state_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, state_call)| {
-            state_call.source_machine == machine_name
-                && state_call.source_state == state_name
-                && state_call.statement_index == statement_index
+            state_call.source_key == state_key && state_call.statement_index == statement_index
         })
         .map(|(_, state_call)| state_call)
 }
 
 fn local_storage_for_statement<'plan>(
     context: &'plan RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateLocalStorage> {
     context
@@ -441,17 +423,14 @@ fn local_storage_for_statement<'plan>(
         .locals
         .iter()
         .find(|(_, local)| {
-            local.machine == machine_name
-                && local.state == state_name
-                && local.statement_index == statement_index
+            local.source_key == state_key && local.statement_index == statement_index
         })
         .map(|(_, local)| local)
 }
 
 fn mutation_for_statement<'plan>(
     context: &'plan RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateMutation> {
     context
@@ -459,9 +438,7 @@ fn mutation_for_statement<'plan>(
         .mutations
         .iter()
         .find(|(_, mutation)| {
-            mutation.machine == machine_name
-                && mutation.state == state_name
-                && mutation.statement_index == statement_index
+            mutation.source_key == state_key && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
 }

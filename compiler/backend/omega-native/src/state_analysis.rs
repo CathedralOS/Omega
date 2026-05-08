@@ -42,11 +42,23 @@ impl StateAnalysisContext {
         state_name: &str,
         statement_index: usize,
     ) -> bool {
+        let Some(state_key) = self.state_key(machine_name, state_name) else {
+            return false;
+        };
+
+        self.state_mutation_is_already_lowered_by_key(state_key, statement_index)
+    }
+
+    pub fn state_mutation_is_already_lowered_by_key(
+        &self,
+        state_key: StateKey,
+        statement_index: usize,
+    ) -> bool {
         let Some(machine) = self
             .control_flow
             .machines
             .iter()
-            .find(|(_, machine)| machine.name == machine_name)
+            .find(|(_, machine)| machine.symbol == state_key.machine)
             .map(|(_, machine)| machine)
         else {
             return false;
@@ -55,7 +67,7 @@ impl StateAnalysisContext {
             .control_flow
             .states
             .span(machine.states)
-            .and_then(|states| states.iter().find(|state| state.name == state_name))
+            .and_then(|states| states.iter().find(|state| state.key == state_key))
         else {
             return false;
         };
@@ -88,14 +100,24 @@ impl StateAnalysisContext {
         state_name: &str,
         statement_index: usize,
     ) -> bool {
+        let Some(source_key) = self.state_key(machine_name, state_name) else {
+            return false;
+        };
+
+        self.state_statement_has_host_call_by_key(source_key, statement_index)
+    }
+
+    pub fn state_statement_has_host_call_by_key(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> bool {
         self.host_calls.calls.iter().any(|(_, host_call)| {
-            host_call.machine == machine_name
-                && host_call.state == state_name
-                && host_call.statement_index == statement_index
+            host_call.source_key == source_key && host_call.statement_index == statement_index
         })
     }
 
-    fn state_key(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
+    pub fn state_key(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
         let machine = self
             .control_flow
             .machines

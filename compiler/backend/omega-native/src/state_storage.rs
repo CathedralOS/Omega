@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::Arena;
@@ -17,6 +18,7 @@ pub struct StateStoragePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StateLocalStorage {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -27,6 +29,7 @@ pub struct StateLocalStorage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateMutation {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -40,6 +43,7 @@ pub struct StateMutation {
 impl Default for StateMutation {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -125,11 +129,15 @@ fn build_machine_state_storage_plan(
 
     for state in &machine.states {
         let required = context.state_is_required(&machine.name, &state.name);
+        let source_key = context
+            .state_key(&machine.name, &state.name)
+            .unwrap_or_default();
 
         for (statement_index, statement) in state.statements.iter().enumerate() {
             match statement {
                 Statement::LocalData(local_data) => {
                     plan.locals.insert(StateLocalStorage {
+                        source_key,
                         machine: machine.name.clone(),
                         state: state.name.clone(),
                         statement_index,
@@ -142,6 +150,7 @@ fn build_machine_state_storage_plan(
                     let mutation_kind =
                         mutation_kind(program, &machine.name, state, &assignment.target);
                     plan.mutations.insert(StateMutation {
+                        source_key,
                         machine: machine.name.clone(),
                         state: state.name.clone(),
                         statement_index,
@@ -150,8 +159,7 @@ fn build_machine_state_storage_plan(
                         mutation_kind,
                         lowering: mutation_lowering(
                             context,
-                            &machine.name,
-                            &state.name,
+                            source_key,
                             statement_index,
                             mutation_kind,
                         ),
@@ -168,12 +176,11 @@ fn build_machine_state_storage_plan(
 
 fn mutation_lowering(
     context: &StateAnalysisContext,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
     mutation_kind: StateMutationKind,
 ) -> StateMutationLowering {
-    if context.state_mutation_is_already_lowered(machine_name, state_name, statement_index) {
+    if context.state_mutation_is_already_lowered_by_key(source_key, statement_index) {
         return StateMutationLowering::AlreadyLowered;
     }
 
