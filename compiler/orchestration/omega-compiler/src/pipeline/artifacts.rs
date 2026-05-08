@@ -107,12 +107,7 @@ impl ArtifactWriter {
         let resolved_references = resolve_report
             .references
             .iter()
-            .filter(|(_, reference)| {
-                !resolve_report
-                    .symbols
-                    .path_members(reference.symbol_path)
-                    .is_empty()
-            })
+            .filter(|(_, reference)| reference.symbol.is_valid())
             .count();
         output.push_str(&format!("resolved references: {resolved_references}\n\n"));
 
@@ -146,7 +141,10 @@ impl ArtifactWriter {
             let resolved_suffix = if resolved_path.is_empty() {
                 " unresolved".to_owned()
             } else {
-                format!(" -> {resolved_path}")
+                format!(
+                    " -> {resolved_path} symbol #{}",
+                    reference.symbol.arena_index()
+                )
             };
             output.push_str(&format!(
                 "- {:?} `{}` from {}{}\n",

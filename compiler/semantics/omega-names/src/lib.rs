@@ -56,6 +56,7 @@ pub struct ResolvedReference {
     pub kind: ResolvedReferenceKind,
     pub owner: String,
     pub symbol_path: SymbolPath,
+    pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -534,11 +535,19 @@ fn insert_reference(
     owner: &str,
     symbol_path: SymbolPath,
 ) {
+    let symbol = report
+        .symbols
+        .path_members(symbol_path)
+        .last()
+        .copied()
+        .unwrap_or_else(SymbolHandle::invalid);
+
     report.references.insert(ResolvedReference {
         name: name.to_owned(),
         kind,
         owner: owner.to_owned(),
         symbol_path,
+        symbol,
     });
 }
 
@@ -918,12 +927,9 @@ mod tests {
             report.references.iter().any(|(_, reference)| {
                 reference.name == "finish"
                     && reference.kind == ResolvedReferenceKind::TransitionTarget
-                    && !report
-                        .symbols
-                        .path_members(reference.symbol_path)
-                        .is_empty()
+                    && reference.symbol.is_valid()
             }),
-            "state transition target should be collected and bound to a symbol path"
+            "state transition target should be collected and bound to a symbol"
         );
     }
 }
