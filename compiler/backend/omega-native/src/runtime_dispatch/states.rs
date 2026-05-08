@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -13,6 +14,7 @@ pub struct StateDispatchPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchState {
+    pub key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub dispatch_index: u32,
@@ -23,6 +25,7 @@ pub struct DispatchState {
 impl Default for DispatchState {
     fn default() -> Self {
         Self {
+            key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             dispatch_index: 0,
@@ -91,6 +94,7 @@ pub fn build_state_dispatch_plan_with_workers(
         let edges = plan.edges.insert_many(dispatch_state.edges);
 
         plan.states.insert(DispatchState {
+            key: dispatch_state.key,
             machine: dispatch_state.machine,
             state: dispatch_state.state,
             dispatch_index: dispatch_state.dispatch_index,
@@ -120,6 +124,7 @@ impl StateDispatchContext {
                 .states
                 .iter()
                 .map(|(handle, state)| StateDispatchTarget {
+                    key: state.key,
                     machine: state.machine.clone(),
                     state: state.state.clone(),
                     dispatch_index: handle.arena_index(),
@@ -131,6 +136,7 @@ impl StateDispatchContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct StateDispatchTarget {
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     dispatch_index: u32,
@@ -139,12 +145,14 @@ struct StateDispatchTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStateInput {
     handle: Handle<RuntimeState>,
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedDispatchState {
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     dispatch_index: u32,
@@ -158,6 +166,7 @@ pub fn runtime_state_inputs(runtime_flow: &RuntimeFlowPlan) -> Vec<RuntimeStateI
         .iter()
         .map(|(handle, runtime_state)| RuntimeStateInput {
             handle,
+            key: runtime_state.key,
             machine: runtime_state.machine.clone(),
             state: runtime_state.state.clone(),
         })
@@ -171,9 +180,7 @@ fn build_dispatch_state(
     let edges = context
         .edges
         .iter()
-        .filter(|edge| {
-            edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
-        })
+        .filter(|edge| edge.from == runtime_state.key)
         .map(|edge| DispatchEdge {
             target_dispatch_index: target_dispatch_index(context, &edge.target),
             target: edge.target.clone(),
@@ -186,6 +193,7 @@ fn build_dispatch_state(
         .collect();
 
     CollectedDispatchState {
+        key: runtime_state.key,
         machine: runtime_state.machine.clone(),
         state: runtime_state.state.clone(),
         dispatch_index: runtime_state.handle.arena_index(),
@@ -198,19 +206,20 @@ fn terminal_continuation_edges(
     context: &StateDispatchContext,
     runtime_state: &RuntimeStateInput,
 ) -> Vec<DispatchEdge> {
-    let has_outgoing_edges = context.edges.iter().any(|edge| {
-        edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
-    });
+    let has_outgoing_edges = context
+        .edges
+        .iter()
+        .any(|edge| edge.from == runtime_state.key);
     if has_outgoing_edges {
         return Vec::new();
     }
 
     let mut edges = Vec::new();
     for edge in &context.edges {
-        let RuntimeTransitionTarget::State { machine, .. } = &edge.target else {
+        let RuntimeTransitionTarget::State { key, .. } = &edge.target else {
             continue;
         };
-        if machine != &runtime_state.machine {
+        if key.machine != runtime_state.key.machine {
             continue;
         }
         let RuntimeTransitionTarget::State { .. } = &edge.continuation else {
@@ -237,14 +246,14 @@ fn terminal_continuation_edges(
 }
 
 fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {
-    let RuntimeTransitionTarget::State { machine, state, .. } = target else {
+    let RuntimeTransitionTarget::State { key, .. } = target else {
         return 0;
     };
 
     context
         .targets
         .iter()
-        .find(|target| target.machine == *machine && target.state == *state)
+        .find(|target| target.key == *key)
         .map(|target| target.dispatch_index)
         .unwrap_or(0)
 }

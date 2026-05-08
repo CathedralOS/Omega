@@ -1,4 +1,5 @@
 use crate::control_flow::OperationKind;
+use crate::control_flow::StateKey;
 use crate::control_flow::{ControlFlowPlan, Operation};
 use crate::host_calls::{HostCall, HostCallPlan};
 use crate::plan::NativePlan;
@@ -20,6 +21,7 @@ pub struct RuntimeDispatchBodyPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBody {
+    pub key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub dispatch_index: u32,
@@ -29,6 +31,7 @@ pub struct RuntimeDispatchBody {
 impl Default for RuntimeDispatchBody {
     fn default() -> Self {
         Self {
+            key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             dispatch_index: 0,
@@ -131,6 +134,7 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
         let operations = plan.operations.insert_many(collected_body.operations);
 
         plan.bodies.insert(RuntimeDispatchBody {
+            key: collected_body.key,
             machine: collected_body.machine,
             state: collected_body.state,
             dispatch_index: collected_body.dispatch_index,
@@ -162,6 +166,7 @@ impl RuntimeDispatchBodyContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedRuntimeDispatchBody {
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     dispatch_index: u32,
@@ -182,6 +187,7 @@ fn build_dispatch_body(
     );
 
     CollectedRuntimeDispatchBody {
+        key: dispatch_state.key,
         machine: dispatch_state.machine.clone(),
         state: dispatch_state.state.clone(),
         dispatch_index: dispatch_state.dispatch_index,

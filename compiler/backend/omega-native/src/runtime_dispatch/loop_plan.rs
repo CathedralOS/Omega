@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
@@ -25,6 +26,7 @@ pub struct RuntimeDispatchLoopPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCase {
+    pub key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub dispatch_index: u32,
@@ -36,6 +38,7 @@ pub struct RuntimeDispatchLoopCase {
 impl Default for RuntimeDispatchLoopCase {
     fn default() -> Self {
         Self {
+            key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             dispatch_index: 0,
@@ -141,6 +144,7 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
         let edges = plan.edges.insert_many(case.edges);
 
         plan.cases.insert(RuntimeDispatchLoopCase {
+            key: case.key,
             machine: case.machine,
             state: case.state,
             dispatch_index: case.dispatch_index,
@@ -178,6 +182,7 @@ impl RuntimeDispatchLoopContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCaseInput {
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     dispatch_index: u32,
@@ -187,6 +192,7 @@ pub struct RuntimeDispatchLoopCaseInput {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedRuntimeDispatchLoopCase {
+    key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     dispatch_index: u32,
@@ -201,6 +207,7 @@ pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDisp
         .states
         .iter()
         .map(|(_, state)| RuntimeDispatchLoopCaseInput {
+            key: state.key,
             machine: state.machine.clone(),
             state: state.state.clone(),
             dispatch_index: state.dispatch_index,
@@ -246,6 +253,7 @@ fn build_runtime_dispatch_loop_case(
         .collect();
 
     CollectedRuntimeDispatchLoopCase {
+        key: case_input.key,
         machine: case_input.machine.clone(),
         state: case_input.state.clone(),
         dispatch_index: case_input.dispatch_index,
@@ -256,12 +264,21 @@ fn build_runtime_dispatch_loop_case(
 }
 
 fn dispatch_index_for_state(state_dispatch: &StateDispatchPlan, machine: &str, state: &str) -> u32 {
-    state_dispatch
+    let Some(key) = state_dispatch
         .states
         .iter()
         .find(|(_, dispatch_state)| {
             dispatch_state.machine == machine && dispatch_state.state == state
         })
+        .map(|(_, dispatch_state)| dispatch_state.key)
+    else {
+        return 0;
+    };
+
+    state_dispatch
+        .states
+        .iter()
+        .find(|(_, dispatch_state)| dispatch_state.key == key)
         .map(|(_, dispatch_state)| dispatch_state.dispatch_index)
         .unwrap_or(0)
 }

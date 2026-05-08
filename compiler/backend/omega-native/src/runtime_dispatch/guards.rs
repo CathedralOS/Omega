@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::runtime_flow::RuntimeTransitionTarget;
@@ -14,6 +15,7 @@ pub struct StateGuardPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateGuard {
+    pub source: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub source_dispatch_index: u32,
@@ -34,6 +36,7 @@ pub struct StateGuard {
 impl Default for StateGuard {
     fn default() -> Self {
         Self {
+            source: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             source_dispatch_index: 0,
@@ -145,6 +148,7 @@ pub fn build_state_guard_plan(
                 &mut plan.operands,
                 layouts,
                 entry_machine,
+                state.key,
                 &state.machine,
                 &state.state,
                 state.dispatch_index,
@@ -181,6 +185,7 @@ fn build_state_guard(
     operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
     entry_machine: &str,
+    source: StateKey,
     source_machine: &ProgramName,
     source_state: &ProgramName,
     source_dispatch_index: u32,
@@ -196,6 +201,7 @@ fn build_state_guard(
         .unwrap_or_default();
 
     StateGuard {
+        source,
         source_machine: source_machine.clone(),
         source_state: source_state.clone(),
         source_dispatch_index,
