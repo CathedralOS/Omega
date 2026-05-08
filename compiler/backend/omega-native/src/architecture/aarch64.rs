@@ -1,9 +1,11 @@
 use crate::instructions::{InstructionOperand, InstructionOperandKind};
 use omega_core::diagnostics::Diagnostic;
 
+mod dispatch;
 mod primitives;
 mod widths;
 
+pub use dispatch::*;
 use primitives::*;
 pub use widths::*;
 
@@ -110,67 +112,6 @@ pub fn encode_syscall_sequence(
 
 pub fn encode_return() -> Vec<u8> {
     encode_instruction(0xD65F03C0)
-}
-
-pub fn encode_dispatch_loop_enter(entry_dispatch_index: u32) -> Result<Vec<u8>, Diagnostic> {
-    let immediate = u16::try_from(entry_dispatch_index).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot encode dispatch index `{entry_dispatch_index}` yet"
-        ))
-    })?;
-    Ok(encode_movz_w(19, immediate))
-}
-
-pub fn encode_dispatch_case_enter(
-    dispatch_index: u32,
-    skip_byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = encode_compare_w19_immediate(dispatch_index)?;
-    bytes.extend(encode_conditional_branch_not_equal(skip_byte_distance)?);
-    Ok(bytes)
-}
-
-pub fn encode_dispatch_state_write(
-    dispatch_index: u32,
-    case_leave_byte_distance: isize,
-) -> Result<Vec<u8>, Diagnostic> {
-    let immediate = u16::try_from(dispatch_index).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot encode dispatch index `{dispatch_index}` yet"
-        ))
-    })?;
-    let mut bytes = encode_movz_w(19, immediate);
-    bytes.extend(encode_unconditional_branch(case_leave_byte_distance)?);
-    Ok(bytes)
-}
-
-pub fn encode_dispatch_case_leave(loop_byte_distance: isize) -> Result<Vec<u8>, Diagnostic> {
-    encode_unconditional_branch(loop_byte_distance)
-}
-
-pub fn encode_dispatch_guard_compare_static(
-    byte_offset: usize,
-    byte_size: usize,
-    expected_value: i64,
-    skip_byte_distance: isize,
-    branch_when_equal: bool,
-) -> Result<Vec<u8>, Diagnostic> {
-    let expected_value = u32::try_from(expected_value).map_err(|_| {
-        Diagnostic::error(format!(
-            "AArch64 MVP encoder cannot compare negative guard value `{expected_value}` yet"
-        ))
-    })?;
-
-    let mut bytes = encode_adrp_placeholder(16);
-    bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_load_w17_from_x16(byte_offset, byte_size)?);
-    bytes.extend(encode_compare_w17_immediate(expected_value)?);
-    bytes.extend(if branch_when_equal {
-        encode_conditional_branch_equal(skip_byte_distance)?
-    } else {
-        encode_conditional_branch_not_equal(skip_byte_distance)?
-    });
-    Ok(bytes)
 }
 
 pub fn encode_runtime_text_literal_compare(
