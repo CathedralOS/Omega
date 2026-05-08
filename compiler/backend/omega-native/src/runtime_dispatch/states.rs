@@ -1,62 +1,19 @@
+mod context;
+mod input;
+mod labels;
+mod model;
+
+pub use context::StateDispatchContext;
+pub use input::{RuntimeStateInput, runtime_state_inputs};
+pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
+
 use crate::control_flow::StateKey;
-use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use crate::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
+use labels::dispatch_label;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateDispatchPlan {
-    pub states: Arena<DispatchState>,
-    pub edges: Arena<DispatchEdge>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DispatchState {
-    pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
-    pub dispatch_index: u32,
-    pub label: String,
-    pub edges: HandleSpan<DispatchEdge>,
-}
-
-impl Default for DispatchState {
-    fn default() -> Self {
-        Self {
-            key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
-            dispatch_index: 0,
-            label: String::new(),
-            edges: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DispatchEdge {
-    pub target: RuntimeTransitionTarget,
-    pub target_dispatch_index: u32,
-    pub continuation: RuntimeTransitionTarget,
-    pub continuation_dispatch_index: u32,
-    pub guard: TransitionGuard,
-    pub forms_cycle: bool,
-}
-
-impl Default for DispatchEdge {
-    fn default() -> Self {
-        Self {
-            target: RuntimeTransitionTarget::None,
-            target_dispatch_index: 0,
-            continuation: RuntimeTransitionTarget::None,
-            continuation_dispatch_index: 0,
-            guard: TransitionGuard::Always,
-            forms_cycle: false,
-        }
-    }
-}
 
 pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatchPlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -107,50 +64,6 @@ pub fn build_state_dispatch_plan_with_workers(
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateDispatchContext {
-    edges: Vec<crate::runtime_flow::RuntimeEdge>,
-    targets: Vec<StateDispatchTarget>,
-}
-
-impl StateDispatchContext {
-    pub fn from_runtime_flow(runtime_flow: &RuntimeFlowPlan) -> Self {
-        Self {
-            edges: runtime_flow
-                .edges
-                .iter()
-                .map(|(_, edge)| edge.clone())
-                .collect(),
-            targets: runtime_flow
-                .states
-                .iter()
-                .map(|(handle, state)| StateDispatchTarget {
-                    key: state.key,
-                    machine: state.machine.clone(),
-                    state: state.state.clone(),
-                    dispatch_index: handle.arena_index(),
-                })
-                .collect(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-struct StateDispatchTarget {
-    key: StateKey,
-    machine: ProgramName,
-    state: ProgramName,
-    dispatch_index: u32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RuntimeStateInput {
-    handle: Handle<RuntimeState>,
-    key: StateKey,
-    machine: ProgramName,
-    state: ProgramName,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedDispatchState {
     key: StateKey,
     machine: ProgramName,
@@ -158,19 +71,6 @@ struct CollectedDispatchState {
     dispatch_index: u32,
     label: String,
     edges: Vec<DispatchEdge>,
-}
-
-pub fn runtime_state_inputs(runtime_flow: &RuntimeFlowPlan) -> Vec<RuntimeStateInput> {
-    runtime_flow
-        .states
-        .iter()
-        .map(|(handle, runtime_state)| RuntimeStateInput {
-            handle,
-            key: runtime_state.key,
-            machine: runtime_state.machine.clone(),
-            state: runtime_state.state.clone(),
-        })
-        .collect()
 }
 
 fn build_dispatch_state(
@@ -256,25 +156,4 @@ fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransit
         .find(|target| target.key == *key)
         .map(|target| target.dispatch_index)
         .unwrap_or(0)
-}
-
-fn dispatch_label(machine: &str, state: &str) -> String {
-    let mut label = String::from("omega_state_");
-    label.push_str(&sanitize_label_part(machine));
-    label.push('_');
-    label.push_str(&sanitize_label_part(state));
-    label
-}
-
-fn sanitize_label_part(value: &str) -> String {
-    value
-        .chars()
-        .map(|character| {
-            if character.is_ascii_alphanumeric() {
-                character
-            } else {
-                '_'
-            }
-        })
-        .collect()
 }
