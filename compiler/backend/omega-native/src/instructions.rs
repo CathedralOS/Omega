@@ -513,9 +513,9 @@ fn bind_runtime_operation_aliases(
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {
-                machine: state_call.target_machine.clone(),
-                state: state_call.target_state.clone(),
-                parameter_name: argument.parameter_name.clone(),
+                machine: state_call.target_machine.to_string(),
+                state: state_call.target_state.to_string(),
+                parameter_name: argument.parameter_name.to_string(),
                 expression,
             },
         );

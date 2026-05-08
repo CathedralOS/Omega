@@ -5,6 +5,7 @@ use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,12 +16,12 @@ pub struct StateCallPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCall {
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
-    pub receiver: String,
-    pub target_machine: String,
-    pub target_state: String,
+    pub receiver: ProgramName,
+    pub target_machine: ProgramName,
+    pub target_state: ProgramName,
     pub argument_count: usize,
     pub arguments: HandleSpan<StateCallArgument>,
     pub reachable: bool,
@@ -32,12 +33,12 @@ pub struct StateCall {
 impl Default for StateCall {
     fn default() -> Self {
         Self {
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
-            receiver: String::new(),
-            target_machine: String::new(),
-            target_state: String::new(),
+            receiver: ProgramName::default(),
+            target_machine: ProgramName::default(),
+            target_state: ProgramName::default(),
             argument_count: 0,
             arguments: HandleSpan::empty(),
             reachable: false,
@@ -51,7 +52,7 @@ impl Default for StateCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCallArgument {
     pub index: usize,
-    pub parameter_name: String,
+    pub parameter_name: ProgramName,
     pub expression: Expression,
     pub kind: StateCallArgumentKind,
     pub required: bool,
@@ -61,7 +62,7 @@ impl Default for StateCallArgument {
     fn default() -> Self {
         Self {
             index: 0,
-            parameter_name: String::new(),
+            parameter_name: ProgramName::default(),
             expression: Expression::Integer(0),
             kind: StateCallArgumentKind::Value,
             required: false,
@@ -96,12 +97,12 @@ pub enum StateCallLowering {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CollectedStateCall {
-    source_machine: String,
-    source_state: String,
+    source_machine: ProgramName,
+    source_state: ProgramName,
     statement_index: usize,
-    receiver: String,
-    target_machine: String,
-    target_state: String,
+    receiver: ProgramName,
+    target_machine: ProgramName,
+    target_state: ProgramName,
     raw_arguments: Vec<Expression>,
     reachable: bool,
     required: bool,
@@ -283,23 +284,23 @@ fn collect_machine_state_calls(
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
-                receiver.as_deref(),
+                receiver.as_ref(),
                 target,
             );
 
             calls.push(CollectedStateCall {
-                source_machine: machine.name.to_string(),
-                source_state: state.name.to_string(),
+                source_machine: machine.name.clone(),
+                source_state: state.name.clone(),
                 statement_index: operation.statement_index,
                 receiver: receiver
                     .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| "self".to_owned()),
+                    .cloned()
+                    .unwrap_or_else(|| ProgramName::generated("self")),
                 target_machine: resolved_target
                     .as_ref()
                     .map(|target| target.machine.clone())
                     .unwrap_or_default(),
-                target_state: target.to_string(),
+                target_state: target.clone(),
                 raw_arguments: arguments.clone(),
                 reachable: context.runtime_state_is_reachable(&machine.name, &state.name),
                 required: false,
@@ -315,8 +316,8 @@ fn collect_machine_state_calls(
 
 fn build_call_arguments<'a>(
     context: &StateAnalysisContext,
-    target_machine: &str,
-    target_state: &str,
+    target_machine: &ProgramName,
+    target_state: &ProgramName,
     required: bool,
     raw_arguments: &'a [Expression],
 ) -> impl Iterator<Item = StateCallArgument> + 'a {
@@ -340,17 +341,23 @@ fn build_call_arguments<'a>(
 
 fn state_parameter_names(
     context: &StateAnalysisContext,
-    target_machine: &str,
-    target_state: &str,
-) -> Vec<String> {
+    target_machine: &ProgramName,
+    target_state: &ProgramName,
+) -> Vec<ProgramName> {
     context
         .control_flow
         .machines
         .iter()
-        .find(|(_, machine)| machine.name == target_machine)
+        .find(|(_, machine)| machine.name == *target_machine)
         .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == target_state))
-        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
+        .and_then(|states| states.iter().find(|state| state.name == *target_state))
+        .map(|state| {
+            state
+                .parameters
+                .iter()
+                .map(|parameter| parameter.clone())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -359,7 +366,7 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
         .runtime_flow
         .states
         .iter()
-        .map(|(_, state)| (state.machine.to_string(), state.state.to_string()))
+        .map(|(_, state)| (state.machine.clone(), state.state.clone()))
         .collect::<Vec<_>>();
     let mut changed = true;
 
@@ -393,13 +400,11 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
 
         let states_snapshot = required_states.clone();
         for (machine_name, state_name) in states_snapshot {
-            for target in transition_targets_from(context, &machine_name, &state_name) {
+            for target in
+                transition_targets_from(context, machine_name.as_str(), state_name.as_str())
+            {
                 if let RuntimeTransitionTarget::State { machine, state } = target {
-                    changed |= push_required_state(
-                        &mut required_states,
-                        machine.to_string(),
-                        state.to_string(),
-                    );
+                    changed |= push_required_state(&mut required_states, machine, state);
                 }
             }
         }
@@ -490,9 +495,9 @@ fn runtime_transition_target(
 }
 
 fn push_required_state(
-    required_states: &mut Vec<(String, String)>,
-    machine: String,
-    state: String,
+    required_states: &mut Vec<(ProgramName, ProgramName)>,
+    machine: ProgramName,
+    state: ProgramName,
 ) -> bool {
     if required_states
         .iter()
@@ -508,20 +513,20 @@ fn push_required_state(
 }
 
 struct ResolvedStateCall {
-    machine: String,
+    machine: ProgramName,
     resolution: StateCallResolution,
 }
 
 fn resolve_state_call_target(
     control_flow: &ControlFlowPlan,
     machine: &MachineFlow,
-    receiver: Option<&str>,
-    target_state: &str,
+    receiver: Option<&ProgramName>,
+    target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
     let Some(receiver) = receiver else {
         if machine_has_state(control_flow, &machine.name, target_state) {
             return Some(ResolvedStateCall {
-                machine: machine.name.to_string(),
+                machine: machine.name.clone(),
                 resolution: StateCallResolution::Local,
             });
         }
@@ -531,7 +536,7 @@ fn resolve_state_call_target(
 
     if receiver == "self" && machine_has_state(control_flow, &machine.name, target_state) {
         return Some(ResolvedStateCall {
-            machine: machine.name.to_string(),
+            machine: machine.name.clone(),
             resolution: StateCallResolution::Local,
         });
     }
@@ -539,18 +544,18 @@ fn resolve_state_call_target(
     if let Some(contained) = machine
         .contains
         .iter()
-        .find(|contained| contained.name == receiver)
+        .find(|contained| contained.name == *receiver)
     {
         return machine_has_state(control_flow, &contained.type_name, target_state).then(|| {
             ResolvedStateCall {
-                machine: contained.type_name.to_string(),
+                machine: contained.type_name.clone(),
                 resolution: StateCallResolution::ContainedMachine,
             }
         });
     }
 
     machine_has_state(control_flow, receiver, target_state).then(|| ResolvedStateCall {
-        machine: receiver.to_owned(),
+        machine: receiver.clone(),
         resolution: StateCallResolution::NamedMachine,
     })
 }

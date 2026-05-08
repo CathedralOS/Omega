@@ -628,7 +628,7 @@ fn branch_parameter_bindings(
                         argument.expression.clone()
                     };
                     (
-                        argument.parameter_name.clone(),
+                        argument.parameter_name.to_string(),
                         resolve_runtime_branch_alias_expression(
                             &expression,
                             &state_call.source_machine,
@@ -662,9 +662,9 @@ fn bind_runtime_branch_aliases(
         set_runtime_branch_alias(
             aliases,
             RuntimeBranchAlias {
-                machine: state_call.target_machine.clone(),
-                state: state_call.target_state.clone(),
-                parameter_name: argument.parameter_name.clone(),
+                machine: state_call.target_machine.to_string(),
+                state: state_call.target_state.to_string(),
+                parameter_name: argument.parameter_name.to_string(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
                     &state_call.source_machine,
@@ -1097,8 +1097,8 @@ fn straight_line_operation_kind(
         state_call_for_operation(native_plan, machine_name, state_name, statement_index)
     {
         return RuntimeStraightLineBranchOperationKind::StateCall {
-            target_machine: state_call.target_machine.clone(),
-            target_state: state_call.target_state.clone(),
+            target_machine: state_call.target_machine.to_string(),
+            target_state: state_call.target_state.to_string(),
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         };

@@ -288,8 +288,8 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-                target_machine: state_call.target_machine.clone(),
-                target_state: state_call.target_state.clone(),
+                target_machine: state_call.target_machine.to_string(),
+                target_state: state_call.target_state.to_string(),
                 argument_count: state_call.argument_count,
             },
         ));
@@ -313,8 +313,8 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
-                target_machine: state_call.target_machine.clone(),
-                target_state: state_call.target_state.clone(),
+                target_machine: state_call.target_machine.to_string(),
+                target_state: state_call.target_state.to_string(),
                 argument_count: state_call.argument_count,
                 lowering: state_call.lowering,
             },
@@ -334,8 +334,8 @@ fn append_state_call_body_operation(
         &state_call.source_state,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
-            target_machine: state_call.target_machine.clone(),
-            target_state: state_call.target_state.clone(),
+            target_machine: state_call.target_machine.to_string(),
+            target_state: state_call.target_state.to_string(),
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         },

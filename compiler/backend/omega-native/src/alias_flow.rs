@@ -49,12 +49,12 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
             }
 
             plan.aliases.insert(AliasBinding {
-                caller_machine: state_call.source_machine.clone(),
-                caller_state: state_call.source_state.clone(),
+                caller_machine: state_call.source_machine.to_string(),
+                caller_state: state_call.source_state.to_string(),
                 statement_index: state_call.statement_index,
-                callee_machine: state_call.target_machine.clone(),
-                callee_state: state_call.target_state.clone(),
-                parameter_name: argument.parameter_name.clone(),
+                callee_machine: state_call.target_machine.to_string(),
+                callee_state: state_call.target_state.to_string(),
+                parameter_name: argument.parameter_name.to_string(),
                 argument: argument.expression.clone(),
                 required: state_call.required && argument.required,
             });
