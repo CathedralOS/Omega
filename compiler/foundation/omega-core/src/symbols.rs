@@ -187,6 +187,34 @@ impl SymbolTable {
         }
     }
 
+    pub fn resolve_child_path<'name>(
+        &mut self,
+        root: SymbolHandle,
+        names: impl IntoIterator<Item = &'name str>,
+    ) -> SymbolPath {
+        let mut current = root;
+        let mut members = Vec::new();
+
+        if !root.is_valid() {
+            return SymbolPath::default();
+        }
+
+        for name in names {
+            let Some(child) = self.find_child_by_name(current, name) else {
+                return SymbolPath::default();
+            };
+
+            members.push(child);
+            current = child;
+        }
+
+        if members.is_empty() {
+            SymbolPath::default()
+        } else {
+            self.path_from_members(root, members)
+        }
+    }
+
     pub fn path_members(&self, path: SymbolPath) -> &[SymbolHandle] {
         self.path_members.span_or_empty(path.members)
     }
@@ -344,6 +372,30 @@ mod tests {
 
         assert_eq!(path.root, root);
         assert_eq!(symbols.path_members(path), &[machine, state]);
+    }
+
+    #[test]
+    fn resolves_child_paths_by_sibling_walk() {
+        let mut symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
+            SymbolKind::Root,
+            "root",
+            [SymbolDefinition::with_children(
+                SymbolKind::Machine,
+                "main",
+                [SymbolDefinition::named(SymbolKind::State, "entry")],
+            )],
+        ));
+        let root = symbols.root();
+        let path = symbols.resolve_child_path(root, ["main", "entry"]);
+        let names = symbols
+            .path_members(path)
+            .iter()
+            .map(|symbol| symbols.name(*symbol))
+            .collect::<Vec<_>>();
+
+        assert_eq!(names, vec!["main", "entry"]);
+        let missing_path = symbols.resolve_child_path(root, ["main", "missing"]);
+        assert!(symbols.path_members(missing_path).is_empty());
     }
 
     #[test]

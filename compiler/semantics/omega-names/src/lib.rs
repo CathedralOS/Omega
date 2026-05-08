@@ -536,7 +536,7 @@ impl ResolveContext {
         }
 
         if path.first() == Some(&"self") && self.machine.is_valid() {
-            return resolve_path_from(symbols, self.machine, &path[1..]).unwrap_or_default();
+            return symbols.resolve_child_path(self.machine, path[1..].iter().copied());
         }
 
         for root in [self.state, self.machine, symbols.root()] {
@@ -544,7 +544,8 @@ impl ResolveContext {
                 continue;
             }
 
-            if let Some(symbol_path) = resolve_path_from(symbols, root, path) {
+            let symbol_path = symbols.resolve_child_path(root, path.iter().copied());
+            if !symbols.path_members(symbol_path).is_empty() {
                 return symbol_path;
             }
         }
@@ -555,24 +556,7 @@ impl ResolveContext {
 
 fn resolve_global_name(report: &mut ResolveReport, name: &str) -> SymbolPath {
     let root = report.symbols.root();
-    resolve_path_from(&mut report.symbols, root, &[name]).unwrap_or_default()
-}
-
-fn resolve_path_from(
-    symbols: &mut SymbolTable,
-    root: SymbolHandle,
-    path: &[&str],
-) -> Option<SymbolPath> {
-    let mut current = root;
-    let mut members = Vec::with_capacity(path.len());
-
-    for name in path {
-        let child = symbols.find_child_by_name(current, name)?;
-        members.push(child);
-        current = child;
-    }
-
-    Some(symbols.path_from_members(root, members))
+    report.symbols.resolve_child_path(root, [name])
 }
 
 fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
