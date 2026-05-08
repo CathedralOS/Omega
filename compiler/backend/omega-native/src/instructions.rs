@@ -1,4 +1,4 @@
-use crate::control_flow::{OperationKind, StateFlow, StateKey};
+use crate::control_flow::StateKey;
 use crate::data::NativeDataObject;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
@@ -10,9 +10,7 @@ use crate::runtime_dispatch::branching::{
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use crate::runtime_text::RuntimeTextBuilderSegmentKind;
 use crate::state_guards::StateGuardOperator;
-use crate::state_schedule::{
-    build_entry_state_schedule, scheduled_state_flow, scheduled_state_key,
-};
+use crate::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_core::arena::Arena;
 use omega_typed_program::expression::Expression;
 
@@ -20,6 +18,7 @@ mod bindings;
 mod host_operations;
 mod lookups;
 mod model;
+mod state_bodies;
 mod storage_places;
 
 use bindings::{
@@ -38,6 +37,10 @@ use lookups::{
 pub use model::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
     SelectedInstruction, SelectedInstructionKind,
+};
+use state_bodies::{
+    machine_name_for_state, runtime_reachable_states, select_state_body_instructions,
+    select_state_host_calls,
 };
 use storage_places::{
     enum_variant_value, resolve_machine_owned_place, resolve_runtime_storage_place,
@@ -1321,143 +1324,6 @@ fn runtime_leaf_storage_copy(
         target,
         value,
     )
-}
-
-fn select_state_body_instructions(
-    native_plan: &NativePlan,
-    state_key: StateKey,
-    operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
-    visiting: &mut Vec<StateKey>,
-) {
-    if visiting.contains(&state_key) {
-        return;
-    }
-
-    visiting.push(state_key);
-
-    let Some(state) = native_plan.control_flow.state_by_key(state_key) else {
-        visiting.pop();
-        return;
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        visiting.pop();
-        return;
-    };
-
-    for operation in operations {
-        if let Some(host_call) =
-            host_call_for_statement(native_plan, state.key, operation.statement_index)
-        {
-            select_host_call(native_plan, host_call, operands, selected_instructions);
-            continue;
-        }
-
-        let OperationKind::Call { .. } = &operation.kind else {
-            continue;
-        };
-        let Some(state_call) =
-            state_call_for_statement(native_plan, state.key, operation.statement_index)
-        else {
-            continue;
-        };
-
-        if state_call.target_machine.is_empty() {
-            continue;
-        }
-
-        select_state_body_instructions(
-            native_plan,
-            state_call.target_key,
-            operands,
-            selected_instructions,
-            visiting,
-        );
-    }
-
-    visiting.pop();
-}
-
-fn select_state_host_calls(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-    operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
-) {
-    for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if host_call.machine != machine_name || host_call.state != state_name {
-            continue;
-        }
-
-        select_host_call(native_plan, host_call, operands, selected_instructions);
-    }
-}
-
-fn runtime_reachable_states(
-    native_plan: &NativePlan,
-) -> Vec<crate::state_schedule::ScheduledState> {
-    let mut states = Vec::new();
-
-    for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
-    }
-
-    for (_, state_call) in native_plan.state_calls.calls.iter() {
-        if !state_call.required {
-            continue;
-        }
-
-        push_scheduled_state(
-            native_plan,
-            &mut states,
-            &state_call.source_machine,
-            &state_call.source_state,
-        );
-
-        if !state_call.target_machine.is_empty() {
-            push_scheduled_state(
-                native_plan,
-                &mut states,
-                &state_call.target_machine,
-                &state_call.target_state,
-            );
-        }
-    }
-
-    states
-}
-
-fn push_scheduled_state(
-    native_plan: &NativePlan,
-    states: &mut Vec<crate::state_schedule::ScheduledState>,
-    machine: &str,
-    state: &str,
-) {
-    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
-        return;
-    };
-
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
-    }
-
-    states.push(crate::state_schedule::ScheduledState { key });
-}
-
-fn machine_name_for_state<'plan>(
-    native_plan: &'plan NativePlan,
-    state_flow: &StateFlow,
-) -> Option<&'plan str> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.symbol == state_flow.key.machine)
-        .map(|(_, machine)| machine.name.as_str())
 }
 
 fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
