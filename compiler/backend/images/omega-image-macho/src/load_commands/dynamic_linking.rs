@@ -1,10 +1,10 @@
-use crate::target_output::macho::bytes::{write_u32, write_u64};
-use crate::target_output::macho::constants::{
+use crate::bytes::{write_u32, write_u64};
+use crate::constants::{
     MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_LOAD_DYLINKER_COMMAND_SIZE,
     MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE,
 };
 
-pub(in crate::target_output::macho) fn write_macho_load_dylinker_command(bytes: &mut Vec<u8>) {
+pub(crate) fn write_macho_load_dylinker_command(bytes: &mut Vec<u8>) {
     let start = bytes.len();
     write_u32(bytes, 0xe);
     write_u32(bytes, MACHO_LOAD_DYLINKER_COMMAND_SIZE as u32);
@@ -13,10 +13,7 @@ pub(in crate::target_output::macho) fn write_macho_load_dylinker_command(bytes: 
     bytes.resize(start + MACHO_LOAD_DYLINKER_COMMAND_SIZE, 0);
 }
 
-pub(in crate::target_output::macho) fn write_macho_main_command(
-    bytes: &mut Vec<u8>,
-    entry_offset: usize,
-) {
+pub(crate) fn write_macho_main_command(bytes: &mut Vec<u8>, entry_offset: usize) {
     write_u32(bytes, 0x80000028);
     write_u32(bytes, MACHO_MAIN_COMMAND_SIZE as u32);
     write_u64(
@@ -26,9 +23,7 @@ pub(in crate::target_output::macho) fn write_macho_main_command(
     write_u64(bytes, 0);
 }
 
-pub(in crate::target_output::macho) fn write_macho_executable_build_version_command(
-    bytes: &mut Vec<u8>,
-) {
+pub(crate) fn write_macho_executable_build_version_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x32);
     write_u32(bytes, MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE as u32);
     write_u32(bytes, 1);
@@ -39,7 +34,7 @@ pub(in crate::target_output::macho) fn write_macho_executable_build_version_comm
     write_u32(bytes, 0);
 }
 
-pub(in crate::target_output::macho) fn write_macho_load_libsystem_command(bytes: &mut Vec<u8>) {
+pub(crate) fn write_macho_load_libsystem_command(bytes: &mut Vec<u8>) {
     let start = bytes.len();
     write_u32(bytes, 0xc);
     write_u32(bytes, MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE as u32);

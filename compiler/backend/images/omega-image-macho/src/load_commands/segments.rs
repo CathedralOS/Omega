@@ -1,10 +1,10 @@
-use crate::target_output::macho::bytes::{write_fixed_string_16, write_u32, write_u64};
-use crate::target_output::macho::constants::{
+use crate::bytes::{write_fixed_string_16, write_u32, write_u64};
+use crate::constants::{
     MACHO_ARM64_PAGE_SIZE, MACHO_EXECUTABLE_BASE, MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE,
 };
-use crate::target_output::macho::layout::{align_to_u64, alignment_power};
+use crate::layout::{align_to_u64, alignment_power};
 
-pub(in crate::target_output::macho) fn write_macho_pagezero_segment(bytes: &mut Vec<u8>) {
+pub(crate) fn write_macho_pagezero_segment(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x19);
     write_u32(bytes, MACHO_SEGMENT_COMMAND_SIZE as u32);
     write_fixed_string_16(bytes, "__PAGEZERO");
@@ -18,7 +18,7 @@ pub(in crate::target_output::macho) fn write_macho_pagezero_segment(bytes: &mut 
     write_u32(bytes, 0);
 }
 
-pub(in crate::target_output::macho) fn write_macho_executable_text_segment(
+pub(crate) fn write_macho_executable_text_segment(
     bytes: &mut Vec<u8>,
     text_offset: usize,
     text_size: usize,
@@ -66,7 +66,7 @@ pub(in crate::target_output::macho) fn write_macho_executable_text_segment(
     write_u32(bytes, 0);
 }
 
-pub(in crate::target_output::macho) fn write_macho_executable_data_segment(
+pub(crate) fn write_macho_executable_data_segment(
     bytes: &mut Vec<u8>,
     data_offset: usize,
     data_size: usize,
@@ -108,7 +108,7 @@ pub(in crate::target_output::macho) fn write_macho_executable_data_segment(
     }
 }
 
-pub(in crate::target_output::macho) fn write_macho_linkedit_segment(
+pub(crate) fn write_macho_linkedit_segment(
     bytes: &mut Vec<u8>,
     vmaddr: u64,
     file_offset: usize,

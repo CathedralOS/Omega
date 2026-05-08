@@ -1,10 +1,10 @@
-use crate::target_output::macho::bytes::write_u32;
-use crate::target_output::macho::constants::{
+use crate::bytes::write_u32;
+use crate::constants::{
     MACHO_HEADER_FLAGS_DYLDLINK, MACHO_HEADER_FLAGS_NOUNDEFS, MACHO_HEADER_FLAGS_PIE,
     MACHO_HEADER_FLAGS_TWOLEVEL,
 };
 
-pub(in crate::target_output::macho) fn write_macho_executable_header(
+pub(crate) fn write_macho_executable_header(
     bytes: &mut Vec<u8>,
     command_count: usize,
     sizeofcmds: usize,

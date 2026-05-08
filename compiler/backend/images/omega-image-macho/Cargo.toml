@@ -1,0 +1,15 @@
+[package]
+name = "omega-image-macho"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_image_macho"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../../foundation/omega-core" }
+omega-image = { path = "../omega-image" }
+
+sha2 = "0.10"

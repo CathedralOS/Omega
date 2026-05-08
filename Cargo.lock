@@ -155,6 +155,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-image-macho"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+ "sha2",
+]
+
+[[package]]
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
@@ -194,6 +203,7 @@ dependencies = [
  "omega-core",
  "omega-image",
  "omega-image-elf",
+ "omega-image-macho",
  "omega-isa-aarch64",
  "omega-layout",
  "omega-object",

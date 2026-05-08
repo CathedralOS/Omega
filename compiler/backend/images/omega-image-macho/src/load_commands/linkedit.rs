@@ -1,9 +1,9 @@
-use crate::target_output::macho::bytes::write_u32;
-use crate::target_output::macho::constants::{
+use crate::bytes::write_u32;
+use crate::constants::{
     MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYSYMTAB_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE,
 };
 
-pub(in crate::target_output::macho) fn write_macho_code_signature_command(
+pub(crate) fn write_macho_code_signature_command(
     bytes: &mut Vec<u8>,
     code_signature_offset: usize,
     code_signature_size: usize,
@@ -20,7 +20,7 @@ pub(in crate::target_output::macho) fn write_macho_code_signature_command(
     );
 }
 
-pub(in crate::target_output::macho) fn write_empty_macho_symtab_command(bytes: &mut Vec<u8>) {
+pub(crate) fn write_empty_macho_symtab_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0x2);
     write_u32(bytes, MACHO_SYMTAB_COMMAND_SIZE as u32);
     write_u32(bytes, 0);
@@ -29,7 +29,7 @@ pub(in crate::target_output::macho) fn write_empty_macho_symtab_command(bytes: &
     write_u32(bytes, 0);
 }
 
-pub(in crate::target_output::macho) fn write_empty_macho_dysymtab_command(bytes: &mut Vec<u8>) {
+pub(crate) fn write_empty_macho_dysymtab_command(bytes: &mut Vec<u8>) {
     write_u32(bytes, 0xb);
     write_u32(bytes, MACHO_DYSYMTAB_COMMAND_SIZE as u32);
     for _ in 0..18 {
