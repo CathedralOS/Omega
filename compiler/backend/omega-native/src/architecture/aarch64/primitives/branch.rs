@@ -1,0 +1,63 @@
+use omega_core::diagnostics::Diagnostic;
+
+use super::instruction::encode_instruction;
+
+pub(in crate::architecture::aarch64) fn encode_conditional_branch_not_equal(
+    byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ne")?;
+    Ok(encode_instruction(
+        0x54000001 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+pub(in crate::architecture::aarch64) fn encode_conditional_branch_equal(
+    byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.eq")?;
+    Ok(encode_instruction(
+        0x54000000 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
+pub(in crate::architecture::aarch64) fn encode_cbz_x(
+    register: u8,
+    byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "cbz")?;
+    Ok(encode_instruction(
+        0xB4000000 | ((instruction_distance as u32 & 0x7ffff) << 5) | u32::from(register),
+    ))
+}
+
+pub(in crate::architecture::aarch64) fn encode_unconditional_branch(
+    byte_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 26, "b")?;
+    Ok(encode_instruction(
+        0x14000000 | (instruction_distance as u32 & 0x03ff_ffff),
+    ))
+}
+
+fn checked_instruction_distance(
+    byte_distance: isize,
+    immediate_bits: u8,
+    instruction_name: &str,
+) -> Result<isize, Diagnostic> {
+    if byte_distance % 4 != 0 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 {instruction_name} target is not instruction aligned: {byte_distance} byte(s)"
+        )));
+    }
+
+    let instruction_distance = byte_distance / 4;
+    let min = -(1isize << (immediate_bits - 1));
+    let max = (1isize << (immediate_bits - 1)) - 1;
+    if instruction_distance < min || instruction_distance > max {
+        return Err(Diagnostic::error(format!(
+            "AArch64 {instruction_name} target is out of range: {instruction_distance} instruction(s)"
+        )));
+    }
+
+    Ok(instruction_distance)
+}
