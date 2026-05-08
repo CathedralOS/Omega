@@ -17,8 +17,8 @@ pub struct RuntimeTextPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextUse {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub expression: Expression,
@@ -28,8 +28,8 @@ pub struct RuntimeTextUse {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuffer {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub target: Expression,
@@ -45,8 +45,8 @@ pub struct RuntimeTextSlot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextWrite {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -55,8 +55,8 @@ pub struct RuntimeTextWrite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuilder {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub segments: HandleSpan<RuntimeTextBuilderSegment>,
@@ -71,8 +71,8 @@ pub struct RuntimeTextBuilderSegment {
 impl Default for RuntimeTextWrite {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::String(String::new()),
             value: Expression::String(String::new()),
@@ -84,8 +84,8 @@ impl Default for RuntimeTextWrite {
 impl Default for RuntimeTextBuilder {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::String(String::new()),
             segments: HandleSpan::empty(),
@@ -132,8 +132,8 @@ impl Default for RuntimeTextSlot {
 impl Default for RuntimeTextBuffer {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             target: Expression::String(String::new()),
@@ -145,8 +145,8 @@ impl Default for RuntimeTextBuffer {
 impl Default for RuntimeTextUse {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             expression: Expression::String(String::new()),
@@ -206,8 +206,8 @@ fn collect_runtime_text_use(
 
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
         plan.uses.insert(RuntimeTextUse {
-            machine: host_call.machine.to_string(),
-            state: host_call.state.to_string(),
+            machine: host_call.machine.clone(),
+            state: host_call.state.clone(),
             statement_index: host_call.statement_index,
             platform_call: host_call.platform_call.clone(),
             expression: expression.clone(),
@@ -232,8 +232,8 @@ fn collect_runtime_text_buffer(
     };
 
     plan.buffers.insert(RuntimeTextBuffer {
-        machine: host_call.machine.to_string(),
-        state: host_call.state.to_string(),
+        machine: host_call.machine.clone(),
+        state: host_call.state.clone(),
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
         target: (**target).clone(),
@@ -356,8 +356,8 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
         }
 
         plan.writes.insert(RuntimeTextWrite {
-            machine: mutation.machine.to_string(),
-            state: mutation.state.to_string(),
+            machine: mutation.machine.clone(),
+            state: mutation.state.clone(),
             statement_index: mutation.statement_index,
             target: mutation.target.clone(),
             value: mutation.value.clone(),
