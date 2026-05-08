@@ -456,9 +456,7 @@ fn validate_type_reference(
             base_name,
             arguments,
         } => {
-            if PrimitiveType::from_name(base_name).is_none()
-                && !symbols.has_data_definition(base_name)
-            {
+            if !symbols.has_type(base_name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown generic type `{base_name}`"
                 )));
@@ -475,13 +473,9 @@ fn validate_type_reference(
             }
         }
         TypeReference::Named(name) => {
-            if PrimitiveType::from_name(name).is_some() {
-                return;
-            }
-
-            if !symbols.has_data_definition(name) {
+            if !symbols.has_type(name) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown data type `{name}`"
+                    "{owner} references unknown type `{name}`"
                 )));
             }
         }

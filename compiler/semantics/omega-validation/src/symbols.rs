@@ -1,7 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_program::Program;
-use omega_typed_program::data::DataDefinition;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::platform::Platform;
 use omega_typed_program::state::State;
@@ -11,12 +10,12 @@ pub struct ProgramSymbols<'program> {
     data_definitions: Vec<DataDefinitionSymbol<'program>>,
     machines: Vec<MachineSymbol<'program>>,
     platforms: Vec<PlatformSymbol<'program>>,
+    types: Vec<TypeSymbol<'program>>,
 }
 
 #[derive(Debug)]
 struct DataDefinitionSymbol<'program> {
     name: &'program str,
-    definition: &'program DataDefinition,
     symbol: SymbolHandle,
 }
 
@@ -34,18 +33,25 @@ struct PlatformSymbol<'program> {
     symbol: SymbolHandle,
 }
 
+#[derive(Debug)]
+struct TypeSymbol<'program> {
+    name: &'program str,
+    symbol: SymbolHandle,
+}
+
 impl<'program> ProgramSymbols<'program> {
     pub fn build(program: &'program Program, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let mut symbols = Self {
             data_definitions: Vec::new(),
             machines: Vec::new(),
             platforms: Vec::new(),
+            types: builtin_type_symbols(program),
         };
 
         for data_definition in &program.data_definitions {
             if symbols
-                .data_definition(data_definition.name.as_str())
-                .is_some()
+                .data_definition_symbol(data_definition.name.as_str())
+                .is_valid()
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate data `{}`",
@@ -55,7 +61,10 @@ impl<'program> ProgramSymbols<'program> {
 
             symbols.data_definitions.push(DataDefinitionSymbol {
                 name: data_definition.name.as_str(),
-                definition: data_definition,
+                symbol: top_level_symbol(program, data_definition.name.as_str()),
+            });
+            symbols.types.push(TypeSymbol {
+                name: data_definition.name.as_str(),
                 symbol: top_level_symbol(program, data_definition.name.as_str()),
             });
         }
@@ -68,7 +77,10 @@ impl<'program> ProgramSymbols<'program> {
                 )));
             }
 
-            if symbols.data_definition(machine.name.as_str()).is_some() {
+            if symbols
+                .data_definition_symbol(machine.name.as_str())
+                .is_valid()
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both data and a machine",
                     machine.name
@@ -90,7 +102,10 @@ impl<'program> ProgramSymbols<'program> {
                 )));
             }
 
-            if symbols.data_definition(platform.name.as_str()).is_some() {
+            if symbols
+                .data_definition_symbol(platform.name.as_str())
+                .is_valid()
+            {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}` is declared as both data and a platform",
                     platform.name
@@ -114,8 +129,16 @@ impl<'program> ProgramSymbols<'program> {
         symbols
     }
 
-    pub fn has_data_definition(&self, name: &str) -> bool {
-        self.data_definition_symbol(name).is_valid()
+    pub fn has_type(&self, name: &str) -> bool {
+        self.type_symbol(name).is_valid()
+    }
+
+    fn type_symbol(&self, name: &str) -> SymbolHandle {
+        self.types
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     fn data_definition_symbol(&self, name: &str) -> SymbolHandle {
@@ -158,13 +181,6 @@ impl<'program> ProgramSymbols<'program> {
 
     pub fn is_callable_receiver_type(&self, name: &str) -> bool {
         self.machine_symbol(name).is_valid() || self.platform_symbol(name).is_valid()
-    }
-
-    fn data_definition(&self, name: &str) -> Option<&'program DataDefinition> {
-        self.data_definitions
-            .iter()
-            .find(|symbol| symbol.name == name)
-            .map(|symbol| symbol.definition)
     }
 }
 
@@ -345,6 +361,27 @@ impl<'program> MachineSymbols<'program> {
 
 fn top_level_symbol(program: &Program, name: &str) -> SymbolHandle {
     child_symbol(program, program.symbols.root(), name)
+}
+
+fn builtin_type_symbols(program: &Program) -> Vec<TypeSymbol<'_>> {
+    let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
+        return Vec::new();
+    };
+
+    root_children
+        .filter_map(|symbol| {
+            let kind = program.symbols.get(symbol).kind;
+
+            if kind != SymbolKind::BuiltinType {
+                return None;
+            }
+
+            Some(TypeSymbol {
+                name: program.symbols.name(symbol),
+                symbol,
+            })
+        })
+        .collect()
 }
 
 fn child_symbol(program: &Program, parent: SymbolHandle, name: &str) -> SymbolHandle {
