@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 
@@ -152,11 +152,7 @@ impl WorkerPoolHandle {
 
         let mut results = Vec::with_capacity(job_count);
         for _ in 0..job_count {
-            results.push(
-                receiver
-                    .recv()
-                    .expect("worker should send one result per job"),
-            );
+            results.push(self.wait_for_result(&receiver));
         }
 
         results.sort_by_key(|(index, _)| *index);
@@ -191,12 +187,8 @@ impl WorkerPoolHandle {
         });
 
         (
-            first_receiver
-                .recv()
-                .expect("first join job should produce a value"),
-            second_receiver
-                .recv()
-                .expect("second join job should produce a value"),
+            self.wait_for_result(&first_receiver),
+            self.wait_for_result(&second_receiver),
         )
     }
 
@@ -236,16 +228,40 @@ impl WorkerPoolHandle {
         });
 
         (
-            first_receiver
-                .recv()
-                .expect("first join job should produce a value"),
-            second_receiver
-                .recv()
-                .expect("second join job should produce a value"),
-            third_receiver
-                .recv()
-                .expect("third join job should produce a value"),
+            self.wait_for_result(&first_receiver),
+            self.wait_for_result(&second_receiver),
+            self.wait_for_result(&third_receiver),
         )
+    }
+
+    fn wait_for_result<T>(&self, receiver: &Receiver<T>) -> T {
+        loop {
+            match receiver.try_recv() {
+                Ok(result) => return result,
+                Err(TryRecvError::Disconnected) => {
+                    panic!("worker result sender dropped before producing a value")
+                }
+                Err(TryRecvError::Empty) => {}
+            }
+
+            if let Some(job) = self.take_job() {
+                job();
+            } else {
+                return receiver
+                    .recv()
+                    .expect("worker should produce a value before disconnecting");
+            }
+        }
+    }
+
+    fn take_job(&self) -> Option<Job> {
+        let mut state = self.shared.state.lock().expect("worker queue poisoned");
+
+        if state.shutdown {
+            return None;
+        }
+
+        state.jobs.pop_front()
     }
 }
 
@@ -288,5 +304,38 @@ fn run_worker(shared: Arc<SharedWorkerState>) {
         };
 
         job();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkerPool;
+
+    #[test]
+    fn map_ordered_preserves_job_order() {
+        let workers = WorkerPool::new(4);
+
+        let results = workers.map_ordered(8, |index| 7 - index);
+
+        assert_eq!(results, vec![7, 6, 5, 4, 3, 2, 1, 0]);
+    }
+
+    #[test]
+    fn nested_jobs_complete_on_same_pool() {
+        let workers = WorkerPool::new(2);
+        let handle = workers.handle();
+
+        let (nested_sum, direct_value) = workers.join2(
+            move || {
+                handle
+                    .map_ordered(4, |index| index + 1)
+                    .into_iter()
+                    .sum::<usize>()
+            },
+            || 32usize,
+        );
+
+        assert_eq!(nested_sum, 10);
+        assert_eq!(direct_value, 32);
     }
 }
