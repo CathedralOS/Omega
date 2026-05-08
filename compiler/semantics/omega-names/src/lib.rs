@@ -12,12 +12,14 @@ use omega_abstract_syntax_tree::item::{
 use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
+use omega_core::symbols::{SymbolDefinition, SymbolHandle, SymbolKind, SymbolPath, SymbolTable};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolveReport {
     pub definitions: Arena<ResolvedDefinition>,
     pub imports: Arena<ResolvedImport>,
     pub references: Arena<ResolvedReference>,
+    pub symbols: SymbolTable,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -49,6 +51,7 @@ pub struct ResolvedReference {
     pub name: String,
     pub kind: ResolvedReferenceKind,
     pub owner: String,
+    pub symbol_path: SymbolPath,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -65,6 +68,7 @@ pub enum ResolvedReferenceKind {
 
 pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
     let mut report = ResolveReport::default();
+    report.symbols = build_source_symbol_table(items);
 
     for item in items {
         match item {
@@ -170,7 +174,13 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
 }
 
 fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
+    let machine_symbol = report
+        .symbols
+        .find_child_by_name(report.symbols.root(), machine.name.as_str())
+        .unwrap_or_else(SymbolHandle::invalid);
+
     for contained_object in &machine.contains {
+        let symbol_path = resolve_global_name(report, contained_object.type_name.as_str());
         insert_reference(
             report,
             &contained_object.type_name,
@@ -179,6 +189,7 @@ fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
                 "machine `{}` contains `{}`",
                 machine.name, contained_object.name
             ),
+            symbol_path,
         );
     }
 
@@ -197,16 +208,28 @@ fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
                     "machine `{}` owned `{}` initializer",
                     machine.name, owned_data.name
                 ),
+                ResolveContext::from_symbols(machine_symbol, SymbolHandle::invalid()),
             );
         }
     }
 
     for state in &machine.states {
-        collect_state_references(report, machine, state);
+        collect_state_references(report, machine, machine_symbol, state);
     }
 }
 
-fn collect_state_references(report: &mut ResolveReport, machine: &Machine, state: &State) {
+fn collect_state_references(
+    report: &mut ResolveReport,
+    machine: &Machine,
+    machine_symbol: SymbolHandle,
+    state: &State,
+) {
+    let state_symbol = report
+        .symbols
+        .find_child_by_name(machine_symbol, state.name.as_str())
+        .unwrap_or_else(SymbolHandle::invalid);
+    let context = ResolveContext::from_symbols(machine_symbol, state_symbol);
+
     collect_state_signature_parts(
         report,
         &state.parameters,
@@ -219,6 +242,7 @@ fn collect_state_references(report: &mut ResolveReport, machine: &Machine, state
             report,
             statement,
             &format!("machine `{}` state `{}`", machine.name, state.name),
+            context,
         );
     }
 }
@@ -250,18 +274,25 @@ fn collect_state_signature_parts(
     }
 }
 
-fn collect_statement(report: &mut ResolveReport, statement: &Statement, owner: &str) {
+fn collect_statement(
+    report: &mut ResolveReport,
+    statement: &Statement,
+    owner: &str,
+    context: ResolveContext,
+) {
     match statement {
         Statement::Assignment(assignment) => {
             collect_expression(
                 report,
                 &assignment.target,
                 &format!("{owner} assignment target"),
+                context,
             );
             collect_expression(
                 report,
                 &assignment.value,
                 &format!("{owner} assignment value"),
+                context,
             );
         }
         Statement::Call(call) => {
@@ -271,43 +302,72 @@ fn collect_statement(report: &mut ResolveReport, statement: &Statement, owner: &
                 .map(|receiver| format!("{receiver}::{}", call.target))
                 .unwrap_or_else(|| call.target.to_string());
 
-            insert_reference(report, &target, ResolvedReferenceKind::CallTarget, owner);
+            let path = call
+                .receiver
+                .as_ref()
+                .map(|receiver| vec![receiver.as_str(), call.target.as_str()])
+                .unwrap_or_else(|| vec![call.target.as_str()]);
+            let symbol_path = context.resolve_path(&mut report.symbols, &path);
+
+            insert_reference(
+                report,
+                &target,
+                ResolvedReferenceKind::CallTarget,
+                owner,
+                symbol_path,
+            );
 
             for argument in &call.arguments {
-                collect_expression(report, argument, &format!("{owner} call argument"));
+                collect_expression(report, argument, &format!("{owner} call argument"), context);
             }
         }
-        Statement::Expression(expression) => collect_expression(report, expression, owner),
+        Statement::Expression(expression) => collect_expression(report, expression, owner, context),
         Statement::LocalData(local_data) => collect_type_reference(
             report,
             &local_data.type_reference,
             &format!("{owner} local `{}`", local_data.name),
         ),
         Statement::Transition(transition) => {
-            collect_transition_target(report, &transition.target, owner);
+            collect_transition_target(report, &transition.target, owner, context);
 
             if let Some(continuation) = &transition.continuation {
-                collect_transition_target(report, continuation, owner);
+                collect_transition_target(report, continuation, owner, context);
             }
 
             if let TransitionGuard::When(guard) = &transition.guard {
-                collect_expression(report, guard, &format!("{owner} transition guard"));
+                collect_expression(report, guard, &format!("{owner} transition guard"), context);
             }
         }
     }
 }
 
-fn collect_transition_target(report: &mut ResolveReport, target: &TransitionTarget, owner: &str) {
+fn collect_transition_target(
+    report: &mut ResolveReport,
+    target: &TransitionTarget,
+    owner: &str,
+    context: ResolveContext,
+) {
     if let TransitionTarget::Named { path, arguments } = target {
+        let path_members = path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>();
+        let symbol_path = context.resolve_path(&mut report.symbols, &path_members);
         insert_reference(
             report,
             &path.join("::"),
             ResolvedReferenceKind::TransitionTarget,
             owner,
+            symbol_path,
         );
 
         for argument in arguments {
-            collect_expression(report, argument, &format!("{owner} transition argument"));
+            collect_expression(
+                report,
+                argument,
+                &format!("{owner} transition argument"),
+                context,
+            );
         }
     }
 }
@@ -328,14 +388,28 @@ fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeRefer
             base_name,
             arguments,
         } => {
-            insert_reference(report, base_name, ResolvedReferenceKind::Type, owner);
+            let symbol_path = resolve_global_name(report, base_name.as_str());
+            insert_reference(
+                report,
+                base_name,
+                ResolvedReferenceKind::Type,
+                owner,
+                symbol_path,
+            );
 
             for argument in arguments {
                 collect_type_reference(report, argument, owner);
             }
         }
         TypeReference::Named(name) => {
-            insert_reference(report, name, ResolvedReferenceKind::Type, owner);
+            let symbol_path = resolve_global_name(report, name.as_str());
+            insert_reference(
+                report,
+                name,
+                ResolvedReferenceKind::Type,
+                owner,
+                symbol_path,
+            );
         }
         TypeReference::Unit => {}
     }
@@ -345,52 +419,82 @@ fn collect_constraints(report: &mut ResolveReport, constraints: &[TypeConstraint
     for constraint in constraints {
         match constraint {
             TypeConstraint::Named(name) => {
-                insert_reference(report, name, ResolvedReferenceKind::Invariant, owner);
+                let symbol_path = resolve_global_name(report, name.as_str());
+                insert_reference(
+                    report,
+                    name,
+                    ResolvedReferenceKind::Invariant,
+                    owner,
+                    symbol_path,
+                );
             }
             TypeConstraint::Range { minimum, maximum } => {
-                collect_expression(report, minimum, &format!("{owner} range minimum"));
-                collect_expression(report, maximum, &format!("{owner} range maximum"));
+                collect_expression(
+                    report,
+                    minimum,
+                    &format!("{owner} range minimum"),
+                    ResolveContext::default(),
+                );
+                collect_expression(
+                    report,
+                    maximum,
+                    &format!("{owner} range maximum"),
+                    ResolveContext::default(),
+                );
             }
         }
     }
 }
 
-fn collect_expression(report: &mut ResolveReport, expression: &Expression, owner: &str) {
+fn collect_expression(
+    report: &mut ResolveReport,
+    expression: &Expression,
+    owner: &str,
+    context: ResolveContext,
+) {
     match expression {
         Expression::ArrayLiteral(values) => {
             for value in values {
-                collect_expression(report, value, owner);
+                collect_expression(report, value, owner, context);
             }
         }
         Expression::Binary(binary) => {
-            collect_expression(report, &binary.left, owner);
-            collect_expression(report, &binary.right, owner);
+            collect_expression(report, &binary.left, owner, context);
+            collect_expression(report, &binary.right, owner, context);
         }
         Expression::Indexed(indexed) => {
-            collect_expression(report, &indexed.collection, owner);
-            collect_expression(report, &indexed.index, owner);
+            collect_expression(report, &indexed.collection, owner, context);
+            collect_expression(report, &indexed.index, owner, context);
         }
         Expression::Mutable(inner_expression) => {
-            collect_expression(report, inner_expression, owner)
+            collect_expression(report, inner_expression, owner, context)
         }
         Expression::Name(path) => {
+            let path_members = path
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>();
+            let symbol_path = context.resolve_path(&mut report.symbols, &path_members);
             insert_reference(
                 report,
                 &path.join("::"),
                 ResolvedReferenceKind::ExpressionName,
                 owner,
+                symbol_path,
             );
         }
         Expression::StructLiteral(struct_literal) => {
+            let symbol_path = resolve_global_name(report, struct_literal.type_name.as_str());
             insert_reference(
                 report,
                 &struct_literal.type_name,
                 ResolvedReferenceKind::StructLiteral,
                 owner,
+                symbol_path,
             );
 
             for field in &struct_literal.fields {
-                collect_expression(report, &field.value, owner);
+                collect_expression(report, &field.value, owner, context);
             }
         }
         Expression::Boolean(_)
@@ -405,12 +509,162 @@ fn insert_reference(
     name: &str,
     kind: ResolvedReferenceKind,
     owner: &str,
+    symbol_path: SymbolPath,
 ) {
     report.references.insert(ResolvedReference {
         name: name.to_owned(),
         kind,
         owner: owner.to_owned(),
+        symbol_path,
     });
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct ResolveContext {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+}
+
+impl ResolveContext {
+    fn from_symbols(machine: SymbolHandle, state: SymbolHandle) -> Self {
+        Self { machine, state }
+    }
+
+    fn resolve_path(self, symbols: &mut SymbolTable, path: &[&str]) -> SymbolPath {
+        if path.is_empty() {
+            return SymbolPath::default();
+        }
+
+        if path.first() == Some(&"self") && self.machine.is_valid() {
+            return resolve_path_from(symbols, self.machine, &path[1..]).unwrap_or_default();
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol_path) = resolve_path_from(symbols, root, path) {
+                return symbol_path;
+            }
+        }
+
+        SymbolPath::default()
+    }
+}
+
+fn resolve_global_name(report: &mut ResolveReport, name: &str) -> SymbolPath {
+    let root = report.symbols.root();
+    resolve_path_from(&mut report.symbols, root, &[name]).unwrap_or_default()
+}
+
+fn resolve_path_from(
+    symbols: &mut SymbolTable,
+    root: SymbolHandle,
+    path: &[&str],
+) -> Option<SymbolPath> {
+    let mut current = root;
+    let mut members = Vec::with_capacity(path.len());
+
+    for name in path {
+        let child = symbols.find_child_by_name(current, name)?;
+        members.push(child);
+        current = child;
+    }
+
+    Some(symbols.path_from_members(root, members))
+}
+
+fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
+    SymbolTable::from_definition(SymbolDefinition::with_children(
+        SymbolKind::Root,
+        "program",
+        items.iter().filter_map(item_symbol_definition),
+    ))
+}
+
+fn item_symbol_definition(item: &Item) -> Option<SymbolDefinition<'_>> {
+    match item {
+        Item::Capability(capability) => Some(SymbolDefinition::with_children(
+            SymbolKind::HostCapability,
+            capability.name.as_str(),
+            capability.members.iter().map(|member| match member {
+                CapabilityMember::Field(field) => {
+                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
+                }
+                CapabilityMember::State(state) => {
+                    state_signature_symbol_definition(&state.signature)
+                }
+            }),
+        )),
+        Item::Data(data_definition) => Some(SymbolDefinition::with_children(
+            SymbolKind::Data,
+            data_definition.name.as_str(),
+            data_definition.members.iter().map(|member| match member {
+                DataMember::Field(field) => {
+                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
+                }
+                DataMember::Variant(variant) => {
+                    SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+                }
+            }),
+        )),
+        Item::Invariant(invariant) => Some(SymbolDefinition::named(
+            SymbolKind::Invariant,
+            invariant.name.as_str(),
+        )),
+        Item::Machine(machine) => Some(SymbolDefinition::with_children(
+            SymbolKind::Machine,
+            machine.name.as_str(),
+            machine
+                .contains
+                .iter()
+                .map(|contained| {
+                    SymbolDefinition::named(SymbolKind::Object, contained.name.as_str())
+                })
+                .chain(machine.owned_data.iter().map(|owned_data| {
+                    SymbolDefinition::named(SymbolKind::Field, owned_data.name.as_str())
+                }))
+                .chain(machine.states.iter().map(state_symbol_definition)),
+        )),
+        Item::Platform(platform) => Some(SymbolDefinition::with_children(
+            SymbolKind::Platform,
+            platform.name.as_str(),
+            platform
+                .states
+                .iter()
+                .map(state_signature_symbol_definition),
+        )),
+        Item::Target(target) => Some(SymbolDefinition::named(
+            SymbolKind::Object,
+            target.name.as_str(),
+        )),
+        Item::TrustDefinition(trust_definition) => Some(SymbolDefinition::named(
+            SymbolKind::Object,
+            trust_definition.name.as_str(),
+        )),
+        Item::Use(_) => None,
+    }
+}
+
+fn state_symbol_definition(state: &State) -> SymbolDefinition<'_> {
+    SymbolDefinition::with_children(
+        SymbolKind::State,
+        state.name.as_str(),
+        state.parameters.iter().map(|parameter| {
+            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+        }),
+    )
+}
+
+fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition<'_> {
+    SymbolDefinition::with_children(
+        SymbolKind::State,
+        signature.name.as_str(),
+        signature.parameters.iter().map(|parameter| {
+            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+        }),
+    )
 }
 
 #[cfg(test)]
@@ -452,25 +706,33 @@ mod tests {
                     type_reference: TypeReference::named("i32"),
                     initial_value: None,
                 }],
-                states: vec![State {
-                    name: Identifier::generated("entry"),
-                    parameters: vec![StateParameter {
-                        name: Identifier::generated("amount"),
-                        type_reference: TypeReference::named("i32"),
-                        is_const: false,
-                        is_mutable: false,
-                        is_self: false,
-                    }],
-                    return_type: None,
-                    statements: vec![Statement::Transition(Transition {
-                        target: TransitionTarget::Named {
-                            path: identifier_path(&["finish"]),
-                            arguments: Vec::new(),
-                        },
-                        continuation: None,
-                        guard: TransitionGuard::Always,
-                    })],
-                }],
+                states: vec![
+                    State {
+                        name: Identifier::generated("entry"),
+                        parameters: vec![StateParameter {
+                            name: Identifier::generated("amount"),
+                            type_reference: TypeReference::named("i32"),
+                            is_const: false,
+                            is_mutable: false,
+                            is_self: false,
+                        }],
+                        return_type: None,
+                        statements: vec![Statement::Transition(Transition {
+                            target: TransitionTarget::Named {
+                                path: identifier_path(&["finish"]),
+                                arguments: Vec::new(),
+                            },
+                            continuation: None,
+                            guard: TransitionGuard::Always,
+                        })],
+                    },
+                    State {
+                        name: Identifier::generated("finish"),
+                        parameters: Vec::new(),
+                        return_type: None,
+                        statements: Vec::new(),
+                    },
+                ],
             }),
         ]);
 
@@ -489,8 +751,12 @@ mod tests {
             report.references.iter().any(|(_, reference)| {
                 reference.name == "finish"
                     && reference.kind == ResolvedReferenceKind::TransitionTarget
+                    && !report
+                        .symbols
+                        .path_members(reference.symbol_path)
+                        .is_empty()
             }),
-            "state transition target should be collected"
+            "state transition target should be collected and bound to a symbol path"
         );
     }
 }

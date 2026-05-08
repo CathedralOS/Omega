@@ -104,6 +104,17 @@ impl ArtifactWriter {
             "references: {}\n\n",
             resolve_report.references.len()
         ));
+        let resolved_references = resolve_report
+            .references
+            .iter()
+            .filter(|(_, reference)| {
+                !resolve_report
+                    .symbols
+                    .path_members(reference.symbol_path)
+                    .is_empty()
+            })
+            .count();
+        output.push_str(&format!("resolved references: {resolved_references}\n\n"));
 
         output.push_str("## Imports\n");
         for (_, import) in resolve_report.imports.iter() {
@@ -117,9 +128,21 @@ impl ArtifactWriter {
 
         output.push_str("\n## References\n");
         for (_, reference) in resolve_report.references.iter() {
+            let resolved_path = resolve_report
+                .symbols
+                .path_members(reference.symbol_path)
+                .iter()
+                .map(|symbol| resolve_report.symbols.name(*symbol))
+                .collect::<Vec<_>>()
+                .join("::");
+            let resolved_suffix = if resolved_path.is_empty() {
+                " unresolved".to_owned()
+            } else {
+                format!(" -> {resolved_path}")
+            };
             output.push_str(&format!(
-                "- {:?} `{}` from {}\n",
-                reference.kind, reference.name, reference.owner
+                "- {:?} `{}` from {}{}\n",
+                reference.kind, reference.name, reference.owner, resolved_suffix
             ));
         }
 
