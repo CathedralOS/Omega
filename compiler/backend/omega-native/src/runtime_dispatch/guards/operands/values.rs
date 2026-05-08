@@ -1,4 +1,4 @@
-use crate::layout::{DataShape, LayoutPlan};
+use omega_layout::{DataShape, LayoutPlan};
 use omega_typed_program::expression::Expression;
 
 pub(super) fn resolved_guard_operand_value(

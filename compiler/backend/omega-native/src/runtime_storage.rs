@@ -7,11 +7,11 @@ pub use model::{
 };
 
 use crate::control_flow::StateKey;
-use crate::layout::TypeLayout;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::state_storage::{StateMutation, StateMutationLowering};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_layout::TypeLayout;
 use omega_typed_program::types::PrimitiveType;
 use std::sync::Arc;
 

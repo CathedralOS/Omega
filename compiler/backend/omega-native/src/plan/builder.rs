@@ -8,7 +8,6 @@ use crate::control_flow::build_control_flow_plan_with_workers;
 use crate::data::build_native_data_plan;
 use crate::host_calls::{attach_host_call_state_keys, build_host_call_plan_with_workers};
 use crate::instructions::build_instruction_plan;
-use crate::layout::build_layout_plan;
 use crate::machine_code::build_machine_code_plan;
 use crate::object::build_object_plan;
 use crate::relocations::build_relocation_plan;
@@ -36,6 +35,7 @@ use crate::state_values::build_state_value_plan_with_workers;
 use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
+use omega_layout::build_layout_plan;
 use omega_typed_program::Program;
 use std::sync::Arc;
 

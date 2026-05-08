@@ -1,6 +1,12 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::name::ProgramName;
 
+mod builder;
+mod packing;
+mod sizing;
+
+pub use builder::build_layout_plan;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
     pub size: usize,

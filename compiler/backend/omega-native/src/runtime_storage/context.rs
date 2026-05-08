@@ -1,7 +1,7 @@
-use crate::layout::LayoutPlan;
 use crate::plan::NativePlan;
 use crate::state_storage::StateStoragePlan;
 use crate::target::NativeTarget;
+use omega_layout::LayoutPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStorageContext {

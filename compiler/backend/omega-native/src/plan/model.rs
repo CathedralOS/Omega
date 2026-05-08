@@ -4,7 +4,6 @@ use crate::control_flow::{ControlFlowPlan, StateKey};
 use crate::data::NativeDataPlan;
 use crate::host_calls::HostCallPlan;
 use crate::instructions::InstructionPlan;
-use crate::layout::LayoutPlan;
 use crate::machine_code::MachineCodePlan;
 use crate::object::ObjectPlan;
 use crate::relocations::RelocationPlan;
@@ -21,6 +20,7 @@ use crate::state_storage::StateStoragePlan;
 use crate::state_values::StateValuePlan;
 use crate::target::NativeTarget;
 use omega_core::allocations::AllocationDelta;
+use omega_layout::LayoutPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {

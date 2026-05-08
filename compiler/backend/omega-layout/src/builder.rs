@@ -1,15 +1,32 @@
-use crate::layout::packing::{PlannedField, pack_fields};
-use crate::layout::sizing::primitive_type_layout;
-use crate::target::NativeTarget;
+use crate::packing::{PlannedField, pack_fields};
+use crate::sizing::primitive_type_layout;
+use crate::{DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_layout::{DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout};
+use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_typed_program::machine::Machine;
 use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
 
-pub(super) struct LayoutBuilder<'program> {
+pub fn build_layout_plan(
+    program: &Program,
+    target: NativeTarget,
+) -> Result<LayoutPlan, Diagnostic> {
+    let mut builder = LayoutBuilder::new(program, target);
+
+    for data_definition in &program.data_definitions {
+        builder.layout_data_definition(&data_definition.name)?;
+    }
+
+    for machine in &program.machines {
+        builder.layout_machine(&machine.name)?;
+    }
+
+    Ok(builder.finish())
+}
+
+struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
     data_visiting: Vec<String>,
@@ -22,7 +39,7 @@ pub(super) struct LayoutBuilder<'program> {
 }
 
 impl<'program> LayoutBuilder<'program> {
-    pub(super) fn new(program: &'program Program, target: NativeTarget) -> Self {
+    fn new(program: &'program Program, target: NativeTarget) -> Self {
         Self {
             data_definitions: &program.data_definitions,
             data_layouts: Arena::new(),
@@ -36,7 +53,7 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    pub(super) fn finish(self) -> LayoutPlan {
+    fn finish(self) -> LayoutPlan {
         LayoutPlan {
             data_layouts: self.data_layouts,
             fields: self.fields,
@@ -44,7 +61,7 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    pub(super) fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
+    fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
         if let Some(data_layout) = self
             .data_layouts
             .iter()
@@ -72,7 +89,7 @@ impl<'program> LayoutBuilder<'program> {
         Ok(layout)
     }
 
-    pub(super) fn layout_machine(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
+    fn layout_machine(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
         if let Some(machine_layout) = self
             .machine_layouts
             .iter()

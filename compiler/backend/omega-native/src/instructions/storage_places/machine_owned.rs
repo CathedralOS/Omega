@@ -1,6 +1,6 @@
 use super::expressions::normalized_storage_expression;
 use super::nested_fields::{field_layout, resolve_nested_field_layout};
-use crate::layout::{FieldLayout, LayoutPlan};
+use omega_layout::{FieldLayout, LayoutPlan};
 use omega_typed_program::expression::Expression;
 
 pub(in crate::instructions) fn resolve_machine_owned_place(

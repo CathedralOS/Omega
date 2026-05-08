@@ -102,6 +102,7 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "omega-graph",
+ "omega-layout",
  "omega-lexer",
  "omega-names",
  "omega-native",
@@ -140,6 +141,7 @@ name = "omega-layout"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "omega-target",
  "omega-typed-program",
 ]
 

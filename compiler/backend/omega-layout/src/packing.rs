@@ -1,11 +1,11 @@
-use omega_layout::{FieldLayout, TypeLayout};
+use crate::{FieldLayout, TypeLayout};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug)]
 pub(super) struct PlannedField {
-    pub(super) name: ProgramName,
-    pub(super) type_name: String,
-    pub(super) layout: TypeLayout,
+    pub name: ProgramName,
+    pub type_name: String,
+    pub layout: TypeLayout,
 }
 
 pub(super) fn pack_fields(fields: Vec<PlannedField>) -> (Vec<FieldLayout>, TypeLayout) {

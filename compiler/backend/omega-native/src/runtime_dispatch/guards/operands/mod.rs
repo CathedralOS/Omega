@@ -6,6 +6,7 @@ use crate::runtime_dispatch::guards::StateGuardOperand;
 use classify::classify_guard_operand;
 use layout::resolve_guard_operand_layout;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_layout::LayoutPlan;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 use values::resolved_guard_operand_value;
@@ -25,7 +26,7 @@ impl GuardOperands {
 }
 
 pub(in crate::runtime_dispatch::guards) fn guard_operands(
-    layouts: &crate::layout::LayoutPlan,
+    layouts: &LayoutPlan,
     entry_machine: &str,
     source_machine: &str,
     guard: &TransitionGuard,
@@ -41,7 +42,7 @@ pub(in crate::runtime_dispatch::guards) fn guard_operands(
 }
 
 fn guard_operand(
-    layouts: &crate::layout::LayoutPlan,
+    layouts: &LayoutPlan,
     entry_machine: &str,
     source_machine: &str,
     expression: Expression,

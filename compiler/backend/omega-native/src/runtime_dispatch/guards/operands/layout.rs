@@ -1,6 +1,6 @@
-use crate::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::runtime_dispatch::guards::StateGuardOperandStorage;
 use omega_core::arena::HandleSpan;
+use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 

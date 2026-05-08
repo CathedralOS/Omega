@@ -1,5 +1,5 @@
-use crate::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use omega_core::arena::HandleSpan;
+use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::instructions) fn resolve_nested_field_layout(

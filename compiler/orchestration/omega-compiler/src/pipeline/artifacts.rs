@@ -7,6 +7,7 @@ use crate::pipeline::trust::TrustReport;
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
+use omega_layout::{DataShape, FieldLayout};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
 use omega_native::abi::{
@@ -26,7 +27,6 @@ use omega_native::identity::count_native_string_storage;
 use omega_native::instructions::{
     FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
-use omega_native::layout::{DataShape, FieldLayout};
 use omega_native::machine_code::{MachineFunctionCode, MachineInstruction};
 use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;

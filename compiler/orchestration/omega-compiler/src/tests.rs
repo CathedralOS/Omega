@@ -672,7 +672,7 @@ fn plans_native_layout_for_primitive_widths() {
         .find(|(_, layout)| layout.name == "Counters")
         .map(|(_, layout)| layout)
         .expect("Counters layout should exist");
-    let omega_native::layout::DataShape::Record { fields } = &counters_layout.shape else {
+    let omega_layout::DataShape::Record { fields } = &counters_layout.shape else {
         panic!("expected record layout");
     };
     let fields = native_plan
