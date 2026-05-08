@@ -1,4 +1,5 @@
 use crate::control_flow::{ControlFlowPlan, OperationKind};
+use crate::host_calls::HostCallPlan;
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeFlowPlan;
 use crate::state_calls::StateCallPlan;
@@ -6,6 +7,7 @@ use crate::state_calls::StateCallPlan;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateAnalysisContext {
     pub control_flow: ControlFlowPlan,
+    pub host_calls: HostCallPlan,
     pub runtime_flow: RuntimeFlowPlan,
     pub state_calls: StateCallPlan,
 }
@@ -14,6 +16,7 @@ impl StateAnalysisContext {
     pub fn from_native_plan(native_plan: &NativePlan) -> Self {
         Self {
             control_flow: native_plan.control_flow.clone(),
+            host_calls: native_plan.host_calls.clone(),
             runtime_flow: native_plan.runtime_flow.clone(),
             state_calls: native_plan.state_calls.clone(),
         }
@@ -67,6 +70,26 @@ impl StateAnalysisContext {
                     OperationKind::ConstantIntegerAssignment
                         | OperationKind::StaticAssignment { .. }
                 )
+        })
+    }
+
+    pub fn runtime_state_is_reachable(&self, machine_name: &str, state_name: &str) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.machine == machine_name && state.state == state_name)
+    }
+
+    pub fn state_statement_has_host_call(
+        &self,
+        machine_name: &str,
+        state_name: &str,
+        statement_index: usize,
+    ) -> bool {
+        self.host_calls.calls.iter().any(|(_, host_call)| {
+            host_call.machine == machine_name
+                && host_call.state == state_name
+                && host_call.statement_index == statement_index
         })
     }
 }

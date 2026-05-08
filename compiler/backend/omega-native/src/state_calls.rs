@@ -1,8 +1,11 @@
 use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind};
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
+use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlan {
@@ -106,19 +109,45 @@ struct CollectedStateCall {
 }
 
 pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
-    let mut calls = Vec::new();
+    let workers = WorkerPool::with_available_parallelism();
 
-    for (_, machine) in native_plan.control_flow.machines.iter() {
-        collect_machine_state_calls(native_plan, machine, &mut calls);
-    }
+    build_state_call_plan_with_workers(
+        Arc::new(StateAnalysisContext::from_native_plan(native_plan)),
+        workers.handle(),
+    )
+}
 
-    mark_required_state_calls(native_plan, &mut calls);
+pub fn build_state_call_plan_with_workers(
+    context: Arc<StateAnalysisContext>,
+    workers: WorkerPoolHandle,
+) -> StateCallPlan {
+    let machines = Arc::new(
+        context
+            .control_flow
+            .machines
+            .iter()
+            .map(|(_, machine)| machine.clone())
+            .collect::<Vec<_>>(),
+    );
+    let machine_count = machines.len();
+    let context_for_collection = Arc::clone(&context);
+    let machine_calls = workers.map_ordered(machine_count, move |index| {
+        let machine = machines
+            .get(index)
+            .expect("state-call worker index should be in range");
+
+        collect_machine_state_calls(&context_for_collection, machine)
+    });
+
+    let mut calls = machine_calls.into_iter().flatten().collect::<Vec<_>>();
+
+    mark_required_state_calls(&context, &mut calls);
 
     let mut plan = StateCallPlan::default();
     for call in calls {
-        let lowering = state_call_lowering(native_plan, &call);
+        let lowering = state_call_lowering(&context, &call);
         let arguments = plan.arguments.insert_many(build_call_arguments(
-            native_plan,
+            &context,
             &call.target_machine,
             &call.target_state,
             call.required,
@@ -144,32 +173,38 @@ pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     plan
 }
 
-fn state_call_lowering(native_plan: &NativePlan, call: &CollectedStateCall) -> StateCallLowering {
+fn state_call_lowering(
+    context: &StateAnalysisContext,
+    call: &CollectedStateCall,
+) -> StateCallLowering {
     if call.target_machine.is_empty() {
         StateCallLowering::Unresolved
-    } else if state_call_targets_leaf(native_plan, call) {
+    } else if state_call_targets_leaf(context, call) {
         StateCallLowering::InlineLeaf
-    } else if state_call_targets_branching_state(native_plan, call) {
+    } else if state_call_targets_branching_state(context, call) {
         StateCallLowering::InlineBranching
     } else {
         StateCallLowering::InlineExpansion
     }
 }
 
-fn state_call_targets_branching_state(native_plan: &NativePlan, call: &CollectedStateCall) -> bool {
-    native_plan
+fn state_call_targets_branching_state(
+    context: &StateAnalysisContext,
+    call: &CollectedStateCall,
+) -> bool {
+    context
         .control_flow
         .machines
         .iter()
         .find(|(_, machine)| machine.name == call.target_machine)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == call.target_state))
-        .and_then(|state| native_plan.control_flow.transitions.span(state.transitions))
+        .and_then(|state| context.control_flow.transitions.span(state.transitions))
         .is_some_and(|transitions| !transitions.is_empty())
 }
 
-fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) -> bool {
-    let Some(machine) = native_plan
+fn state_call_targets_leaf(context: &StateAnalysisContext, call: &CollectedStateCall) -> bool {
+    let Some(machine) = context
         .control_flow
         .machines
         .iter()
@@ -178,7 +213,7 @@ fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) 
     else {
         return false;
     };
-    let Some(state) = native_plan
+    let Some(state) = context
         .control_flow
         .states
         .span(machine.states)
@@ -187,7 +222,7 @@ fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) 
         return false;
     };
 
-    let transitions_are_empty = native_plan
+    let transitions_are_empty = context
         .control_flow
         .transitions
         .span(state.transitions)
@@ -196,15 +231,14 @@ fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) 
         return false;
     }
 
-    native_plan
+    context
         .control_flow
         .operations
         .span(state.operations)
         .is_none_or(|operations| {
             operations.iter().all(|operation| {
                 !matches!(operation.kind, OperationKind::Call { .. })
-                    || state_statement_has_host_call(
-                        native_plan,
+                    || context.state_statement_has_host_call(
                         &call.target_machine,
                         &call.target_state,
                         operation.statement_index,
@@ -214,16 +248,17 @@ fn state_call_targets_leaf(native_plan: &NativePlan, call: &CollectedStateCall) 
 }
 
 fn collect_machine_state_calls(
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     machine: &MachineFlow,
-    calls: &mut Vec<CollectedStateCall>,
-) {
-    let Some(states) = native_plan.control_flow.states.span(machine.states) else {
-        return;
+) -> Vec<CollectedStateCall> {
+    let mut calls = Vec::new();
+
+    let Some(states) = context.control_flow.states.span(machine.states) else {
+        return calls;
     };
 
     for state in states {
-        let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        let Some(operations) = context.control_flow.operations.span(state.operations) else {
             continue;
         };
 
@@ -237,8 +272,7 @@ fn collect_machine_state_calls(
                 continue;
             };
 
-            if state_statement_has_host_call(
-                native_plan,
+            if context.state_statement_has_host_call(
                 &machine.name,
                 &state.name,
                 operation.statement_index,
@@ -247,7 +281,7 @@ fn collect_machine_state_calls(
             }
 
             let resolved_target = resolve_state_call_target(
-                &native_plan.control_flow,
+                &context.control_flow,
                 machine,
                 receiver.as_deref(),
                 target,
@@ -264,7 +298,7 @@ fn collect_machine_state_calls(
                     .unwrap_or_default(),
                 target_state: target.clone(),
                 raw_arguments: arguments.clone(),
-                reachable: runtime_state_is_reachable(native_plan, &machine.name, &state.name),
+                reachable: context.runtime_state_is_reachable(&machine.name, &state.name),
                 required: false,
                 resolution: resolved_target
                     .map(|target| target.resolution)
@@ -272,16 +306,18 @@ fn collect_machine_state_calls(
             });
         }
     }
+
+    calls
 }
 
 fn build_call_arguments<'a>(
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     target_machine: &str,
     target_state: &str,
     required: bool,
     raw_arguments: &'a [Expression],
 ) -> impl Iterator<Item = StateCallArgument> + 'a {
-    let parameter_names = state_parameter_names(native_plan, target_machine, target_state);
+    let parameter_names = state_parameter_names(context, target_machine, target_state);
 
     raw_arguments
         .iter()
@@ -300,23 +336,23 @@ fn build_call_arguments<'a>(
 }
 
 fn state_parameter_names(
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     target_machine: &str,
     target_state: &str,
 ) -> Vec<String> {
-    native_plan
+    context
         .control_flow
         .machines
         .iter()
         .find(|(_, machine)| machine.name == target_machine)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == target_state))
         .map(|state| state.parameters.clone())
         .unwrap_or_default()
 }
 
-fn mark_required_state_calls(native_plan: &NativePlan, calls: &mut [CollectedStateCall]) {
-    let mut required_states = native_plan
+fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [CollectedStateCall]) {
+    let mut required_states = context
         .runtime_flow
         .states
         .iter()
@@ -354,7 +390,7 @@ fn mark_required_state_calls(native_plan: &NativePlan, calls: &mut [CollectedSta
 
         let states_snapshot = required_states.clone();
         for (machine_name, state_name) in states_snapshot {
-            for target in transition_targets_from(native_plan, &machine_name, &state_name) {
+            for target in transition_targets_from(context, &machine_name, &state_name) {
                 if let RuntimeTransitionTarget::State { machine, state } = target {
                     changed |= push_required_state(&mut required_states, machine, state);
                 }
@@ -370,11 +406,11 @@ fn mark_required_state_calls(native_plan: &NativePlan, calls: &mut [CollectedSta
 }
 
 fn transition_targets_from(
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     machine_name: &str,
     state_name: &str,
 ) -> Vec<RuntimeTransitionTarget> {
-    let Some(machine) = native_plan
+    let Some(machine) = context
         .control_flow
         .machines
         .iter()
@@ -383,7 +419,7 @@ fn transition_targets_from(
     else {
         return Vec::new();
     };
-    let Some(state) = native_plan
+    let Some(state) = context
         .control_flow
         .states
         .span(machine.states)
@@ -391,7 +427,7 @@ fn transition_targets_from(
     else {
         return Vec::new();
     };
-    let Some(transitions) = native_plan.control_flow.transitions.span(state.transitions) else {
+    let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
         return Vec::new();
     };
 
@@ -519,29 +555,4 @@ fn machine_has_state(control_flow: &ControlFlowPlan, machine_name: &str, state_n
         .find(|(_, machine)| machine.name == machine_name)
         .and_then(|(_, machine)| control_flow.states.span(machine.states))
         .is_some_and(|states| states.iter().any(|state| state.name == state_name))
-}
-
-fn runtime_state_is_reachable(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> bool {
-    native_plan
-        .runtime_flow
-        .states
-        .iter()
-        .any(|(_, state)| state.machine == machine_name && state.state == state_name)
-}
-
-fn state_statement_has_host_call(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-    statement_index: usize,
-) -> bool {
-    native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-        host_call.machine == machine_name
-            && host_call.state == state_name
-            && host_call.statement_index == statement_index
-    })
 }
