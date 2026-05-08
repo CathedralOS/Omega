@@ -17,6 +17,7 @@ use omega_abstract_syntax_tree::statement::{
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::source::FileId;
 use omega_lexer::{Token, TokenKind};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
@@ -29,8 +30,25 @@ pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
 }
 
 pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
+    parse_file_with_optional_source(file_id, None, tokens)
+}
+
+pub fn parse_file_with_source(
+    file_id: FileId,
+    source: Arc<str>,
+    tokens: &[Token<'_>],
+) -> Result<AstFile, ParseError> {
+    parse_file_with_optional_source(file_id, Some(source), tokens)
+}
+
+fn parse_file_with_optional_source(
+    file_id: FileId,
+    source: Option<Arc<str>>,
+    tokens: &[Token<'_>],
+) -> Result<AstFile, ParseError> {
     Parser {
         file_id,
+        source,
         tokens,
         index: 0,
     }
@@ -39,6 +57,7 @@ pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFi
 
 struct Parser<'tokens, 'source> {
     file_id: FileId,
+    source: Option<Arc<str>>,
     tokens: &'tokens [Token<'source>],
     index: usize,
 }
@@ -851,6 +870,7 @@ impl Parser<'_, '_> {
         }
 
         let file_id = self.file_id;
+        let source = self.source.clone();
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token
@@ -869,10 +889,7 @@ impl Parser<'_, '_> {
                         return Ok(Expression::Boolean(false));
                     }
 
-                    let mut path = vec![Identifier::new(
-                        token.lexeme.as_str(),
-                        omega_core::source::SourceSpan::new(file_id, token.span),
-                    )];
+                    let mut path = vec![identifier_from_token(file_id, source.as_ref(), token)];
 
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_identifier()?);
@@ -1068,15 +1085,13 @@ impl Parser<'_, '_> {
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError> {
         let file_id = self.file_id;
+        let source = self.source.clone();
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
 
         if token.kind == TokenKind::Identifier {
-            Ok(Identifier::new(
-                token.lexeme.as_str(),
-                omega_core::source::SourceSpan::new(file_id, token.span),
-            ))
+            Ok(identifier_from_token(file_id, source.as_ref(), token))
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
@@ -1118,6 +1133,20 @@ impl Parser<'_, '_> {
         } else {
             ParseError::new(message)
         }
+    }
+}
+
+fn identifier_from_token(
+    file_id: FileId,
+    source: Option<&Arc<str>>,
+    token: &Token<'_>,
+) -> Identifier {
+    let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
+
+    if let Some(source) = source {
+        Identifier::source(Arc::clone(source), source_span)
+    } else {
+        Identifier::new(token.lexeme.as_str(), source_span)
     }
 }
 

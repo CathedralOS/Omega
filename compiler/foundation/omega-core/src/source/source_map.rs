@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::source::{FileId, SourceFile, SourceSpan};
 
@@ -16,7 +17,7 @@ impl SourceMap {
         self.files.push(SourceFile {
             id: FileId(self.files.len()),
             path,
-            source,
+            source: Arc::from(source),
         });
 
         self.files

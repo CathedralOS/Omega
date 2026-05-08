@@ -18,7 +18,7 @@ pub struct AstIdentityStorageCounts {
 
 impl AstIdentityStorageCounts {
     pub fn owned_identifier_strings(self) -> usize {
-        self.identifiers
+        self.generated_identifiers
     }
 }
 

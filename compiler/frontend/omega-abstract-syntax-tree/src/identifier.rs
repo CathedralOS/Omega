@@ -1,31 +1,53 @@
 use std::fmt;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use omega_core::source::SourceSpan;
 
-#[derive(Debug, Clone, Default, Eq)]
+#[derive(Clone, Default, Eq)]
 pub struct Identifier {
-    text: String,
+    text: IdentifierText,
     source_span: SourceSpan,
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+enum IdentifierText {
+    #[default]
+    Missing,
+    Source(Arc<str>),
+    Generated(String),
 }
 
 impl Identifier {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
-            text: text.into(),
+            text: IdentifierText::Generated(text.into()),
+            source_span,
+        }
+    }
+
+    pub fn source(source: Arc<str>, source_span: SourceSpan) -> Self {
+        Self {
+            text: IdentifierText::Source(source),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: IdentifierText::Generated(text.into()),
             source_span: SourceSpan::default(),
         }
     }
 
     pub fn as_str(&self) -> &str {
-        self.text.as_str()
+        match &self.text {
+            IdentifierText::Missing => "",
+            IdentifierText::Source(source) => source
+                .get(self.source_span.span.start..self.source_span.span.end)
+                .unwrap_or(""),
+            IdentifierText::Generated(text) => text.as_str(),
+        }
     }
 
     pub fn source_span(&self) -> SourceSpan {
@@ -37,7 +59,7 @@ impl Identifier {
     }
 
     pub fn into_string(self) -> String {
-        self.text
+        self.as_str().to_owned()
     }
 }
 
@@ -64,6 +86,16 @@ impl Deref for Identifier {
 impl fmt::Display for Identifier {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+impl fmt::Debug for Identifier {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Identifier")
+            .field("text", &self.as_str())
+            .field("source_span", &self.source_span)
+            .finish()
     }
 }
 

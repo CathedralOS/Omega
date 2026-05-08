@@ -2025,7 +2025,7 @@ fn loaded_source_file_stats(
 
     LoadedSourceFileStats {
         byte_count: source_file.source.len(),
-        line_count: line_count(source_file.source.as_str()),
+        line_count: line_count(source_file.source.as_ref()),
         non_empty_line_count: source_file
             .source
             .lines()

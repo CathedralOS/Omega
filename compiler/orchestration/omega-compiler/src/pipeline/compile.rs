@@ -583,7 +583,7 @@ fn load_source_batch(
         files.push(SourceFile {
             id: FileId(first_file_id + index),
             path,
-            source,
+            source: Arc::from(source),
         });
     }
 
@@ -615,20 +615,24 @@ fn parse_source_batch(
 }
 
 fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
-    let tokens = Lexer::new(&file.source).tokenize().map_err(|error| {
-        vec![Diagnostic::error(format_source_span(
-            file,
-            error.span,
-            &error.message,
-        ))]
-    })?;
+    let tokens = Lexer::new(file.source.as_ref())
+        .tokenize()
+        .map_err(|error| {
+            vec![Diagnostic::error(format_source_span(
+                file,
+                error.span,
+                &error.message,
+            ))]
+        })?;
 
-    crate::parser::parse_file_with_id(file.id, &tokens).map_err(|error| {
-        vec![Diagnostic::error(match error.span {
-            Some(span) => format_source_span(file, span, &error.message),
-            None => format!("{}: {}", file.path.display(), error.message),
-        })]
-    })
+    crate::parser::parse_file_with_source(file.id, Arc::clone(&file.source), &tokens).map_err(
+        |error| {
+            vec![Diagnostic::error(match error.span {
+                Some(span) => format_source_span(file, span, &error.message),
+                None => format!("{}: {}", file.path.display(), error.message),
+            })]
+        },
+    )
 }
 
 fn resolve_source_path(root_dir: &Path, source_path: &IdentifierPath) -> PathBuf {

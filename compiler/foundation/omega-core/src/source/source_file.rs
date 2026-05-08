@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::Span;
 use crate::source::{FileId, SourceSpan};
@@ -7,7 +8,7 @@ use crate::source::{FileId, SourceSpan};
 pub struct SourceFile {
     pub id: FileId,
     pub path: PathBuf,
-    pub source: String,
+    pub source: Arc<str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +50,7 @@ impl SourceFile {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     use crate::Span;
     use crate::source::{FileId, SourceFile};
@@ -58,7 +60,7 @@ mod tests {
         let file = SourceFile {
             id: FileId(7),
             path: PathBuf::from("main.omg"),
-            source: String::from("machine main {}"),
+            source: Arc::from("machine main {}"),
         };
         let span = file.source_span(Span::new(8, 12));
 

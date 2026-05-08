@@ -51,7 +51,7 @@ fn source_files_map_offsets_to_line_columns() {
     let file = crate::source::SourceFile {
         id: crate::source::FileId(0),
         path: "sample.omg".into(),
-        source: "alpha\nbeta".to_owned(),
+        source: std::sync::Arc::from("alpha\nbeta"),
     };
 
     assert_eq!(file.position_at(0).line, 1);
