@@ -2,12 +2,16 @@ use std::path::PathBuf;
 
 use crate::source::{FileId, SourceFile, SourceSpan};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
 }
 
 impl SourceMap {
+    pub fn from_files(files: Vec<SourceFile>) -> Self {
+        Self { files }
+    }
+
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
         self.files.push(SourceFile {
             id: FileId(self.files.len()),

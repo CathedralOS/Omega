@@ -9,7 +9,7 @@ use crate::parser::AstFile;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
-use crate::source::{FileId, SourceFile};
+use crate::source::{FileId, SourceFile, SourceMap};
 use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -26,7 +26,7 @@ use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
-use omega_typed_program::lowering::lower_program_with_workers;
+use omega_typed_program::lowering::lower_program_with_sources_and_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 
@@ -74,7 +74,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "resolve", || {
-        let resolve_report = build_resolve_report(&loaded_program.items);
+        let resolve_report =
+            build_resolve_report(&loaded_program.items, Arc::clone(&loaded_program.sources));
         artifacts
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
@@ -83,8 +84,12 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_workers(Arc::clone(&loaded_program.items), workers.handle())
-                .map_err(|diagnostic| vec![diagnostic])
+            lower_program_with_sources_and_workers(
+                Arc::clone(&loaded_program.items),
+                Some(Arc::clone(&loaded_program.sources)),
+                workers.handle(),
+            )
+            .map_err(|diagnostic| vec![diagnostic])
         },
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
@@ -203,7 +208,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "resolve", || {
-        let resolve_report = build_resolve_report(&loaded_program.items);
+        let resolve_report =
+            build_resolve_report(&loaded_program.items, Arc::clone(&loaded_program.sources));
         artifacts
             .write_resolve_report(&resolve_report)
             .map_err(|diagnostic| vec![diagnostic])
@@ -212,8 +218,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_workers(Arc::clone(&loaded_program.items), workers.handle())
-                .map_err(|diagnostic| vec![diagnostic])
+            lower_program_with_sources_and_workers(
+                Arc::clone(&loaded_program.items),
+                Some(Arc::clone(&loaded_program.sources)),
+                workers.handle(),
+            )
+            .map_err(|diagnostic| vec![diagnostic])
         },
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
@@ -416,6 +426,7 @@ fn format_compact_duration(microseconds: u128) -> String {
 pub(crate) struct LoadedProgram {
     pub(crate) items: Arc<Vec<Item>>,
     pub(crate) files: Vec<LoadedFile>,
+    pub(crate) sources: Arc<SourceMap>,
 }
 
 #[derive(Debug)]
@@ -449,6 +460,7 @@ fn load_program_sources(
     let mut pending = Vec::new();
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
+    let mut source_files = Vec::new();
     let mut selected_target_found = options.target_name.is_none();
 
     if let Some(build_path) = build_policy_path(&options.root_path) {
@@ -474,8 +486,9 @@ fn load_program_sources(
         let files = Arc::new(load_source_batch(&workers, batch_paths, first_file_id)?);
 
         let ast_files = parse_source_batch(&workers, Arc::clone(&files))?;
+        let files = Arc::try_unwrap(files).expect("source files should not be shared after parse");
 
-        for (file, ast_file) in files.iter().zip(ast_files) {
+        for (file, ast_file) in files.into_iter().zip(ast_files) {
             let first_item = items.len();
             let item_count = ast_file.items.len();
 
@@ -518,6 +531,7 @@ fn load_program_sources(
                 item_count,
             });
             items.extend(ast_file.items);
+            source_files.push(file);
         }
     }
 
@@ -534,6 +548,7 @@ fn load_program_sources(
     Ok(LoadedProgram {
         items: Arc::new(items),
         files: loaded_files,
+        sources: Arc::new(SourceMap::from_files(source_files)),
     })
 }
 

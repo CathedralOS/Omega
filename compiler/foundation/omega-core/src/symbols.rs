@@ -2,6 +2,8 @@ use crate::arena::{
     Arena, Handle, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles,
     HierarchyNode,
 };
+use crate::source::{SourceMap, SourceSpan};
+use std::sync::Arc;
 
 pub type SymbolHandle = Handle<Symbol>;
 pub type SymbolSpan = HandleSpan<SymbolHandle>;
@@ -62,6 +64,7 @@ impl HierarchyNode for Symbol {
 pub enum SymbolName {
     #[default]
     Missing,
+    Source(SourceSpan),
     Static(&'static str),
     Owned(String),
 }
@@ -70,13 +73,17 @@ impl SymbolName {
     pub fn from_ref(name: SymbolNameRef<'_>) -> Self {
         match name {
             SymbolNameRef::Borrowed(value) => Self::Owned(value.to_owned()),
+            SymbolNameRef::Source(source_span) => Self::Source(source_span),
             SymbolNameRef::Static(value) => Self::Static(value),
         }
     }
 
-    pub fn as_str(&self) -> &str {
+    pub fn as_str<'source>(&'source self, sources: Option<&'source SourceMap>) -> &'source str {
         match self {
             Self::Missing => "",
+            Self::Source(source_span) => sources
+                .map(|sources| sources.text_at(*source_span))
+                .unwrap_or(""),
             Self::Static(value) => value,
             Self::Owned(value) => value.as_str(),
         }
@@ -91,6 +98,7 @@ pub struct SymbolDebugName {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolNameRef<'name> {
     Borrowed(&'name str),
+    Source(SourceSpan),
     Static(&'static str),
 }
 
@@ -98,6 +106,7 @@ impl<'name> SymbolNameRef<'name> {
     pub fn as_str(self) -> &'name str {
         match self {
             Self::Borrowed(value) => value,
+            Self::Source(_) => "",
             Self::Static(value) => value,
         }
     }
@@ -130,6 +139,15 @@ impl<'name> SymbolDefinition<'name> {
         }
     }
 
+    pub fn source_named(kind: SymbolKind, source_span: SourceSpan) -> Self {
+        Self {
+            kind,
+            name: SymbolNameRef::Source(source_span),
+            debug_name: None,
+            children: Vec::new(),
+        }
+    }
+
     pub fn with_children(
         kind: SymbolKind,
         name: &'name str,
@@ -156,8 +174,26 @@ impl<'name> SymbolDefinition<'name> {
         }
     }
 
+    pub fn source_with_children(
+        kind: SymbolKind,
+        source_span: SourceSpan,
+        children: impl IntoIterator<Item = SymbolDefinition<'name>>,
+    ) -> Self {
+        Self {
+            kind,
+            name: SymbolNameRef::Source(source_span),
+            debug_name: None,
+            children: children.into_iter().collect(),
+        }
+    }
+
     pub fn with_debug_name(mut self, debug_name: &'name str) -> Self {
         self.debug_name = Some(SymbolNameRef::Borrowed(debug_name));
+        self
+    }
+
+    pub fn with_static_debug_name(mut self, debug_name: &'static str) -> Self {
+        self.debug_name = Some(SymbolNameRef::Static(debug_name));
         self
     }
 }
@@ -198,12 +234,14 @@ pub struct SymbolTable {
     names: Arena<SymbolName>,
     debug_names: Arena<SymbolDebugName>,
     path_members: Arena<SymbolHandle>,
+    sources: Option<Arc<SourceMap>>,
     root: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SymbolNameStorageCounts {
     pub missing: usize,
+    pub source_names: usize,
     pub static_names: usize,
     pub owned_names: usize,
     pub explicit_debug_names: usize,
@@ -215,6 +253,13 @@ impl SymbolTable {
     }
 
     pub fn from_definition(root: SymbolDefinition<'_>) -> Self {
+        Self::from_definition_with_sources(root, None)
+    }
+
+    pub fn from_definition_with_sources(
+        root: SymbolDefinition<'_>,
+        sources: Option<Arc<SourceMap>>,
+    ) -> Self {
         let mut builder = HierarchyArenaBuilder::new();
         let mut names = Arena::new();
         let mut debug_names = Arena::new();
@@ -225,6 +270,7 @@ impl SymbolTable {
             names,
             debug_names,
             path_members: Arena::new(),
+            sources,
             root,
         }
     }
@@ -236,7 +282,7 @@ impl SymbolTable {
     pub fn name(&self, symbol: SymbolHandle) -> &str {
         let symbol = self.get(symbol);
 
-        self.names.get(symbol.name).as_str()
+        self.names.get(symbol.name).as_str(self.sources.as_deref())
     }
 
     pub fn debug_name(&self, symbol: SymbolHandle) -> &str {
@@ -245,7 +291,7 @@ impl SymbolTable {
         if self.debug_names.is_valid(symbol.debug_name) {
             self.debug_names.get(symbol.debug_name).value.as_str()
         } else {
-            self.names.get(symbol.name).as_str()
+            self.names.get(symbol.name).as_str(self.sources.as_deref())
         }
     }
 
@@ -382,6 +428,7 @@ impl SymbolTable {
         for (_, name) in self.names.iter() {
             match name {
                 SymbolName::Missing => counts.missing += 1,
+                SymbolName::Source(_) => counts.source_names += 1,
                 SymbolName::Static(_) => counts.static_names += 1,
                 SymbolName::Owned(_) => counts.owned_names += 1,
             }

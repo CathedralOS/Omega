@@ -6,16 +6,18 @@
 //! That gives later phases a concrete spine to grow from.
 
 use omega_abstract_syntax_tree::expression::Expression;
-use omega_abstract_syntax_tree::identifier::IdentifierPath;
+use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
 use omega_abstract_syntax_tree::item::{
     CapabilityMember, DataMember, Item, Machine, State, StateSignature,
 };
 use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
+use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
+use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolveReport {
@@ -70,9 +72,20 @@ pub enum ResolvedReferenceKind {
     Unknown,
 }
 
-pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
+pub fn build_resolve_report(items: &[Item], sources: Arc<SourceMap>) -> ResolveReport {
+    build_resolve_report_with_optional_sources(items, Some(sources))
+}
+
+pub fn build_resolve_report_without_sources(items: &[Item]) -> ResolveReport {
+    build_resolve_report_with_optional_sources(items, None)
+}
+
+fn build_resolve_report_with_optional_sources(
+    items: &[Item],
+    sources: Option<Arc<SourceMap>>,
+) -> ResolveReport {
     let mut report = ResolveReport::default();
-    report.symbols = build_source_symbol_table(items);
+    report.symbols = build_source_symbol_table(items, sources);
 
     for item in items {
         match item {
@@ -618,18 +631,21 @@ fn resolve_global_name(report: &ResolveReport, name: &str) -> SymbolHandle {
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
+fn build_source_symbol_table(items: &[Item], sources: Option<Arc<SourceMap>>) -> SymbolTable {
     let builder = SourceSymbolDefinitionBuilder { items };
 
-    SymbolTable::from_definition(SymbolDefinition::static_with_children(
-        SymbolKind::Root,
-        "program",
-        builtin_type_symbol_definitions().into_iter().chain(
-            items
-                .iter()
-                .filter_map(|item| builder.item_symbol_definition(item)),
+    SymbolTable::from_definition_with_sources(
+        SymbolDefinition::static_with_children(
+            SymbolKind::Root,
+            "program",
+            builtin_type_symbol_definitions().into_iter().chain(
+                items
+                    .iter()
+                    .filter_map(|item| builder.item_symbol_definition(item)),
+            ),
         ),
-    ))
+        sources,
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -637,16 +653,43 @@ struct SourceSymbolDefinitionBuilder<'items> {
     items: &'items [Item],
 }
 
+fn source_symbol<'items>(
+    kind: SymbolKind,
+    identifier: &'items Identifier,
+) -> SymbolDefinition<'items> {
+    if has_source_name(identifier.source_span()) {
+        SymbolDefinition::source_named(kind, identifier.source_span())
+    } else {
+        SymbolDefinition::named(kind, identifier.as_str())
+    }
+}
+
+fn source_symbol_with_children<'items>(
+    kind: SymbolKind,
+    identifier: &'items Identifier,
+    children: impl IntoIterator<Item = SymbolDefinition<'items>>,
+) -> SymbolDefinition<'items> {
+    if has_source_name(identifier.source_span()) {
+        SymbolDefinition::source_with_children(kind, identifier.source_span(), children)
+    } else {
+        SymbolDefinition::with_children(kind, identifier.as_str(), children)
+    }
+}
+
+fn has_source_name(source_span: SourceSpan) -> bool {
+    source_span.span.start != source_span.span.end
+}
+
 impl<'items> SourceSymbolDefinitionBuilder<'items> {
     fn item_symbol_definition(self, item: &'items Item) -> Option<SymbolDefinition<'items>> {
         match item {
-            Item::Capability(capability) => Some(SymbolDefinition::with_children(
+            Item::Capability(capability) => Some(source_symbol_with_children(
                 SymbolKind::HostCapability,
-                capability.name.as_str(),
+                &capability.name,
                 capability.members.iter().map(|member| match member {
-                    CapabilityMember::Field(field) => SymbolDefinition::with_children(
+                    CapabilityMember::Field(field) => source_symbol_with_children(
                         SymbolKind::Field,
-                        field.name.as_str(),
+                        &field.name,
                         self.type_children(&field.type_reference, 0),
                     ),
                     CapabilityMember::State(state) => {
@@ -654,35 +697,34 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
                     }
                 }),
             )),
-            Item::Data(data_definition) => Some(SymbolDefinition::with_children(
+            Item::Data(data_definition) => Some(source_symbol_with_children(
                 SymbolKind::Data,
-                data_definition.name.as_str(),
+                &data_definition.name,
                 data_definition
                     .members
                     .iter()
                     .map(|member| self.data_member_symbol_definition(member, 0)),
             )),
-            Item::Invariant(invariant) => Some(SymbolDefinition::named(
-                SymbolKind::Invariant,
-                invariant.name.as_str(),
-            )),
-            Item::Machine(machine) => Some(SymbolDefinition::with_children(
+            Item::Invariant(invariant) => {
+                Some(source_symbol(SymbolKind::Invariant, &invariant.name))
+            }
+            Item::Machine(machine) => Some(source_symbol_with_children(
                 SymbolKind::Machine,
-                machine.name.as_str(),
+                &machine.name,
                 machine
                     .contains
                     .iter()
                     .map(|contained| {
-                        SymbolDefinition::with_children(
+                        source_symbol_with_children(
                             SymbolKind::Object,
-                            contained.name.as_str(),
+                            &contained.name,
                             self.named_type_children(contained.type_name.as_str(), 0),
                         )
                     })
                     .chain(machine.owned_data.iter().map(|owned_data| {
-                        SymbolDefinition::with_children(
+                        source_symbol_with_children(
                             SymbolKind::Field,
-                            owned_data.name.as_str(),
+                            &owned_data.name,
                             self.type_children(&owned_data.type_reference, 0),
                         )
                     }))
@@ -693,37 +735,33 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
                             .map(|state| self.state_symbol_definition(state)),
                     ),
             )),
-            Item::Platform(platform) => Some(SymbolDefinition::with_children(
+            Item::Platform(platform) => Some(source_symbol_with_children(
                 SymbolKind::Platform,
-                platform.name.as_str(),
+                &platform.name,
                 platform
                     .states
                     .iter()
                     .map(|signature| self.state_signature_symbol_definition(signature)),
             )),
-            Item::Target(target) => Some(SymbolDefinition::named(
-                SymbolKind::Object,
-                target.name.as_str(),
-            )),
-            Item::TrustDefinition(trust_definition) => Some(SymbolDefinition::named(
-                SymbolKind::Object,
-                trust_definition.name.as_str(),
-            )),
+            Item::Target(target) => Some(source_symbol(SymbolKind::Object, &target.name)),
+            Item::TrustDefinition(trust_definition) => {
+                Some(source_symbol(SymbolKind::Object, &trust_definition.name))
+            }
             Item::Use(_) => None,
         }
     }
 
     fn state_symbol_definition(self, state: &'items State) -> SymbolDefinition<'items> {
-        SymbolDefinition::with_children(
+        source_symbol_with_children(
             SymbolKind::State,
-            state.name.as_str(),
+            &state.name,
             state
                 .parameters
                 .iter()
                 .map(|parameter| {
-                    SymbolDefinition::with_children(
+                    source_symbol_with_children(
                         SymbolKind::Parameter,
-                        parameter.name.as_str(),
+                        &parameter.name,
                         self.type_children(&parameter.type_reference, 0),
                     )
                 })
@@ -744,9 +782,9 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
             return None;
         };
 
-        Some(SymbolDefinition::with_children(
+        Some(source_symbol_with_children(
             SymbolKind::Local,
-            local_data.name.as_str(),
+            &local_data.name,
             self.type_children(&local_data.type_reference, 0),
         ))
     }
@@ -755,13 +793,13 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
         self,
         signature: &'items StateSignature,
     ) -> SymbolDefinition<'items> {
-        SymbolDefinition::with_children(
+        source_symbol_with_children(
             SymbolKind::State,
-            signature.name.as_str(),
+            &signature.name,
             signature.parameters.iter().map(|parameter| {
-                SymbolDefinition::with_children(
+                source_symbol_with_children(
                     SymbolKind::Parameter,
-                    parameter.name.as_str(),
+                    &parameter.name,
                     self.type_children(&parameter.type_reference, 0),
                 )
             }),
@@ -774,14 +812,12 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
         depth: usize,
     ) -> SymbolDefinition<'items> {
         match member {
-            DataMember::Field(field) => SymbolDefinition::with_children(
+            DataMember::Field(field) => source_symbol_with_children(
                 SymbolKind::Field,
-                field.name.as_str(),
+                &field.name,
                 self.type_children(&field.type_reference, depth + 1),
             ),
-            DataMember::Variant(variant) => {
-                SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
-            }
+            DataMember::Variant(variant) => source_symbol(SymbolKind::Variant, &variant.name),
         }
     }
 
@@ -824,9 +860,9 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
                 .members
                 .iter()
                 .map(|member| match member {
-                    CapabilityMember::Field(field) => SymbolDefinition::with_children(
+                    CapabilityMember::Field(field) => source_symbol_with_children(
                         SymbolKind::Field,
-                        field.name.as_str(),
+                        &field.name,
                         self.type_children(&field.type_reference, depth + 1),
                     ),
                     CapabilityMember::State(state) => {
@@ -880,7 +916,9 @@ mod tests {
     };
     use omega_abstract_syntax_tree::types::TypeReference;
 
-    use super::{ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report};
+    use super::{
+        ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report_without_sources,
+    };
 
     fn identifier_path(members: &[&str]) -> IdentifierPath {
         members
@@ -893,7 +931,7 @@ mod tests {
 
     #[test]
     fn collects_definitions_imports_and_references() {
-        let report = build_resolve_report(&[
+        let report = build_resolve_report_without_sources(&[
             Item::Use(UseItem {
                 path: identifier_path(&["platform", "console"]),
             }),

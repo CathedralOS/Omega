@@ -17,6 +17,7 @@ use omega_abstract_syntax_tree as ast;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
     SymbolDefinition, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
@@ -64,6 +65,14 @@ pub fn lower_program_with_workers(
     items: Arc<Vec<ast::item::Item>>,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
+    lower_program_with_sources_and_workers(items, None, workers)
+}
+
+pub fn lower_program_with_sources_and_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    sources: Option<Arc<SourceMap>>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
     let aliases = InvariantAliases::build(&items)?;
     let mut program = Program::default();
 
@@ -81,8 +90,9 @@ pub fn lower_program_with_workers(
 
     let aliases = Arc::new(aliases);
     let item_count = items.len();
+    let items_for_workers = Arc::clone(&items);
     let lowered_items = workers.map_ordered(item_count, move |index| {
-        let item = items
+        let item = items_for_workers
             .get(index)
             .expect("lowering worker index should be in range");
 
@@ -95,7 +105,7 @@ pub fn lower_program_with_workers(
         }
     }
 
-    program.symbols = register_program_symbols(&program);
+    program.symbols = register_program_symbols(&program, Some(items.as_slice()), sources);
 
     Ok(program)
 }
@@ -166,55 +176,93 @@ fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) 
     }
 }
 
-fn register_program_symbols(program: &Program) -> SymbolTable {
-    let builder = ProgramSymbolDefinitionBuilder { program };
+fn register_program_symbols(
+    program: &Program,
+    source_items: Option<&[ast::item::Item]>,
+    sources: Option<Arc<SourceMap>>,
+) -> SymbolTable {
+    let builder = ProgramSymbolDefinitionBuilder {
+        program,
+        source_items,
+        use_source_spans: sources.is_some(),
+    };
 
-    SymbolTable::from_definition(SymbolDefinition::static_with_children(
-        SymbolKind::Root,
-        "program",
-        builtin_type_symbol_definitions()
-            .into_iter()
-            .chain(program.invariant_definitions.iter().map(|invariant| {
-                SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())
-            }))
-            .chain(
-                program
-                    .data_definitions
-                    .iter()
-                    .map(|data_definition| builder.data_symbol_definition(data_definition)),
-            )
-            .chain(
-                program
-                    .platforms
-                    .iter()
-                    .map(|platform| builder.platform_symbol_definition(platform)),
-            )
-            .chain(
-                program
-                    .machines
-                    .iter()
-                    .map(|machine| builder.machine_symbol_definition(machine)),
-            ),
-    ))
+    SymbolTable::from_definition_with_sources(
+        SymbolDefinition::static_with_children(
+            SymbolKind::Root,
+            "program",
+            builtin_type_symbol_definitions()
+                .into_iter()
+                .chain(
+                    program
+                        .invariant_definitions
+                        .iter()
+                        .map(|invariant| builder.invariant_symbol_definition(invariant)),
+                )
+                .chain(
+                    program
+                        .data_definitions
+                        .iter()
+                        .map(|data_definition| builder.data_symbol_definition(data_definition)),
+                )
+                .chain(
+                    program
+                        .platforms
+                        .iter()
+                        .map(|platform| builder.platform_symbol_definition(platform)),
+                )
+                .chain(
+                    program
+                        .machines
+                        .iter()
+                        .map(|machine| builder.machine_symbol_definition(machine)),
+                ),
+        ),
+        sources,
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
-struct ProgramSymbolDefinitionBuilder<'program> {
+struct ProgramSymbolDefinitionBuilder<'program, 'source> {
     program: &'program Program,
+    source_items: Option<&'source [ast::item::Item]>,
+    use_source_spans: bool,
 }
 
-impl<'program> ProgramSymbolDefinitionBuilder<'program> {
+impl<'program, 'source> ProgramSymbolDefinitionBuilder<'program, 'source> {
+    fn invariant_symbol_definition(
+        self,
+        invariant: &'program InvariantDefinition,
+    ) -> SymbolDefinition<'program> {
+        self.symbol(
+            SymbolKind::Invariant,
+            invariant.name.as_str(),
+            self.source_invariant(invariant.name.as_str())
+                .map(|invariant| &invariant.name),
+        )
+    }
+
     fn data_symbol_definition(
         self,
         data_definition: &'program DataDefinition,
     ) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+        let source_data = self.source_data(data_definition.name.as_str());
+
+        self.symbol_with_children(
             SymbolKind::Data,
             data_definition.name.as_str(),
+            source_data.map(|data_definition| &data_definition.name),
             data_definition
                 .members
                 .iter()
-                .map(|member| self.data_member_symbol_definition(member, 0)),
+                .enumerate()
+                .map(|(index, member)| {
+                    self.data_member_symbol_definition(
+                        member,
+                        source_data.and_then(|data_definition| data_definition.members.get(index)),
+                        0,
+                    )
+                }),
         )
     }
 
@@ -222,84 +270,142 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
         self,
         platform: &'program Platform,
     ) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+        let source_platform = self.source_platform(platform.name.as_str());
+
+        self.symbol_with_children(
             SymbolKind::Platform,
             platform.name.as_str(),
+            source_platform.map(|platform| &platform.name),
             platform
                 .states
                 .iter()
-                .map(|signature| self.state_signature_symbol_definition(signature)),
+                .enumerate()
+                .map(|(index, signature)| {
+                    self.state_signature_symbol_definition(
+                        signature,
+                        source_platform.and_then(|platform| platform.states.get(index)),
+                    )
+                }),
         )
     }
 
     fn machine_symbol_definition(self, machine: &'program Machine) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+        let source_machine = self.source_machine(machine.name.as_str());
+
+        self.symbol_with_children(
             SymbolKind::Machine,
             machine.name.as_str(),
+            source_machine.map(|machine| &machine.name),
             machine
                 .contains
                 .iter()
-                .map(|contained| {
-                    SymbolDefinition::with_children(
+                .enumerate()
+                .map(|(index, contained)| {
+                    let source_contained =
+                        source_machine.and_then(|machine| machine.contains.get(index));
+
+                    self.symbol_with_children(
                         SymbolKind::Object,
                         contained.name.as_str(),
+                        source_contained.map(|contained| &contained.name),
                         self.named_type_children(contained.type_name.as_str(), 0),
                     )
                 })
-                .chain(machine.owned_data.iter().map(|owned_data| {
-                    SymbolDefinition::with_children(
-                        SymbolKind::Field,
-                        owned_data.name.as_str(),
-                        self.type_children(&owned_data.type_reference, 0),
-                    )
-                }))
                 .chain(
                     machine
-                        .states
+                        .owned_data
                         .iter()
-                        .map(|state| self.state_symbol_definition(state)),
-                ),
+                        .enumerate()
+                        .map(|(index, owned_data)| {
+                            let source_owned_data =
+                                source_machine.and_then(|machine| machine.owned_data.get(index));
+
+                            self.symbol_with_children(
+                                SymbolKind::Field,
+                                owned_data.name.as_str(),
+                                source_owned_data.map(|owned_data| &owned_data.name),
+                                self.type_children(&owned_data.type_reference, 0),
+                            )
+                        }),
+                )
+                .chain(machine.states.iter().enumerate().map(|(index, state)| {
+                    self.state_symbol_definition(
+                        state,
+                        source_machine.and_then(|machine| machine.states.get(index)),
+                    )
+                })),
         )
     }
 
-    fn state_symbol_definition(self, state: &'program State) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+    fn state_symbol_definition(
+        self,
+        state: &'program State,
+        source_state: Option<&'source ast::item::State>,
+    ) -> SymbolDefinition<'program> {
+        let mut local_index = 0usize;
+
+        self.symbol_with_children(
             SymbolKind::State,
             state.name.as_str(),
+            source_state.map(|state| &state.name),
             state
                 .parameters
                 .iter()
-                .map(|parameter| self.parameter_symbol_definition(parameter))
-                .chain(
-                    state
-                        .statements
-                        .iter()
-                        .filter_map(|statement| self.local_data_symbol_definition(statement)),
-                ),
+                .enumerate()
+                .map(|(index, parameter)| {
+                    self.parameter_symbol_definition(
+                        parameter,
+                        source_state.and_then(|state| state.parameters.get(index)),
+                    )
+                })
+                .chain(state.statements.iter().filter_map(move |statement| {
+                    let current_local_index = local_index;
+                    let symbol = self.local_data_symbol_definition(
+                        statement,
+                        source_state
+                            .and_then(|state| nth_source_local_data(state, current_local_index)),
+                    );
+
+                    if symbol.is_some() {
+                        local_index += 1;
+                    }
+
+                    symbol
+                })),
         )
     }
 
     fn state_signature_symbol_definition(
         self,
         signature: &'program StateSignature,
+        source_signature: Option<&'source ast::item::StateSignature>,
     ) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+        self.symbol_with_children(
             SymbolKind::State,
             signature.name.as_str(),
+            source_signature.map(|signature| &signature.name),
             signature
                 .parameters
                 .iter()
-                .map(|parameter| self.parameter_symbol_definition(parameter)),
+                .enumerate()
+                .map(|(index, parameter)| {
+                    self.parameter_symbol_definition(
+                        parameter,
+                        source_signature.and_then(|signature| signature.parameters.get(index)),
+                    )
+                }),
         )
     }
 
     fn parameter_symbol_definition(
         self,
         parameter: &'program StateParameter,
+        source_parameter: Option<&'source ast::item::StateParameter>,
     ) -> SymbolDefinition<'program> {
-        SymbolDefinition::with_children(
+        self.symbol_with_children(
             SymbolKind::Parameter,
             parameter.name.as_str(),
+            source_parameter.map(|parameter| &parameter.name),
             self.type_children(&parameter.type_reference, 0),
         )
     }
@@ -307,14 +413,16 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
     fn local_data_symbol_definition(
         self,
         statement: &'program Statement,
+        source_local_data: Option<&'source ast::statement::LocalData>,
     ) -> Option<SymbolDefinition<'program>> {
         let Statement::LocalData(local_data) = statement else {
             return None;
         };
 
-        Some(SymbolDefinition::with_children(
+        Some(self.symbol_with_children(
             SymbolKind::Local,
             local_data.name.as_str(),
+            source_local_data.map(|local_data| &local_data.name),
             self.type_children(&local_data.type_reference, 0),
         ))
     }
@@ -322,16 +430,34 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
     fn data_member_symbol_definition(
         self,
         member: &'program DataMember,
+        source_member: Option<&'source ast::item::DataMember>,
         depth: usize,
     ) -> SymbolDefinition<'program> {
         match member {
-            DataMember::Field(field) => SymbolDefinition::with_children(
-                SymbolKind::Field,
-                field.name.as_str(),
-                self.type_children(&field.type_reference, depth + 1),
-            ),
+            DataMember::Field(field) => {
+                let source_field = match source_member {
+                    Some(ast::item::DataMember::Field(field)) => Some(field),
+                    _ => None,
+                };
+
+                self.symbol_with_children(
+                    SymbolKind::Field,
+                    field.name.as_str(),
+                    source_field.map(|field| &field.name),
+                    self.type_children(&field.type_reference, depth + 1),
+                )
+            }
             DataMember::Variant(variant) => {
-                SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+                let source_variant = match source_member {
+                    Some(ast::item::DataMember::Variant(variant)) => Some(variant),
+                    _ => None,
+                };
+
+                self.symbol(
+                    SymbolKind::Variant,
+                    variant.name.as_str(),
+                    source_variant.map(|variant| &variant.name),
+                )
             }
         }
     }
@@ -371,7 +497,15 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
             return data_definition
                 .members
                 .iter()
-                .map(|member| self.data_member_symbol_definition(member, depth + 1))
+                .enumerate()
+                .map(|(index, member)| {
+                    self.data_member_symbol_definition(
+                        member,
+                        self.source_data(data_definition.name.as_str())
+                            .and_then(|data_definition| data_definition.members.get(index)),
+                        depth + 1,
+                    )
+                })
                 .collect();
         }
 
@@ -384,7 +518,14 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
             return machine
                 .states
                 .iter()
-                .map(|state| self.state_symbol_definition(state))
+                .enumerate()
+                .map(|(index, state)| {
+                    self.state_symbol_definition(
+                        state,
+                        self.source_machine(machine.name.as_str())
+                            .and_then(|machine| machine.states.get(index)),
+                    )
+                })
                 .collect();
         }
 
@@ -397,12 +538,102 @@ impl<'program> ProgramSymbolDefinitionBuilder<'program> {
             return platform
                 .states
                 .iter()
-                .map(|signature| self.state_signature_symbol_definition(signature))
+                .enumerate()
+                .map(|(index, signature)| {
+                    self.state_signature_symbol_definition(
+                        signature,
+                        self.source_platform(platform.name.as_str())
+                            .and_then(|platform| platform.states.get(index)),
+                    )
+                })
                 .collect();
         }
 
         Vec::new()
     }
+
+    fn symbol(
+        self,
+        kind: SymbolKind,
+        fallback_name: &'program str,
+        source_identifier: Option<&ast::identifier::Identifier>,
+    ) -> SymbolDefinition<'program> {
+        if self.use_source_spans
+            && let Some(source_span) = source_name_span(source_identifier)
+        {
+            SymbolDefinition::source_named(kind, source_span)
+        } else {
+            SymbolDefinition::named(kind, fallback_name)
+        }
+    }
+
+    fn symbol_with_children(
+        self,
+        kind: SymbolKind,
+        fallback_name: &'program str,
+        source_identifier: Option<&ast::identifier::Identifier>,
+        children: impl IntoIterator<Item = SymbolDefinition<'program>>,
+    ) -> SymbolDefinition<'program> {
+        if self.use_source_spans
+            && let Some(source_span) = source_name_span(source_identifier)
+        {
+            SymbolDefinition::source_with_children(kind, source_span, children)
+        } else {
+            SymbolDefinition::with_children(kind, fallback_name, children)
+        }
+    }
+
+    fn source_invariant(self, name: &str) -> Option<&'source ast::item::InvariantDefinition> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Invariant(invariant) if invariant.name.as_str() == name => {
+                Some(invariant)
+            }
+            _ => None,
+        })
+    }
+
+    fn source_data(self, name: &str) -> Option<&'source ast::item::DataDefinition> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Data(data_definition) if data_definition.name.as_str() == name => {
+                Some(data_definition)
+            }
+            _ => None,
+        })
+    }
+
+    fn source_machine(self, name: &str) -> Option<&'source ast::item::Machine> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Machine(machine) if machine.name.as_str() == name => Some(machine),
+            _ => None,
+        })
+    }
+
+    fn source_platform(self, name: &str) -> Option<&'source ast::item::Platform> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Platform(platform) if platform.name.as_str() == name => Some(platform),
+            _ => None,
+        })
+    }
+}
+
+fn source_name_span(identifier: Option<&ast::identifier::Identifier>) -> Option<SourceSpan> {
+    let source_span = identifier?.source_span();
+
+    (source_span.span.start != source_span.span.end).then_some(source_span)
+}
+
+fn nth_source_local_data(
+    state: &ast::item::State,
+    target_index: usize,
+) -> Option<&ast::statement::LocalData> {
+    state
+        .statements
+        .iter()
+        .filter_map(|statement| match statement {
+            ast::statement::Statement::LocalData(local_data) => Some(local_data),
+            _ => None,
+        })
+        .nth(target_index)
 }
 
 fn remap_data_definition(
@@ -1082,7 +1313,7 @@ mod tests {
             }],
             ..Program::default()
         };
-        program.symbols = register_program_symbols(&program);
+        program.symbols = register_program_symbols(&program, None, None);
 
         let root = program.symbols.root();
         let main = program
