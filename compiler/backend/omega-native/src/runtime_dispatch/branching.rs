@@ -311,6 +311,7 @@ pub enum RuntimeStraightLineBranchOperationKind {
         value: Expression,
     },
     StateCall {
+        target_key: StateKey,
         target_machine: ProgramName,
         target_state: ProgramName,
         argument_count: usize,
@@ -1066,6 +1067,7 @@ fn straight_line_operation_kind(
 
     if let Some(state_call) = state_call_for_operation(native_plan, source_key, statement_index) {
         return RuntimeStraightLineBranchOperationKind::StateCall {
+            target_key: state_call.target_key,
             target_machine: state_call.target_machine.clone(),
             target_state: state_call.target_state.clone(),
             argument_count: state_call.argument_count,

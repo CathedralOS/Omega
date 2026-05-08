@@ -3390,6 +3390,7 @@ fn write_runtime_straight_line_branch_operation(
             target_state,
             argument_count,
             lowering,
+            ..
         } => {
             output.push_str(&format!(
                 "    - {}.{} statement {} state call {}.{} args {} {:?}\n",

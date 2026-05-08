@@ -640,6 +640,7 @@ fn select_runtime_mutation_writes(
     if let Some(copy) = runtime_storage_copy(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         &resolved_target,
@@ -738,6 +739,7 @@ fn runtime_text_builder_write_with_resolver(
     let target_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         &resolved_target,
@@ -757,6 +759,7 @@ fn runtime_text_builder_write_with_resolver(
         let source_place = resolve_runtime_storage_place(
             native_plan,
             dispatch_index,
+            source_key,
             source_machine,
             source_state,
             &source,
@@ -790,6 +793,7 @@ fn runtime_text_builder_write_with_resolver(
                 let source_place = resolve_runtime_storage_place(
                     native_plan,
                     dispatch_index,
+                    source_key,
                     source_machine,
                     source_state,
                     &source,
@@ -836,6 +840,7 @@ fn runtime_text_builder_write_with_resolver(
 fn runtime_storage_copy(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     target: &Expression,
@@ -844,6 +849,7 @@ fn runtime_storage_copy(
     let target_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         target,
@@ -851,6 +857,7 @@ fn runtime_storage_copy(
     let source_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         value,
@@ -1158,12 +1165,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         if let Some(instructions) = runtime_text_builder_write_with_resolver(
             native_plan,
             expansion.dispatch_index,
-            state_key_by_names(
-                native_plan,
-                &operation.source_machine,
-                &operation.source_state,
-            )
-            .unwrap_or_default(),
+            operation.source_key,
             &operation.source_machine,
             &operation.source_state,
             operation.statement_index,
@@ -1225,6 +1227,7 @@ fn select_runtime_straight_line_branch_writes(
                 select_runtime_resolved_mutation_write(
                     native_plan,
                     expansion.dispatch_index,
+                    operation.source_key,
                     &expansion.source_machine,
                     &operation.source_machine,
                     &operation.source_state,
@@ -1235,6 +1238,7 @@ fn select_runtime_straight_line_branch_writes(
                 );
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
+                target_key,
                 target_machine,
                 target_state,
                 lowering: crate::state_calls::StateCallLowering::InlineLeaf,
@@ -1244,6 +1248,7 @@ fn select_runtime_straight_line_branch_writes(
                 expansion,
                 operation,
                 bindings,
+                *target_key,
                 target_machine,
                 target_state,
                 selected_instructions,
@@ -1259,26 +1264,20 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     expansion: &RuntimeStraightLineBranchExpansion,
     operation: &crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperation,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+    target_key: StateKey,
     target_machine: &str,
     target_state: &str,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let Some(state_call) = state_call_for_statement(
-        native_plan,
-        state_key_by_names(
-            native_plan,
-            &operation.source_machine,
-            &operation.source_state,
-        )
-        .unwrap_or_default(),
-        operation.statement_index,
-    ) else {
+    let Some(state_call) =
+        state_call_for_statement(native_plan, operation.source_key, operation.statement_index)
+    else {
         return;
     };
     let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
         return;
     };
-    let leaf_parameters = state_parameters(native_plan, target_machine, target_state);
+    let leaf_parameters = state_parameters(native_plan, target_key);
     let leaf_bindings = leaf_parameters
         .iter()
         .enumerate()
@@ -1295,15 +1294,13 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         })
         .collect::<Vec<_>>();
 
-    let Some(operations) = state_operations(native_plan, target_machine, target_state) else {
+    let Some(operations) = state_operations(native_plan, target_key) else {
         return;
     };
     for leaf_operation in operations {
-        let Some(mutation) = state_mutation_for_statement(
-            native_plan,
-            state_key_by_names(native_plan, target_machine, target_state).unwrap_or_default(),
-            leaf_operation.statement_index,
-        ) else {
+        let Some(mutation) =
+            state_mutation_for_statement(native_plan, target_key, leaf_operation.statement_index)
+        else {
             continue;
         };
         let resolved_target = resolve_leaf_binding_expression(&mutation.target, &leaf_bindings);
@@ -1311,6 +1308,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         select_runtime_resolved_mutation_write(
             native_plan,
             expansion.dispatch_index,
+            target_key,
             &expansion.source_machine,
             target_machine,
             target_state,
@@ -1326,6 +1324,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
 fn select_runtime_resolved_mutation_write(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    operation_key: StateKey,
     source_machine: &str,
     operation_machine: &str,
     operation_state: &str,
@@ -1357,6 +1356,7 @@ fn select_runtime_resolved_mutation_write(
     if let Some(copy) = runtime_storage_copy(
         native_plan,
         dispatch_index,
+        operation_key,
         operation_machine,
         operation_state,
         resolved_target,
@@ -1411,6 +1411,7 @@ fn runtime_text_storage_guard(
     let left_place = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
+        expansion.source_key,
         &expansion.source_machine,
         &expansion.source_state,
         &binary.left,
@@ -1418,6 +1419,7 @@ fn runtime_text_storage_guard(
     let right_place = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
+        expansion.source_key,
         &expansion.source_machine,
         &expansion.source_state,
         &binary.right,
@@ -1468,6 +1470,7 @@ fn runtime_storage_guard(
     let left = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
+        expansion.source_key,
         &expansion.source_machine,
         &expansion.source_state,
         &binary.left,
@@ -1475,6 +1478,7 @@ fn runtime_storage_guard(
     let right = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
+        expansion.source_key,
         &expansion.source_machine,
         &expansion.source_state,
         &binary.right,
@@ -1550,6 +1554,7 @@ fn runtime_leaf_storage_copy(
     runtime_storage_copy(
         native_plan,
         expansion.dispatch_index,
+        expansion.source_key,
         operation_machine,
         operation_state,
         target,
@@ -1567,8 +1572,9 @@ struct RuntimeStoragePlace {
 fn resolve_runtime_storage_place(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: &str,
-    source_state: &str,
+    _source_state: &str,
     expression: &Expression,
 ) -> Option<RuntimeStoragePlace> {
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
@@ -1605,8 +1611,7 @@ fn resolve_runtime_storage_place(
         .iter()
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
-                && slot.source_machine == source_machine
-                && slot.source_state == source_state
+                && slot.source_key == source_key
                 && slot.name == *root_name
         })
         .or_else(|| {
@@ -1839,54 +1844,22 @@ fn state_call_for_statement<'plan>(
         .map(|(_, state_call)| state_call)
 }
 
-fn state_parameters(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Vec<ProgramName> {
+fn state_parameters(native_plan: &NativePlan, state_key: StateKey) -> Vec<ProgramName> {
     native_plan
         .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .state_by_key(state_key)
         .map(|state| state.parameters.to_vec())
         .unwrap_or_default()
 }
 
 fn state_operations<'plan>(
     native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
 ) -> Option<&'plan [crate::control_flow::Operation]> {
     native_plan
         .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .state_by_key(state_key)
         .and_then(|state| native_plan.control_flow.operations.span(state.operations))
-}
-
-fn state_key_by_names(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<StateKey> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| {
-            states
-                .iter()
-                .find(|state| state.name == state_name)
-                .map(|state| state.key)
-        })
 }
 
 fn state_mutation_for_statement<'plan>(
@@ -2083,6 +2056,7 @@ fn runtime_text_line_read(
     let target_place = resolve_runtime_storage_place(
         native_plan,
         0,
+        host_call.source_key,
         &host_call.machine,
         &host_call.state,
         &text_place,
