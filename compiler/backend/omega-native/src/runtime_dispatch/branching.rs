@@ -5,321 +5,29 @@ use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_dispatch::guards::{StateGuardKind, classify_transition_guard};
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_calls::{StateCall, StateCallArgumentKind, StateCallLowering};
-use crate::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RuntimeBranchingCallPlan {
-    pub calls: Arena<RuntimeBranchingCall>,
-    pub edges: Arena<RuntimeBranchingCallEdge>,
-    pub target_arguments: Arena<Expression>,
-    pub leaf_expansions: Arena<RuntimeLeafBranchExpansion>,
-    pub leaf_operations: Arena<RuntimeLeafBranchOperation>,
-    pub leaf_bindings: Arena<RuntimeLeafBranchBinding>,
-    pub straight_line_expansions: Arena<RuntimeStraightLineBranchExpansion>,
-    pub straight_line_operations: Arena<RuntimeStraightLineBranchOperation>,
-    pub straight_line_bindings: Arena<RuntimeStraightLineBranchBinding>,
-}
+mod model;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub use model::{
+    RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
+    RuntimeBranchingCallEdge, RuntimeBranchingCallPlan, RuntimeLeafBranchBinding,
+    RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
+    RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
+    RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct RuntimeBranchAlias {
     source_key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     parameter_name: ProgramName,
     expression: Expression,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeBranchingCall {
-    pub dispatch_index: u32,
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub target_key: StateKey,
-    pub statement_index: usize,
-    pub target_machine: ProgramName,
-    pub target_state: ProgramName,
-    pub argument_count: usize,
-    pub expansion: RuntimeBranchCallExpansion,
-    pub edges: HandleSpan<RuntimeBranchingCallEdge>,
-}
-
-impl Default for RuntimeBranchingCall {
-    fn default() -> Self {
-        Self {
-            dispatch_index: 0,
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            target_key: StateKey::default(),
-            statement_index: 0,
-            target_machine: ProgramName::default(),
-            target_state: ProgramName::default(),
-            argument_count: 0,
-            expansion: RuntimeBranchCallExpansion::Unplanned,
-            edges: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeBranchingCallEdge {
-    pub order: usize,
-    pub target: RuntimeTransitionTarget,
-    pub continuation: RuntimeTransitionTarget,
-    pub guard: TransitionGuard,
-    pub target_arguments: HandleSpan<Expression>,
-    pub guard_kind: StateGuardKind,
-    pub lowering: RuntimeBranchTargetLowering,
-}
-
-impl Default for RuntimeBranchingCallEdge {
-    fn default() -> Self {
-        Self {
-            order: 0,
-            target: RuntimeTransitionTarget::None,
-            continuation: RuntimeTransitionTarget::None,
-            guard: TransitionGuard::Always,
-            target_arguments: HandleSpan::empty(),
-            guard_kind: StateGuardKind::Always,
-            lowering: RuntimeBranchTargetLowering::Unknown,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeBranchTargetLowering {
-    Terminal,
-    InlineLeaf,
-    InlineStraightLine,
-    InlineBranching,
-    #[default]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeBranchCallExpansion {
-    GuardedLeaf,
-    GuardedLeafWithComplexGuards,
-    NeedsStraightLineTarget,
-    NeedsNestedBranchTarget,
-    UnknownTarget,
-    #[default]
-    Unplanned,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeLeafBranchExpansion {
-    pub dispatch_index: u32,
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub branch_machine: ProgramName,
-    pub branch_state: ProgramName,
-    pub edge_order: usize,
-    pub guard: TransitionGuard,
-    pub resolved_guard: TransitionGuard,
-    pub guard_kind: StateGuardKind,
-    pub leaf_machine: ProgramName,
-    pub leaf_state: ProgramName,
-    pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
-    pub operations: HandleSpan<RuntimeLeafBranchOperation>,
-}
-
-impl Default for RuntimeLeafBranchExpansion {
-    fn default() -> Self {
-        Self {
-            dispatch_index: 0,
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            branch_machine: ProgramName::default(),
-            branch_state: ProgramName::default(),
-            edge_order: 0,
-            guard: TransitionGuard::Always,
-            resolved_guard: TransitionGuard::Always,
-            guard_kind: StateGuardKind::Always,
-            leaf_machine: ProgramName::default(),
-            leaf_state: ProgramName::default(),
-            bindings: HandleSpan::empty(),
-            operations: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeLeafBranchBinding {
-    pub parameter_name: ProgramName,
-    pub expression: Expression,
-    pub kind: RuntimeLeafBranchBindingKind,
-}
-
-impl Default for RuntimeLeafBranchBinding {
-    fn default() -> Self {
-        Self {
-            parameter_name: ProgramName::default(),
-            expression: Expression::Integer(0),
-            kind: RuntimeLeafBranchBindingKind::BranchParameter,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeLeafBranchBindingKind {
-    #[default]
-    BranchParameter,
-    LeafParameter,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeLeafBranchOperation {
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub kind: RuntimeLeafBranchOperationKind,
-}
-
-impl Default for RuntimeLeafBranchOperation {
-    fn default() -> Self {
-        Self {
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            kind: RuntimeLeafBranchOperationKind::Other,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum RuntimeLeafBranchOperationKind {
-    HostCall {
-        platform_call: String,
-    },
-    Mutation {
-        mutation_kind: StateMutationKind,
-        lowering: StateMutationLowering,
-        target: Expression,
-        value: Expression,
-    },
-    #[default]
-    Other,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStraightLineBranchExpansion {
-    pub dispatch_index: u32,
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub branch_machine: ProgramName,
-    pub branch_state: ProgramName,
-    pub edge_order: usize,
-    pub guard: TransitionGuard,
-    pub resolved_guard: TransitionGuard,
-    pub guard_kind: StateGuardKind,
-    pub target_machine: ProgramName,
-    pub target_state: ProgramName,
-    pub bindings: HandleSpan<RuntimeStraightLineBranchBinding>,
-    pub operations: HandleSpan<RuntimeStraightLineBranchOperation>,
-}
-
-impl Default for RuntimeStraightLineBranchExpansion {
-    fn default() -> Self {
-        Self {
-            dispatch_index: 0,
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            branch_machine: ProgramName::default(),
-            branch_state: ProgramName::default(),
-            edge_order: 0,
-            guard: TransitionGuard::Always,
-            resolved_guard: TransitionGuard::Always,
-            guard_kind: StateGuardKind::Always,
-            target_machine: ProgramName::default(),
-            target_state: ProgramName::default(),
-            bindings: HandleSpan::empty(),
-            operations: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStraightLineBranchBinding {
-    pub parameter_name: ProgramName,
-    pub expression: Expression,
-    pub kind: RuntimeStraightLineBranchBindingKind,
-}
-
-impl Default for RuntimeStraightLineBranchBinding {
-    fn default() -> Self {
-        Self {
-            parameter_name: ProgramName::default(),
-            expression: Expression::Integer(0),
-            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum RuntimeStraightLineBranchBindingKind {
-    #[default]
-    BranchParameter,
-    TargetParameter,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStraightLineBranchOperation {
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub kind: RuntimeStraightLineBranchOperationKind,
-}
-
-impl Default for RuntimeStraightLineBranchOperation {
-    fn default() -> Self {
-        Self {
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            kind: RuntimeStraightLineBranchOperationKind::Other,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum RuntimeStraightLineBranchOperationKind {
-    HostCall {
-        platform_call: String,
-    },
-    Mutation {
-        mutation_kind: StateMutationKind,
-        lowering: StateMutationLowering,
-        target: Expression,
-        value: Expression,
-    },
-    StateCall {
-        target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
-        argument_count: usize,
-        lowering: StateCallLowering,
-    },
-    LocalData,
-    #[default]
-    Other,
 }
 
 pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBranchingCallPlan {
@@ -455,10 +163,7 @@ fn append_leaf_branch_expansions(
         let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
             &branch_bindings,
             native_plan,
-            branch_machine.as_str(),
-            branch_state.as_str(),
-            leaf_machine.as_str(),
-            leaf_state.as_str(),
+            *leaf_key,
             plan.target_arguments.span_or_empty(edge.target_arguments),
         ));
         let operations = plan
@@ -520,8 +225,7 @@ fn append_straight_line_branch_expansions(
             .insert_many(straight_line_branch_bindings(
                 &branch_bindings,
                 native_plan,
-                target_machine.as_str(),
-                target_state.as_str(),
+                *target_key,
                 plan.target_arguments.span_or_empty(edge.target_arguments),
             ));
         let operations = plan
@@ -552,10 +256,7 @@ fn append_straight_line_branch_expansions(
 fn leaf_branch_bindings<'a>(
     branch_bindings: &'a [(ProgramName, Expression)],
     native_plan: &NativePlan,
-    _branch_machine: &str,
-    _branch_state: &str,
-    leaf_machine: &str,
-    leaf_state: &str,
+    leaf_key: StateKey,
     leaf_arguments: &'a [Expression],
 ) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
     let branch_parameter_bindings =
@@ -567,7 +268,7 @@ fn leaf_branch_bindings<'a>(
                 kind: RuntimeLeafBranchBindingKind::BranchParameter,
             });
 
-    let leaf_parameters = state_parameters(native_plan, leaf_machine, leaf_state);
+    let leaf_parameters = state_parameters(native_plan, leaf_key);
     let leaf_parameter_bindings = leaf_parameters.into_iter().enumerate().filter_map(
         move |(parameter_index, parameter_name)| {
             let expression = leaf_arguments.get(parameter_index)?;
@@ -585,8 +286,7 @@ fn leaf_branch_bindings<'a>(
 fn straight_line_branch_bindings<'a>(
     branch_bindings: &'a [(ProgramName, Expression)],
     native_plan: &NativePlan,
-    target_machine: &str,
-    target_state: &str,
+    target_key: StateKey,
     target_arguments: &'a [Expression],
 ) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
     let branch_parameter_bindings = branch_bindings.iter().map(|(parameter_name, expression)| {
@@ -597,7 +297,7 @@ fn straight_line_branch_bindings<'a>(
         }
     });
 
-    let target_parameters = state_parameters(native_plan, target_machine, target_state);
+    let target_parameters = state_parameters(native_plan, target_key);
     let target_parameter_bindings = target_parameters.into_iter().enumerate().filter_map(
         move |(parameter_index, parameter_name)| {
             let expression = target_arguments.get(parameter_index)?;
@@ -1112,18 +812,6 @@ fn mutation_for_statement<'plan>(
         .map(|(_, mutation)| mutation)
 }
 
-fn machine_flow<'plan>(
-    native_plan: &'plan NativePlan,
-    machine_name: &str,
-) -> Option<&'plan MachineFlow> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .map(|(_, machine)| machine)
-}
-
 fn state_call_for_operation<'plan>(
     native_plan: &'plan NativePlan,
     source_key: StateKey,
@@ -1139,14 +827,10 @@ fn state_call_for_operation<'plan>(
         .map(|(_, state_call)| state_call)
 }
 
-fn state_parameters(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Vec<ProgramName> {
-    machine_flow(native_plan, machine_name)
-        .and_then(|machine| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+fn state_parameters(native_plan: &NativePlan, state_key: StateKey) -> Vec<ProgramName> {
+    native_plan
+        .control_flow
+        .state_by_key(state_key)
         .map(|state| state.parameters.to_vec())
         .unwrap_or_default()
 }
