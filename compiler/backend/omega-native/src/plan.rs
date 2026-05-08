@@ -193,17 +193,31 @@ pub fn build_native_plan_with_workers(
             .collect(),
         workers.clone(),
     );
+    let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan));
+    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan);
+    let runtime_loop_workers = workers.clone();
+    let runtime_storage_context = Arc::new(RuntimeStorageContext::from_native_plan(&native_plan));
+    let runtime_storage_inputs = runtime_storage_body_inputs(&native_plan);
+    let runtime_storage_workers = workers.clone();
+    let (runtime_dispatch_loop, runtime_storage) = workers.join2(
+        move || {
+            build_runtime_dispatch_loop_plan_with_workers(
+                runtime_loop_context,
+                runtime_loop_inputs,
+                runtime_loop_workers,
+            )
+        },
+        move || {
+            build_runtime_storage_plan_with_workers(
+                runtime_storage_context,
+                runtime_storage_inputs,
+                runtime_storage_workers,
+            )
+        },
+    );
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
-    native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan_with_workers(
-        Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan)),
-        runtime_dispatch_loop_inputs(&native_plan),
-        workers.clone(),
-    );
-    native_plan.runtime_storage = build_runtime_storage_plan_with_workers(
-        Arc::new(RuntimeStorageContext::from_native_plan(&native_plan)),
-        runtime_storage_body_inputs(&native_plan),
-        workers.clone(),
-    );
+    native_plan.runtime_dispatch_loop = runtime_dispatch_loop;
+    native_plan.runtime_storage = runtime_storage;
     native_plan.runtime_text = build_runtime_text_plan(&native_plan);
     native_plan.data = build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage);
     native_plan.object = build_object_plan(&native_plan)?;
