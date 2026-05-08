@@ -7,21 +7,17 @@ use crate::runtime_dispatch::branching::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
-use crate::state_guards::StateGuardOperator;
 use omega_typed_program::expression::Expression;
 
 use super::super::bindings::{
     resolve_leaf_binding_expression, resolve_straight_line_binding_expression,
 };
-use super::super::host_operations::runtime_text_input_buffer_for_text_place;
 use super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
 };
 use super::super::model::{SelectedInstruction, SelectedInstructionKind};
-use super::super::storage_places::{
-    enum_variant_value, resolve_machine_owned_place, resolve_runtime_storage_place,
-    static_integer_value,
-};
+use super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
+use super::guards::select_runtime_leaf_branch_guard;
 use super::writes::{runtime_storage_copy, runtime_text_builder_write_with_resolver};
 
 pub(super) fn select_runtime_leaf_branch_expansions_for_operation(
@@ -55,26 +51,9 @@ fn select_runtime_leaf_branch_expansion(
         return;
     }
 
-    if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
+    if let Some(guard) = select_runtime_leaf_branch_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::CompareRuntimeTextLiteral {
-                buffer_symbol,
-                literal,
-            },
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
-            source_statement: expansion.statement_index,
-        });
-    } else if let Some(compare) = runtime_text_storage_guard(native_plan, expansion) {
-        selected_instructions.push(SelectedInstruction {
-            kind: compare,
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
-            source_statement: expansion.statement_index,
-        });
-    } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
-        selected_instructions.push(SelectedInstruction {
-            kind: compare,
+            kind: guard,
             source_machine: expansion.source_machine.clone(),
             source_state: expansion.source_state.clone(),
             source_statement: expansion.statement_index,
@@ -372,161 +351,6 @@ fn select_runtime_resolved_mutation_write(
             source_statement: statement_index,
         });
     }
-}
-
-fn runtime_text_literal_guard(
-    native_plan: &NativePlan,
-    expansion: &RuntimeLeafBranchExpansion,
-) -> Option<(String, String)> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
-        &expansion.resolved_guard
-    else {
-        return None;
-    };
-    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
-        return None;
-    }
-
-    let (text_place, literal) = match (&binary.left, &binary.right) {
-        (text_place, Expression::String(literal)) => (text_place, literal),
-        (Expression::String(literal), text_place) => (text_place, literal),
-        _ => return None,
-    };
-
-    let buffer = runtime_text_input_buffer_for_text_place(native_plan, text_place)?;
-    Some((buffer.symbol.clone(), literal.clone()))
-}
-
-fn runtime_text_storage_guard(
-    native_plan: &NativePlan,
-    expansion: &RuntimeLeafBranchExpansion,
-) -> Option<SelectedInstructionKind> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
-        &expansion.resolved_guard
-    else {
-        return None;
-    };
-    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
-        return None;
-    }
-    let operator = StateGuardOperator::Equal;
-
-    let left_place = resolve_runtime_storage_place(
-        native_plan,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
-        &binary.left,
-    );
-    let right_place = resolve_runtime_storage_place(
-        native_plan,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
-        &binary.right,
-    );
-    let left_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.left);
-    let right_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.right);
-    let string_descriptor_size = native_plan.target.pointer_size * 2;
-
-    if let (Some(source_place), Some(buffer)) = (left_place.clone(), right_buffer)
-        && source_place.byte_count == string_descriptor_size
-    {
-        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol: buffer.symbol.clone(),
-            source_symbol: source_place.symbol,
-            source_offset: source_place.byte_offset,
-            operator,
-        });
-    }
-
-    if let (Some(buffer), Some(source_place)) = (left_buffer, right_place)
-        && source_place.byte_count == string_descriptor_size
-    {
-        return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol: buffer.symbol.clone(),
-            source_symbol: source_place.symbol,
-            source_offset: source_place.byte_offset,
-            operator,
-        });
-    }
-
-    None
-}
-
-fn runtime_storage_guard(
-    native_plan: &NativePlan,
-    expansion: &RuntimeLeafBranchExpansion,
-) -> Option<SelectedInstructionKind> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
-        &expansion.resolved_guard
-    else {
-        return None;
-    };
-    let operator = match binary.operator {
-        omega_typed_program::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
-        omega_typed_program::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
-        _ => return None,
-    };
-    let left = resolve_runtime_storage_place(
-        native_plan,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
-        &binary.left,
-    );
-    let right = resolve_runtime_storage_place(
-        native_plan,
-        expansion.dispatch_index,
-        expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
-        &binary.right,
-    );
-
-    if let (Some(left), Some(right)) = (left.clone(), right.clone()) {
-        if left.byte_count != right.byte_count {
-            return None;
-        }
-
-        return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_symbol: left.symbol,
-            left_offset: left.byte_offset,
-            right_symbol: right.symbol,
-            right_offset: right.byte_offset,
-            byte_size: left.byte_count,
-            operator,
-        });
-    }
-
-    if let Some(place) = left
-        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.right)
-    {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            symbol: place.symbol,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
-            expected_value,
-            operator,
-        });
-    }
-
-    if let Some(place) = right
-        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.left)
-    {
-        return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            symbol: place.symbol,
-            byte_offset: place.byte_offset,
-            byte_size: place.byte_count,
-            expected_value,
-            operator,
-        });
-    }
-
-    None
 }
 
 fn runtime_leaf_machine_integer_write(

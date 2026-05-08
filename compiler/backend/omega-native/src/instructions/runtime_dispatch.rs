@@ -6,6 +6,7 @@ use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispa
 use omega_core::arena::Arena;
 
 mod branches;
+mod guards;
 mod writes;
 
 use super::bindings::{
