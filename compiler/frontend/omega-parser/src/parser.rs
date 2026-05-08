@@ -14,18 +14,30 @@ use omega_abstract_syntax_tree::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+use omega_core::source::FileId;
 use omega_lexer::{Token, TokenKind};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
+    pub file_id: FileId,
     pub items: Vec<Item>,
 }
 
 pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    Parser { tokens, index: 0 }.parse_file()
+    parse_file_with_id(FileId::default(), tokens)
+}
+
+pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
+    Parser {
+        file_id,
+        tokens,
+        index: 0,
+    }
+    .parse_file()
 }
 
 struct Parser<'tokens, 'source> {
+    file_id: FileId,
     tokens: &'tokens [Token<'source>],
     index: usize,
 }
@@ -56,7 +68,10 @@ impl Parser<'_, '_> {
             }
         }
 
-        Ok(AstFile { items })
+        Ok(AstFile {
+            file_id: self.file_id,
+            items,
+        })
     }
 
     fn parse_use(&mut self) -> Result<UseItem, ParseError> {

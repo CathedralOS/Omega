@@ -5,7 +5,6 @@ use std::time::Instant;
 use crate::ast::item::Item;
 use crate::lexer::{Lexer, Span};
 use crate::parser::AstFile;
-use crate::parser::parser::parse_file;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
@@ -599,7 +598,7 @@ fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
         ))]
     })?;
 
-    parse_file(&tokens).map_err(|error| {
+    crate::parser::parse_file_with_id(file.id, &tokens).map_err(|error| {
         vec![Diagnostic::error(match error.span {
             Some(span) => format_source_span(file, span, &error.message),
             None => format!("{}: {}", file.path.display(), error.message),
