@@ -200,8 +200,8 @@ pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDisp
         .states
         .iter()
         .map(|(_, state)| RuntimeDispatchLoopCaseInput {
-            machine: state.machine.clone(),
-            state: state.state.clone(),
+            machine: state.machine.to_string(),
+            state: state.state.to_string(),
             dispatch_index: state.dispatch_index,
             label: state.label.clone(),
             edges: native_plan

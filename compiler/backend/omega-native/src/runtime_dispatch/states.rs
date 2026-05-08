@@ -1,6 +1,7 @@
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
 
@@ -12,8 +13,8 @@ pub struct StateDispatchPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchState {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub dispatch_index: u32,
     pub label: String,
     pub edges: HandleSpan<DispatchEdge>,
@@ -22,8 +23,8 @@ pub struct DispatchState {
 impl Default for DispatchState {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             dispatch_index: 0,
             label: String::new(),
             edges: HandleSpan::empty(),
@@ -119,8 +120,8 @@ impl StateDispatchContext {
                 .states
                 .iter()
                 .map(|(handle, state)| StateDispatchTarget {
-                    machine: state.machine.to_string(),
-                    state: state.state.to_string(),
+                    machine: state.machine.clone(),
+                    state: state.state.clone(),
                     dispatch_index: handle.arena_index(),
                 })
                 .collect(),
@@ -130,22 +131,22 @@ impl StateDispatchContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct StateDispatchTarget {
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
     dispatch_index: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStateInput {
     handle: Handle<RuntimeState>,
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedDispatchState {
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
     dispatch_index: u32,
     label: String,
     edges: Vec<DispatchEdge>,
@@ -157,8 +158,8 @@ pub fn runtime_state_inputs(runtime_flow: &RuntimeFlowPlan) -> Vec<RuntimeStateI
         .iter()
         .map(|(handle, runtime_state)| RuntimeStateInput {
             handle,
-            machine: runtime_state.machine.to_string(),
-            state: runtime_state.state.to_string(),
+            machine: runtime_state.machine.clone(),
+            state: runtime_state.state.clone(),
         })
         .collect()
 }
@@ -185,8 +186,8 @@ fn build_dispatch_state(
         .collect();
 
     CollectedDispatchState {
-        machine: runtime_state.machine.to_string(),
-        state: runtime_state.state.to_string(),
+        machine: runtime_state.machine.clone(),
+        state: runtime_state.state.clone(),
         dispatch_index: runtime_state.handle.arena_index(),
         label: dispatch_label(&runtime_state.machine, &runtime_state.state),
         edges,

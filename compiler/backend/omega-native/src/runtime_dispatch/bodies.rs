@@ -181,8 +181,8 @@ fn build_dispatch_body(
     );
 
     CollectedRuntimeDispatchBody {
-        machine: dispatch_state.machine.clone(),
-        state: dispatch_state.state.clone(),
+        machine: dispatch_state.machine.to_string(),
+        state: dispatch_state.state.to_string(),
         dispatch_index: dispatch_state.dispatch_index,
         operations,
     }
