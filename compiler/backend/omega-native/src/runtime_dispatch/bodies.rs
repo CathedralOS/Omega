@@ -1,3 +1,5 @@
+mod model;
+
 use crate::control_flow::OperationKind;
 use crate::control_flow::StateKey;
 use crate::control_flow::{ControlFlowPlan, Operation};
@@ -6,97 +8,15 @@ use crate::plan::NativePlan;
 use crate::runtime_dispatch::states::DispatchState;
 use crate::state_calls::{StateCall, StateCallLowering};
 use crate::state_storage::{
-    StateLocalStorage, StateMutation, StateMutationKind, StateMutationLowering, StateStoragePlan,
+    StateLocalStorage, StateMutation, StateStoragePlan,
 };
-use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::name::ProgramName;
+pub use model::{
+    RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
+    RuntimeDispatchBodyPlan,
+};
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RuntimeDispatchBodyPlan {
-    pub bodies: Arena<RuntimeDispatchBody>,
-    pub operations: PagedArena<RuntimeDispatchBodyOperation>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeDispatchBody {
-    pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
-    pub dispatch_index: u32,
-    pub operations: HandleSpan<RuntimeDispatchBodyOperation>,
-}
-
-impl Default for RuntimeDispatchBody {
-    fn default() -> Self {
-        Self {
-            key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
-            dispatch_index: 0,
-            operations: HandleSpan::empty(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeDispatchBodyOperation {
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub kind: RuntimeDispatchBodyOperationKind,
-}
-
-impl Default for RuntimeDispatchBodyOperation {
-    fn default() -> Self {
-        Self {
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            kind: RuntimeDispatchBodyOperationKind::Other,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum RuntimeDispatchBodyOperationKind {
-    HostCall {
-        platform_call: String,
-    },
-    InlineLeafStateCall {
-        target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
-        argument_count: usize,
-    },
-    InlineStateCall {
-        target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
-        argument_count: usize,
-        lowering: StateCallLowering,
-    },
-    StateCall {
-        target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
-        argument_count: usize,
-        lowering: StateCallLowering,
-    },
-    LocalStorage {
-        name: ProgramName,
-        type_name: String,
-    },
-    Mutation {
-        mutation_kind: StateMutationKind,
-        lowering: StateMutationLowering,
-    },
-    #[default]
-    Other,
-}
 
 pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDispatchBodyPlan {
     let workers = WorkerPool::with_available_parallelism();
