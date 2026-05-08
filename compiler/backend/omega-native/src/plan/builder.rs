@@ -1,41 +1,38 @@
 use super::NativePlan;
 use super::entry::{ENTRY_MACHINE_NAME, ENTRY_STATE_NAME, resolve_native_entry_point};
+use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::abi::build_host_abi_plan;
-use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
+use crate::alias_flow::build_alias_flow_plan;
 use crate::control_flow::build_control_flow_plan_with_workers;
-use crate::data::{NativeDataPlan, build_native_data_plan};
+use crate::data::build_native_data_plan;
 use crate::host_calls::{attach_host_call_state_keys, build_host_call_plan_with_workers};
-use crate::instructions::{InstructionPlan, build_instruction_plan};
+use crate::instructions::build_instruction_plan;
 use crate::layout::build_layout_plan;
-use crate::machine_code::{MachineCodePlan, build_machine_code_plan};
-use crate::object::{ObjectPlan, build_object_plan};
-use crate::relocations::{RelocationPlan, build_relocation_plan};
+use crate::machine_code::build_machine_code_plan;
+use crate::object::build_object_plan;
+use crate::relocations::build_relocation_plan;
 use crate::runtime_dispatch::bodies::{
-    RuntimeDispatchBodyContext, RuntimeDispatchBodyPlan,
-    build_runtime_dispatch_body_plan_with_workers,
+    RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
-use crate::runtime_dispatch::branching::{
-    RuntimeBranchingCallPlan, build_runtime_branching_call_plan,
-};
+use crate::runtime_dispatch::branching::build_runtime_branching_call_plan;
 use crate::runtime_dispatch::loop_plan::{
-    RuntimeDispatchLoopContext, RuntimeDispatchLoopPlan,
-    build_runtime_dispatch_loop_plan_with_workers, runtime_dispatch_loop_inputs,
+    RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
+    runtime_dispatch_loop_inputs,
 };
 use crate::runtime_flow::build_runtime_flow_plan;
 use crate::runtime_storage::{
-    RuntimeStorageContext, RuntimeStoragePlan, build_runtime_storage_plan_with_workers,
-    runtime_storage_body_inputs,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers, runtime_storage_body_inputs,
 };
-use crate::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
+use crate::runtime_text::build_runtime_text_plan;
 use crate::state_analysis::StateAnalysisContext;
-use crate::state_calls::{StateCallPlan, build_state_call_plan_with_workers};
+use crate::state_calls::build_state_call_plan_with_workers;
 use crate::state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
 use crate::state_guards::build_state_guard_plan;
-use crate::state_storage::{StateStoragePlan, build_state_storage_plan_with_workers};
-use crate::state_values::{StateValuePlan, build_state_value_plan_with_workers};
+use crate::state_storage::build_state_storage_plan_with_workers;
+use crate::state_values::build_state_value_plan_with_workers;
 use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
@@ -98,47 +95,20 @@ pub(super) fn build_native_plan_with_workers(
         build_state_guard_plan(&state_dispatch, &layouts, &entry_machine)
     });
 
-    let mut native_plan = NativePlan {
+    let mut native_plan = build_native_plan_skeleton(NativePlanSkeletonInput {
         target,
         host_abi,
         host_calls,
-        state_calls: StateCallPlan::default(),
-        alias_flow: AliasFlowPlan::default(),
-        state_storage: StateStoragePlan::default(),
-        state_values: StateValuePlan::default(),
-        data: NativeDataPlan::default(),
-        instructions: InstructionPlan {
-            target,
-            functions: omega_core::arena::Arena::new(),
-            instructions: omega_core::arena::Arena::new(),
-            operands: omega_core::arena::Arena::new(),
-        },
         control_flow,
         runtime_flow,
         state_dispatch,
         state_guards,
-        runtime_bodies: RuntimeDispatchBodyPlan::default(),
-        runtime_branching_calls: RuntimeBranchingCallPlan::default(),
-        runtime_dispatch_loop: RuntimeDispatchLoopPlan::default(),
-        runtime_storage: RuntimeStoragePlan::default(),
-        runtime_text: RuntimeTextPlan::default(),
         layouts,
-        machine_code: MachineCodePlan::default(),
-        object: ObjectPlan {
-            target,
-            sections: omega_core::arena::Arena::new(),
-            symbols: omega_core::arena::Arena::new(),
-            entry_symbol: String::new(),
-        },
-        relocations: RelocationPlan {
-            target,
-            records: omega_core::arena::Arena::new(),
-        },
         entry_key,
         entry_machine,
         entry_state,
         phase_timings,
-    };
+    });
     let mut phase_timings = std::mem::take(&mut native_plan.phase_timings);
     native_plan.state_calls = record_native_phase(&mut phase_timings, "state calls", || {
         build_state_call_plan_with_workers(

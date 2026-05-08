@@ -7,6 +7,7 @@ use std::sync::Arc;
 mod builder;
 mod entry;
 mod model;
+mod skeleton;
 mod timing;
 
 pub use model::{NativePlan, NativePlanPhaseTiming};
