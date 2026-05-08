@@ -1,34 +1,20 @@
-use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey};
+mod collection;
+mod model;
+
+use crate::control_flow::{MachineFlow, OperationKind, StateKey};
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_analysis::StateAnalysisContext;
+use collection::{collect_machine_state_calls, CollectedStateCall};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 use std::sync::Arc;
 
-mod model;
-
 pub use model::{
     StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
     StateCallResolution,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CollectedStateCall {
-    source_key: StateKey,
-    source_machine: ProgramName,
-    source_state: ProgramName,
-    statement_index: usize,
-    receiver: ProgramName,
-    target_key: StateKey,
-    target_machine: ProgramName,
-    target_state: ProgramName,
-    raw_arguments: Vec<Expression>,
-    reachable: bool,
-    required: bool,
-    resolution: StateCallResolution,
-}
 
 pub fn build_state_call_plan(native_plan: &NativePlan) -> StateCallPlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -147,73 +133,6 @@ fn state_call_targets_leaf(context: &StateAnalysisContext, call: &CollectedState
                     )
             })
         })
-}
-
-fn collect_machine_state_calls(
-    context: &StateAnalysisContext,
-    machine: &MachineFlow,
-) -> Vec<CollectedStateCall> {
-    let mut calls = Vec::new();
-
-    let Some(states) = context.control_flow.states.span(machine.states) else {
-        return calls;
-    };
-
-    for state in states {
-        let Some(operations) = context.control_flow.operations.span(state.operations) else {
-            continue;
-        };
-
-        for operation in operations {
-            let OperationKind::Call {
-                receiver,
-                target,
-                arguments,
-            } = &operation.kind
-            else {
-                continue;
-            };
-
-            if context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
-                continue;
-            }
-
-            let resolved_target = resolve_state_call_target(
-                &context.control_flow,
-                machine,
-                receiver.as_ref(),
-                target,
-            );
-
-            calls.push(CollectedStateCall {
-                source_key: state.key,
-                source_machine: machine.name.clone(),
-                source_state: state.name.clone(),
-                statement_index: operation.statement_index,
-                receiver: receiver
-                    .as_ref()
-                    .cloned()
-                    .unwrap_or_else(|| ProgramName::generated("self")),
-                target_machine: resolved_target
-                    .as_ref()
-                    .map(|target| target.machine.clone())
-                    .unwrap_or_default(),
-                target_key: resolved_target
-                    .as_ref()
-                    .map(|target| target.key)
-                    .unwrap_or_default(),
-                target_state: target.clone(),
-                raw_arguments: arguments.clone(),
-                reachable: context.runtime_state_is_reachable(&machine.name, &state.name),
-                required: false,
-                resolution: resolved_target
-                    .map(|target| target.resolution)
-                    .unwrap_or(StateCallResolution::Unresolved),
-            });
-        }
-    }
-
-    calls
 }
 
 fn build_call_arguments<'a>(
@@ -437,60 +356,4 @@ fn state_flow_from_key(
 
 fn state_key_is_valid(state_key: StateKey) -> bool {
     state_key.machine.is_valid() && state_key.state.is_valid()
-}
-
-struct ResolvedStateCall {
-    key: StateKey,
-    machine: ProgramName,
-    resolution: StateCallResolution,
-}
-
-fn resolve_state_call_target(
-    control_flow: &ControlFlowPlan,
-    machine: &MachineFlow,
-    receiver: Option<&ProgramName>,
-    target_state: &ProgramName,
-) -> Option<ResolvedStateCall> {
-    let Some(receiver) = receiver else {
-        if let Some(key) = control_flow.state_key_by_names(&machine.name, target_state) {
-            return Some(ResolvedStateCall {
-                key,
-                machine: machine.name.clone(),
-                resolution: StateCallResolution::Local,
-            });
-        }
-
-        return None;
-    };
-
-    if receiver == "self" {
-        let key = control_flow.state_key_by_names(&machine.name, target_state)?;
-        return Some(ResolvedStateCall {
-            key,
-            machine: machine.name.clone(),
-            resolution: StateCallResolution::Local,
-        });
-    }
-
-    if let Some(contained) = machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == *receiver)
-    {
-        return control_flow
-            .state_key_by_names(&contained.type_name, target_state)
-            .map(|key| ResolvedStateCall {
-                key,
-                machine: contained.type_name.clone(),
-                resolution: StateCallResolution::ContainedMachine,
-            });
-    }
-
-    control_flow
-        .state_key_by_names(receiver, target_state)
-        .map(|key| ResolvedStateCall {
-            key,
-            machine: receiver.clone(),
-            resolution: StateCallResolution::NamedMachine,
-        })
 }
