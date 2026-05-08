@@ -26,6 +26,7 @@ pub struct ResolveReport {
 pub struct ResolvedDefinition {
     pub name: String,
     pub kind: ResolvedDefinitionKind,
+    pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -73,10 +74,11 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
     for item in items {
         match item {
             Item::Capability(capability) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: capability.name.to_string(),
-                    kind: ResolvedDefinitionKind::Capability,
-                });
+                insert_definition(
+                    &mut report,
+                    capability.name.as_str(),
+                    ResolvedDefinitionKind::Capability,
+                );
 
                 for member in &capability.members {
                     match member {
@@ -101,10 +103,11 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                 }
             }
             Item::Data(data_definition) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: data_definition.name.to_string(),
-                    kind: ResolvedDefinitionKind::Data,
-                });
+                insert_definition(
+                    &mut report,
+                    data_definition.name.as_str(),
+                    ResolvedDefinitionKind::Data,
+                );
 
                 for member in &data_definition.members {
                     if let DataMember::Field(field) = member {
@@ -117,10 +120,11 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                 }
             }
             Item::Invariant(invariant) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: invariant.name.to_string(),
-                    kind: ResolvedDefinitionKind::Invariant,
-                });
+                insert_definition(
+                    &mut report,
+                    invariant.name.as_str(),
+                    ResolvedDefinitionKind::Invariant,
+                );
 
                 collect_constraints(
                     &mut report,
@@ -134,18 +138,20 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                 });
             }
             Item::Machine(machine) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: machine.name.to_string(),
-                    kind: ResolvedDefinitionKind::Machine,
-                });
+                insert_definition(
+                    &mut report,
+                    machine.name.as_str(),
+                    ResolvedDefinitionKind::Machine,
+                );
 
                 collect_machine_references(&mut report, machine);
             }
             Item::Platform(platform) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: platform.name.to_string(),
-                    kind: ResolvedDefinitionKind::Platform,
-                });
+                insert_definition(
+                    &mut report,
+                    platform.name.as_str(),
+                    ResolvedDefinitionKind::Platform,
+                );
 
                 for state in &platform.states {
                     collect_state_signature_references(
@@ -156,21 +162,35 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
                 }
             }
             Item::Target(target) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: target.name.to_string(),
-                    kind: ResolvedDefinitionKind::Target,
-                });
+                insert_definition(
+                    &mut report,
+                    target.name.as_str(),
+                    ResolvedDefinitionKind::Target,
+                );
             }
             Item::TrustDefinition(trust_definition) => {
-                report.definitions.insert(ResolvedDefinition {
-                    name: trust_definition.name.to_string(),
-                    kind: ResolvedDefinitionKind::Trust,
-                });
+                insert_definition(
+                    &mut report,
+                    trust_definition.name.as_str(),
+                    ResolvedDefinitionKind::Trust,
+                );
             }
         }
     }
 
     report
+}
+
+fn insert_definition(report: &mut ResolveReport, name: &str, kind: ResolvedDefinitionKind) {
+    let symbol = report
+        .symbols
+        .find_child_by_name(report.symbols.root(), name)
+        .unwrap_or_else(SymbolHandle::invalid);
+    report.definitions.insert(ResolvedDefinition {
+        name: name.to_owned(),
+        kind,
+        symbol,
+    });
 }
 
 fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
@@ -730,6 +750,7 @@ mod tests {
             .find(|(_, definition)| definition.name == "main")
             .expect("main definition should be collected");
         assert_eq!(definition.kind, ResolvedDefinitionKind::Machine);
+        assert!(definition.symbol.is_valid());
 
         assert!(
             report.references.iter().any(|(_, reference)| {
