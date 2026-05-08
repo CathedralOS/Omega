@@ -1,10 +1,17 @@
-use crate::layout::TypeLayout;
+use crate::layout::{LayoutPlan, TypeLayout};
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use crate::state_storage::{StateMutationKind, StateMutationLowering};
+use crate::runtime_dispatch::bodies::{
+    RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
+};
+use crate::state_storage::{
+    StateMutation, StateMutationKind, StateMutationLowering, StateStoragePlan,
+};
+use crate::target::NativeTarget;
 use omega_core::arena::Arena;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::types::PrimitiveType;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
@@ -53,58 +60,141 @@ impl Default for RuntimeStorageWrite {
 }
 
 pub fn build_runtime_storage_plan(native_plan: &NativePlan) -> RuntimeStoragePlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_runtime_storage_plan_with_workers(
+        Arc::new(RuntimeStorageContext::from_native_plan(native_plan)),
+        runtime_storage_body_inputs(native_plan),
+        workers.handle(),
+    )
+}
+
+pub fn build_runtime_storage_plan_with_workers(
+    context: Arc<RuntimeStorageContext>,
+    body_inputs: Vec<RuntimeStorageBodyInput>,
+    workers: WorkerPoolHandle,
+) -> RuntimeStoragePlan {
+    if body_inputs.is_empty() {
+        return RuntimeStoragePlan::default();
+    }
+
+    let body_inputs = Arc::new(body_inputs);
+    let body_count = body_inputs.len();
+    let context_for_bodies = Arc::clone(&context);
+    let body_plans = workers.map_ordered(body_count, move |index| {
+        let body_input = body_inputs
+            .get(index)
+            .expect("runtime-storage worker index should be in range");
+
+        build_runtime_storage_body_plan(&context_for_bodies, body_input)
+    });
+
     let mut plan = RuntimeStoragePlan::default();
 
-    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
-            continue;
-        };
-        let mut next_frame_offset = 0usize;
+    for body_plan in body_plans {
+        plan.frame_slots.insert_many(
+            body_plan
+                .frame_slots
+                .iter()
+                .map(|(_, frame_slot)| frame_slot.clone()),
+        );
+        plan.writes
+            .insert_many(body_plan.writes.iter().map(|(_, write)| write.clone()));
+    }
 
-        for operation in operations {
-            match &operation.kind {
-                RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
-                    let layout = layout_for_type_name(native_plan, type_name);
-                    let byte_offset = align_to(next_frame_offset, layout.alignment);
-                    next_frame_offset = byte_offset
-                        .checked_add(layout.size)
-                        .expect("runtime frame slot size overflow");
+    plan
+}
 
-                    plan.frame_slots.insert(RuntimeFrameSlot {
-                        dispatch_index: body.dispatch_index,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuntimeStorageContext {
+    pub layouts: LayoutPlan,
+    pub state_storage: StateStoragePlan,
+    pub target: NativeTarget,
+}
+
+impl RuntimeStorageContext {
+    pub fn from_native_plan(native_plan: &NativePlan) -> Self {
+        Self {
+            layouts: native_plan.layouts.clone(),
+            state_storage: native_plan.state_storage.clone(),
+            target: native_plan.target,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RuntimeStorageBodyInput {
+    pub body: RuntimeDispatchBody,
+    pub operations: Vec<RuntimeDispatchBodyOperation>,
+}
+
+pub fn runtime_storage_body_inputs(native_plan: &NativePlan) -> Vec<RuntimeStorageBodyInput> {
+    native_plan
+        .runtime_bodies
+        .bodies
+        .iter()
+        .map(|(_, body)| RuntimeStorageBodyInput {
+            body: body.clone(),
+            operations: native_plan
+                .runtime_bodies
+                .operations
+                .span(body.operations)
+                .unwrap_or(&[])
+                .to_vec(),
+        })
+        .collect()
+}
+
+fn build_runtime_storage_body_plan(
+    context: &RuntimeStorageContext,
+    body_input: &RuntimeStorageBodyInput,
+) -> RuntimeStoragePlan {
+    let mut plan = RuntimeStoragePlan::default();
+    let mut next_frame_offset = 0usize;
+
+    for operation in &body_input.operations {
+        match &operation.kind {
+            RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
+                let layout = layout_for_type_name(context, type_name);
+                let byte_offset = align_to(next_frame_offset, layout.alignment);
+                next_frame_offset = byte_offset
+                    .checked_add(layout.size)
+                    .expect("runtime frame slot size overflow");
+
+                plan.frame_slots.insert(RuntimeFrameSlot {
+                    dispatch_index: body_input.body.dispatch_index,
+                    source_machine: operation.source_machine.clone(),
+                    source_state: operation.source_state.clone(),
+                    statement_index: operation.statement_index,
+                    name: name.clone(),
+                    type_name: type_name.clone(),
+                    byte_offset,
+                    byte_size: layout.size,
+                    alignment: layout.alignment,
+                });
+            }
+            RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
+                if *lowering != StateMutationLowering::AlreadyLowered =>
+            {
+                if let Some(mutation) = mutation_for_operation(
+                    context,
+                    &operation.source_machine,
+                    &operation.source_state,
+                    operation.statement_index,
+                ) {
+                    plan.writes.insert(RuntimeStorageWrite {
+                        dispatch_index: body_input.body.dispatch_index,
                         source_machine: operation.source_machine.clone(),
                         source_state: operation.source_state.clone(),
                         statement_index: operation.statement_index,
-                        name: name.clone(),
-                        type_name: type_name.clone(),
-                        byte_offset,
-                        byte_size: layout.size,
-                        alignment: layout.alignment,
+                        target: mutation.target.clone(),
+                        value: mutation.value.clone(),
+                        mutation_kind: mutation.mutation_kind,
+                        lowering: mutation.lowering,
                     });
                 }
-                RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
-                    if *lowering != StateMutationLowering::AlreadyLowered =>
-                {
-                    if let Some(mutation) = mutation_for_operation(
-                        native_plan,
-                        &operation.source_machine,
-                        &operation.source_state,
-                        operation.statement_index,
-                    ) {
-                        plan.writes.insert(RuntimeStorageWrite {
-                            dispatch_index: body.dispatch_index,
-                            source_machine: operation.source_machine.clone(),
-                            source_state: operation.source_state.clone(),
-                            statement_index: operation.statement_index,
-                            target: mutation.target.clone(),
-                            value: mutation.value.clone(),
-                            mutation_kind: mutation.mutation_kind,
-                            lowering: mutation.lowering,
-                        });
-                    }
-                }
-                _ => {}
             }
+            _ => {}
         }
     }
 
@@ -127,8 +217,8 @@ pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {
         .unwrap_or(1)
 }
 
-fn layout_for_type_name(native_plan: &NativePlan, type_name: &str) -> TypeLayout {
-    if let Some(data_layout) = native_plan
+fn layout_for_type_name(context: &RuntimeStorageContext, type_name: &str) -> TypeLayout {
+    if let Some(data_layout) = context
         .layouts
         .data_layouts
         .iter()
@@ -138,7 +228,7 @@ fn layout_for_type_name(native_plan: &NativePlan, type_name: &str) -> TypeLayout
         return data_layout;
     }
 
-    if let Some(machine_layout) = native_plan
+    if let Some(machine_layout) = context
         .layouts
         .machine_layouts
         .iter()
@@ -149,13 +239,13 @@ fn layout_for_type_name(native_plan: &NativePlan, type_name: &str) -> TypeLayout
     }
 
     if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
-        return primitive_layout(native_plan, primitive_type);
+        return primitive_layout(context, primitive_type);
     }
 
     TypeLayout::default()
 }
 
-fn primitive_layout(native_plan: &NativePlan, primitive_type: PrimitiveType) -> TypeLayout {
+fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {
     match primitive_type {
         PrimitiveType::Bool => TypeLayout {
             size: 1,
@@ -170,12 +260,12 @@ fn primitive_layout(native_plan: &NativePlan, primitive_type: PrimitiveType) -> 
             alignment: 8,
         },
         PrimitiveType::Usize => TypeLayout {
-            size: native_plan.target.pointer_size,
-            alignment: native_plan.target.pointer_alignment,
+            size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
         },
         PrimitiveType::String => TypeLayout {
-            size: native_plan.target.pointer_size * 2,
-            alignment: native_plan.target.pointer_alignment,
+            size: context.target.pointer_size * 2,
+            alignment: context.target.pointer_alignment,
         },
     }
 }
@@ -191,12 +281,12 @@ fn align_to(offset: usize, alignment: usize) -> usize {
 }
 
 fn mutation_for_operation<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeStorageContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
-) -> Option<&'plan crate::state_storage::StateMutation> {
-    native_plan
+) -> Option<&'plan StateMutation> {
+    context
         .state_storage
         .mutations
         .iter()
