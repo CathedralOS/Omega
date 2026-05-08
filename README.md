@@ -228,6 +228,7 @@ Omega/
 |   |   |   `-- [CRATE] omega-linker-wasm/              # Wasm final module linking and import/export shaping.
 |   |   |
 |   |   `-- images/
+|   |       |-- [CRATE] omega-image/                    # Shared final image data model and fixup helpers.
 |   |       |-- [CRATE] omega-image-elf/                # Final ELF image layout, program headers, loaders.
 |   |       |-- [CRATE] omega-image-macho/              # Final Mach-O image layout, load commands, fixups.
 |   |       |-- [CRATE] omega-image-pe/                 # Final PE image layout, directories, imports, relocations.

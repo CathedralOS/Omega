@@ -1,0 +1,14 @@
+[package]
+name = "omega-image"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_image"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../../foundation/omega-core" }
+omega-object = { path = "../../object/omega-object" }
+omega-target = { path = "../../omega-target" }
