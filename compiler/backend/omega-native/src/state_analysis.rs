@@ -118,18 +118,7 @@ impl StateAnalysisContext {
     }
 
     pub fn state_key(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
-        let machine = self
-            .control_flow
-            .machines
-            .iter()
-            .find(|(_, machine)| machine.name == machine_name)
-            .map(|(_, machine)| machine)?;
-
         self.control_flow
-            .states
-            .span(machine.states)?
-            .iter()
-            .find(|state| state.name == state_name)
-            .map(|state| state.key)
+            .state_key_by_names(machine_name, state_name)
     }
 }

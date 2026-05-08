@@ -68,6 +68,7 @@ pub struct NativePlan {
     pub machine_code: MachineCodePlan,
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
+    pub entry_key: crate::control_flow::StateKey,
     pub entry_machine: String,
     pub entry_state: String,
     pub phase_timings: Vec<NativePlanPhaseTiming>,
@@ -127,8 +128,15 @@ pub fn build_native_plan_with_workers(
     let layouts = layouts?;
     let mut host_calls = host_calls?;
     attach_host_call_state_keys(&mut host_calls, &control_flow);
+    let entry_key = control_flow
+        .state_key_by_names(&entry_machine, &entry_state)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "unknown runtime state `{entry_machine}.{entry_state}`"
+            ))
+        })?;
     let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
-        build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)
+        build_runtime_flow_plan(&control_flow, entry_key)
     })?;
     let state_dispatch = record_native_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
@@ -177,6 +185,7 @@ pub fn build_native_plan_with_workers(
             target,
             records: omega_core::arena::Arena::new(),
         },
+        entry_key,
         entry_machine,
         entry_state,
         phase_timings,

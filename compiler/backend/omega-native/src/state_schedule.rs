@@ -18,12 +18,9 @@ pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<Schedu
     let mut values = Vec::<(String, String)>::new();
     let mut aliases = Vec::<(String, String)>::new();
 
-    let entry_machine = machine_flow(native_plan, &native_plan.entry_machine)?;
-    let entry_state = state_flow(native_plan, entry_machine, &native_plan.entry_state)?;
-
     append_state_chain(
         native_plan,
-        entry_state.key,
+        native_plan.entry_key,
         &mut schedule,
         &mut visited,
         &mut values,

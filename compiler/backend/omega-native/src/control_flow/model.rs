@@ -12,6 +12,38 @@ pub struct ControlFlowPlan {
     pub transitions: Arena<TransitionFlow>,
 }
 
+impl ControlFlowPlan {
+    pub fn state_key_by_names(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
+        let machine = self
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name == machine_name)
+            .map(|(_, machine)| machine)?;
+
+        self.states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.name == state_name)
+            .map(|state| state.key)
+    }
+
+    pub fn machine_by_symbol(&self, machine_symbol: SymbolHandle) -> Option<&MachineFlow> {
+        self.machines
+            .iter()
+            .find(|(_, machine)| machine.symbol == machine_symbol)
+            .map(|(_, machine)| machine)
+    }
+
+    pub fn state_by_key(&self, key: StateKey) -> Option<&StateFlow> {
+        let machine = self.machine_by_symbol(key.machine)?;
+
+        self.states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.key == key)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StateKey {
     pub machine: SymbolHandle,

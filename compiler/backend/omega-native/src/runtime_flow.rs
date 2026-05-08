@@ -73,24 +73,14 @@ impl Default for RuntimeTransitionTarget {
 
 pub fn build_runtime_flow_plan(
     control_flow: &ControlFlowPlan,
-    entry_machine: &str,
-    entry_state: &str,
+    entry_key: StateKey,
 ) -> Result<RuntimeFlowPlan, Diagnostic> {
     let entry_machine_flow = control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == entry_machine)
-        .map(|(_, machine)| machine)
-        .ok_or_else(|| Diagnostic::error(format!("unknown runtime machine `{entry_machine}`")))?;
+        .machine_by_symbol(entry_key.machine)
+        .ok_or_else(|| Diagnostic::error("unknown runtime entry machine"))?;
     let entry_state_flow = control_flow
-        .states
-        .span(entry_machine_flow.states)
-        .and_then(|states| states.iter().find(|state| state.name == entry_state))
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "unknown runtime state `{entry_machine}.{entry_state}`"
-            ))
-        })?;
+        .state_by_key(entry_key)
+        .ok_or_else(|| Diagnostic::error("unknown runtime entry state"))?;
     let mut builder = RuntimeFlowBuilder {
         control_flow,
         runtime_flow: RuntimeFlowPlan::default(),
@@ -99,7 +89,7 @@ pub fn build_runtime_flow_plan(
     };
 
     builder.visit_state(RuntimeState {
-        key: entry_state_flow.key,
+        key: entry_key,
         machine: entry_machine_flow.name.clone(),
         state: entry_state_flow.name.clone(),
     })?;
