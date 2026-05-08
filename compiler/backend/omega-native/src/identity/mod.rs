@@ -1,62 +1,15 @@
-use crate::control_flow::{OperationKind, PlannedTransitionTarget};
+mod expressions;
+mod storage;
+mod targets;
+
+use crate::control_flow::OperationKind;
 use crate::host_calls::HostCallArgumentKind;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use crate::runtime_flow::RuntimeTransitionTarget;
-use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
+use expressions::{count_expression_span_strings, count_expression_strings, count_guard_strings};
+pub use storage::NativeStringStorage;
+use targets::{count_planned_target_strings, count_runtime_target_strings};
 use omega_typed_program::statement::TransitionGuard;
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct NativeStringStorage {
-    pub identity_strings: usize,
-    pub identity_bytes: usize,
-    pub payload_strings: usize,
-    pub payload_bytes: usize,
-    pub generated_symbol_strings: usize,
-    pub generated_symbol_bytes: usize,
-    pub report_strings: usize,
-    pub report_bytes: usize,
-}
-
-impl NativeStringStorage {
-    pub fn total_strings(self) -> usize {
-        self.identity_strings
-            + self.payload_strings
-            + self.generated_symbol_strings
-            + self.report_strings
-    }
-
-    pub fn total_bytes(self) -> usize {
-        self.identity_bytes + self.payload_bytes + self.generated_symbol_bytes + self.report_bytes
-    }
-
-    fn count_identity(&mut self, value: &str) {
-        count_string(&mut self.identity_strings, &mut self.identity_bytes, value);
-    }
-
-    fn count_payload(&mut self, value: &str) {
-        count_string(&mut self.payload_strings, &mut self.payload_bytes, value);
-    }
-
-    fn count_generated_symbol(&mut self, value: &str) {
-        count_string(
-            &mut self.generated_symbol_strings,
-            &mut self.generated_symbol_bytes,
-            value,
-        );
-    }
-
-    fn count_report(&mut self, value: &str) {
-        count_string(&mut self.report_strings, &mut self.report_bytes, value);
-    }
-
-    fn count_program_name_identity(&mut self, name: &ProgramName) {
-        if !name.is_source_backed() && !name.as_str().is_empty() {
-            self.count_identity(name.as_str());
-        }
-    }
-}
 
 pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStorage {
     let mut storage = NativeStringStorage::default();
@@ -304,28 +257,6 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
     }
 }
 
-fn count_expression_span_strings(
-    span: omega_core::arena::HandleSpan<Expression>,
-    native_plan: &NativePlan,
-    storage: &mut NativeStringStorage,
-) {
-    if let Some(expressions) = native_plan
-        .runtime_branching_calls
-        .target_arguments
-        .span(span)
-    {
-        for expression in expressions {
-            count_expression_strings(expression, storage);
-        }
-    }
-}
-
-fn count_guard_strings(guard: &TransitionGuard, storage: &mut NativeStringStorage) {
-    if let TransitionGuard::When(expression) = guard {
-        count_expression_strings(expression, storage);
-    }
-}
-
 fn count_state_guard_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, guard) in native_plan.state_guards.guards.iter() {
         storage.count_program_name_identity(&guard.source_machine);
@@ -528,84 +459,4 @@ fn count_phase_timing_strings(native_plan: &NativePlan, storage: &mut NativeStri
     for timing in &native_plan.phase_timings {
         storage.count_report(&timing.phase);
     }
-}
-
-fn count_planned_target_strings(
-    target: &PlannedTransitionTarget,
-    storage: &mut NativeStringStorage,
-) {
-    match target {
-        PlannedTransitionTarget::State {
-            name, arguments, ..
-        } => {
-            storage.count_program_name_identity(name);
-            for argument in arguments {
-                count_expression_strings(argument, storage);
-            }
-        }
-        PlannedTransitionTarget::Nested {
-            receiver,
-            state,
-            arguments,
-        } => {
-            storage.count_program_name_identity(receiver);
-            storage.count_program_name_identity(state);
-            for argument in arguments {
-                count_expression_strings(argument, storage);
-            }
-        }
-        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {}
-    }
-}
-
-fn count_runtime_target_strings(
-    target: &RuntimeTransitionTarget,
-    storage: &mut NativeStringStorage,
-) {
-    match target {
-        RuntimeTransitionTarget::State { machine, state, .. } => {
-            storage.count_program_name_identity(machine);
-            storage.count_program_name_identity(state);
-        }
-        RuntimeTransitionTarget::Unknown { name } => storage.count_identity(name),
-        RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {}
-    }
-}
-
-fn count_expression_strings(expression: &Expression, storage: &mut NativeStringStorage) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                count_expression_strings(value, storage);
-            }
-        }
-        Expression::Binary(binary) => {
-            count_expression_strings(&binary.left, storage);
-            count_expression_strings(&binary.right, storage);
-        }
-        Expression::Indexed(indexed) => {
-            count_expression_strings(&indexed.collection, storage);
-            count_expression_strings(&indexed.index, storage);
-        }
-        Expression::Mutable(expression) => count_expression_strings(expression, storage),
-        Expression::StructLiteral(struct_literal) => {
-            storage.count_program_name_identity(&struct_literal.type_name);
-            for field in &struct_literal.fields {
-                storage.count_program_name_identity(&field.name);
-                count_expression_strings(&field.value, storage);
-            }
-        }
-        Expression::Name(path) => {
-            for name in path {
-                storage.count_program_name_identity(name);
-            }
-        }
-        Expression::String(value) => storage.count_payload(value),
-        Expression::Boolean(_) | Expression::Float(_) | Expression::Integer(_) => {}
-    }
-}
-
-fn count_string(count: &mut usize, bytes: &mut usize, value: &str) {
-    *count += 1;
-    *bytes += value.len();
 }
