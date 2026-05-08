@@ -27,8 +27,7 @@ use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeAliasBinding {
-    machine: ProgramName,
-    state: ProgramName,
+    source_key: StateKey,
     parameter_name: ProgramName,
     expression: Expression,
 }
@@ -492,16 +491,9 @@ fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::Other => return,
     }
 
-    let Some(state_call) = state_call_for_statement(
-        native_plan,
-        state_key_by_names(
-            native_plan,
-            &operation.source_machine,
-            &operation.source_state,
-        )
-        .unwrap_or_default(),
-        operation.statement_index,
-    ) else {
+    let Some(state_call) =
+        state_call_for_statement(native_plan, operation.source_key, operation.statement_index)
+    else {
         return;
     };
     let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
@@ -515,15 +507,13 @@ fn bind_runtime_operation_aliases(
 
         let expression = strip_mutable_expression(resolve_runtime_alias_expression(
             &argument.expression,
-            &state_call.source_machine,
-            &state_call.source_state,
+            state_call.source_key,
             aliases,
         ));
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {
-                machine: state_call.target_machine.clone(),
-                state: state_call.target_state.clone(),
+                source_key: state_call.target_key,
                 parameter_name: argument.parameter_name.clone(),
                 expression,
             },
@@ -533,8 +523,7 @@ fn bind_runtime_operation_aliases(
 
 fn set_runtime_alias(aliases: &mut Vec<RuntimeAliasBinding>, alias: RuntimeAliasBinding) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
-        existing_alias.machine == alias.machine
-            && existing_alias.state == alias.state
+        existing_alias.source_key == alias.source_key
             && existing_alias.parameter_name == alias.parameter_name
     }) {
         *existing_alias = alias;
@@ -589,8 +578,7 @@ fn select_runtime_mutation_writes(
     static_values: &mut Vec<(String, i64)>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let resolved_target =
-        resolve_runtime_alias_expression(target, source_machine, source_state, aliases);
+    let resolved_target = resolve_runtime_alias_expression(target, source_key, aliases);
 
     if let Expression::StructLiteral(struct_literal) = value {
         for field in &struct_literal.fields {
@@ -648,8 +636,7 @@ fn select_runtime_mutation_writes(
         return;
     }
 
-    let resolved_value =
-        resolve_runtime_alias_expression(value, source_machine, source_state, aliases);
+    let resolved_value = resolve_runtime_alias_expression(value, source_key, aliases);
     if let Some(copy) = runtime_storage_copy(
         native_plan,
         dispatch_index,
@@ -669,8 +656,7 @@ fn select_runtime_mutation_writes(
 
     let Some(value) = resolve_runtime_static_integer_value(
         native_plan,
-        source_machine,
-        source_state,
+        source_key,
         value,
         aliases,
         static_values,
@@ -721,9 +707,7 @@ fn runtime_text_builder_write(
         source_state,
         statement_index,
         resolved_target,
-        &|expression| {
-            resolve_runtime_alias_expression(expression, source_machine, source_state, aliases)
-        },
+        &|expression| resolve_runtime_alias_expression(expression, source_key, aliases),
     )
 }
 
@@ -949,8 +933,7 @@ fn string_literal_data_object<'plan>(
 
 fn resolve_runtime_static_integer_value(
     native_plan: &NativePlan,
-    source_machine: &str,
-    source_state: &str,
+    source_key: StateKey,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
     static_values: &[(String, i64)],
@@ -959,7 +942,7 @@ fn resolve_runtime_static_integer_value(
         Expression::Integer(value) => Some(*value),
         Expression::Name(_) => enum_variant_value(&native_plan.layouts, expression).or_else(|| {
             let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_machine, source_state, aliases);
+                resolve_runtime_alias_expression(expression, source_key, aliases);
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
@@ -968,7 +951,7 @@ fn resolve_runtime_static_integer_value(
         }),
         Expression::Indexed(_) | Expression::Mutable(_) => {
             let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_machine, source_state, aliases);
+                resolve_runtime_alias_expression(expression, source_key, aliases);
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
@@ -1004,38 +987,27 @@ fn strip_mutable_expression(expression: Expression) -> Expression {
 
 fn resolve_runtime_alias_expression(
     expression: &Expression,
-    source_machine: &str,
-    source_state: &str,
+    source_key: StateKey,
     aliases: &[RuntimeAliasBinding],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => Expression::Mutable(Box::new(
-            resolve_runtime_alias_expression(target, source_machine, source_state, aliases),
+            resolve_runtime_alias_expression(target, source_key, aliases),
         )),
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(
             omega_typed_program::expression::IndexedExpression {
                 collection: resolve_runtime_alias_expression(
                     &indexed.collection,
-                    source_machine,
-                    source_state,
+                    source_key,
                     aliases,
                 ),
-                index: resolve_runtime_alias_expression(
-                    &indexed.index,
-                    source_machine,
-                    source_state,
-                    aliases,
-                ),
+                index: resolve_runtime_alias_expression(&indexed.index, source_key, aliases),
             },
         )),
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| {
-                alias.machine == source_machine
-                    && alias.state == source_state
-                    && alias.parameter_name == path[0]
-            })
+            .find(|alias| alias.source_key == source_key && alias.parameter_name == path[0])
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
