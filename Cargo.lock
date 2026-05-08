@@ -209,7 +209,6 @@ dependencies = [
  "omega-object",
  "omega-target",
  "omega-typed-program",
- "sha2",
 ]
 
 [[package]]
