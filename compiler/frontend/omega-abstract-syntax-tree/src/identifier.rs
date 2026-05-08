@@ -94,11 +94,25 @@ impl IdentifierPath {
     }
 
     pub fn join(&self, separator: &str) -> String {
-        self.members
+        let byte_count = self
+            .members
             .iter()
-            .map(Identifier::as_str)
-            .collect::<Vec<_>>()
-            .join(separator)
+            .map(|member| member.as_str().len())
+            .sum::<usize>()
+            + separator
+                .len()
+                .saturating_mul(self.members.len().saturating_sub(1));
+        let mut joined = String::with_capacity(byte_count);
+
+        for (index, member) in self.members.iter().enumerate() {
+            if index > 0 {
+                joined.push_str(separator);
+            }
+
+            joined.push_str(member.as_str());
+        }
+
+        joined
     }
 
     pub fn len(&self) -> usize {
