@@ -1,0 +1,38 @@
+use crate::identity::NativeStringStorage;
+use crate::identity::expressions::count_expression_strings;
+use crate::plan::NativePlan;
+
+pub(in crate::identity) fn count_runtime_text_strings(
+    native_plan: &NativePlan,
+    storage: &mut NativeStringStorage,
+) {
+    for (_, text_use) in native_plan.runtime_text.uses.iter() {
+        storage.count_program_name_identity(&text_use.machine);
+        storage.count_program_name_identity(&text_use.state);
+        storage.count_identity(&text_use.platform_call);
+        count_expression_strings(&text_use.expression, storage);
+    }
+    for (_, buffer) in native_plan.runtime_text.buffers.iter() {
+        storage.count_program_name_identity(&buffer.machine);
+        storage.count_program_name_identity(&buffer.state);
+        storage.count_identity(&buffer.platform_call);
+        count_expression_strings(&buffer.target, storage);
+    }
+    for (_, slot) in native_plan.runtime_text.slots.iter() {
+        count_expression_strings(&slot.place, storage);
+    }
+    for (_, write) in native_plan.runtime_text.writes.iter() {
+        storage.count_program_name_identity(&write.machine);
+        storage.count_program_name_identity(&write.state);
+        count_expression_strings(&write.target, storage);
+        count_expression_strings(&write.value, storage);
+    }
+    for (_, builder) in native_plan.runtime_text.builders.iter() {
+        storage.count_program_name_identity(&builder.machine);
+        storage.count_program_name_identity(&builder.state);
+        count_expression_strings(&builder.target, storage);
+    }
+    for (_, segment) in native_plan.runtime_text.builder_segments.iter() {
+        count_expression_strings(&segment.expression, storage);
+    }
+}
