@@ -337,8 +337,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
         for operation in operations.iter() {
             let state_call = state_call_for_operation(
                 native_plan,
-                &operation.source_machine,
-                &operation.source_state,
+                operation.source_key,
                 operation.statement_index,
             );
             let RuntimeDispatchBodyOperationKind::StateCall {
@@ -654,8 +653,7 @@ fn branch_parameter_bindings(
                         argument.parameter_name.clone(),
                         resolve_runtime_branch_alias_expression(
                             &expression,
-                            &state_call.source_machine,
-                            &state_call.source_state,
+                            state_call.source_key,
                             aliases,
                         ),
                     )
@@ -691,8 +689,7 @@ fn bind_runtime_branch_aliases(
                 parameter_name: argument.parameter_name.clone(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
-                    &state_call.source_machine,
-                    &state_call.source_state,
+                    state_call.source_key,
                     aliases,
                 ),
             },
@@ -702,8 +699,7 @@ fn bind_runtime_branch_aliases(
 
 fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
-        existing_alias.machine == alias.machine
-            && existing_alias.state == alias.state
+        existing_alias.source_key == alias.source_key
             && existing_alias.parameter_name == alias.parameter_name
     }) {
         *existing_alias = alias;
@@ -714,18 +710,13 @@ fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: Runtim
 
 fn resolve_runtime_branch_alias_expression(
     expression: &Expression,
-    source_machine: &ProgramName,
-    source_state: &ProgramName,
+    source_key: StateKey,
     aliases: &[RuntimeBranchAlias],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
-            let resolved_target = resolve_runtime_branch_alias_expression(
-                target,
-                source_machine,
-                source_state,
-                aliases,
-            );
+            let resolved_target =
+                resolve_runtime_branch_alias_expression(target, source_key, aliases);
             if matches!(resolved_target, Expression::Mutable(_)) {
                 resolved_target
             } else {
@@ -736,26 +727,16 @@ fn resolve_runtime_branch_alias_expression(
             omega_typed_program::expression::IndexedExpression {
                 collection: resolve_runtime_branch_alias_expression(
                     &indexed.collection,
-                    source_machine,
-                    source_state,
+                    source_key,
                     aliases,
                 ),
-                index: resolve_runtime_branch_alias_expression(
-                    &indexed.index,
-                    source_machine,
-                    source_state,
-                    aliases,
-                ),
+                index: resolve_runtime_branch_alias_expression(&indexed.index, source_key, aliases),
             },
         )),
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| {
-                alias.machine == *source_machine
-                    && alias.state == *source_state
-                    && alias.parameter_name == path[0]
-            })
+            .find(|alias| alias.source_key == source_key && alias.parameter_name == path[0])
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
@@ -1038,17 +1019,21 @@ fn leaf_operation_kind(
     state_name: &str,
     statement_index: usize,
 ) -> RuntimeLeafBranchOperationKind {
-    if let Some(host_call) =
-        host_call_for_statement(native_plan, machine_name, state_name, statement_index)
-    {
+    if let Some(host_call) = host_call_for_statement(
+        native_plan,
+        state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default(),
+        statement_index,
+    ) {
         return RuntimeLeafBranchOperationKind::HostCall {
             platform_call: host_call.platform_call.clone(),
         };
     }
 
-    if let Some(mutation) =
-        mutation_for_statement(native_plan, machine_name, state_name, statement_index)
-    {
+    if let Some(mutation) = mutation_for_statement(
+        native_plan,
+        state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default(),
+        statement_index,
+    ) {
         return RuntimeLeafBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
@@ -1086,8 +1071,7 @@ fn straight_line_operations<'a>(
                 statement_index: operation.statement_index,
                 kind: straight_line_operation_kind(
                     native_plan,
-                    machine_name.as_str(),
-                    state_name.as_str(),
+                    source_key,
                     operation.statement_index,
                     &operation.kind,
                 ),
@@ -1097,22 +1081,17 @@ fn straight_line_operations<'a>(
 
 fn straight_line_operation_kind(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
     operation_kind: &OperationKind,
 ) -> RuntimeStraightLineBranchOperationKind {
-    if let Some(host_call) =
-        host_call_for_statement(native_plan, machine_name, state_name, statement_index)
-    {
+    if let Some(host_call) = host_call_for_statement(native_plan, source_key, statement_index) {
         return RuntimeStraightLineBranchOperationKind::HostCall {
             platform_call: host_call.platform_call.clone(),
         };
     }
 
-    if let Some(mutation) =
-        mutation_for_statement(native_plan, machine_name, state_name, statement_index)
-    {
+    if let Some(mutation) = mutation_for_statement(native_plan, source_key, statement_index) {
         return RuntimeStraightLineBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
@@ -1121,9 +1100,7 @@ fn straight_line_operation_kind(
         };
     }
 
-    if let Some(state_call) =
-        state_call_for_operation(native_plan, machine_name, state_name, statement_index)
-    {
+    if let Some(state_call) = state_call_for_operation(native_plan, source_key, statement_index) {
         return RuntimeStraightLineBranchOperationKind::StateCall {
             target_machine: state_call.target_machine.clone(),
             target_state: state_call.target_state.clone(),
@@ -1141,8 +1118,7 @@ fn straight_line_operation_kind(
 
 fn host_call_for_statement<'plan>(
     native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan HostCall> {
     native_plan
@@ -1150,17 +1126,14 @@ fn host_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, host_call)| {
-            host_call.machine == machine_name
-                && host_call.state == state_name
-                && host_call.statement_index == statement_index
+            host_call.source_key == source_key && host_call.statement_index == statement_index
         })
         .map(|(_, host_call)| host_call)
 }
 
 fn mutation_for_statement<'plan>(
     native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan crate::state_storage::StateMutation> {
     native_plan
@@ -1168,9 +1141,7 @@ fn mutation_for_statement<'plan>(
         .mutations
         .iter()
         .find(|(_, mutation)| {
-            mutation.machine == machine_name
-                && mutation.state == state_name
-                && mutation.statement_index == statement_index
+            mutation.source_key == source_key && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
 }
@@ -1208,8 +1179,7 @@ fn machine_flow<'plan>(
 
 fn state_call_for_operation<'plan>(
     native_plan: &'plan NativePlan,
-    source_machine: &str,
-    source_state: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
     native_plan
@@ -1217,9 +1187,7 @@ fn state_call_for_operation<'plan>(
         .calls
         .iter()
         .find(|(_, state_call)| {
-            state_call.source_machine == source_machine
-                && state_call.source_state == source_state
-                && state_call.statement_index == statement_index
+            state_call.source_key == source_key && state_call.statement_index == statement_index
         })
         .map(|(_, state_call)| state_call)
 }
