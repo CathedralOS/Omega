@@ -16,14 +16,17 @@ use crate::types::{TypeConstraint, TypeReference};
 use omega_abstract_syntax_tree as ast;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use std::sync::Arc;
 
-struct InvariantAliases<'ast> {
-    items: Vec<&'ast ast::item::InvariantDefinition>,
+#[derive(Clone)]
+struct InvariantAliases {
+    items: Vec<ast::item::InvariantDefinition>,
 }
 
-impl<'ast> InvariantAliases<'ast> {
-    fn build(items: &'ast [ast::item::Item]) -> Result<Self, Diagnostic> {
+impl InvariantAliases {
+    fn build(items: &[ast::item::Item]) -> Result<Self, Diagnostic> {
         let mut aliases = Self { items: Vec::new() };
 
         for item in items {
@@ -38,19 +41,28 @@ impl<'ast> InvariantAliases<'ast> {
                 )));
             }
 
-            aliases.items.push(invariant);
+            aliases.items.push(invariant.clone());
         }
 
         Ok(aliases)
     }
 
     fn get(&self, name: &str) -> Option<&ast::item::InvariantDefinition> {
-        self.items.iter().copied().find(|alias| alias.name == name)
+        self.items.iter().find(|alias| alias.name == name)
     }
 }
 
 pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
-    let aliases = InvariantAliases::build(items)?;
+    let workers = WorkerPool::with_available_parallelism();
+
+    lower_program_with_workers(Arc::new(items.to_vec()), workers.handle())
+}
+
+pub fn lower_program_with_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    let aliases = InvariantAliases::build(&items)?;
     let mut program = Program::default();
 
     for alias in &aliases.items {
@@ -65,33 +77,19 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
         });
     }
 
-    for item in items {
-        match item {
-            ast::item::Item::Capability(_) => {}
-            ast::item::Item::Data(data_definition) => {
-                program.data_definitions.push(lower_data_definition(
-                    data_definition,
-                    &aliases,
-                    &mut program.type_constraints,
-                )?);
-            }
-            ast::item::Item::Invariant(_) => {}
-            ast::item::Item::Use(_) => {}
-            ast::item::Item::Machine(machine) => {
-                program.machines.push(lower_machine(
-                    machine,
-                    &aliases,
-                    &mut program.type_constraints,
-                )?);
-            }
-            ast::item::Item::Platform(platform) => {
-                program.platforms.push(lower_platform(
-                    platform,
-                    &aliases,
-                    &mut program.type_constraints,
-                )?);
-            }
-            ast::item::Item::Target(_) | ast::item::Item::TrustDefinition(_) => {}
+    let aliases = Arc::new(aliases);
+    let item_count = items.len();
+    let lowered_items = workers.map_ordered(item_count, move |index| {
+        let item = items
+            .get(index)
+            .expect("lowering worker index should be in range");
+
+        lower_top_level_item(item, &aliases)
+    });
+
+    for lowered_item in lowered_items {
+        if let Some(lowered_item) = lowered_item? {
+            merge_lowered_item(&mut program, lowered_item);
         }
     }
 
@@ -100,6 +98,72 @@ pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
     program.symbols = symbols;
 
     Ok(program)
+}
+
+struct LoweredTopLevelItem {
+    type_constraints: Arena<TypeConstraint>,
+    item: LoweredTopLevelItemKind,
+}
+
+enum LoweredTopLevelItemKind {
+    Data(DataDefinition),
+    Machine(Machine),
+    Platform(Platform),
+}
+
+fn lower_top_level_item(
+    item: &ast::item::Item,
+    aliases: &InvariantAliases,
+) -> Result<Option<LoweredTopLevelItem>, Diagnostic> {
+    let mut type_constraints = Arena::new();
+    let item =
+        match item {
+            ast::item::Item::Data(data_definition) => Some(LoweredTopLevelItemKind::Data(
+                lower_data_definition(data_definition, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Machine(machine) => Some(LoweredTopLevelItemKind::Machine(
+                lower_machine(machine, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Platform(platform) => Some(LoweredTopLevelItemKind::Platform(
+                lower_platform(platform, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Capability(_)
+            | ast::item::Item::Invariant(_)
+            | ast::item::Item::Target(_)
+            | ast::item::Item::TrustDefinition(_)
+            | ast::item::Item::Use(_) => None,
+        };
+
+    Ok(item.map(|item| LoweredTopLevelItem {
+        type_constraints,
+        item,
+    }))
+}
+
+fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) {
+    match lowered_item.item {
+        LoweredTopLevelItemKind::Data(data_definition) => {
+            program.data_definitions.push(remap_data_definition(
+                data_definition,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+        LoweredTopLevelItemKind::Machine(machine) => {
+            program.machines.push(remap_machine(
+                machine,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+        LoweredTopLevelItemKind::Platform(platform) => {
+            program.platforms.push(remap_platform(
+                platform,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+    }
 }
 
 fn register_program_symbols(symbols: &mut SymbolTable, program: &Program) {
@@ -161,6 +225,224 @@ fn register_state_parameters(
 ) {
     for parameter in parameters {
         symbols.insert_named(state_symbol, SymbolKind::Parameter, parameter.name.as_str());
+    }
+}
+
+fn remap_data_definition(
+    data_definition: DataDefinition,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> DataDefinition {
+    DataDefinition {
+        name: data_definition.name,
+        members: data_definition
+            .members
+            .into_iter()
+            .map(|member| remap_data_member(member, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_data_member(
+    member: DataMember,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> DataMember {
+    match member {
+        DataMember::Field(field) => DataMember::Field(DataField {
+            name: field.name,
+            type_reference: remap_type_reference(
+                field.type_reference,
+                source_constraints,
+                target_constraints,
+            ),
+        }),
+        DataMember::Variant(variant) => DataMember::Variant(variant),
+    }
+}
+
+fn remap_machine(
+    machine: Machine,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Machine {
+    Machine {
+        name: machine.name,
+        contains: machine.contains,
+        owned_data: machine
+            .owned_data
+            .into_iter()
+            .map(|owned_data| remap_owned_data(owned_data, source_constraints, target_constraints))
+            .collect(),
+        states: machine
+            .states
+            .into_iter()
+            .map(|state| remap_state(state, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_owned_data(
+    owned_data: OwnedData,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> OwnedData {
+    OwnedData {
+        name: owned_data.name,
+        type_reference: remap_type_reference(
+            owned_data.type_reference,
+            source_constraints,
+            target_constraints,
+        ),
+        initial_value: owned_data.initial_value,
+    }
+}
+
+fn remap_platform(
+    platform: Platform,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Platform {
+    Platform {
+        name: platform.name,
+        states: platform
+            .states
+            .into_iter()
+            .map(|state| remap_state_signature(state, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_state(
+    state: State,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> State {
+    State {
+        name: state.name,
+        return_type: state.return_type.map(|return_type| {
+            remap_type_reference(return_type, source_constraints, target_constraints)
+        }),
+        parameters: state
+            .parameters
+            .into_iter()
+            .map(|parameter| {
+                remap_state_parameter(parameter, source_constraints, target_constraints)
+            })
+            .collect(),
+        statements: state
+            .statements
+            .into_iter()
+            .map(|statement| remap_statement(statement, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_state_signature(
+    signature: StateSignature,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> StateSignature {
+    StateSignature {
+        name: signature.name,
+        return_type: signature.return_type.map(|return_type| {
+            remap_type_reference(return_type, source_constraints, target_constraints)
+        }),
+        parameters: signature
+            .parameters
+            .into_iter()
+            .map(|parameter| {
+                remap_state_parameter(parameter, source_constraints, target_constraints)
+            })
+            .collect(),
+    }
+}
+
+fn remap_state_parameter(
+    parameter: StateParameter,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> StateParameter {
+    StateParameter {
+        name: parameter.name,
+        type_reference: remap_type_reference(
+            parameter.type_reference,
+            source_constraints,
+            target_constraints,
+        ),
+        is_const: parameter.is_const,
+        is_mutable: parameter.is_mutable,
+        is_self: parameter.is_self,
+    }
+}
+
+fn remap_statement(
+    statement: Statement,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Statement {
+    match statement {
+        Statement::LocalData(local_data) => Statement::LocalData(LocalData {
+            name: local_data.name,
+            type_reference: remap_type_reference(
+                local_data.type_reference,
+                source_constraints,
+                target_constraints,
+            ),
+        }),
+        Statement::Assignment(_)
+        | Statement::Call(_)
+        | Statement::Expression(_)
+        | Statement::Transition(_) => statement,
+    }
+}
+
+fn remap_type_reference(
+    type_reference: TypeReference,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> TypeReference {
+    match type_reference {
+        TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => TypeReference::Constrained {
+            base_type: Box::new(remap_type_reference(
+                *base_type,
+                source_constraints,
+                target_constraints,
+            )),
+            constraints: target_constraints.insert_many(
+                source_constraints
+                    .span_or_empty(constraints)
+                    .iter()
+                    .cloned(),
+            ),
+        },
+        TypeReference::FixedArray {
+            element_type,
+            length,
+        } => TypeReference::FixedArray {
+            element_type: Box::new(remap_type_reference(
+                *element_type,
+                source_constraints,
+                target_constraints,
+            )),
+            length,
+        },
+        TypeReference::Generic {
+            base_name,
+            arguments,
+        } => TypeReference::Generic {
+            base_name,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| {
+                    remap_type_reference(argument, source_constraints, target_constraints)
+                })
+                .collect(),
+        },
+        TypeReference::Named(_) | TypeReference::Unit => type_reference,
     }
 }
 

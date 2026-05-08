@@ -25,7 +25,7 @@ use omega_native::target::NativeTarget;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
-use omega_typed_program::lowering::lower_program;
+use omega_typed_program::lowering::lower_program_with_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 
@@ -80,7 +80,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     let program = Arc::new(record_phase(
         &mut phase_timings,
         "typed program lowering",
-        || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
+        || {
+            lower_program_with_workers(Arc::clone(&loaded_program.items), workers.handle())
+                .map_err(|diagnostic| vec![diagnostic])
+        },
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
         let loaded_program_for_types = Arc::clone(&loaded_program);
@@ -206,7 +209,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let program = Arc::new(record_phase(
         &mut phase_timings,
         "typed program lowering",
-        || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
+        || {
+            lower_program_with_workers(Arc::clone(&loaded_program.items), workers.handle())
+                .map_err(|diagnostic| vec![diagnostic])
+        },
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
         let loaded_program_for_types = Arc::clone(&loaded_program);
@@ -402,7 +408,7 @@ fn format_compact_duration(microseconds: u128) -> String {
 
 #[derive(Debug)]
 pub(crate) struct LoadedProgram {
-    pub(crate) items: Vec<Item>,
+    pub(crate) items: Arc<Vec<Item>>,
     pub(crate) files: Vec<LoadedFile>,
 }
 
@@ -520,7 +526,7 @@ fn load_program_sources(
     }
 
     Ok(LoadedProgram {
-        items,
+        items: Arc::new(items),
         files: loaded_files,
     })
 }
