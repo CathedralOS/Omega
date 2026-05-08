@@ -12,7 +12,10 @@ use omega_abstract_syntax_tree::item::{
 use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
-use omega_core::symbols::{SymbolDefinition, SymbolHandle, SymbolKind, SymbolPath, SymbolTable};
+use omega_core::symbols::{
+    SymbolDefinition, SymbolHandle, SymbolKind, SymbolPath, SymbolTable,
+    builtin_type_symbol_definitions,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolveReport {
@@ -585,36 +588,12 @@ fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
     SymbolTable::from_definition(SymbolDefinition::with_children(
         SymbolKind::Root,
         "program",
-        builtin_type_symbols().into_iter().chain(
+        builtin_type_symbol_definitions().into_iter().chain(
             items
                 .iter()
                 .filter_map(|item| builder.item_symbol_definition(item)),
         ),
     ))
-}
-
-fn builtin_type_symbols() -> [SymbolDefinition<'static>; 19] {
-    [
-        SymbolDefinition::named(SymbolKind::BuiltinType, "bool"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i8"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i16"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "isize"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u8"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u16"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "usize"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "f32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "f64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "String"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Slice"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Result"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "SyscallResult"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Terminal"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Never"),
-    ]
 }
 
 #[derive(Debug, Clone, Copy)]

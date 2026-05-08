@@ -105,6 +105,30 @@ impl<'name> SymbolDefinition<'name> {
     }
 }
 
+pub fn builtin_type_symbol_definitions() -> [SymbolDefinition<'static>; 19] {
+    [
+        SymbolDefinition::named(SymbolKind::BuiltinType, "bool"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i8"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i16"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "isize"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u8"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u16"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "usize"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "f32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "f64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "String"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Slice"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Result"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "SyscallResult"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Terminal"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Never"),
+    ]
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SymbolPath {
     pub root: SymbolHandle,
