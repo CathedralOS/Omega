@@ -1,14 +1,14 @@
-use crate::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
+use crate::control_flow::{OperationKind, StateKey};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use crate::runtime_dispatch::guards::{StateGuardKind, classify_transition_guard};
+use crate::runtime_dispatch::guards::StateGuardKind;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_calls::{StateCall, StateCallLowering};
-use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 mod aliases;
+mod edges;
 mod lookups;
 mod model;
 
@@ -16,9 +16,9 @@ use aliases::{
     RuntimeBranchAlias, bind_runtime_branch_aliases, branch_parameter_bindings,
     resolve_branch_expression, resolve_branch_guard,
 };
+use edges::build_branch_edges;
 use lookups::{
     host_call_for_statement, mutation_for_statement, state_call_for_operation, state_parameters,
-    state_statement_has_host_call,
 };
 pub use model::{
     RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
@@ -360,106 +360,6 @@ fn classify_branch_call_expansion(
     RuntimeBranchCallExpansion::GuardedLeaf
 }
 
-fn build_branch_edges(
-    native_plan: &NativePlan,
-    state_key: StateKey,
-    target_arguments: &mut Arena<Expression>,
-) -> Vec<RuntimeBranchingCallEdge> {
-    let Some(machine) = native_plan
-        .control_flow
-        .machine_by_symbol(state_key.machine)
-    else {
-        return Vec::new();
-    };
-    let Some(state) = native_plan.control_flow.state_by_key(state_key) else {
-        return Vec::new();
-    };
-    let Some(transitions) = native_plan.control_flow.transitions.span(state.transitions) else {
-        return Vec::new();
-    };
-
-    transitions
-        .iter()
-        .enumerate()
-        .map(|(order, transition)| {
-            let target = runtime_transition_target(machine, &state.name, &transition.target);
-            RuntimeBranchingCallEdge {
-                order,
-                lowering: branch_target_lowering(native_plan, &target),
-                target,
-                continuation: transition
-                    .continuation
-                    .as_ref()
-                    .map(|continuation| {
-                        runtime_transition_target(machine, &state.name, continuation)
-                    })
-                    .unwrap_or(RuntimeTransitionTarget::None),
-                target_arguments: transition_target_arguments(&transition.target, target_arguments),
-                guard_kind: classify_transition_guard(&transition.guard),
-                guard: transition.guard.clone(),
-            }
-        })
-        .collect()
-}
-
-fn transition_target_arguments(
-    target: &PlannedTransitionTarget,
-    arena: &mut Arena<Expression>,
-) -> HandleSpan<Expression> {
-    match target {
-        PlannedTransitionTarget::State { arguments, .. }
-        | PlannedTransitionTarget::Nested { arguments, .. } => arena.insert_many(arguments.clone()),
-        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {
-            HandleSpan::empty()
-        }
-    }
-}
-
-fn branch_target_lowering(
-    native_plan: &NativePlan,
-    target: &RuntimeTransitionTarget,
-) -> RuntimeBranchTargetLowering {
-    let RuntimeTransitionTarget::State { key, .. } = target else {
-        return match target {
-            RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
-                RuntimeBranchTargetLowering::Terminal
-            }
-            RuntimeTransitionTarget::Unknown { .. } => RuntimeBranchTargetLowering::Unknown,
-            RuntimeTransitionTarget::State { .. } => unreachable!(),
-        };
-    };
-
-    let Some(target_state) = native_plan.control_flow.state_by_key(*key) else {
-        return RuntimeBranchTargetLowering::Unknown;
-    };
-
-    if native_plan
-        .control_flow
-        .transitions
-        .span(target_state.transitions)
-        .is_some_and(|transitions| !transitions.is_empty())
-    {
-        return RuntimeBranchTargetLowering::InlineBranching;
-    }
-
-    let has_state_call = native_plan
-        .control_flow
-        .operations
-        .span(target_state.operations)
-        .is_some_and(|operations| {
-            operations.iter().any(|operation| {
-                matches!(operation.kind, OperationKind::Call { .. })
-                    && !state_statement_has_host_call(native_plan, *key, operation.statement_index)
-            })
-        });
-
-    if has_state_call {
-        RuntimeBranchTargetLowering::InlineStraightLine
-    } else {
-        RuntimeBranchTargetLowering::InlineLeaf
-    }
-}
-
 fn leaf_operations(
     native_plan: &NativePlan,
     source_key: StateKey,
@@ -582,38 +482,4 @@ fn straight_line_operation_kind(
     }
 
     RuntimeStraightLineBranchOperationKind::Other
-}
-
-fn runtime_transition_target(
-    machine: &MachineFlow,
-    current_state: &str,
-    target: &PlannedTransitionTarget,
-) -> RuntimeTransitionTarget {
-    match target {
-        PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
-            key: *key,
-            machine: machine.name.clone(),
-            state: name.clone(),
-        },
-        PlannedTransitionTarget::Nested {
-            receiver, state, ..
-        } => machine
-            .contains
-            .iter()
-            .find(|contained| contained.name == *receiver)
-            .map(|contained| RuntimeTransitionTarget::State {
-                key: Default::default(),
-                machine: contained.type_name.clone(),
-                state: state.clone(),
-            })
-            .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
-                name: format!("{receiver}.{state}"),
-            }),
-        PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-            key: Default::default(),
-            machine: machine.name.clone(),
-            state: current_state.to_owned().into(),
-        },
-        PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
-    }
 }
