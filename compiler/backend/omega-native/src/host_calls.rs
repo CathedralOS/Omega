@@ -1,9 +1,9 @@
 use crate::abi::HostAbiPlan;
 use crate::control_flow::{ControlFlowPlan, StateKey};
-use crate::target::NativeTarget;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::state::State;

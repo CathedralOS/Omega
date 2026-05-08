@@ -3,8 +3,8 @@ pub mod macho;
 
 use crate::emitter::EmittedNativeOutput;
 use crate::plan::NativePlan;
-use crate::target::{Architecture, NativeTarget, ObjectFormat};
 use omega_core::diagnostics::Diagnostic;
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 pub fn can_emit_target_output(target: NativeTarget) -> bool {
     matches!(

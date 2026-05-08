@@ -1,6 +1,6 @@
 use crate::architecture::aarch64;
-use crate::target::Architecture;
 use omega_core::diagnostics::Diagnostic;
+use omega_target::Architecture;
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,

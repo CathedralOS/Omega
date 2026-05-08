@@ -2,8 +2,8 @@ use crate::architecture;
 use crate::instructions::{FunctionInstructionPlan, InstructionOperandKind};
 use crate::object::machine_storage_symbol_name;
 use crate::plan::NativePlan;
-use crate::target::Architecture;
 use omega_object::{RelocationKind, RelocationPlan, RelocationRecord};
+use omega_target::Architecture;
 
 pub(super) fn collect_data_address_relocations(
     native_plan: &NativePlan,

@@ -1,6 +1,6 @@
-use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use std::sync::Arc;
 

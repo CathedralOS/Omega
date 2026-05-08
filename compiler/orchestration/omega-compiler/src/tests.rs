@@ -5,6 +5,7 @@ use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::parser::parse_file;
 use omega_lexer::Lexer;
+use omega_target::{NativeTarget, ObjectFormat};
 use omega_typed_program::lowering::lower_program;
 
 fn identifier_path(members: &[&str]) -> IdentifierPath {
@@ -620,9 +621,8 @@ fn plans_native_layout_for_owned_data() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan =
-        omega_native::plan::build_native_plan(&program, omega_native::target::NativeTarget::host())
-            .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::host())
+        .expect("native planning should pass");
     let main_layout = native_plan
         .layouts
         .machine_layouts
@@ -662,7 +662,7 @@ fn plans_native_layout_for_primitive_widths() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let target = omega_native::target::NativeTarget::host();
+    let target = NativeTarget::host();
     let native_plan = omega_native::plan::build_native_plan(&program, target)
         .expect("native planning should pass");
     let counters_layout = native_plan
@@ -1131,11 +1131,8 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should preserve runtime loops");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should preserve runtime loops");
     let runtime_states = native_plan
         .runtime_flow
         .states
@@ -1189,11 +1186,8 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should preserve runtime loops");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should preserve runtime loops");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(
@@ -1239,11 +1233,8 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should emit unguarded dispatch loop bytes");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should emit unguarded dispatch loop bytes");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(
@@ -1304,11 +1295,8 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build dispatch data");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build dispatch data");
     let prompt = native_plan
         .state_dispatch
         .states
@@ -1358,11 +1346,8 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build dispatch loop data");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build dispatch loop data");
     let prompt_case = native_plan
         .runtime_dispatch_loop
         .cases
@@ -1426,11 +1411,8 @@ fn selects_runtime_dispatch_loop_instructions() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should select dispatch loop instructions");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should select dispatch loop instructions");
 
     assert!(
         native_plan
@@ -1508,11 +1490,8 @@ fn plans_runtime_guards_for_dispatch_edges() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build guard data");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build guard data");
 
     assert_eq!(native_plan.state_guards.guards.len(), 2);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
@@ -1595,11 +1574,8 @@ fn resolves_enum_guard_operand_values() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should resolve enum guard operands");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should resolve enum guard operands");
     let equality_guard = native_plan
         .state_guards
         .guards
@@ -1659,11 +1635,8 @@ fn resolves_nested_guard_operand_offsets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should resolve nested guard operand offsets");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should resolve nested guard operand offsets");
     let equality_guard = native_plan
         .state_guards
         .guards
@@ -1721,11 +1694,8 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build runtime bodies");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build runtime bodies");
     let entry_body = native_plan
         .runtime_bodies
         .bodies
@@ -1781,11 +1751,8 @@ fn plans_runtime_branching_state_call_edges() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build runtime branching calls");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build runtime branching calls");
     let branching_call = native_plan
         .runtime_branching_calls
         .calls
@@ -1860,11 +1827,8 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build runtime branch expansion");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build runtime branch expansion");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let branching_call = native_plan
         .runtime_branching_calls
@@ -1927,11 +1891,8 @@ fn plans_runtime_straight_line_branch_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build straight-line branch expansion");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build straight-line branch expansion");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let branching_call = native_plan
         .runtime_branching_calls
@@ -2046,11 +2007,8 @@ fn plans_runtime_leaf_branch_argument_bindings() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build leaf branch bindings");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build leaf branch bindings");
     let expansion = native_plan
         .runtime_branching_calls
         .leaf_expansions
@@ -2118,11 +2076,8 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should select reachable loop-state calls");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should select reachable loop-state calls");
     let selected_host_operations = native_plan
         .instructions
         .instructions
@@ -2174,11 +2129,8 @@ fn selects_host_calls_inside_required_state_call_targets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should select required helper host calls");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should select required helper host calls");
     let selected_host_operations = native_plan
         .instructions
         .instructions
@@ -2228,11 +2180,8 @@ fn plans_state_calls_separately_from_host_calls() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should separate state calls");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should separate state calls");
     let state_calls = native_plan
         .state_calls
         .calls
@@ -2321,11 +2270,8 @@ fn marks_state_calls_required_through_transition_targets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should trace required calls through transitions");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should trace required calls through transitions");
     let branch_call = native_plan
         .state_calls
         .calls
@@ -2365,11 +2311,8 @@ fn tracks_mutable_state_call_argument_bindings() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should collect mutable call argument binding");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should collect mutable call argument binding");
     let state_call = native_plan
         .state_calls
         .calls
@@ -2510,9 +2453,8 @@ fn plans_native_object_shape() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan =
-        omega_native::plan::build_native_plan(&program, omega_native::target::NativeTarget::host())
-            .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::host())
+        .expect("native planning should pass");
 
     assert_eq!(native_plan.object.sections.len(), 3);
     assert!(!native_plan.instructions.functions.is_empty());
@@ -2550,16 +2492,10 @@ fn selected_windows_target_plans_coff_and_kernel32_imports() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::windows_x64(),
-    )
-    .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::windows_x64())
+        .expect("native planning should pass");
 
-    assert_eq!(
-        native_plan.target.object_format,
-        omega_native::target::ObjectFormat::Coff
-    );
+    assert_eq!(native_plan.target.object_format, ObjectFormat::Coff);
     assert!(
         native_plan
             .object
@@ -2608,16 +2544,10 @@ fn selected_linux_target_plans_elf_and_syscalls() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::linux_x64(),
-    )
-    .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::linux_x64())
+        .expect("native planning should pass");
 
-    assert_eq!(
-        native_plan.target.object_format,
-        omega_native::target::ObjectFormat::Elf
-    );
+    assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
     assert_eq!(native_plan.object.symbols.len(), 3);
     assert!(
         native_plan
@@ -2659,17 +2589,11 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::linux_arm64(),
-    )
-    .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::linux_arm64())
+        .expect("native planning should pass");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
-    assert_eq!(
-        native_plan.target.object_format,
-        omega_native::target::ObjectFormat::Elf
-    );
+    assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
         native_plan.machine_code.bytes.len(),
@@ -2720,11 +2644,8 @@ fn selected_macos_arm64_plans_relocation_byte_offsets() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should pass");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should pass");
 
     let relocations = native_plan
         .relocations
@@ -2782,11 +2703,8 @@ fn encodes_aarch64_immediates_that_need_movk() {
         .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should encode multi-instruction immediates");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should encode multi-instruction immediates");
 
     assert_eq!(native_plan.machine_code.byte_count, 36);
 }
@@ -2812,11 +2730,8 @@ fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should preserve unsupported call as blocker");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should preserve unsupported call as blocker");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(
@@ -3264,11 +3179,8 @@ fn ignores_host_calls_outside_entry_schedule() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should keep unreachable host call out of the schedule");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should keep unreachable host call out of the schedule");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());
@@ -3305,11 +3217,8 @@ fn emits_unconditional_entry_transition_chains() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should allow unconditional transition chain");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should allow unconditional transition chain");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());
@@ -3353,11 +3262,8 @@ fn emits_nested_machine_continuations_inline() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should allow nested continuation");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should allow nested continuation");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
         .expect("entry schedule should include nested state");
@@ -3398,11 +3304,8 @@ fn reports_entry_assignments_as_native_mutation_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should preserve entry assignment as blocker");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should preserve entry assignment as blocker");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(
@@ -3441,11 +3344,8 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should preserve dynamic text argument");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should preserve dynamic text argument");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let runtime_text = native_plan
         .runtime_text
@@ -3500,11 +3400,8 @@ fn invalidates_static_text_after_mutable_host_output() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should invalidate static text after mutable output");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should invalidate static text after mutable output");
 
     assert!(native_plan.runtime_text.uses.iter().any(|(_, text_use)| {
         text_use.statement_index == 3
@@ -3553,11 +3450,8 @@ fn plans_state_storage_and_mutations() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should collect state storage");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should collect state storage");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert_eq!(native_plan.state_storage.locals.len(), 1);
@@ -3643,11 +3537,8 @@ fn plans_required_state_value_uses() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should collect value uses");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should collect value uses");
 
     assert!(native_plan.state_values.values.iter().any(|(_, value)| {
         value.required
@@ -3720,11 +3611,8 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should build runtime text builder");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should build runtime text builder");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(
@@ -3773,11 +3661,8 @@ fn lowers_constant_integer_assignment_before_host_call() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should track constant integer assignment");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should track constant integer assignment");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let exit_call = native_plan
         .host_calls
@@ -3851,11 +3736,8 @@ fn selects_static_guarded_transition() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should select a static guarded transition");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should select a static guarded transition");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
         .expect("entry schedule should select look branch");
@@ -3917,11 +3799,8 @@ fn propagates_static_state_call_arguments() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should propagate static state arguments");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should propagate static state arguments");
     let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
         .expect("entry schedule should evaluate helper-state guards");
     let scheduled_states = schedule
@@ -3970,11 +3849,8 @@ fn lowers_mutable_output_host_call() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should lower mutable output host call");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should lower mutable output host call");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
     let read_buffer = native_plan
         .data
@@ -4071,11 +3947,8 @@ fn lowers_static_record_array_field_text() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = omega_native::plan::build_native_plan(
-        &program,
-        omega_native::target::NativeTarget::macos_arm64(),
-    )
-    .expect("native planning should lower static record field text");
+    let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
+        .expect("native planning should lower static record field text");
     let emission_plan = omega_native::emission::build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());

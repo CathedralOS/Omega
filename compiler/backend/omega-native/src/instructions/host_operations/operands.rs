@@ -1,6 +1,6 @@
 use crate::host_calls::{HostCall, HostCallArgument, HostCallArgumentKind};
 use crate::plan::NativePlan;
-use crate::target::ObjectFormat;
+use omega_target::ObjectFormat;
 
 use super::super::model::{InstructionOperand, InstructionOperandKind};
 use super::runtime_text::{

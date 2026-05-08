@@ -3,8 +3,8 @@ use std::process::Command;
 
 use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
 use crate::plan::NativePlan;
-use crate::target::{Architecture, ObjectFormat};
 use omega_core::diagnostics::Diagnostic;
+use omega_target::{Architecture, ObjectFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFinalization {

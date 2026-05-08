@@ -1,9 +1,9 @@
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
 use crate::relocations::RelocationKind;
-use crate::target::{Architecture, ObjectFormat};
 use crate::target_output::emit_target_output;
 use omega_core::diagnostics::Diagnostic;
+use omega_target::{Architecture, ObjectFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmittedNativeOutput {

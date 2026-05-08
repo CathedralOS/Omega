@@ -108,6 +108,7 @@ dependencies = [
  "omega-native",
  "omega-parser",
  "omega-proof",
+ "omega-target",
  "omega-typed-program",
  "omega-types",
  "omega-validation",

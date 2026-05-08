@@ -1,6 +1,6 @@
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
-use crate::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_target::NativeTarget;
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

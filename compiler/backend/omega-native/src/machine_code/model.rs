@@ -1,6 +1,6 @@
 use crate::state_guards::StateGuardOperator;
-use crate::target::NativeTarget;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineCodePlan {

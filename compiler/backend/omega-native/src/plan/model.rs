@@ -18,9 +18,9 @@ use crate::state_dispatch::StateDispatchPlan;
 use crate::state_guards::StateGuardPlan;
 use crate::state_storage::StateStoragePlan;
 use crate::state_values::StateValuePlan;
-use crate::target::NativeTarget;
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
+use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {

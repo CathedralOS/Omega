@@ -1,11 +1,11 @@
 use crate::abi::HostBindingMechanism;
 use crate::plan::NativePlan;
 use crate::runtime_storage::{runtime_frame_storage_alignment, runtime_frame_storage_size};
-use crate::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_layout::MachineLayout;
 pub use omega_object::{ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan};
+use omega_target::{NativeTarget, ObjectFormat};
 
 pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnostic> {
     let main_layout = native_plan

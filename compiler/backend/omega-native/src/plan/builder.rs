@@ -32,10 +32,10 @@ use crate::state_dispatch::{
 use crate::state_guards::build_state_guard_plan;
 use crate::state_storage::build_state_storage_plan_with_workers;
 use crate::state_values::build_state_value_plan_with_workers;
-use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
+use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use std::sync::Arc;
 

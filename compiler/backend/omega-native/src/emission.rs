@@ -3,9 +3,9 @@ use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
-use crate::target::ObjectFormat;
 use crate::target_output::can_emit_target_output;
 use omega_core::arena::Arena;
+use omega_target::ObjectFormat;
 
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;

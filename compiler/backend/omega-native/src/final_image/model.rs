@@ -1,7 +1,7 @@
 use crate::object::SymbolKind;
 use crate::relocations::RelocationKind;
-use crate::target::NativeTarget;
 use omega_core::arena::{Arena, Handle};
+use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalImage {
