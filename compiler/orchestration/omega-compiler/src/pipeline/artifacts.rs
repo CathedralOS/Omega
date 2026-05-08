@@ -1679,7 +1679,12 @@ impl ArtifactWriter {
 
             match &data_layout.shape {
                 DataShape::Enum { variants } => {
-                    output.push_str(&format!("  variants: {}\n", variants.join(", ")));
+                    let variants = variants
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    output.push_str(&format!("  variants: {}\n", variants));
                 }
                 DataShape::Record { fields } => {
                     write_field_layouts(&mut output, &native_plan.layouts.fields, *fields);

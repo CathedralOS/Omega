@@ -1632,7 +1632,7 @@ fn resolve_runtime_storage_place(
         })
         .map(|(_, slot)| slot)?;
     let root_field = FieldLayout {
-        name: slot.name.to_string(),
+        name: slot.name.clone(),
         offset: slot.byte_offset,
         type_name: slot.type_name.clone(),
         layout: TypeLayout {

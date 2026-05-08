@@ -4,6 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_typed_program::machine::Machine;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +24,7 @@ impl Default for TypeLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldLayout {
-    pub name: String,
+    pub name: ProgramName,
     pub offset: usize,
     pub type_name: String,
     pub layout: TypeLayout,
@@ -32,7 +33,7 @@ pub struct FieldLayout {
 impl Default for FieldLayout {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: ProgramName::default(),
             offset: 0,
             type_name: String::new(),
             layout: TypeLayout::default(),
@@ -42,7 +43,7 @@ impl Default for FieldLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
-    Enum { variants: Vec<String> },
+    Enum { variants: Vec<ProgramName> },
     Record { fields: HandleSpan<FieldLayout> },
 }
 
@@ -56,7 +57,7 @@ impl Default for DataShape {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataLayout {
-    pub name: String,
+    pub name: ProgramName,
     pub shape: DataShape,
     pub layout: TypeLayout,
 }
@@ -64,7 +65,7 @@ pub struct DataLayout {
 impl Default for DataLayout {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: ProgramName::default(),
             shape: DataShape::default(),
             layout: TypeLayout::default(),
         }
@@ -73,7 +74,7 @@ impl Default for DataLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineLayout {
-    pub name: String,
+    pub name: ProgramName,
     pub fields: HandleSpan<FieldLayout>,
     pub layout: TypeLayout,
 }
@@ -81,7 +82,7 @@ pub struct MachineLayout {
 impl Default for MachineLayout {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: ProgramName::default(),
             fields: HandleSpan::empty(),
             layout: TypeLayout::default(),
         }
@@ -180,13 +181,13 @@ impl<'program> LayoutBuilder<'program> {
                 .members
                 .iter()
                 .filter_map(|member| match member {
-                    DataMember::Variant(variant) => Some(variant.name.to_string()),
+                    DataMember::Variant(variant) => Some(variant.name.clone()),
                     DataMember::Field(_) => None,
                 })
                 .collect();
 
             return Ok(DataLayout {
-                name: definition.name.to_string(),
+                name: definition.name.clone(),
                 shape: DataShape::Enum { variants },
                 layout: TypeLayout {
                     size: 4,
@@ -205,7 +206,7 @@ impl<'program> LayoutBuilder<'program> {
             .map(|field| {
                 let layout = self.layout_type_reference(&field.type_reference)?;
                 Ok(PlannedField {
-                    name: field.name.to_string(),
+                    name: field.name.clone(),
                     type_name: field
                         .type_reference
                         .display_name_with_constraints(self.type_constraints),
@@ -217,7 +218,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(DataLayout {
-            name: definition.name.to_string(),
+            name: definition.name.clone(),
             shape: DataShape::Record { fields },
             layout,
         })
@@ -260,7 +261,7 @@ impl<'program> LayoutBuilder<'program> {
 
         for owned_data in &machine.owned_data {
             fields.push(PlannedField {
-                name: owned_data.name.to_string(),
+                name: owned_data.name.clone(),
                 type_name: owned_data
                     .type_reference
                     .display_name_with_constraints(self.type_constraints),
@@ -271,7 +272,7 @@ impl<'program> LayoutBuilder<'program> {
         for contained_object in &machine.contains {
             if self.machine_definition(&contained_object.type_name).is_ok() {
                 fields.push(PlannedField {
-                    name: contained_object.name.to_string(),
+                    name: contained_object.name.clone(),
                     type_name: contained_object.type_name.to_string(),
                     layout: self.layout_machine(&contained_object.type_name)?,
                 });
@@ -282,7 +283,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(MachineLayout {
-            name: machine.name.to_string(),
+            name: machine.name.clone(),
             fields,
             layout,
         })
@@ -366,7 +367,7 @@ impl<'program> LayoutBuilder<'program> {
 
 #[derive(Debug)]
 struct PlannedField {
-    name: String,
+    name: ProgramName,
     type_name: String,
     layout: TypeLayout,
 }
