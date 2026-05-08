@@ -180,7 +180,7 @@ impl RuntimeFlowBuilder<'_> {
         match target {
             PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
                 machine: machine.name.to_string(),
-                state: name.clone(),
+                state: name.to_string(),
             },
             PlannedTransitionTarget::Nested {
                 receiver, state, ..
@@ -189,8 +189,8 @@ impl RuntimeFlowBuilder<'_> {
                 .iter()
                 .find(|contained| contained.name == *receiver)
                 .map(|contained| RuntimeTransitionTarget::State {
-                    machine: contained.type_name.clone(),
-                    state: state.clone(),
+                    machine: contained.type_name.to_string(),
+                    state: state.to_string(),
                 })
                 .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                     name: format!("{receiver}.{state}"),
@@ -221,7 +221,7 @@ impl RuntimeFlowBuilder<'_> {
         if let RuntimeTransitionTarget::State { machine, state } = target {
             self.record_cycle_to(&RuntimeState {
                 machine: machine.clone(),
-                state: state.clone(),
+                state: state.to_string(),
             });
         }
     }

@@ -1181,7 +1181,7 @@ fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &s
     machine_flow(native_plan, machine_name)
         .and_then(|machine| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .map(|state| state.parameters.clone())
+        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
         .unwrap_or_default()
 }
 
@@ -1206,7 +1206,7 @@ fn runtime_transition_target(
     match target {
         PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
             machine: machine.name.to_string(),
-            state: name.clone(),
+            state: name.to_string(),
         },
         PlannedTransitionTarget::Nested {
             receiver, state, ..
@@ -1215,8 +1215,8 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
-                machine: contained.type_name.clone(),
-                state: state.clone(),
+                machine: contained.type_name.to_string(),
+                state: state.to_string(),
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),

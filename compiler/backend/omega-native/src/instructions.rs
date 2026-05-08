@@ -1893,7 +1893,7 @@ fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &s
         .find(|(_, machine)| machine.name == machine_name)
         .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .map(|state| state.parameters.clone())
+        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
         .unwrap_or_default()
 }
 

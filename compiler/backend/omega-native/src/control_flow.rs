@@ -20,7 +20,7 @@ pub struct ControlFlowPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
-    pub name: String,
+    pub name: ProgramName,
     pub contains: Vec<ContainedFlow>,
     pub states: HandleSpan<StateFlow>,
 }
@@ -28,7 +28,7 @@ pub struct MachineFlow {
 impl Default for MachineFlow {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: ProgramName::default(),
             contains: Vec::new(),
             states: HandleSpan::empty(),
         }
@@ -37,15 +37,15 @@ impl Default for MachineFlow {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ContainedFlow {
-    pub name: String,
-    pub type_name: String,
+    pub name: ProgramName,
+    pub type_name: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateFlow {
-    pub name: String,
+    pub name: ProgramName,
     pub index: usize,
-    pub parameters: Vec<String>,
+    pub parameters: Vec<ProgramName>,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
 }
@@ -53,7 +53,7 @@ pub struct StateFlow {
 impl Default for StateFlow {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            name: ProgramName::default(),
             index: 0,
             parameters: Vec::new(),
             operations: HandleSpan::empty(),
@@ -108,12 +108,12 @@ pub struct TransitionFlow {
 pub enum PlannedTransitionTarget {
     State {
         index: usize,
-        name: String,
+        name: ProgramName,
         arguments: Vec<Expression>,
     },
     Nested {
-        receiver: String,
-        state: String,
+        receiver: ProgramName,
+        state: ProgramName,
         arguments: Vec<Expression>,
     },
     SelfTarget,
@@ -273,13 +273,13 @@ fn build_machine_flow(
     let states = control_flow.states.insert_many(states);
 
     Ok(MachineFlow {
-        name: machine.name.to_string(),
+        name: machine.name.clone(),
         contains: machine
             .contains
             .iter()
             .map(|contained| ContainedFlow {
-                name: contained.name.to_string(),
-                type_name: contained.type_name.to_string(),
+                name: contained.name.clone(),
+                type_name: contained.type_name.clone(),
             })
             .collect(),
         states,
@@ -288,11 +288,11 @@ fn build_machine_flow(
 
 #[derive(Debug, Clone)]
 struct StateSegment<'program> {
-    name: String,
-    parameters: Vec<String>,
+    name: ProgramName,
+    parameters: Vec<ProgramName>,
     operations: Vec<Operation>,
     transitions: Vec<&'program Transition>,
-    next_segment_name: Option<String>,
+    next_segment_name: Option<ProgramName>,
 }
 
 fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
@@ -348,15 +348,15 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
     segments
 }
 
-fn segment_name(state_name: &str, segment_index: usize) -> String {
+fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
     if segment_index == 0 {
-        state_name.to_owned()
+        state_name.clone()
     } else {
-        format!("{state_name}__segment_{segment_index}")
+        ProgramName::generated(format!("{state_name}__segment_{segment_index}"))
     }
 }
 
-fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<String> {
+fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<ProgramName> {
     if segment_index > 0 {
         return Vec::new();
     }
@@ -365,7 +365,7 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stri
         .parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| parameter.name.to_string())
+        .map(|parameter| parameter.name.clone())
         .collect()
 }
 
@@ -461,15 +461,15 @@ fn plan_transition_target(
 
             Ok(PlannedTransitionTarget::State {
                 index,
-                name: name.to_string(),
+                name,
                 arguments: arguments.clone(),
             })
         }
         TransitionTarget::Named {
             path, arguments, ..
         } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
-            receiver: path[0].to_string(),
-            state: path[1].to_string(),
+            receiver: path[0].clone(),
+            state: path[1].clone(),
             arguments: arguments.clone(),
         }),
         TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(

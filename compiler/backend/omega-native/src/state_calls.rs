@@ -350,7 +350,7 @@ fn state_parameter_names(
         .find(|(_, machine)| machine.name == target_machine)
         .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == target_state))
-        .map(|state| state.parameters.clone())
+        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
         .unwrap_or_default()
 }
 
@@ -459,7 +459,7 @@ fn runtime_transition_target(
         crate::control_flow::PlannedTransitionTarget::State { name, .. } => {
             RuntimeTransitionTarget::State {
                 machine: machine.name.to_string(),
-                state: name.clone(),
+                state: name.to_string(),
             }
         }
         crate::control_flow::PlannedTransitionTarget::Nested {
@@ -469,8 +469,8 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
-                machine: contained.type_name.clone(),
-                state: state.clone(),
+                machine: contained.type_name.to_string(),
+                state: state.to_string(),
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
@@ -539,7 +539,7 @@ fn resolve_state_call_target(
     {
         return machine_has_state(control_flow, &contained.type_name, target_state).then(|| {
             ResolvedStateCall {
-                machine: contained.type_name.clone(),
+                machine: contained.type_name.to_string(),
                 resolution: StateCallResolution::ContainedMachine,
             }
         });

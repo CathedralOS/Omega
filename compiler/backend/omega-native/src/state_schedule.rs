@@ -224,14 +224,14 @@ fn resolve_state_call_machine(
         .contains
         .iter()
         .find(|contained| contained.name == receiver)
-        .map(|contained| contained.type_name.clone())
+        .map(|contained| contained.type_name.to_string())
         .or_else(|| {
             native_plan
                 .control_flow
                 .machines
                 .iter()
                 .find(|(_, candidate)| candidate.name == receiver)
-                .map(|(_, candidate)| candidate.name.clone())
+                .map(|(_, candidate)| candidate.name.to_string())
         })
 }
 
@@ -249,11 +249,11 @@ fn bind_state_arguments(
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
         let canonical_argument = argument_binding_place_name(argument, aliases);
         if let Some(canonical_argument) = canonical_argument {
-            set_alias(aliases, parameter.clone(), canonical_argument);
+            set_alias(aliases, parameter.to_string(), canonical_argument);
         }
 
         if let Some(value) = resolve_static_value(argument, aliases, values) {
-            set_static_value(values, parameter.clone(), value);
+            set_static_value(values, parameter.to_string(), value);
         }
     }
 
@@ -356,7 +356,7 @@ fn next_state(
                     )?;
                     Ok(Some(ScheduledState {
                         machine: machine_name.to_owned(),
-                        state: name.clone(),
+                        state: name.to_string(),
                     }))
                 }
                 Some(PlannedTransitionTarget::Terminal) | None => Ok(None),

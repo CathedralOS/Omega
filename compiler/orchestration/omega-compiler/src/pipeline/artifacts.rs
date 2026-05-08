@@ -3425,7 +3425,7 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 
 fn transition_target_name(target: &PlannedTransitionTarget) -> String {
     match target {
-        PlannedTransitionTarget::State { name, .. } => name.clone(),
+        PlannedTransitionTarget::State { name, .. } => name.to_string(),
         PlannedTransitionTarget::Nested {
             receiver, state, ..
         } => format!("{receiver}.{state}"),
