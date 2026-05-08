@@ -1023,13 +1023,13 @@ fn lower_type_reference(
             base_name,
             arguments,
         } => Ok(TypeReference::Generic {
-            base_name: base_name.to_string(),
+            base_name: lower_name(base_name),
             arguments: arguments
                 .iter()
                 .map(|argument| lower_type_reference(argument, aliases, type_constraints))
                 .collect::<Result<Vec<_>, _>>()?,
         }),
-        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.to_string())),
+        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(lower_name(name))),
         ast::types::TypeReference::Unit => Ok(TypeReference::Unit),
     }
 }
@@ -1038,7 +1038,7 @@ fn lower_type_constraint(
     constraint: &ast::types::TypeConstraint,
 ) -> Result<TypeConstraint, Diagnostic> {
     match constraint {
-        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(name.to_string())),
+        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(lower_name(name))),
         ast::types::TypeConstraint::Range { minimum, maximum } => Ok(TypeConstraint::Range {
             minimum: lower_expression(minimum)?,
             maximum: lower_expression(maximum)?,
@@ -1071,7 +1071,7 @@ fn lower_type_constraints(
                     )?);
                     expansion_stack.pop();
                 } else {
-                    lowered_constraints.push(TypeConstraint::Named(name.to_string()));
+                    lowered_constraints.push(TypeConstraint::Named(lower_name(name)));
                 }
             }
             ast::types::TypeConstraint::Range { .. } => {
@@ -1292,7 +1292,7 @@ mod tests {
                 name: "Room".into(),
                 members: vec![DataMember::Field(DataField {
                     name: "label".into(),
-                    type_reference: TypeReference::Named("String".to_owned()),
+                    type_reference: TypeReference::Named("String".into()),
                 })],
             }],
             machines: vec![Machine {
@@ -1308,7 +1308,7 @@ mod tests {
                     return_type: None,
                     statements: vec![Statement::LocalData(LocalData {
                         name: "room".into(),
-                        type_reference: TypeReference::Named("Room".to_owned()),
+                        type_reference: TypeReference::Named("Room".into()),
                     })],
                 }],
             }],

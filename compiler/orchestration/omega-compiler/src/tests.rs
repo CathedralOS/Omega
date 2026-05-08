@@ -1043,7 +1043,7 @@ fn expands_invariant_aliases_during_lowering() {
 
     assert_eq!(
         base_type.as_ref(),
-        &omega_typed_program::types::TypeReference::Named("f32".to_owned())
+        &omega_typed_program::types::TypeReference::Named("f32".into())
     );
     let owned_data_constraints = program
         .type_constraints

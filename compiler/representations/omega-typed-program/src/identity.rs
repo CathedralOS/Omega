@@ -11,6 +11,8 @@ pub struct IdentityStorageCounts {
     pub source_declaration_names: usize,
     pub generated_declaration_names: usize,
     pub type_names: usize,
+    pub source_type_names: usize,
+    pub generated_type_names: usize,
     pub expression_path_members: usize,
     pub transition_path_members: usize,
     pub call_names: usize,
@@ -22,7 +24,7 @@ pub struct IdentityStorageCounts {
 impl IdentityStorageCounts {
     pub fn owned_identity_strings(self) -> usize {
         self.generated_declaration_names
-            + self.type_names
+            + self.generated_type_names
             + self.expression_path_members
             + self.transition_path_members
             + self.call_names
@@ -199,25 +201,35 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentitySto
             count_type_reference(element_type, counts);
         }
         TypeReference::Generic {
-            base_name: _,
+            base_name,
             arguments,
         } => {
-            counts.type_names += 1;
+            count_type_name(base_name, counts);
             for argument in arguments {
                 count_type_reference(argument, counts);
             }
         }
-        TypeReference::Named(_) => counts.type_names += 1,
+        TypeReference::Named(name) => count_type_name(name, counts),
         TypeReference::Unit => {}
     }
 }
 
 fn count_type_constraint(constraint: &TypeConstraint, counts: &mut IdentityStorageCounts) {
     match constraint {
-        TypeConstraint::Named(_) => counts.type_names += 1,
+        TypeConstraint::Named(name) => count_type_name(name, counts),
         TypeConstraint::Range { minimum, maximum } => {
             count_expression(minimum, counts);
             count_expression(maximum, counts);
         }
+    }
+}
+
+fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.type_names += 1;
+
+    if name.is_source_backed() {
+        counts.source_type_names += 1;
+    } else {
+        counts.generated_type_names += 1;
     }
 }

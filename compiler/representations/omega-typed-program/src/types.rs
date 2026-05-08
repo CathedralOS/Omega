@@ -1,5 +1,7 @@
 use omega_core::arena::{Arena, HandleSpan};
 
+use crate::name::ProgramName;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
     Constrained {
@@ -11,16 +13,16 @@ pub enum TypeReference {
         length: usize,
     },
     Generic {
-        base_name: String,
+        base_name: ProgramName,
         arguments: Vec<TypeReference>,
     },
-    Named(String),
+    Named(ProgramName),
     Unit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraint {
-    Named(String),
+    Named(ProgramName),
     Range {
         minimum: crate::expression::Expression,
         maximum: crate::expression::Expression,
@@ -29,7 +31,7 @@ pub enum TypeConstraint {
 
 impl Default for TypeConstraint {
     fn default() -> Self {
-        Self::Named(String::new())
+        Self::Named(ProgramName::default())
     }
 }
 
@@ -78,7 +80,7 @@ impl TypeReference {
                     .join(", ");
                 format!("{base_name}<{arguments}>")
             }
-            TypeReference::Named(name) => name.clone(),
+            TypeReference::Named(name) => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -124,7 +126,7 @@ impl TypeReference {
                     .join(", ");
                 format!("{base_name}<{arguments}>")
             }
-            TypeReference::Named(name) => name.clone(),
+            TypeReference::Named(name) => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -143,7 +145,7 @@ impl TypeReference {
 impl TypeConstraint {
     pub fn display_name(&self) -> String {
         match self {
-            TypeConstraint::Named(name) => name.clone(),
+            TypeConstraint::Named(name) => name.to_string(),
             TypeConstraint::Range { minimum, maximum } => {
                 format!(
                     "range<{}, {}>",
