@@ -4,22 +4,23 @@ use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction;
 use crate::runtime_flow::RuntimeTransitionTarget;
-use crate::runtime_text::{
-    RuntimeTextSource, RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
-};
+use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::state_schedule::{
     build_entry_state_schedule, scheduled_state_contains_key, scheduled_state_flow,
     scheduled_state_key,
 };
 use crate::state_storage::StateMutationLowering;
-use crate::state_values::{StateValueKind, StateValueRole};
 use crate::target::ObjectFormat;
 use crate::target_output::can_emit_target_output;
 use omega_core::arena::Arena;
 
+mod runtime_text_blockers;
 mod state_call_blockers;
 
+use runtime_text_blockers::{
+    collect_state_value_blockers, runtime_text_write_for_statement, runtime_text_write_is_planned,
+};
 use state_call_blockers::collect_state_call_blockers;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,110 +230,6 @@ fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
     )
 }
 
-fn collect_state_value_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
-    for (_, value) in native_plan.state_values.values.iter() {
-        if !value.required || value.kind != StateValueKind::Binary {
-            continue;
-        }
-
-        if value.role == StateValueRole::TransitionGuard {
-            continue;
-        }
-
-        if state_value_is_static_assignment(native_plan, value) {
-            continue;
-        }
-
-        if state_value_has_planned_text_builder(native_plan, value) {
-            continue;
-        }
-
-        blockers.insert(blocker(
-            "state values",
-            &runtime_value_blocker_reason(native_plan, value),
-        ));
-    }
-}
-
-fn state_value_has_planned_text_builder(
-    native_plan: &NativePlan,
-    value: &crate::state_values::StateValueUse,
-) -> bool {
-    runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
-        .is_some_and(|text_write| {
-            text_write.kind == RuntimeTextWriteKind::GeneratedString
-                && runtime_text_builder_for_write(native_plan, text_write).is_some()
-        })
-}
-
-fn runtime_value_blocker_reason(
-    native_plan: &NativePlan,
-    value: &crate::state_values::StateValueUse,
-) -> String {
-    if let Some(text_write) =
-        runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
-    {
-        return format!(
-            "{}.{} statement {} text write `{}` = `{}` needs {}",
-            text_write.machine,
-            text_write.state,
-            text_write.statement_index,
-            text_write.target.display_name(),
-            text_write.value.display_name(),
-            runtime_text_write_lowering_name(text_write)
-        );
-    }
-
-    format!(
-        "{}.{} statement {} {:?} binary expression `{}` needs runtime value lowering",
-        value.machine,
-        value.state,
-        value.statement_index,
-        value.role,
-        value.expression.display_name()
-    )
-}
-
-fn runtime_text_write_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<&'plan RuntimeTextWrite> {
-    native_plan
-        .runtime_text
-        .writes
-        .iter()
-        .find(|(_, text_write)| {
-            text_write.source_key == source_key && text_write.statement_index == statement_index
-        })
-        .map(|(_, text_write)| text_write)
-}
-
-fn runtime_text_builder_for_write<'plan>(
-    native_plan: &'plan NativePlan,
-    text_write: &RuntimeTextWrite,
-) -> Option<&'plan crate::runtime_text::RuntimeTextBuilder> {
-    native_plan
-        .runtime_text
-        .builders
-        .iter()
-        .find(|(_, builder)| {
-            builder.source_key == text_write.source_key
-                && builder.statement_index == text_write.statement_index
-                && builder.target.display_name() == text_write.target.display_name()
-        })
-        .map(|(_, builder)| builder)
-}
-
-fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static str {
-    match text_write.kind {
-        RuntimeTextWriteKind::StaticText => "runtime text literal storage",
-        RuntimeTextWriteKind::StoredCopy => "runtime text copy lowering",
-        RuntimeTextWriteKind::GeneratedString => "runtime string builder lowering",
-        RuntimeTextWriteKind::OtherExpression => "runtime text expression lowering",
-    }
-}
-
 fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<EmissionBlocker>) {
     for (_, guard) in native_plan.state_guards.guards.iter() {
         if matches!(
@@ -358,26 +255,6 @@ fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
             ),
         ));
     }
-}
-
-fn state_value_is_static_assignment(
-    native_plan: &NativePlan,
-    value: &crate::state_values::StateValueUse,
-) -> bool {
-    if value.role != crate::state_values::StateValueRole::AssignmentValue {
-        return false;
-    }
-    let Some(state) = native_plan.control_flow.state_by_key(value.source_key) else {
-        return false;
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        return false;
-    };
-
-    operations.iter().any(|operation| {
-        operation.statement_index == value.statement_index
-            && matches!(operation.kind, OperationKind::StaticAssignment { .. })
-    })
 }
 
 fn collect_state_storage_blockers(
@@ -483,16 +360,6 @@ fn runtime_storage_write_has_planned_text_write(
             text_write.target.display_name() == write.target.display_name()
                 && runtime_text_write_is_planned(native_plan, text_write)
         })
-}
-
-fn runtime_text_write_is_planned(native_plan: &NativePlan, text_write: &RuntimeTextWrite) -> bool {
-    match text_write.kind {
-        RuntimeTextWriteKind::StaticText | RuntimeTextWriteKind::StoredCopy => true,
-        RuntimeTextWriteKind::GeneratedString => {
-            runtime_text_builder_for_write(native_plan, text_write).is_some()
-        }
-        RuntimeTextWriteKind::OtherExpression => false,
-    }
 }
 
 fn collect_state_codegen_blockers(
