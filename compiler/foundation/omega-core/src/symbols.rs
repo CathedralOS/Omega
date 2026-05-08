@@ -5,6 +5,7 @@ use crate::arena::{
 
 pub type SymbolHandle = Handle<Symbol>;
 pub type SymbolSpan = HandleSpan<SymbolHandle>;
+pub type SymbolNameHandle = Handle<SymbolName>;
 pub type SymbolDebugNameHandle = Handle<SymbolDebugName>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -34,6 +35,7 @@ pub struct Symbol {
     pub parent: SymbolHandle,
     pub children: HandleSpan<Symbol>,
     pub kind: SymbolKind,
+    pub name: SymbolNameHandle,
     pub debug_name: SymbolDebugNameHandle,
 }
 
@@ -56,6 +58,11 @@ impl HierarchyNode for Symbol {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SymbolName {
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolDebugName {
     pub value: String,
 }
@@ -63,29 +70,41 @@ pub struct SymbolDebugName {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolDefinition {
     pub kind: SymbolKind,
+    pub name: String,
     pub debug_name: String,
     pub children: Vec<SymbolDefinition>,
 }
 
 impl SymbolDefinition {
-    pub fn named(kind: SymbolKind, debug_name: impl Into<String>) -> Self {
+    pub fn named(kind: SymbolKind, name: impl Into<String>) -> Self {
+        let name = name.into();
+
         Self {
             kind,
-            debug_name: debug_name.into(),
+            debug_name: name.clone(),
+            name,
             children: Vec::new(),
         }
     }
 
     pub fn with_children(
         kind: SymbolKind,
-        debug_name: impl Into<String>,
+        name: impl Into<String>,
         children: impl IntoIterator<Item = SymbolDefinition>,
     ) -> Self {
+        let name = name.into();
+
         Self {
             kind,
-            debug_name: debug_name.into(),
+            debug_name: name.clone(),
+            name,
             children: children.into_iter().collect(),
         }
+    }
+
+    pub fn with_debug_name(mut self, debug_name: impl Into<String>) -> Self {
+        self.debug_name = debug_name.into();
+        self
     }
 }
 
@@ -98,6 +117,7 @@ pub struct SymbolPath {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolTable {
     symbols: HierarchyArena<Symbol>,
+    names: Arena<SymbolName>,
     debug_names: Arena<SymbolDebugName>,
     path_members: Arena<SymbolHandle>,
     root: SymbolHandle,
@@ -110,11 +130,13 @@ impl SymbolTable {
 
     pub fn from_definition(root: SymbolDefinition) -> Self {
         let mut builder = HierarchyArenaBuilder::new();
+        let mut names = Arena::new();
         let mut debug_names = Arena::new();
-        let root = insert_root_definition(&mut builder, &mut debug_names, &root);
+        let root = insert_root_definition(&mut builder, &mut names, &mut debug_names, &root);
 
         Self {
             symbols: builder.finish(),
+            names,
             debug_names,
             path_members: Arena::new(),
             root,
@@ -123,6 +145,12 @@ impl SymbolTable {
 
     pub fn get(&self, symbol: SymbolHandle) -> &Symbol {
         self.symbols.get(symbol)
+    }
+
+    pub fn name(&self, symbol: SymbolHandle) -> &str {
+        let symbol = self.get(symbol);
+
+        self.names.get(symbol.name).value.as_str()
     }
 
     pub fn debug_name(&self, symbol: SymbolHandle) -> &str {
@@ -139,13 +167,17 @@ impl SymbolTable {
         self.symbols.child_handles(parent)
     }
 
+    pub fn find_child_by_name(&self, parent: SymbolHandle, name: &str) -> Option<SymbolHandle> {
+        self.symbols
+            .find_child(parent, |symbol, _| self.name(symbol) == name)
+    }
+
     pub fn find_child_by_debug_name(
         &self,
         parent: SymbolHandle,
         debug_name: &str,
     ) -> Option<SymbolHandle> {
-        self.symbols
-            .find_child(parent, |symbol, _| self.debug_name(symbol) == debug_name)
+        self.find_child_by_name(parent, debug_name)
     }
 
     pub fn path_from_members(
@@ -167,6 +199,10 @@ impl SymbolTable {
         &self.symbols
     }
 
+    pub fn names(&self) -> &Arena<SymbolName> {
+        &self.names
+    }
+
     pub fn debug_names(&self) -> &Arena<SymbolDebugName> {
         &self.debug_names
     }
@@ -182,21 +218,24 @@ impl SymbolTable {
 
 fn insert_root_definition(
     builder: &mut HierarchyArenaBuilder<Symbol>,
+    names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
     definition: &SymbolDefinition,
 ) -> SymbolHandle {
     let root = builder.insert_root(symbol_from_definition(
         SymbolHandle::invalid(),
+        names,
         debug_names,
         definition,
     ));
-    insert_child_definitions(builder, debug_names, root, &definition.children);
+    insert_child_definitions(builder, names, debug_names, root, &definition.children);
 
     root
 }
 
 fn insert_child_definitions(
     builder: &mut HierarchyArenaBuilder<Symbol>,
+    names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
     parent: SymbolHandle,
     definitions: &[SymbolDefinition],
@@ -209,7 +248,7 @@ fn insert_child_definitions(
         parent,
         definitions
             .iter()
-            .map(|definition| symbol_from_definition(parent, debug_names, definition)),
+            .map(|definition| symbol_from_definition(parent, names, debug_names, definition)),
     );
 
     for (offset, definition) in definitions.iter().enumerate() {
@@ -223,12 +262,13 @@ fn insert_child_definitions(
             children.start().generation(),
         );
 
-        insert_child_definitions(builder, debug_names, child, &definition.children);
+        insert_child_definitions(builder, names, debug_names, child, &definition.children);
     }
 }
 
 fn symbol_from_definition(
     parent: SymbolHandle,
+    names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
     definition: &SymbolDefinition,
 ) -> Symbol {
@@ -236,6 +276,9 @@ fn symbol_from_definition(
         parent,
         children: HandleSpan::empty(),
         kind: definition.kind,
+        name: names.insert(SymbolName {
+            value: definition.name.clone(),
+        }),
         debug_name: debug_names.insert(SymbolDebugName {
             value: definition.debug_name.clone(),
         }),
@@ -252,6 +295,7 @@ mod tests {
         let invalid = super::SymbolHandle::invalid();
 
         assert_eq!(symbols.get(invalid).kind, SymbolKind::Unknown);
+        assert_eq!(symbols.name(invalid), "");
         assert_eq!(symbols.debug_name(invalid), "");
     }
 
@@ -268,16 +312,17 @@ mod tests {
         ));
         let root = symbols.root();
         let machine = symbols
-            .find_child_by_debug_name(root, "main")
+            .find_child_by_name(root, "main")
             .expect("main should resolve");
         let state = symbols
-            .find_child_by_debug_name(machine, "entry")
+            .find_child_by_name(machine, "entry")
             .expect("entry should resolve");
 
         assert_eq!(symbols.get(machine).parent, root);
         assert_eq!(symbols.get(state).parent, machine);
         assert_eq!(symbols.get(root).children.count(), 1);
         assert_eq!(symbols.get(machine).children.count(), 1);
+        assert_eq!(symbols.name(state), "entry");
         assert_eq!(symbols.debug_name(state), "entry");
     }
 
@@ -294,10 +339,10 @@ mod tests {
         ));
         let root = symbols.root();
         let machine = symbols
-            .find_child_by_debug_name(root, "main")
+            .find_child_by_name(root, "main")
             .expect("main should resolve");
         let state = symbols
-            .find_child_by_debug_name(machine, "entry")
+            .find_child_by_name(machine, "entry")
             .expect("entry should resolve");
         let path = symbols.path_from_members(root, [machine, state]);
 
@@ -329,7 +374,7 @@ mod tests {
             .map(|child| symbols.debug_name(child).to_owned())
             .collect::<Vec<_>>();
         let main = symbols
-            .find_child_by_debug_name(root, "main")
+            .find_child_by_name(root, "main")
             .expect("main should resolve");
         let main_children = symbols
             .child_handles(main)
@@ -348,14 +393,27 @@ mod tests {
     }
 
     #[test]
-    fn debug_names_can_be_purged_without_invalidating_symbols() {
+    fn debug_names_can_be_purged_without_invalidating_symbols_or_lookup_names() {
         let mut symbols =
             SymbolTable::from_definition(SymbolDefinition::named(SymbolKind::Root, "root"));
         let root = symbols.root();
 
+        assert_eq!(symbols.name(root), "root");
         assert_eq!(symbols.debug_name(root), "root");
         symbols.clear_debug_names();
         assert!(root.is_valid());
+        assert_eq!(symbols.name(root), "root");
         assert_eq!(symbols.debug_name(root), "");
+    }
+
+    #[test]
+    fn lookup_name_can_differ_from_debug_name() {
+        let symbols = SymbolTable::from_definition(
+            SymbolDefinition::named(SymbolKind::Root, "root").with_debug_name("root display only"),
+        );
+        let root = symbols.root();
+
+        assert_eq!(symbols.name(root), "root");
+        assert_eq!(symbols.debug_name(root), "root display only");
     }
 }
