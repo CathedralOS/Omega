@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use crate::source::FileId;
+use crate::Span;
+use crate::source::{FileId, SourceSpan};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct SourceFile {
@@ -16,6 +17,14 @@ pub struct SourcePosition {
 }
 
 impl SourceFile {
+    pub fn source_span(&self, span: Span) -> SourceSpan {
+        SourceSpan::new(self.id, span)
+    }
+
+    pub fn text_at(&self, span: Span) -> &str {
+        self.source.get(span.start..span.end).unwrap_or("")
+    }
+
     pub fn position_at(&self, byte_offset: usize) -> SourcePosition {
         let mut line = 1;
         let mut column = 1;
@@ -34,5 +43,26 @@ impl SourceFile {
         }
 
         SourcePosition { line, column }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use crate::Span;
+    use crate::source::{FileId, SourceFile};
+
+    #[test]
+    fn source_span_carries_file_identity() {
+        let file = SourceFile {
+            id: FileId(7),
+            path: PathBuf::from("main.omg"),
+            source: String::from("machine main {}"),
+        };
+        let span = file.source_span(Span::new(8, 12));
+
+        assert_eq!(span.file_id, FileId(7));
+        assert_eq!(file.text_at(span.span), "main");
     }
 }
