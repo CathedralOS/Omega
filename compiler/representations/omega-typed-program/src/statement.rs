@@ -1,4 +1,5 @@
 use crate::expression::Expression;
+use crate::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
@@ -17,7 +18,7 @@ pub struct Assignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
-    pub name: String,
+    pub name: ProgramName,
     pub type_reference: crate::types::TypeReference,
 }
 

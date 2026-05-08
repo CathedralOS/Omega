@@ -129,10 +129,10 @@ fn build_machine_state_storage_plan(
             match statement {
                 Statement::LocalData(local_data) => {
                     plan.locals.insert(StateLocalStorage {
-                        machine: machine.name.clone(),
-                        state: state.name.clone(),
+                        machine: machine.name.to_string(),
+                        state: state.name.to_string(),
                         statement_index,
-                        name: local_data.name.clone(),
+                        name: local_data.name.to_string(),
                         type_name: local_data.type_reference.display_name(),
                         required,
                     });
@@ -141,8 +141,8 @@ fn build_machine_state_storage_plan(
                     let mutation_kind =
                         mutation_kind(program, &machine.name, state, &assignment.target);
                     plan.mutations.insert(StateMutation {
-                        machine: machine.name.clone(),
-                        state: state.name.clone(),
+                        machine: machine.name.to_string(),
+                        state: state.name.to_string(),
                         statement_index,
                         target: assignment.target.clone(),
                         value: assignment.value.clone(),

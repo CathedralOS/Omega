@@ -4,6 +4,7 @@ pub mod identity;
 pub mod invariant;
 pub mod lowering;
 pub mod machine;
+pub mod name;
 pub mod platform;
 pub mod signature;
 pub mod state;

@@ -1,8 +1,9 @@
+use crate::name::ProgramName;
 use crate::types::TypeReference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
-    pub name: String,
+    pub name: ProgramName,
     pub members: Vec<DataMember>,
 }
 
@@ -43,11 +44,11 @@ pub enum DataMember {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
-    pub name: String,
+    pub name: ProgramName,
     pub type_reference: TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
-    pub name: String,
+    pub name: ProgramName,
 }

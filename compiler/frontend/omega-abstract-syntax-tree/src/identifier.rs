@@ -58,6 +58,13 @@ impl Identifier {
         self.source_span.span.start != self.source_span.span.end
     }
 
+    pub fn shared_source(&self) -> Option<(Arc<str>, SourceSpan)> {
+        match &self.text {
+            IdentifierText::Source(source) => Some((Arc::clone(source), self.source_span)),
+            IdentifierText::Missing | IdentifierText::Generated(_) => None,
+        }
+    }
+
     pub fn into_string(self) -> String {
         self.as_str().to_owned()
     }

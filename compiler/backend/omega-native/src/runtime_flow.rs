@@ -179,7 +179,7 @@ impl RuntimeFlowBuilder<'_> {
     ) -> RuntimeTransitionTarget {
         match target {
             PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
-                machine: machine.name.clone(),
+                machine: machine.name.to_string(),
                 state: name.clone(),
             },
             PlannedTransitionTarget::Nested {
@@ -196,7 +196,7 @@ impl RuntimeFlowBuilder<'_> {
                     name: format!("{receiver}.{state}"),
                 }),
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-                machine: machine.name.clone(),
+                machine: machine.name.to_string(),
                 state: self
                     .active_states
                     .last()

@@ -271,12 +271,12 @@ fn build_machine_flow(
     let states = control_flow.states.insert_many(states);
 
     Ok(MachineFlow {
-        name: machine.name.clone(),
+        name: machine.name.to_string(),
         contains: machine
             .contains
             .iter()
             .map(|contained| ContainedFlow {
-                name: contained.name.clone(),
+                name: contained.name.to_string(),
                 type_name: contained.type_name.clone(),
             })
             .collect(),
@@ -363,7 +363,7 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stri
         .parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| parameter.name.clone())
+        .map(|parameter| parameter.name.to_string())
         .collect()
 }
 

@@ -1,12 +1,15 @@
 use crate::Program;
 use crate::data::DataMember;
 use crate::expression::Expression;
+use crate::name::ProgramName;
 use crate::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::types::{TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
     pub declaration_names: usize,
+    pub source_declaration_names: usize,
+    pub generated_declaration_names: usize,
     pub type_names: usize,
     pub expression_path_members: usize,
     pub transition_path_members: usize,
@@ -18,7 +21,7 @@ pub struct IdentityStorageCounts {
 
 impl IdentityStorageCounts {
     pub fn owned_identity_strings(self) -> usize {
-        self.declaration_names
+        self.generated_declaration_names
             + self.type_names
             + self.expression_path_members
             + self.transition_path_members
@@ -30,47 +33,51 @@ impl IdentityStorageCounts {
 pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
 
-    counts.declaration_names += program.invariant_definitions.len();
+    for invariant in &program.invariant_definitions {
+        count_declaration_name(&invariant.name, &mut counts);
+    }
 
     for data_definition in &program.data_definitions {
-        counts.declaration_names += 1;
+        count_declaration_name(&data_definition.name, &mut counts);
         for member in &data_definition.members {
             match member {
                 DataMember::Field(field) => {
-                    counts.declaration_names += 1;
+                    count_declaration_name(&field.name, &mut counts);
                     count_type_reference(&field.type_reference, &mut counts);
                 }
-                DataMember::Variant(_) => counts.declaration_names += 1,
+                DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }
         }
     }
 
     for platform in &program.platforms {
-        counts.declaration_names += 1;
+        count_declaration_name(&platform.name, &mut counts);
         for signature in &platform.states {
-            counts.declaration_names += 1;
+            count_declaration_name(&signature.name, &mut counts);
             count_optional_type_reference(signature.return_type.as_ref(), &mut counts);
             for parameter in &signature.parameters {
-                counts.declaration_names += 1;
+                count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
         }
     }
 
     for machine in &program.machines {
-        counts.declaration_names += 1;
-        counts.declaration_names += machine.contains.len();
+        count_declaration_name(&machine.name, &mut counts);
+        for contained in &machine.contains {
+            count_declaration_name(&contained.name, &mut counts);
+        }
         counts.type_names += machine.contains.len();
         for owned_data in &machine.owned_data {
-            counts.declaration_names += 1;
+            count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference(&owned_data.type_reference, &mut counts);
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
         }
         for state in &machine.states {
-            counts.declaration_names += 1;
+            count_declaration_name(&state.name, &mut counts);
             count_optional_type_reference(state.return_type.as_ref(), &mut counts);
             for parameter in &state.parameters {
-                counts.declaration_names += 1;
+                count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
             for statement in &state.statements {
@@ -103,7 +110,7 @@ fn count_statement(statement: &Statement, counts: &mut IdentityStorageCounts) {
         }
         Statement::Expression(expression) => count_expression(expression, counts),
         Statement::LocalData(local_data) => {
-            counts.declaration_names += 1;
+            count_declaration_name(&local_data.name, counts);
             count_type_reference(&local_data.type_reference, counts);
         }
         Statement::Transition(transition) => {
@@ -115,6 +122,16 @@ fn count_statement(statement: &Statement, counts: &mut IdentityStorageCounts) {
                 count_expression(expression, counts);
             }
         }
+    }
+}
+
+fn count_declaration_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.declaration_names += 1;
+
+    if name.is_source_backed() {
+        counts.source_declaration_names += 1;
+    } else {
+        counts.generated_declaration_names += 1;
     }
 }
 

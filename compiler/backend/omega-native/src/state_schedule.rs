@@ -217,7 +217,7 @@ fn resolve_state_call_machine(
     receiver: Option<&str>,
 ) -> Option<String> {
     let Some(receiver) = receiver else {
-        return Some(machine.name.clone());
+        return Some(machine.name.to_string());
     };
 
     machine

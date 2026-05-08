@@ -1204,7 +1204,7 @@ fn runtime_transition_target(
 ) -> RuntimeTransitionTarget {
     match target {
         PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
-            machine: machine.name.clone(),
+            machine: machine.name.to_string(),
             state: name.clone(),
         },
         PlannedTransitionTarget::Nested {
@@ -1221,7 +1221,7 @@ fn runtime_transition_target(
                 name: format!("{receiver}.{state}"),
             }),
         PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-            machine: machine.name.clone(),
+            machine: machine.name.to_string(),
             state: current_state.to_owned(),
         },
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,

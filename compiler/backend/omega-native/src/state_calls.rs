@@ -288,8 +288,8 @@ fn collect_machine_state_calls(
             );
 
             calls.push(CollectedStateCall {
-                source_machine: machine.name.clone(),
-                source_state: state.name.clone(),
+                source_machine: machine.name.to_string(),
+                source_state: state.name.to_string(),
                 statement_index: operation.statement_index,
                 receiver: receiver.clone().unwrap_or_else(|| "self".to_owned()),
                 target_machine: resolved_target
@@ -455,7 +455,7 @@ fn runtime_transition_target(
     match target {
         crate::control_flow::PlannedTransitionTarget::State { name, .. } => {
             RuntimeTransitionTarget::State {
-                machine: machine.name.clone(),
+                machine: machine.name.to_string(),
                 state: name.clone(),
             }
         }
@@ -474,7 +474,7 @@ fn runtime_transition_target(
             }),
         crate::control_flow::PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State {
-                machine: machine.name.clone(),
+                machine: machine.name.to_string(),
                 state: current_state.to_owned(),
             }
         }
@@ -514,7 +514,7 @@ fn resolve_state_call_target(
     let Some(receiver) = receiver else {
         if machine_has_state(control_flow, &machine.name, target_state) {
             return Some(ResolvedStateCall {
-                machine: machine.name.clone(),
+                machine: machine.name.to_string(),
                 resolution: StateCallResolution::Local,
             });
         }
@@ -524,7 +524,7 @@ fn resolve_state_call_target(
 
     if receiver == "self" && machine_has_state(control_flow, &machine.name, target_state) {
         return Some(ResolvedStateCall {
-            machine: machine.name.clone(),
+            machine: machine.name.to_string(),
             resolution: StateCallResolution::Local,
         });
     }

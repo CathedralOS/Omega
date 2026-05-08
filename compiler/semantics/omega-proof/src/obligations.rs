@@ -194,8 +194,8 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         .obligations
                         .push(ProofObligation::GuardedTransition(
                             GuardedTransitionObligation {
-                                machine: machine.name.clone(),
-                                state: state.name.clone(),
+                                machine: machine.name.to_string(),
+                                state: state.name.to_string(),
                                 target: transition.target.clone(),
                                 guard: transition.guard.clone(),
                             },
@@ -315,8 +315,8 @@ fn collect_bounded_assignment_obligation(
         .obligations
         .push(ProofObligation::BoundedAssignment(
             BoundedAssignmentObligation {
-                machine: machine.name.clone(),
-                state: state.name.clone(),
+                machine: machine.name.to_string(),
+                state: state.name.to_string(),
                 target: assignment.target.clone(),
                 value: assignment.value.clone(),
                 value_constraints,
@@ -356,10 +356,10 @@ fn collect_bounded_transition_argument_obligations(
             .obligations
             .push(ProofObligation::BoundedTransitionArgument(
                 BoundedTransitionArgumentObligation {
-                    machine: machine.name.clone(),
-                    state: state.name.clone(),
+                    machine: machine.name.to_string(),
+                    state: state.name.to_string(),
                     target: transition.target.clone(),
-                    parameter: parameter.name.clone(),
+                    parameter: parameter.name.to_string(),
                     argument: argument.clone(),
                     argument_constraints,
                     base_type: base_type.as_ref().clone(),
@@ -402,11 +402,11 @@ fn collect_bounded_call_argument_obligations(
             .obligations
             .push(ProofObligation::BoundedCallArgument(
                 BoundedCallArgumentObligation {
-                    machine: machine.name.clone(),
-                    state: state.name.clone(),
+                    machine: machine.name.to_string(),
+                    state: state.name.to_string(),
                     receiver: call.receiver.clone(),
                     target: call.target.clone(),
-                    parameter: parameter.name.clone(),
+                    parameter: parameter.name.to_string(),
                     argument: argument.clone(),
                     argument_constraints,
                     base_type: base_type.as_ref().clone(),
@@ -444,8 +444,8 @@ fn collect_bounded_state_return_obligation(
         .obligations
         .push(ProofObligation::BoundedStateReturn(
             BoundedStateReturnObligation {
-                machine: machine.name.clone(),
-                state: state.name.clone(),
+                machine: machine.name.to_string(),
+                state: state.name.to_string(),
                 value: value.clone(),
                 value_constraints,
                 base_type: base_type.as_ref().clone(),

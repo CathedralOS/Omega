@@ -249,8 +249,8 @@ fn collect_call_host_lowering(
     let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
         let platform_call = platform_call_name(call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
-            machine: machine.name.clone(),
-            state: state.name.clone(),
+            machine: machine.name.to_string(),
+            state: state.name.to_string(),
             statement_index,
             platform_call: platform_call.clone(),
             reason: format!("no native lowering for target {target:?}"),
@@ -273,8 +273,8 @@ fn collect_call_host_lowering(
         .arguments
         .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
-        machine: machine.name.clone(),
-        state: state.name.clone(),
+        machine: machine.name.to_string(),
+        state: state.name.to_string(),
         statement_index,
         platform_call: platform_call_name(call),
         data: lowering.data,
@@ -298,7 +298,7 @@ fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
                 _ => return None,
             };
 
-            Some((owned_data.name.clone(), value))
+            Some((owned_data.name.to_string(), value))
         })
         .collect()
 }

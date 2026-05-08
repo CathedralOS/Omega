@@ -276,6 +276,14 @@ impl ArtifactWriter {
             "declaration names: {}\n",
             identity_storage.declaration_names
         ));
+        output.push_str(&format!(
+            "source declaration names: {}\n",
+            identity_storage.source_declaration_names
+        ));
+        output.push_str(&format!(
+            "generated declaration names: {}\n",
+            identity_storage.generated_declaration_names
+        ));
         output.push_str(&format!("type names: {}\n", identity_storage.type_names));
         output.push_str(&format!(
             "expression path members: {}\n",

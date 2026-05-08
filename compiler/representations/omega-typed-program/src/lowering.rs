@@ -6,6 +6,7 @@ use crate::expression::{
 };
 use crate::invariant::InvariantDefinition;
 use crate::machine::{ContainedObject, Machine, OwnedData};
+use crate::name::ProgramName;
 use crate::platform::Platform;
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
@@ -83,7 +84,7 @@ pub fn lower_program_with_sources_and_workers(
         let constraints = program.type_constraints.insert_many(constraints);
 
         program.invariant_definitions.push(InvariantDefinition {
-            name: alias.name.to_string(),
+            name: lower_name(&alias.name),
             constraints,
         });
     }
@@ -866,7 +867,7 @@ fn lower_data_definition(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DataDefinition {
-        name: data_definition.name.to_string(),
+        name: lower_name(&data_definition.name),
         members,
     })
 }
@@ -878,11 +879,11 @@ fn lower_data_member(
 ) -> Result<DataMember, Diagnostic> {
     match member {
         ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
-            name: field.name.to_string(),
+            name: lower_name(&field.name),
             type_reference: lower_type_reference(&field.type_reference, aliases, type_constraints)?,
         })),
         ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
-            name: variant.name.to_string(),
+            name: lower_name(&variant.name),
         })),
     }
 }
@@ -896,7 +897,7 @@ fn lower_machine(
         .contains
         .iter()
         .map(|contained_object| ContainedObject {
-            name: contained_object.name.to_string(),
+            name: lower_name(&contained_object.name),
             type_name: contained_object.type_name.to_string(),
         })
         .collect();
@@ -914,7 +915,7 @@ fn lower_machine(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Machine {
-        name: machine.name.to_string(),
+        name: lower_name(&machine.name),
         contains,
         owned_data,
         states,
@@ -927,7 +928,7 @@ fn lower_owned_data(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<OwnedData, Diagnostic> {
     Ok(OwnedData {
-        name: owned_data.name.to_string(),
+        name: lower_name(&owned_data.name),
         type_reference: lower_type_reference(
             &owned_data.type_reference,
             aliases,
@@ -953,7 +954,7 @@ fn lower_platform(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
-        name: platform.name.to_string(),
+        name: lower_name(&platform.name),
         states,
     })
 }
@@ -964,7 +965,7 @@ fn lower_state_signature(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
-        name: signature.name.to_string(),
+        name: lower_name(&signature.name),
         return_type: signature
             .return_type
             .as_ref()
@@ -975,7 +976,7 @@ fn lower_state_signature(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
-                    name: parameter.name.to_string(),
+                    name: lower_name(&parameter.name),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
                         aliases,
@@ -1094,7 +1095,7 @@ fn lower_state(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
-        name: state.name.to_string(),
+        name: lower_name(&state.name),
         return_type: state
             .return_type
             .as_ref()
@@ -1105,7 +1106,7 @@ fn lower_state(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
-                    name: parameter.name.to_string(),
+                    name: lower_name(&parameter.name),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
                         aliases,
@@ -1146,7 +1147,7 @@ fn lower_statement(
             Ok(Statement::Expression(lower_expression(expression)?))
         }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
-            name: local_data.name.to_string(),
+            name: lower_name(&local_data.name),
             type_reference: lower_type_reference(
                 &local_data.type_reference,
                 aliases,
@@ -1164,6 +1165,14 @@ fn lower_statement(
                 guard: lower_transition_guard(&transition.guard)?,
             }))
         }
+    }
+}
+
+fn lower_name(identifier: &ast::identifier::Identifier) -> ProgramName {
+    if let Some((source, source_span)) = identifier.shared_source() {
+        ProgramName::source(source, source_span)
+    } else {
+        ProgramName::generated(identifier.as_str())
     }
 }
 
@@ -1280,33 +1289,33 @@ mod tests {
     fn typed_program_symbols_project_children_from_declared_types() {
         let mut program = Program {
             data_definitions: vec![DataDefinition {
-                name: "Room".to_owned(),
+                name: "Room".into(),
                 members: vec![DataMember::Field(DataField {
-                    name: "label".to_owned(),
+                    name: "label".into(),
                     type_reference: TypeReference::Named("String".to_owned()),
                 })],
             }],
             machines: vec![Machine {
-                name: "main".to_owned(),
+                name: "main".into(),
                 contains: vec![ContainedObject {
-                    name: "console".to_owned(),
+                    name: "console".into(),
                     type_name: "Console".to_owned(),
                 }],
                 owned_data: Vec::new(),
                 states: vec![State {
-                    name: "entry".to_owned(),
+                    name: "entry".into(),
                     parameters: Vec::new(),
                     return_type: None,
                     statements: vec![Statement::LocalData(LocalData {
-                        name: "room".to_owned(),
+                        name: "room".into(),
                         type_reference: TypeReference::Named("Room".to_owned()),
                     })],
                 }],
             }],
             platforms: vec![Platform {
-                name: "Console".to_owned(),
+                name: "Console".into(),
                 states: vec![StateSignature {
-                    name: "write_line".to_owned(),
+                    name: "write_line".into(),
                     parameters: Vec::new(),
                     return_type: None,
                 }],

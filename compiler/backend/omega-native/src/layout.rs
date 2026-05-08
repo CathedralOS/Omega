@@ -180,13 +180,13 @@ impl<'program> LayoutBuilder<'program> {
                 .members
                 .iter()
                 .filter_map(|member| match member {
-                    DataMember::Variant(variant) => Some(variant.name.clone()),
+                    DataMember::Variant(variant) => Some(variant.name.to_string()),
                     DataMember::Field(_) => None,
                 })
                 .collect();
 
             return Ok(DataLayout {
-                name: definition.name.clone(),
+                name: definition.name.to_string(),
                 shape: DataShape::Enum { variants },
                 layout: TypeLayout {
                     size: 4,
@@ -205,7 +205,7 @@ impl<'program> LayoutBuilder<'program> {
             .map(|field| {
                 let layout = self.layout_type_reference(&field.type_reference)?;
                 Ok(PlannedField {
-                    name: field.name.clone(),
+                    name: field.name.to_string(),
                     type_name: field
                         .type_reference
                         .display_name_with_constraints(self.type_constraints),
@@ -217,7 +217,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(DataLayout {
-            name: definition.name.clone(),
+            name: definition.name.to_string(),
             shape: DataShape::Record { fields },
             layout,
         })
@@ -260,7 +260,7 @@ impl<'program> LayoutBuilder<'program> {
 
         for owned_data in &machine.owned_data {
             fields.push(PlannedField {
-                name: owned_data.name.clone(),
+                name: owned_data.name.to_string(),
                 type_name: owned_data
                     .type_reference
                     .display_name_with_constraints(self.type_constraints),
@@ -271,7 +271,7 @@ impl<'program> LayoutBuilder<'program> {
         for contained_object in &machine.contains {
             if self.machine_definition(&contained_object.type_name).is_ok() {
                 fields.push(PlannedField {
-                    name: contained_object.name.clone(),
+                    name: contained_object.name.to_string(),
                     type_name: contained_object.type_name.clone(),
                     layout: self.layout_machine(&contained_object.type_name)?,
                 });
@@ -282,7 +282,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(MachineLayout {
-            name: machine.name.clone(),
+            name: machine.name.to_string(),
             fields,
             layout,
         })

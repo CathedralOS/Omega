@@ -39,13 +39,13 @@ pub fn infer_effects(program: &omega_typed_program::Program) -> EffectPlan {
 
     for machine in &program.machines {
         let states = machine.states.iter().map(|state| StateEffects {
-            name: state.name.clone(),
+            name: state.name.to_string(),
             effect: infer_state_effect(program, machine, state),
         });
         let states = effect_plan.states.insert_many(states);
 
         effect_plan.machines.push(MachineEffects {
-            name: machine.name.clone(),
+            name: machine.name.to_string(),
             states,
         });
     }
