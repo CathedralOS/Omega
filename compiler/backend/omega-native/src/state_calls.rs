@@ -1,4 +1,4 @@
-use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind};
+use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey};
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_analysis::StateAnalysisContext;
@@ -366,7 +366,7 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
         .runtime_flow
         .states
         .iter()
-        .map(|(_, state)| (state.machine.clone(), state.state.clone()))
+        .map(|(_, state)| state.key)
         .collect::<Vec<_>>();
     let mut changed = true;
 
@@ -374,9 +374,10 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
         changed = false;
 
         for call in calls.iter_mut() {
-            let source_is_required = required_states.iter().any(|(machine, state)| {
-                machine == &call.source_machine && state == &call.source_state
-            });
+            let source_key =
+                state_key_from_names(context, &call.source_machine, &call.source_state);
+            let source_is_required =
+                source_key.is_some_and(|source_key| required_states.contains(&source_key));
 
             if !source_is_required {
                 continue;
@@ -391,42 +392,40 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
                 continue;
             }
 
-            changed |= push_required_state(
-                &mut required_states,
-                call.target_machine.clone(),
-                call.target_state.clone(),
-            );
+            if let Some(target_key) =
+                state_key_from_names(context, &call.target_machine, &call.target_state)
+            {
+                changed |= push_required_state(&mut required_states, target_key);
+            }
         }
 
         let states_snapshot = required_states.clone();
-        for (machine_name, state_name) in states_snapshot {
-            for target in
-                transition_targets_from(context, machine_name.as_str(), state_name.as_str())
-            {
-                if let RuntimeTransitionTarget::State { machine, state, .. } = target {
-                    changed |= push_required_state(&mut required_states, machine, state);
+        for state_key in states_snapshot {
+            for target in transition_targets_from(context, state_key) {
+                if let RuntimeTransitionTarget::State { key, .. } = target {
+                    changed |= push_required_state(&mut required_states, key);
                 }
             }
         }
     }
 
     for call in calls {
+        let source_key = state_key_from_names(context, &call.source_machine, &call.source_state);
         call.required = required_states
             .iter()
-            .any(|(machine, state)| machine == &call.source_machine && state == &call.source_state);
+            .any(|required_key| Some(*required_key) == source_key);
     }
 }
 
 fn transition_targets_from(
     context: &StateAnalysisContext,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
 ) -> Vec<RuntimeTransitionTarget> {
     let Some(machine) = context
         .control_flow
         .machines
         .iter()
-        .find(|(_, machine)| machine.name == machine_name)
+        .find(|(_, machine)| machine.symbol == state_key.machine)
         .map(|(_, machine)| machine)
     else {
         return Vec::new();
@@ -435,7 +434,7 @@ fn transition_targets_from(
         .control_flow
         .states
         .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
+        .and_then(|states| states.iter().find(|state| state.key == state_key))
     else {
         return Vec::new();
     };
@@ -447,12 +446,18 @@ fn transition_targets_from(
         .iter()
         .flat_map(|transition| {
             let mut targets = vec![runtime_transition_target(
+                context,
                 machine,
-                state_name,
+                state.key,
                 &transition.target,
             )];
             if let Some(continuation) = &transition.continuation {
-                targets.push(runtime_transition_target(machine, state_name, continuation));
+                targets.push(runtime_transition_target(
+                    context,
+                    machine,
+                    state.key,
+                    continuation,
+                ));
             }
             targets
         })
@@ -460,14 +465,15 @@ fn transition_targets_from(
 }
 
 fn runtime_transition_target(
+    context: &StateAnalysisContext,
     machine: &MachineFlow,
-    current_state: &str,
+    current_state: StateKey,
     target: &crate::control_flow::PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
-        crate::control_flow::PlannedTransitionTarget::State { name, .. } => {
+        crate::control_flow::PlannedTransitionTarget::State { key, name, .. } => {
             RuntimeTransitionTarget::State {
-                key: Default::default(),
+                key: *key,
                 machine: machine.name.clone(),
                 state: name.clone(),
             }
@@ -478,41 +484,74 @@ fn runtime_transition_target(
             .contains
             .iter()
             .find(|contained| contained.name == *receiver)
-            .map(|contained| RuntimeTransitionTarget::State {
-                key: Default::default(),
-                machine: contained.type_name.clone(),
-                state: state.clone(),
+            .and_then(|contained| {
+                context
+                    .control_flow
+                    .machines
+                    .iter()
+                    .find(|(_, machine)| machine.symbol == contained.type_symbol)
+                    .map(|(_, machine)| (contained, machine))
+            })
+            .and_then(|(contained, target_machine)| {
+                context
+                    .control_flow
+                    .states
+                    .span(target_machine.states)
+                    .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+                    .map(|target_state| RuntimeTransitionTarget::State {
+                        key: target_state.key,
+                        machine: contained.type_name.clone(),
+                        state: target_state.name.clone(),
+                    })
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
             }),
         crate::control_flow::PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State {
-                key: Default::default(),
+                key: current_state,
                 machine: machine.name.clone(),
-                state: current_state.to_owned().into(),
+                state: context
+                    .control_flow
+                    .states
+                    .span(machine.states)
+                    .and_then(|states| states.iter().find(|state| state.key == current_state))
+                    .map(|state| state.name.clone())
+                    .unwrap_or_default(),
             }
         }
         crate::control_flow::PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
 }
 
-fn push_required_state(
-    required_states: &mut Vec<(ProgramName, ProgramName)>,
-    machine: ProgramName,
-    state: ProgramName,
-) -> bool {
-    if required_states
-        .iter()
-        .any(|(required_machine, required_state)| {
-            required_machine == &machine && required_state == &state
-        })
-    {
+fn push_required_state(required_states: &mut Vec<StateKey>, state_key: StateKey) -> bool {
+    if required_states.contains(&state_key) {
         false
     } else {
-        required_states.push((machine, state));
+        required_states.push(state_key);
         true
     }
+}
+
+fn state_key_from_names(
+    context: &StateAnalysisContext,
+    machine_name: &ProgramName,
+    state_name: &ProgramName,
+) -> Option<StateKey> {
+    let machine = context
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == *machine_name)
+        .map(|(_, machine)| machine)?;
+
+    context
+        .control_flow
+        .states
+        .span(machine.states)?
+        .iter()
+        .find(|state| state.name == *state_name)
+        .map(|state| state.key)
 }
 
 struct ResolvedStateCall {
