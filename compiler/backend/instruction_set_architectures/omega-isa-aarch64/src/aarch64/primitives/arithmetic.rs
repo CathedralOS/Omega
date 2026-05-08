@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::architecture::aarch64) fn encode_add_x_immediate(
+pub(in crate::aarch64) fn encode_add_x_immediate(
     destination_register: u8,
     source_register: u8,
     value: usize,
@@ -20,7 +20,7 @@ pub(in crate::architecture::aarch64) fn encode_add_x_immediate(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_add_x_register(
+pub(in crate::aarch64) fn encode_add_x_register(
     destination_register: u8,
     left_register: u8,
     right_register: u8,
@@ -33,7 +33,7 @@ pub(in crate::architecture::aarch64) fn encode_add_x_register(
     )
 }
 
-pub(in crate::architecture::aarch64) fn encode_subs_x_immediate(
+pub(in crate::aarch64) fn encode_subs_x_immediate(
     destination_register: u8,
     source_register: u8,
     value: usize,

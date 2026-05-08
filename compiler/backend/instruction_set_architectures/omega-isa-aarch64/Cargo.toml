@@ -1,0 +1,12 @@
+[package]
+name = "omega-isa-aarch64"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_isa_aarch64"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../../foundation/omega-core" }

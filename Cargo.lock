@@ -138,6 +138,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-isa-aarch64"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+]
+
+[[package]]
 name = "omega-layout"
 version = "0.1.0"
 dependencies = [
@@ -168,6 +175,7 @@ dependencies = [
  "omega-abstract-syntax-tree",
  "omega-calling-conventions",
  "omega-core",
+ "omega-isa-aarch64",
  "omega-layout",
  "omega-object",
  "omega-target",

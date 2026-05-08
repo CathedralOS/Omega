@@ -2,19 +2,15 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::architecture::aarch64) fn encode_compare_w19_immediate(
-    value: u32,
-) -> Result<Vec<u8>, Diagnostic> {
+pub(in crate::aarch64) fn encode_compare_w19_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
     encode_compare_w_immediate(19, value)
 }
 
-pub(in crate::architecture::aarch64) fn encode_compare_w17_immediate(
-    value: u32,
-) -> Result<Vec<u8>, Diagnostic> {
+pub(in crate::aarch64) fn encode_compare_w17_immediate(value: u32) -> Result<Vec<u8>, Diagnostic> {
     encode_compare_w_immediate(17, value)
 }
 
-pub(in crate::architecture::aarch64) fn encode_compare_w_immediate(
+pub(in crate::aarch64) fn encode_compare_w_immediate(
     register: u8,
     value: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -29,7 +25,7 @@ pub(in crate::architecture::aarch64) fn encode_compare_w_immediate(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_compare_w_register(
+pub(in crate::aarch64) fn encode_compare_w_register(
     left_register: u8,
     right_register: u8,
 ) -> Vec<u8> {

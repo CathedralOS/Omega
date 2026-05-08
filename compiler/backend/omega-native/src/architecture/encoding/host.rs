@@ -1,4 +1,5 @@
 use crate::architecture::aarch64;
+use crate::architecture::aarch64_call_operands;
 use crate::instructions::InstructionOperand;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::Architecture;
@@ -8,7 +9,9 @@ pub fn encode_host_call_sequence(
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_host_call_sequence(operands),
+        Architecture::Aarch64 => {
+            aarch64::encode_host_call_sequence(&aarch64_call_operands(operands))
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -22,7 +25,7 @@ pub fn encode_syscall_sequence(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_syscall_sequence(
-            operands,
+            &aarch64_call_operands(operands),
             syscall_number,
             number_register,
             supervisor_call,

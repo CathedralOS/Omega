@@ -1,10 +1,11 @@
-use crate::instructions::{InstructionOperand, InstructionOperandKind};
+use crate::Aarch64CallOperand;
+use crate::Aarch64CallOperand::*;
 
-pub fn host_call_sequence_width(operands: &[InstructionOperand]) -> usize {
+pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     operands.iter().map(operand_width).sum::<usize>() + 4
 }
 
-pub fn syscall_sequence_width(operands: &[InstructionOperand], syscall_number: u32) -> usize {
+pub fn syscall_sequence_width(operands: &[Aarch64CallOperand], syscall_number: u32) -> usize {
     operands.iter().map(operand_width).sum::<usize>()
         + unsigned_immediate_width(u64::from(syscall_number))
         + 4
@@ -98,13 +99,12 @@ pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
     16 + runtime_storage_copy_data_width(byte_count)
 }
 
-pub fn operand_width(operand: &InstructionOperand) -> usize {
-    match &operand.kind {
-        InstructionOperandKind::DataAddress { .. } => 8,
-        InstructionOperandKind::RuntimeMachineStringPointer { .. }
-        | InstructionOperandKind::RuntimeMachineStringLength { .. } => 12,
-        InstructionOperandKind::ImmediateInteger(value) => immediate_width(*value),
-        InstructionOperandKind::ByteLength(value) => unsigned_immediate_width(*value as u64),
+pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
+    match operand {
+        DataAddress { .. } => 8,
+        RuntimeMachineStringPointer { .. } | RuntimeMachineStringLength { .. } => 12,
+        ImmediateInteger(value) => immediate_width(*value),
+        ByteLength(value) => unsigned_immediate_width(*value as u64),
     }
 }
 

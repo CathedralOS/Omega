@@ -4,7 +4,7 @@ use super::branch::{encode_conditional_branch_equal, encode_unconditional_branch
 use super::compare::encode_compare_w17_immediate;
 use super::memory::encode_load_byte_w17_from_x16;
 
-pub(in crate::architecture::aarch64) fn encode_runtime_text_input_delimiter_check(
+pub(in crate::aarch64) fn encode_runtime_text_input_delimiter_check(
     byte_offset: usize,
     failure_branch_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {

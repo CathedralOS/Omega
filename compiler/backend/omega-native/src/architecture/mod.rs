@@ -1,4 +1,4 @@
-pub mod aarch64;
+pub use omega_isa_aarch64::aarch64;
 
 mod encoding;
 mod operands;

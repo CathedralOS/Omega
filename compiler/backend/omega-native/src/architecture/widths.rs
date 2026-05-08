@@ -1,4 +1,5 @@
 use super::aarch64;
+use super::aarch64_call_operands;
 use crate::instructions::InstructionOperand;
 use omega_target::Architecture;
 
@@ -7,7 +8,9 @@ pub fn host_call_sequence_width(
     operands: &[InstructionOperand],
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::host_call_sequence_width(operands),
+        Architecture::Aarch64 => {
+            aarch64::host_call_sequence_width(&aarch64_call_operands(operands))
+        }
         Architecture::X86_64 => operands.len() * 8 + 5,
     }
 }
@@ -18,7 +21,9 @@ pub fn syscall_sequence_width(
     syscall_number: u32,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::syscall_sequence_width(operands, syscall_number),
+        Architecture::Aarch64 => {
+            aarch64::syscall_sequence_width(&aarch64_call_operands(operands), syscall_number)
+        }
         Architecture::X86_64 => operands.len() * 8 + 7,
     }
 }

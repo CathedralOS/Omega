@@ -1,6 +1,6 @@
 use super::instruction::encode_instruction;
 
-pub(in crate::architecture::aarch64) fn encode_move_x_register(
+pub(in crate::aarch64) fn encode_move_x_register(
     destination_register: u8,
     source_register: u8,
 ) -> Vec<u8> {

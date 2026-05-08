@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::architecture::aarch64) fn encode_conditional_branch_not_equal(
+pub(in crate::aarch64) fn encode_conditional_branch_not_equal(
     byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.ne")?;
@@ -11,7 +11,7 @@ pub(in crate::architecture::aarch64) fn encode_conditional_branch_not_equal(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_conditional_branch_equal(
+pub(in crate::aarch64) fn encode_conditional_branch_equal(
     byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.eq")?;
@@ -20,7 +20,7 @@ pub(in crate::architecture::aarch64) fn encode_conditional_branch_equal(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_cbz_x(
+pub(in crate::aarch64) fn encode_cbz_x(
     register: u8,
     byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -30,7 +30,7 @@ pub(in crate::architecture::aarch64) fn encode_cbz_x(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_unconditional_branch(
+pub(in crate::aarch64) fn encode_unconditional_branch(
     byte_distance: isize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let instruction_distance = checked_instruction_distance(byte_distance, 26, "b")?;

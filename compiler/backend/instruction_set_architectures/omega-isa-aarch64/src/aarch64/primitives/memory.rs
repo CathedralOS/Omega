@@ -2,14 +2,14 @@ use omega_core::diagnostics::Diagnostic;
 
 use super::instruction::encode_instruction;
 
-pub(in crate::architecture::aarch64) fn encode_load_w17_from_x16(
+pub(in crate::aarch64) fn encode_load_w17_from_x16(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_load_w_from_x(17, 16, byte_offset, byte_size)
 }
 
-pub(in crate::architecture::aarch64) fn encode_load_w_from_x(
+pub(in crate::aarch64) fn encode_load_w_from_x(
     destination_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -36,13 +36,13 @@ pub(in crate::architecture::aarch64) fn encode_load_w_from_x(
     }
 }
 
-pub(in crate::architecture::aarch64) fn encode_load_byte_w17_from_x16(
+pub(in crate::aarch64) fn encode_load_byte_w17_from_x16(
     byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_load_byte_w_from_x(17, 16, byte_offset)
 }
 
-pub(in crate::architecture::aarch64) fn encode_load_byte_w_from_x(
+pub(in crate::aarch64) fn encode_load_byte_w_from_x(
     destination_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -60,14 +60,14 @@ pub(in crate::architecture::aarch64) fn encode_load_byte_w_from_x(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_w17_to_x16(
+pub(in crate::aarch64) fn encode_store_w17_to_x16(
     byte_offset: usize,
     byte_size: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_store_w_to_x(17, 16, byte_offset, byte_size)
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_w_to_x(
+pub(in crate::aarch64) fn encode_store_w_to_x(
     source_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -94,13 +94,13 @@ pub(in crate::architecture::aarch64) fn encode_store_w_to_x(
     }
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_x17_to_x16(
+pub(in crate::aarch64) fn encode_store_x17_to_x16(
     byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_store_x_to_x(17, 16, byte_offset)
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_x_to_x(
+pub(in crate::aarch64) fn encode_store_x_to_x(
     source_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -118,7 +118,7 @@ pub(in crate::architecture::aarch64) fn encode_store_x_to_x(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_load_x_from_x(
+pub(in crate::aarch64) fn encode_load_x_from_x(
     destination_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -136,13 +136,13 @@ pub(in crate::architecture::aarch64) fn encode_load_x_from_x(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_byte_w17_to_x16(
+pub(in crate::aarch64) fn encode_store_byte_w17_to_x16(
     byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_store_byte_w_to_x(17, 16, byte_offset)
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_byte_w_to_x(
+pub(in crate::aarch64) fn encode_store_byte_w_to_x(
     source_register: u8,
     base_register: u8,
     byte_offset: usize,
@@ -160,7 +160,7 @@ pub(in crate::architecture::aarch64) fn encode_store_byte_w_to_x(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_load_byte_w_post_increment(
+pub(in crate::aarch64) fn encode_load_byte_w_post_increment(
     destination_register: u8,
     base_register: u8,
     byte_increment: i16,
@@ -174,7 +174,7 @@ pub(in crate::architecture::aarch64) fn encode_load_byte_w_post_increment(
     ))
 }
 
-pub(in crate::architecture::aarch64) fn encode_store_byte_w_post_increment(
+pub(in crate::aarch64) fn encode_store_byte_w_post_increment(
     source_register: u8,
     base_register: u8,
     byte_increment: i16,

@@ -1,4 +1,5 @@
-use crate::instructions::{InstructionOperand, InstructionOperandKind};
+use crate::Aarch64CallOperand;
+use crate::Aarch64CallOperand::*;
 use omega_core::diagnostics::Diagnostic;
 
 mod dispatch;
@@ -13,14 +14,14 @@ pub use runtime_storage::*;
 pub use runtime_text::*;
 pub use widths::*;
 
-pub fn encode_host_call_sequence(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagnostic> {
+pub fn encode_host_call_sequence(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_call_operands(operands)?;
     bytes.extend(encode_branch_link_placeholder());
     Ok(bytes)
 }
 
 pub fn encode_syscall_sequence(
-    operands: &[InstructionOperand],
+    operands: &[Aarch64CallOperand],
     syscall_number: u32,
     number_register: u8,
     supervisor_call: u16,
@@ -38,22 +39,22 @@ pub fn encode_return() -> Vec<u8> {
     encode_instruction(0xD65F03C0)
 }
 
-fn encode_call_operands(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diagnostic> {
+fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
     let mut next_register = 0u8;
 
     for operand in operands {
-        match &operand.kind {
-            InstructionOperandKind::ImmediateInteger(value) => {
+        match operand {
+            ImmediateInteger(value) => {
                 bytes.extend(encode_immediate(next_register, *value)?);
                 next_register += 1;
             }
-            InstructionOperandKind::DataAddress { .. } => {
+            DataAddress { .. } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 next_register += 1;
             }
-            InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
+            RuntimeMachineStringPointer { byte_offset } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 bytes.extend(encode_load_x_from_x(
@@ -63,7 +64,7 @@ fn encode_call_operands(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diag
                 )?);
                 next_register += 1;
             }
-            InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
+            RuntimeMachineStringLength { byte_offset } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 bytes.extend(encode_load_x_from_x(
@@ -73,7 +74,7 @@ fn encode_call_operands(operands: &[InstructionOperand]) -> Result<Vec<u8>, Diag
                 )?);
                 next_register += 1;
             }
-            InstructionOperandKind::ByteLength(value) => {
+            ByteLength(value) => {
                 bytes.extend(encode_unsigned_immediate(next_register, *value as u64));
                 next_register += 1;
             }
