@@ -11,7 +11,9 @@ use crate::runtime_text::{
 };
 use crate::state_calls::StateCallLowering;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
-use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains};
+use crate::state_schedule::{
+    build_entry_state_schedule, scheduled_state_contains, scheduled_state_flow, scheduled_state_key,
+};
 use crate::state_storage::StateMutationLowering;
 use crate::state_values::{StateValueKind, StateValueRole};
 use crate::target::ObjectFormat;
@@ -67,6 +69,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 
     for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
         if !scheduled_state_contains(
+            native_plan,
             &state_schedule,
             &unsupported_call.machine,
             &unsupported_call.state,
@@ -137,7 +140,12 @@ fn collect_host_argument_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if !scheduled_state_contains(state_schedule, &host_call.machine, &host_call.state) {
+        if !scheduled_state_contains(
+            native_plan,
+            state_schedule,
+            &host_call.machine,
+            &host_call.state,
+        ) {
             continue;
         }
 
@@ -269,11 +277,13 @@ fn collect_state_call_blockers(
                 | StateCallLowering::InlineExpansion
         ) && !needs_runtime_dispatch
             && scheduled_state_contains(
+                native_plan,
                 state_schedule,
                 &state_call.source_machine,
                 &state_call.source_state,
             )
             && scheduled_state_contains(
+                native_plan,
                 state_schedule,
                 &state_call.target_machine,
                 &state_call.target_state,
@@ -933,20 +943,21 @@ fn collect_state_codegen_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for scheduled_state in state_schedule {
-        let Some(state_flow) = state_flow(
-            native_plan,
-            &scheduled_state.machine,
-            &scheduled_state.state,
-        ) else {
+        let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) else {
             blockers.insert(blocker(
                 "state codegen",
                 &format!(
-                    "scheduled state {}.{} was not present in the control-flow plan",
-                    scheduled_state.machine, scheduled_state.state
+                    "scheduled state {}.{}#{} was not present in the control-flow plan",
+                    scheduled_state.key.machine.arena_index(),
+                    scheduled_state.key.state.arena_index(),
+                    scheduled_state.key.segment_index
                 ),
             ));
             continue;
         };
+        let machine_name =
+            machine_name_for_state(native_plan, state_flow).unwrap_or("<missing-machine>");
+        let state_name = state_flow.name.as_str();
 
         let Some(operations) = native_plan
             .control_flow
@@ -957,7 +968,7 @@ fn collect_state_codegen_blockers(
                 "state codegen",
                 &format!(
                     "{}.{} has an invalid operation span",
-                    scheduled_state.machine, scheduled_state.state
+                    machine_name, state_name
                 ),
             ));
             continue;
@@ -968,13 +979,13 @@ fn collect_state_codegen_blockers(
                 OperationKind::Call { .. }
                     if state_statement_has_host_call(
                         native_plan,
-                        &scheduled_state.machine,
-                        &scheduled_state.state,
+                        machine_name,
+                        state_name,
                         operation.statement_index,
                     ) || state_statement_has_state_call(
                         native_plan,
-                        &scheduled_state.machine,
-                        &scheduled_state.state,
+                        machine_name,
+                        state_name,
                         operation.statement_index,
                     ) => {}
                 OperationKind::Call { .. } => {
@@ -982,8 +993,8 @@ fn collect_state_codegen_blockers(
                         "state codegen",
                         &format!(
                             "{}.{} statement {} is a call that is not lowered to a native host operation",
-                            scheduled_state.machine,
-                            scheduled_state.state,
+                            machine_name,
+                            state_name,
                             operation.statement_index
                         ),
                     ));
@@ -993,8 +1004,8 @@ fn collect_state_codegen_blockers(
                 OperationKind::Assignment { .. }
                     if state_statement_has_storage_mutation(
                         native_plan,
-                        &scheduled_state.machine,
-                        &scheduled_state.state,
+                        machine_name,
+                        state_name,
                         operation.statement_index,
                     ) => {}
                 OperationKind::Assignment { .. } => {
@@ -1002,17 +1013,15 @@ fn collect_state_codegen_blockers(
                         "state codegen",
                         &format!(
                             "{}.{} statement {} Assignment is not supported by native emission yet",
-                            scheduled_state.machine,
-                            scheduled_state.state,
-                            operation.statement_index
+                            machine_name, state_name, operation.statement_index
                         ),
                     ));
                 }
                 OperationKind::LocalData
                     if state_statement_has_local_storage(
                         native_plan,
-                        &scheduled_state.machine,
-                        &scheduled_state.state,
+                        machine_name,
+                        state_name,
                         operation.statement_index,
                     ) => {}
                 _ => {
@@ -1020,10 +1029,7 @@ fn collect_state_codegen_blockers(
                         "state codegen",
                         &format!(
                             "{}.{} statement {} {:?} is not supported by native emission yet",
-                            scheduled_state.machine,
-                            scheduled_state.state,
-                            operation.statement_index,
-                            operation.kind
+                            machine_name, state_name, operation.statement_index, operation.kind
                         ),
                     ));
                 }
@@ -1081,12 +1087,13 @@ fn runtime_and_required_states(
     let mut states = Vec::new();
 
     for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(&mut states, &state.machine, &state.state);
+        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
     }
 
     for (_, state_call) in native_plan.state_calls.calls.iter() {
         if state_call.required {
             push_scheduled_state(
+                native_plan,
                 &mut states,
                 &state_call.source_machine,
                 &state_call.source_state,
@@ -1094,6 +1101,7 @@ fn runtime_and_required_states(
 
             if !state_call.target_machine.is_empty() {
                 push_scheduled_state(
+                    native_plan,
                     &mut states,
                     &state_call.target_machine,
                     &state_call.target_state,
@@ -1106,21 +1114,23 @@ fn runtime_and_required_states(
 }
 
 fn push_scheduled_state(
+    native_plan: &NativePlan,
     states: &mut Vec<crate::state_schedule::ScheduledState>,
     machine: &str,
     state: &str,
 ) {
+    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
+        return;
+    };
+
     if states
         .iter()
-        .any(|scheduled_state| scheduled_state.machine == machine && scheduled_state.state == state)
+        .any(|scheduled_state| scheduled_state.key == key)
     {
         return;
     }
 
-    states.push(crate::state_schedule::ScheduledState {
-        machine: machine.to_owned().into(),
-        state: state.to_owned().into(),
-    });
+    states.push(crate::state_schedule::ScheduledState { key });
 }
 
 fn collect_runtime_dispatch_blockers(
@@ -1231,6 +1241,18 @@ fn state_flow<'plan>(
         .find(|(_, machine)| machine.name == machine_name)
         .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
+}
+
+fn machine_name_for_state<'plan>(
+    native_plan: &'plan NativePlan,
+    state_flow: &StateFlow,
+) -> Option<&'plan str> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.symbol == state_flow.key.machine)
+        .map(|(_, machine)| machine.name.as_str())
 }
 
 fn state_statement_has_host_call(

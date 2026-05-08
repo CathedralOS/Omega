@@ -1,5 +1,5 @@
 use crate::abi::HostBindingMechanism;
-use crate::control_flow::OperationKind;
+use crate::control_flow::{OperationKind, StateFlow};
 use crate::data::NativeDataObject;
 use crate::host_calls::HostCall;
 use crate::host_calls::{HostCallArgument, HostCallArgumentKind};
@@ -17,7 +17,9 @@ use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispa
 use crate::runtime_text::{RuntimeTextBuilderSegmentKind, RuntimeTextSource, RuntimeTextWriteKind};
 use crate::state_guards::StateGuardLowering;
 use crate::state_guards::StateGuardOperator;
-use crate::state_schedule::build_entry_state_schedule;
+use crate::state_schedule::{
+    build_entry_state_schedule, scheduled_state_flow, scheduled_state_key,
+};
 use crate::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
@@ -292,13 +294,18 @@ fn select_entry_instructions(
         );
     } else {
         for scheduled_state in &state_schedule {
-            select_state_host_calls(
-                native_plan,
-                &scheduled_state.machine,
-                &scheduled_state.state,
-                operands,
-                &mut selected_instructions,
-            );
+            if let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) {
+                let Some(machine_name) = machine_name_for_state(native_plan, state_flow) else {
+                    continue;
+                };
+                select_state_host_calls(
+                    native_plan,
+                    machine_name,
+                    &state_flow.name,
+                    operands,
+                    &mut selected_instructions,
+                );
+            }
         }
     }
 
@@ -1940,7 +1947,7 @@ fn runtime_reachable_states(
     let mut states = Vec::new();
 
     for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(&mut states, &state.machine, &state.state);
+        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
     }
 
     for (_, state_call) in native_plan.state_calls.calls.iter() {
@@ -1949,6 +1956,7 @@ fn runtime_reachable_states(
         }
 
         push_scheduled_state(
+            native_plan,
             &mut states,
             &state_call.source_machine,
             &state_call.source_state,
@@ -1956,6 +1964,7 @@ fn runtime_reachable_states(
 
         if !state_call.target_machine.is_empty() {
             push_scheduled_state(
+                native_plan,
                 &mut states,
                 &state_call.target_machine,
                 &state_call.target_state,
@@ -1967,21 +1976,35 @@ fn runtime_reachable_states(
 }
 
 fn push_scheduled_state(
+    native_plan: &NativePlan,
     states: &mut Vec<crate::state_schedule::ScheduledState>,
     machine: &str,
     state: &str,
 ) {
+    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
+        return;
+    };
+
     if states
         .iter()
-        .any(|scheduled_state| scheduled_state.machine == machine && scheduled_state.state == state)
+        .any(|scheduled_state| scheduled_state.key == key)
     {
         return;
     }
 
-    states.push(crate::state_schedule::ScheduledState {
-        machine: machine.to_owned().into(),
-        state: state.to_owned().into(),
-    });
+    states.push(crate::state_schedule::ScheduledState { key });
+}
+
+fn machine_name_for_state<'plan>(
+    native_plan: &'plan NativePlan,
+    state_flow: &StateFlow,
+) -> Option<&'plan str> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.symbol == state_flow.key.machine)
+        .map(|(_, machine)| machine.name.as_str())
 }
 
 fn select_host_call(

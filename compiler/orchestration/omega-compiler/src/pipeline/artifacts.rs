@@ -36,7 +36,7 @@ use omega_native::runtime_dispatch::branching::{
     RuntimeStraightLineBranchOperationKind,
 };
 use omega_native::runtime_flow::RuntimeTransitionTarget;
-use omega_native::state_schedule::build_entry_state_schedule;
+use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
 use omega_typed_program::Program;
@@ -1093,10 +1093,27 @@ impl ArtifactWriter {
             Ok(schedule) => {
                 output.push_str(&format!("states: {}\n", schedule.len()));
                 for scheduled_state in schedule {
-                    output.push_str(&format!(
-                        "- {}.{}\n",
-                        scheduled_state.machine, scheduled_state.state
-                    ));
+                    if let Some(state_flow) = scheduled_state_flow(native_plan, &scheduled_state) {
+                        output.push_str(&format!(
+                            "- {}.{}#{}\n",
+                            native_plan
+                                .control_flow
+                                .machines
+                                .iter()
+                                .find(|(_, machine)| machine.symbol == state_flow.key.machine)
+                                .map(|(_, machine)| machine.name.as_str())
+                                .unwrap_or("<missing-machine>"),
+                            state_flow.name,
+                            state_flow.key.segment_index
+                        ));
+                    } else {
+                        output.push_str(&format!(
+                            "- symbol {}.{}#{}\n",
+                            scheduled_state.key.machine.arena_index(),
+                            scheduled_state.key.state.arena_index(),
+                            scheduled_state.key.segment_index
+                        ));
+                    }
                 }
             }
             Err(reason) => {

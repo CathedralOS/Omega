@@ -1,15 +1,15 @@
 use crate::control_flow::{
-    MachineFlow, OperationKind, PlannedTransitionTarget, StateFlow, TransitionFlow,
+    MachineFlow, OperationKind, PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
 };
 use crate::plan::NativePlan;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledState {
-    pub machine: ProgramName,
-    pub state: ProgramName,
+    pub key: StateKey,
 }
 
 pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<ScheduledState>, String> {
@@ -18,10 +18,12 @@ pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<Schedu
     let mut values = Vec::<(String, String)>::new();
     let mut aliases = Vec::<(String, String)>::new();
 
+    let entry_machine = machine_flow(native_plan, &native_plan.entry_machine)?;
+    let entry_state = state_flow(native_plan, entry_machine, &native_plan.entry_state)?;
+
     append_state_chain(
         native_plan,
-        &native_plan.entry_machine,
-        &native_plan.entry_state,
+        entry_state.key,
         &mut schedule,
         &mut visited,
         &mut values,
@@ -32,48 +34,66 @@ pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<Schedu
 }
 
 pub fn scheduled_state_contains(
+    native_plan: &NativePlan,
     schedule: &[ScheduledState],
     machine_name: &str,
     state_name: &str,
 ) -> bool {
-    schedule
-        .iter()
-        .any(|state| state.machine == machine_name && state.state == state_name)
+    let Ok(machine) = machine_flow(native_plan, machine_name) else {
+        return false;
+    };
+    let Ok(state) = state_flow(native_plan, machine, state_name) else {
+        return false;
+    };
+
+    schedule.iter().any(|scheduled| scheduled.key == state.key)
+}
+
+pub fn scheduled_state_flow<'plan>(
+    native_plan: &'plan NativePlan,
+    scheduled_state: &ScheduledState,
+) -> Option<&'plan StateFlow> {
+    state_flow_by_key(native_plan, scheduled_state.key).ok()
+}
+
+pub fn scheduled_state_key(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<StateKey> {
+    let machine = machine_flow(native_plan, machine_name).ok()?;
+    let state = state_flow(native_plan, machine, state_name).ok()?;
+
+    Some(state.key)
 }
 
 fn append_state_chain(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    start_key: StateKey,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
     values: &mut Vec<(String, String)>,
     aliases: &mut Vec<(String, String)>,
 ) -> Result<(), String> {
-    let mut current_machine_name = ProgramName::from(machine_name);
-    let mut current_state_name = ProgramName::from(state_name);
+    let mut current_key = start_key;
 
     loop {
-        let current = ScheduledState {
-            machine: current_machine_name.clone(),
-            state: current_state_name.clone(),
-        };
+        let current = ScheduledState { key: current_key };
 
         if visited.contains(&current) {
             return Err(format!(
                 "cycle {}; native emission does not support loops yet",
-                cycle_path(&visited, &current)
+                cycle_path(native_plan, &visited, &current)
             ));
         }
 
         visited.push(current.clone());
         schedule.push(current.clone());
 
-        let machine = machine_flow(native_plan, current.machine.as_str())?;
-        let state = state_flow(native_plan, machine, current.state.as_str())?;
+        let machine = machine_flow_by_symbol(native_plan, current.key.machine)?;
+        let state = state_flow_by_key(native_plan, current.key)?;
         append_local_state_calls(
             native_plan,
-            &current,
             machine,
             state,
             schedule,
@@ -92,13 +112,13 @@ fn append_state_chain(
         match transitions {
             [] => return Ok(()),
             transitions => {
-                let Some(transition) = select_transition(transitions, values, aliases, &current)?
+                let Some(transition) =
+                    select_transition(native_plan, transitions, values, aliases, &current)?
                 else {
                     return Ok(());
                 };
                 let Some(next_state) = next_state(
                     native_plan,
-                    current.machine.as_str(),
                     machine,
                     state,
                     transition,
@@ -111,14 +131,17 @@ fn append_state_chain(
                     return Ok(());
                 };
 
-                current_machine_name = next_state.machine;
-                current_state_name = next_state.state;
+                current_key = next_state.key;
             }
         }
     }
 }
 
-fn cycle_path(visited: &[ScheduledState], current: &ScheduledState) -> String {
+fn cycle_path(
+    native_plan: &NativePlan,
+    visited: &[ScheduledState],
+    current: &ScheduledState,
+) -> String {
     let start = visited
         .iter()
         .position(|state| state == current)
@@ -126,14 +149,28 @@ fn cycle_path(visited: &[ScheduledState], current: &ScheduledState) -> String {
     visited[start..]
         .iter()
         .chain(std::iter::once(current))
-        .map(|state| format!("{}.{}", state.machine, state.state))
+        .map(|state| state_key_display(native_plan, state.key))
         .collect::<Vec<_>>()
         .join(" -> ")
 }
 
+fn state_key_display(native_plan: &NativePlan, key: StateKey) -> String {
+    let machine_name = machine_flow_by_symbol(native_plan, key.machine)
+        .map(|machine| machine.name.to_string())
+        .unwrap_or_else(|_| format!("symbol{}", key.machine.arena_index()));
+    let state_name = state_flow_by_key(native_plan, key)
+        .map(|state| state.name.to_string())
+        .unwrap_or_else(|_| format!("symbol{}", key.state.arena_index()));
+
+    if key.segment_index == 0 {
+        format!("{machine_name}.{state_name}")
+    } else {
+        format!("{machine_name}.{state_name}#{}", key.segment_index)
+    }
+}
+
 fn append_local_state_calls(
     native_plan: &NativePlan,
-    current: &ScheduledState,
     machine: &MachineFlow,
     state: &StateFlow,
     schedule: &mut Vec<ScheduledState>,
@@ -144,7 +181,7 @@ fn append_local_state_calls(
     let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
         return Err(format!(
             "{}.{} has an invalid operation span",
-            current.machine, current.state
+            machine.name, state.name
         ));
     };
 
@@ -159,13 +196,13 @@ fn append_local_state_calls(
         };
 
         let is_platform_call = native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-            host_call.machine == current.machine
-                && host_call.state == current.state
+            host_call.machine == machine.name
+                && host_call.state == state.name
                 && host_call.statement_index == operation.statement_index
         }) || native_plan.host_calls.unsupported_calls.iter().any(
             |(_, host_call)| {
-                host_call.machine == current.machine
-                    && host_call.state == current.state
+                host_call.machine == machine.name
+                    && host_call.state == state.name
                     && host_call.statement_index == operation.statement_index
             },
         );
@@ -178,8 +215,8 @@ fn append_local_state_calls(
             .ok_or_else(|| {
                 format!(
                     "{}.{} statement {} calls unknown state receiver `{}`",
-                    current.machine,
-                    current.state,
+                    machine.name,
+                    state.name,
                     operation.statement_index,
                     receiver.as_deref().unwrap_or("self")
                 )
@@ -196,10 +233,11 @@ fn append_local_state_calls(
             values,
         )?;
 
+        let target_machine_flow = machine_flow(native_plan, target_machine.as_str())?;
+        let target_state_flow = state_flow(native_plan, target_machine_flow, target)?;
         append_state_chain(
             native_plan,
-            target_machine.as_str(),
-            target,
+            target_state_flow.key,
             schedule,
             visited,
             values,
@@ -274,7 +312,6 @@ fn set_alias(aliases: &mut Vec<(String, String)>, parameter: String, target: Str
 
 fn next_state(
     native_plan: &NativePlan,
-    machine_name: &str,
     machine: &MachineFlow,
     state: &StateFlow,
     transition: &TransitionFlow,
@@ -286,15 +323,13 @@ fn next_state(
     match &transition.target {
         PlannedTransitionTarget::State {
             index,
+            key,
             name,
             arguments,
         } => {
-            validate_state_index(native_plan, machine, *index, machine_name, &state.name)?;
-            bind_state_arguments(native_plan, machine_name, name, arguments, aliases, values)?;
-            Ok(Some(ScheduledState {
-                machine: ProgramName::from(machine_name),
-                state: name.clone(),
-            }))
+            validate_state_index(native_plan, machine, *index, &machine.name, &state.name)?;
+            bind_state_arguments(native_plan, &machine.name, name, arguments, aliases, values)?;
+            Ok(Some(ScheduledState { key: *key }))
         }
         PlannedTransitionTarget::Terminal => Ok(None),
         PlannedTransitionTarget::SelfTarget => Err(format!(
@@ -314,7 +349,7 @@ fn next_state(
                 .ok_or_else(|| {
                     format!(
                         "{}.{} transitions into unknown nested machine `{receiver}`",
-                        machine_name, state.name
+                        machine.name, state.name
                     )
                 })?;
 
@@ -328,10 +363,11 @@ fn next_state(
                 aliases,
                 values,
             )?;
+            let nested_machine_flow = machine_flow(native_plan, nested_machine_name)?;
+            let nested_state_flow = state_flow(native_plan, nested_machine_flow, nested_state)?;
             append_state_chain(
                 native_plan,
-                nested_machine_name,
-                nested_state,
+                nested_state_flow.key,
                 schedule,
                 visited,
                 values,
@@ -343,27 +379,25 @@ fn next_state(
             match &transition.continuation {
                 Some(PlannedTransitionTarget::State {
                     index,
+                    key,
                     name,
                     arguments,
                 }) => {
-                    validate_state_index(native_plan, machine, *index, machine_name, &state.name)?;
+                    validate_state_index(native_plan, machine, *index, &machine.name, &state.name)?;
                     bind_state_arguments(
                         native_plan,
-                        machine_name,
+                        &machine.name,
                         name,
                         arguments,
                         aliases,
                         values,
                     )?;
-                    Ok(Some(ScheduledState {
-                        machine: ProgramName::from(machine_name),
-                        state: name.clone(),
-                    }))
+                    Ok(Some(ScheduledState { key: *key }))
                 }
                 Some(PlannedTransitionTarget::Terminal) | None => Ok(None),
                 Some(PlannedTransitionTarget::SelfTarget) => Err(format!(
                     "{}.{} nested continuation self-transitions; native emission does not support loops yet",
-                    machine_name, state.name
+                    machine.name, state.name
                 )),
                 Some(PlannedTransitionTarget::Nested {
                     receiver,
@@ -371,7 +405,7 @@ fn next_state(
                     ..
                 }) => Err(format!(
                     "{}.{} nested continuation targets `{receiver}.{nested_state}`; native emission supports one nested call at a time so far",
-                    machine_name, state.name
+                    machine.name, state.name
                 )),
             }
         }
@@ -461,6 +495,7 @@ fn copy_static_prefix(values: &mut Vec<(String, String)>, source_name: &str, tar
 }
 
 fn select_transition<'plan>(
+    native_plan: &NativePlan,
     transitions: &'plan [TransitionFlow],
     values: &[(String, String)],
     aliases: &[(String, String)],
@@ -472,16 +507,16 @@ fn select_transition<'plan>(
             Some(false) => continue,
             None => {
                 return Err(format!(
-                    "{}.{} has a guard native emission cannot evaluate statically yet",
-                    current.machine, current.state
+                    "{} has a guard native emission cannot evaluate statically yet",
+                    state_key_display(native_plan, current.key)
                 ));
             }
         }
     }
 
     Err(format!(
-        "{}.{} has no transition whose guard is satisfied",
-        current.machine, current.state
+        "{} has no transition whose guard is satisfied",
+        state_key_display(native_plan, current.key)
     ))
 }
 
@@ -661,6 +696,24 @@ fn machine_flow<'plan>(
         .ok_or_else(|| format!("machine `{machine_name}` was not present in the control-flow plan"))
 }
 
+fn machine_flow_by_symbol(
+    native_plan: &NativePlan,
+    machine_symbol: SymbolHandle,
+) -> Result<&MachineFlow, String> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.symbol == machine_symbol)
+        .map(|(_, machine)| machine)
+        .ok_or_else(|| {
+            format!(
+                "machine symbol {} was not present in the control-flow plan",
+                machine_symbol.arena_index()
+            )
+        })
+}
+
 fn state_flow<'plan>(
     native_plan: &'plan NativePlan,
     machine: &MachineFlow,
@@ -675,6 +728,24 @@ fn state_flow<'plan>(
             format!(
                 "state {}.{} was not present in the control-flow plan",
                 machine.name, state_name
+            )
+        })
+}
+
+fn state_flow_by_key(native_plan: &NativePlan, key: StateKey) -> Result<&StateFlow, String> {
+    let machine = machine_flow_by_symbol(native_plan, key.machine)?;
+
+    native_plan
+        .control_flow
+        .states
+        .span(machine.states)
+        .and_then(|states| states.iter().find(|state| state.key == key))
+        .ok_or_else(|| {
+            format!(
+                "state key {}.{}#{} was not present in the control-flow plan",
+                key.machine.arena_index(),
+                key.state.arena_index(),
+                key.segment_index
             )
         })
 }

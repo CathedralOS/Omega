@@ -1,6 +1,7 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::expression::display_name_path;
@@ -18,8 +19,16 @@ pub struct ControlFlowPlan {
     pub transitions: Arena<TransitionFlow>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StateKey {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub segment_index: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub contains: Vec<ContainedFlow>,
     pub states: HandleSpan<StateFlow>,
@@ -28,6 +37,7 @@ pub struct MachineFlow {
 impl Default for MachineFlow {
     fn default() -> Self {
         Self {
+            symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             contains: Vec::new(),
             states: HandleSpan::empty(),
@@ -37,12 +47,15 @@ impl Default for MachineFlow {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ContainedFlow {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_symbol: SymbolHandle,
     pub type_name: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateFlow {
+    pub key: StateKey,
     pub name: ProgramName,
     pub index: usize,
     pub parameters: Vec<ProgramName>,
@@ -53,6 +66,7 @@ pub struct StateFlow {
 impl Default for StateFlow {
     fn default() -> Self {
         Self {
+            key: StateKey::default(),
             name: ProgramName::default(),
             index: 0,
             parameters: Vec::new(),
@@ -108,6 +122,7 @@ pub struct TransitionFlow {
 pub enum PlannedTransitionTarget {
     State {
         index: usize,
+        key: StateKey,
         name: ProgramName,
         arguments: Vec<Expression>,
     },
@@ -151,7 +166,7 @@ pub fn build_control_flow_plan_with_workers(
             .get(index)
             .expect("control-flow worker index should be in range");
         let mut local_flow = ControlFlowPlan::default();
-        let machine_flow = build_machine_flow(machine, &mut local_flow)?;
+        let machine_flow = build_machine_flow(&program, machine, &mut local_flow)?;
 
         Ok((local_flow, machine_flow))
     });
@@ -206,19 +221,24 @@ fn merge_machine_flow(
 }
 
 fn build_machine_flow(
+    program: &Program,
     machine: &Machine,
     control_flow: &mut ControlFlowPlan,
 ) -> Result<MachineFlow, Diagnostic> {
+    let machine_symbol = program
+        .symbols
+        .find_descendant_by_path(program.symbols.root(), [machine.name.as_str()])
+        .ok_or_else(|| Diagnostic::error(format!("machine `{}` has no symbol", machine.name)))?;
     let segments = machine
         .states
         .iter()
-        .map(split_state_segments)
+        .map(|state| split_state_segments(program, machine_symbol, state))
         .collect::<Vec<_>>();
     let state_indexes = segments
         .iter()
         .flat_map(|state_segments| state_segments.iter())
         .enumerate()
-        .map(|(index, segment)| (segment.name.as_str(), index))
+        .map(|(index, segment)| (segment.name.as_str(), segment.key, index))
         .collect::<Vec<_>>();
 
     let states = segments
@@ -236,17 +256,23 @@ fn build_machine_flow(
                 if !segment_has_unconditional_transition(segment) {
                     let next_index = state_indexes
                         .iter()
-                        .find(|(name, _)| name == next_segment_name)
-                        .map(|(_, index)| *index)
+                        .find(|(name, _, _)| name == next_segment_name)
+                        .map(|(_, _, index)| *index)
                         .ok_or_else(|| {
                             Diagnostic::error(format!(
                                 "internal control-flow segment `{next_segment_name}` was not indexed"
                             ))
                         })?;
+                    let next_key = state_indexes
+                        .iter()
+                        .find(|(name, _, _)| name == next_segment_name)
+                        .map(|(_, key, _)| *key)
+                        .unwrap_or_default();
 
                     transitions.push(TransitionFlow {
                         target: PlannedTransitionTarget::State {
                             index: next_index,
+                            key: next_key,
                             name: next_segment_name.clone(),
                             arguments: Vec::new(),
                         },
@@ -262,6 +288,7 @@ fn build_machine_flow(
             let transitions = control_flow.transitions.insert_many(transitions);
 
             Ok(StateFlow {
+                key: segment.key,
                 name: segment.name.clone(),
                 index,
                 parameters: segment.parameters.clone(),
@@ -273,12 +300,21 @@ fn build_machine_flow(
     let states = control_flow.states.insert_many(states);
 
     Ok(MachineFlow {
+        symbol: machine_symbol,
         name: machine.name.clone(),
         contains: machine
             .contains
             .iter()
             .map(|contained| ContainedFlow {
+                symbol: program
+                    .symbols
+                    .find_child_by_name(machine_symbol, contained.name.as_str())
+                    .unwrap_or_else(SymbolHandle::invalid),
                 name: contained.name.clone(),
+                type_symbol: program
+                    .symbols
+                    .find_descendant_by_path(program.symbols.root(), [contained.type_name.as_str()])
+                    .unwrap_or_else(SymbolHandle::invalid),
                 type_name: contained.type_name.clone(),
             })
             .collect(),
@@ -288,6 +324,7 @@ fn build_machine_flow(
 
 #[derive(Debug, Clone)]
 struct StateSegment<'program> {
+    key: StateKey,
     name: ProgramName,
     parameters: Vec<ProgramName>,
     operations: Vec<Operation>,
@@ -295,7 +332,16 @@ struct StateSegment<'program> {
     next_segment_name: Option<ProgramName>,
 }
 
-fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
+fn split_state_segments<'program>(
+    program: &Program,
+    machine_symbol: SymbolHandle,
+    state: &'program State,
+) -> Vec<StateSegment<'program>> {
+    let state_symbol = program
+        .symbols
+        .find_child_by_name(machine_symbol, state.name.as_str())
+        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::State)
+        .unwrap_or_else(SymbolHandle::invalid);
     let mut segments = Vec::new();
     let mut operations = Vec::new();
     let mut transitions = Vec::new();
@@ -311,6 +357,11 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
 
         if transition_section_started {
             segments.push(StateSegment {
+                key: StateKey {
+                    machine: machine_symbol,
+                    state: state_symbol,
+                    segment_index,
+                },
                 name: segment_name(&state.name, segment_index),
                 parameters: state_parameters_for_segment(state, segment_index),
                 operations,
@@ -331,6 +382,11 @@ fn split_state_segments(state: &State) -> Vec<StateSegment<'_>> {
     }
 
     segments.push(StateSegment {
+        key: StateKey {
+            machine: machine_symbol,
+            state: state_symbol,
+            segment_index,
+        },
         name: segment_name(&state.name, segment_index),
         parameters: state_parameters_for_segment(state, segment_index),
         operations,
@@ -428,7 +484,7 @@ fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {
 }
 
 fn plan_transition(
-    state_indexes: &[(&str, usize)],
+    state_indexes: &[(&str, StateKey, usize)],
     transition: &Transition,
 ) -> Result<TransitionFlow, Diagnostic> {
     Ok(TransitionFlow {
@@ -443,7 +499,7 @@ fn plan_transition(
 }
 
 fn plan_transition_target(
-    state_indexes: &[(&str, usize)],
+    state_indexes: &[(&str, StateKey, usize)],
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
@@ -453,14 +509,20 @@ fn plan_transition_target(
             let name = path.last().expect("named transition has a state").clone();
             let index = state_indexes
                 .iter()
-                .find(|(state_name, _)| *state_name == name)
-                .map(|(_, index)| *index)
+                .find(|(state_name, _, _)| *state_name == name)
+                .map(|(_, _, index)| *index)
                 .ok_or_else(|| {
                     Diagnostic::error(format!("unknown state transition target `{name}`"))
                 })?;
+            let key = state_indexes
+                .iter()
+                .find(|(state_name, _, _)| *state_name == name)
+                .map(|(_, key, _)| *key)
+                .unwrap_or_default();
 
             Ok(PlannedTransitionTarget::State {
                 index,
+                key,
                 name,
                 arguments: arguments.clone(),
             })
