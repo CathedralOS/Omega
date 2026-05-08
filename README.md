@@ -128,6 +128,8 @@ Long-term design assumptions:
 - The backend is shared where it should be shared, but architecture and platform boundaries stay obvious in the tree.
 - The standard library, host contracts, startup/runtime, and calling-convention/platform ABI knowledge are versioned inside the workspace, not treated as mysterious external glue.
 
+Current migration note: `compiler/backend/omega-native` is a bring-up bridge, not the desired permanent boundary. As backend domains stabilize, code should move out into the explicit crates below: instruction-set architecture crates, machine-program/codegen crates, executable image crates, linker crates, calling-convention crates, and platform-interface crates. Once `omega-native` is mostly orchestration glue, either delete it or rename it honestly.
+
 Legend:
 
 - `[CRATE]` means a Cargo workspace package.
