@@ -163,10 +163,10 @@ fn build_runtime_storage_body_plan(
 
                 plan.frame_slots.insert(RuntimeFrameSlot {
                     dispatch_index: body_input.body.dispatch_index,
-                    source_machine: operation.source_machine.clone(),
-                    source_state: operation.source_state.clone(),
+                    source_machine: operation.source_machine.to_string(),
+                    source_state: operation.source_state.to_string(),
                     statement_index: operation.statement_index,
-                    name: name.clone(),
+                    name: name.to_string(),
                     type_name: type_name.clone(),
                     byte_offset,
                     byte_size: layout.size,
@@ -184,8 +184,8 @@ fn build_runtime_storage_body_plan(
                 ) {
                     plan.writes.insert(RuntimeStorageWrite {
                         dispatch_index: body_input.body.dispatch_index,
-                        source_machine: operation.source_machine.clone(),
-                        source_state: operation.source_state.clone(),
+                        source_machine: operation.source_machine.to_string(),
+                        source_state: operation.source_state.to_string(),
                         statement_index: operation.statement_index,
                         target: mutation.target.clone(),
                         value: mutation.value.clone(),

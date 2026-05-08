@@ -9,6 +9,7 @@ use crate::state_storage::{
 };
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_typed_program::name::ProgramName;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -19,8 +20,8 @@ pub struct RuntimeDispatchBodyPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBody {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub dispatch_index: u32,
     pub operations: HandleSpan<RuntimeDispatchBodyOperation>,
 }
@@ -28,8 +29,8 @@ pub struct RuntimeDispatchBody {
 impl Default for RuntimeDispatchBody {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             dispatch_index: 0,
             operations: HandleSpan::empty(),
         }
@@ -38,8 +39,8 @@ impl Default for RuntimeDispatchBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyOperation {
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
     pub kind: RuntimeDispatchBodyOperationKind,
 }
@@ -47,8 +48,8 @@ pub struct RuntimeDispatchBodyOperation {
 impl Default for RuntimeDispatchBodyOperation {
     fn default() -> Self {
         Self {
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
             kind: RuntimeDispatchBodyOperationKind::Other,
         }
@@ -61,24 +62,24 @@ pub enum RuntimeDispatchBodyOperationKind {
         platform_call: String,
     },
     InlineLeafStateCall {
-        target_machine: String,
-        target_state: String,
+        target_machine: ProgramName,
+        target_state: ProgramName,
         argument_count: usize,
     },
     InlineStateCall {
-        target_machine: String,
-        target_state: String,
+        target_machine: ProgramName,
+        target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     StateCall {
-        target_machine: String,
-        target_state: String,
+        target_machine: ProgramName,
+        target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     LocalStorage {
-        name: String,
+        name: ProgramName,
         type_name: String,
     },
     Mutation {
@@ -161,8 +162,8 @@ impl RuntimeDispatchBodyContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedRuntimeDispatchBody {
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
     dispatch_index: u32,
     operations: Vec<RuntimeDispatchBodyOperation>,
 }
@@ -181,8 +182,8 @@ fn build_dispatch_body(
     );
 
     CollectedRuntimeDispatchBody {
-        machine: dispatch_state.machine.to_string(),
-        state: dispatch_state.state.to_string(),
+        machine: dispatch_state.machine.clone(),
+        state: dispatch_state.state.clone(),
         dispatch_index: dispatch_state.dispatch_index,
         operations,
     }
@@ -190,10 +191,10 @@ fn build_dispatch_body(
 
 fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
-    machine_name: &str,
-    state_name: &str,
+    machine_name: &ProgramName,
+    state_name: &ProgramName,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
-    visiting: &mut Vec<(String, String)>,
+    visiting: &mut Vec<(ProgramName, ProgramName)>,
 ) {
     if visiting
         .iter()
@@ -201,7 +202,7 @@ fn append_state_body_operations(
     {
         return;
     }
-    visiting.push((machine_name.to_owned(), state_name.to_owned()));
+    visiting.push((machine_name.clone(), state_name.clone()));
 
     let Some(state_operations) = state_operations(context, machine_name, state_name) else {
         visiting.pop();
@@ -241,7 +242,7 @@ fn append_state_body_operations(
                 state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::LocalStorage {
-                    name: local_storage.name.to_string(),
+                    name: local_storage.name.clone(),
                     type_name: local_storage.type_name.clone(),
                 },
             ));
@@ -280,7 +281,7 @@ fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
-    visiting: &mut Vec<(String, String)>,
+    visiting: &mut Vec<(ProgramName, ProgramName)>,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.push(body_operation(
@@ -288,8 +289,8 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-                target_machine: state_call.target_machine.to_string(),
-                target_state: state_call.target_state.to_string(),
+                target_machine: state_call.target_machine.clone(),
+                target_state: state_call.target_state.clone(),
                 argument_count: state_call.argument_count,
             },
         ));
@@ -313,8 +314,8 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
-                target_machine: state_call.target_machine.to_string(),
-                target_state: state_call.target_state.to_string(),
+                target_machine: state_call.target_machine.clone(),
+                target_state: state_call.target_state.clone(),
                 argument_count: state_call.argument_count,
                 lowering: state_call.lowering,
             },
@@ -334,8 +335,8 @@ fn append_state_call_body_operation(
         &state_call.source_state,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
-            target_machine: state_call.target_machine.to_string(),
-            target_state: state_call.target_state.to_string(),
+            target_machine: state_call.target_machine.clone(),
+            target_state: state_call.target_state.clone(),
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         },
@@ -343,14 +344,14 @@ fn append_state_call_body_operation(
 }
 
 fn body_operation(
-    machine_name: &str,
-    state_name: &str,
+    machine_name: &ProgramName,
+    state_name: &ProgramName,
     statement_index: usize,
     kind: RuntimeDispatchBodyOperationKind,
 ) -> RuntimeDispatchBodyOperation {
     RuntimeDispatchBodyOperation {
-        source_machine: machine_name.to_owned(),
-        source_state: state_name.to_owned(),
+        source_machine: machine_name.clone(),
+        source_state: state_name.clone(),
         statement_index,
         kind,
     }

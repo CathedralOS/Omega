@@ -389,8 +389,8 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             let edges = plan.edges.insert_many(branch_edges);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
-                source_machine: operation.source_machine.clone(),
-                source_state: operation.source_state.clone(),
+                source_machine: operation.source_machine.to_string(),
+                source_state: operation.source_state.to_string(),
                 statement_index: operation.statement_index,
                 target_machine: target_machine.to_string(),
                 target_state: target_state.to_string(),

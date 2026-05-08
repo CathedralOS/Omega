@@ -1,6 +1,7 @@
 use crate::control_flow::{OperationKind, PlannedTransitionTarget};
 use crate::host_calls::HostCallArgumentKind;
 use crate::plan::NativePlan;
+use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
@@ -65,6 +66,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_control_flow_strings(native_plan, &mut storage);
     count_runtime_flow_strings(native_plan, &mut storage);
     count_state_dispatch_strings(native_plan, &mut storage);
+    count_runtime_body_strings(native_plan, &mut storage);
     count_host_call_strings(native_plan, &mut storage);
     count_state_call_strings(native_plan, &mut storage);
     count_alias_flow_strings(native_plan, &mut storage);
@@ -151,6 +153,46 @@ fn count_state_dispatch_strings(native_plan: &NativePlan, storage: &mut NativeSt
     for (_, edge) in native_plan.state_dispatch.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
+    }
+}
+
+fn count_runtime_body_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
+    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
+        storage.count_program_name_identity(&body.machine);
+        storage.count_program_name_identity(&body.state);
+    }
+    for (_, operation) in native_plan.runtime_bodies.operations.iter() {
+        storage.count_program_name_identity(&operation.source_machine);
+        storage.count_program_name_identity(&operation.source_state);
+        match &operation.kind {
+            RuntimeDispatchBodyOperationKind::HostCall { platform_call } => {
+                storage.count_identity(platform_call);
+            }
+            RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                target_machine,
+                target_state,
+                ..
+            }
+            | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                target_machine,
+                target_state,
+                ..
+            }
+            | RuntimeDispatchBodyOperationKind::StateCall {
+                target_machine,
+                target_state,
+                ..
+            } => {
+                storage.count_program_name_identity(target_machine);
+                storage.count_program_name_identity(target_state);
+            }
+            RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
+                storage.count_program_name_identity(name);
+                storage.count_identity(type_name);
+            }
+            RuntimeDispatchBodyOperationKind::Mutation { .. }
+            | RuntimeDispatchBodyOperationKind::Other => {}
+        }
     }
 }
 
