@@ -32,8 +32,8 @@ impl Default for HostCallPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UnsupportedHostCall {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub reason: String,
@@ -41,8 +41,8 @@ pub struct UnsupportedHostCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCall {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub data: PlatformCallData,
@@ -53,8 +53,8 @@ pub struct HostCall {
 impl Default for HostCall {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             data: PlatformCallData::None,
@@ -250,8 +250,8 @@ fn collect_call_host_lowering(
     let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
         let platform_call = platform_call_name(call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
-            machine: machine.name.to_string(),
-            state: state.name.to_string(),
+            machine: machine.name.clone(),
+            state: state.name.clone(),
             statement_index,
             platform_call: platform_call.clone(),
             reason: format!("no native lowering for target {target:?}"),
@@ -274,8 +274,8 @@ fn collect_call_host_lowering(
         .arguments
         .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
-        machine: machine.name.to_string(),
-        state: state.name.to_string(),
+        machine: machine.name.clone(),
+        state: state.name.clone(),
         statement_index,
         platform_call: platform_call_name(call),
         data: lowering.data,

@@ -206,8 +206,8 @@ fn collect_runtime_text_use(
 
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
         plan.uses.insert(RuntimeTextUse {
-            machine: host_call.machine.clone(),
-            state: host_call.state.clone(),
+            machine: host_call.machine.to_string(),
+            state: host_call.state.to_string(),
             statement_index: host_call.statement_index,
             platform_call: host_call.platform_call.clone(),
             expression: expression.clone(),
@@ -232,8 +232,8 @@ fn collect_runtime_text_buffer(
     };
 
     plan.buffers.insert(RuntimeTextBuffer {
-        machine: host_call.machine.clone(),
-        state: host_call.state.clone(),
+        machine: host_call.machine.to_string(),
+        state: host_call.state.to_string(),
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
         target: (**target).clone(),

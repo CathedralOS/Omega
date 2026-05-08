@@ -107,8 +107,8 @@ fn collect_text_argument_data(
         offset,
         bytes: byte_span,
         alignment: 1,
-        source_machine: host_call.machine.clone(),
-        source_state: host_call.state.clone(),
+        source_machine: host_call.machine.to_string(),
+        source_state: host_call.state.to_string(),
         source_statement: host_call.statement_index,
     });
 }
@@ -127,8 +127,8 @@ fn collect_mutable_output_buffer(
         offset,
         bytes: byte_span,
         alignment: 16,
-        source_machine: host_call.machine.clone(),
-        source_state: host_call.state.clone(),
+        source_machine: host_call.machine.to_string(),
+        source_state: host_call.state.to_string(),
         source_statement: host_call.statement_index,
     });
 }

@@ -155,13 +155,13 @@ fn count_state_dispatch_strings(native_plan: &NativePlan, storage: &mut NativeSt
 
 fn count_host_call_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, call) in native_plan.host_calls.calls.iter() {
-        storage.count_identity(&call.machine);
-        storage.count_identity(&call.state);
+        storage.count_program_name_identity(&call.machine);
+        storage.count_program_name_identity(&call.state);
         storage.count_identity(&call.platform_call);
     }
     for (_, unsupported) in native_plan.host_calls.unsupported_calls.iter() {
-        storage.count_identity(&unsupported.machine);
-        storage.count_identity(&unsupported.state);
+        storage.count_program_name_identity(&unsupported.machine);
+        storage.count_program_name_identity(&unsupported.state);
         storage.count_identity(&unsupported.platform_call);
         storage.count_report(&unsupported.reason);
     }
