@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::arena::{
     Arena, HandleSpan, HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles,
 };
-use crate::source::SourceMap;
+use crate::source::{SourceMap, SourceSpan};
 
 use super::{
     Symbol, SymbolDebugName, SymbolDebugNameHandle, SymbolDefinition, SymbolHandle, SymbolName,
@@ -75,6 +75,13 @@ impl SymbolTable {
         } else {
             self.names.get(symbol.name).as_str(self.sources.as_deref())
         }
+    }
+
+    pub fn source_text(&self, source_span: SourceSpan) -> &str {
+        self.sources
+            .as_deref()
+            .map(|sources| sources.text_at(source_span))
+            .unwrap_or("")
     }
 
     pub fn root(&self) -> SymbolHandle {

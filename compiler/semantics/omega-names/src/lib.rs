@@ -12,7 +12,7 @@ use omega_abstract_syntax_tree::item::{
 };
 use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
@@ -24,6 +24,7 @@ pub struct ResolveReport {
     pub definitions: Arena<ResolvedDefinition>,
     pub imports: Arena<ResolvedImport>,
     pub references: Arena<ResolvedReference>,
+    pub reference_name_members: Arena<ResolvedReferenceNameMember>,
     pub symbols: SymbolTable,
 }
 
@@ -53,10 +54,36 @@ pub struct ResolvedImport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolvedReference {
-    pub name: String,
+    pub name: HandleSpan<ResolvedReferenceNameMember>,
     pub kind: ResolvedReferenceKind,
     pub owner: String,
     pub symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum ResolvedReferenceNameMember {
+    #[default]
+    Missing,
+    Source(SourceSpan),
+    Generated(String),
+}
+
+impl ResolvedReferenceNameMember {
+    pub fn from_identifier(identifier: &Identifier) -> Self {
+        if identifier.is_source_backed() {
+            Self::Source(identifier.source_span())
+        } else {
+            Self::Generated(identifier.as_str().to_owned())
+        }
+    }
+
+    pub fn as_str<'source>(&'source self, symbols: &'source SymbolTable) -> &'source str {
+        match self {
+            Self::Missing => "",
+            Self::Source(source_span) => symbols.source_text(*source_span),
+            Self::Generated(value) => value.as_str(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -69,6 +96,49 @@ pub enum ResolvedReferenceKind {
     Type,
     #[default]
     Unknown,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ReferenceNameStorageCounts {
+    pub missing: usize,
+    pub source_members: usize,
+    pub generated_members: usize,
+}
+
+impl ResolveReport {
+    pub fn reference_name(&self, reference: &ResolvedReference) -> String {
+        let members = self.reference_name_members.span_or_empty(reference.name);
+        let byte_count = members
+            .iter()
+            .map(|member| member.as_str(&self.symbols).len())
+            .sum::<usize>()
+            + "::".len().saturating_mul(members.len().saturating_sub(1));
+        let mut name = String::with_capacity(byte_count);
+
+        for (index, member) in members.iter().enumerate() {
+            if index > 0 {
+                name.push_str("::");
+            }
+
+            name.push_str(member.as_str(&self.symbols));
+        }
+
+        name
+    }
+
+    pub fn reference_name_storage_counts(&self) -> ReferenceNameStorageCounts {
+        let mut counts = ReferenceNameStorageCounts::default();
+
+        for (_, member) in self.reference_name_members.iter() {
+            match member {
+                ResolvedReferenceNameMember::Missing => counts.missing += 1,
+                ResolvedReferenceNameMember::Source(_) => counts.source_members += 1,
+                ResolvedReferenceNameMember::Generated(_) => counts.generated_members += 1,
+            }
+        }
+
+        counts
+    }
 }
 
 pub fn build_resolve_report(items: &[Item], sources: Arc<SourceMap>) -> ResolveReport {
@@ -329,21 +399,15 @@ fn collect_statement(
             );
         }
         Statement::Call(call) => {
-            let target = call
-                .receiver
-                .as_ref()
-                .map(|receiver| format!("{receiver}::{}", call.target))
-                .unwrap_or_else(|| call.target.to_string());
-
             let symbol = context.resolve_call_target(
                 &report.symbols,
                 call.receiver.as_ref().map(|receiver| receiver.as_str()),
                 call.target.as_str(),
             );
 
-            insert_reference(
+            insert_reference_from_identifiers(
                 report,
-                &target,
+                call.receiver.iter().chain(std::iter::once(&call.target)),
                 ResolvedReferenceKind::CallTarget,
                 owner,
                 symbol,
@@ -381,9 +445,9 @@ fn collect_transition_target(
 ) {
     if let TransitionTarget::Named { path, arguments } = target {
         let symbol = context.resolve_identifier_path(&report.symbols, path);
-        insert_reference(
+        insert_reference_from_path(
             report,
-            &path.join("::"),
+            path,
             ResolvedReferenceKind::TransitionTarget,
             owner,
             symbol,
@@ -493,9 +557,9 @@ fn collect_expression(
         }
         Expression::Name(path) => {
             let symbol = context.resolve_identifier_path(&report.symbols, path);
-            insert_reference(
+            insert_reference_from_path(
                 report,
-                &path.join("::"),
+                path,
                 ResolvedReferenceKind::ExpressionName,
                 owner,
                 symbol,
@@ -524,13 +588,39 @@ fn collect_expression(
 
 fn insert_reference(
     report: &mut ResolveReport,
-    name: &str,
+    name: &Identifier,
     kind: ResolvedReferenceKind,
     owner: &str,
     symbol: SymbolHandle,
 ) {
+    insert_reference_from_identifiers(report, [name], kind, owner, symbol);
+}
+
+fn insert_reference_from_path(
+    report: &mut ResolveReport,
+    path: &IdentifierPath,
+    kind: ResolvedReferenceKind,
+    owner: &str,
+    symbol: SymbolHandle,
+) {
+    insert_reference_from_identifiers(report, path.iter(), kind, owner, symbol);
+}
+
+fn insert_reference_from_identifiers<'identifier>(
+    report: &mut ResolveReport,
+    identifiers: impl IntoIterator<Item = &'identifier Identifier>,
+    kind: ResolvedReferenceKind,
+    owner: &str,
+    symbol: SymbolHandle,
+) {
+    let name = report.reference_name_members.insert_many(
+        identifiers
+            .into_iter()
+            .map(ResolvedReferenceNameMember::from_identifier),
+    );
+
     report.references.insert(ResolvedReference {
-        name: name.to_owned(),
+        name,
         kind,
         owner: owner.to_owned(),
         symbol,
@@ -987,7 +1077,7 @@ mod tests {
 
         assert!(
             report.references.iter().any(|(_, reference)| {
-                reference.name == "finish"
+                report.reference_name(reference) == "finish"
                     && reference.kind == ResolvedReferenceKind::TransitionTarget
                     && reference.symbol.is_valid()
             }),

@@ -192,6 +192,20 @@ impl ArtifactWriter {
             "stored path members: {}\n\n",
             resolve_report.symbols.path_member_arena().len()
         ));
+        let reference_name_storage = resolve_report.reference_name_storage_counts();
+        output.push_str("## Reference Name Members\n");
+        output.push_str(&format!(
+            "source members: {}\n",
+            reference_name_storage.source_members
+        ));
+        output.push_str(&format!(
+            "generated members: {}\n",
+            reference_name_storage.generated_members
+        ));
+        output.push_str(&format!(
+            "missing members: {}\n\n",
+            reference_name_storage.missing
+        ));
 
         output.push_str("## Imports\n");
         for (_, import) in resolve_report.imports.iter() {
@@ -214,6 +228,7 @@ impl ArtifactWriter {
 
         output.push_str("\n## References\n");
         for (_, reference) in resolve_report.references.iter() {
+            let reference_name = resolve_report.reference_name(reference);
             let resolved_path = resolve_report.symbols.display_path(reference.symbol, "::");
             let resolved_suffix = if resolved_path.is_empty() {
                 " unresolved".to_owned()
@@ -225,7 +240,7 @@ impl ArtifactWriter {
             };
             output.push_str(&format!(
                 "- {:?} `{}` from {}{}\n",
-                reference.kind, reference.name, reference.owner, resolved_suffix
+                reference.kind, reference_name, reference.owner, resolved_suffix
             ));
         }
 
