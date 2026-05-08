@@ -113,6 +113,35 @@ impl ArtifactWriter {
         output.push_str(&format!("files: {}\n", loaded_program.files.len()));
         output.push_str(&format!("items: {}\n\n", loaded_program.items.len()));
 
+        let identity_storage =
+            crate::ast::identity::count_ast_identity_storage(&loaded_program.items);
+        output.push_str("## Identity Storage\n");
+        output.push_str(&format!(
+            "owned identifier strings: {}\n",
+            identity_storage.owned_identifier_strings()
+        ));
+        output.push_str(&format!("identifiers: {}\n", identity_storage.identifiers));
+        output.push_str(&format!(
+            "source identifiers: {}\n",
+            identity_storage.source_identifiers
+        ));
+        output.push_str(&format!(
+            "generated identifiers: {}\n",
+            identity_storage.generated_identifiers
+        ));
+        output.push_str(&format!(
+            "path members: {}\n",
+            identity_storage.path_members
+        ));
+        output.push_str(&format!(
+            "string literals: {}\n",
+            identity_storage.string_literals
+        ));
+        output.push_str(&format!(
+            "float literals: {}\n\n",
+            identity_storage.float_literals
+        ));
+
         for file in &loaded_program.files {
             write_ast_file(&mut output, loaded_program, file);
         }

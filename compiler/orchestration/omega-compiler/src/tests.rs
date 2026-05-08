@@ -2882,6 +2882,11 @@ fn check_writes_phase_artifacts() {
     );
     let typed_program = std::fs::read_to_string(output.artifacts_dir.join("05_typed_program.txt"))
         .expect("typed program artifact should be readable");
+    let ast = std::fs::read_to_string(output.artifacts_dir.join("02_ast.txt"))
+        .expect("ast artifact should be readable");
+    assert!(ast.contains("## Identity Storage"));
+    assert!(ast.contains("owned identifier strings:"));
+    assert!(ast.contains("source identifiers:"));
     assert!(typed_program.contains("## Identity Storage"));
     assert!(typed_program.contains("owned identity strings:"));
     assert!(typed_program.contains("expression path members:"));

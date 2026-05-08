@@ -32,6 +32,10 @@ impl Identifier {
         self.source_span
     }
 
+    pub fn is_source_backed(&self) -> bool {
+        self.source_span.span.start != self.source_span.span.end
+    }
+
     pub fn into_string(self) -> String {
         self.text
     }
