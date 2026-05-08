@@ -503,8 +503,7 @@ fn runtime_branching_call_leaf_expansion_count(
         .iter()
         .filter(|(_, expansion)| {
             expansion.dispatch_index == call.dispatch_index
-                && expansion.source_machine == call.source_machine
-                && expansion.source_state == call.source_state
+                && expansion.source_key == call.source_key
                 && expansion.statement_index == call.statement_index
                 && expansion.branch_machine == call.target_machine
                 && expansion.branch_state == call.target_state
@@ -522,8 +521,7 @@ fn runtime_branching_call_straight_line_expansion_count(
         .iter()
         .filter(|(_, expansion)| {
             expansion.dispatch_index == call.dispatch_index
-                && expansion.source_machine == call.source_machine
-                && expansion.source_state == call.source_state
+                && expansion.source_key == call.source_key
                 && expansion.statement_index == call.statement_index
                 && expansion.branch_machine == call.target_machine
                 && expansion.branch_state == call.target_state

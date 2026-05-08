@@ -1055,8 +1055,7 @@ fn select_runtime_leaf_branch_expansions_for_operation(
         .iter()
         .filter(|(_, expansion)| {
             expansion.dispatch_index == dispatch_index
-                && expansion.source_machine == operation.source_machine
-                && expansion.source_state == operation.source_state
+                && expansion.source_key == operation.source_key
                 && expansion.statement_index == operation.statement_index
         })
     {
@@ -1117,8 +1116,7 @@ fn select_runtime_straight_line_branch_expansions_for_operation(
         .iter()
         .filter(|(_, expansion)| {
             expansion.dispatch_index == dispatch_index
-                && expansion.source_machine == operation.source_machine
-                && expansion.source_state == operation.source_state
+                && expansion.source_key == operation.source_key
                 && expansion.statement_index == operation.statement_index
         })
     {

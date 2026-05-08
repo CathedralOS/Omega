@@ -1,4 +1,4 @@
-use crate::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget};
+use crate::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
 use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
@@ -26,6 +26,7 @@ pub struct RuntimeBranchingCallPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeBranchAlias {
+    source_key: StateKey,
     machine: ProgramName,
     state: ProgramName,
     parameter_name: ProgramName,
@@ -35,8 +36,10 @@ struct RuntimeBranchAlias {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeBranchingCall {
     pub dispatch_index: u32,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
+    pub target_key: StateKey,
     pub statement_index: usize,
     pub target_machine: ProgramName,
     pub target_state: ProgramName,
@@ -49,8 +52,10 @@ impl Default for RuntimeBranchingCall {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
+            target_key: StateKey::default(),
             statement_index: 0,
             target_machine: ProgramName::default(),
             target_state: ProgramName::default(),
@@ -110,6 +115,7 @@ pub enum RuntimeBranchCallExpansion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchExpansion {
     pub dispatch_index: u32,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -129,6 +135,7 @@ impl Default for RuntimeLeafBranchExpansion {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -172,6 +179,7 @@ pub enum RuntimeLeafBranchBindingKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchOperation {
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -181,6 +189,7 @@ pub struct RuntimeLeafBranchOperation {
 impl Default for RuntimeLeafBranchOperation {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -207,6 +216,7 @@ pub enum RuntimeLeafBranchOperationKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchExpansion {
     pub dispatch_index: u32,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -226,6 +236,7 @@ impl Default for RuntimeStraightLineBranchExpansion {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -269,6 +280,7 @@ pub enum RuntimeStraightLineBranchBindingKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchOperation {
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -278,6 +290,7 @@ pub struct RuntimeStraightLineBranchOperation {
 impl Default for RuntimeStraightLineBranchOperation {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -360,6 +373,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 append_leaf_branch_expansions(
                     native_plan,
                     &mut plan,
+                    operation.source_key,
                     &operation.source_machine,
                     &operation.source_state,
                     operation.statement_index,
@@ -375,6 +389,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 append_straight_line_branch_expansions(
                     native_plan,
                     &mut plan,
+                    operation.source_key,
                     &operation.source_machine,
                     &operation.source_state,
                     operation.statement_index,
@@ -389,9 +404,11 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             let edges = plan.edges.insert_many(branch_edges);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
+                source_key: operation.source_key,
                 source_machine: operation.source_machine.clone(),
                 source_state: operation.source_state.clone(),
                 statement_index: operation.statement_index,
+                target_key: state_call.target_key,
                 target_machine: target_machine.clone(),
                 target_state: target_state.clone(),
                 argument_count: *argument_count,
@@ -409,6 +426,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
 fn append_leaf_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
+    source_key: StateKey,
     source_machine: &ProgramName,
     source_state: &ProgramName,
     statement_index: usize,
@@ -451,6 +469,7 @@ fn append_leaf_branch_expansions(
 
         plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
+            source_key,
             source_machine: source_machine.clone(),
             source_state: source_state.clone(),
             statement_index,
@@ -472,6 +491,7 @@ fn append_leaf_branch_expansions(
 fn append_straight_line_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
+    source_key: StateKey,
     source_machine: &ProgramName,
     source_state: &ProgramName,
     statement_index: usize,
@@ -517,6 +537,7 @@ fn append_straight_line_branch_expansions(
         plan.straight_line_expansions
             .insert(RuntimeStraightLineBranchExpansion {
                 dispatch_index,
+                source_key,
                 source_machine: source_machine.clone(),
                 source_state: source_state.clone(),
                 statement_index,
@@ -664,6 +685,7 @@ fn bind_runtime_branch_aliases(
         set_runtime_branch_alias(
             aliases,
             RuntimeBranchAlias {
+                source_key: state_call.target_key,
                 machine: state_call.target_machine.clone(),
                 state: state_call.target_state.clone(),
                 parameter_name: argument.parameter_name.clone(),
@@ -981,6 +1003,7 @@ fn leaf_operations<'a>(
     machine_name: &'a ProgramName,
     state_name: &'a ProgramName,
 ) -> impl Iterator<Item = RuntimeLeafBranchOperation> + 'a {
+    let source_key = state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default();
     let operations = machine_flow(native_plan, machine_name.as_str())
         .and_then(|machine| {
             native_plan
@@ -995,6 +1018,7 @@ fn leaf_operations<'a>(
         operations
             .iter()
             .map(move |operation| RuntimeLeafBranchOperation {
+                source_key,
                 source_machine: machine_name.clone(),
                 source_state: state_name.clone(),
                 statement_index: operation.statement_index,
@@ -1041,6 +1065,7 @@ fn straight_line_operations<'a>(
     machine_name: &'a ProgramName,
     state_name: &'a ProgramName,
 ) -> impl Iterator<Item = RuntimeStraightLineBranchOperation> + 'a {
+    let source_key = state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default();
     let operations = machine_flow(native_plan, machine_name.as_str())
         .and_then(|machine| {
             native_plan
@@ -1055,6 +1080,7 @@ fn straight_line_operations<'a>(
         operations
             .iter()
             .map(move |operation| RuntimeStraightLineBranchOperation {
+                source_key,
                 source_machine: machine_name.clone(),
                 source_state: state_name.clone(),
                 statement_index: operation.statement_index,
@@ -1147,6 +1173,25 @@ fn mutation_for_statement<'plan>(
                 && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
+}
+
+fn state_key_by_names(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Option<StateKey> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.name == state_name)
+                .map(|state| state.key)
+        })
 }
 
 fn machine_flow<'plan>(
