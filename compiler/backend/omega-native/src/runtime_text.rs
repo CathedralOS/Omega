@@ -1,4 +1,5 @@
 use crate::abi::PlatformCallData;
+use crate::control_flow::StateKey;
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::plan::NativePlan;
 use omega_core::arena::{Arena, HandleSpan};
@@ -17,6 +18,7 @@ pub struct RuntimeTextPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextUse {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -28,6 +30,7 @@ pub struct RuntimeTextUse {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuffer {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -45,6 +48,7 @@ pub struct RuntimeTextSlot {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextWrite {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -55,6 +59,7 @@ pub struct RuntimeTextWrite {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuilder {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -71,6 +76,7 @@ pub struct RuntimeTextBuilderSegment {
 impl Default for RuntimeTextWrite {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -84,6 +90,7 @@ impl Default for RuntimeTextWrite {
 impl Default for RuntimeTextBuilder {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -132,6 +139,7 @@ impl Default for RuntimeTextSlot {
 impl Default for RuntimeTextBuffer {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -145,6 +153,7 @@ impl Default for RuntimeTextBuffer {
 impl Default for RuntimeTextUse {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -206,6 +215,7 @@ fn collect_runtime_text_use(
 
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
         plan.uses.insert(RuntimeTextUse {
+            source_key: host_call.source_key,
             machine: host_call.machine.clone(),
             state: host_call.state.clone(),
             statement_index: host_call.statement_index,
@@ -232,6 +242,7 @@ fn collect_runtime_text_buffer(
     };
 
     plan.buffers.insert(RuntimeTextBuffer {
+        source_key: host_call.source_key,
         machine: host_call.machine.clone(),
         state: host_call.state.clone(),
         statement_index: host_call.statement_index,
@@ -356,6 +367,7 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
         }
 
         plan.writes.insert(RuntimeTextWrite {
+            source_key: mutation.source_key,
             machine: mutation.machine.clone(),
             state: mutation.state.clone(),
             statement_index: mutation.statement_index,
@@ -382,6 +394,7 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
         collect_builder_segments(&write.value, &mut segments);
         let segment_span = plan.builder_segments.insert_many(segments);
         plan.builders.insert(RuntimeTextBuilder {
+            source_key: write.source_key,
             machine: write.machine,
             state: write.state,
             statement_index: write.statement_index,

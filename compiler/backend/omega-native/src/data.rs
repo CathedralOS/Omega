@@ -1,4 +1,5 @@
 use crate::abi::PlatformCallData;
+use crate::control_flow::StateKey;
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::state_storage::StateStoragePlan;
 use omega_core::arena::{Arena, HandleSpan};
@@ -26,6 +27,7 @@ pub struct NativeDataObject {
     pub offset: usize,
     pub bytes: HandleSpan<u8>,
     pub alignment: usize,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub source_statement: usize,
@@ -38,6 +40,7 @@ impl Default for NativeDataObject {
             offset: 0,
             bytes: HandleSpan::empty(),
             alignment: 1,
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             source_statement: 0,
@@ -109,6 +112,7 @@ fn collect_text_argument_data(
         bytes: byte_span,
         alignment: 1,
         source_machine: host_call.machine.clone(),
+        source_key: host_call.source_key,
         source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
@@ -129,6 +133,7 @@ fn collect_mutable_output_buffer(
         bytes: byte_span,
         alignment: 16,
         source_machine: host_call.machine.clone(),
+        source_key: host_call.source_key,
         source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
@@ -162,6 +167,7 @@ fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut NativeDataPla
         offset,
         bytes: byte_span,
         alignment: 1,
+        source_key: StateKey::default(),
         source_machine: ProgramName::default(),
         source_state: ProgramName::default(),
         source_statement: usize::MAX,
@@ -179,6 +185,7 @@ fn collect_static_string_assignment_data(
 
         collect_static_string_expression_data(
             &mutation.value,
+            mutation.source_key,
             &mutation.machine,
             &mutation.state,
             mutation.statement_index,
@@ -189,6 +196,7 @@ fn collect_static_string_assignment_data(
 
 fn collect_static_string_expression_data(
     expression: &Expression,
+    source_key: StateKey,
     source_machine: &ProgramName,
     source_state: &ProgramName,
     source_statement: usize,
@@ -210,6 +218,7 @@ fn collect_static_string_expression_data(
                 offset,
                 bytes: byte_span,
                 alignment: 1,
+                source_key,
                 source_machine: source_machine.clone(),
                 source_state: source_state.clone(),
                 source_statement,
@@ -219,6 +228,7 @@ fn collect_static_string_expression_data(
             for field in &struct_literal.fields {
                 collect_static_string_expression_data(
                     &field.value,
+                    source_key,
                     source_machine,
                     source_state,
                     source_statement,
@@ -230,6 +240,7 @@ fn collect_static_string_expression_data(
             for element in elements {
                 collect_static_string_expression_data(
                     element,
+                    source_key,
                     source_machine,
                     source_state,
                     source_statement,
@@ -240,6 +251,7 @@ fn collect_static_string_expression_data(
         Expression::Binary(binary) => {
             collect_static_string_expression_data(
                 &binary.left,
+                source_key,
                 source_machine,
                 source_state,
                 source_statement,
@@ -247,6 +259,7 @@ fn collect_static_string_expression_data(
             );
             collect_static_string_expression_data(
                 &binary.right,
+                source_key,
                 source_machine,
                 source_state,
                 source_statement,

@@ -1,5 +1,5 @@
 use crate::abi::PlatformCallData;
-use crate::control_flow::{OperationKind, StateFlow};
+use crate::control_flow::{OperationKind, StateFlow, StateKey};
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
@@ -207,8 +207,7 @@ fn runtime_text_use_for_host_call<'plan>(
         .uses
         .iter()
         .find(|(_, text_use)| {
-            text_use.machine == host_call.machine
-                && text_use.state == host_call.state
+            text_use.source_key == host_call.source_key
                 && text_use.statement_index == host_call.statement_index
                 && text_use.platform_call == host_call.platform_call
         })
@@ -683,28 +682,20 @@ fn state_value_has_planned_text_builder(
     native_plan: &NativePlan,
     value: &crate::state_values::StateValueUse,
 ) -> bool {
-    runtime_text_write_for_statement(
-        native_plan,
-        value.machine.as_str(),
-        value.state.as_str(),
-        value.statement_index,
-    )
-    .is_some_and(|text_write| {
-        text_write.kind == RuntimeTextWriteKind::GeneratedString
-            && runtime_text_builder_for_write(native_plan, text_write).is_some()
-    })
+    runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
+        .is_some_and(|text_write| {
+            text_write.kind == RuntimeTextWriteKind::GeneratedString
+                && runtime_text_builder_for_write(native_plan, text_write).is_some()
+        })
 }
 
 fn runtime_value_blocker_reason(
     native_plan: &NativePlan,
     value: &crate::state_values::StateValueUse,
 ) -> String {
-    if let Some(text_write) = runtime_text_write_for_statement(
-        native_plan,
-        value.machine.as_str(),
-        value.state.as_str(),
-        value.statement_index,
-    ) {
+    if let Some(text_write) =
+        runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
+    {
         return format!(
             "{}.{} statement {} text write `{}` = `{}` needs {}",
             text_write.machine,
@@ -728,8 +719,7 @@ fn runtime_value_blocker_reason(
 
 fn runtime_text_write_for_statement<'plan>(
     native_plan: &'plan NativePlan,
-    machine: &str,
-    state: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan RuntimeTextWrite> {
     native_plan
@@ -737,9 +727,7 @@ fn runtime_text_write_for_statement<'plan>(
         .writes
         .iter()
         .find(|(_, text_write)| {
-            text_write.machine == machine
-                && text_write.state == state
-                && text_write.statement_index == statement_index
+            text_write.source_key == source_key && text_write.statement_index == statement_index
         })
         .map(|(_, text_write)| text_write)
 }
@@ -753,8 +741,7 @@ fn runtime_text_builder_for_write<'plan>(
         .builders
         .iter()
         .find(|(_, builder)| {
-            builder.machine == text_write.machine
-                && builder.state == text_write.state
+            builder.source_key == text_write.source_key
                 && builder.statement_index == text_write.statement_index
                 && builder.target.display_name() == text_write.target.display_name()
         })
@@ -915,16 +902,11 @@ fn runtime_storage_write_has_planned_text_write(
     native_plan: &NativePlan,
     write: &crate::runtime_storage::RuntimeStorageWrite,
 ) -> bool {
-    runtime_text_write_for_statement(
-        native_plan,
-        &write.source_machine,
-        &write.source_state,
-        write.statement_index,
-    )
-    .is_some_and(|text_write| {
-        text_write.target.display_name() == write.target.display_name()
-            && runtime_text_write_is_planned(native_plan, text_write)
-    })
+    runtime_text_write_for_statement(native_plan, write.source_key, write.statement_index)
+        .is_some_and(|text_write| {
+            text_write.target.display_name() == write.target.display_name()
+                && runtime_text_write_is_planned(native_plan, text_write)
+        })
 }
 
 fn runtime_text_write_is_planned(native_plan: &NativePlan, text_write: &RuntimeTextWrite) -> bool {
@@ -979,13 +961,11 @@ fn collect_state_codegen_blockers(
                 OperationKind::Call { .. }
                     if state_statement_has_host_call(
                         native_plan,
-                        machine_name,
-                        state_name,
+                        state_flow.key,
                         operation.statement_index,
                     ) || state_statement_has_state_call(
                         native_plan,
-                        machine_name,
-                        state_name,
+                        state_flow.key,
                         operation.statement_index,
                     ) => {}
                 OperationKind::Call { .. } => {
@@ -1004,8 +984,7 @@ fn collect_state_codegen_blockers(
                 OperationKind::Assignment { .. }
                     if state_statement_has_storage_mutation(
                         native_plan,
-                        machine_name,
-                        state_name,
+                        state_flow.key,
                         operation.statement_index,
                     ) => {}
                 OperationKind::Assignment { .. } => {
@@ -1020,8 +999,7 @@ fn collect_state_codegen_blockers(
                 OperationKind::LocalData
                     if state_statement_has_local_storage(
                         native_plan,
-                        machine_name,
-                        state_name,
+                        state_flow.key,
                         operation.statement_index,
                     ) => {}
                 _ => {
@@ -1040,21 +1018,17 @@ fn collect_state_codegen_blockers(
 
 fn state_statement_has_local_storage(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> bool {
     native_plan.state_storage.locals.iter().any(|(_, local)| {
-        local.machine == machine_name
-            && local.state == state_name
-            && local.statement_index == statement_index
+        local.source_key == source_key && local.statement_index == statement_index
     })
 }
 
 fn state_statement_has_storage_mutation(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> bool {
     native_plan
@@ -1062,22 +1036,17 @@ fn state_statement_has_storage_mutation(
         .mutations
         .iter()
         .any(|(_, mutation)| {
-            mutation.machine == machine_name
-                && mutation.state == state_name
-                && mutation.statement_index == statement_index
+            mutation.source_key == source_key && mutation.statement_index == statement_index
         })
 }
 
 fn state_statement_has_state_call(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> bool {
     native_plan.state_calls.calls.iter().any(|(_, state_call)| {
-        state_call.source_machine == machine_name
-            && state_call.source_state == state_name
-            && state_call.statement_index == statement_index
+        state_call.source_key == source_key && state_call.statement_index == statement_index
     })
 }
 
@@ -1257,14 +1226,11 @@ fn machine_name_for_state<'plan>(
 
 fn state_statement_has_host_call(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> bool {
     native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-        host_call.machine == machine_name
-            && host_call.state == state_name
-            && host_call.statement_index == statement_index
+        host_call.source_key == source_key && host_call.statement_index == statement_index
     })
 }
 

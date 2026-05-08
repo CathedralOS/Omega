@@ -1,5 +1,5 @@
 use crate::abi::HostBindingMechanism;
-use crate::control_flow::{OperationKind, StateFlow};
+use crate::control_flow::{OperationKind, StateFlow, StateKey};
 use crate::data::NativeDataObject;
 use crate::host_calls::HostCall;
 use crate::host_calls::{HostCallArgument, HostCallArgumentKind};
@@ -382,8 +382,7 @@ fn select_runtime_dispatch_loop_instructions(
 
                 if let Some(host_call) = host_call_for_statement(
                     native_plan,
-                    &operation.source_machine,
-                    &operation.source_state,
+                    operation.source_key,
                     operation.statement_index,
                 ) {
                     if runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
@@ -496,8 +495,12 @@ fn bind_runtime_operation_aliases(
 
     let Some(state_call) = state_call_for_statement(
         native_plan,
-        &operation.source_machine,
-        &operation.source_state,
+        state_key_by_names(
+            native_plan,
+            &operation.source_machine,
+            &operation.source_state,
+        )
+        .unwrap_or_default(),
         operation.statement_index,
     ) else {
         return;
@@ -552,18 +555,16 @@ fn select_runtime_storage_write_for_operation(
     let RuntimeDispatchBodyOperationKind::Mutation { .. } = &operation.kind else {
         return;
     };
-    let Some(mutation) = state_mutation_for_statement(
-        native_plan,
-        &operation.source_machine,
-        &operation.source_state,
-        operation.statement_index,
-    ) else {
+    let Some(mutation) =
+        state_mutation_for_statement(native_plan, operation.source_key, operation.statement_index)
+    else {
         return;
     };
 
     select_runtime_mutation_writes(
         native_plan,
         dispatch_index,
+        mutation.source_key,
         &operation.source_machine,
         &operation.source_state,
         mutation.statement_index,
@@ -579,6 +580,7 @@ fn select_runtime_storage_write_for_operation(
 fn select_runtime_mutation_writes(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -598,6 +600,7 @@ fn select_runtime_mutation_writes(
             select_runtime_mutation_writes(
                 native_plan,
                 dispatch_index,
+                source_key,
                 source_machine,
                 source_state,
                 statement_index,
@@ -614,6 +617,7 @@ fn select_runtime_mutation_writes(
     if let Expression::String(value) = value {
         select_runtime_string_descriptor_write(
             native_plan,
+            source_key,
             source_machine,
             source_state,
             statement_index,
@@ -627,6 +631,7 @@ fn select_runtime_mutation_writes(
     if let Some(instructions) = runtime_text_builder_write(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         statement_index,
@@ -702,6 +707,7 @@ fn select_runtime_mutation_writes(
 fn runtime_text_builder_write(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -711,6 +717,7 @@ fn runtime_text_builder_write(
     runtime_text_builder_write_with_resolver(
         native_plan,
         dispatch_index,
+        source_key,
         source_machine,
         source_state,
         statement_index,
@@ -724,6 +731,7 @@ fn runtime_text_builder_write(
 fn runtime_text_builder_write_with_resolver(
     native_plan: &NativePlan,
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -735,9 +743,7 @@ fn runtime_text_builder_write_with_resolver(
         .builders
         .iter()
         .find(|(_, builder)| {
-            builder.machine == source_machine
-                && builder.state == source_state
-                && builder.statement_index == statement_index
+            builder.source_key == source_key && builder.statement_index == statement_index
         })
         .map(|(_, builder)| builder)?;
     let segments = native_plan
@@ -881,6 +887,7 @@ fn runtime_storage_copy(
 
 fn select_runtime_string_descriptor_write(
     native_plan: &NativePlan,
+    source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -899,13 +906,9 @@ fn select_runtime_string_descriptor_write(
     if byte_size != native_plan.target.pointer_size * 2 {
         return;
     }
-    let Some(data_object) = string_literal_data_object(
-        native_plan,
-        source_machine,
-        source_state,
-        statement_index,
-        value,
-    ) else {
+    let Some(data_object) =
+        string_literal_data_object(native_plan, source_key, statement_index, value)
+    else {
         return;
     };
 
@@ -923,8 +926,7 @@ fn select_runtime_string_descriptor_write(
 
 fn string_literal_data_object<'plan>(
     native_plan: &'plan NativePlan,
-    source_machine: &str,
-    source_state: &str,
+    source_key: StateKey,
     statement_index: usize,
     value: &str,
 ) -> Option<&'plan NativeDataObject> {
@@ -933,8 +935,7 @@ fn string_literal_data_object<'plan>(
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_machine == source_machine
-                && data_object.source_state == source_state
+            data_object.source_key == source_key
                 && data_object.source_statement == statement_index
                 && native_plan
                     .data
@@ -1188,6 +1189,12 @@ fn select_runtime_leaf_branch_mutation_writes(
         if let Some(instructions) = runtime_text_builder_write_with_resolver(
             native_plan,
             expansion.dispatch_index,
+            state_key_by_names(
+                native_plan,
+                &operation.source_machine,
+                &operation.source_state,
+            )
+            .unwrap_or_default(),
             &operation.source_machine,
             &operation.source_state,
             operation.statement_index,
@@ -1289,8 +1296,12 @@ fn select_runtime_straight_line_leaf_state_call_writes(
 ) {
     let Some(state_call) = state_call_for_statement(
         native_plan,
-        &operation.source_machine,
-        &operation.source_state,
+        state_key_by_names(
+            native_plan,
+            &operation.source_machine,
+            &operation.source_state,
+        )
+        .unwrap_or_default(),
         operation.statement_index,
     ) else {
         return;
@@ -1321,8 +1332,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     for leaf_operation in operations {
         let Some(mutation) = state_mutation_for_statement(
             native_plan,
-            target_machine,
-            target_state,
+            state_key_by_names(native_plan, target_machine, target_state).unwrap_or_default(),
             leaf_operation.statement_index,
         ) else {
             continue;
@@ -1801,12 +1811,9 @@ fn select_state_body_instructions(
     };
 
     for operation in operations {
-        if let Some(host_call) = host_call_for_statement(
-            native_plan,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) {
+        if let Some(host_call) =
+            host_call_for_statement(native_plan, state.key, operation.statement_index)
+        {
             select_host_call(native_plan, host_call, operands, selected_instructions);
             continue;
         }
@@ -1814,12 +1821,9 @@ fn select_state_body_instructions(
         let OperationKind::Call { .. } = &operation.kind else {
             continue;
         };
-        let Some(state_call) = state_call_for_statement(
-            native_plan,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) else {
+        let Some(state_call) =
+            state_call_for_statement(native_plan, state.key, operation.statement_index)
+        else {
             continue;
         };
 
@@ -1858,8 +1862,7 @@ fn select_state_host_calls(
 
 fn host_call_for_statement<'plan>(
     native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan HostCall> {
     native_plan
@@ -1867,17 +1870,14 @@ fn host_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, host_call)| {
-            host_call.machine == machine_name
-                && host_call.state == state_name
-                && host_call.statement_index == statement_index
+            host_call.source_key == source_key && host_call.statement_index == statement_index
         })
         .map(|(_, host_call)| host_call)
 }
 
 fn state_call_for_statement<'plan>(
     native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan crate::state_calls::StateCall> {
     native_plan
@@ -1885,9 +1885,7 @@ fn state_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, state_call)| {
-            state_call.source_machine == machine_name
-                && state_call.source_state == state_name
-                && state_call.statement_index == statement_index
+            state_call.source_key == source_key && state_call.statement_index == statement_index
         })
         .map(|(_, state_call)| state_call)
 }
@@ -1923,10 +1921,28 @@ fn state_operations<'plan>(
         .and_then(|state| native_plan.control_flow.operations.span(state.operations))
 }
 
-fn state_mutation_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+fn state_key_by_names(
+    native_plan: &NativePlan,
     machine_name: &str,
     state_name: &str,
+) -> Option<StateKey> {
+    native_plan
+        .control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == machine_name)
+        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|states| {
+            states
+                .iter()
+                .find(|state| state.name == state_name)
+                .map(|state| state.key)
+        })
+}
+
+fn state_mutation_for_statement<'plan>(
+    native_plan: &'plan NativePlan,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan crate::state_storage::StateMutation> {
     native_plan
@@ -1934,9 +1950,7 @@ fn state_mutation_for_statement<'plan>(
         .mutations
         .iter()
         .find(|(_, mutation)| {
-            mutation.machine == machine_name
-                && mutation.state == state_name
-                && mutation.statement_index == statement_index
+            mutation.source_key == source_key && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
 }
@@ -2103,8 +2117,7 @@ fn runtime_text_line_read(
         .buffers
         .iter()
         .find(|(_, buffer)| {
-            buffer.machine == host_call.machine
-                && buffer.state == host_call.state
+            buffer.source_key == host_call.source_key
                 && buffer.statement_index == host_call.statement_index
         })
         .map(|(_, buffer)| buffer)?;
@@ -2113,8 +2126,7 @@ fn runtime_text_line_read(
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_machine == buffer.machine
-                && data_object.source_state == buffer.state
+            data_object.source_key == buffer.source_key
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)?;
@@ -2250,8 +2262,7 @@ fn find_data_object<'plan>(
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_machine == host_call.machine
-                && data_object.source_state == host_call.state
+            data_object.source_key == host_call.source_key
                 && data_object.source_statement == host_call.statement_index
         })
         .map(|(_, data_object)| data_object)
@@ -2275,8 +2286,7 @@ fn find_runtime_text_input_buffer_data_object<'plan>(
         .uses
         .iter()
         .find(|(_, text_use)| {
-            text_use.machine == host_call.machine
-                && text_use.state == host_call.state
+            text_use.source_key == host_call.source_key
                 && text_use.statement_index == host_call.statement_index
                 && text_use.platform_call == host_call.platform_call
                 && text_use.source == RuntimeTextSource::StoredPlace
@@ -2307,8 +2317,7 @@ fn find_runtime_text_input_buffer_data_object<'plan>(
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_machine == buffer.machine
-                && data_object.source_state == buffer.state
+            data_object.source_key == buffer.source_key
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)
@@ -2383,8 +2392,7 @@ fn runtime_text_input_buffer_for_text_place<'plan>(
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_machine == buffer.machine
-                && data_object.source_state == buffer.state
+            data_object.source_key == buffer.source_key
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(_, data_object)| data_object)
@@ -2423,8 +2431,7 @@ fn runtime_text_literal_for_host_call(
                 .span(body.operations)
                 .is_some_and(|operations| {
                     operations.iter().any(|operation| {
-                        operation.source_machine == host_call.machine
-                            && operation.source_state == host_call.state
+                        operation.source_key == host_call.source_key
                             && operation.statement_index == host_call.statement_index
                             && matches!(
                                 operation.kind,
@@ -2441,8 +2448,7 @@ fn runtime_text_literal_for_host_call(
     let mut latest_static_text = None;
 
     for operation in operations {
-        if operation.source_machine == host_call.machine
-            && operation.source_state == host_call.state
+        if operation.source_key == host_call.source_key
             && operation.statement_index == host_call.statement_index
             && matches!(
                 operation.kind,
@@ -2454,8 +2460,7 @@ fn runtime_text_literal_for_host_call(
 
         let Some(text_write) = runtime_text_write_for_operation(
             native_plan,
-            &operation.source_machine,
-            &operation.source_state,
+            operation.source_key,
             operation.statement_index,
         ) else {
             continue;
@@ -2485,8 +2490,7 @@ fn host_call_uses_runtime_text_input_buffer(
 
 fn runtime_text_write_for_operation<'plan>(
     native_plan: &'plan NativePlan,
-    machine: &str,
-    state: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan crate::runtime_text::RuntimeTextWrite> {
     native_plan
@@ -2494,9 +2498,7 @@ fn runtime_text_write_for_operation<'plan>(
         .writes
         .iter()
         .find(|(_, write)| {
-            write.machine == machine
-                && write.state == state
-                && write.statement_index == statement_index
+            write.source_key == source_key && write.statement_index == statement_index
         })
         .map(|(_, write)| write)
 }

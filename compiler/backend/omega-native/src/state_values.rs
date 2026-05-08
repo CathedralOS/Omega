@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::Arena;
@@ -16,6 +17,7 @@ pub struct StateValuePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateValueUse {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -28,6 +30,7 @@ pub struct StateValueUse {
 impl Default for StateValueUse {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             machine: ProgramName::default(),
             state: ProgramName::default(),
             statement_index: 0,
@@ -108,12 +111,16 @@ fn build_machine_state_value_plan(
 
     for state in &machine.states {
         let required = context.state_is_required(&machine.name, &state.name);
+        let source_key = context
+            .state_key(&machine.name, &state.name)
+            .unwrap_or_default();
 
         for (statement_index, statement) in state.statements.iter().enumerate() {
             match statement {
                 Statement::Assignment(assignment) => {
                     push_value(
                         &mut plan,
+                        source_key,
                         &machine.name,
                         &state.name,
                         statement_index,
@@ -123,6 +130,7 @@ fn build_machine_state_value_plan(
                     );
                     push_value(
                         &mut plan,
+                        source_key,
                         &machine.name,
                         &state.name,
                         statement_index,
@@ -135,6 +143,7 @@ fn build_machine_state_value_plan(
                     for argument in &call.arguments {
                         push_value(
                             &mut plan,
+                            source_key,
                             &machine.name,
                             &state.name,
                             statement_index,
@@ -148,6 +157,7 @@ fn build_machine_state_value_plan(
                     if let TransitionGuard::When(expression) = &transition.guard {
                         push_value(
                             &mut plan,
+                            source_key,
                             &machine.name,
                             &state.name,
                             statement_index,
@@ -159,6 +169,7 @@ fn build_machine_state_value_plan(
 
                     collect_transition_arguments(
                         &mut plan,
+                        source_key,
                         &machine.name,
                         &state.name,
                         statement_index,
@@ -169,6 +180,7 @@ fn build_machine_state_value_plan(
                     if let Some(continuation) = &transition.continuation {
                         collect_transition_arguments(
                             &mut plan,
+                            source_key,
                             &machine.name,
                             &state.name,
                             statement_index,
@@ -180,6 +192,7 @@ fn build_machine_state_value_plan(
                 Statement::Expression(expression) => {
                     push_value(
                         &mut plan,
+                        source_key,
                         &machine.name,
                         &state.name,
                         statement_index,
@@ -198,6 +211,7 @@ fn build_machine_state_value_plan(
 
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
+    source_key: StateKey,
     machine: &ProgramName,
     state: &ProgramName,
     statement_index: usize,
@@ -211,6 +225,7 @@ fn collect_transition_arguments(
     for argument in arguments {
         push_value(
             plan,
+            source_key,
             machine,
             state,
             statement_index,
@@ -223,6 +238,7 @@ fn collect_transition_arguments(
 
 fn push_value(
     plan: &mut StateValuePlan,
+    source_key: StateKey,
     machine: &ProgramName,
     state: &ProgramName,
     statement_index: usize,
@@ -231,6 +247,7 @@ fn push_value(
     required: bool,
 ) {
     plan.values.insert(StateValueUse {
+        source_key,
         machine: machine.clone(),
         state: state.clone(),
         statement_index,
