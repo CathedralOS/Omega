@@ -1,11 +1,10 @@
+mod cycles;
 mod lookups;
+mod targets;
 
-use super::model::{
-    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
-};
-use crate::control_flow::{ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow};
+use super::model::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
+use crate::control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_program::name::ProgramName;
 
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
@@ -106,127 +105,4 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.visit_target(target)?;
         self.visit_target(continuation)
     }
-
-    fn visit_target(&mut self, target: RuntimeTransitionTarget) -> Result<(), Diagnostic> {
-        if let RuntimeTransitionTarget::State {
-            key,
-            machine,
-            state,
-        } = target
-        {
-            self.visit_state(RuntimeState {
-                key,
-                machine,
-                state,
-            })?;
-        }
-
-        Ok(())
-    }
-
-    fn runtime_target(
-        &self,
-        machine: &MachineFlow,
-        target: &PlannedTransitionTarget,
-    ) -> RuntimeTransitionTarget {
-        match target {
-            PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
-                key: *key,
-                machine: machine.name.clone(),
-                state: name.clone(),
-            },
-            PlannedTransitionTarget::Nested {
-                receiver, state, ..
-            } => machine
-                .contains
-                .iter()
-                .find(|contained| contained.name == *receiver)
-                .and_then(|contained| {
-                    self.control_flow
-                        .machines
-                        .iter()
-                        .find(|(_, machine)| machine.symbol == contained.type_symbol)
-                        .map(|(_, machine)| machine)
-                })
-                .and_then(|target_machine| {
-                    self.control_flow
-                        .states
-                        .span(target_machine.states)
-                        .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
-                })
-                .map(|state| RuntimeTransitionTarget::State {
-                    key: state.key,
-                    machine: target_machine_name(machine, receiver).unwrap_or_default(),
-                    state: state.name.clone(),
-                })
-                .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
-                    name: format!("{receiver}.{state}"),
-                }),
-            PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-                key: self
-                    .active_states
-                    .last()
-                    .map(|active_state| active_state.key)
-                    .unwrap_or_default(),
-                machine: machine.name.clone(),
-                state: self
-                    .active_states
-                    .last()
-                    .map(|active_state| active_state.state.clone())
-                    .unwrap_or_default(),
-            },
-            PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
-        }
-    }
-
-    fn target_is_active(&self, target: &RuntimeTransitionTarget) -> bool {
-        let RuntimeTransitionTarget::State { key, .. } = target else {
-            return false;
-        };
-
-        self.active_states
-            .iter()
-            .any(|active_state| active_state.key == *key)
-    }
-
-    fn record_cycle_target(&mut self, target: &RuntimeTransitionTarget) {
-        if let RuntimeTransitionTarget::State {
-            key,
-            machine,
-            state,
-        } = target
-        {
-            self.record_cycle_to(&RuntimeState {
-                key: *key,
-                machine: machine.clone(),
-                state: state.clone(),
-            });
-        }
-    }
-
-    fn record_cycle_to(&mut self, target: &RuntimeState) {
-        let start_index = self
-            .active_states
-            .iter()
-            .position(|active_state| active_state == target)
-            .unwrap_or(0);
-        let cycle_states = self
-            .active_states
-            .iter()
-            .skip(start_index)
-            .cloned()
-            .chain(std::iter::once(target.clone()))
-            .collect::<Vec<_>>();
-        let states = self.runtime_flow.cycle_states.insert_many(cycle_states);
-
-        self.runtime_flow.cycles.insert(RuntimeCycle { states });
-    }
-}
-
-fn target_machine_name(machine: &MachineFlow, receiver: &ProgramName) -> Option<ProgramName> {
-    machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == *receiver)
-        .map(|contained| contained.type_name.clone())
 }
