@@ -1,0 +1,138 @@
+use crate::architecture::aarch64;
+use crate::target::Architecture;
+use omega_core::diagnostics::Diagnostic;
+
+pub fn encode_runtime_text_literal_compare(
+    architecture: Architecture,
+    literal: &str,
+    failure_branch_distances: Vec<isize>,
+    delimiter_failure_branch_distance: isize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_compare(
+            literal,
+            failure_branch_distances,
+            delimiter_failure_branch_distance,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_storage_compare(
+    architecture: Architecture,
+    source_offset: usize,
+    compare_failure_branch_distance: isize,
+    delimiter_failure_branch_distance: isize,
+    branch_when_equal: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare(
+            source_offset,
+            compare_failure_branch_distance,
+            delimiter_failure_branch_distance,
+            branch_when_equal,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_write(
+    architecture: Architecture,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_write(literal),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_segment_write(
+    architecture: Architecture,
+    byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_segment_write(byte_offset, literal)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_stored_suffix_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+    length_delta: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_suffix_append(
+            buffer_offset,
+            source_offset,
+            target_offset,
+            length_delta,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_stored_place_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    source_offset: usize,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_place_append(
+            buffer_offset,
+            source_offset,
+            target_offset,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_literal_append(
+    architecture: Architecture,
+    buffer_offset: usize,
+    target_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_append(buffer_offset, target_offset, literal)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_buffer_materialize(
+    architecture: Architecture,
+    target_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize(target_offset),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_line_read(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_capacity: usize,
+    syscall_number: u32,
+    syscall_number_register: u8,
+    supervisor_call: u16,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_line_read(
+            target_offset,
+            byte_capacity,
+            syscall_number,
+            syscall_number_register,
+            supervisor_call,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}

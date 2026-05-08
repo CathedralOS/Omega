@@ -44,10 +44,7 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    pub(super) fn layout_data_definition(
-        &mut self,
-        name: &str,
-    ) -> Result<TypeLayout, Diagnostic> {
+    pub(super) fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
         if let Some(data_layout) = self
             .data_layouts
             .iter()
