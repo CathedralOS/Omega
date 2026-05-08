@@ -1,6 +1,7 @@
 use crate::control_flow::{ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -13,14 +14,14 @@ pub struct RuntimeFlowPlan {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeState {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
-    pub from_machine: String,
-    pub from_state: String,
+    pub from_machine: ProgramName,
+    pub from_state: ProgramName,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
@@ -30,8 +31,8 @@ pub struct RuntimeEdge {
 impl Default for RuntimeEdge {
     fn default() -> Self {
         Self {
-            from_machine: String::new(),
-            from_state: String::new(),
+            from_machine: ProgramName::default(),
+            from_state: ProgramName::default(),
             target: RuntimeTransitionTarget::Terminal,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
@@ -47,10 +48,15 @@ pub struct RuntimeCycle {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTransitionTarget {
-    State { machine: String, state: String },
+    State {
+        machine: ProgramName,
+        state: ProgramName,
+    },
     Terminal,
     None,
-    Unknown { name: String },
+    Unknown {
+        name: String,
+    },
 }
 
 impl Default for RuntimeTransitionTarget {
@@ -72,8 +78,8 @@ pub fn build_runtime_flow_plan(
     };
 
     builder.visit_state(RuntimeState {
-        machine: entry_machine.to_owned(),
-        state: entry_state.to_owned(),
+        machine: ProgramName::generated(entry_machine),
+        state: ProgramName::generated(entry_state),
     })?;
 
     Ok(builder.runtime_flow)
@@ -179,8 +185,8 @@ impl RuntimeFlowBuilder<'_> {
     ) -> RuntimeTransitionTarget {
         match target {
             PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
-                machine: machine.name.to_string(),
-                state: name.to_string(),
+                machine: machine.name.clone(),
+                state: name.clone(),
             },
             PlannedTransitionTarget::Nested {
                 receiver, state, ..
@@ -189,14 +195,14 @@ impl RuntimeFlowBuilder<'_> {
                 .iter()
                 .find(|contained| contained.name == *receiver)
                 .map(|contained| RuntimeTransitionTarget::State {
-                    machine: contained.type_name.to_string(),
-                    state: state.to_string(),
+                    machine: contained.type_name.clone(),
+                    state: state.clone(),
                 })
                 .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                     name: format!("{receiver}.{state}"),
                 }),
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-                machine: machine.name.to_string(),
+                machine: machine.name.clone(),
                 state: self
                     .active_states
                     .last()
@@ -221,7 +227,7 @@ impl RuntimeFlowBuilder<'_> {
         if let RuntimeTransitionTarget::State { machine, state } = target {
             self.record_cycle_to(&RuntimeState {
                 machine: machine.clone(),
-                state: state.to_string(),
+                state: state.clone(),
             });
         }
     }

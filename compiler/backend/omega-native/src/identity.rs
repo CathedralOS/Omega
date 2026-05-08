@@ -126,18 +126,18 @@ fn count_control_flow_strings(native_plan: &NativePlan, storage: &mut NativeStri
 
 fn count_runtime_flow_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, state) in native_plan.runtime_flow.states.iter() {
-        storage.count_identity(&state.machine);
-        storage.count_identity(&state.state);
+        storage.count_program_name_identity(&state.machine);
+        storage.count_program_name_identity(&state.state);
     }
     for (_, edge) in native_plan.runtime_flow.edges.iter() {
-        storage.count_identity(&edge.from_machine);
-        storage.count_identity(&edge.from_state);
+        storage.count_program_name_identity(&edge.from_machine);
+        storage.count_program_name_identity(&edge.from_state);
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
     }
     for (_, state) in native_plan.runtime_flow.cycle_states.iter() {
-        storage.count_identity(&state.machine);
-        storage.count_identity(&state.state);
+        storage.count_program_name_identity(&state.machine);
+        storage.count_program_name_identity(&state.state);
     }
 }
 
@@ -332,8 +332,8 @@ fn count_runtime_target_strings(
 ) {
     match target {
         RuntimeTransitionTarget::State { machine, state } => {
-            storage.count_identity(machine);
-            storage.count_identity(state);
+            storage.count_program_name_identity(machine);
+            storage.count_program_name_identity(state);
         }
         RuntimeTransitionTarget::Unknown { name } => storage.count_identity(name),
         RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {}

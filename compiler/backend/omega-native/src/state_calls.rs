@@ -359,7 +359,7 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
         .runtime_flow
         .states
         .iter()
-        .map(|(_, state)| (state.machine.clone(), state.state.clone()))
+        .map(|(_, state)| (state.machine.to_string(), state.state.to_string()))
         .collect::<Vec<_>>();
     let mut changed = true;
 
@@ -395,7 +395,11 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
         for (machine_name, state_name) in states_snapshot {
             for target in transition_targets_from(context, &machine_name, &state_name) {
                 if let RuntimeTransitionTarget::State { machine, state } = target {
-                    changed |= push_required_state(&mut required_states, machine, state);
+                    changed |= push_required_state(
+                        &mut required_states,
+                        machine.to_string(),
+                        state.to_string(),
+                    );
                 }
             }
         }
@@ -458,8 +462,8 @@ fn runtime_transition_target(
     match target {
         crate::control_flow::PlannedTransitionTarget::State { name, .. } => {
             RuntimeTransitionTarget::State {
-                machine: machine.name.to_string(),
-                state: name.to_string(),
+                machine: machine.name.clone(),
+                state: name.clone(),
             }
         }
         crate::control_flow::PlannedTransitionTarget::Nested {
@@ -469,16 +473,16 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
-                machine: contained.type_name.to_string(),
-                state: state.to_string(),
+                machine: contained.type_name.clone(),
+                state: state.clone(),
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
             }),
         crate::control_flow::PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State {
-                machine: machine.name.to_string(),
-                state: current_state.to_owned(),
+                machine: machine.name.clone(),
+                state: current_state.to_owned().into(),
             }
         }
         crate::control_flow::PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,

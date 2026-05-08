@@ -392,8 +392,8 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 source_machine: operation.source_machine.clone(),
                 source_state: operation.source_state.clone(),
                 statement_index: operation.statement_index,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
+                target_machine: target_machine.to_string(),
+                target_state: target_state.to_string(),
                 argument_count: *argument_count,
                 expansion,
                 edges,
@@ -459,8 +459,8 @@ fn append_leaf_branch_expansions(
             guard: edge.guard.clone(),
             resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
             guard_kind: edge.guard_kind,
-            leaf_machine: leaf_machine.clone(),
-            leaf_state: leaf_state.clone(),
+            leaf_machine: leaf_machine.to_string(),
+            leaf_state: leaf_state.to_string(),
             bindings,
             operations,
         });
@@ -524,8 +524,8 @@ fn append_straight_line_branch_expansions(
                 guard: edge.guard.clone(),
                 resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
                 guard_kind: edge.guard_kind,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
+                target_machine: target_machine.to_string(),
+                target_state: target_state.to_string(),
                 bindings,
                 operations,
             });
@@ -1205,8 +1205,8 @@ fn runtime_transition_target(
 ) -> RuntimeTransitionTarget {
     match target {
         PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
-            machine: machine.name.to_string(),
-            state: name.to_string(),
+            machine: machine.name.clone(),
+            state: name.clone(),
         },
         PlannedTransitionTarget::Nested {
             receiver, state, ..
@@ -1215,15 +1215,15 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
-                machine: contained.type_name.to_string(),
-                state: state.to_string(),
+                machine: contained.type_name.clone(),
+                state: state.clone(),
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
             }),
         PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-            machine: machine.name.to_string(),
-            state: current_state.to_owned(),
+            machine: machine.name.clone(),
+            state: current_state.to_owned().into(),
         },
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }

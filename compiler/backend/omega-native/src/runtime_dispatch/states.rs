@@ -119,8 +119,8 @@ impl StateDispatchContext {
                 .states
                 .iter()
                 .map(|(handle, state)| StateDispatchTarget {
-                    machine: state.machine.clone(),
-                    state: state.state.clone(),
+                    machine: state.machine.to_string(),
+                    state: state.state.to_string(),
                     dispatch_index: handle.arena_index(),
                 })
                 .collect(),
@@ -157,8 +157,8 @@ pub fn runtime_state_inputs(runtime_flow: &RuntimeFlowPlan) -> Vec<RuntimeStateI
         .iter()
         .map(|(handle, runtime_state)| RuntimeStateInput {
             handle,
-            machine: runtime_state.machine.clone(),
-            state: runtime_state.state.clone(),
+            machine: runtime_state.machine.to_string(),
+            state: runtime_state.state.to_string(),
         })
         .collect()
 }
@@ -185,8 +185,8 @@ fn build_dispatch_state(
         .collect();
 
     CollectedDispatchState {
-        machine: runtime_state.machine.clone(),
-        state: runtime_state.state.clone(),
+        machine: runtime_state.machine.to_string(),
+        state: runtime_state.state.to_string(),
         dispatch_index: runtime_state.handle.arena_index(),
         label: dispatch_label(&runtime_state.machine, &runtime_state.state),
         edges,
