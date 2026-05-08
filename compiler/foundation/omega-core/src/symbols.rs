@@ -14,6 +14,7 @@ pub enum SymbolKind {
     Unknown,
     Root,
     Module,
+    BuiltinType,
     Invariant,
     Data,
     Field,
