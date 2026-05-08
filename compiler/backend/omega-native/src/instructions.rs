@@ -1,6 +1,5 @@
 use crate::control_flow::{OperationKind, StateFlow, StateKey};
 use crate::data::NativeDataObject;
-use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_dispatch::branching::{
@@ -20,12 +19,17 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 mod host_operations;
+mod lookups;
 mod model;
 mod storage_places;
 
 use host_operations::{
     runtime_machine_string_descriptor_offset, runtime_text_input_buffer_for_text_place,
     runtime_text_literal_write_for_host_call, select_host_call,
+};
+use lookups::{
+    host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
+    state_operations, state_parameters,
 };
 pub use model::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
@@ -1524,69 +1528,6 @@ fn select_state_host_calls(
 
         select_host_call(native_plan, host_call, operands, selected_instructions);
     }
-}
-
-fn host_call_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<&'plan HostCall> {
-    native_plan
-        .host_calls
-        .calls
-        .iter()
-        .find(|(_, host_call)| {
-            host_call.source_key == source_key && host_call.statement_index == statement_index
-        })
-        .map(|(_, host_call)| host_call)
-}
-
-fn state_call_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<&'plan crate::state_calls::StateCall> {
-    native_plan
-        .state_calls
-        .calls
-        .iter()
-        .find(|(_, state_call)| {
-            state_call.source_key == source_key && state_call.statement_index == statement_index
-        })
-        .map(|(_, state_call)| state_call)
-}
-
-fn state_parameters(native_plan: &NativePlan, state_key: StateKey) -> Vec<ProgramName> {
-    native_plan
-        .control_flow
-        .state_by_key(state_key)
-        .map(|state| state.parameters.to_vec())
-        .unwrap_or_default()
-}
-
-fn state_operations<'plan>(
-    native_plan: &'plan NativePlan,
-    state_key: StateKey,
-) -> Option<&'plan [crate::control_flow::Operation]> {
-    native_plan
-        .control_flow
-        .state_by_key(state_key)
-        .and_then(|state| native_plan.control_flow.operations.span(state.operations))
-}
-
-fn state_mutation_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<&'plan crate::state_storage::StateMutation> {
-    native_plan
-        .state_storage
-        .mutations
-        .iter()
-        .find(|(_, mutation)| {
-            mutation.source_key == source_key && mutation.statement_index == statement_index
-        })
-        .map(|(_, mutation)| mutation)
 }
 
 fn runtime_reachable_states(
