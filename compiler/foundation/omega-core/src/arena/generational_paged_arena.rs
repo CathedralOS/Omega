@@ -20,18 +20,18 @@ const PAGE_SIZE: usize = 16;
 /// keeps `SlotRef` safe even if another thread frees the handle while the page
 /// reference is still alive. A future initialized-value variant needs a slot
 /// initialization/reclamation protocol before it can safely support `insert`.
-pub struct PagedArena<T: Default> {
+pub struct GenerationalPagedArena<T: Default> {
     pages: Box<[ArcSwapOption<Page<T>>]>,
     slot_metadata: Box<[AtomicU64]>,
     dummy_page: Arc<Page<T>>,
     free_stack: FreeStack,
 }
 
-impl<T: Default> PagedArena<T> {
+impl<T: Default> GenerationalPagedArena<T> {
     pub fn new(max_capacity: usize) -> Self {
         assert!(
             max_capacity >= PAGE_SIZE,
-            "paged arena max capacity must be at least {PAGE_SIZE}"
+            "generational paged arena max capacity must be at least {PAGE_SIZE}"
         );
 
         let page_count = max_capacity.div_ceil(PAGE_SIZE);
@@ -224,7 +224,7 @@ impl<T: Default> PagedArena<T> {
 
                 if state == SLOT_ACTIVE {
                     Some(Handle::from_parts(
-                        u32::try_from(index).expect("paged arena index overflow"),
+                        u32::try_from(index).expect("generational paged arena index overflow"),
                         generation,
                     ))
                 } else {
@@ -256,7 +256,7 @@ impl<T: Default> PagedArena<T> {
 
             let next_generation = generation
                 .checked_add(1)
-                .expect("paged arena generation overflow");
+                .expect("generational paged arena generation overflow");
             let active_metadata = pack_slot(SLOT_ACTIVE, next_generation);
 
             if slot_metadata
@@ -296,7 +296,8 @@ impl<T: Default> PagedArena<T> {
     }
 
     fn compose(&self, page_index: usize, slot_index: usize) -> u32 {
-        u32::try_from(page_index * PAGE_SIZE + slot_index).expect("paged arena index overflow")
+        u32::try_from(page_index * PAGE_SIZE + slot_index)
+            .expect("generational paged arena index overflow")
     }
 
     fn decompose(&self, index: u32) -> Option<(usize, usize)> {
@@ -361,11 +362,11 @@ fn unpack_slot(metadata: u64) -> (u8, u32) {
 
 #[cfg(test)]
 mod tests {
-    use crate::arena::{Handle, PagedArena};
+    use crate::arena::{GenerationalPagedArena, Handle};
 
     #[test]
     fn resolves_invalid_handles_to_dummy() {
-        let arena = PagedArena::<String>::new(16);
+        let arena = GenerationalPagedArena::<String>::new(16);
         let invalid = Handle::<String>::invalid();
         let slot = arena.get(invalid);
 
@@ -376,7 +377,7 @@ mod tests {
 
     #[test]
     fn allocates_default_slots_and_tracks_active_handles() {
-        let arena = PagedArena::<String>::new(16);
+        let arena = GenerationalPagedArena::<String>::new(16);
         let first = arena.alloc_default();
         let second = arena.alloc_default();
 
@@ -390,7 +391,7 @@ mod tests {
 
     #[test]
     fn frees_and_reuses_slots_with_new_generation() {
-        let arena = PagedArena::<String>::new(16);
+        let arena = GenerationalPagedArena::<String>::new(16);
         let first = arena.alloc_default();
 
         assert!(arena.is_valid(first));
@@ -408,7 +409,7 @@ mod tests {
 
     #[test]
     fn grows_pages_on_demand_without_allocating_all_pages() {
-        let arena = PagedArena::<String>::new(64);
+        let arena = GenerationalPagedArena::<String>::new(64);
 
         assert_eq!(arena.capacity(), 16);
         assert_eq!(arena.max_capacity(), 64);
@@ -422,7 +423,7 @@ mod tests {
 
     #[test]
     fn returns_invalid_handle_when_full() {
-        let arena = PagedArena::<String>::new(16);
+        let arena = GenerationalPagedArena::<String>::new(16);
         let handles = (0..15).map(|_| arena.alloc_default()).collect::<Vec<_>>();
         let overflow = arena.alloc_default();
 
@@ -433,7 +434,7 @@ mod tests {
 
     #[test]
     fn page_reclamation_is_disabled_until_quiescence_exists() {
-        let arena = PagedArena::<String>::new(32);
+        let arena = GenerationalPagedArena::<String>::new(32);
         let handles = (0..20).map(|_| arena.alloc_default()).collect::<Vec<_>>();
 
         for handle in handles {
