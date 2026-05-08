@@ -216,12 +216,12 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         count_expression_span_strings(edge.target_arguments, native_plan, storage);
     }
     for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
-        storage.count_identity(&expansion.source_machine);
-        storage.count_identity(&expansion.source_state);
-        storage.count_identity(&expansion.branch_machine);
-        storage.count_identity(&expansion.branch_state);
-        storage.count_identity(&expansion.leaf_machine);
-        storage.count_identity(&expansion.leaf_state);
+        storage.count_program_name_identity(&expansion.source_machine);
+        storage.count_program_name_identity(&expansion.source_state);
+        storage.count_program_name_identity(&expansion.branch_machine);
+        storage.count_program_name_identity(&expansion.branch_state);
+        storage.count_program_name_identity(&expansion.leaf_machine);
+        storage.count_program_name_identity(&expansion.leaf_state);
         count_guard_strings(&expansion.guard, storage);
         count_guard_strings(&expansion.resolved_guard, storage);
     }
@@ -230,8 +230,8 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         count_expression_strings(&binding.expression, storage);
     }
     for (_, operation) in native_plan.runtime_branching_calls.leaf_operations.iter() {
-        storage.count_identity(&operation.source_machine);
-        storage.count_identity(&operation.source_state);
+        storage.count_program_name_identity(&operation.source_machine);
+        storage.count_program_name_identity(&operation.source_state);
         match &operation.kind {
             crate::runtime_dispatch::branching::RuntimeLeafBranchOperationKind::HostCall {
                 platform_call,

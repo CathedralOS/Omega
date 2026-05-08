@@ -110,17 +110,17 @@ pub enum RuntimeBranchCallExpansion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchExpansion {
     pub dispatch_index: u32,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
-    pub branch_machine: String,
-    pub branch_state: String,
+    pub branch_machine: ProgramName,
+    pub branch_state: ProgramName,
     pub edge_order: usize,
     pub guard: TransitionGuard,
     pub resolved_guard: TransitionGuard,
     pub guard_kind: StateGuardKind,
-    pub leaf_machine: String,
-    pub leaf_state: String,
+    pub leaf_machine: ProgramName,
+    pub leaf_state: ProgramName,
     pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
     pub operations: HandleSpan<RuntimeLeafBranchOperation>,
 }
@@ -129,17 +129,17 @@ impl Default for RuntimeLeafBranchExpansion {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
-            branch_machine: String::new(),
-            branch_state: String::new(),
+            branch_machine: ProgramName::default(),
+            branch_state: ProgramName::default(),
             edge_order: 0,
             guard: TransitionGuard::Always,
             resolved_guard: TransitionGuard::Always,
             guard_kind: StateGuardKind::Always,
-            leaf_machine: String::new(),
-            leaf_state: String::new(),
+            leaf_machine: ProgramName::default(),
+            leaf_state: ProgramName::default(),
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }
@@ -172,8 +172,8 @@ pub enum RuntimeLeafBranchBindingKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchOperation {
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
     pub kind: RuntimeLeafBranchOperationKind,
 }
@@ -181,8 +181,8 @@ pub struct RuntimeLeafBranchOperation {
 impl Default for RuntimeLeafBranchOperation {
     fn default() -> Self {
         Self {
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
             kind: RuntimeLeafBranchOperationKind::Other,
         }
@@ -409,12 +409,12 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
 fn append_leaf_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
-    source_machine: &str,
-    source_state: &str,
+    source_machine: &ProgramName,
+    source_state: &ProgramName,
     statement_index: usize,
     dispatch_index: u32,
-    branch_machine: &str,
-    branch_state: &str,
+    branch_machine: &ProgramName,
+    branch_state: &ProgramName,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
@@ -436,10 +436,10 @@ fn append_leaf_branch_expansions(
         let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
             &branch_bindings,
             native_plan,
-            branch_machine,
-            branch_state,
-            leaf_machine,
-            leaf_state,
+            branch_machine.as_str(),
+            branch_state.as_str(),
+            leaf_machine.as_str(),
+            leaf_state.as_str(),
             plan.target_arguments.span_or_empty(edge.target_arguments),
         ));
         let operations = plan.leaf_operations.insert_many(leaf_operations(
@@ -450,17 +450,17 @@ fn append_leaf_branch_expansions(
 
         plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
-            source_machine: source_machine.to_owned(),
-            source_state: source_state.to_owned(),
+            source_machine: source_machine.clone(),
+            source_state: source_state.clone(),
             statement_index,
-            branch_machine: branch_machine.to_owned(),
-            branch_state: branch_state.to_owned(),
+            branch_machine: branch_machine.clone(),
+            branch_state: branch_state.clone(),
             edge_order: edge.order,
             guard: edge.guard.clone(),
             resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
             guard_kind: edge.guard_kind,
-            leaf_machine: leaf_machine.to_string(),
-            leaf_state: leaf_state.to_string(),
+            leaf_machine: leaf_machine.clone(),
+            leaf_state: leaf_state.clone(),
             bindings,
             operations,
         });
@@ -976,16 +976,16 @@ fn branch_target_lowering(
 
 fn leaf_operations<'a>(
     native_plan: &'a NativePlan,
-    machine_name: &'a str,
-    state_name: &'a str,
+    machine_name: &'a ProgramName,
+    state_name: &'a ProgramName,
 ) -> impl Iterator<Item = RuntimeLeafBranchOperation> + 'a {
-    let operations = machine_flow(native_plan, machine_name)
+    let operations = machine_flow(native_plan, machine_name.as_str())
         .and_then(|machine| {
             native_plan
                 .control_flow
                 .states
                 .span(machine.states)
-                .and_then(|states| states.iter().find(|state| state.name == state_name))
+                .and_then(|states| states.iter().find(|state| state.name == *state_name))
         })
         .and_then(|state| native_plan.control_flow.operations.span(state.operations));
 
@@ -993,13 +993,13 @@ fn leaf_operations<'a>(
         operations
             .iter()
             .map(move |operation| RuntimeLeafBranchOperation {
-                source_machine: machine_name.to_owned(),
-                source_state: state_name.to_owned(),
+                source_machine: machine_name.clone(),
+                source_state: state_name.clone(),
                 statement_index: operation.statement_index,
                 kind: leaf_operation_kind(
                     native_plan,
-                    machine_name,
-                    state_name,
+                    machine_name.as_str(),
+                    state_name.as_str(),
                     operation.statement_index,
                 ),
             })

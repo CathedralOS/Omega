@@ -1073,22 +1073,22 @@ fn select_runtime_leaf_branch_expansion(
                 buffer_symbol,
                 literal,
             },
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
+            source_machine: expansion.source_machine.to_string(),
+            source_state: expansion.source_state.to_string(),
             source_statement: expansion.statement_index,
         });
     } else if let Some(compare) = runtime_text_storage_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: compare,
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
+            source_machine: expansion.source_machine.to_string(),
+            source_state: expansion.source_state.to_string(),
             source_statement: expansion.statement_index,
         });
     } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: compare,
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
+            source_machine: expansion.source_machine.to_string(),
+            source_state: expansion.source_state.to_string(),
             source_statement: expansion.statement_index,
         });
     } else {
@@ -1171,8 +1171,8 @@ fn select_runtime_leaf_branch_mutation_writes(
                     byte_size,
                     value,
                 },
-                source_machine: operation.source_machine.clone(),
-                source_state: operation.source_state.clone(),
+                source_machine: operation.source_machine.to_string(),
+                source_state: operation.source_state.to_string(),
                 source_statement: operation.statement_index,
             });
             continue;
@@ -1190,8 +1190,8 @@ fn select_runtime_leaf_branch_mutation_writes(
             for kind in instructions {
                 selected_instructions.push(SelectedInstruction {
                     kind,
-                    source_machine: operation.source_machine.clone(),
-                    source_state: operation.source_state.clone(),
+                    source_machine: operation.source_machine.to_string(),
+                    source_state: operation.source_state.to_string(),
                     source_statement: operation.statement_index,
                 });
             }
@@ -1208,8 +1208,8 @@ fn select_runtime_leaf_branch_mutation_writes(
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind: copy,
-                source_machine: operation.source_machine.clone(),
-                source_state: operation.source_state.clone(),
+                source_machine: operation.source_machine.to_string(),
+                source_state: operation.source_state.to_string(),
                 source_statement: operation.statement_index,
             });
         }
