@@ -3,12 +3,13 @@ use crate::control_flow::{
 };
 use crate::plan::NativePlan;
 use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScheduledState {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
 }
 
 pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<ScheduledState>, String> {
@@ -49,8 +50,8 @@ fn append_state_chain(
     values: &mut Vec<(String, String)>,
     aliases: &mut Vec<(String, String)>,
 ) -> Result<(), String> {
-    let mut current_machine_name = machine_name.to_owned();
-    let mut current_state_name = state_name.to_owned();
+    let mut current_machine_name = ProgramName::from(machine_name);
+    let mut current_state_name = ProgramName::from(state_name);
 
     loop {
         let current = ScheduledState {
@@ -68,8 +69,8 @@ fn append_state_chain(
         visited.push(current.clone());
         schedule.push(current.clone());
 
-        let machine = machine_flow(native_plan, &current.machine)?;
-        let state = state_flow(native_plan, machine, &current.state)?;
+        let machine = machine_flow(native_plan, current.machine.as_str())?;
+        let state = state_flow(native_plan, machine, current.state.as_str())?;
         append_local_state_calls(
             native_plan,
             &current,
@@ -97,7 +98,7 @@ fn append_state_chain(
                 };
                 let Some(next_state) = next_state(
                     native_plan,
-                    &current.machine,
+                    current.machine.as_str(),
                     machine,
                     state,
                     transition,
@@ -188,7 +189,7 @@ fn append_local_state_calls(
         let saved_visited_count = visited.len();
         bind_state_arguments(
             native_plan,
-            &target_machine,
+            target_machine.as_str(),
             target.as_str(),
             arguments,
             aliases,
@@ -197,7 +198,7 @@ fn append_local_state_calls(
 
         append_state_chain(
             native_plan,
-            &target_machine,
+            target_machine.as_str(),
             target,
             schedule,
             visited,
@@ -215,23 +216,23 @@ fn resolve_state_call_machine(
     native_plan: &NativePlan,
     machine: &MachineFlow,
     receiver: Option<&str>,
-) -> Option<String> {
+) -> Option<ProgramName> {
     let Some(receiver) = receiver else {
-        return Some(machine.name.to_string());
+        return Some(machine.name.clone());
     };
 
     machine
         .contains
         .iter()
         .find(|contained| contained.name == receiver)
-        .map(|contained| contained.type_name.to_string())
+        .map(|contained| contained.type_name.clone())
         .or_else(|| {
             native_plan
                 .control_flow
                 .machines
                 .iter()
                 .find(|(_, candidate)| candidate.name == receiver)
-                .map(|(_, candidate)| candidate.name.to_string())
+                .map(|(_, candidate)| candidate.name.clone())
         })
 }
 
@@ -291,8 +292,8 @@ fn next_state(
             validate_state_index(native_plan, machine, *index, machine_name, &state.name)?;
             bind_state_arguments(native_plan, machine_name, name, arguments, aliases, values)?;
             Ok(Some(ScheduledState {
-                machine: machine_name.to_owned(),
-                state: name.to_string(),
+                machine: ProgramName::from(machine_name),
+                state: name.clone(),
             }))
         }
         PlannedTransitionTarget::Terminal => Ok(None),
@@ -355,8 +356,8 @@ fn next_state(
                         values,
                     )?;
                     Ok(Some(ScheduledState {
-                        machine: machine_name.to_owned(),
-                        state: name.to_string(),
+                        machine: ProgramName::from(machine_name),
+                        state: name.clone(),
                     }))
                 }
                 Some(PlannedTransitionTarget::Terminal) | None => Ok(None),

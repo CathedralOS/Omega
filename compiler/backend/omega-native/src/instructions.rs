@@ -1979,8 +1979,8 @@ fn push_scheduled_state(
     }
 
     states.push(crate::state_schedule::ScheduledState {
-        machine: machine.to_owned(),
-        state: state.to_owned(),
+        machine: machine.to_owned().into(),
+        state: state.to_owned().into(),
     });
 }
 
