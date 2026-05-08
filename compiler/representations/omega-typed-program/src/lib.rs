@@ -1,5 +1,6 @@
 pub mod data;
 pub mod expression;
+pub mod identity;
 pub mod invariant;
 pub mod lowering;
 pub mod machine;

@@ -2880,6 +2880,12 @@ fn check_writes_phase_artifacts() {
         sources.contains("omega/language/std/console.omg"),
         "source artifact should include bundled omega std source"
     );
+    let typed_program = std::fs::read_to_string(output.artifacts_dir.join("05_typed_program.txt"))
+        .expect("typed program artifact should be readable");
+    assert!(typed_program.contains("## Identity Storage"));
+    assert!(typed_program.contains("owned identity strings:"));
+    assert!(typed_program.contains("expression path members:"));
+
     let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
         .expect("emission artifact should be readable");
     let native_plan = std::fs::read_to_string(output.artifacts_dir.join("09_native_plan.txt"))

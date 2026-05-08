@@ -220,6 +220,40 @@ impl ArtifactWriter {
             "type constraints: {}\n\n",
             program.type_constraints.len()
         ));
+
+        let identity_storage = omega_typed_program::identity::count_identity_storage(program);
+        output.push_str("## Identity Storage\n");
+        output.push_str(&format!(
+            "owned identity strings: {}\n",
+            identity_storage.owned_identity_strings()
+        ));
+        output.push_str(&format!(
+            "declaration names: {}\n",
+            identity_storage.declaration_names
+        ));
+        output.push_str(&format!("type names: {}\n", identity_storage.type_names));
+        output.push_str(&format!(
+            "expression path members: {}\n",
+            identity_storage.expression_path_members
+        ));
+        output.push_str(&format!(
+            "transition path members: {}\n",
+            identity_storage.transition_path_members
+        ));
+        output.push_str(&format!("call names: {}\n", identity_storage.call_names));
+        output.push_str(&format!(
+            "struct literal names: {}\n",
+            identity_storage.struct_literal_names
+        ));
+        output.push_str(&format!(
+            "string literals: {}\n",
+            identity_storage.string_literals
+        ));
+        output.push_str(&format!(
+            "float literals: {}\n\n",
+            identity_storage.float_literals
+        ));
+
         output.push_str("## Symbol Arenas\n");
         output.push_str(&format!("symbols: {}\n", program.symbols.symbols().len()));
         output.push_str(&format!("names: {}\n", program.symbols.names().len()));
