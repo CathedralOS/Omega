@@ -1,8 +1,11 @@
 use crate::plan::NativePlan;
 use omega_core::arena::Arena;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
+use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::{Statement, TransitionGuard};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateValuePlan {
@@ -57,93 +60,130 @@ pub enum StateValueKind {
 }
 
 pub fn build_state_value_plan(program: &Program, native_plan: &NativePlan) -> StateValuePlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_value_plan_with_workers(
+        Arc::new(program.clone()),
+        Arc::new(native_plan.clone()),
+        workers.handle(),
+    )
+}
+
+pub fn build_state_value_plan_with_workers(
+    program: Arc<Program>,
+    native_plan: Arc<NativePlan>,
+    workers: WorkerPoolHandle,
+) -> StateValuePlan {
+    if program.machines.is_empty() {
+        return StateValuePlan::default();
+    }
+
+    let machine_count = program.machines.len();
+    let machine_plans = workers.map_ordered(machine_count, move |index| {
+        let machine = program
+            .machines
+            .get(index)
+            .expect("state-value worker index should be in range");
+
+        build_machine_state_value_plan(&native_plan, machine)
+    });
+
     let mut plan = StateValuePlan::default();
 
-    for machine in &program.machines {
-        for state in &machine.states {
-            let required = state_is_required(native_plan, &machine.name, &state.name);
+    for machine_plan in machine_plans {
+        plan.values
+            .insert_many(machine_plan.values.iter().map(|(_, value)| value.clone()));
+    }
 
-            for (statement_index, statement) in state.statements.iter().enumerate() {
-                match statement {
-                    Statement::Assignment(assignment) => {
+    plan
+}
+
+fn build_machine_state_value_plan(native_plan: &NativePlan, machine: &Machine) -> StateValuePlan {
+    let mut plan = StateValuePlan::default();
+
+    for state in &machine.states {
+        let required = state_is_required(native_plan, &machine.name, &state.name);
+
+        for (statement_index, statement) in state.statements.iter().enumerate() {
+            match statement {
+                Statement::Assignment(assignment) => {
+                    push_value(
+                        &mut plan,
+                        &machine.name,
+                        &state.name,
+                        statement_index,
+                        StateValueRole::AssignmentTarget,
+                        &assignment.target,
+                        required,
+                    );
+                    push_value(
+                        &mut plan,
+                        &machine.name,
+                        &state.name,
+                        statement_index,
+                        StateValueRole::AssignmentValue,
+                        &assignment.value,
+                        required,
+                    );
+                }
+                Statement::Call(call) => {
+                    for argument in &call.arguments {
                         push_value(
                             &mut plan,
                             &machine.name,
                             &state.name,
                             statement_index,
-                            StateValueRole::AssignmentTarget,
-                            &assignment.target,
+                            StateValueRole::CallArgument,
+                            argument,
                             required,
                         );
+                    }
+                }
+                Statement::Transition(transition) => {
+                    if let TransitionGuard::When(expression) = &transition.guard {
                         push_value(
                             &mut plan,
                             &machine.name,
                             &state.name,
                             statement_index,
-                            StateValueRole::AssignmentValue,
-                            &assignment.value,
+                            StateValueRole::TransitionGuard,
+                            expression,
                             required,
                         );
                     }
-                    Statement::Call(call) => {
-                        for argument in &call.arguments {
-                            push_value(
-                                &mut plan,
-                                &machine.name,
-                                &state.name,
-                                statement_index,
-                                StateValueRole::CallArgument,
-                                argument,
-                                required,
-                            );
-                        }
-                    }
-                    Statement::Transition(transition) => {
-                        if let TransitionGuard::When(expression) = &transition.guard {
-                            push_value(
-                                &mut plan,
-                                &machine.name,
-                                &state.name,
-                                statement_index,
-                                StateValueRole::TransitionGuard,
-                                expression,
-                                required,
-                            );
-                        }
 
+                    collect_transition_arguments(
+                        &mut plan,
+                        &machine.name,
+                        &state.name,
+                        statement_index,
+                        &transition.target,
+                        required,
+                    );
+
+                    if let Some(continuation) = &transition.continuation {
                         collect_transition_arguments(
                             &mut plan,
                             &machine.name,
                             &state.name,
                             statement_index,
-                            &transition.target,
-                            required,
-                        );
-
-                        if let Some(continuation) = &transition.continuation {
-                            collect_transition_arguments(
-                                &mut plan,
-                                &machine.name,
-                                &state.name,
-                                statement_index,
-                                continuation,
-                                required,
-                            );
-                        }
-                    }
-                    Statement::Expression(expression) => {
-                        push_value(
-                            &mut plan,
-                            &machine.name,
-                            &state.name,
-                            statement_index,
-                            StateValueRole::AssignmentValue,
-                            expression,
+                            continuation,
                             required,
                         );
                     }
-                    Statement::LocalData(_) => {}
                 }
+                Statement::Expression(expression) => {
+                    push_value(
+                        &mut plan,
+                        &machine.name,
+                        &state.name,
+                        statement_index,
+                        StateValueRole::AssignmentValue,
+                        expression,
+                        required,
+                    );
+                }
+                Statement::LocalData(_) => {}
             }
         }
     }

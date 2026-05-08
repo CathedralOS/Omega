@@ -21,8 +21,8 @@ use crate::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
 use crate::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::state_guards::{StateGuardPlan, build_state_guard_plan};
-use crate::state_storage::{StateStoragePlan, build_state_storage_plan};
-use crate::state_values::{StateValuePlan, build_state_value_plan};
+use crate::state_storage::{StateStoragePlan, build_state_storage_plan_with_workers};
+use crate::state_values::{StateValuePlan, build_state_value_plan_with_workers};
 use crate::target::NativeTarget;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
@@ -140,8 +140,31 @@ pub fn build_native_plan_with_workers(
     };
     native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.alias_flow = build_alias_flow_plan(&native_plan);
-    native_plan.state_storage = build_state_storage_plan(&program, &native_plan);
-    native_plan.state_values = build_state_value_plan(&program, &native_plan);
+    let state_analysis_plan = Arc::new(native_plan.clone());
+    let state_storage_program = Arc::clone(&program);
+    let state_values_program = Arc::clone(&program);
+    let state_storage_plan = Arc::clone(&state_analysis_plan);
+    let state_values_plan = Arc::clone(&state_analysis_plan);
+    let state_storage_workers = workers.clone();
+    let state_values_workers = workers.clone();
+    let (state_storage, state_values) = workers.join2(
+        move || {
+            build_state_storage_plan_with_workers(
+                state_storage_program,
+                state_storage_plan,
+                state_storage_workers,
+            )
+        },
+        move || {
+            build_state_value_plan_with_workers(
+                state_values_program,
+                state_values_plan,
+                state_values_workers,
+            )
+        },
+    );
+    native_plan.state_storage = state_storage;
+    native_plan.state_values = state_values;
     native_plan.runtime_bodies = build_runtime_dispatch_body_plan(&native_plan);
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
     native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan(&native_plan);
