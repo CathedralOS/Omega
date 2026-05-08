@@ -2,102 +2,17 @@ use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey}
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_analysis::StateAnalysisContext;
-use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateCallPlan {
-    pub calls: Arena<StateCall>,
-    pub arguments: Arena<StateCallArgument>,
-}
+mod model;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateCall {
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub receiver: ProgramName,
-    pub target_key: StateKey,
-    pub target_machine: ProgramName,
-    pub target_state: ProgramName,
-    pub argument_count: usize,
-    pub arguments: HandleSpan<StateCallArgument>,
-    pub reachable: bool,
-    pub required: bool,
-    pub resolution: StateCallResolution,
-    pub lowering: StateCallLowering,
-}
-
-impl Default for StateCall {
-    fn default() -> Self {
-        Self {
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            receiver: ProgramName::default(),
-            target_key: StateKey::default(),
-            target_machine: ProgramName::default(),
-            target_state: ProgramName::default(),
-            argument_count: 0,
-            arguments: HandleSpan::empty(),
-            reachable: false,
-            required: false,
-            resolution: StateCallResolution::Unresolved,
-            lowering: StateCallLowering::Unresolved,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateCallArgument {
-    pub index: usize,
-    pub parameter_name: ProgramName,
-    pub expression: Expression,
-    pub kind: StateCallArgumentKind,
-    pub required: bool,
-}
-
-impl Default for StateCallArgument {
-    fn default() -> Self {
-        Self {
-            index: 0,
-            parameter_name: ProgramName::default(),
-            expression: Expression::Integer(0),
-            kind: StateCallArgumentKind::Value,
-            required: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateCallArgumentKind {
-    #[default]
-    Value,
-    MutableAlias,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum StateCallResolution {
-    Local,
-    ContainedMachine,
-    NamedMachine,
-    #[default]
-    Unresolved,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateCallLowering {
-    InlineLeaf,
-    InlineBranching,
-    InlineExpansion,
-    #[default]
-    Unresolved,
-}
+pub use model::{
+    StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
+    StateCallResolution,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CollectedStateCall {
