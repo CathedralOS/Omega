@@ -7,6 +7,7 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 
 mod branch_distances;
+mod host_bindings;
 mod model;
 mod widths;
 
@@ -16,6 +17,7 @@ use branch_distances::{
     byte_distance_to_next_runtime_write_end_from_branch_offset,
     byte_distance_to_next_state_write_end, byte_distances_to_next_runtime_machine_write_end,
 };
+use host_bindings::host_binding_mechanism;
 pub use model::{MachineCodePlan, MachineFunctionCode, MachineInstruction, MachineInstructionKind};
 use widths::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
@@ -645,17 +647,4 @@ fn encode_machine_instruction(
         | SelectedInstructionKind::LeaveDispatchLoop
         | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
     }
-}
-
-fn host_binding_mechanism<'plan>(
-    native_plan: &'plan NativePlan,
-    capability: &str,
-    operation: &str,
-) -> Option<&'plan HostBindingMechanism> {
-    native_plan
-        .host_abi
-        .bindings
-        .iter()
-        .find(|(_, binding)| binding.capability == capability && binding.operation == operation)
-        .map(|(_, binding)| &binding.mechanism)
 }
