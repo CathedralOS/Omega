@@ -147,6 +147,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-image-elf"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+]
+
+[[package]]
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
@@ -185,6 +193,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-image",
+ "omega-image-elf",
  "omega-isa-aarch64",
  "omega-layout",
  "omega-object",

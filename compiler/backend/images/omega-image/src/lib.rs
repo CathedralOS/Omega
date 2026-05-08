@@ -7,6 +7,19 @@ pub use model::{
     FinalImageSymbol, FinalImageSymbolHandle,
 };
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutableImageOutput {
+    pub bytes: Vec<u8>,
+    pub file_name: String,
+    pub format: String,
+    pub text_bytes: usize,
+    pub data_bytes: usize,
+    pub bss_bytes: usize,
+    pub symbols: usize,
+    pub imports: usize,
+    pub relocations: usize,
+}
+
 pub fn final_image_symbol_address(
     image: &FinalImage,
     symbol: FinalImageSymbolHandle,

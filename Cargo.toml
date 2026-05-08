@@ -17,6 +17,7 @@ members = [
     "compiler/backend/omega-layout",
     "compiler/backend/instruction_set_architectures/omega-isa-aarch64",
     "compiler/backend/images/omega-image",
+    "compiler/backend/images/omega-image-elf",
     "compiler/backend/object/omega-object",
     "compiler/backend/omega-native",
     "compiler/orchestration/omega-compiler",
