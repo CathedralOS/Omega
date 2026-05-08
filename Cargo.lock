@@ -157,9 +157,18 @@ dependencies = [
  "omega-abstract-syntax-tree",
  "omega-calling-conventions",
  "omega-core",
+ "omega-object",
  "omega-target",
  "omega-typed-program",
  "sha2",
+]
+
+[[package]]
+name = "omega-object"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-target",
 ]
 
 [[package]]

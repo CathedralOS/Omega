@@ -14,6 +14,7 @@ members = [
     "compiler/representations/omega-typed-program",
     "compiler/backend/omega-target",
     "compiler/backend/omega-calling-conventions",
+    "compiler/backend/object/omega-object",
     "compiler/backend/omega-native",
     "compiler/orchestration/omega-compiler",
 ]

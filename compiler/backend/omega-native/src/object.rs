@@ -5,68 +5,7 @@ use crate::runtime_storage::{runtime_frame_storage_alignment, runtime_frame_stor
 use crate::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObjectPlan {
-    pub target: NativeTarget,
-    pub sections: Arena<SectionPlan>,
-    pub symbols: Arena<SymbolPlan>,
-    pub entry_symbol: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SectionPlan {
-    pub name: String,
-    pub kind: SectionKind,
-    pub size: usize,
-    pub alignment: usize,
-}
-
-impl Default for SectionPlan {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            kind: SectionKind::Text,
-            size: 0,
-            alignment: 1,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SectionKind {
-    Text,
-    Data,
-    Bss,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SymbolPlan {
-    pub name: String,
-    pub section: Option<String>,
-    pub offset: usize,
-    pub size: usize,
-    pub kind: SymbolKind,
-}
-
-impl Default for SymbolPlan {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            section: None,
-            offset: 0,
-            size: 0,
-            kind: SymbolKind::Object,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SymbolKind {
-    Function,
-    Import,
-    Object,
-}
+pub use omega_object::{ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan};
 
 pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnostic> {
     let main_layout = native_plan
