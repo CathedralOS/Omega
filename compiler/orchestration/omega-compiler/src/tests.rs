@@ -2872,6 +2872,10 @@ fn check_writes_phase_artifacts() {
 
     let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
         .expect("source artifact should be readable");
+    assert!(sources.contains("## Totals"));
+    assert!(sources.contains("bytes:"));
+    assert!(sources.contains("non-empty lines:"));
+    assert!(sources.contains("item range"));
     assert!(
         sources.contains("omega/language/std/console.omg"),
         "source artifact should include bundled omega std source"

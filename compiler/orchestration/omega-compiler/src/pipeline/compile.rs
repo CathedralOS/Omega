@@ -431,6 +431,7 @@ pub(crate) struct LoadedProgram {
 
 #[derive(Debug)]
 pub(crate) struct LoadedFile {
+    pub(crate) file_id: FileId,
     pub(crate) path: PathBuf,
     pub(crate) first_item: usize,
     pub(crate) item_count: usize,
@@ -440,6 +441,7 @@ impl LoadedProgram {
     fn file_ranges_are_valid(&self) -> bool {
         self.files.iter().all(|file| {
             !file.path.as_os_str().is_empty()
+                && self.sources.get(file.file_id).is_some()
                 && file.first_item <= self.items.len()
                 && file.first_item + file.item_count <= self.items.len()
         })
@@ -486,7 +488,7 @@ fn load_program_sources(
         let files = Arc::new(load_source_batch(&workers, batch_paths, first_file_id)?);
 
         let ast_files = parse_source_batch(&workers, Arc::clone(&files))?;
-        let files = Arc::try_unwrap(files).expect("source files should not be shared after parse");
+        let files = Arc::try_unwrap(files).unwrap_or_else(|files| files.as_ref().clone());
 
         for (file, ast_file) in files.into_iter().zip(ast_files) {
             let first_item = items.len();
@@ -526,6 +528,7 @@ fn load_program_sources(
             }
 
             loaded_files.push(LoadedFile {
+                file_id: file.id,
                 path: file.path.clone(),
                 first_item,
                 item_count,

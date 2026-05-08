@@ -63,12 +63,44 @@ impl ArtifactWriter {
     pub(crate) fn write_sources(&self, loaded_program: &LoadedProgram) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        output.push_str("# Omega Source Load\n\n");
-        output.push_str(&format!("files: {}\n", loaded_program.files.len()));
-        output.push_str(&format!("items: {}\n\n", loaded_program.items.len()));
+        let source_stats = loaded_program
+            .files
+            .iter()
+            .map(|file| loaded_source_file_stats(loaded_program, file))
+            .collect::<Vec<_>>();
+        let total_bytes = source_stats
+            .iter()
+            .map(|stats| stats.byte_count)
+            .sum::<usize>();
+        let total_lines = source_stats
+            .iter()
+            .map(|stats| stats.line_count)
+            .sum::<usize>();
+        let total_non_empty_lines = source_stats
+            .iter()
+            .map(|stats| stats.non_empty_line_count)
+            .sum::<usize>();
 
-        for file in &loaded_program.files {
-            write_loaded_file(&mut output, file);
+        output.push_str("# Omega Source Load\n\n");
+        output.push_str("## Totals\n");
+        output.push_str(&format!("files: {}\n", loaded_program.files.len()));
+        output.push_str(&format!("items: {}\n", loaded_program.items.len()));
+        output.push_str(&format!("bytes: {}\n", format_bytes(total_bytes as u64)));
+        output.push_str(&format!("lines: {}\n", total_lines));
+        output.push_str(&format!("non-empty lines: {}\n\n", total_non_empty_lines));
+
+        output.push_str("## Files\n");
+        output.push_str(&format!(
+            "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+            "id", "bytes", "lines", "code", "items", "item range", "path"
+        ));
+        output.push_str(&format!(
+            "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+            "--", "-----", "-----", "----", "-----", "----------", "----"
+        ));
+
+        for (file, stats) in loaded_program.files.iter().zip(source_stats.iter()) {
+            write_loaded_file(&mut output, file, stats);
         }
 
         self.write("01_sources.txt", &output)
@@ -1897,10 +1929,62 @@ fn format_signed_bytes(bytes: i128) -> String {
     }
 }
 
-fn write_loaded_file(output: &mut String, file: &LoadedFile) {
-    output.push_str(&format!("## {}\n", file.path.display()));
-    output.push_str(&format!("first item: {}\n", file.first_item));
-    output.push_str(&format!("item count: {}\n\n", file.item_count));
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct LoadedSourceFileStats {
+    byte_count: usize,
+    line_count: usize,
+    non_empty_line_count: usize,
+}
+
+fn loaded_source_file_stats(
+    loaded_program: &LoadedProgram,
+    file: &LoadedFile,
+) -> LoadedSourceFileStats {
+    let Some(source_file) = loaded_program.sources.get(file.file_id) else {
+        return LoadedSourceFileStats::default();
+    };
+
+    LoadedSourceFileStats {
+        byte_count: source_file.source.len(),
+        line_count: line_count(source_file.source.as_str()),
+        non_empty_line_count: source_file
+            .source
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .count(),
+    }
+}
+
+fn line_count(source: &str) -> usize {
+    if source.is_empty() {
+        0
+    } else {
+        source
+            .as_bytes()
+            .iter()
+            .filter(|byte| **byte == b'\n')
+            .count()
+            + 1
+    }
+}
+
+fn write_loaded_file(output: &mut String, file: &LoadedFile, stats: &LoadedSourceFileStats) {
+    let item_range = if file.item_count == 0 {
+        String::from("-")
+    } else {
+        format!("{}..{}", file.first_item, file.first_item + file.item_count)
+    };
+
+    output.push_str(&format!(
+        "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+        file.file_id.0,
+        format_bytes(stats.byte_count as u64),
+        stats.line_count,
+        stats.non_empty_line_count,
+        file.item_count,
+        item_range,
+        file.path.display()
+    ));
 }
 
 fn write_ast_file(output: &mut String, loaded_program: &LoadedProgram, file: &LoadedFile) {

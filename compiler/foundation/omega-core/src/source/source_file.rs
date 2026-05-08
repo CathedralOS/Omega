@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::Span;
 use crate::source::{FileId, SourceSpan};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub id: FileId,
     pub path: PathBuf,
