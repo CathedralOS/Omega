@@ -359,8 +359,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             };
             let branch_edges = build_branch_edges(
                 native_plan,
-                target_machine,
-                target_state,
+                state_call.target_key,
                 &mut plan.target_arguments,
             );
             let expansion = classify_branch_call_expansion(&branch_edges);
@@ -443,9 +442,9 @@ fn append_leaf_branch_expansions(
         }
 
         let RuntimeTransitionTarget::State {
+            key: leaf_key,
             machine: leaf_machine,
             state: leaf_state,
-            ..
         } = &edge.target
         else {
             continue;
@@ -461,11 +460,9 @@ fn append_leaf_branch_expansions(
             leaf_state.as_str(),
             plan.target_arguments.span_or_empty(edge.target_arguments),
         ));
-        let operations = plan.leaf_operations.insert_many(leaf_operations(
-            native_plan,
-            leaf_machine,
-            leaf_state,
-        ));
+        let operations = plan
+            .leaf_operations
+            .insert_many(leaf_operations(native_plan, *leaf_key));
 
         plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
@@ -508,9 +505,9 @@ fn append_straight_line_branch_expansions(
         }
 
         let RuntimeTransitionTarget::State {
+            key: target_key,
             machine: target_machine,
             state: target_state,
-            ..
         } = &edge.target
         else {
             continue;
@@ -528,11 +525,7 @@ fn append_straight_line_branch_expansions(
             ));
         let operations = plan
             .straight_line_operations
-            .insert_many(straight_line_operations(
-                native_plan,
-                target_machine,
-                target_state,
-            ));
+            .insert_many(straight_line_operations(native_plan, *target_key));
 
         plan.straight_line_expansions
             .insert(RuntimeStraightLineBranchExpansion {
@@ -866,19 +859,16 @@ fn classify_branch_call_expansion(
 
 fn build_branch_edges(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     target_arguments: &mut Arena<Expression>,
 ) -> Vec<RuntimeBranchingCallEdge> {
-    let Some(machine) = machine_flow(native_plan, machine_name) else {
+    let Some(machine) = native_plan
+        .control_flow
+        .machine_by_symbol(state_key.machine)
+    else {
         return Vec::new();
     };
-    let Some(state) = native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-    else {
+    let Some(state) = native_plan.control_flow.state_by_key(state_key) else {
         return Vec::new();
     };
     let Some(transitions) = native_plan.control_flow.transitions.span(state.transitions) else {
@@ -889,7 +879,7 @@ fn build_branch_edges(
         .iter()
         .enumerate()
         .map(|(order, transition)| {
-            let target = runtime_transition_target(machine, state_name, &transition.target);
+            let target = runtime_transition_target(machine, &state.name, &transition.target);
             RuntimeBranchingCallEdge {
                 order,
                 lowering: branch_target_lowering(native_plan, &target),
@@ -898,7 +888,7 @@ fn build_branch_edges(
                     .continuation
                     .as_ref()
                     .map(|continuation| {
-                        runtime_transition_target(machine, state_name, continuation)
+                        runtime_transition_target(machine, &state.name, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
                 target_arguments: transition_target_arguments(&transition.target, target_arguments),
@@ -926,7 +916,7 @@ fn branch_target_lowering(
     native_plan: &NativePlan,
     target: &RuntimeTransitionTarget,
 ) -> RuntimeBranchTargetLowering {
-    let RuntimeTransitionTarget::State { machine, state, .. } = target else {
+    let RuntimeTransitionTarget::State { key, .. } = target else {
         return match target {
             RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
                 RuntimeBranchTargetLowering::Terminal
@@ -936,15 +926,7 @@ fn branch_target_lowering(
         };
     };
 
-    let Some(target_machine) = machine_flow(native_plan, machine) else {
-        return RuntimeBranchTargetLowering::Unknown;
-    };
-    let Some(target_state) = native_plan
-        .control_flow
-        .states
-        .span(target_machine.states)
-        .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
-    else {
+    let Some(target_state) = native_plan.control_flow.state_by_key(*key) else {
         return RuntimeBranchTargetLowering::Unknown;
     };
 
@@ -964,12 +946,7 @@ fn branch_target_lowering(
         .is_some_and(|operations| {
             operations.iter().any(|operation| {
                 matches!(operation.kind, OperationKind::Call { .. })
-                    && !state_statement_has_host_call(
-                        native_plan,
-                        machine,
-                        state,
-                        operation.statement_index,
-                    )
+                    && !state_statement_has_host_call(native_plan, *key, operation.statement_index)
             })
         });
 
@@ -980,61 +957,47 @@ fn branch_target_lowering(
     }
 }
 
-fn leaf_operations<'a>(
-    native_plan: &'a NativePlan,
-    machine_name: &'a ProgramName,
-    state_name: &'a ProgramName,
-) -> impl Iterator<Item = RuntimeLeafBranchOperation> + 'a {
-    let source_key = state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default();
-    let operations = machine_flow(native_plan, machine_name.as_str())
-        .and_then(|machine| {
-            native_plan
-                .control_flow
-                .states
-                .span(machine.states)
-                .and_then(|states| states.iter().find(|state| state.name == *state_name))
-        })
-        .and_then(|state| native_plan.control_flow.operations.span(state.operations));
+fn leaf_operations(
+    native_plan: &NativePlan,
+    source_key: StateKey,
+) -> Vec<RuntimeLeafBranchOperation> {
+    let Some(machine) = native_plan
+        .control_flow
+        .machine_by_symbol(source_key.machine)
+    else {
+        return Vec::new();
+    };
+    let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
+        return Vec::new();
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return Vec::new();
+    };
 
-    operations.into_iter().flat_map(move |operations| {
-        operations
-            .iter()
-            .map(move |operation| RuntimeLeafBranchOperation {
-                source_key,
-                source_machine: machine_name.clone(),
-                source_state: state_name.clone(),
-                statement_index: operation.statement_index,
-                kind: leaf_operation_kind(
-                    native_plan,
-                    machine_name.as_str(),
-                    state_name.as_str(),
-                    operation.statement_index,
-                ),
-            })
-    })
+    operations
+        .iter()
+        .map(|operation| RuntimeLeafBranchOperation {
+            source_key,
+            source_machine: machine.name.clone(),
+            source_state: state.name.clone(),
+            statement_index: operation.statement_index,
+            kind: leaf_operation_kind(native_plan, source_key, operation.statement_index),
+        })
+        .collect()
 }
 
 fn leaf_operation_kind(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> RuntimeLeafBranchOperationKind {
-    if let Some(host_call) = host_call_for_statement(
-        native_plan,
-        state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default(),
-        statement_index,
-    ) {
+    if let Some(host_call) = host_call_for_statement(native_plan, source_key, statement_index) {
         return RuntimeLeafBranchOperationKind::HostCall {
             platform_call: host_call.platform_call.clone(),
         };
     }
 
-    if let Some(mutation) = mutation_for_statement(
-        native_plan,
-        state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default(),
-        statement_index,
-    ) {
+    if let Some(mutation) = mutation_for_statement(native_plan, source_key, statement_index) {
         return RuntimeLeafBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
@@ -1046,38 +1009,38 @@ fn leaf_operation_kind(
     RuntimeLeafBranchOperationKind::Other
 }
 
-fn straight_line_operations<'a>(
-    native_plan: &'a NativePlan,
-    machine_name: &'a ProgramName,
-    state_name: &'a ProgramName,
-) -> impl Iterator<Item = RuntimeStraightLineBranchOperation> + 'a {
-    let source_key = state_key_by_names(native_plan, machine_name, state_name).unwrap_or_default();
-    let operations = machine_flow(native_plan, machine_name.as_str())
-        .and_then(|machine| {
-            native_plan
-                .control_flow
-                .states
-                .span(machine.states)
-                .and_then(|states| states.iter().find(|state| state.name == *state_name))
-        })
-        .and_then(|state| native_plan.control_flow.operations.span(state.operations));
+fn straight_line_operations(
+    native_plan: &NativePlan,
+    source_key: StateKey,
+) -> Vec<RuntimeStraightLineBranchOperation> {
+    let Some(machine) = native_plan
+        .control_flow
+        .machine_by_symbol(source_key.machine)
+    else {
+        return Vec::new();
+    };
+    let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
+        return Vec::new();
+    };
+    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+        return Vec::new();
+    };
 
-    operations.into_iter().flat_map(move |operations| {
-        operations
-            .iter()
-            .map(move |operation| RuntimeStraightLineBranchOperation {
+    operations
+        .iter()
+        .map(|operation| RuntimeStraightLineBranchOperation {
+            source_key,
+            source_machine: machine.name.clone(),
+            source_state: state.name.clone(),
+            statement_index: operation.statement_index,
+            kind: straight_line_operation_kind(
+                native_plan,
                 source_key,
-                source_machine: machine_name.clone(),
-                source_state: state_name.clone(),
-                statement_index: operation.statement_index,
-                kind: straight_line_operation_kind(
-                    native_plan,
-                    source_key,
-                    operation.statement_index,
-                    &operation.kind,
-                ),
-            })
-    })
+                operation.statement_index,
+                &operation.kind,
+            ),
+        })
+        .collect()
 }
 
 fn straight_line_operation_kind(
@@ -1147,25 +1110,6 @@ fn mutation_for_statement<'plan>(
         .map(|(_, mutation)| mutation)
 }
 
-fn state_key_by_names(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<StateKey> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| {
-            states
-                .iter()
-                .find(|state| state.name == state_name)
-                .map(|state| state.key)
-        })
-}
-
 fn machine_flow<'plan>(
     native_plan: &'plan NativePlan,
     machine_name: &str,
@@ -1207,14 +1151,11 @@ fn state_parameters(
 
 fn state_statement_has_host_call(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> bool {
     native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-        host_call.machine == machine_name
-            && host_call.state == state_name
-            && host_call.statement_index == statement_index
+        host_call.source_key == source_key && host_call.statement_index == statement_index
     })
 }
 
