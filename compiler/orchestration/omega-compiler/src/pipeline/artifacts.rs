@@ -175,6 +175,17 @@ impl ArtifactWriter {
             "type constraints: {}\n\n",
             program.type_constraints.len()
         ));
+        output.push_str("## Symbol Arenas\n");
+        output.push_str(&format!("symbols: {}\n", program.symbols.symbols().len()));
+        output.push_str(&format!("names: {}\n", program.symbols.names().len()));
+        output.push_str(&format!(
+            "debug names: {}\n",
+            program.symbols.debug_names().len()
+        ));
+        output.push_str(&format!(
+            "stored path members: {}\n\n",
+            program.symbols.path_member_arena().len()
+        ));
 
         write_typed_program_data_definitions(&mut output, program);
         write_typed_program_invariants(&mut output, program);
