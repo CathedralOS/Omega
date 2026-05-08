@@ -17,7 +17,7 @@ use omega_abstract_syntax_tree as ast;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_core::symbols::{SymbolHandle, SymbolKind, SymbolTable};
+use omega_core::symbols::{SymbolDefinition, SymbolKind, SymbolTable};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -93,9 +93,7 @@ pub fn lower_program_with_workers(
         }
     }
 
-    let mut symbols = SymbolTable::new();
-    register_program_symbols(&mut symbols, &program);
-    program.symbols = symbols;
+    program.symbols = register_program_symbols(&program);
 
     Ok(program)
 }
@@ -166,66 +164,81 @@ fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) 
     }
 }
 
-fn register_program_symbols(symbols: &mut SymbolTable, program: &Program) {
-    let root = symbols.insert_named(SymbolHandle::invalid(), SymbolKind::Root, "program");
-
-    for invariant in &program.invariant_definitions {
-        symbols.insert_named(root, SymbolKind::Invariant, invariant.name.as_str());
-    }
-
-    for data_definition in &program.data_definitions {
-        let data = symbols.insert_named(root, SymbolKind::Data, data_definition.name.as_str());
-
-        for member in &data_definition.members {
-            match member {
-                DataMember::Field(field) => {
-                    symbols.insert_named(data, SymbolKind::Field, field.name.as_str());
-                }
-                DataMember::Variant(variant) => {
-                    symbols.insert_named(data, SymbolKind::Variant, variant.name.as_str());
-                }
-            }
-        }
-    }
-
-    for platform in &program.platforms {
-        let platform_symbol =
-            symbols.insert_named(root, SymbolKind::Platform, platform.name.as_str());
-
-        for state in &platform.states {
-            let state_symbol =
-                symbols.insert_named(platform_symbol, SymbolKind::State, state.name.as_str());
-            register_state_parameters(symbols, state_symbol, &state.parameters);
-        }
-    }
-
-    for machine in &program.machines {
-        let machine_symbol = symbols.insert_named(root, SymbolKind::Machine, machine.name.as_str());
-
-        for contained in &machine.contains {
-            symbols.insert_named(machine_symbol, SymbolKind::Object, contained.name.as_str());
-        }
-
-        for owned_data in &machine.owned_data {
-            symbols.insert_named(machine_symbol, SymbolKind::Field, owned_data.name.as_str());
-        }
-
-        for state in &machine.states {
-            let state_symbol =
-                symbols.insert_named(machine_symbol, SymbolKind::State, state.name.as_str());
-            register_state_parameters(symbols, state_symbol, &state.parameters);
-        }
-    }
+fn register_program_symbols(program: &Program) -> SymbolTable {
+    SymbolTable::from_definition(SymbolDefinition::with_children(
+        SymbolKind::Root,
+        "program",
+        program
+            .invariant_definitions
+            .iter()
+            .map(|invariant| {
+                SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())
+            })
+            .chain(program.data_definitions.iter().map(data_symbol_definition))
+            .chain(program.platforms.iter().map(platform_symbol_definition))
+            .chain(program.machines.iter().map(machine_symbol_definition)),
+    ))
 }
 
-fn register_state_parameters(
-    symbols: &mut SymbolTable,
-    state_symbol: SymbolHandle,
-    parameters: &[StateParameter],
-) {
-    for parameter in parameters {
-        symbols.insert_named(state_symbol, SymbolKind::Parameter, parameter.name.as_str());
-    }
+fn data_symbol_definition(data_definition: &DataDefinition) -> SymbolDefinition {
+    SymbolDefinition::with_children(
+        SymbolKind::Data,
+        data_definition.name.as_str(),
+        data_definition.members.iter().map(|member| match member {
+            DataMember::Field(field) => {
+                SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
+            }
+            DataMember::Variant(variant) => {
+                SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+            }
+        }),
+    )
+}
+
+fn platform_symbol_definition(platform: &Platform) -> SymbolDefinition {
+    SymbolDefinition::with_children(
+        SymbolKind::Platform,
+        platform.name.as_str(),
+        platform
+            .states
+            .iter()
+            .map(state_signature_symbol_definition),
+    )
+}
+
+fn machine_symbol_definition(machine: &Machine) -> SymbolDefinition {
+    SymbolDefinition::with_children(
+        SymbolKind::Machine,
+        machine.name.as_str(),
+        machine
+            .contains
+            .iter()
+            .map(|contained| SymbolDefinition::named(SymbolKind::Object, contained.name.as_str()))
+            .chain(machine.owned_data.iter().map(|owned_data| {
+                SymbolDefinition::named(SymbolKind::Field, owned_data.name.as_str())
+            }))
+            .chain(machine.states.iter().map(state_symbol_definition)),
+    )
+}
+
+fn state_symbol_definition(state: &State) -> SymbolDefinition {
+    SymbolDefinition::with_children(
+        SymbolKind::State,
+        state.name.as_str(),
+        state.parameters.iter().map(|parameter| {
+            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+        }),
+    )
+}
+
+fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition {
+    SymbolDefinition::with_children(
+        SymbolKind::State,
+        signature.name.as_str(),
+        signature.parameters.iter().map(|parameter| {
+            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+        }),
+    )
 }
 
 fn remap_data_definition(

@@ -71,6 +71,14 @@ impl<T: HierarchyNode> HierarchyArena<T> {
     }
 }
 
+impl<T: HierarchyNode> Default for HierarchyArena<T> {
+    fn default() -> Self {
+        Self {
+            nodes: PagedArena::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HierarchyArenaBuilder<T: HierarchyNode> {
     nodes: Arena<T>,
