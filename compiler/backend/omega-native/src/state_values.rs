@@ -5,6 +5,7 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::{Statement, TransitionGuard};
 use std::sync::Arc;
 
@@ -15,8 +16,8 @@ pub struct StateValuePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateValueUse {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub statement_index: usize,
     pub role: StateValueRole,
     pub kind: StateValueKind,
@@ -27,8 +28,8 @@ pub struct StateValueUse {
 impl Default for StateValueUse {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             statement_index: 0,
             role: StateValueRole::AssignmentValue,
             kind: StateValueKind::Literal,
@@ -197,8 +198,8 @@ fn build_machine_state_value_plan(
 
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
-    machine: &str,
-    state: &str,
+    machine: &ProgramName,
+    state: &ProgramName,
     statement_index: usize,
     target: &omega_typed_program::statement::TransitionTarget,
     required: bool,
@@ -222,16 +223,16 @@ fn collect_transition_arguments(
 
 fn push_value(
     plan: &mut StateValuePlan,
-    machine: &str,
-    state: &str,
+    machine: &ProgramName,
+    state: &ProgramName,
     statement_index: usize,
     role: StateValueRole,
     expression: &Expression,
     required: bool,
 ) {
     plan.values.insert(StateValueUse {
-        machine: machine.to_owned(),
-        state: state.to_owned(),
+        machine: machine.clone(),
+        state: state.clone(),
         statement_index,
         role,
         kind: value_kind(expression),

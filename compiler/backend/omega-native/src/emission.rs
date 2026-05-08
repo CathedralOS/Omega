@@ -675,8 +675,8 @@ fn state_value_has_planned_text_builder(
 ) -> bool {
     runtime_text_write_for_statement(
         native_plan,
-        &value.machine,
-        &value.state,
+        value.machine.as_str(),
+        value.state.as_str(),
         value.statement_index,
     )
     .is_some_and(|text_write| {
@@ -691,8 +691,8 @@ fn runtime_value_blocker_reason(
 ) -> String {
     if let Some(text_write) = runtime_text_write_for_statement(
         native_plan,
-        &value.machine,
-        &value.state,
+        value.machine.as_str(),
+        value.state.as_str(),
         value.statement_index,
     ) {
         return format!(
@@ -794,7 +794,7 @@ fn state_value_is_static_assignment(
     if value.role != crate::state_values::StateValueRole::AssignmentValue {
         return false;
     }
-    let Some(state) = state_flow(native_plan, &value.machine, &value.state) else {
+    let Some(state) = state_flow(native_plan, value.machine.as_str(), value.state.as_str()) else {
         return false;
     };
     let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {

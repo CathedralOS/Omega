@@ -211,8 +211,8 @@ fn count_state_storage_strings(native_plan: &NativePlan, storage: &mut NativeStr
 
 fn count_state_value_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, value) in native_plan.state_values.values.iter() {
-        storage.count_identity(&value.machine);
-        storage.count_identity(&value.state);
+        storage.count_program_name_identity(&value.machine);
+        storage.count_program_name_identity(&value.state);
         count_expression_strings(&value.expression, storage);
     }
 }
