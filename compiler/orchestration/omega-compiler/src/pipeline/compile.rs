@@ -16,7 +16,7 @@ use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
 use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
-use omega_native::control_flow::build_control_flow_plan;
+use omega_native::control_flow::build_control_flow_plan_with_workers;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
 use omega_native::executable_finalization::{ExecutableFinalizationStatus, finalize_native_output};
@@ -107,9 +107,15 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     record_phase(&mut phase_timings, "graph", || {
         let loaded_program_for_graph = Arc::clone(&loaded_program);
         let program_for_control_flow = Arc::clone(&program);
+        let workers_for_control_flow = workers.handle();
         let (source_graph, control_flow) = workers.handle().join2(
             move || build_source_graph_report(&loaded_program_for_graph.items),
-            move || build_control_flow_plan(&program_for_control_flow),
+            move || {
+                build_control_flow_plan_with_workers(
+                    program_for_control_flow,
+                    workers_for_control_flow,
+                )
+            },
         );
         let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts
@@ -227,9 +233,15 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     record_phase(&mut phase_timings, "graph", || {
         let loaded_program_for_graph = Arc::clone(&loaded_program);
         let program_for_control_flow = Arc::clone(&program);
+        let workers_for_control_flow = workers.handle();
         let (source_graph, control_flow) = workers.handle().join2(
             move || build_source_graph_report(&loaded_program_for_graph.items),
-            move || build_control_flow_plan(&program_for_control_flow),
+            move || {
+                build_control_flow_plan_with_workers(
+                    program_for_control_flow,
+                    workers_for_control_flow,
+                )
+            },
         );
         let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts

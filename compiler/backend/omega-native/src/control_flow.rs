@@ -1,10 +1,12 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
@@ -127,14 +129,78 @@ impl Default for TransitionFlow {
 }
 
 pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
-    let mut control_flow = ControlFlowPlan::default();
+    let workers = WorkerPool::with_available_parallelism();
 
-    for machine in &program.machines {
-        let machine_flow = build_machine_flow(machine, &mut control_flow)?;
-        control_flow.machines.insert(machine_flow);
+    build_control_flow_plan_with_workers(Arc::new(program.clone()), workers.handle())
+}
+
+pub fn build_control_flow_plan_with_workers(
+    program: Arc<Program>,
+    workers: WorkerPoolHandle,
+) -> Result<ControlFlowPlan, Diagnostic> {
+    if program.machines.is_empty() {
+        return Ok(ControlFlowPlan::default());
+    }
+
+    let machine_count = program.machines.len();
+    let machine_flows = workers.map_ordered(machine_count, move |index| {
+        let machine = program
+            .machines
+            .get(index)
+            .expect("control-flow worker index should be in range");
+        let mut local_flow = ControlFlowPlan::default();
+        let machine_flow = build_machine_flow(machine, &mut local_flow)?;
+
+        Ok((local_flow, machine_flow))
+    });
+
+    let mut control_flow = ControlFlowPlan::default();
+    for machine_flow in machine_flows {
+        let (local_flow, machine_flow) = machine_flow?;
+
+        merge_machine_flow(&mut control_flow, &local_flow, &machine_flow);
     }
 
     Ok(control_flow)
+}
+
+fn merge_machine_flow(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    machine_flow: &MachineFlow,
+) {
+    let states = source
+        .states
+        .span_or_empty(machine_flow.states)
+        .iter()
+        .map(|state| {
+            let operations = target.operations.insert_many(
+                source
+                    .operations
+                    .span_or_empty(state.operations)
+                    .iter()
+                    .cloned(),
+            );
+            let transitions = target.transitions.insert_many(
+                source
+                    .transitions
+                    .span_or_empty(state.transitions)
+                    .iter()
+                    .cloned(),
+            );
+
+            StateFlow {
+                operations,
+                transitions,
+                ..state.clone()
+            }
+        });
+    let states = target.states.insert_many(states);
+
+    target.machines.insert(MachineFlow {
+        states,
+        ..machine_flow.clone()
+    });
 }
 
 fn build_machine_flow(

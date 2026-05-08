@@ -1,6 +1,6 @@
 use crate::abi::{HostAbiPlan, build_host_abi_plan};
 use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
-use crate::control_flow::{ControlFlowPlan, build_control_flow_plan};
+use crate::control_flow::{ControlFlowPlan, build_control_flow_plan_with_workers};
 use crate::data::{NativeDataPlan, build_native_data_plan};
 use crate::host_calls::{HostCallPlan, build_host_call_plan_with_workers};
 use crate::instructions::{InstructionPlan, build_instruction_plan};
@@ -78,9 +78,10 @@ pub fn build_native_plan_with_workers(
     let layout_program = Arc::clone(&program);
     let control_flow_program = Arc::clone(&program);
     let host_call_abi = Arc::new(host_abi.clone());
+    let control_flow_workers = workers.clone();
     let host_call_workers = workers.clone();
     let (control_flow, layouts, host_calls) = workers.join3(
-        move || build_control_flow_plan(&control_flow_program),
+        move || build_control_flow_plan_with_workers(control_flow_program, control_flow_workers),
         move || build_layout_plan(&layout_program, target),
         move || {
             build_host_call_plan_with_workers(
