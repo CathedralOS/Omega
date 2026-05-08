@@ -1,8 +1,8 @@
+use crate::identity::NativeStringStorage;
 use crate::identity::expressions::{
     count_expression_span_strings, count_expression_strings, count_guard_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
-use crate::identity::NativeStringStorage;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::{
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperationKind,

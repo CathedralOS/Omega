@@ -1,13 +1,11 @@
 use crate::abi::{HostAbiPlan, PlatformCallLowering};
-use crate::host_calls::static_values::{resolve_static_value, StaticValue};
+use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Call;
 
-use super::{
-    HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
-};
+use super::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
 
 pub(in crate::host_calls) fn platform_call_receiver_type(
     program: &Program,

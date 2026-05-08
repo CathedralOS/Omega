@@ -14,17 +14,16 @@ mod lowering;
 mod model;
 mod static_values;
 
-pub use model::{
-    HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation,
-    UnsupportedHostCall,
-};
 use lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
     platform_call_receiver_type,
 };
+pub use model::{
+    HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation,
+    UnsupportedHostCall,
+};
 use static_values::{
-    apply_call_static_effects, apply_static_assignment, initial_static_values,
-    StaticValue,
+    StaticValue, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
 
 pub fn build_host_call_plan(

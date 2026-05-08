@@ -2,9 +2,7 @@ use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use omega_typed_program::expression::Expression;
 
-use super::{
-    RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse,
-};
+use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
 pub(in crate::runtime_text) fn collect_host_call_runtime_text(
     host_calls: &HostCallPlan,

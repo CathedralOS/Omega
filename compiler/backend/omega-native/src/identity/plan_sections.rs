@@ -1,6 +1,6 @@
 use crate::host_calls::HostCallArgumentKind;
-use crate::identity::expressions::count_expression_strings;
 use crate::identity::NativeStringStorage;
+use crate::identity::expressions::count_expression_strings;
 use crate::plan::NativePlan;
 
 pub(in crate::identity) fn count_host_call_strings(

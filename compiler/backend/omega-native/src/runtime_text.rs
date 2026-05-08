@@ -3,14 +3,14 @@ mod model;
 mod slots;
 
 use crate::plan::NativePlan;
-use omega_typed_program::expression::{BinaryOperator, Expression};
 use host_uses::collect_host_call_runtime_text;
-use slots::build_runtime_text_slots;
 pub use model::{
     RuntimeTextBuffer, RuntimeTextBuilder, RuntimeTextBuilderSegment,
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource,
     RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
 };
+use omega_typed_program::expression::{BinaryOperator, Expression};
+use slots::build_runtime_text_slots;
 
 pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
     let mut plan = RuntimeTextPlan::default();

@@ -1,6 +1,6 @@
 use crate::control_flow::PlannedTransitionTarget;
-use crate::identity::expressions::count_expression_strings;
 use crate::identity::NativeStringStorage;
+use crate::identity::expressions::count_expression_strings;
 use crate::runtime_flow::RuntimeTransitionTarget;
 
 pub(in crate::identity) fn count_planned_target_strings(

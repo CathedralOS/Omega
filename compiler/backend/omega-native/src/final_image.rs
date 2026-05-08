@@ -3,12 +3,12 @@ mod model;
 
 use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
-use omega_core::arena::{Arena, Handle};
 pub use aarch64_relocations::apply_aarch64_relocations;
 pub use model::{
     FinalImage, FinalImageImport, FinalImageLayout, FinalImageRelocation, FinalImageSection,
     FinalImageSymbol, FinalImageSymbolHandle,
 };
+use omega_core::arena::{Arena, Handle};
 
 pub fn build_final_image(native_plan: &NativePlan) -> FinalImage {
     let mut image = FinalImage {

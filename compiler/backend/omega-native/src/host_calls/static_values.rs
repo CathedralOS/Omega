@@ -10,7 +10,9 @@ pub(in crate::host_calls) enum StaticValue {
     Text(String),
 }
 
-pub(in crate::host_calls) fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
+pub(in crate::host_calls) fn initial_static_values(
+    machine: &Machine,
+) -> Vec<(String, StaticValue)> {
     machine
         .owned_data
         .iter()

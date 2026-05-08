@@ -1,9 +1,9 @@
 use crate::control_flow::OperationKind;
 use crate::state_analysis::StateAnalysisContext;
 
+use super::StateCallLowering;
 use super::collection::CollectedStateCall;
 use super::lookups::{state_flow_from_key, state_key_is_valid};
-use super::StateCallLowering;
 
 pub(in crate::state_calls) fn state_call_lowering(
     context: &StateAnalysisContext,

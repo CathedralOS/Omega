@@ -7,15 +7,13 @@ use crate::host_calls::{HostCall, HostCallPlan};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::states::DispatchState;
 use crate::state_calls::{StateCall, StateCallLowering};
-use crate::state_storage::{
-    StateLocalStorage, StateMutation, StateStoragePlan,
-};
-use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_typed_program::name::ProgramName;
+use crate::state_storage::{StateLocalStorage, StateMutation, StateStoragePlan};
 pub use model::{
     RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
     RuntimeDispatchBodyPlan,
 };
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_typed_program::name::ProgramName;
 use std::sync::Arc;
 
 pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDispatchBodyPlan {

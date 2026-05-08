@@ -1,6 +1,6 @@
+use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_runtime_target_strings;
-use crate::identity::NativeStringStorage;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use omega_typed_program::statement::TransitionGuard;

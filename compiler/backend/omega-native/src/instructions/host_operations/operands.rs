@@ -2,11 +2,11 @@ use crate::host_calls::{HostCall, HostCallArgument, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::target::ObjectFormat;
 
+use super::super::model::{InstructionOperand, InstructionOperandKind};
 use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_machine_string_descriptor_offset,
     runtime_text_literal_for_host_call,
 };
-use super::super::model::{InstructionOperand, InstructionOperandKind};
 
 pub(super) fn select_host_operation_operands(
     native_plan: &NativePlan,
