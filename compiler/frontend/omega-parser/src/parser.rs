@@ -243,10 +243,10 @@ impl Parser<'_, '_> {
     }
 
     fn parse_path(&mut self) -> Result<IdentifierPath, ParseError> {
-        let mut path = vec![self.expect_identifier_node()?];
+        let mut path = vec![self.expect_identifier()?];
 
         while self.consume("::") {
-            path.push(self.expect_identifier_node()?);
+            path.push(self.expect_identifier()?);
         }
 
         Ok(path.into())
@@ -348,7 +348,7 @@ impl Parser<'_, '_> {
                 self.expect("mut")?;
                 self.expect("self")?;
                 (
-                    String::from("self"),
+                    Identifier::generated("self"),
                     TypeReference::named("Self"),
                     false,
                     true,
@@ -408,7 +408,7 @@ impl Parser<'_, '_> {
             });
         }
 
-        let base_name = self.expect_identifier()?;
+        let base_name = self.expect_identifier_text()?;
         let mut type_reference = if self.consume("<") {
             let mut arguments = Vec::new();
 
@@ -465,7 +465,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_type_constraint(&mut self) -> Result<TypeConstraint, ParseError> {
-        let name = self.expect_identifier()?;
+        let name = self.expect_identifier_text()?;
 
         if name == "range" {
             self.expect("<")?;
@@ -625,7 +625,7 @@ impl Parser<'_, '_> {
             let mut path = vec![String::from("self")];
 
             while self.consume(".") {
-                path.push(self.expect_identifier()?);
+                path.push(self.expect_identifier_text()?);
             }
 
             let arguments = if self.consume("(") {
@@ -637,10 +637,10 @@ impl Parser<'_, '_> {
             return Ok(TransitionTarget::Named { path, arguments });
         }
 
-        let mut path = vec![self.expect_identifier()?];
+        let mut path = vec![self.expect_identifier_text()?];
 
         while self.consume(".") {
-            path.push(self.expect_identifier()?);
+            path.push(self.expect_identifier_text()?);
         }
 
         let arguments = if self.consume("(") {
@@ -671,7 +671,7 @@ impl Parser<'_, '_> {
             return Ok(Statement::Expression(expression));
         }
 
-        let first_name = self.expect_identifier()?;
+        let first_name = self.expect_identifier_text()?;
 
         if self.consume("=") {
             let value = self.parse_expression()?;
@@ -697,7 +697,7 @@ impl Parser<'_, '_> {
         }
 
         self.expect(".")?;
-        let second_name = self.expect_identifier()?;
+        let second_name = self.expect_identifier_text()?;
 
         if !self.check("(") {
             let target =
@@ -720,7 +720,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_local_data(&mut self) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
+        let name = self.expect_identifier_text()?;
         self.expect(":")?;
         let type_reference = self.parse_type_reference()?;
         self.expect(";")?;
@@ -863,7 +863,7 @@ impl Parser<'_, '_> {
                     let mut path = vec![token.lexeme.as_str().to_owned()];
 
                     while self.consume(".") || self.consume("::") {
-                        path.push(self.expect_identifier()?);
+                        path.push(self.expect_identifier_text()?);
                     }
 
                     if self.check("{") && path.len() == 1 {
@@ -893,7 +893,7 @@ impl Parser<'_, '_> {
                     index,
                 }));
             } else if self.consume(".") {
-                let name = self.expect_identifier()?;
+                let name = self.expect_identifier_text()?;
                 expression = match expression {
                     Expression::Name(mut path) => {
                         path.push(name);
@@ -942,7 +942,7 @@ impl Parser<'_, '_> {
         let mut fields = Vec::new();
 
         while !self.consume("}") {
-            let name = self.expect_identifier()?;
+            let name = self.expect_identifier_text()?;
             self.expect(":")?;
             let value = self.parse_expression()?;
             fields.push(StructLiteralField { name, value });
@@ -1050,11 +1050,7 @@ impl Parser<'_, '_> {
         }
     }
 
-    fn expect_identifier(&mut self) -> Result<String, ParseError> {
-        Ok(self.expect_identifier_node()?.into_string())
-    }
-
-    fn expect_identifier_node(&mut self) -> Result<Identifier, ParseError> {
+    fn expect_identifier(&mut self) -> Result<Identifier, ParseError> {
         let file_id = self.file_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
@@ -1068,6 +1064,10 @@ impl Parser<'_, '_> {
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
+    }
+
+    fn expect_identifier_text(&mut self) -> Result<String, ParseError> {
+        Ok(self.expect_identifier()?.into_string())
     }
 
     fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {

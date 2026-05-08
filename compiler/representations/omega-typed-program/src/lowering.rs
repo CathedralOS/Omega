@@ -66,13 +66,13 @@ pub fn lower_program_with_workers(
     let mut program = Program::default();
 
     for alias in &aliases.items {
-        let mut expansion_stack = vec![alias.name.clone()];
+        let mut expansion_stack = vec![alias.name.to_string()];
         let constraints =
             lower_type_constraints(&alias.constraints, &aliases, &mut expansion_stack)?;
         let constraints = program.type_constraints.insert_many(constraints);
 
         program.invariant_definitions.push(InvariantDefinition {
-            name: alias.name.clone(),
+            name: alias.name.to_string(),
             constraints,
         });
     }
@@ -471,7 +471,7 @@ fn lower_data_definition(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DataDefinition {
-        name: data_definition.name.clone(),
+        name: data_definition.name.to_string(),
         members,
     })
 }
@@ -483,11 +483,11 @@ fn lower_data_member(
 ) -> Result<DataMember, Diagnostic> {
     match member {
         ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
-            name: field.name.clone(),
+            name: field.name.to_string(),
             type_reference: lower_type_reference(&field.type_reference, aliases, type_constraints)?,
         })),
         ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
-            name: variant.name.clone(),
+            name: variant.name.to_string(),
         })),
     }
 }
@@ -501,8 +501,8 @@ fn lower_machine(
         .contains
         .iter()
         .map(|contained_object| ContainedObject {
-            name: contained_object.name.clone(),
-            type_name: contained_object.type_name.clone(),
+            name: contained_object.name.to_string(),
+            type_name: contained_object.type_name.to_string(),
         })
         .collect();
 
@@ -519,7 +519,7 @@ fn lower_machine(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Machine {
-        name: machine.name.clone(),
+        name: machine.name.to_string(),
         contains,
         owned_data,
         states,
@@ -532,7 +532,7 @@ fn lower_owned_data(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<OwnedData, Diagnostic> {
     Ok(OwnedData {
-        name: owned_data.name.clone(),
+        name: owned_data.name.to_string(),
         type_reference: lower_type_reference(
             &owned_data.type_reference,
             aliases,
@@ -558,7 +558,7 @@ fn lower_platform(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
-        name: platform.name.clone(),
+        name: platform.name.to_string(),
         states,
     })
 }
@@ -569,7 +569,7 @@ fn lower_state_signature(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
-        name: signature.name.clone(),
+        name: signature.name.to_string(),
         return_type: signature
             .return_type
             .as_ref()
@@ -580,7 +580,7 @@ fn lower_state_signature(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
-                    name: parameter.name.clone(),
+                    name: parameter.name.to_string(),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
                         aliases,
@@ -699,7 +699,7 @@ fn lower_state(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
-        name: state.name.clone(),
+        name: state.name.to_string(),
         return_type: state
             .return_type
             .as_ref()
@@ -710,7 +710,7 @@ fn lower_state(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
-                    name: parameter.name.clone(),
+                    name: parameter.name.to_string(),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
                         aliases,

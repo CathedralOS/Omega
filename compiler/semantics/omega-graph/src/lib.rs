@@ -60,7 +60,7 @@ fn collect_machine(report: &mut SourceGraphReport, machine: &Machine) -> SourceG
     let states = report.states.insert_many(states);
 
     SourceGraphMachine {
-        name: machine.name.clone(),
+        name: machine.name.to_string(),
         states,
     }
 }
@@ -76,7 +76,7 @@ fn collect_state(report: &mut SourceGraphReport, state: &State) -> SourceGraphSt
     let transitions = report.transitions.insert_many(transitions);
 
     SourceGraphState {
-        name: state.name.clone(),
+        name: state.name.to_string(),
         transitions,
     }
 }

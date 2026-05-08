@@ -74,8 +74,8 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                                 let resolved = trust_level_resolves(trust_level, &trust_root_names);
 
                                 report.trusted_contracts.insert(TrustedContract {
-                                    capability: capability.name.clone(),
-                                    state: state.signature.name.clone(),
+                                    capability: capability.name.to_string(),
+                                    state: state.signature.name.to_string(),
                                     trust_level: trust_level_name.clone(),
                                     resolved,
                                     requires_count,
@@ -84,8 +84,8 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
 
                                 if !resolved {
                                     report.unresolved_trusts.insert(UnresolvedTrustReference {
-                                        capability: capability.name.clone(),
-                                        state: state.signature.name.clone(),
+                                        capability: capability.name.to_string(),
+                                        state: state.signature.name.to_string(),
                                         trust_level: trust_level_name,
                                     });
                                 }
@@ -95,7 +95,7 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                 }
             }
             Item::Target(target) => {
-                if selected_target_name.is_some_and(|selected| target.name != selected) {
+                if selected_target_name.is_some_and(|selected| target.name.as_str() != selected) {
                     continue;
                 }
 
@@ -108,7 +108,7 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                         TrustMode::Unchecked => {
                             unchecked_trusts += 1;
                             report.unchecked_policies.insert(UncheckedTrustPolicy {
-                                target: target.name.clone(),
+                                target: target.name.to_string(),
                                 name: policy_name(policy),
                             });
                         }
@@ -116,7 +116,7 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                 }
 
                 report.targets.insert(TrustTarget {
-                    name: target.name.clone(),
+                    name: target.name.to_string(),
                     host_provider: target
                         .host
                         .as_ref()
@@ -146,9 +146,9 @@ fn collect_trust_root_names(items: &[Item], report: &mut TrustReport) -> Vec<Str
             continue;
         };
 
-        names.push(trust_definition.name.clone());
+        names.push(trust_definition.name.to_string());
         report.trust_roots.insert(TrustRoot {
-            name: trust_definition.name.clone(),
+            name: trust_definition.name.to_string(),
             token_count: trust_definition.token_count,
         });
     }
@@ -159,14 +159,16 @@ fn collect_trust_root_names(items: &[Item], report: &mut TrustReport) -> Vec<Str
 fn trust_level_resolves(trust_level: &TrustLevel, trust_root_names: &[String]) -> bool {
     match trust_level {
         TrustLevel::Host => true,
-        TrustLevel::Named(name) => trust_root_names.iter().any(|root_name| root_name == name),
+        TrustLevel::Named(name) => trust_root_names
+            .iter()
+            .any(|root_name| root_name == name.as_str()),
     }
 }
 
 fn trust_level_name(trust_level: &TrustLevel) -> String {
     match trust_level {
         TrustLevel::Host => "host".to_owned(),
-        TrustLevel::Named(name) => name.clone(),
+        TrustLevel::Named(name) => name.to_string(),
     }
 }
 

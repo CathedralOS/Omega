@@ -48,7 +48,7 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
             }
             Item::Invariant(invariant) => {
                 report.invariants.insert(InvariantSurface {
-                    name: invariant.name.clone(),
+                    name: invariant.name.to_string(),
                     constraints: constraints_name(&invariant.constraints),
                 });
             }

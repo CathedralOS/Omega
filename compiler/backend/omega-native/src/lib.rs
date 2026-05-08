@@ -79,7 +79,7 @@ pub fn build_native_surface_report(items: &[Item]) -> NativeSurfaceReport {
 
 fn collect_machine(report: &mut NativeSurfaceReport, machine: &Machine) {
     report.machines.insert(NativeMachineSurface {
-        name: machine.name.clone(),
+        name: machine.name.to_string(),
         contained_objects: machine.contains.len(),
         owned_data: machine.owned_data.len(),
         states: machine.states.len(),
@@ -95,7 +95,7 @@ fn collect_machine(report: &mut NativeSurfaceReport, machine: &Machine) {
 
 fn collect_platform(report: &mut NativeSurfaceReport, platform: &Platform) {
     report.platforms.insert(NativePlatformSurface {
-        name: platform.name.clone(),
+        name: platform.name.to_string(),
         states: platform.states.len(),
     });
 }

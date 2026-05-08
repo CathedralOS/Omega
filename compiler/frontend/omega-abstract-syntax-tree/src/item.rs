@@ -1,4 +1,4 @@
-use crate::identifier::IdentifierPath;
+use crate::identifier::{Identifier, IdentifierPath};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -19,19 +19,19 @@ pub struct UseItem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvariantDefinition {
-    pub name: String,
+    pub name: Identifier,
     pub constraints: Vec<crate::types::TypeConstraint>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustDefinition {
-    pub name: String,
+    pub name: Identifier,
     pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityDefinition {
-    pub name: String,
+    pub name: Identifier,
     pub members: Vec<CapabilityMember>,
 }
 
@@ -43,7 +43,7 @@ pub enum CapabilityMember {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityField {
-    pub name: String,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
 }
 
@@ -69,12 +69,12 @@ pub enum CapabilityContractKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrustLevel {
     Host,
-    Named(String),
+    Named(Identifier),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetDefinition {
-    pub name: String,
+    pub name: Identifier,
     pub host: Option<TargetHost>,
     pub trust_policies: Vec<TrustPolicy>,
 }
@@ -87,17 +87,17 @@ pub struct TargetHost {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetHostSetting {
-    pub name: String,
+    pub name: Identifier,
     pub value: TargetHostSettingValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetHostSettingValue {
     Call {
-        name: String,
+        name: Identifier,
         argument_tokens: usize,
     },
-    Named(String),
+    Named(Identifier),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -114,7 +114,7 @@ pub enum TrustMode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
-    pub name: String,
+    pub name: Identifier,
     pub members: Vec<DataMember>,
 }
 
@@ -126,18 +126,18 @@ pub enum DataMember {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
-    pub name: String,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
-    pub name: String,
+    pub name: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
-    pub name: String,
+    pub name: Identifier,
     pub contains: Vec<Contains>,
     pub owned_data: Vec<OwnedData>,
     pub states: Vec<State>,
@@ -145,20 +145,20 @@ pub struct Machine {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Contains {
-    pub name: String,
-    pub type_name: String,
+    pub name: Identifier,
+    pub type_name: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedData {
-    pub name: String,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
     pub initial_value: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
-    pub name: String,
+    pub name: Identifier,
     pub parameters: Vec<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
     pub statements: Vec<crate::statement::Statement>,
@@ -166,20 +166,20 @@ pub struct State {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {
-    pub name: String,
+    pub name: Identifier,
     pub states: Vec<StateSignature>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
-    pub name: String,
+    pub name: Identifier,
     pub parameters: Vec<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
-    pub name: String,
+    pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
     pub is_const: bool,
     pub is_mutable: bool,

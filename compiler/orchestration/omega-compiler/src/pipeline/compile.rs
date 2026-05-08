@@ -482,7 +482,7 @@ fn load_program_sources(
                         let target_is_selected = options
                             .target_name
                             .as_ref()
-                            .is_none_or(|target_name| target.name == *target_name);
+                            .is_none_or(|target_name| target.name.as_str() == target_name);
 
                         if target_is_selected {
                             selected_target_found = true;

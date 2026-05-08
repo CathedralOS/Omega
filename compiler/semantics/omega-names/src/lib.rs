@@ -70,7 +70,7 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
         match item {
             Item::Capability(capability) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: capability.name.clone(),
+                    name: capability.name.to_string(),
                     kind: ResolvedDefinitionKind::Capability,
                 });
 
@@ -98,7 +98,7 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
             }
             Item::Data(data_definition) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: data_definition.name.clone(),
+                    name: data_definition.name.to_string(),
                     kind: ResolvedDefinitionKind::Data,
                 });
 
@@ -114,7 +114,7 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
             }
             Item::Invariant(invariant) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: invariant.name.clone(),
+                    name: invariant.name.to_string(),
                     kind: ResolvedDefinitionKind::Invariant,
                 });
 
@@ -131,7 +131,7 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
             }
             Item::Machine(machine) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: machine.name.clone(),
+                    name: machine.name.to_string(),
                     kind: ResolvedDefinitionKind::Machine,
                 });
 
@@ -139,7 +139,7 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
             }
             Item::Platform(platform) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: platform.name.clone(),
+                    name: platform.name.to_string(),
                     kind: ResolvedDefinitionKind::Platform,
                 });
 
@@ -153,13 +153,13 @@ pub fn build_resolve_report(items: &[Item]) -> ResolveReport {
             }
             Item::Target(target) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: target.name.clone(),
+                    name: target.name.to_string(),
                     kind: ResolvedDefinitionKind::Target,
                 });
             }
             Item::TrustDefinition(trust_definition) => {
                 report.definitions.insert(ResolvedDefinition {
-                    name: trust_definition.name.clone(),
+                    name: trust_definition.name.to_string(),
                     kind: ResolvedDefinitionKind::Trust,
                 });
             }
