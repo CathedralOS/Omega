@@ -35,11 +35,11 @@ struct RuntimeBranchAlias {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeBranchingCall {
     pub dispatch_index: u32,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
-    pub target_machine: String,
-    pub target_state: String,
+    pub target_machine: ProgramName,
+    pub target_state: ProgramName,
     pub argument_count: usize,
     pub expansion: RuntimeBranchCallExpansion,
     pub edges: HandleSpan<RuntimeBranchingCallEdge>,
@@ -49,11 +49,11 @@ impl Default for RuntimeBranchingCall {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
-            target_machine: String::new(),
-            target_state: String::new(),
+            target_machine: ProgramName::default(),
+            target_state: ProgramName::default(),
             argument_count: 0,
             expansion: RuntimeBranchCallExpansion::Unplanned,
             edges: HandleSpan::empty(),
@@ -389,11 +389,11 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
             let edges = plan.edges.insert_many(branch_edges);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
-                source_machine: operation.source_machine.to_string(),
-                source_state: operation.source_state.to_string(),
+                source_machine: operation.source_machine.clone(),
+                source_state: operation.source_state.clone(),
                 statement_index: operation.statement_index,
-                target_machine: target_machine.to_string(),
-                target_state: target_state.to_string(),
+                target_machine: target_machine.clone(),
+                target_state: target_state.clone(),
                 argument_count: *argument_count,
                 expansion,
                 edges,

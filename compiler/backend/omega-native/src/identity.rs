@@ -68,6 +68,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_runtime_flow_strings(native_plan, &mut storage);
     count_state_dispatch_strings(native_plan, &mut storage);
     count_runtime_body_strings(native_plan, &mut storage);
+    count_runtime_branching_strings(native_plan, &mut storage);
     count_state_guard_strings(native_plan, &mut storage);
     count_runtime_dispatch_loop_strings(native_plan, &mut storage);
     count_host_call_strings(native_plan, &mut storage);
@@ -196,6 +197,131 @@ fn count_runtime_body_strings(native_plan: &NativePlan, storage: &mut NativeStri
             RuntimeDispatchBodyOperationKind::Mutation { .. }
             | RuntimeDispatchBodyOperationKind::Other => {}
         }
+    }
+}
+
+fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
+    for (_, call) in native_plan.runtime_branching_calls.calls.iter() {
+        storage.count_program_name_identity(&call.source_machine);
+        storage.count_program_name_identity(&call.source_state);
+        storage.count_program_name_identity(&call.target_machine);
+        storage.count_program_name_identity(&call.target_state);
+    }
+    for (_, edge) in native_plan.runtime_branching_calls.edges.iter() {
+        count_runtime_target_strings(&edge.target, storage);
+        count_runtime_target_strings(&edge.continuation, storage);
+        if let TransitionGuard::When(expression) = &edge.guard {
+            count_expression_strings(expression, storage);
+        }
+        count_expression_span_strings(edge.target_arguments, native_plan, storage);
+    }
+    for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
+        storage.count_identity(&expansion.source_machine);
+        storage.count_identity(&expansion.source_state);
+        storage.count_identity(&expansion.branch_machine);
+        storage.count_identity(&expansion.branch_state);
+        storage.count_identity(&expansion.leaf_machine);
+        storage.count_identity(&expansion.leaf_state);
+        count_guard_strings(&expansion.guard, storage);
+        count_guard_strings(&expansion.resolved_guard, storage);
+    }
+    for (_, binding) in native_plan.runtime_branching_calls.leaf_bindings.iter() {
+        storage.count_identity(&binding.parameter_name);
+        count_expression_strings(&binding.expression, storage);
+    }
+    for (_, operation) in native_plan.runtime_branching_calls.leaf_operations.iter() {
+        storage.count_identity(&operation.source_machine);
+        storage.count_identity(&operation.source_state);
+        match &operation.kind {
+            crate::runtime_dispatch::branching::RuntimeLeafBranchOperationKind::HostCall {
+                platform_call,
+            } => storage.count_identity(platform_call),
+            crate::runtime_dispatch::branching::RuntimeLeafBranchOperationKind::Mutation {
+                target,
+                value,
+                ..
+            } => {
+                count_expression_strings(target, storage);
+                count_expression_strings(value, storage);
+            }
+            crate::runtime_dispatch::branching::RuntimeLeafBranchOperationKind::Other => {}
+        }
+    }
+    for (_, expansion) in native_plan
+        .runtime_branching_calls
+        .straight_line_expansions
+        .iter()
+    {
+        storage.count_identity(&expansion.source_machine);
+        storage.count_identity(&expansion.source_state);
+        storage.count_identity(&expansion.branch_machine);
+        storage.count_identity(&expansion.branch_state);
+        storage.count_identity(&expansion.target_machine);
+        storage.count_identity(&expansion.target_state);
+        count_guard_strings(&expansion.guard, storage);
+        count_guard_strings(&expansion.resolved_guard, storage);
+    }
+    for (_, binding) in native_plan
+        .runtime_branching_calls
+        .straight_line_bindings
+        .iter()
+    {
+        storage.count_identity(&binding.parameter_name);
+        count_expression_strings(&binding.expression, storage);
+    }
+    for (_, operation) in native_plan
+        .runtime_branching_calls
+        .straight_line_operations
+        .iter()
+    {
+        storage.count_identity(&operation.source_machine);
+        storage.count_identity(&operation.source_state);
+        match &operation.kind {
+            crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::HostCall {
+                platform_call,
+            } => storage.count_identity(platform_call),
+            crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::Mutation {
+                target,
+                value,
+                ..
+            } => {
+                count_expression_strings(target, storage);
+                count_expression_strings(value, storage);
+            }
+            crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::StateCall {
+                target_machine,
+                target_state,
+                ..
+            } => {
+                storage.count_identity(target_machine);
+                storage.count_identity(target_state);
+            }
+            crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::LocalData
+            | crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::Other => {
+            }
+        }
+    }
+}
+
+fn count_expression_span_strings(
+    span: omega_core::arena::HandleSpan<Expression>,
+    native_plan: &NativePlan,
+    storage: &mut NativeStringStorage,
+) {
+    if let Some(expressions) = native_plan
+        .runtime_branching_calls
+        .target_arguments
+        .span(span)
+    {
+        for expression in expressions {
+            count_expression_strings(expression, storage);
+        }
+    }
+}
+
+fn count_guard_strings(guard: &TransitionGuard, storage: &mut NativeStringStorage) {
+    if let TransitionGuard::When(expression) = guard {
+        count_expression_strings(expression, storage);
     }
 }
 
