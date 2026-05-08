@@ -1628,7 +1628,28 @@ impl ArtifactWriter {
             .iter()
             .map(|timing| timing.microseconds)
             .sum::<u128>();
+        let total_allocation_calls = timings
+            .iter()
+            .map(|timing| timing.allocations.allocation_calls)
+            .sum::<u64>();
+        let total_deallocation_calls = timings
+            .iter()
+            .map(|timing| timing.allocations.deallocation_calls)
+            .sum::<u64>();
+        let total_allocated_bytes = timings
+            .iter()
+            .map(|timing| timing.allocations.allocated_bytes)
+            .sum::<u64>();
+        let total_deallocated_bytes = timings
+            .iter()
+            .map(|timing| timing.allocations.deallocated_bytes)
+            .sum::<u64>();
+        let total_net_live_bytes =
+            i128::from(total_allocated_bytes) - i128::from(total_deallocated_bytes);
         let slowest = timings.iter().max_by_key(|timing| timing.microseconds);
+        let allocation_heaviest = timings
+            .iter()
+            .max_by_key(|timing| timing.allocations.allocated_bytes);
         let average_microseconds = if timings.is_empty() {
             0
         } else {
@@ -1645,12 +1666,31 @@ impl ArtifactWriter {
             "average phase: {}\n",
             format_duration(average_microseconds)
         ));
+        output.push_str(&format!(
+            "allocation calls: {} alloc / {} free\n",
+            format_integer(u128::from(total_allocation_calls)),
+            format_integer(u128::from(total_deallocation_calls))
+        ));
+        output.push_str(&format!(
+            "allocated bytes: {} allocated / {} freed / {} net\n",
+            format_bytes(total_allocated_bytes),
+            format_bytes(total_deallocated_bytes),
+            format_signed_bytes(total_net_live_bytes)
+        ));
         if let Some(slowest) = slowest {
             output.push_str(&format!(
                 "slowest phase: {} ({}, {})\n",
                 slowest.phase,
                 format_duration(slowest.microseconds),
                 format_percentage(slowest.microseconds, total_microseconds)
+            ));
+        }
+        if let Some(allocation_heaviest) = allocation_heaviest {
+            output.push_str(&format!(
+                "allocation-heaviest phase: {} ({} in {} allocation calls)\n",
+                allocation_heaviest.phase,
+                format_bytes(allocation_heaviest.allocations.allocated_bytes),
+                format_integer(u128::from(allocation_heaviest.allocations.allocation_calls))
             ));
         }
 
@@ -1673,34 +1713,58 @@ impl ArtifactWriter {
             .chain(std::iter::once("raw".len()))
             .max()
             .unwrap_or("raw".len());
+        let alloc_calls_width = timings
+            .iter()
+            .map(|timing| format_integer(u128::from(timing.allocations.allocation_calls)).len())
+            .chain(std::iter::once("allocs".len()))
+            .max()
+            .unwrap_or("allocs".len());
+        let allocated_width = timings
+            .iter()
+            .map(|timing| format_bytes(timing.allocations.allocated_bytes).len())
+            .chain(std::iter::once("allocated".len()))
+            .max()
+            .unwrap_or("allocated".len());
+        let net_width = timings
+            .iter()
+            .map(|timing| format_signed_bytes(timing.allocations.net_live_bytes()).len())
+            .chain(std::iter::once("net".len()))
+            .max()
+            .unwrap_or("net".len());
 
         output.push_str(&format!(
-            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
-            "phase", "time", "share", "raw"
+            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
+            "phase", "time", "share", "raw", "allocs", "allocated", "net"
         ));
         output.push_str(&format!(
-            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}\n",
-            "", "", "", ""
+            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}  {:-<alloc_calls_width$}  {:-<allocated_width$}  {:-<net_width$}\n",
+            "", "", "", "", "", "", ""
         ));
         for timing in timings {
             output.push_str(&format!(
-                "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
+                "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
                 timing.phase,
                 format_duration(timing.microseconds),
                 format_percentage(timing.microseconds, total_microseconds),
                 format!("{} us", format_integer(timing.microseconds)),
+                format_integer(u128::from(timing.allocations.allocation_calls)),
+                format_bytes(timing.allocations.allocated_bytes),
+                format_signed_bytes(timing.allocations.net_live_bytes()),
             ));
         }
         output.push_str(&format!(
-            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}\n",
-            "", "", "", ""
+            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}  {:-<alloc_calls_width$}  {:-<allocated_width$}  {:-<net_width$}\n",
+            "", "", "", "", "", "", ""
         ));
         output.push_str(&format!(
-            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}\n",
+            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
             "total",
             format_duration(total_microseconds),
             "100.00%",
             format!("{} us", format_integer(total_microseconds)),
+            format_integer(u128::from(total_allocation_calls)),
+            format_bytes(total_allocated_bytes),
+            format_signed_bytes(total_net_live_bytes),
         ));
 
         self.write("00_timings.txt", &output)
@@ -1747,6 +1811,31 @@ fn format_integer(value: u128) -> String {
         output.push(character);
     }
     output
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.2} GiB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.2} MiB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.2} KiB", bytes / KIB)
+    } else {
+        format!("{} B", bytes as u64)
+    }
+}
+
+fn format_signed_bytes(bytes: i128) -> String {
+    if bytes < 0 {
+        format!("-{}", format_bytes(bytes.unsigned_abs() as u64))
+    } else {
+        format_bytes(bytes as u64)
+    }
 }
 
 fn write_loaded_file(output: &mut String, file: &LoadedFile) {

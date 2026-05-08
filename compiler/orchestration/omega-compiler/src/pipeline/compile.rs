@@ -10,6 +10,7 @@ use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile};
+use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_effects::infer_effects;
@@ -48,6 +49,7 @@ pub struct CheckOutput {
 pub struct PhaseTiming {
     pub phase: String,
     pub microseconds: u128,
+    pub allocations: AllocationDelta,
 }
 
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
@@ -369,12 +371,16 @@ fn record_phase<T>(
     phase: &str,
     action: impl FnOnce() -> Result<T, Vec<Diagnostic>>,
 ) -> Result<T, Vec<Diagnostic>> {
+    let allocation_before = allocation_snapshot();
     let started_at = Instant::now();
     let result = action();
+    let microseconds = started_at.elapsed().as_micros();
+    let allocation_after = allocation_snapshot();
 
     timings.push(PhaseTiming {
         phase: phase.to_owned(),
-        microseconds: started_at.elapsed().as_micros(),
+        microseconds,
+        allocations: allocation_after.delta_since(allocation_before),
     });
 
     result

@@ -11,3 +11,4 @@ test = false
 
 [dependencies]
 omega-compiler = { path = "../../compiler/orchestration/omega-compiler" }
+omega-core = { path = "../../compiler/foundation/omega-core" }

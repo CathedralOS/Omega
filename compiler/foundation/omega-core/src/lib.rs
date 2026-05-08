@@ -1,3 +1,4 @@
+pub mod allocations;
 pub mod arena;
 pub mod diagnostics;
 pub mod parallel;

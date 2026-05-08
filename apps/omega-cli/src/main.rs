@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 
 use omega_compiler::{CompileOptions, check, compile};
+use omega_core::allocations::CountingAllocator;
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
 fn main() {
     let Some(arguments) = parse_arguments() else {

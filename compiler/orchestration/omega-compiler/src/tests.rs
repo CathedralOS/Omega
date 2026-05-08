@@ -2865,6 +2865,13 @@ fn check_writes_phase_artifacts() {
     }
     assert!(!output.phase_timings.is_empty());
 
+    let timings = std::fs::read_to_string(output.artifacts_dir.join("00_timings.txt"))
+        .expect("timings artifact should be readable");
+    assert!(timings.contains("allocation calls:"));
+    assert!(timings.contains("allocated bytes:"));
+    assert!(timings.contains("allocs"));
+    assert!(timings.contains("allocated"));
+
     let sources = std::fs::read_to_string(output.artifacts_dir.join("01_sources.txt"))
         .expect("source artifact should be readable");
     assert!(
