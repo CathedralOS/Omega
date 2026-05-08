@@ -180,7 +180,7 @@ fn register_program_symbols(program: &Program) -> SymbolTable {
     ))
 }
 
-fn data_symbol_definition(data_definition: &DataDefinition) -> SymbolDefinition {
+fn data_symbol_definition(data_definition: &DataDefinition) -> SymbolDefinition<'_> {
     SymbolDefinition::with_children(
         SymbolKind::Data,
         data_definition.name.as_str(),
@@ -195,7 +195,7 @@ fn data_symbol_definition(data_definition: &DataDefinition) -> SymbolDefinition 
     )
 }
 
-fn platform_symbol_definition(platform: &Platform) -> SymbolDefinition {
+fn platform_symbol_definition(platform: &Platform) -> SymbolDefinition<'_> {
     SymbolDefinition::with_children(
         SymbolKind::Platform,
         platform.name.as_str(),
@@ -206,7 +206,7 @@ fn platform_symbol_definition(platform: &Platform) -> SymbolDefinition {
     )
 }
 
-fn machine_symbol_definition(machine: &Machine) -> SymbolDefinition {
+fn machine_symbol_definition(machine: &Machine) -> SymbolDefinition<'_> {
     SymbolDefinition::with_children(
         SymbolKind::Machine,
         machine.name.as_str(),
@@ -221,7 +221,7 @@ fn machine_symbol_definition(machine: &Machine) -> SymbolDefinition {
     )
 }
 
-fn state_symbol_definition(state: &State) -> SymbolDefinition {
+fn state_symbol_definition(state: &State) -> SymbolDefinition<'_> {
     SymbolDefinition::with_children(
         SymbolKind::State,
         state.name.as_str(),
@@ -231,7 +231,7 @@ fn state_symbol_definition(state: &State) -> SymbolDefinition {
     )
 }
 
-fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition {
+fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition<'_> {
     SymbolDefinition::with_children(
         SymbolKind::State,
         signature.name.as_str(),

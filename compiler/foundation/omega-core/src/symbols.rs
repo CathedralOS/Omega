@@ -67,43 +67,39 @@ pub struct SymbolDebugName {
     pub value: String,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SymbolDefinition {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SymbolDefinition<'name> {
     pub kind: SymbolKind,
-    pub name: String,
-    pub debug_name: String,
-    pub children: Vec<SymbolDefinition>,
+    pub name: &'name str,
+    pub debug_name: &'name str,
+    pub children: Vec<SymbolDefinition<'name>>,
 }
 
-impl SymbolDefinition {
-    pub fn named(kind: SymbolKind, name: impl Into<String>) -> Self {
-        let name = name.into();
-
+impl<'name> SymbolDefinition<'name> {
+    pub fn named(kind: SymbolKind, name: &'name str) -> Self {
         Self {
             kind,
-            debug_name: name.clone(),
             name,
+            debug_name: name,
             children: Vec::new(),
         }
     }
 
     pub fn with_children(
         kind: SymbolKind,
-        name: impl Into<String>,
-        children: impl IntoIterator<Item = SymbolDefinition>,
+        name: &'name str,
+        children: impl IntoIterator<Item = SymbolDefinition<'name>>,
     ) -> Self {
-        let name = name.into();
-
         Self {
             kind,
-            debug_name: name.clone(),
             name,
+            debug_name: name,
             children: children.into_iter().collect(),
         }
     }
 
-    pub fn with_debug_name(mut self, debug_name: impl Into<String>) -> Self {
-        self.debug_name = debug_name.into();
+    pub fn with_debug_name(mut self, debug_name: &'name str) -> Self {
+        self.debug_name = debug_name;
         self
     }
 }
@@ -128,7 +124,7 @@ impl SymbolTable {
         Self::default()
     }
 
-    pub fn from_definition(root: SymbolDefinition) -> Self {
+    pub fn from_definition(root: SymbolDefinition<'_>) -> Self {
         let mut builder = HierarchyArenaBuilder::new();
         let mut names = Arena::new();
         let mut debug_names = Arena::new();
@@ -220,7 +216,7 @@ fn insert_root_definition(
     builder: &mut HierarchyArenaBuilder<Symbol>,
     names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
-    definition: &SymbolDefinition,
+    definition: &SymbolDefinition<'_>,
 ) -> SymbolHandle {
     let root = builder.insert_root(symbol_from_definition(
         SymbolHandle::invalid(),
@@ -238,7 +234,7 @@ fn insert_child_definitions(
     names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
     parent: SymbolHandle,
-    definitions: &[SymbolDefinition],
+    definitions: &[SymbolDefinition<'_>],
 ) {
     if definitions.is_empty() {
         return;
@@ -270,17 +266,17 @@ fn symbol_from_definition(
     parent: SymbolHandle,
     names: &mut Arena<SymbolName>,
     debug_names: &mut Arena<SymbolDebugName>,
-    definition: &SymbolDefinition,
+    definition: &SymbolDefinition<'_>,
 ) -> Symbol {
     Symbol {
         parent,
         children: HandleSpan::empty(),
         kind: definition.kind,
         name: names.insert(SymbolName {
-            value: definition.name.clone(),
+            value: definition.name.to_owned(),
         }),
         debug_name: debug_names.insert(SymbolDebugName {
-            value: definition.debug_name.clone(),
+            value: definition.debug_name.to_owned(),
         }),
     }
 }
