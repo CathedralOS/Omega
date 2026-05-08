@@ -252,12 +252,12 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         .straight_line_expansions
         .iter()
     {
-        storage.count_identity(&expansion.source_machine);
-        storage.count_identity(&expansion.source_state);
-        storage.count_identity(&expansion.branch_machine);
-        storage.count_identity(&expansion.branch_state);
-        storage.count_identity(&expansion.target_machine);
-        storage.count_identity(&expansion.target_state);
+        storage.count_program_name_identity(&expansion.source_machine);
+        storage.count_program_name_identity(&expansion.source_state);
+        storage.count_program_name_identity(&expansion.branch_machine);
+        storage.count_program_name_identity(&expansion.branch_state);
+        storage.count_program_name_identity(&expansion.target_machine);
+        storage.count_program_name_identity(&expansion.target_state);
         count_guard_strings(&expansion.guard, storage);
         count_guard_strings(&expansion.resolved_guard, storage);
     }
@@ -274,8 +274,8 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         .straight_line_operations
         .iter()
     {
-        storage.count_identity(&operation.source_machine);
-        storage.count_identity(&operation.source_state);
+        storage.count_program_name_identity(&operation.source_machine);
+        storage.count_program_name_identity(&operation.source_state);
         match &operation.kind {
             crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::HostCall {
                 platform_call,
@@ -293,8 +293,8 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
                 target_state,
                 ..
             } => {
-                storage.count_identity(target_machine);
-                storage.count_identity(target_state);
+                storage.count_program_name_identity(target_machine);
+                storage.count_program_name_identity(target_state);
             }
             crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::LocalData
             | crate::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::Other => {

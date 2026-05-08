@@ -207,17 +207,17 @@ pub enum RuntimeLeafBranchOperationKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchExpansion {
     pub dispatch_index: u32,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
-    pub branch_machine: String,
-    pub branch_state: String,
+    pub branch_machine: ProgramName,
+    pub branch_state: ProgramName,
     pub edge_order: usize,
     pub guard: TransitionGuard,
     pub resolved_guard: TransitionGuard,
     pub guard_kind: StateGuardKind,
-    pub target_machine: String,
-    pub target_state: String,
+    pub target_machine: ProgramName,
+    pub target_state: ProgramName,
     pub bindings: HandleSpan<RuntimeStraightLineBranchBinding>,
     pub operations: HandleSpan<RuntimeStraightLineBranchOperation>,
 }
@@ -226,17 +226,17 @@ impl Default for RuntimeStraightLineBranchExpansion {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
-            branch_machine: String::new(),
-            branch_state: String::new(),
+            branch_machine: ProgramName::default(),
+            branch_state: ProgramName::default(),
             edge_order: 0,
             guard: TransitionGuard::Always,
             resolved_guard: TransitionGuard::Always,
             guard_kind: StateGuardKind::Always,
-            target_machine: String::new(),
-            target_state: String::new(),
+            target_machine: ProgramName::default(),
+            target_state: ProgramName::default(),
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }
@@ -269,8 +269,8 @@ pub enum RuntimeStraightLineBranchBindingKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchOperation {
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
     pub kind: RuntimeStraightLineBranchOperationKind,
 }
@@ -278,8 +278,8 @@ pub struct RuntimeStraightLineBranchOperation {
 impl Default for RuntimeStraightLineBranchOperation {
     fn default() -> Self {
         Self {
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
             kind: RuntimeStraightLineBranchOperationKind::Other,
         }
@@ -298,8 +298,8 @@ pub enum RuntimeStraightLineBranchOperationKind {
         value: Expression,
     },
     StateCall {
-        target_machine: String,
-        target_state: String,
+        target_machine: ProgramName,
+        target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },
@@ -471,12 +471,12 @@ fn append_leaf_branch_expansions(
 fn append_straight_line_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
-    source_machine: &str,
-    source_state: &str,
+    source_machine: &ProgramName,
+    source_state: &ProgramName,
     statement_index: usize,
     dispatch_index: u32,
-    branch_machine: &str,
-    branch_state: &str,
+    branch_machine: &ProgramName,
+    branch_state: &ProgramName,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
@@ -500,8 +500,8 @@ fn append_straight_line_branch_expansions(
             .insert_many(straight_line_branch_bindings(
                 &branch_bindings,
                 native_plan,
-                target_machine,
-                target_state,
+                target_machine.as_str(),
+                target_state.as_str(),
                 plan.target_arguments.span_or_empty(edge.target_arguments),
             ));
         let operations = plan
@@ -515,17 +515,17 @@ fn append_straight_line_branch_expansions(
         plan.straight_line_expansions
             .insert(RuntimeStraightLineBranchExpansion {
                 dispatch_index,
-                source_machine: source_machine.to_owned(),
-                source_state: source_state.to_owned(),
+                source_machine: source_machine.clone(),
+                source_state: source_state.clone(),
                 statement_index,
-                branch_machine: branch_machine.to_owned(),
-                branch_state: branch_state.to_owned(),
+                branch_machine: branch_machine.clone(),
+                branch_state: branch_state.clone(),
                 edge_order: edge.order,
                 guard: edge.guard.clone(),
                 resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
                 guard_kind: edge.guard_kind,
-                target_machine: target_machine.to_string(),
-                target_state: target_state.to_string(),
+                target_machine: target_machine.clone(),
+                target_state: target_state.clone(),
                 bindings,
                 operations,
             });
@@ -1036,16 +1036,16 @@ fn leaf_operation_kind(
 
 fn straight_line_operations<'a>(
     native_plan: &'a NativePlan,
-    machine_name: &'a str,
-    state_name: &'a str,
+    machine_name: &'a ProgramName,
+    state_name: &'a ProgramName,
 ) -> impl Iterator<Item = RuntimeStraightLineBranchOperation> + 'a {
-    let operations = machine_flow(native_plan, machine_name)
+    let operations = machine_flow(native_plan, machine_name.as_str())
         .and_then(|machine| {
             native_plan
                 .control_flow
                 .states
                 .span(machine.states)
-                .and_then(|states| states.iter().find(|state| state.name == state_name))
+                .and_then(|states| states.iter().find(|state| state.name == *state_name))
         })
         .and_then(|state| native_plan.control_flow.operations.span(state.operations));
 
@@ -1053,13 +1053,13 @@ fn straight_line_operations<'a>(
         operations
             .iter()
             .map(move |operation| RuntimeStraightLineBranchOperation {
-                source_machine: machine_name.to_owned(),
-                source_state: state_name.to_owned(),
+                source_machine: machine_name.clone(),
+                source_state: state_name.clone(),
                 statement_index: operation.statement_index,
                 kind: straight_line_operation_kind(
                     native_plan,
-                    machine_name,
-                    state_name,
+                    machine_name.as_str(),
+                    state_name.as_str(),
                     operation.statement_index,
                     &operation.kind,
                 ),
@@ -1097,8 +1097,8 @@ fn straight_line_operation_kind(
         state_call_for_operation(native_plan, machine_name, state_name, statement_index)
     {
         return RuntimeStraightLineBranchOperationKind::StateCall {
-            target_machine: state_call.target_machine.to_string(),
-            target_state: state_call.target_state.to_string(),
+            target_machine: state_call.target_machine.clone(),
+            target_state: state_call.target_state.clone(),
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         };
