@@ -580,95 +580,228 @@ fn resolve_global_name(report: &mut ResolveReport, name: &str) -> SymbolPath {
 }
 
 fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
+    let builder = SourceSymbolDefinitionBuilder { items };
+
     SymbolTable::from_definition(SymbolDefinition::with_children(
         SymbolKind::Root,
         "program",
-        items.iter().filter_map(item_symbol_definition),
+        items
+            .iter()
+            .filter_map(|item| builder.item_symbol_definition(item)),
     ))
 }
 
-fn item_symbol_definition(item: &Item) -> Option<SymbolDefinition<'_>> {
-    match item {
-        Item::Capability(capability) => Some(SymbolDefinition::with_children(
-            SymbolKind::HostCapability,
-            capability.name.as_str(),
-            capability.members.iter().map(|member| match member {
-                CapabilityMember::Field(field) => {
-                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
-                }
-                CapabilityMember::State(state) => {
-                    state_signature_symbol_definition(&state.signature)
-                }
+#[derive(Debug, Clone, Copy)]
+struct SourceSymbolDefinitionBuilder<'items> {
+    items: &'items [Item],
+}
+
+impl<'items> SourceSymbolDefinitionBuilder<'items> {
+    fn item_symbol_definition(self, item: &'items Item) -> Option<SymbolDefinition<'items>> {
+        match item {
+            Item::Capability(capability) => Some(SymbolDefinition::with_children(
+                SymbolKind::HostCapability,
+                capability.name.as_str(),
+                capability.members.iter().map(|member| match member {
+                    CapabilityMember::Field(field) => SymbolDefinition::with_children(
+                        SymbolKind::Field,
+                        field.name.as_str(),
+                        self.type_children(&field.type_reference, 0),
+                    ),
+                    CapabilityMember::State(state) => {
+                        self.state_signature_symbol_definition(&state.signature)
+                    }
+                }),
+            )),
+            Item::Data(data_definition) => Some(SymbolDefinition::with_children(
+                SymbolKind::Data,
+                data_definition.name.as_str(),
+                data_definition
+                    .members
+                    .iter()
+                    .map(|member| self.data_member_symbol_definition(member, 0)),
+            )),
+            Item::Invariant(invariant) => Some(SymbolDefinition::named(
+                SymbolKind::Invariant,
+                invariant.name.as_str(),
+            )),
+            Item::Machine(machine) => Some(SymbolDefinition::with_children(
+                SymbolKind::Machine,
+                machine.name.as_str(),
+                machine
+                    .contains
+                    .iter()
+                    .map(|contained| {
+                        SymbolDefinition::with_children(
+                            SymbolKind::Object,
+                            contained.name.as_str(),
+                            self.named_type_children(contained.type_name.as_str(), 0),
+                        )
+                    })
+                    .chain(machine.owned_data.iter().map(|owned_data| {
+                        SymbolDefinition::with_children(
+                            SymbolKind::Field,
+                            owned_data.name.as_str(),
+                            self.type_children(&owned_data.type_reference, 0),
+                        )
+                    }))
+                    .chain(
+                        machine
+                            .states
+                            .iter()
+                            .map(|state| self.state_symbol_definition(state)),
+                    ),
+            )),
+            Item::Platform(platform) => Some(SymbolDefinition::with_children(
+                SymbolKind::Platform,
+                platform.name.as_str(),
+                platform
+                    .states
+                    .iter()
+                    .map(|signature| self.state_signature_symbol_definition(signature)),
+            )),
+            Item::Target(target) => Some(SymbolDefinition::named(
+                SymbolKind::Object,
+                target.name.as_str(),
+            )),
+            Item::TrustDefinition(trust_definition) => Some(SymbolDefinition::named(
+                SymbolKind::Object,
+                trust_definition.name.as_str(),
+            )),
+            Item::Use(_) => None,
+        }
+    }
+
+    fn state_symbol_definition(self, state: &'items State) -> SymbolDefinition<'items> {
+        SymbolDefinition::with_children(
+            SymbolKind::State,
+            state.name.as_str(),
+            state.parameters.iter().map(|parameter| {
+                SymbolDefinition::with_children(
+                    SymbolKind::Parameter,
+                    parameter.name.as_str(),
+                    self.type_children(&parameter.type_reference, 0),
+                )
             }),
-        )),
-        Item::Data(data_definition) => Some(SymbolDefinition::with_children(
-            SymbolKind::Data,
-            data_definition.name.as_str(),
-            data_definition.members.iter().map(|member| match member {
-                DataMember::Field(field) => {
-                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
-                }
-                DataMember::Variant(variant) => {
-                    SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
-                }
+        )
+    }
+
+    fn state_signature_symbol_definition(
+        self,
+        signature: &'items StateSignature,
+    ) -> SymbolDefinition<'items> {
+        SymbolDefinition::with_children(
+            SymbolKind::State,
+            signature.name.as_str(),
+            signature.parameters.iter().map(|parameter| {
+                SymbolDefinition::with_children(
+                    SymbolKind::Parameter,
+                    parameter.name.as_str(),
+                    self.type_children(&parameter.type_reference, 0),
+                )
             }),
-        )),
-        Item::Invariant(invariant) => Some(SymbolDefinition::named(
-            SymbolKind::Invariant,
-            invariant.name.as_str(),
-        )),
-        Item::Machine(machine) => Some(SymbolDefinition::with_children(
-            SymbolKind::Machine,
-            machine.name.as_str(),
-            machine
-                .contains
+        )
+    }
+
+    fn data_member_symbol_definition(
+        self,
+        member: &'items DataMember,
+        depth: usize,
+    ) -> SymbolDefinition<'items> {
+        match member {
+            DataMember::Field(field) => SymbolDefinition::with_children(
+                SymbolKind::Field,
+                field.name.as_str(),
+                self.type_children(&field.type_reference, depth + 1),
+            ),
+            DataMember::Variant(variant) => {
+                SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+            }
+        }
+    }
+
+    fn type_children(
+        self,
+        type_reference: &'items TypeReference,
+        depth: usize,
+    ) -> Vec<SymbolDefinition<'items>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        match type_reference {
+            TypeReference::Constrained { base_type, .. } => self.type_children(base_type, depth),
+            TypeReference::FixedArray { element_type, .. } => {
+                self.type_children(element_type, depth + 1)
+            }
+            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+                self.named_type_children(base_name.as_str(), depth + 1)
+            }
+            TypeReference::Unit => Vec::new(),
+        }
+    }
+
+    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'items>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        let Some(item) = self
+            .items
+            .iter()
+            .find(|item| top_level_item_name(item) == Some(type_name))
+        else {
+            return Vec::new();
+        };
+
+        match item {
+            Item::Capability(capability) => capability
+                .members
                 .iter()
-                .map(|contained| {
-                    SymbolDefinition::named(SymbolKind::Object, contained.name.as_str())
+                .map(|member| match member {
+                    CapabilityMember::Field(field) => SymbolDefinition::with_children(
+                        SymbolKind::Field,
+                        field.name.as_str(),
+                        self.type_children(&field.type_reference, depth + 1),
+                    ),
+                    CapabilityMember::State(state) => {
+                        self.state_signature_symbol_definition(&state.signature)
+                    }
                 })
-                .chain(machine.owned_data.iter().map(|owned_data| {
-                    SymbolDefinition::named(SymbolKind::Field, owned_data.name.as_str())
-                }))
-                .chain(machine.states.iter().map(state_symbol_definition)),
-        )),
-        Item::Platform(platform) => Some(SymbolDefinition::with_children(
-            SymbolKind::Platform,
-            platform.name.as_str(),
-            platform
+                .collect(),
+            Item::Data(data_definition) => data_definition
+                .members
+                .iter()
+                .map(|member| self.data_member_symbol_definition(member, depth + 1))
+                .collect(),
+            Item::Machine(machine) => machine
                 .states
                 .iter()
-                .map(state_signature_symbol_definition),
-        )),
-        Item::Target(target) => Some(SymbolDefinition::named(
-            SymbolKind::Object,
-            target.name.as_str(),
-        )),
-        Item::TrustDefinition(trust_definition) => Some(SymbolDefinition::named(
-            SymbolKind::Object,
-            trust_definition.name.as_str(),
-        )),
-        Item::Use(_) => None,
+                .map(|state| self.state_symbol_definition(state))
+                .collect(),
+            Item::Platform(platform) => platform
+                .states
+                .iter()
+                .map(|signature| self.state_signature_symbol_definition(signature))
+                .collect(),
+            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {
+                Vec::new()
+            }
+        }
     }
 }
 
-fn state_symbol_definition(state: &State) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::State,
-        state.name.as_str(),
-        state.parameters.iter().map(|parameter| {
-            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-        }),
-    )
-}
-
-fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::State,
-        signature.name.as_str(),
-        signature.parameters.iter().map(|parameter| {
-            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-        }),
-    )
+fn top_level_item_name(item: &Item) -> Option<&str> {
+    match item {
+        Item::Capability(capability) => Some(capability.name.as_str()),
+        Item::Data(data_definition) => Some(data_definition.name.as_str()),
+        Item::Invariant(invariant) => Some(invariant.name.as_str()),
+        Item::Machine(machine) => Some(machine.name.as_str()),
+        Item::Platform(platform) => Some(platform.name.as_str()),
+        Item::Target(target) => Some(target.name.as_str()),
+        Item::TrustDefinition(trust_definition) => Some(trust_definition.name.as_str()),
+        Item::Use(_) => None,
+    }
 }
 
 #[cfg(test)]
