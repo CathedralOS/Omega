@@ -90,13 +90,24 @@ pub fn build_native_plan(
     build_native_plan_with_workers(Arc::new(program.clone()), target, workers.handle())
 }
 
+const ENTRY_MACHINE_NAME: &str = "main";
+const ENTRY_STATE_NAME: &str = "entry";
+
 pub fn build_native_plan_with_workers(
     program: Arc<Program>,
     target: NativeTarget,
     workers: WorkerPoolHandle,
 ) -> Result<NativePlan, Diagnostic> {
-    let entry_machine = "main".to_owned();
-    let entry_state = "entry".to_owned();
+    let entry_machine = ENTRY_MACHINE_NAME.to_owned();
+    let entry_state = ENTRY_STATE_NAME.to_owned();
+    let entry_machine_symbol = program
+        .symbols
+        .find_child_by_name(program.symbols.root(), ENTRY_MACHINE_NAME)
+        .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
+    let entry_state_symbol = program
+        .symbols
+        .find_child_by_name(entry_machine_symbol, ENTRY_STATE_NAME)
+        .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
     let mut phase_timings = Vec::new();
     let host_abi = record_native_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
@@ -129,12 +140,8 @@ pub fn build_native_plan_with_workers(
     let mut host_calls = host_calls?;
     attach_host_call_state_keys(&mut host_calls, &control_flow);
     let entry_key = control_flow
-        .state_key_by_names(&entry_machine, &entry_state)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "unknown runtime state `{entry_machine}.{entry_state}`"
-            ))
-        })?;
+        .state_key_by_symbols(entry_machine_symbol, entry_state_symbol)
+        .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
     let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
         build_runtime_flow_plan(&control_flow, entry_key)
     })?;

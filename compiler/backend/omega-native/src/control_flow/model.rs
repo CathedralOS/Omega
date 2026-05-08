@@ -27,6 +27,20 @@ impl ControlFlowPlan {
             .map(|state| state.key)
     }
 
+    pub fn state_key_by_symbols(
+        &self,
+        machine_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
+    ) -> Option<StateKey> {
+        let machine = self.machine_by_symbol(machine_symbol)?;
+
+        self.states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.key.machine == machine_symbol && state.key.state == state_symbol)
+            .map(|state| state.key)
+    }
+
     pub fn machine_by_symbol(&self, machine_symbol: SymbolHandle) -> Option<&MachineFlow> {
         self.machines
             .iter()
