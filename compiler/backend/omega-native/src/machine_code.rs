@@ -7,8 +7,20 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 
 mod model;
+mod widths;
 
 pub use model::{MachineCodePlan, MachineFunctionCode, MachineInstruction, MachineInstructionKind};
+use widths::{
+    dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
+    dispatch_loop_enter_width, dispatch_state_write_width, host_call_sequence_width, return_width,
+    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
+    runtime_text_buffer_materialize_width, runtime_text_line_read_width,
+    runtime_text_literal_append_width, runtime_text_literal_compare_width,
+    runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
+    runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
+    runtime_text_stored_suffix_append_width,
+};
 
 pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePlan, Diagnostic> {
     let mut machine_code_plan = MachineCodePlan {
@@ -862,113 +874,4 @@ fn byte_distance_to_dispatch_loop_start(
     let branch_program_counter = current.offset;
     let target = loop_enter.offset + loop_enter.byte_width;
     Ok(target as isize - branch_program_counter as isize)
-}
-
-fn host_call_sequence_width(
-    architecture: crate::target::Architecture,
-    operands: &[crate::instructions::InstructionOperand],
-) -> usize {
-    architecture::host_call_sequence_width(architecture, operands)
-}
-
-fn return_width(architecture: crate::target::Architecture) -> usize {
-    architecture::return_width(architecture)
-}
-
-fn dispatch_loop_enter_width(architecture: crate::target::Architecture) -> usize {
-    architecture::dispatch_loop_enter_width(architecture)
-}
-
-fn dispatch_case_enter_width(architecture: crate::target::Architecture) -> usize {
-    architecture::dispatch_case_enter_width(architecture)
-}
-
-fn dispatch_state_write_width(architecture: crate::target::Architecture) -> usize {
-    architecture::dispatch_state_write_width(architecture)
-}
-
-fn dispatch_case_leave_width(architecture: crate::target::Architecture) -> usize {
-    architecture::dispatch_case_leave_width(architecture)
-}
-
-fn dispatch_guard_compare_static_width(architecture: crate::target::Architecture) -> usize {
-    architecture::dispatch_guard_compare_static_width(architecture)
-}
-
-fn runtime_text_literal_compare_width(
-    architecture: crate::target::Architecture,
-    literal: &str,
-) -> usize {
-    architecture::runtime_text_literal_compare_width(architecture, literal)
-}
-
-fn runtime_text_storage_compare_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_text_storage_compare_width(architecture)
-}
-
-fn runtime_storage_compare_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_storage_compare_width(architecture)
-}
-
-fn runtime_storage_value_compare_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_storage_value_compare_width(architecture)
-}
-
-fn runtime_text_literal_write_width(
-    architecture: crate::target::Architecture,
-    literal: &str,
-) -> usize {
-    architecture::runtime_text_literal_write_width(architecture, literal)
-}
-
-fn runtime_text_literal_segment_write_width(
-    architecture: crate::target::Architecture,
-    literal: &str,
-) -> usize {
-    architecture::runtime_text_literal_segment_write_width(architecture, literal)
-}
-
-fn runtime_text_stored_suffix_append_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_text_stored_suffix_append_width(architecture)
-}
-
-fn runtime_text_buffer_materialize_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_text_buffer_materialize_width(architecture)
-}
-
-fn runtime_text_stored_place_append_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_text_stored_place_append_width(architecture)
-}
-
-fn runtime_text_literal_append_width(
-    architecture: crate::target::Architecture,
-    literal: &str,
-) -> usize {
-    architecture::runtime_text_literal_append_width(architecture, literal)
-}
-
-fn runtime_machine_integer_write_width(architecture: crate::target::Architecture) -> usize {
-    architecture::runtime_machine_integer_write_width(architecture)
-}
-
-fn runtime_machine_string_write_width(
-    architecture: crate::target::Architecture,
-    byte_length: usize,
-) -> usize {
-    architecture::runtime_machine_string_write_width(architecture, byte_length)
-}
-
-fn runtime_text_line_read_width(
-    architecture: crate::target::Architecture,
-    byte_capacity: usize,
-    syscall_number: u32,
-) -> usize {
-    architecture::runtime_text_line_read_width(architecture, byte_capacity, syscall_number)
-}
-
-fn runtime_storage_copy_width(
-    architecture: crate::target::Architecture,
-    byte_count: usize,
-) -> usize {
-    architecture::runtime_storage_copy_width(architecture, byte_count)
 }
