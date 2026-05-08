@@ -311,12 +311,16 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
     let mut plan = RuntimeBranchingCallPlan::default();
 
     for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
+        let Some(operations) = native_plan
+            .runtime_bodies
+            .operations
+            .paged_span(body.operations)
+        else {
             continue;
         };
         let mut aliases = Vec::new();
 
-        for operation in operations {
+        for operation in operations.iter() {
             let state_call = state_call_for_operation(
                 native_plan,
                 &operation.source_machine,

@@ -7,14 +7,14 @@ use crate::state_calls::{StateCall, StateCallLowering};
 use crate::state_storage::{
     StateLocalStorage, StateMutation, StateMutationKind, StateMutationLowering, StateStoragePlan,
 };
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyPlan {
     pub bodies: Arena<RuntimeDispatchBody>,
-    pub operations: Arena<RuntimeDispatchBodyOperation>,
+    pub operations: PagedArena<RuntimeDispatchBodyOperation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

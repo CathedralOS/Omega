@@ -348,7 +348,12 @@ fn runtime_body_operation_count(
         .bodies
         .iter()
         .find(|(_, body)| body.dispatch_index == dispatch_index)
-        .and_then(|(_, body)| context.runtime_bodies.operations.span(body.operations))
-        .map(<[_]>::len)
+        .and_then(|(_, body)| {
+            context
+                .runtime_bodies
+                .operations
+                .paged_span(body.operations)
+        })
+        .map(|operations| operations.len())
         .unwrap_or(0)
 }

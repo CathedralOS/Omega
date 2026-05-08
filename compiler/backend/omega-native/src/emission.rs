@@ -341,7 +341,11 @@ fn collect_runtime_body_state_call_blockers(
     let mut grouped_blockers = Vec::<RuntimeBodyStateCallBlocker>::new();
 
     for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan.runtime_bodies.operations.span(body.operations) else {
+        let Some(operations) = native_plan
+            .runtime_bodies
+            .operations
+            .paged_span(body.operations)
+        else {
             blockers.insert(blocker(
                 "runtime bodies",
                 &format!(
@@ -352,7 +356,7 @@ fn collect_runtime_body_state_call_blockers(
             continue;
         };
 
-        for operation in operations {
+        for operation in operations.iter() {
             let RuntimeDispatchBodyOperationKind::StateCall {
                 target_machine,
                 target_state,
