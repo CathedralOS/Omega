@@ -196,13 +196,11 @@ fn append_local_state_calls(
         };
 
         let is_platform_call = native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-            host_call.machine == machine.name
-                && host_call.state == state.name
+            host_call.source_key == state.key
                 && host_call.statement_index == operation.statement_index
         }) || native_plan.host_calls.unsupported_calls.iter().any(
             |(_, host_call)| {
-                host_call.machine == machine.name
-                    && host_call.state == state.name
+                host_call.source_key == state.key
                     && host_call.statement_index == operation.statement_index
             },
         );

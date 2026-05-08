@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::layout::{LayoutPlan, TypeLayout};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::{
@@ -23,6 +24,7 @@ pub struct RuntimeStoragePlan {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -36,6 +38,7 @@ pub struct RuntimeFrameSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStorageWrite {
     pub dispatch_index: u32,
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -49,6 +52,7 @@ impl Default for RuntimeStorageWrite {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -164,6 +168,7 @@ fn build_runtime_storage_body_plan(
 
                 plan.frame_slots.insert(RuntimeFrameSlot {
                     dispatch_index: body_input.body.dispatch_index,
+                    source_key: operation.source_key,
                     source_machine: operation.source_machine.clone(),
                     source_state: operation.source_state.clone(),
                     statement_index: operation.statement_index,
@@ -177,14 +182,12 @@ fn build_runtime_storage_body_plan(
             RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
                 if *lowering != StateMutationLowering::AlreadyLowered =>
             {
-                if let Some(mutation) = mutation_for_operation(
-                    context,
-                    &operation.source_machine,
-                    &operation.source_state,
-                    operation.statement_index,
-                ) {
+                if let Some(mutation) =
+                    mutation_for_operation(context, operation.source_key, operation.statement_index)
+                {
                     plan.writes.insert(RuntimeStorageWrite {
                         dispatch_index: body_input.body.dispatch_index,
+                        source_key: operation.source_key,
                         source_machine: operation.source_machine.clone(),
                         source_state: operation.source_state.clone(),
                         statement_index: operation.statement_index,
@@ -283,8 +286,7 @@ fn align_to(offset: usize, alignment: usize) -> usize {
 
 fn mutation_for_operation<'plan>(
     context: &'plan RuntimeStorageContext,
-    machine_name: &str,
-    state_name: &str,
+    source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateMutation> {
     context
@@ -292,9 +294,7 @@ fn mutation_for_operation<'plan>(
         .mutations
         .iter()
         .find(|(_, mutation)| {
-            mutation.machine == machine_name
-                && mutation.state == state_name
-                && mutation.statement_index == statement_index
+            mutation.source_key == source_key && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
 }

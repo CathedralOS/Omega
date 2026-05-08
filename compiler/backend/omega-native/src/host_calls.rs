@@ -33,6 +33,7 @@ impl Default for HostCallPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UnsupportedHostCall {
+    pub source_key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
     pub statement_index: usize,
@@ -253,6 +254,7 @@ fn collect_call_host_lowering(
     let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
         let platform_call = platform_call_name(call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
+            source_key: StateKey::default(),
             machine: machine.name.clone(),
             state: state.name.clone(),
             statement_index,
@@ -291,6 +293,11 @@ fn collect_call_host_lowering(
 
 pub fn attach_host_call_state_keys(plan: &mut HostCallPlan, control_flow: &ControlFlowPlan) {
     plan.calls.for_each_mut(|_, call| {
+        call.source_key =
+            state_key_by_names(control_flow, &call.machine, &call.state).unwrap_or_default();
+    });
+
+    plan.unsupported_calls.for_each_mut(|_, call| {
         call.source_key =
             state_key_by_names(control_flow, &call.machine, &call.state).unwrap_or_default();
     });

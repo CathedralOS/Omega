@@ -42,6 +42,7 @@ impl Default for RuntimeDispatchBody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyOperation {
+    pub source_key: StateKey,
     pub source_machine: ProgramName,
     pub source_state: ProgramName,
     pub statement_index: usize,
@@ -51,6 +52,7 @@ pub struct RuntimeDispatchBodyOperation {
 impl Default for RuntimeDispatchBodyOperation {
     fn default() -> Self {
         Self {
+            source_key: StateKey::default(),
             source_machine: ProgramName::default(),
             source_state: ProgramName::default(),
             statement_index: 0,
@@ -219,6 +221,7 @@ fn append_state_body_operations(
             host_call_for_statement(context, state_key, operation.statement_index)
         {
             operations.push(body_operation(
+                state_key,
                 machine_name,
                 state_name,
                 operation.statement_index,
@@ -240,6 +243,7 @@ fn append_state_body_operations(
             local_storage_for_statement(context, state_key, operation.statement_index)
         {
             operations.push(body_operation(
+                state_key,
                 machine_name,
                 state_name,
                 operation.statement_index,
@@ -255,6 +259,7 @@ fn append_state_body_operations(
             mutation_for_statement(context, state_key, operation.statement_index)
         {
             operations.push(body_operation(
+                state_key,
                 machine_name,
                 state_name,
                 operation.statement_index,
@@ -268,6 +273,7 @@ fn append_state_body_operations(
 
         if !matches!(operation.kind, OperationKind::LocalData) {
             operations.push(body_operation(
+                state_key,
                 machine_name,
                 state_name,
                 operation.statement_index,
@@ -287,6 +293,7 @@ fn append_state_call_body_operation(
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.push(body_operation(
+            state_call.source_key,
             &state_call.source_machine,
             &state_call.source_state,
             state_call.statement_index,
@@ -309,6 +316,7 @@ fn append_state_call_body_operation(
 
     if state_has_no_transitions(context, state_call.target_key) {
         operations.push(body_operation(
+            state_call.source_key,
             &state_call.source_machine,
             &state_call.source_state,
             state_call.statement_index,
@@ -331,6 +339,7 @@ fn append_state_call_body_operation(
     }
 
     operations.push(body_operation(
+        state_call.source_key,
         &state_call.source_machine,
         &state_call.source_state,
         state_call.statement_index,
@@ -344,12 +353,14 @@ fn append_state_call_body_operation(
 }
 
 fn body_operation(
+    source_key: StateKey,
     machine_name: &ProgramName,
     state_name: &ProgramName,
     statement_index: usize,
     kind: RuntimeDispatchBodyOperationKind,
 ) -> RuntimeDispatchBodyOperation {
     RuntimeDispatchBodyOperation {
+        source_key,
         source_machine: machine_name.clone(),
         source_state: state_name.clone(),
         statement_index,
