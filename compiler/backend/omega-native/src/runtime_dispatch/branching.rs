@@ -427,6 +427,7 @@ fn append_leaf_branch_expansions(
         let RuntimeTransitionTarget::State {
             machine: leaf_machine,
             state: leaf_state,
+            ..
         } = &edge.target
         else {
             continue;
@@ -489,6 +490,7 @@ fn append_straight_line_branch_expansions(
         let RuntimeTransitionTarget::State {
             machine: target_machine,
             state: target_state,
+            ..
         } = &edge.target
         else {
             continue;
@@ -920,7 +922,7 @@ fn branch_target_lowering(
     native_plan: &NativePlan,
     target: &RuntimeTransitionTarget,
 ) -> RuntimeBranchTargetLowering {
-    let RuntimeTransitionTarget::State { machine, state } = target else {
+    let RuntimeTransitionTarget::State { machine, state, .. } = target else {
         return match target {
             RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {
                 RuntimeBranchTargetLowering::Terminal
@@ -1208,7 +1210,8 @@ fn runtime_transition_target(
     target: &PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
-        PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
+        PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
+            key: *key,
             machine: machine.name.clone(),
             state: name.clone(),
         },
@@ -1219,6 +1222,7 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
+                key: Default::default(),
                 machine: contained.type_name.clone(),
                 state: state.clone(),
             })
@@ -1226,6 +1230,7 @@ fn runtime_transition_target(
                 name: format!("{receiver}.{state}"),
             }),
         PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
+            key: Default::default(),
             machine: machine.name.clone(),
             state: current_state.to_owned().into(),
         },

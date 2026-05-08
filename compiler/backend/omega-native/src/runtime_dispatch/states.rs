@@ -237,7 +237,7 @@ fn terminal_continuation_edges(
 }
 
 fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {
-    let RuntimeTransitionTarget::State { machine, state } = target else {
+    let RuntimeTransitionTarget::State { machine, state, .. } = target else {
         return 0;
     };
 

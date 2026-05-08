@@ -1,4 +1,6 @@
-use crate::control_flow::{ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow};
+use crate::control_flow::{
+    ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateKey, TransitionFlow,
+};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::name::ProgramName;
@@ -14,12 +16,14 @@ pub struct RuntimeFlowPlan {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeState {
+    pub key: StateKey,
     pub machine: ProgramName,
     pub state: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
+    pub from: StateKey,
     pub from_machine: ProgramName,
     pub from_state: ProgramName,
     pub target: RuntimeTransitionTarget,
@@ -31,6 +35,7 @@ pub struct RuntimeEdge {
 impl Default for RuntimeEdge {
     fn default() -> Self {
         Self {
+            from: StateKey::default(),
             from_machine: ProgramName::default(),
             from_state: ProgramName::default(),
             target: RuntimeTransitionTarget::Terminal,
@@ -49,6 +54,7 @@ pub struct RuntimeCycle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTransitionTarget {
     State {
+        key: StateKey,
         machine: ProgramName,
         state: ProgramName,
     },
@@ -70,6 +76,21 @@ pub fn build_runtime_flow_plan(
     entry_machine: &str,
     entry_state: &str,
 ) -> Result<RuntimeFlowPlan, Diagnostic> {
+    let entry_machine_flow = control_flow
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name == entry_machine)
+        .map(|(_, machine)| machine)
+        .ok_or_else(|| Diagnostic::error(format!("unknown runtime machine `{entry_machine}`")))?;
+    let entry_state_flow = control_flow
+        .states
+        .span(entry_machine_flow.states)
+        .and_then(|states| states.iter().find(|state| state.name == entry_state))
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "unknown runtime state `{entry_machine}.{entry_state}`"
+            ))
+        })?;
     let mut builder = RuntimeFlowBuilder {
         control_flow,
         runtime_flow: RuntimeFlowPlan::default(),
@@ -78,8 +99,9 @@ pub fn build_runtime_flow_plan(
     };
 
     builder.visit_state(RuntimeState {
-        machine: ProgramName::generated(entry_machine),
-        state: ProgramName::generated(entry_state),
+        key: entry_state_flow.key,
+        machine: entry_machine_flow.name.clone(),
+        state: entry_state_flow.name.clone(),
     })?;
 
     Ok(builder.runtime_flow)
@@ -111,8 +133,9 @@ impl RuntimeFlowBuilder<'_> {
             return Ok(());
         }
 
-        let machine = self.machine_flow(&state_key.machine)?.clone();
-        let transition_span = self.state_flow(&machine, &state_key.state)?.transitions;
+        let machine = self.machine_flow_by_symbol(state_key.key.machine)?.clone();
+        let state = self.state_flow_by_key(state_key.key)?;
+        let transition_span = state.transitions;
         self.runtime_flow.states.insert(state_key.clone());
         self.reached_states.push(state_key.clone());
         self.active_states.push(state_key.clone());
@@ -123,8 +146,8 @@ impl RuntimeFlowBuilder<'_> {
             .span(transition_span)
             .ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "{}.{} has an invalid transition span",
-                    state_key.machine, state_key.state
+                    "{} has an invalid transition span",
+                    self.state_key_display(state_key.key)
                 ))
             })?
             .to_vec();
@@ -153,6 +176,7 @@ impl RuntimeFlowBuilder<'_> {
         let forms_cycle = self.target_is_active(&target);
 
         self.runtime_flow.edges.insert(RuntimeEdge {
+            from: from.key,
             from_machine: from.machine.clone(),
             from_state: from.state.clone(),
             target: target.clone(),
@@ -171,8 +195,17 @@ impl RuntimeFlowBuilder<'_> {
     }
 
     fn visit_target(&mut self, target: RuntimeTransitionTarget) -> Result<(), Diagnostic> {
-        if let RuntimeTransitionTarget::State { machine, state } = target {
-            self.visit_state(RuntimeState { machine, state })?;
+        if let RuntimeTransitionTarget::State {
+            key,
+            machine,
+            state,
+        } = target
+        {
+            self.visit_state(RuntimeState {
+                key,
+                machine,
+                state,
+            })?;
         }
 
         Ok(())
@@ -184,7 +217,8 @@ impl RuntimeFlowBuilder<'_> {
         target: &PlannedTransitionTarget,
     ) -> RuntimeTransitionTarget {
         match target {
-            PlannedTransitionTarget::State { name, .. } => RuntimeTransitionTarget::State {
+            PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
+                key: *key,
                 machine: machine.name.clone(),
                 state: name.clone(),
             },
@@ -194,14 +228,33 @@ impl RuntimeFlowBuilder<'_> {
                 .contains
                 .iter()
                 .find(|contained| contained.name == *receiver)
-                .map(|contained| RuntimeTransitionTarget::State {
-                    machine: contained.type_name.clone(),
-                    state: state.clone(),
+                .and_then(|contained| {
+                    self.control_flow
+                        .machines
+                        .iter()
+                        .find(|(_, machine)| machine.symbol == contained.type_symbol)
+                        .map(|(_, machine)| machine)
+                })
+                .and_then(|target_machine| {
+                    self.control_flow
+                        .states
+                        .span(target_machine.states)
+                        .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+                })
+                .map(|state| RuntimeTransitionTarget::State {
+                    key: state.key,
+                    machine: target_machine_name(machine, receiver).unwrap_or_default(),
+                    state: state.name.clone(),
                 })
                 .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                     name: format!("{receiver}.{state}"),
                 }),
             PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
+                key: self
+                    .active_states
+                    .last()
+                    .map(|active_state| active_state.key)
+                    .unwrap_or_default(),
                 machine: machine.name.clone(),
                 state: self
                     .active_states
@@ -214,18 +267,24 @@ impl RuntimeFlowBuilder<'_> {
     }
 
     fn target_is_active(&self, target: &RuntimeTransitionTarget) -> bool {
-        let RuntimeTransitionTarget::State { machine, state } = target else {
+        let RuntimeTransitionTarget::State { key, .. } = target else {
             return false;
         };
 
         self.active_states
             .iter()
-            .any(|active_state| active_state.machine == *machine && active_state.state == *state)
+            .any(|active_state| active_state.key == *key)
     }
 
     fn record_cycle_target(&mut self, target: &RuntimeTransitionTarget) {
-        if let RuntimeTransitionTarget::State { machine, state } = target {
+        if let RuntimeTransitionTarget::State {
+            key,
+            machine,
+            state,
+        } = target
+        {
             self.record_cycle_to(&RuntimeState {
+                key: *key,
                 machine: machine.clone(),
                 state: state.clone(),
             });
@@ -250,29 +309,62 @@ impl RuntimeFlowBuilder<'_> {
         self.runtime_flow.cycles.insert(RuntimeCycle { states });
     }
 
-    fn machine_flow(&self, machine_name: &str) -> Result<&MachineFlow, Diagnostic> {
+    fn machine_flow_by_symbol(
+        &self,
+        machine_symbol: omega_core::symbols::SymbolHandle,
+    ) -> Result<&MachineFlow, Diagnostic> {
         self.control_flow
             .machines
             .iter()
-            .find(|(_, machine)| machine.name == machine_name)
+            .find(|(_, machine)| machine.symbol == machine_symbol)
             .map(|(_, machine)| machine)
-            .ok_or_else(|| Diagnostic::error(format!("unknown runtime machine `{machine_name}`")))
-    }
-
-    fn state_flow(
-        &self,
-        machine: &MachineFlow,
-        state_name: &str,
-    ) -> Result<&crate::control_flow::StateFlow, Diagnostic> {
-        self.control_flow
-            .states
-            .span(machine.states)
-            .and_then(|states| states.iter().find(|state| state.name == state_name))
             .ok_or_else(|| {
                 Diagnostic::error(format!(
-                    "unknown runtime state `{}.{state_name}`",
-                    machine.name
+                    "unknown runtime machine symbol `{}`",
+                    machine_symbol.arena_index()
                 ))
             })
     }
+
+    fn state_flow_by_key(
+        &self,
+        key: StateKey,
+    ) -> Result<&crate::control_flow::StateFlow, Diagnostic> {
+        let machine = self.machine_flow_by_symbol(key.machine)?;
+        self.control_flow
+            .states
+            .span(machine.states)
+            .and_then(|states| states.iter().find(|state| state.key == key))
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "unknown runtime state `{}`",
+                    self.state_key_display(key)
+                ))
+            })
+    }
+
+    fn state_key_display(&self, key: StateKey) -> String {
+        let machine = self
+            .machine_flow_by_symbol(key.machine)
+            .map(|machine| machine.name.to_string())
+            .unwrap_or_else(|_| format!("symbol{}", key.machine.arena_index()));
+        let state = self
+            .state_flow_by_key(key)
+            .map(|state| state.name.to_string())
+            .unwrap_or_else(|_| format!("symbol{}", key.state.arena_index()));
+
+        if key.segment_index == 0 {
+            format!("{machine}.{state}")
+        } else {
+            format!("{machine}.{state}#{}", key.segment_index)
+        }
+    }
+}
+
+fn target_machine_name(machine: &MachineFlow, receiver: &ProgramName) -> Option<ProgramName> {
+    machine
+        .contains
+        .iter()
+        .find(|contained| contained.name == *receiver)
+        .map(|contained| contained.type_name.clone())
 }

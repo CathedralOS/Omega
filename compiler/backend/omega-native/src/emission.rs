@@ -1222,7 +1222,7 @@ fn dispatch_loop_guard_can_emit(
 
 fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
     match target {
-        RuntimeTransitionTarget::State { machine, state } => format!("{machine}.{state}"),
+        RuntimeTransitionTarget::State { machine, state, .. } => format!("{machine}.{state}"),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),

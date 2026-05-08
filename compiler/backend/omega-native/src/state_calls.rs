@@ -403,7 +403,7 @@ fn mark_required_state_calls(context: &StateAnalysisContext, calls: &mut [Collec
             for target in
                 transition_targets_from(context, machine_name.as_str(), state_name.as_str())
             {
-                if let RuntimeTransitionTarget::State { machine, state } = target {
+                if let RuntimeTransitionTarget::State { machine, state, .. } = target {
                     changed |= push_required_state(&mut required_states, machine, state);
                 }
             }
@@ -467,6 +467,7 @@ fn runtime_transition_target(
     match target {
         crate::control_flow::PlannedTransitionTarget::State { name, .. } => {
             RuntimeTransitionTarget::State {
+                key: Default::default(),
                 machine: machine.name.clone(),
                 state: name.clone(),
             }
@@ -478,6 +479,7 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| contained.name == *receiver)
             .map(|contained| RuntimeTransitionTarget::State {
+                key: Default::default(),
                 machine: contained.type_name.clone(),
                 state: state.clone(),
             })
@@ -486,6 +488,7 @@ fn runtime_transition_target(
             }),
         crate::control_flow::PlannedTransitionTarget::SelfTarget => {
             RuntimeTransitionTarget::State {
+                key: Default::default(),
                 machine: machine.name.clone(),
                 state: current_state.to_owned().into(),
             }
