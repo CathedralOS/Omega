@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::ast::identifier::IdentifierPath;
 use crate::ast::item::Item;
 use crate::lexer::{Lexer, Span};
 use crate::parser::AstFile;
@@ -606,7 +607,7 @@ fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
     })
 }
 
-fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
+fn resolve_source_path(root_dir: &Path, source_path: &IdentifierPath) -> PathBuf {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
         segments.next();
@@ -616,7 +617,7 @@ fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
     };
 
     for segment in segments {
-        path.push(segment);
+        path.push(segment.as_str());
     }
 
     path.set_extension("omg");
@@ -629,8 +630,9 @@ fn resolve_source_path(root_dir: &Path, source_path: &[String]) -> PathBuf {
     path.join("mod.omg")
 }
 
-fn is_bundled_omega_path(path: &[String]) -> bool {
-    path.first().is_some_and(|segment| segment == "omega")
+fn is_bundled_omega_path(path: &IdentifierPath) -> bool {
+    path.first()
+        .is_some_and(|segment| segment.as_str() == "omega")
 }
 
 fn bundled_omega_root() -> PathBuf {

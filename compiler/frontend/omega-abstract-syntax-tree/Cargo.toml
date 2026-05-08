@@ -9,3 +9,4 @@ name = "omega_abstract_syntax_tree"
 path = "src/lib.rs"
 
 [dependencies]
+omega-core = { path = "../../foundation/omega-core" }

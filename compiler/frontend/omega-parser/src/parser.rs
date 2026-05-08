@@ -3,6 +3,7 @@ use omega_abstract_syntax_tree::expression::{
     BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
+use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
 use omega_abstract_syntax_tree::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, Contains, DataDefinition, DataField, DataMember,
@@ -241,14 +242,14 @@ impl Parser<'_, '_> {
         }
     }
 
-    fn parse_path(&mut self) -> Result<Vec<String>, ParseError> {
-        let mut path = vec![self.expect_identifier()?];
+    fn parse_path(&mut self) -> Result<IdentifierPath, ParseError> {
+        let mut path = vec![self.expect_identifier_node()?];
 
         while self.consume("::") {
-            path.push(self.expect_identifier()?);
+            path.push(self.expect_identifier_node()?);
         }
 
-        Ok(path)
+        Ok(path.into())
     }
 
     fn skip_capability_contract_tokens(&mut self) -> usize {
@@ -1050,12 +1051,20 @@ impl Parser<'_, '_> {
     }
 
     fn expect_identifier(&mut self) -> Result<String, ParseError> {
+        Ok(self.expect_identifier_node()?.into_string())
+    }
+
+    fn expect_identifier_node(&mut self) -> Result<Identifier, ParseError> {
+        let file_id = self.file_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
 
         if token.kind == TokenKind::Identifier {
-            Ok(token.lexeme.as_str().to_owned())
+            Ok(Identifier::new(
+                token.lexeme.as_str(),
+                omega_core::source::SourceSpan::new(file_id, token.span),
+            ))
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }

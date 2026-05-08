@@ -1,3 +1,5 @@
+use crate::identifier::IdentifierPath;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
     Capability(CapabilityDefinition),
@@ -12,7 +14,7 @@ pub enum Item {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseItem {
-    pub path: Vec<String>,
+    pub path: IdentifierPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -79,7 +81,7 @@ pub struct TargetDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetHost {
-    pub provider: Vec<String>,
+    pub provider: IdentifierPath,
     pub settings: Vec<TargetHostSetting>,
 }
 
@@ -101,7 +103,7 @@ pub enum TargetHostSettingValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustPolicy {
     pub mode: TrustMode,
-    pub path: Vec<String>,
+    pub path: IdentifierPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
