@@ -3,10 +3,14 @@ mod free_stack;
 mod generational_paged_arena;
 mod handle;
 mod handle_span;
+mod hierarchy_arena;
 mod paged_arena;
 
 pub use arena::{Arena, ArenaIter};
 pub use generational_paged_arena::{GenerationalPagedArena, SlotRef};
 pub use handle::Handle;
 pub use handle_span::HandleSpan;
+pub use hierarchy_arena::{
+    HierarchyArena, HierarchyArenaBuilder, HierarchyChildHandles, HierarchyNode,
+};
 pub use paged_arena::{PagedArena, PagedArenaIter, PagedSlice, PagedSliceIter};
