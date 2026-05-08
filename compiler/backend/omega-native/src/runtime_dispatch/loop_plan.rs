@@ -167,13 +167,10 @@ pub struct RuntimeDispatchLoopContext {
 
 impl RuntimeDispatchLoopContext {
     pub fn from_native_plan(native_plan: &NativePlan) -> Self {
+        let entry_key = entry_state_key(native_plan);
         Self {
             needed: !native_plan.runtime_flow.cycles.is_empty(),
-            entry_dispatch_index: dispatch_index_for_state(
-                &native_plan.state_dispatch,
-                &native_plan.entry_machine,
-                &native_plan.entry_state,
-            ),
+            entry_dispatch_index: dispatch_index_for_key(&native_plan.state_dispatch, entry_key),
             state_guards: native_plan.state_guards.clone(),
             runtime_bodies: native_plan.runtime_bodies.clone(),
         }
@@ -263,18 +260,20 @@ fn build_runtime_dispatch_loop_case(
     }
 }
 
-fn dispatch_index_for_state(state_dispatch: &StateDispatchPlan, machine: &str, state: &str) -> u32 {
-    let Some(key) = state_dispatch
+fn entry_state_key(native_plan: &NativePlan) -> StateKey {
+    native_plan
+        .state_dispatch
         .states
         .iter()
         .find(|(_, dispatch_state)| {
-            dispatch_state.machine == machine && dispatch_state.state == state
+            dispatch_state.machine == native_plan.entry_machine
+                && dispatch_state.state == native_plan.entry_state
         })
         .map(|(_, dispatch_state)| dispatch_state.key)
-    else {
-        return 0;
-    };
+        .unwrap_or_default()
+}
 
+fn dispatch_index_for_key(state_dispatch: &StateDispatchPlan, key: StateKey) -> u32 {
     state_dispatch
         .states
         .iter()

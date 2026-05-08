@@ -31,10 +31,8 @@ impl StateAnalysisContext {
             .any(|(_, state)| Some(state.key) == state_key)
             || self.state_calls.calls.iter().any(|(_, state_call)| {
                 state_call.required
-                    && ((state_call.source_machine == machine_name
-                        && state_call.source_state == state_name)
-                        || (state_call.target_machine == machine_name
-                            && state_call.target_state == state_name))
+                    && (Some(state_call.source_key) == state_key
+                        || Some(state_call.target_key) == state_key)
             })
     }
 
