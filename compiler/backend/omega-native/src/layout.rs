@@ -272,7 +272,7 @@ impl<'program> LayoutBuilder<'program> {
             if self.machine_definition(&contained_object.type_name).is_ok() {
                 fields.push(PlannedField {
                     name: contained_object.name.to_string(),
-                    type_name: contained_object.type_name.clone(),
+                    type_name: contained_object.type_name.to_string(),
                     layout: self.layout_machine(&contained_object.type_name)?,
                 });
             }

@@ -21,6 +21,7 @@ use crate::state_schedule::build_entry_state_schedule;
 use crate::target::{NativeTarget, ObjectFormat};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeAliasBinding {
@@ -1709,7 +1710,7 @@ fn resolve_straight_line_binding_expression(
     }
 }
 
-fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression {
+fn append_place_suffix(expression: &Expression, suffix: &[ProgramName]) -> Expression {
     if suffix.is_empty() {
         return expression.clone();
     }
@@ -1737,7 +1738,7 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
 
 fn indexed_expression_path(
     indexed: &omega_typed_program::expression::IndexedExpression,
-) -> Option<Vec<String>> {
+) -> Option<Vec<ProgramName>> {
     let Expression::Integer(index) = &indexed.index else {
         return None;
     };
@@ -1747,7 +1748,7 @@ fn indexed_expression_path(
         _ => return None,
     };
     let last_segment = path.last_mut()?;
-    *last_segment = format!("{last_segment}[{index}]");
+    *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
     Some(path)
 }
 
@@ -2328,7 +2329,7 @@ fn text_expression_for_buffer_target(
     match target {
         omega_typed_program::expression::Expression::Name(path) => {
             let mut text_path = path.clone();
-            text_path.push("text".to_owned());
+            text_path.push(ProgramName::generated("text"));
             Some(omega_typed_program::expression::Expression::Name(text_path))
         }
         _ => None,
@@ -2567,7 +2568,7 @@ fn machine_storage_offset(
 fn resolve_nested_field_layout(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: &[String],
+    suffix: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_name = root_field.type_name.as_str();

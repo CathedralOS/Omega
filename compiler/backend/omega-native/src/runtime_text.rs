@@ -3,6 +3,7 @@ use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use crate::plan::NativePlan;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeTextPlan {
@@ -341,7 +342,7 @@ fn text_place_for_buffer_target(target: &Expression) -> Option<Expression> {
     match target {
         Expression::Name(path) => {
             let mut text_path = path.clone();
-            text_path.push("text".to_owned());
+            text_path.push(ProgramName::generated("text"));
             Some(Expression::Name(text_path))
         }
         _ => None,

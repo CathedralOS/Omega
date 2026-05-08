@@ -6,6 +6,7 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Call, Statement};
 use std::sync::Arc;
@@ -369,7 +370,7 @@ fn resolve_static_value(
     }
 }
 
-fn is_static_symbol_path(path: &[String]) -> bool {
+fn is_static_symbol_path(path: &[ProgramName]) -> bool {
     path.first()
         .and_then(|segment| segment.chars().next())
         .is_some_and(char::is_uppercase)
@@ -524,6 +525,6 @@ fn host_argument_from_static_value(value: StaticValue) -> HostCallArgumentKind {
 fn platform_call_name(call: &Call) -> String {
     match call.receiver.as_deref() {
         Some(receiver) => format!("{receiver}.{}", call.target),
-        None => call.target.clone(),
+        None => call.target.to_string(),
     }
 }

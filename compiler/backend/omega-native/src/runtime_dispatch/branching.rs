@@ -8,6 +8,7 @@ use crate::state_calls::{StateCall, StateCallArgumentKind, StateCallLowering};
 use crate::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -766,7 +767,7 @@ fn resolve_branch_expression(
     }
 }
 
-fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression {
+fn append_place_suffix(expression: &Expression, suffix: &[ProgramName]) -> Expression {
     if suffix.is_empty() {
         return expression.clone();
     }
@@ -794,7 +795,7 @@ fn append_place_suffix(expression: &Expression, suffix: &[String]) -> Expression
 
 fn indexed_expression_path(
     indexed: &omega_typed_program::expression::IndexedExpression,
-) -> Option<Vec<String>> {
+) -> Option<Vec<ProgramName>> {
     let Expression::Integer(index) = &indexed.index else {
         return None;
     };
@@ -804,7 +805,7 @@ fn indexed_expression_path(
         _ => return None,
     };
     let last_segment = path.last_mut()?;
-    *last_segment = format!("{last_segment}[{index}]");
+    *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
     Some(path)
 }
 

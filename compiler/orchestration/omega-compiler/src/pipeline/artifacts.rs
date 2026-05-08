@@ -298,13 +298,45 @@ impl ArtifactWriter {
             identity_storage.expression_path_members
         ));
         output.push_str(&format!(
+            "source expression path members: {}\n",
+            identity_storage.source_expression_path_members
+        ));
+        output.push_str(&format!(
+            "generated expression path members: {}\n",
+            identity_storage.generated_expression_path_members
+        ));
+        output.push_str(&format!(
             "transition path members: {}\n",
             identity_storage.transition_path_members
         ));
+        output.push_str(&format!(
+            "source transition path members: {}\n",
+            identity_storage.source_transition_path_members
+        ));
+        output.push_str(&format!(
+            "generated transition path members: {}\n",
+            identity_storage.generated_transition_path_members
+        ));
         output.push_str(&format!("call names: {}\n", identity_storage.call_names));
+        output.push_str(&format!(
+            "source call names: {}\n",
+            identity_storage.source_call_names
+        ));
+        output.push_str(&format!(
+            "generated call names: {}\n",
+            identity_storage.generated_call_names
+        ));
         output.push_str(&format!(
             "struct literal names: {}\n",
             identity_storage.struct_literal_names
+        ));
+        output.push_str(&format!(
+            "source struct literal names: {}\n",
+            identity_storage.source_struct_literal_names
+        ));
+        output.push_str(&format!(
+            "generated struct literal names: {}\n",
+            identity_storage.generated_struct_literal_names
         ));
         output.push_str(&format!(
             "string literals: {}\n",
@@ -2526,7 +2558,9 @@ fn proof_transition_target_name(
     target: &omega_typed_program::statement::TransitionTarget,
 ) -> String {
     match target {
-        omega_typed_program::statement::TransitionTarget::Named { path, .. } => path.join("."),
+        omega_typed_program::statement::TransitionTarget::Named { path, .. } => {
+            omega_typed_program::expression::display_name_path(path, ".")
+        }
         omega_typed_program::statement::TransitionTarget::SelfTarget => "self".to_owned(),
         omega_typed_program::statement::TransitionTarget::Terminal => "terminal".to_owned(),
     }

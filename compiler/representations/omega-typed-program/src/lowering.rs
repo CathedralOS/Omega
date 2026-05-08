@@ -898,7 +898,7 @@ fn lower_machine(
         .iter()
         .map(|contained_object| ContainedObject {
             name: lower_name(&contained_object.name),
-            type_name: contained_object.type_name.to_string(),
+            type_name: lower_name(&contained_object.type_name),
         })
         .collect();
 
@@ -1135,8 +1135,8 @@ fn lower_statement(
             }))
         }
         ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
-            receiver: call.receiver.as_ref().map(ToString::to_string),
-            target: call.target.to_string(),
+            receiver: call.receiver.as_ref().map(lower_name),
+            target: lower_name(&call.target),
             arguments: call
                 .arguments
                 .iter()
@@ -1187,8 +1187,8 @@ fn lower_transition_guard(
     }
 }
 
-fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> Vec<String> {
-    path.iter().map(ToString::to_string).collect()
+fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> Vec<ProgramName> {
+    path.iter().map(lower_name).collect()
 }
 
 fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
@@ -1223,13 +1223,13 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
         }
         ast::expression::Expression::StructLiteral(struct_literal) => {
             Ok(Expression::StructLiteral(StructLiteral {
-                type_name: struct_literal.type_name.to_string(),
+                type_name: lower_name(&struct_literal.type_name),
                 fields: struct_literal
                     .fields
                     .iter()
                     .map(|field| {
                         Ok(StructLiteralField {
-                            name: field.name.to_string(),
+                            name: lower_name(&field.name),
                             value: lower_expression(&field.value)?,
                         })
                     })
@@ -1299,7 +1299,7 @@ mod tests {
                 name: "main".into(),
                 contains: vec![ContainedObject {
                     name: "console".into(),
-                    type_name: "Console".to_owned(),
+                    type_name: "Console".into(),
                 }],
                 owned_data: Vec::new(),
                 states: vec![State {

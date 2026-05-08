@@ -228,7 +228,7 @@ fn mutation_kind(
 
 fn root_place_name(expression: &Expression) -> Option<&str> {
     match expression {
-        Expression::Name(path) => path.first().map(String::as_str),
+        Expression::Name(path) => path.first().map(|name| name.as_str()),
         Expression::Indexed(indexed) => root_place_name(&indexed.collection),
         Expression::Mutable(expression) => root_place_name(expression),
         _ => None,

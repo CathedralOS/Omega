@@ -1,3 +1,5 @@
+use crate::name::ProgramName;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     ArrayLiteral(Vec<Expression>),
@@ -7,7 +9,7 @@ pub enum Expression {
     Indexed(Box<IndexedExpression>),
     Integer(i64),
     Mutable(Box<Expression>),
-    Name(Vec<String>),
+    Name(Vec<ProgramName>),
     StructLiteral(StructLiteral),
     String(String),
 }
@@ -46,13 +48,13 @@ pub struct IndexedExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteral {
-    pub type_name: String,
+    pub type_name: ProgramName,
     pub fields: Vec<StructLiteralField>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteralField {
-    pub name: String,
+    pub name: ProgramName,
     pub value: Expression,
 }
 
@@ -81,11 +83,27 @@ impl Expression {
             }
             Expression::Integer(value) => value.to_string(),
             Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
-            Expression::Name(path) => path.join("::"),
-            Expression::StructLiteral(struct_literal) => struct_literal.type_name.clone(),
+            Expression::Name(path) => display_name_path(path, "::"),
+            Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Expression::String(value) => format!("{value:?}"),
         }
     }
+}
+
+pub fn display_name_path(path: &[ProgramName], separator: &str) -> String {
+    let byte_count = path.iter().map(|name| name.as_str().len()).sum::<usize>()
+        + separator.len().saturating_mul(path.len().saturating_sub(1));
+    let mut display_name = String::with_capacity(byte_count);
+
+    for (index, name) in path.iter().enumerate() {
+        if index > 0 {
+            display_name.push_str(separator);
+        }
+
+        display_name.push_str(name.as_str());
+    }
+
+    display_name
 }
 
 impl BinaryExpression {

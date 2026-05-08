@@ -14,7 +14,7 @@ pub struct Machine {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainedObject {
     pub name: ProgramName,
-    pub type_name: String,
+    pub type_name: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

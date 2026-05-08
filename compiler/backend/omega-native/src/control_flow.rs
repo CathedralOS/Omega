@@ -3,6 +3,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::display_name_path;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -277,7 +278,7 @@ fn build_machine_flow(
             .iter()
             .map(|contained| ContainedFlow {
                 name: contained.name.to_string(),
-                type_name: contained.type_name.clone(),
+                type_name: contained.type_name.to_string(),
             })
             .collect(),
         states,
@@ -383,8 +384,8 @@ fn operation_kind(statement: &Statement) -> OperationKind {
             value: assignment.value.clone(),
         },
         Statement::Call(call) => OperationKind::Call {
-            receiver: call.receiver.clone(),
-            target: call.target.clone(),
+            receiver: call.receiver.as_ref().map(ToString::to_string),
+            target: call.target.to_string(),
             arguments: call.arguments.clone(),
         },
         Statement::Expression(_) => OperationKind::Expression,
@@ -459,20 +460,20 @@ fn plan_transition_target(
 
             Ok(PlannedTransitionTarget::State {
                 index,
-                name,
+                name: name.to_string(),
                 arguments: arguments.clone(),
             })
         }
         TransitionTarget::Named {
             path, arguments, ..
         } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
-            receiver: path[0].clone(),
-            state: path[1].clone(),
+            receiver: path[0].to_string(),
+            state: path[1].to_string(),
             arguments: arguments.clone(),
         }),
         TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
             "unsupported transition target `{}`",
-            path.join(".")
+            display_name_path(path, ".")
         ))),
         TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
         TransitionTarget::Terminal => Ok(PlannedTransitionTarget::Terminal),

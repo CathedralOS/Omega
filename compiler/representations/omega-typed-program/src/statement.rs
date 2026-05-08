@@ -24,8 +24,8 @@ pub struct LocalData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    pub receiver: Option<String>,
-    pub target: String,
+    pub receiver: Option<ProgramName>,
+    pub target: ProgramName,
     pub arguments: Vec<Expression>,
 }
 
@@ -45,7 +45,7 @@ pub enum TransitionGuard {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named {
-        path: Vec<String>,
+        path: Vec<ProgramName>,
         arguments: Vec<Expression>,
     },
     SelfTarget,

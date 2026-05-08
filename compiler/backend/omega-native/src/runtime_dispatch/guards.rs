@@ -3,6 +3,7 @@ use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -397,7 +398,7 @@ fn machine_storage_offset(
 fn resolve_nested_field_layout(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
-    suffix: &[String],
+    suffix: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_name = root_field.type_name.as_str();
@@ -525,7 +526,7 @@ fn classify_guard_operand(expression: &Expression) -> StateGuardOperandKind {
     }
 }
 
-fn is_static_symbol_path(path: &[String]) -> bool {
+fn is_static_symbol_path(path: &[ProgramName]) -> bool {
     path.first()
         .and_then(|segment| segment.chars().next())
         .is_some_and(char::is_uppercase)

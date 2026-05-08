@@ -933,7 +933,7 @@ fn is_mutable_place(expression: &Expression) -> bool {
 fn expression_root_name(expression: &Expression) -> Option<&str> {
     match expression {
         Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
-        Expression::Name(path) => path.first().map(String::as_str),
+        Expression::Name(path) => path.first().map(|name| name.as_str()),
         _ => None,
     }
 }

@@ -404,8 +404,8 @@ fn collect_bounded_call_argument_obligations(
                 BoundedCallArgumentObligation {
                     machine: machine.name.to_string(),
                     state: state.name.to_string(),
-                    receiver: call.receiver.clone(),
-                    target: call.target.clone(),
+                    receiver: call.receiver.as_ref().map(ToString::to_string),
+                    target: call.target.to_string(),
                     parameter: parameter.name.to_string(),
                     argument: argument.clone(),
                     argument_constraints,

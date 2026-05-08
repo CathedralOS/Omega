@@ -14,9 +14,17 @@ pub struct IdentityStorageCounts {
     pub source_type_names: usize,
     pub generated_type_names: usize,
     pub expression_path_members: usize,
+    pub source_expression_path_members: usize,
+    pub generated_expression_path_members: usize,
     pub transition_path_members: usize,
+    pub source_transition_path_members: usize,
+    pub generated_transition_path_members: usize,
     pub call_names: usize,
+    pub source_call_names: usize,
+    pub generated_call_names: usize,
     pub struct_literal_names: usize,
+    pub source_struct_literal_names: usize,
+    pub generated_struct_literal_names: usize,
     pub string_literals: usize,
     pub float_literals: usize,
 }
@@ -25,10 +33,10 @@ impl IdentityStorageCounts {
     pub fn owned_identity_strings(self) -> usize {
         self.generated_declaration_names
             + self.generated_type_names
-            + self.expression_path_members
-            + self.transition_path_members
-            + self.call_names
-            + self.struct_literal_names
+            + self.generated_expression_path_members
+            + self.generated_transition_path_members
+            + self.generated_call_names
+            + self.generated_struct_literal_names
     }
 }
 
@@ -68,8 +76,8 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
         count_declaration_name(&machine.name, &mut counts);
         for contained in &machine.contains {
             count_declaration_name(&contained.name, &mut counts);
+            count_type_name(&contained.type_name, &mut counts);
         }
-        counts.type_names += machine.contains.len();
         for owned_data in &machine.owned_data {
             count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference(&owned_data.type_reference, &mut counts);
@@ -102,9 +110,9 @@ fn count_statement(statement: &Statement, counts: &mut IdentityStorageCounts) {
             count_expression(&assignment.value, counts);
         }
         Statement::Call(call) => {
-            counts.call_names += 1;
-            if call.receiver.is_some() {
-                counts.call_names += 1;
+            count_call_name(&call.target, counts);
+            if let Some(receiver) = &call.receiver {
+                count_call_name(receiver, counts);
             }
             for argument in &call.arguments {
                 count_expression(argument, counts);
@@ -140,7 +148,9 @@ fn count_declaration_name(name: &ProgramName, counts: &mut IdentityStorageCounts
 fn count_transition_target(target: &TransitionTarget, counts: &mut IdentityStorageCounts) {
     match target {
         TransitionTarget::Named { path, arguments } => {
-            counts.transition_path_members += path.len();
+            for name in path {
+                count_transition_path_member(name, counts);
+            }
             for argument in arguments {
                 count_expression(argument, counts);
             }
@@ -167,11 +177,15 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
             count_expression(&indexed.index, counts);
         }
         Expression::Mutable(expression) => count_expression(expression, counts),
-        Expression::Name(path) => counts.expression_path_members += path.len(),
+        Expression::Name(path) => {
+            for name in path {
+                count_expression_path_member(name, counts);
+            }
+        }
         Expression::StructLiteral(struct_literal) => {
-            counts.struct_literal_names += 1;
+            count_struct_literal_name(&struct_literal.type_name, counts);
             for field in &struct_literal.fields {
-                counts.struct_literal_names += 1;
+                count_struct_literal_name(&field.name, counts);
                 count_expression(&field.value, counts);
             }
         }
@@ -231,5 +245,45 @@ fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
         counts.source_type_names += 1;
     } else {
         counts.generated_type_names += 1;
+    }
+}
+
+fn count_expression_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.expression_path_members += 1;
+
+    if name.is_source_backed() {
+        counts.source_expression_path_members += 1;
+    } else {
+        counts.generated_expression_path_members += 1;
+    }
+}
+
+fn count_transition_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.transition_path_members += 1;
+
+    if name.is_source_backed() {
+        counts.source_transition_path_members += 1;
+    } else {
+        counts.generated_transition_path_members += 1;
+    }
+}
+
+fn count_call_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.call_names += 1;
+
+    if name.is_source_backed() {
+        counts.source_call_names += 1;
+    } else {
+        counts.generated_call_names += 1;
+    }
+}
+
+fn count_struct_literal_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
+    counts.struct_literal_names += 1;
+
+    if name.is_source_backed() {
+        counts.source_struct_literal_names += 1;
+    } else {
+        counts.generated_struct_literal_names += 1;
     }
 }
