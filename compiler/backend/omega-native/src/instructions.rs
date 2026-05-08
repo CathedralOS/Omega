@@ -329,8 +329,8 @@ fn select_runtime_dispatch_loop_instructions(
                 dispatch_index: dispatch_case.dispatch_index,
                 label: dispatch_case.label.clone(),
             },
-            source_machine: dispatch_case.machine.clone(),
-            source_state: dispatch_case.state.clone(),
+            source_machine: dispatch_case.machine.to_string(),
+            source_state: dispatch_case.state.to_string(),
             source_statement: 0,
         });
 
@@ -415,8 +415,8 @@ fn select_runtime_dispatch_loop_instructions(
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::LeaveDispatchCase,
-            source_machine: dispatch_case.machine.clone(),
-            source_state: dispatch_case.state.clone(),
+            source_machine: dispatch_case.machine.to_string(),
+            source_state: dispatch_case.state.to_string(),
             source_statement: 0,
         });
     }

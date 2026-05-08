@@ -8,6 +8,7 @@ use crate::state_guards::{
 };
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
 
@@ -24,8 +25,8 @@ pub struct RuntimeDispatchLoopPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCase {
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub dispatch_index: u32,
     pub label: String,
     pub operation_count: usize,
@@ -35,8 +36,8 @@ pub struct RuntimeDispatchLoopCase {
 impl Default for RuntimeDispatchLoopCase {
     fn default() -> Self {
         Self {
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             dispatch_index: 0,
             label: String::new(),
             operation_count: 0,
@@ -177,8 +178,8 @@ impl RuntimeDispatchLoopContext {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCaseInput {
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
     dispatch_index: u32,
     label: String,
     edges: Vec<DispatchEdge>,
@@ -186,8 +187,8 @@ pub struct RuntimeDispatchLoopCaseInput {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedRuntimeDispatchLoopCase {
-    machine: String,
-    state: String,
+    machine: ProgramName,
+    state: ProgramName,
     dispatch_index: u32,
     label: String,
     operation_count: usize,
@@ -200,8 +201,8 @@ pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDisp
         .states
         .iter()
         .map(|(_, state)| RuntimeDispatchLoopCaseInput {
-            machine: state.machine.to_string(),
-            state: state.state.to_string(),
+            machine: state.machine.clone(),
+            state: state.state.clone(),
             dispatch_index: state.dispatch_index,
             label: state.label.clone(),
             edges: native_plan

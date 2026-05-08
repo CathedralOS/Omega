@@ -5,6 +5,7 @@ use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
+use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct NativeStringStorage {
@@ -68,6 +69,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_state_dispatch_strings(native_plan, &mut storage);
     count_runtime_body_strings(native_plan, &mut storage);
     count_state_guard_strings(native_plan, &mut storage);
+    count_runtime_dispatch_loop_strings(native_plan, &mut storage);
     count_host_call_strings(native_plan, &mut storage);
     count_state_call_strings(native_plan, &mut storage);
     count_alias_flow_strings(native_plan, &mut storage);
@@ -207,6 +209,26 @@ fn count_state_guard_strings(native_plan: &NativePlan, storage: &mut NativeStrin
     }
     for (_, operand) in native_plan.state_guards.operands.iter() {
         count_expression_strings(&operand.expression, storage);
+    }
+}
+
+fn count_runtime_dispatch_loop_strings(
+    native_plan: &NativePlan,
+    storage: &mut NativeStringStorage,
+) {
+    storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.current_state_slot);
+    storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.next_state_slot);
+    for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
+        storage.count_program_name_identity(&dispatch_case.machine);
+        storage.count_program_name_identity(&dispatch_case.state);
+        storage.count_generated_symbol(&dispatch_case.label);
+    }
+    for (_, edge) in native_plan.runtime_dispatch_loop.edges.iter() {
+        count_runtime_target_strings(&edge.target, storage);
+        count_runtime_target_strings(&edge.continuation, storage);
+        if let TransitionGuard::When(expression) = &edge.guard {
+            count_expression_strings(expression, storage);
+        }
     }
 }
 
