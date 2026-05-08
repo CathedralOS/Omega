@@ -5,8 +5,7 @@ use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_dispatch::branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
-    RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
-    RuntimeStraightLineBranchOperationKind,
+    RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperationKind,
 };
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use crate::runtime_text::RuntimeTextBuilderSegmentKind;
@@ -16,13 +15,18 @@ use crate::state_schedule::{
 };
 use omega_core::arena::Arena;
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
+mod bindings;
 mod host_operations;
 mod lookups;
 mod model;
 mod storage_places;
 
+use bindings::{
+    RuntimeAliasBinding, append_place_suffix, resolve_leaf_binding_expression,
+    resolve_runtime_alias_expression, resolve_straight_line_binding_expression, set_runtime_alias,
+    strip_mutable_expression,
+};
 use host_operations::{
     runtime_machine_string_descriptor_offset, runtime_text_input_buffer_for_text_place,
     runtime_text_literal_write_for_host_call, select_host_call,
@@ -36,16 +40,9 @@ pub use model::{
     SelectedInstruction, SelectedInstructionKind,
 };
 use storage_places::{
-    enum_variant_value, indexed_expression_path, resolve_machine_owned_place,
-    resolve_runtime_storage_place, static_integer_value,
+    enum_variant_value, resolve_machine_owned_place, resolve_runtime_storage_place,
+    static_integer_value,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RuntimeAliasBinding {
-    source_key: StateKey,
-    parameter_name: ProgramName,
-    expression: Expression,
-}
 
 pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
     let mut instruction_plan = InstructionPlan {
@@ -329,17 +326,6 @@ fn bind_runtime_operation_aliases(
                 expression,
             },
         );
-    }
-}
-
-fn set_runtime_alias(aliases: &mut Vec<RuntimeAliasBinding>, alias: RuntimeAliasBinding) {
-    if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
-        existing_alias.source_key == alias.source_key
-            && existing_alias.parameter_name == alias.parameter_name
-    }) {
-        *existing_alias = alias;
-    } else {
-        aliases.push(alias);
     }
 }
 
@@ -793,42 +779,6 @@ fn set_runtime_static_value(static_values: &mut Vec<(String, i64)>, target: Stri
         *existing_value = value;
     } else {
         static_values.push((target, value));
-    }
-}
-
-fn strip_mutable_expression(expression: Expression) -> Expression {
-    match expression {
-        Expression::Mutable(target) => *target,
-        _ => expression,
-    }
-}
-
-fn resolve_runtime_alias_expression(
-    expression: &Expression,
-    source_key: StateKey,
-    aliases: &[RuntimeAliasBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => Expression::Mutable(Box::new(
-            resolve_runtime_alias_expression(target, source_key, aliases),
-        )),
-        Expression::Indexed(indexed) => Expression::Indexed(Box::new(
-            omega_typed_program::expression::IndexedExpression {
-                collection: resolve_runtime_alias_expression(
-                    &indexed.collection,
-                    source_key,
-                    aliases,
-                ),
-                index: resolve_runtime_alias_expression(&indexed.index, source_key, aliases),
-            },
-        )),
-        Expression::Name(path) if !path.is_empty() => aliases
-            .iter()
-            .rev()
-            .find(|alias| alias.source_key == source_key && alias.parameter_name == path[0])
-            .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
     }
 }
 
@@ -1371,92 +1321,6 @@ fn runtime_leaf_storage_copy(
         target,
         value,
     )
-}
-
-fn resolve_leaf_binding_expression(
-    expression: &Expression,
-    bindings: &[RuntimeLeafBranchBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_leaf_binding_expression(target, bindings);
-            if matches!(resolved_target, Expression::Mutable(_)) {
-                resolved_target
-            } else {
-                Expression::Mutable(Box::new(resolved_target))
-            }
-        }
-        Expression::Name(path) if !path.is_empty() => bindings
-            .iter()
-            .find(|binding| {
-                binding.parameter_name == path[0]
-                    && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
-            })
-            .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| binding.parameter_name == path[0])
-            })
-            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
-    }
-}
-
-fn resolve_straight_line_binding_expression(
-    expression: &Expression,
-    bindings: &[RuntimeStraightLineBranchBinding],
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_straight_line_binding_expression(target, bindings);
-            if matches!(resolved_target, Expression::Mutable(_)) {
-                resolved_target
-            } else {
-                Expression::Mutable(Box::new(resolved_target))
-            }
-        }
-        Expression::Name(path) if !path.is_empty() => bindings
-            .iter()
-            .find(|binding| {
-                binding.parameter_name == path[0]
-                    && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
-            })
-            .or_else(|| {
-                bindings
-                    .iter()
-                    .find(|binding| binding.parameter_name == path[0])
-            })
-            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
-    }
-}
-
-fn append_place_suffix(expression: &Expression, suffix: &[ProgramName]) -> Expression {
-    if suffix.is_empty() {
-        return expression.clone();
-    }
-
-    match expression {
-        Expression::Name(path) => {
-            let mut resolved_path = path.clone();
-            resolved_path.extend_from_slice(suffix);
-            Expression::Name(resolved_path)
-        }
-        Expression::Indexed(indexed) => {
-            if let Some(mut indexed_path) = indexed_expression_path(indexed) {
-                indexed_path.extend_from_slice(suffix);
-                Expression::Name(indexed_path)
-            } else {
-                expression.clone()
-            }
-        }
-        Expression::Mutable(target) => {
-            Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
-        }
-        _ => expression.clone(),
-    }
 }
 
 fn select_state_body_instructions(
