@@ -26,9 +26,9 @@ pub struct RuntimeBranchingCallPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeBranchAlias {
-    machine: String,
-    state: String,
-    parameter_name: String,
+    machine: ProgramName,
+    state: ProgramName,
+    parameter_name: ProgramName,
     expression: Expression,
 }
 
@@ -148,7 +148,7 @@ impl Default for RuntimeLeafBranchExpansion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchBinding {
-    pub parameter_name: String,
+    pub parameter_name: ProgramName,
     pub expression: Expression,
     pub kind: RuntimeLeafBranchBindingKind,
 }
@@ -156,7 +156,7 @@ pub struct RuntimeLeafBranchBinding {
 impl Default for RuntimeLeafBranchBinding {
     fn default() -> Self {
         Self {
-            parameter_name: String::new(),
+            parameter_name: ProgramName::default(),
             expression: Expression::Integer(0),
             kind: RuntimeLeafBranchBindingKind::BranchParameter,
         }
@@ -245,7 +245,7 @@ impl Default for RuntimeStraightLineBranchExpansion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchBinding {
-    pub parameter_name: String,
+    pub parameter_name: ProgramName,
     pub expression: Expression,
     pub kind: RuntimeStraightLineBranchBindingKind,
 }
@@ -253,7 +253,7 @@ pub struct RuntimeStraightLineBranchBinding {
 impl Default for RuntimeStraightLineBranchBinding {
     fn default() -> Self {
         Self {
-            parameter_name: String::new(),
+            parameter_name: ProgramName::default(),
             expression: Expression::Integer(0),
             kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
         }
@@ -533,7 +533,7 @@ fn append_straight_line_branch_expansions(
 }
 
 fn leaf_branch_bindings<'a>(
-    branch_bindings: &'a [(String, Expression)],
+    branch_bindings: &'a [(ProgramName, Expression)],
     native_plan: &NativePlan,
     _branch_machine: &str,
     _branch_state: &str,
@@ -566,7 +566,7 @@ fn leaf_branch_bindings<'a>(
 }
 
 fn straight_line_branch_bindings<'a>(
-    branch_bindings: &'a [(String, Expression)],
+    branch_bindings: &'a [(ProgramName, Expression)],
     native_plan: &NativePlan,
     target_machine: &str,
     target_state: &str,
@@ -597,7 +597,7 @@ fn straight_line_branch_bindings<'a>(
 
 fn resolve_branch_guard(
     guard: &TransitionGuard,
-    branch_bindings: &[(String, Expression)],
+    branch_bindings: &[(ProgramName, Expression)],
 ) -> TransitionGuard {
     match guard {
         TransitionGuard::Always => TransitionGuard::Always,
@@ -611,7 +611,7 @@ fn branch_parameter_bindings(
     native_plan: &NativePlan,
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
-) -> Vec<(String, Expression)> {
+) -> Vec<(ProgramName, Expression)> {
     native_plan
         .state_calls
         .arguments
@@ -628,7 +628,7 @@ fn branch_parameter_bindings(
                         argument.expression.clone()
                     };
                     (
-                        argument.parameter_name.to_string(),
+                        argument.parameter_name.clone(),
                         resolve_runtime_branch_alias_expression(
                             &expression,
                             &state_call.source_machine,
@@ -662,9 +662,9 @@ fn bind_runtime_branch_aliases(
         set_runtime_branch_alias(
             aliases,
             RuntimeBranchAlias {
-                machine: state_call.target_machine.to_string(),
-                state: state_call.target_state.to_string(),
-                parameter_name: argument.parameter_name.to_string(),
+                machine: state_call.target_machine.clone(),
+                state: state_call.target_state.clone(),
+                parameter_name: argument.parameter_name.clone(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
                     &state_call.source_machine,
@@ -690,8 +690,8 @@ fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: Runtim
 
 fn resolve_runtime_branch_alias_expression(
     expression: &Expression,
-    source_machine: &str,
-    source_state: &str,
+    source_machine: &ProgramName,
+    source_state: &ProgramName,
     aliases: &[RuntimeBranchAlias],
 ) -> Expression {
     match expression {
@@ -728,8 +728,8 @@ fn resolve_runtime_branch_alias_expression(
             .iter()
             .rev()
             .find(|alias| {
-                alias.machine == source_machine
-                    && alias.state == source_state
+                alias.machine == *source_machine
+                    && alias.state == *source_state
                     && alias.parameter_name == path[0]
             })
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
@@ -740,7 +740,7 @@ fn resolve_runtime_branch_alias_expression(
 
 fn resolve_branch_expression(
     expression: &Expression,
-    branch_bindings: &[(String, Expression)],
+    branch_bindings: &[(ProgramName, Expression)],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
@@ -1177,11 +1177,15 @@ fn state_call_for_operation<'plan>(
         .map(|(_, state_call)| state_call)
 }
 
-fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> Vec<String> {
+fn state_parameters(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Vec<ProgramName> {
     machine_flow(native_plan, machine_name)
         .and_then(|machine| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
+        .map(|state| state.parameters.to_vec())
         .unwrap_or_default()
 }
 

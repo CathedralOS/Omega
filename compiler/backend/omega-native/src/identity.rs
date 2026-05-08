@@ -226,7 +226,7 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         count_guard_strings(&expansion.resolved_guard, storage);
     }
     for (_, binding) in native_plan.runtime_branching_calls.leaf_bindings.iter() {
-        storage.count_identity(&binding.parameter_name);
+        storage.count_program_name_identity(&binding.parameter_name);
         count_expression_strings(&binding.expression, storage);
     }
     for (_, operation) in native_plan.runtime_branching_calls.leaf_operations.iter() {
@@ -266,7 +266,7 @@ fn count_runtime_branching_strings(native_plan: &NativePlan, storage: &mut Nativ
         .straight_line_bindings
         .iter()
     {
-        storage.count_identity(&binding.parameter_name);
+        storage.count_program_name_identity(&binding.parameter_name);
         count_expression_strings(&binding.expression, storage);
     }
     for (_, operation) in native_plan

@@ -25,9 +25,9 @@ use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeAliasBinding {
-    machine: String,
-    state: String,
-    parameter_name: String,
+    machine: ProgramName,
+    state: ProgramName,
+    parameter_name: ProgramName,
     expression: Expression,
 }
 
@@ -513,9 +513,9 @@ fn bind_runtime_operation_aliases(
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {
-                machine: state_call.target_machine.to_string(),
-                state: state_call.target_state.to_string(),
-                parameter_name: argument.parameter_name.to_string(),
+                machine: state_call.target_machine.clone(),
+                state: state_call.target_state.clone(),
+                parameter_name: argument.parameter_name.clone(),
                 expression,
             },
         );
@@ -1885,7 +1885,11 @@ fn state_call_for_statement<'plan>(
         .map(|(_, state_call)| state_call)
 }
 
-fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> Vec<String> {
+fn state_parameters(
+    native_plan: &NativePlan,
+    machine_name: &str,
+    state_name: &str,
+) -> Vec<ProgramName> {
     native_plan
         .control_flow
         .machines
@@ -1893,7 +1897,7 @@ fn state_parameters(native_plan: &NativePlan, machine_name: &str, state_name: &s
         .find(|(_, machine)| machine.name == machine_name)
         .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .map(|state| state.parameters.iter().map(ToString::to_string).collect())
+        .map(|state| state.parameters.to_vec())
         .unwrap_or_default()
 }
 
