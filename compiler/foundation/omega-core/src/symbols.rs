@@ -219,6 +219,36 @@ impl SymbolTable {
         Some(current)
     }
 
+    pub fn display_path(&self, symbol: SymbolHandle, separator: &str) -> String {
+        if !symbol.is_valid() {
+            return String::new();
+        }
+
+        let mut names = Vec::new();
+        let mut current = symbol;
+
+        while current.is_valid() && current != self.root {
+            names.push(self.name(current));
+            current = self.get(current).parent;
+        }
+
+        let byte_count = names.iter().map(|name| name.len()).sum::<usize>()
+            + separator
+                .len()
+                .saturating_mul(names.len().saturating_sub(1));
+        let mut path = String::with_capacity(byte_count);
+
+        for (index, name) in names.iter().rev().enumerate() {
+            if index > 0 {
+                path.push_str(separator);
+            }
+
+            path.push_str(name);
+        }
+
+        path
+    }
+
     pub fn path_from_members(
         &mut self,
         root: SymbolHandle,
@@ -463,6 +493,35 @@ mod tests {
             None
         );
         assert_eq!(symbols.path_member_arena().len(), 0);
+    }
+
+    #[test]
+    fn formats_symbol_display_path_from_parent_chain() {
+        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
+            SymbolKind::Root,
+            "root",
+            [SymbolDefinition::with_children(
+                SymbolKind::Machine,
+                "main",
+                [SymbolDefinition::with_children(
+                    SymbolKind::Object,
+                    "console",
+                    [SymbolDefinition::named(SymbolKind::State, "write_line")],
+                )],
+            )],
+        ));
+        let write_line = symbols
+            .find_descendant_by_path(symbols.root(), ["main", "console", "write_line"])
+            .expect("write_line should resolve");
+
+        assert_eq!(
+            symbols.display_path(write_line, "::"),
+            "main::console::write_line"
+        );
+        assert_eq!(
+            symbols.display_path(super::SymbolHandle::invalid(), "::"),
+            ""
+        );
     }
 
     #[test]

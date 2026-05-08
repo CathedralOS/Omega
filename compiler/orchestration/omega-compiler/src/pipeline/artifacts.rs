@@ -5,7 +5,6 @@ use crate::ast::item::Item;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::{SymbolHandle, SymbolTable};
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_names::ResolveReport;
@@ -149,8 +148,7 @@ impl ArtifactWriter {
 
         output.push_str("\n## References\n");
         for (_, reference) in resolve_report.references.iter() {
-            let resolved_path =
-                resolved_symbol_display_path(&resolve_report.symbols, reference.symbol);
+            let resolved_path = resolve_report.symbols.display_path(reference.symbol, "::");
             let resolved_suffix = if resolved_path.is_empty() {
                 " unresolved".to_owned()
             } else {
@@ -1889,24 +1887,6 @@ fn format_signed_bytes(bytes: i128) -> String {
     } else {
         format_bytes(bytes as u64)
     }
-}
-
-fn resolved_symbol_display_path(symbols: &SymbolTable, symbol: SymbolHandle) -> String {
-    if !symbol.is_valid() {
-        return String::new();
-    }
-
-    let root = symbols.root();
-    let mut names = Vec::new();
-    let mut current = symbol;
-
-    while current.is_valid() && current != root {
-        names.push(symbols.name(current).to_owned());
-        current = symbols.get(current).parent;
-    }
-
-    names.reverse();
-    names.join("::")
 }
 
 fn write_loaded_file(output: &mut String, file: &LoadedFile) {
