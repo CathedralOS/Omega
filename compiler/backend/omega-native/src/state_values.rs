@@ -1,4 +1,5 @@
 use crate::plan::NativePlan;
+use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
@@ -64,14 +65,14 @@ pub fn build_state_value_plan(program: &Program, native_plan: &NativePlan) -> St
 
     build_state_value_plan_with_workers(
         Arc::new(program.clone()),
-        Arc::new(native_plan.clone()),
+        Arc::new(StateAnalysisContext::from_native_plan(native_plan)),
         workers.handle(),
     )
 }
 
 pub fn build_state_value_plan_with_workers(
     program: Arc<Program>,
-    native_plan: Arc<NativePlan>,
+    context: Arc<StateAnalysisContext>,
     workers: WorkerPoolHandle,
 ) -> StateValuePlan {
     if program.machines.is_empty() {
@@ -85,7 +86,7 @@ pub fn build_state_value_plan_with_workers(
             .get(index)
             .expect("state-value worker index should be in range");
 
-        build_machine_state_value_plan(&native_plan, machine)
+        build_machine_state_value_plan(&context, machine)
     });
 
     let mut plan = StateValuePlan::default();
@@ -98,11 +99,14 @@ pub fn build_state_value_plan_with_workers(
     plan
 }
 
-fn build_machine_state_value_plan(native_plan: &NativePlan, machine: &Machine) -> StateValuePlan {
+fn build_machine_state_value_plan(
+    context: &StateAnalysisContext,
+    machine: &Machine,
+) -> StateValuePlan {
     let mut plan = StateValuePlan::default();
 
     for state in &machine.states {
-        let required = state_is_required(native_plan, &machine.name, &state.name);
+        let required = context.state_is_required(&machine.name, &state.name);
 
         for (statement_index, statement) in state.statements.iter().enumerate() {
             match statement {
@@ -248,19 +252,4 @@ fn value_kind(expression: &Expression) -> StateValueKind {
         Expression::Mutable(_) => StateValueKind::MutablePlace,
         Expression::StructLiteral(_) => StateValueKind::Struct,
     }
-}
-
-fn state_is_required(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> bool {
-    native_plan
-        .runtime_flow
-        .states
-        .iter()
-        .any(|(_, state)| state.machine == machine_name && state.state == state_name)
-        || native_plan.state_calls.calls.iter().any(|(_, state_call)| {
-            state_call.required
-                && ((state_call.source_machine == machine_name
-                    && state_call.source_state == state_name)
-                    || (state_call.target_machine == machine_name
-                        && state_call.target_state == state_name))
-        })
 }

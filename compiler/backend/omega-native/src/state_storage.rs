@@ -1,5 +1,5 @@
-use crate::control_flow::OperationKind;
 use crate::plan::NativePlan;
+use crate::state_analysis::StateAnalysisContext;
 use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
@@ -75,14 +75,14 @@ pub fn build_state_storage_plan(program: &Program, native_plan: &NativePlan) -> 
 
     build_state_storage_plan_with_workers(
         Arc::new(program.clone()),
-        Arc::new(native_plan.clone()),
+        Arc::new(StateAnalysisContext::from_native_plan(native_plan)),
         workers.handle(),
     )
 }
 
 pub fn build_state_storage_plan_with_workers(
     program: Arc<Program>,
-    native_plan: Arc<NativePlan>,
+    context: Arc<StateAnalysisContext>,
     workers: WorkerPoolHandle,
 ) -> StateStoragePlan {
     if program.machines.is_empty() {
@@ -96,7 +96,7 @@ pub fn build_state_storage_plan_with_workers(
             .get(index)
             .expect("state-storage worker index should be in range");
 
-        build_machine_state_storage_plan(&program, &native_plan, machine)
+        build_machine_state_storage_plan(&program, &context, machine)
     });
 
     let mut plan = StateStoragePlan::default();
@@ -117,13 +117,13 @@ pub fn build_state_storage_plan_with_workers(
 
 fn build_machine_state_storage_plan(
     program: &Program,
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     machine: &Machine,
 ) -> StateStoragePlan {
     let mut plan = StateStoragePlan::default();
 
     for state in &machine.states {
-        let required = state_is_required(native_plan, &machine.name, &state.name);
+        let required = context.state_is_required(&machine.name, &state.name);
 
         for (statement_index, statement) in state.statements.iter().enumerate() {
             match statement {
@@ -148,7 +148,7 @@ fn build_machine_state_storage_plan(
                         value: assignment.value.clone(),
                         mutation_kind,
                         lowering: mutation_lowering(
-                            native_plan,
+                            context,
                             &machine.name,
                             &state.name,
                             statement_index,
@@ -166,13 +166,13 @@ fn build_machine_state_storage_plan(
 }
 
 fn mutation_lowering(
-    native_plan: &NativePlan,
+    context: &StateAnalysisContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
     mutation_kind: StateMutationKind,
 ) -> StateMutationLowering {
-    if state_mutation_is_already_lowered(native_plan, machine_name, state_name, statement_index) {
+    if context.state_mutation_is_already_lowered(machine_name, state_name, statement_index) {
         return StateMutationLowering::AlreadyLowered;
     }
 
@@ -182,42 +182,6 @@ fn mutation_lowering(
         StateMutationKind::ParameterOrAlias => StateMutationLowering::NeedsAliasWrite,
         StateMutationKind::Unknown => StateMutationLowering::Unknown,
     }
-}
-
-fn state_mutation_is_already_lowered(
-    native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
-    statement_index: usize,
-) -> bool {
-    let Some(machine) = native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .map(|(_, machine)| machine)
-    else {
-        return false;
-    };
-    let Some(state) = native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-    else {
-        return false;
-    };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
-        return false;
-    };
-
-    operations.iter().any(|operation| {
-        operation.statement_index == statement_index
-            && matches!(
-                operation.kind,
-                OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment { .. }
-            )
-    })
 }
 
 fn mutation_kind(
@@ -269,19 +233,4 @@ fn root_place_name(expression: &Expression) -> Option<&str> {
         Expression::Mutable(expression) => root_place_name(expression),
         _ => None,
     }
-}
-
-fn state_is_required(native_plan: &NativePlan, machine_name: &str, state_name: &str) -> bool {
-    native_plan
-        .runtime_flow
-        .states
-        .iter()
-        .any(|(_, state)| state.machine == machine_name && state.state == state_name)
-        || native_plan.state_calls.calls.iter().any(|(_, state_call)| {
-            state_call.required
-                && ((state_call.source_machine == machine_name
-                    && state_call.source_state == state_name)
-                    || (state_call.target_machine == machine_name
-                        && state_call.target_state == state_name))
-        })
 }

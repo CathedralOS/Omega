@@ -18,6 +18,7 @@ use crate::runtime_dispatch::loop_plan::{
 use crate::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
 use crate::runtime_storage::{RuntimeStoragePlan, build_runtime_storage_plan};
 use crate::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
+use crate::state_analysis::StateAnalysisContext;
 use crate::state_calls::{StateCallPlan, build_state_call_plan};
 use crate::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
 use crate::state_guards::{StateGuardPlan, build_state_guard_plan};
@@ -140,25 +141,25 @@ pub fn build_native_plan_with_workers(
     };
     native_plan.state_calls = build_state_call_plan(&native_plan);
     native_plan.alias_flow = build_alias_flow_plan(&native_plan);
-    let state_analysis_plan = Arc::new(native_plan.clone());
+    let state_analysis_context = Arc::new(StateAnalysisContext::from_native_plan(&native_plan));
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
-    let state_storage_plan = Arc::clone(&state_analysis_plan);
-    let state_values_plan = Arc::clone(&state_analysis_plan);
+    let state_storage_context = Arc::clone(&state_analysis_context);
+    let state_values_context = Arc::clone(&state_analysis_context);
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();
     let (state_storage, state_values) = workers.join2(
         move || {
             build_state_storage_plan_with_workers(
                 state_storage_program,
-                state_storage_plan,
+                state_storage_context,
                 state_storage_workers,
             )
         },
         move || {
             build_state_value_plan_with_workers(
                 state_values_program,
-                state_values_plan,
+                state_values_context,
                 state_values_workers,
             )
         },
