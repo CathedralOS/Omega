@@ -18,6 +18,35 @@ use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use omega_object::{RelocationPlan, RelocationRecord};
 
+struct InstructionRelocationContext<'plan, 'relocations> {
+    native_plan: &'plan NativePlan,
+    function: &'plan FunctionInstructionPlan,
+    selected_instruction_index: u32,
+    selected_text_offset: usize,
+    relocation_plan: &'relocations mut RelocationPlan,
+}
+
+impl InstructionRelocationContext<'_, '_> {
+    fn insert_data_address(&mut self, byte_offset: usize, symbol: &str) {
+        insert_data_address_relocations(
+            self.native_plan.target.architecture,
+            self.relocation_plan,
+            self.function,
+            self.selected_instruction_index,
+            byte_offset,
+            symbol,
+        );
+    }
+
+    fn insert_data_address_at_instruction_start(&mut self, symbol: &str) {
+        self.insert_data_address(self.selected_text_offset, symbol);
+    }
+
+    fn insert_data_address_at_relative_offset(&mut self, relative_offset: usize, symbol: &str) {
+        self.insert_data_address(self.selected_text_offset + relative_offset, symbol);
+    }
+}
+
 pub(super) fn collect_instruction_relocations(
     native_plan: &NativePlan,
     function: &FunctionInstructionPlan,
@@ -26,6 +55,14 @@ pub(super) fn collect_instruction_relocations(
     instruction: &SelectedInstruction,
     relocation_plan: &mut RelocationPlan,
 ) {
+    let mut context = InstructionRelocationContext {
+        native_plan,
+        function,
+        selected_instruction_index,
+        selected_text_offset,
+        relocation_plan,
+    };
+
     match &instruction.kind {
         SelectedInstructionKind::HostOperation {
             capability,
@@ -38,7 +75,7 @@ pub(super) fn collect_instruction_relocations(
                 selected_instruction_index,
                 *operands,
                 selected_text_offset,
-                relocation_plan,
+                context.relocation_plan,
             );
 
             let Some(binding) = find_host_binding(native_plan, capability, operation) else {
@@ -49,7 +86,7 @@ pub(super) fn collect_instruction_relocations(
                 return;
             };
 
-            relocation_plan.records.insert(RelocationRecord {
+            context.relocation_plan.records.insert(RelocationRecord {
                 function_symbol: function.symbol.clone(),
                 selected_instruction_index,
                 text_offset: external_call_relocation_offset(
@@ -72,99 +109,40 @@ pub(super) fn collect_instruction_relocations(
             has_storage: true,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                &machine_storage_symbol_name(&native_plan.entry_machine),
-            );
+            context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
+                &native_plan.entry_machine,
+            ));
         }
         SelectedInstructionKind::CompareRuntimeTextLiteral { buffer_symbol, .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
+            context.insert_data_address_at_instruction_start(buffer_symbol);
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
             buffer_symbol,
             source_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset + 8,
-                source_symbol,
-            );
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(8, source_symbol);
         }
         SelectedInstructionKind::CompareRuntimeStorage {
             left_symbol,
             right_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                left_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_storage_compare_right_address_offset(native_plan.target.architecture),
+            context.insert_data_address_at_instruction_start(left_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_storage_compare_right_address_offset(native_plan.target.architecture),
                 right_symbol,
             );
         }
         SelectedInstructionKind::CompareRuntimeStorageValue { symbol, .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                symbol,
-            );
+            context.insert_data_address_at_instruction_start(symbol);
         }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer_symbol, .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
+            context.insert_data_address_at_instruction_start(buffer_symbol);
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer_symbol, .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
+            context.insert_data_address_at_instruction_start(buffer_symbol);
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_symbol,
@@ -172,34 +150,13 @@ pub(super) fn collect_instruction_relocations(
             target_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_stored_suffix_source_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_suffix_source_address_offset(native_plan.target.architecture),
                 source_symbol,
             );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_stored_suffix_target_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_suffix_target_address_offset(native_plan.target.architecture),
                 target_symbol,
             );
         }
@@ -209,34 +166,13 @@ pub(super) fn collect_instruction_relocations(
             target_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_stored_place_target_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_place_target_address_offset(native_plan.target.architecture),
                 target_symbol,
             );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_stored_place_source_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_place_source_address_offset(native_plan.target.architecture),
                 source_symbol,
             );
         }
@@ -245,23 +181,9 @@ pub(super) fn collect_instruction_relocations(
             target_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_literal_append_target_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_literal_append_target_address_offset(native_plan.target.architecture),
                 target_symbol,
             );
         }
@@ -270,52 +192,23 @@ pub(super) fn collect_instruction_relocations(
             target_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_buffer_materialize_target_address_offset(
-                        native_plan.target.architecture,
-                    ),
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_buffer_materialize_target_address_offset(
+                    native_plan.target.architecture,
+                ),
                 target_symbol,
             );
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                &machine_storage_symbol_name(&native_plan.entry_machine),
-            );
+            context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
+                &native_plan.entry_machine,
+            ));
         }
         SelectedInstructionKind::WriteRuntimeMachineString { data_symbol, .. } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                data_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + string_descriptor_machine_address_offset(native_plan.target.architecture),
+            context.insert_data_address_at_instruction_start(data_symbol);
+            context.insert_data_address_at_relative_offset(
+                string_descriptor_machine_address_offset(native_plan.target.architecture),
                 &machine_storage_symbol_name(&native_plan.entry_machine),
             );
         }
@@ -325,24 +218,12 @@ pub(super) fn collect_instruction_relocations(
             syscall_number,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                buffer_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_text_line_read_target_address_offset(
-                        native_plan.target.architecture,
-                        *syscall_number,
-                    ),
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_line_read_target_address_offset(
+                    native_plan.target.architecture,
+                    *syscall_number,
+                ),
                 target_symbol,
             );
         }
@@ -351,21 +232,9 @@ pub(super) fn collect_instruction_relocations(
             target_symbol,
             ..
         } => {
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset,
-                source_symbol,
-            );
-            insert_data_address_relocations(
-                native_plan.target.architecture,
-                relocation_plan,
-                function,
-                selected_instruction_index,
-                selected_text_offset
-                    + runtime_storage_copy_target_address_offset(native_plan.target.architecture),
+            context.insert_data_address_at_instruction_start(source_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_storage_copy_target_address_offset(native_plan.target.architecture),
                 target_symbol,
             );
         }
