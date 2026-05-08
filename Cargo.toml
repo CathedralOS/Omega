@@ -13,6 +13,7 @@ members = [
     "compiler/semantics/omega-proof",
     "compiler/representations/omega-typed-program",
     "compiler/backend/omega-target",
+    "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-native",
     "compiler/orchestration/omega-compiler",
 ]

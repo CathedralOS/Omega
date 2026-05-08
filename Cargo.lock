@@ -79,6 +79,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-calling-conventions"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-target",
+]
+
+[[package]]
 name = "omega-cli"
 version = "0.1.0"
 dependencies = [
@@ -147,6 +155,7 @@ name = "omega-native"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",
+ "omega-calling-conventions",
  "omega-core",
  "omega-target",
  "omega-typed-program",

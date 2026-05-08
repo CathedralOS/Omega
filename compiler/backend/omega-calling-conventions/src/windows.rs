@@ -1,9 +1,9 @@
-use crate::abi::{
+use crate::{
     HostAbiPlan, HostBinding, HostBindingMechanism, PlatformCallData, host_operation,
     insert_platform_lowering,
 };
 
-pub(super) fn populate(plan: &mut HostAbiPlan) {
+pub(crate) fn populate(plan: &mut HostAbiPlan) {
     plan.bindings.insert_many([
         windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
         windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
