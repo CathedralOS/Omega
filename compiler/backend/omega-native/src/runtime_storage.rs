@@ -10,6 +10,7 @@ use crate::target::NativeTarget;
 use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::types::PrimitiveType;
 use std::sync::Arc;
 
@@ -22,10 +23,10 @@ pub struct RuntimeStoragePlan {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
-    pub name: String,
+    pub name: ProgramName,
     pub type_name: String,
     pub byte_offset: usize,
     pub byte_size: usize,
@@ -35,8 +36,8 @@ pub struct RuntimeFrameSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStorageWrite {
     pub dispatch_index: u32,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -48,8 +49,8 @@ impl Default for RuntimeStorageWrite {
     fn default() -> Self {
         Self {
             dispatch_index: 0,
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             statement_index: 0,
             target: Expression::Integer(0),
             value: Expression::Integer(0),
@@ -163,10 +164,10 @@ fn build_runtime_storage_body_plan(
 
                 plan.frame_slots.insert(RuntimeFrameSlot {
                     dispatch_index: body_input.body.dispatch_index,
-                    source_machine: operation.source_machine.to_string(),
-                    source_state: operation.source_state.to_string(),
+                    source_machine: operation.source_machine.clone(),
+                    source_state: operation.source_state.clone(),
                     statement_index: operation.statement_index,
-                    name: name.to_string(),
+                    name: name.clone(),
                     type_name: type_name.clone(),
                     byte_offset,
                     byte_size: layout.size,
@@ -184,8 +185,8 @@ fn build_runtime_storage_body_plan(
                 ) {
                     plan.writes.insert(RuntimeStorageWrite {
                         dispatch_index: body_input.body.dispatch_index,
-                        source_machine: operation.source_machine.to_string(),
-                        source_state: operation.source_state.to_string(),
+                        source_machine: operation.source_machine.clone(),
+                        source_state: operation.source_state.clone(),
                         statement_index: operation.statement_index,
                         target: mutation.target.clone(),
                         value: mutation.value.clone(),

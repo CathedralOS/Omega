@@ -76,6 +76,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_alias_flow_strings(native_plan, &mut storage);
     count_state_storage_strings(native_plan, &mut storage);
     count_state_value_strings(native_plan, &mut storage);
+    count_runtime_storage_strings(native_plan, &mut storage);
     count_runtime_text_strings(native_plan, &mut storage);
     count_layout_strings(native_plan, &mut storage);
     count_instruction_strings(native_plan, &mut storage);
@@ -430,6 +431,21 @@ fn count_state_value_strings(native_plan: &NativePlan, storage: &mut NativeStrin
         storage.count_program_name_identity(&value.machine);
         storage.count_program_name_identity(&value.state);
         count_expression_strings(&value.expression, storage);
+    }
+}
+
+fn count_runtime_storage_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
+    for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
+        storage.count_program_name_identity(&slot.source_machine);
+        storage.count_program_name_identity(&slot.source_state);
+        storage.count_program_name_identity(&slot.name);
+        storage.count_identity(&slot.type_name);
+    }
+    for (_, write) in native_plan.runtime_storage.writes.iter() {
+        storage.count_program_name_identity(&write.source_machine);
+        storage.count_program_name_identity(&write.source_state);
+        count_expression_strings(&write.target, storage);
+        count_expression_strings(&write.value, storage);
     }
 }
 
