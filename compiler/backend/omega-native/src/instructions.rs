@@ -53,8 +53,8 @@ impl Default for InstructionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInstructionPlan {
     pub symbol: String,
-    pub machine: String,
-    pub state: String,
+    pub machine: ProgramName,
+    pub state: ProgramName,
     pub instructions: HandleSpan<SelectedInstruction>,
 }
 
@@ -62,8 +62,8 @@ impl Default for FunctionInstructionPlan {
     fn default() -> Self {
         Self {
             symbol: String::new(),
-            machine: String::new(),
-            state: String::new(),
+            machine: ProgramName::default(),
+            state: ProgramName::default(),
             instructions: HandleSpan::empty(),
         }
     }
@@ -72,8 +72,8 @@ impl Default for FunctionInstructionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
     pub kind: SelectedInstructionKind,
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub source_statement: usize,
 }
 
@@ -81,8 +81,8 @@ impl Default for SelectedInstruction {
     fn default() -> Self {
         Self {
             kind: SelectedInstructionKind::EnterFunction,
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             source_statement: 0,
         }
     }
@@ -250,8 +250,8 @@ pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
 
     instruction_plan.functions.insert(FunctionInstructionPlan {
         symbol: native_plan.object.entry_symbol.clone(),
-        machine: native_plan.entry_machine.clone(),
-        state: native_plan.entry_state.clone(),
+        machine: native_plan.entry_machine.clone().into(),
+        state: native_plan.entry_state.clone().into(),
         instructions,
     });
 
@@ -318,8 +318,8 @@ fn select_runtime_dispatch_loop_instructions(
             current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
             next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
         },
-        source_machine: native_plan.entry_machine.clone(),
-        source_state: native_plan.entry_state.clone(),
+        source_machine: native_plan.entry_machine.clone().into(),
+        source_state: native_plan.entry_state.clone().into(),
         source_statement: 0,
     });
 
@@ -329,8 +329,8 @@ fn select_runtime_dispatch_loop_instructions(
                 dispatch_index: dispatch_case.dispatch_index,
                 label: dispatch_case.label.clone(),
             },
-            source_machine: dispatch_case.machine.to_string(),
-            source_state: dispatch_case.state.to_string(),
+            source_machine: dispatch_case.machine.clone(),
+            source_state: dispatch_case.state.clone(),
             source_statement: 0,
         });
 
@@ -388,8 +388,8 @@ fn select_runtime_dispatch_loop_instructions(
                                 buffer_symbol,
                                 literal,
                             },
-                            source_machine: host_call.machine.to_string(),
-                            source_state: host_call.state.to_string(),
+                            source_machine: host_call.machine.clone(),
+                            source_state: host_call.state.clone(),
                             source_statement: host_call.statement_index,
                         });
                     }
@@ -415,16 +415,16 @@ fn select_runtime_dispatch_loop_instructions(
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::LeaveDispatchCase,
-            source_machine: dispatch_case.machine.to_string(),
-            source_state: dispatch_case.state.to_string(),
+            source_machine: dispatch_case.machine.clone(),
+            source_state: dispatch_case.state.clone(),
             source_statement: 0,
         });
     }
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::LeaveDispatchLoop,
-        source_machine: native_plan.entry_machine.clone(),
-        source_state: native_plan.entry_state.clone(),
+        source_machine: native_plan.entry_machine.clone().into(),
+        source_state: native_plan.entry_state.clone().into(),
         source_statement: 0,
     });
 }
@@ -444,8 +444,8 @@ fn select_runtime_dispatch_edge(
             expected_value: edge.guard_expected_value,
             has_storage: edge.guard_has_storage,
         },
-        source_machine: source_machine.to_owned(),
-        source_state: source_state.to_owned(),
+        source_machine: source_machine.to_owned().into(),
+        source_state: source_state.to_owned().into(),
         source_statement: edge.order,
     });
 
@@ -455,16 +455,16 @@ fn select_runtime_dispatch_edge(
                 kind: SelectedInstructionKind::SetDispatchState {
                     dispatch_index: edge.target_dispatch_index,
                 },
-                source_machine: source_machine.to_owned(),
-                source_state: source_state.to_owned(),
+                source_machine: source_machine.to_owned().into(),
+                source_state: source_state.to_owned().into(),
                 source_statement: edge.order,
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
-                source_machine: source_machine.to_owned(),
-                source_state: source_state.to_owned(),
+                source_machine: source_machine.to_owned().into(),
+                source_state: source_state.to_owned().into(),
                 source_statement: edge.order,
             });
         }
@@ -629,8 +629,8 @@ fn select_runtime_mutation_writes(
         for kind in instructions {
             selected_instructions.push(SelectedInstruction {
                 kind,
-                source_machine: source_machine.to_owned(),
-                source_state: source_state.to_owned(),
+                source_machine: source_machine.to_owned().into(),
+                source_state: source_state.to_owned().into(),
                 source_statement: statement_index,
             });
         }
@@ -649,8 +649,8 @@ fn select_runtime_mutation_writes(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
-            source_machine: source_machine.to_owned(),
-            source_state: source_state.to_owned(),
+            source_machine: source_machine.to_owned().into(),
+            source_state: source_state.to_owned().into(),
             source_statement: statement_index,
         });
         return;
@@ -686,8 +686,8 @@ fn select_runtime_mutation_writes(
             byte_size,
             value,
         },
-        source_machine: source_machine.to_owned(),
-        source_state: source_state.to_owned(),
+        source_machine: source_machine.to_owned().into(),
+        source_state: source_state.to_owned().into(),
         source_statement: statement_index,
     });
 }
@@ -908,8 +908,8 @@ fn select_runtime_string_descriptor_write(
             data_symbol: data_object.symbol.clone(),
             byte_length: value.len(),
         },
-        source_machine: source_machine.to_owned(),
-        source_state: source_state.to_owned(),
+        source_machine: source_machine.to_owned().into(),
+        source_state: source_state.to_owned().into(),
         source_statement: statement_index,
     });
 }
@@ -1073,22 +1073,22 @@ fn select_runtime_leaf_branch_expansion(
                 buffer_symbol,
                 literal,
             },
-            source_machine: expansion.source_machine.to_string(),
-            source_state: expansion.source_state.to_string(),
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
             source_statement: expansion.statement_index,
         });
     } else if let Some(compare) = runtime_text_storage_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: compare,
-            source_machine: expansion.source_machine.to_string(),
-            source_state: expansion.source_state.to_string(),
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
             source_statement: expansion.statement_index,
         });
     } else if let Some(compare) = runtime_storage_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: compare,
-            source_machine: expansion.source_machine.to_string(),
-            source_state: expansion.source_state.to_string(),
+            source_machine: expansion.source_machine.clone(),
+            source_state: expansion.source_state.clone(),
             source_statement: expansion.statement_index,
         });
     } else {
@@ -1171,8 +1171,8 @@ fn select_runtime_leaf_branch_mutation_writes(
                     byte_size,
                     value,
                 },
-                source_machine: operation.source_machine.to_string(),
-                source_state: operation.source_state.to_string(),
+                source_machine: operation.source_machine.clone(),
+                source_state: operation.source_state.clone(),
                 source_statement: operation.statement_index,
             });
             continue;
@@ -1190,8 +1190,8 @@ fn select_runtime_leaf_branch_mutation_writes(
             for kind in instructions {
                 selected_instructions.push(SelectedInstruction {
                     kind,
-                    source_machine: operation.source_machine.to_string(),
-                    source_state: operation.source_state.to_string(),
+                    source_machine: operation.source_machine.clone(),
+                    source_state: operation.source_state.clone(),
                     source_statement: operation.statement_index,
                 });
             }
@@ -1208,8 +1208,8 @@ fn select_runtime_leaf_branch_mutation_writes(
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind: copy,
-                source_machine: operation.source_machine.to_string(),
-                source_state: operation.source_state.to_string(),
+                source_machine: operation.source_machine.clone(),
+                source_state: operation.source_state.clone(),
                 source_statement: operation.statement_index,
             });
         }
@@ -1361,8 +1361,8 @@ fn select_runtime_resolved_mutation_write(
                 byte_size,
                 value,
             },
-            source_machine: operation_machine.to_owned(),
-            source_state: operation_state.to_owned(),
+            source_machine: operation_machine.to_owned().into(),
+            source_state: operation_state.to_owned().into(),
             source_statement: statement_index,
         });
         return;
@@ -1378,8 +1378,8 @@ fn select_runtime_resolved_mutation_write(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
-            source_machine: operation_machine.to_owned(),
-            source_state: operation_state.to_owned(),
+            source_machine: operation_machine.to_owned().into(),
+            source_state: operation_state.to_owned().into(),
             source_statement: statement_index,
         });
     }
@@ -1994,16 +1994,16 @@ fn select_host_call(
         kind: SelectedInstructionKind::BeginPlatformCall {
             platform_call: host_call.platform_call.clone(),
         },
-        source_machine: host_call.machine.to_string(),
-        source_state: host_call.state.to_string(),
+        source_machine: host_call.machine.clone(),
+        source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
 
     if let Some(read_line) = runtime_text_line_read(native_plan, host_call) {
         selected_instructions.push(SelectedInstruction {
             kind: read_line,
-            source_machine: host_call.machine.to_string(),
-            source_state: host_call.state.to_string(),
+            source_machine: host_call.machine.clone(),
+            source_state: host_call.state.clone(),
             source_statement: host_call.statement_index,
         });
         return;
@@ -2028,8 +2028,8 @@ fn select_host_call(
                 operation: operation.operation.clone(),
                 operands: operation_operands,
             },
-            source_machine: host_call.machine.to_string(),
-            source_state: host_call.state.to_string(),
+            source_machine: host_call.machine.clone(),
+            source_state: host_call.state.clone(),
             source_statement: host_call.statement_index,
         });
     }
@@ -2051,8 +2051,8 @@ fn select_host_call(
                 operation: "write".to_owned(),
                 operands: newline_operands,
             },
-            source_machine: host_call.machine.to_string(),
-            source_state: host_call.state.to_string(),
+            source_machine: host_call.machine.clone(),
+            source_state: host_call.state.clone(),
             source_statement: host_call.statement_index,
         });
     }
@@ -2711,8 +2711,8 @@ fn operand(kind: InstructionOperandKind) -> InstructionOperand {
 fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::EnterFunction,
-        source_machine: native_plan.entry_machine.clone(),
-        source_state: native_plan.entry_state.clone(),
+        source_machine: native_plan.entry_machine.clone().into(),
+        source_state: native_plan.entry_state.clone().into(),
         source_statement: 0,
     }
 }
@@ -2720,8 +2720,8 @@ fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
 fn exit_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::LeaveFunction,
-        source_machine: native_plan.entry_machine.clone(),
-        source_state: native_plan.entry_state.clone(),
+        source_machine: native_plan.entry_machine.clone().into(),
+        source_state: native_plan.entry_state.clone().into(),
         source_statement: 0,
     }
 }

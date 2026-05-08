@@ -502,12 +502,12 @@ fn count_layout_strings(native_plan: &NativePlan, storage: &mut NativeStringStor
 fn count_instruction_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
     for (_, function) in native_plan.instructions.functions.iter() {
         storage.count_generated_symbol(&function.symbol);
-        storage.count_identity(&function.machine);
-        storage.count_identity(&function.state);
+        storage.count_program_name_identity(&function.machine);
+        storage.count_program_name_identity(&function.state);
     }
     for (_, instruction) in native_plan.instructions.instructions.iter() {
-        storage.count_identity(&instruction.source_machine);
-        storage.count_identity(&instruction.source_state);
+        storage.count_program_name_identity(&instruction.source_machine);
+        storage.count_program_name_identity(&instruction.source_state);
     }
 }
 
