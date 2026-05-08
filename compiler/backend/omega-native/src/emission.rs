@@ -1,5 +1,4 @@
 use crate::abi::PlatformCallData;
-use crate::control_flow::{OperationKind, StateFlow, StateKey};
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction;
@@ -7,8 +6,7 @@ use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::state_schedule::{
-    build_entry_state_schedule, scheduled_state_contains_key, scheduled_state_flow,
-    scheduled_state_key,
+    build_entry_state_schedule, scheduled_state_contains_key, scheduled_state_key,
 };
 use crate::target::ObjectFormat;
 use crate::target_output::can_emit_target_output;
@@ -16,10 +14,12 @@ use omega_core::arena::Arena;
 
 mod runtime_text_blockers;
 mod state_call_blockers;
+mod state_codegen_blockers;
 mod storage_blockers;
 
 use runtime_text_blockers::collect_state_value_blockers;
 use state_call_blockers::collect_state_call_blockers;
+use state_codegen_blockers::collect_state_codegen_blockers;
 use storage_blockers::collect_state_storage_blockers;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -256,137 +256,6 @@ fn collect_state_guard_blockers(native_plan: &NativePlan, blockers: &mut Arena<E
     }
 }
 
-fn collect_state_codegen_blockers(
-    native_plan: &NativePlan,
-    state_schedule: &[crate::state_schedule::ScheduledState],
-    blockers: &mut Arena<EmissionBlocker>,
-) {
-    for scheduled_state in state_schedule {
-        let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) else {
-            blockers.insert(blocker(
-                "state codegen",
-                &format!(
-                    "scheduled state {}.{}#{} was not present in the control-flow plan",
-                    scheduled_state.key.machine.arena_index(),
-                    scheduled_state.key.state.arena_index(),
-                    scheduled_state.key.segment_index
-                ),
-            ));
-            continue;
-        };
-        let machine_name =
-            machine_name_for_state(native_plan, state_flow).unwrap_or("<missing-machine>");
-        let state_name = state_flow.name.as_str();
-
-        let Some(operations) = native_plan
-            .control_flow
-            .operations
-            .span(state_flow.operations)
-        else {
-            blockers.insert(blocker(
-                "state codegen",
-                &format!(
-                    "{}.{} has an invalid operation span",
-                    machine_name, state_name
-                ),
-            ));
-            continue;
-        };
-
-        for operation in operations {
-            match operation.kind {
-                OperationKind::Call { .. }
-                    if state_statement_has_host_call(
-                        native_plan,
-                        state_flow.key,
-                        operation.statement_index,
-                    ) || state_statement_has_state_call(
-                        native_plan,
-                        state_flow.key,
-                        operation.statement_index,
-                    ) => {}
-                OperationKind::Call { .. } => {
-                    blockers.insert(blocker(
-                        "state codegen",
-                        &format!(
-                            "{}.{} statement {} is a call that is not lowered to a native host operation",
-                            machine_name,
-                            state_name,
-                            operation.statement_index
-                        ),
-                    ));
-                }
-                OperationKind::ConstantIntegerAssignment
-                | OperationKind::StaticAssignment { .. } => {}
-                OperationKind::Assignment { .. }
-                    if state_statement_has_storage_mutation(
-                        native_plan,
-                        state_flow.key,
-                        operation.statement_index,
-                    ) => {}
-                OperationKind::Assignment { .. } => {
-                    blockers.insert(blocker(
-                        "state codegen",
-                        &format!(
-                            "{}.{} statement {} Assignment is not supported by native emission yet",
-                            machine_name, state_name, operation.statement_index
-                        ),
-                    ));
-                }
-                OperationKind::LocalData
-                    if state_statement_has_local_storage(
-                        native_plan,
-                        state_flow.key,
-                        operation.statement_index,
-                    ) => {}
-                _ => {
-                    blockers.insert(blocker(
-                        "state codegen",
-                        &format!(
-                            "{}.{} statement {} {:?} is not supported by native emission yet",
-                            machine_name, state_name, operation.statement_index, operation.kind
-                        ),
-                    ));
-                }
-            };
-        }
-    }
-}
-
-fn state_statement_has_local_storage(
-    native_plan: &NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> bool {
-    native_plan.state_storage.locals.iter().any(|(_, local)| {
-        local.source_key == source_key && local.statement_index == statement_index
-    })
-}
-
-fn state_statement_has_storage_mutation(
-    native_plan: &NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> bool {
-    native_plan
-        .state_storage
-        .mutations
-        .iter()
-        .any(|(_, mutation)| {
-            mutation.source_key == source_key && mutation.statement_index == statement_index
-        })
-}
-
-fn state_statement_has_state_call(
-    native_plan: &NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> bool {
-    native_plan.state_calls.calls.iter().any(|(_, state_call)| {
-        state_call.source_key == source_key && state_call.statement_index == statement_index
-    })
-}
-
 fn runtime_and_required_states(
     native_plan: &NativePlan,
 ) -> Vec<crate::state_schedule::ScheduledState> {
@@ -533,28 +402,6 @@ fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
-}
-
-fn machine_name_for_state<'plan>(
-    native_plan: &'plan NativePlan,
-    state_flow: &StateFlow,
-) -> Option<&'plan str> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.symbol == state_flow.key.machine)
-        .map(|(_, machine)| machine.name.as_str())
-}
-
-fn state_statement_has_host_call(
-    native_plan: &NativePlan,
-    source_key: StateKey,
-    statement_index: usize,
-) -> bool {
-    native_plan.host_calls.calls.iter().any(|(_, host_call)| {
-        host_call.source_key == source_key && host_call.statement_index == statement_index
-    })
 }
 
 fn can_emit_real_object(native_plan: &NativePlan) -> bool {
