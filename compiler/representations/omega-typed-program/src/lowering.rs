@@ -627,13 +627,13 @@ fn lower_type_reference(
             base_name,
             arguments,
         } => Ok(TypeReference::Generic {
-            base_name: base_name.clone(),
+            base_name: base_name.to_string(),
             arguments: arguments
                 .iter()
                 .map(|argument| lower_type_reference(argument, aliases, type_constraints))
                 .collect::<Result<Vec<_>, _>>()?,
         }),
-        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.clone())),
+        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(name.to_string())),
         ast::types::TypeReference::Unit => Ok(TypeReference::Unit),
     }
 }
@@ -642,7 +642,7 @@ fn lower_type_constraint(
     constraint: &ast::types::TypeConstraint,
 ) -> Result<TypeConstraint, Diagnostic> {
     match constraint {
-        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(name.clone())),
+        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(name.to_string())),
         ast::types::TypeConstraint::Range { minimum, maximum } => Ok(TypeConstraint::Range {
             minimum: lower_expression(minimum)?,
             maximum: lower_expression(maximum)?,
@@ -660,14 +660,14 @@ fn lower_type_constraints(
     for constraint in constraints {
         match constraint {
             ast::types::TypeConstraint::Named(name) => {
-                if let Some(alias) = aliases.get(name) {
-                    if expansion_stack.contains(name) {
+                if let Some(alias) = aliases.get(name.as_str()) {
+                    if expansion_stack.iter().any(|entry| entry == name.as_str()) {
                         return Err(Diagnostic::error(format!(
                             "recursive invariant alias `{name}`"
                         )));
                     }
 
-                    expansion_stack.push(name.clone());
+                    expansion_stack.push(name.to_string());
                     lowered_constraints.extend(lower_type_constraints(
                         &alias.constraints,
                         aliases,
@@ -675,7 +675,7 @@ fn lower_type_constraints(
                     )?);
                     expansion_stack.pop();
                 } else {
-                    lowered_constraints.push(TypeConstraint::Named(name.clone()));
+                    lowered_constraints.push(TypeConstraint::Named(name.to_string()));
                 }
             }
             ast::types::TypeConstraint::Range { .. } => {

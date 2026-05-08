@@ -1,3 +1,5 @@
+use crate::identifier::Identifier;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
     Constrained {
@@ -9,16 +11,16 @@ pub enum TypeReference {
         length: usize,
     },
     Generic {
-        base_name: String,
+        base_name: Identifier,
         arguments: Vec<TypeReference>,
     },
-    Named(String),
+    Named(Identifier),
     Unit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraint {
-    Named(String),
+    Named(Identifier),
     Range {
         minimum: crate::expression::Expression,
         maximum: crate::expression::Expression,
@@ -27,6 +29,6 @@ pub enum TypeConstraint {
 
 impl TypeReference {
     pub fn named(name: impl Into<String>) -> Self {
-        Self::Named(name.into())
+        Self::Named(Identifier::generated(name))
     }
 }

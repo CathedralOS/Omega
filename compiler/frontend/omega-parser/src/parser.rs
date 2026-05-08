@@ -408,7 +408,7 @@ impl Parser<'_, '_> {
             });
         }
 
-        let base_name = self.expect_identifier_text()?;
+        let base_name = self.expect_identifier()?;
         let mut type_reference = if self.consume("<") {
             let mut arguments = Vec::new();
 
@@ -429,7 +429,7 @@ impl Parser<'_, '_> {
                 arguments,
             }
         } else {
-            TypeReference::named(base_name)
+            TypeReference::Named(base_name)
         };
 
         if self.check("[") {
@@ -465,9 +465,9 @@ impl Parser<'_, '_> {
     }
 
     fn parse_type_constraint(&mut self) -> Result<TypeConstraint, ParseError> {
-        let name = self.expect_identifier_text()?;
+        let name = self.expect_identifier()?;
 
-        if name == "range" {
+        if name.as_str() == "range" {
             self.expect("<")?;
             let minimum = self.parse_range_bound_expression()?;
             self.expect(",")?;

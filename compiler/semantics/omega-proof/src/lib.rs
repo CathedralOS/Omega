@@ -183,7 +183,7 @@ fn type_reference_name(type_reference: &TypeReference) -> String {
                 .join(", ");
             format!("{base_name}<{arguments}>")
         }
-        TypeReference::Named(name) => name.clone(),
+        TypeReference::Named(name) => name.to_string(),
         TypeReference::Unit => "()".to_owned(),
     }
 }
@@ -210,7 +210,7 @@ fn constraints_name(constraints: &[TypeConstraint]) -> String {
 
 fn constraint_name(constraint: &TypeConstraint) -> String {
     match constraint {
-        TypeConstraint::Named(name) => name.clone(),
+        TypeConstraint::Named(name) => name.to_string(),
         TypeConstraint::Range { minimum, maximum } => {
             format!(
                 "range<{}, {}>",
