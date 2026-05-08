@@ -67,17 +67,20 @@ pub enum RuntimeDispatchBodyOperationKind {
         platform_call: String,
     },
     InlineLeafStateCall {
+        target_key: StateKey,
         target_machine: ProgramName,
         target_state: ProgramName,
         argument_count: usize,
     },
     InlineStateCall {
+        target_key: StateKey,
         target_machine: ProgramName,
         target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     StateCall {
+        target_key: StateKey,
         target_machine: ProgramName,
         target_state: ProgramName,
         argument_count: usize,
@@ -298,6 +301,7 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                target_key: state_call.target_key,
                 target_machine: state_call.target_machine.clone(),
                 target_state: state_call.target_state.clone(),
                 argument_count: state_call.argument_count,
@@ -321,6 +325,7 @@ fn append_state_call_body_operation(
             &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
+                target_key: state_call.target_key,
                 target_machine: state_call.target_machine.clone(),
                 target_state: state_call.target_state.clone(),
                 argument_count: state_call.argument_count,
@@ -344,6 +349,7 @@ fn append_state_call_body_operation(
         &state_call.source_state,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
+            target_key: state_call.target_key,
             target_machine: state_call.target_machine.clone(),
             target_state: state_call.target_state.clone(),
             argument_count: state_call.argument_count,

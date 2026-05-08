@@ -148,6 +148,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
+ "omega-target",
  "omega-typed-program",
  "sha2",
 ]
@@ -168,6 +169,13 @@ dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
  "omega-typed-program",
+]
+
+[[package]]
+name = "omega-target"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
 ]
 
 [[package]]

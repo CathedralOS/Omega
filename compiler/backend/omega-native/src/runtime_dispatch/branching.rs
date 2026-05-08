@@ -345,6 +345,7 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 target_state,
                 argument_count,
                 lowering: StateCallLowering::InlineBranching,
+                ..
             } = &operation.kind
             else {
                 if let Some(state_call) = state_call {

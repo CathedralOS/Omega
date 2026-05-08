@@ -367,6 +367,7 @@ fn collect_runtime_body_state_call_blockers(
 
         for operation in operations.iter() {
             let RuntimeDispatchBodyOperationKind::StateCall {
+                target_key,
                 target_machine,
                 target_state,
                 argument_count,
@@ -380,9 +381,11 @@ fn collect_runtime_body_state_call_blockers(
                 &mut grouped_blockers,
                 RuntimeBodyStateCallBlocker {
                     dispatch_index: body.dispatch_index,
+                    source_key: operation.source_key,
                     source_machine: operation.source_machine.to_string(),
                     source_state: operation.source_state.to_string(),
                     first_statement_index: operation.statement_index,
+                    target_key: *target_key,
                     target_machine: target_machine.to_string(),
                     target_state: target_state.to_string(),
                     argument_count: *argument_count,
@@ -420,9 +423,11 @@ fn collect_runtime_body_state_call_blockers(
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RuntimeBodyStateCallBlocker {
     dispatch_index: u32,
+    source_key: StateKey,
     source_machine: String,
     source_state: String,
     first_statement_index: usize,
+    target_key: StateKey,
     target_machine: String,
     target_state: String,
     argument_count: usize,
@@ -436,10 +441,8 @@ fn push_runtime_body_state_call_blocker(
 ) {
     if let Some(existing) = grouped_blockers.iter_mut().find(|existing| {
         existing.dispatch_index == blocker.dispatch_index
-            && existing.source_machine == blocker.source_machine
-            && existing.source_state == blocker.source_state
-            && existing.target_machine == blocker.target_machine
-            && existing.target_state == blocker.target_state
+            && existing.source_key == blocker.source_key
+            && existing.target_key == blocker.target_key
             && existing.argument_count == blocker.argument_count
             && existing.lowering == blocker.lowering
     }) {
@@ -582,10 +585,8 @@ fn runtime_branching_call_matches_grouped_blocker(
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> bool {
     call.dispatch_index == grouped_blocker.dispatch_index
-        && call.source_machine == grouped_blocker.source_machine
-        && call.source_state == grouped_blocker.source_state
-        && call.target_machine == grouped_blocker.target_machine
-        && call.target_state == grouped_blocker.target_state
+        && call.source_key == grouped_blocker.source_key
+        && call.target_key == grouped_blocker.target_key
         && call.argument_count == grouped_blocker.argument_count
 }
 
