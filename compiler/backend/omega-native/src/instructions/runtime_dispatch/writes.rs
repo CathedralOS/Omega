@@ -21,7 +21,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     aliases: &[RuntimeAliasBinding],
-    static_values: &mut Vec<(String, i64)>,
+    static_values: &mut Vec<(Expression, i64)>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     let RuntimeDispatchBodyOperationKind::Mutation { .. } = &operation.kind else {
@@ -59,7 +59,7 @@ fn select_runtime_mutation_writes(
     target: &Expression,
     value: &Expression,
     aliases: &[RuntimeAliasBinding],
-    static_values: &mut Vec<(String, i64)>,
+    static_values: &mut Vec<(Expression, i64)>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     let resolved_target = resolve_runtime_alias_expression(target, source_key, aliases);
@@ -159,7 +159,7 @@ fn select_runtime_mutation_writes(
 
     set_runtime_static_value(
         static_values,
-        strip_mutable_expression(resolved_target.clone()).display_name(),
+        strip_mutable_expression(resolved_target.clone()),
         value,
     );
     selected_instructions.push(SelectedInstruction {
@@ -217,7 +217,7 @@ fn resolve_runtime_static_integer_value(
     source_key: StateKey,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
-    static_values: &[(String, i64)],
+    static_values: &[(Expression, i64)],
 ) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
@@ -227,7 +227,7 @@ fn resolve_runtime_static_integer_value(
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
-                .find(|(target, _)| target == &resolved_expression.display_name())
+                .find(|(target, _)| target == &resolved_expression)
                 .map(|(_, value)| *value)
         }),
         Expression::Indexed(_) | Expression::Mutable(_) => {
@@ -236,7 +236,7 @@ fn resolve_runtime_static_integer_value(
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
-                .find(|(target, _)| target == &resolved_expression.display_name())
+                .find(|(target, _)| target == &resolved_expression)
                 .map(|(_, value)| *value)
         }
         Expression::Boolean(value) => Some(i64::from(*value)),
@@ -248,7 +248,11 @@ fn resolve_runtime_static_integer_value(
     }
 }
 
-fn set_runtime_static_value(static_values: &mut Vec<(String, i64)>, target: String, value: i64) {
+fn set_runtime_static_value(
+    static_values: &mut Vec<(Expression, i64)>,
+    target: Expression,
+    value: i64,
+) {
     if let Some((_, existing_value)) = static_values
         .iter_mut()
         .find(|(existing_target, _)| existing_target == &target)
