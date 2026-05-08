@@ -475,7 +475,7 @@ fn validate_type_reference(
         TypeReference::Named(name) => {
             if !symbols.has_type(name) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} references unknown type `{name}`"
+                    "{owner} references unknown data type `{name}`"
                 )));
             }
         }
