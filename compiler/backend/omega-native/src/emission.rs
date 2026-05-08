@@ -771,7 +771,7 @@ fn state_value_is_static_assignment(
     if value.role != crate::state_values::StateValueRole::AssignmentValue {
         return false;
     }
-    let Some(state) = state_flow(native_plan, value.machine.as_str(), value.state.as_str()) else {
+    let Some(state) = native_plan.control_flow.state_by_key(value.source_key) else {
         return false;
     };
     let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
@@ -1176,20 +1176,6 @@ fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
-}
-
-fn state_flow<'plan>(
-    native_plan: &'plan NativePlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<&'plan StateFlow> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
 }
 
 fn machine_name_for_state<'plan>(
