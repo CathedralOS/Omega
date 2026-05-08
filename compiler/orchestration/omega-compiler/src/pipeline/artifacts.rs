@@ -5,6 +5,7 @@ use crate::ast::item::Item;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::{SymbolHandle, SymbolTable};
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_names::ResolveReport;
@@ -110,6 +111,23 @@ impl ArtifactWriter {
             .filter(|(_, reference)| reference.symbol.is_valid())
             .count();
         output.push_str(&format!("resolved references: {resolved_references}\n\n"));
+        output.push_str("## Symbol Arenas\n");
+        output.push_str(&format!(
+            "symbols: {}\n",
+            resolve_report.symbols.symbols().len()
+        ));
+        output.push_str(&format!(
+            "names: {}\n",
+            resolve_report.symbols.names().len()
+        ));
+        output.push_str(&format!(
+            "debug names: {}\n",
+            resolve_report.symbols.debug_names().len()
+        ));
+        output.push_str(&format!(
+            "stored path members: {}\n\n",
+            resolve_report.symbols.path_member_arena().len()
+        ));
 
         output.push_str("## Imports\n");
         for (_, import) in resolve_report.imports.iter() {
@@ -131,13 +149,8 @@ impl ArtifactWriter {
 
         output.push_str("\n## References\n");
         for (_, reference) in resolve_report.references.iter() {
-            let resolved_path = resolve_report
-                .symbols
-                .path_members(reference.symbol_path)
-                .iter()
-                .map(|symbol| resolve_report.symbols.name(*symbol))
-                .collect::<Vec<_>>()
-                .join("::");
+            let resolved_path =
+                resolved_symbol_display_path(&resolve_report.symbols, reference.symbol);
             let resolved_suffix = if resolved_path.is_empty() {
                 " unresolved".to_owned()
             } else {
@@ -1876,6 +1889,24 @@ fn format_signed_bytes(bytes: i128) -> String {
     } else {
         format_bytes(bytes as u64)
     }
+}
+
+fn resolved_symbol_display_path(symbols: &SymbolTable, symbol: SymbolHandle) -> String {
+    if !symbol.is_valid() {
+        return String::new();
+    }
+
+    let root = symbols.root();
+    let mut names = Vec::new();
+    let mut current = symbol;
+
+    while current.is_valid() && current != root {
+        names.push(symbols.name(current).to_owned());
+        current = symbols.get(current).parent;
+    }
+
+    names.reverse();
+    names.join("::")
 }
 
 fn write_loaded_file(output: &mut String, file: &LoadedFile) {

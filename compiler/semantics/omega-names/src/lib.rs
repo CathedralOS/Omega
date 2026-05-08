@@ -13,8 +13,7 @@ use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, Transiti
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
 use omega_core::symbols::{
-    SymbolDefinition, SymbolHandle, SymbolKind, SymbolPath, SymbolTable,
-    builtin_type_symbol_definitions,
+    SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -55,7 +54,6 @@ pub struct ResolvedReference {
     pub name: String,
     pub kind: ResolvedReferenceKind,
     pub owner: String,
-    pub symbol_path: SymbolPath,
     pub symbol: SymbolHandle,
 }
 
@@ -204,7 +202,7 @@ fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
         .unwrap_or_else(SymbolHandle::invalid);
 
     for contained_object in &machine.contains {
-        let symbol_path = resolve_global_name(report, contained_object.type_name.as_str());
+        let symbol = resolve_global_name(report, contained_object.type_name.as_str());
         insert_reference(
             report,
             &contained_object.type_name,
@@ -213,7 +211,7 @@ fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
                 "machine `{}` contains `{}`",
                 machine.name, contained_object.name
             ),
-            symbol_path,
+            symbol,
         );
     }
 
@@ -331,14 +329,14 @@ fn collect_statement(
                 .as_ref()
                 .map(|receiver| vec![receiver.as_str(), call.target.as_str()])
                 .unwrap_or_else(|| vec![call.target.as_str()]);
-            let symbol_path = context.resolve_path(&mut report.symbols, &path);
+            let symbol = context.resolve_symbol(&report.symbols, &path);
 
             insert_reference(
                 report,
                 &target,
                 ResolvedReferenceKind::CallTarget,
                 owner,
-                symbol_path,
+                symbol,
             );
 
             for argument in &call.arguments {
@@ -376,13 +374,13 @@ fn collect_transition_target(
             .iter()
             .map(|member| member.as_str())
             .collect::<Vec<_>>();
-        let symbol_path = context.resolve_path(&mut report.symbols, &path_members);
+        let symbol = context.resolve_symbol(&report.symbols, &path_members);
         insert_reference(
             report,
             &path.join("::"),
             ResolvedReferenceKind::TransitionTarget,
             owner,
-            symbol_path,
+            symbol,
         );
 
         for argument in arguments {
@@ -412,13 +410,13 @@ fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeRefer
             base_name,
             arguments,
         } => {
-            let symbol_path = resolve_global_name(report, base_name.as_str());
+            let symbol = resolve_global_name(report, base_name.as_str());
             insert_reference(
                 report,
                 base_name,
                 ResolvedReferenceKind::Type,
                 owner,
-                symbol_path,
+                symbol,
             );
 
             for argument in arguments {
@@ -426,14 +424,8 @@ fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeRefer
             }
         }
         TypeReference::Named(name) => {
-            let symbol_path = resolve_global_name(report, name.as_str());
-            insert_reference(
-                report,
-                name,
-                ResolvedReferenceKind::Type,
-                owner,
-                symbol_path,
-            );
+            let symbol = resolve_global_name(report, name.as_str());
+            insert_reference(report, name, ResolvedReferenceKind::Type, owner, symbol);
         }
         TypeReference::Unit => {}
     }
@@ -443,13 +435,13 @@ fn collect_constraints(report: &mut ResolveReport, constraints: &[TypeConstraint
     for constraint in constraints {
         match constraint {
             TypeConstraint::Named(name) => {
-                let symbol_path = resolve_global_name(report, name.as_str());
+                let symbol = resolve_global_name(report, name.as_str());
                 insert_reference(
                     report,
                     name,
                     ResolvedReferenceKind::Invariant,
                     owner,
-                    symbol_path,
+                    symbol,
                 );
             }
             TypeConstraint::Range { minimum, maximum } => {
@@ -498,23 +490,23 @@ fn collect_expression(
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>();
-            let symbol_path = context.resolve_path(&mut report.symbols, &path_members);
+            let symbol = context.resolve_symbol(&report.symbols, &path_members);
             insert_reference(
                 report,
                 &path.join("::"),
                 ResolvedReferenceKind::ExpressionName,
                 owner,
-                symbol_path,
+                symbol,
             );
         }
         Expression::StructLiteral(struct_literal) => {
-            let symbol_path = resolve_global_name(report, struct_literal.type_name.as_str());
+            let symbol = resolve_global_name(report, struct_literal.type_name.as_str());
             insert_reference(
                 report,
                 &struct_literal.type_name,
                 ResolvedReferenceKind::StructLiteral,
                 owner,
-                symbol_path,
+                symbol,
             );
 
             for field in &struct_literal.fields {
@@ -533,20 +525,12 @@ fn insert_reference(
     name: &str,
     kind: ResolvedReferenceKind,
     owner: &str,
-    symbol_path: SymbolPath,
+    symbol: SymbolHandle,
 ) {
-    let symbol = report
-        .symbols
-        .path_members(symbol_path)
-        .last()
-        .copied()
-        .unwrap_or_else(SymbolHandle::invalid);
-
     report.references.insert(ResolvedReference {
         name: name.to_owned(),
         kind,
         owner: owner.to_owned(),
-        symbol_path,
         symbol,
     });
 }
@@ -562,13 +546,15 @@ impl ResolveContext {
         Self { machine, state }
     }
 
-    fn resolve_path(self, symbols: &mut SymbolTable, path: &[&str]) -> SymbolPath {
+    fn resolve_symbol(self, symbols: &SymbolTable, path: &[&str]) -> SymbolHandle {
         if path.is_empty() {
-            return SymbolPath::default();
+            return SymbolHandle::invalid();
         }
 
         if path.first() == Some(&"self") && self.machine.is_valid() {
-            return symbols.resolve_child_path(self.machine, path[1..].iter().copied());
+            return symbols
+                .find_descendant_by_path(self.machine, path[1..].iter().copied())
+                .unwrap_or_else(SymbolHandle::invalid);
         }
 
         for root in [self.state, self.machine, symbols.root()] {
@@ -576,19 +562,21 @@ impl ResolveContext {
                 continue;
             }
 
-            let symbol_path = symbols.resolve_child_path(root, path.iter().copied());
-            if !symbols.path_members(symbol_path).is_empty() {
-                return symbol_path;
+            if let Some(symbol) = symbols.find_descendant_by_path(root, path.iter().copied()) {
+                return symbol;
             }
         }
 
-        SymbolPath::default()
+        SymbolHandle::invalid()
     }
 }
 
-fn resolve_global_name(report: &mut ResolveReport, name: &str) -> SymbolPath {
+fn resolve_global_name(report: &ResolveReport, name: &str) -> SymbolHandle {
     let root = report.symbols.root();
-    report.symbols.resolve_child_path(root, [name])
+    report
+        .symbols
+        .find_descendant_by_path(root, [name])
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
