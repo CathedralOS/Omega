@@ -1,6 +1,8 @@
-use crate::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
-use omega_core::arena::{Arena, HandleSpan};
+use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
+use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::statement::TransitionGuard;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {
@@ -53,36 +55,45 @@ impl Default for DispatchEdge {
 }
 
 pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatchPlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_dispatch_plan_with_workers(
+        Arc::new(StateDispatchContext::from_runtime_flow(runtime_flow)),
+        runtime_state_inputs(runtime_flow),
+        workers.handle(),
+    )
+}
+
+pub fn build_state_dispatch_plan_with_workers(
+    context: Arc<StateDispatchContext>,
+    runtime_states: Vec<RuntimeStateInput>,
+    workers: WorkerPoolHandle,
+) -> StateDispatchPlan {
+    if runtime_states.is_empty() {
+        return StateDispatchPlan::default();
+    }
+
+    let runtime_states = Arc::new(runtime_states);
+    let state_count = runtime_states.len();
+    let context_for_states = Arc::clone(&context);
+    let dispatch_states = workers.map_ordered(state_count, move |index| {
+        let runtime_state = runtime_states
+            .get(index)
+            .expect("state-dispatch worker index should be in range");
+
+        build_dispatch_state(&context_for_states, runtime_state)
+    });
+
     let mut plan = StateDispatchPlan::default();
 
-    for (state_handle, runtime_state) in runtime_flow.states.iter() {
-        let edges = plan.edges.insert_many(
-            runtime_flow
-                .edges
-                .iter()
-                .filter(|(_, edge)| {
-                    edge.from_machine == runtime_state.machine
-                        && edge.from_state == runtime_state.state
-                })
-                .map(|(_, edge)| DispatchEdge {
-                    target_dispatch_index: target_dispatch_index(runtime_flow, &edge.target),
-                    target: edge.target.clone(),
-                    continuation_dispatch_index: target_dispatch_index(
-                        runtime_flow,
-                        &edge.continuation,
-                    ),
-                    continuation: edge.continuation.clone(),
-                    guard: edge.guard.clone(),
-                    forms_cycle: edge.forms_cycle,
-                })
-                .chain(terminal_continuation_edges(runtime_flow, runtime_state)),
-        );
+    for dispatch_state in dispatch_states {
+        let edges = plan.edges.insert_many(dispatch_state.edges);
 
         plan.states.insert(DispatchState {
-            machine: runtime_state.machine.clone(),
-            state: runtime_state.state.clone(),
-            dispatch_index: state_handle.arena_index(),
-            label: dispatch_label(&runtime_state.machine, &runtime_state.state),
+            machine: dispatch_state.machine,
+            state: dispatch_state.state,
+            dispatch_index: dispatch_state.dispatch_index,
+            label: dispatch_state.label,
             edges,
         });
     }
@@ -90,11 +101,103 @@ pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatc
     plan
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateDispatchContext {
+    edges: Vec<crate::runtime_flow::RuntimeEdge>,
+    targets: Vec<StateDispatchTarget>,
+}
+
+impl StateDispatchContext {
+    pub fn from_runtime_flow(runtime_flow: &RuntimeFlowPlan) -> Self {
+        Self {
+            edges: runtime_flow
+                .edges
+                .iter()
+                .map(|(_, edge)| edge.clone())
+                .collect(),
+            targets: runtime_flow
+                .states
+                .iter()
+                .map(|(handle, state)| StateDispatchTarget {
+                    machine: state.machine.clone(),
+                    state: state.state.clone(),
+                    dispatch_index: handle.arena_index(),
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct StateDispatchTarget {
+    machine: String,
+    state: String,
+    dispatch_index: u32,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RuntimeStateInput {
+    handle: Handle<RuntimeState>,
+    machine: String,
+    state: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CollectedDispatchState {
+    machine: String,
+    state: String,
+    dispatch_index: u32,
+    label: String,
+    edges: Vec<DispatchEdge>,
+}
+
+pub fn runtime_state_inputs(runtime_flow: &RuntimeFlowPlan) -> Vec<RuntimeStateInput> {
+    runtime_flow
+        .states
+        .iter()
+        .map(|(handle, runtime_state)| RuntimeStateInput {
+            handle,
+            machine: runtime_state.machine.clone(),
+            state: runtime_state.state.clone(),
+        })
+        .collect()
+}
+
+fn build_dispatch_state(
+    context: &StateDispatchContext,
+    runtime_state: &RuntimeStateInput,
+) -> CollectedDispatchState {
+    let edges = context
+        .edges
+        .iter()
+        .filter(|edge| {
+            edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
+        })
+        .map(|edge| DispatchEdge {
+            target_dispatch_index: target_dispatch_index(context, &edge.target),
+            target: edge.target.clone(),
+            continuation_dispatch_index: target_dispatch_index(context, &edge.continuation),
+            continuation: edge.continuation.clone(),
+            guard: edge.guard.clone(),
+            forms_cycle: edge.forms_cycle,
+        })
+        .chain(terminal_continuation_edges(context, runtime_state))
+        .collect();
+
+    CollectedDispatchState {
+        machine: runtime_state.machine.clone(),
+        state: runtime_state.state.clone(),
+        dispatch_index: runtime_state.handle.arena_index(),
+        label: dispatch_label(&runtime_state.machine, &runtime_state.state),
+        edges,
+    }
+}
+
 fn terminal_continuation_edges(
-    runtime_flow: &RuntimeFlowPlan,
-    runtime_state: &crate::runtime_flow::RuntimeState,
+    context: &StateDispatchContext,
+    runtime_state: &RuntimeStateInput,
 ) -> Vec<DispatchEdge> {
-    let has_outgoing_edges = runtime_flow.edges.iter().any(|(_, edge)| {
+    let has_outgoing_edges = context.edges.iter().any(|edge| {
         edge.from_machine == runtime_state.machine && edge.from_state == runtime_state.state
     });
     if has_outgoing_edges {
@@ -102,7 +205,7 @@ fn terminal_continuation_edges(
     }
 
     let mut edges = Vec::new();
-    for (_, edge) in runtime_flow.edges.iter() {
+    for edge in &context.edges {
         let RuntimeTransitionTarget::State { machine, .. } = &edge.target else {
             continue;
         };
@@ -114,13 +217,13 @@ fn terminal_continuation_edges(
         };
         if edges.iter().any(|existing: &DispatchEdge| {
             existing.continuation_dispatch_index
-                == target_dispatch_index(runtime_flow, &edge.continuation)
+                == target_dispatch_index(context, &edge.continuation)
         }) {
             continue;
         }
 
         edges.push(DispatchEdge {
-            target_dispatch_index: target_dispatch_index(runtime_flow, &edge.continuation),
+            target_dispatch_index: target_dispatch_index(context, &edge.continuation),
             target: edge.continuation.clone(),
             continuation_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,
@@ -132,18 +235,16 @@ fn terminal_continuation_edges(
     edges
 }
 
-fn target_dispatch_index(runtime_flow: &RuntimeFlowPlan, target: &RuntimeTransitionTarget) -> u32 {
+fn target_dispatch_index(context: &StateDispatchContext, target: &RuntimeTransitionTarget) -> u32 {
     let RuntimeTransitionTarget::State { machine, state } = target else {
         return 0;
     };
 
-    runtime_flow
-        .states
+    context
+        .targets
         .iter()
-        .find(|(_, runtime_state)| {
-            runtime_state.machine == *machine && runtime_state.state == *state
-        })
-        .map(|(handle, _)| handle.arena_index())
+        .find(|target| target.machine == *machine && target.state == *state)
+        .map(|target| target.dispatch_index)
         .unwrap_or(0)
 }
 

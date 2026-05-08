@@ -26,7 +26,10 @@ use crate::runtime_storage::{
 use crate::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
 use crate::state_analysis::StateAnalysisContext;
 use crate::state_calls::{StateCallPlan, build_state_call_plan_with_workers};
-use crate::state_dispatch::{StateDispatchPlan, build_state_dispatch_plan};
+use crate::state_dispatch::{
+    StateDispatchContext, StateDispatchPlan, build_state_dispatch_plan_with_workers,
+    runtime_state_inputs,
+};
 use crate::state_guards::{StateGuardPlan, build_state_guard_plan};
 use crate::state_storage::{StateStoragePlan, build_state_storage_plan_with_workers};
 use crate::state_values::{StateValuePlan, build_state_value_plan_with_workers};
@@ -103,7 +106,11 @@ pub fn build_native_plan_with_workers(
     let layouts = layouts?;
     let host_calls = host_calls?;
     let runtime_flow = build_runtime_flow_plan(&control_flow, &entry_machine, &entry_state)?;
-    let state_dispatch = build_state_dispatch_plan(&runtime_flow);
+    let state_dispatch = build_state_dispatch_plan_with_workers(
+        Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
+        runtime_state_inputs(&runtime_flow),
+        workers.clone(),
+    );
     let state_guards = build_state_guard_plan(&state_dispatch, &layouts, &entry_machine);
 
     let mut native_plan = NativePlan {
