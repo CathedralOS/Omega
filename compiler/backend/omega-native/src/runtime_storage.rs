@@ -1,68 +1,19 @@
+mod context;
+mod model;
+
+pub use context::RuntimeStorageContext;
+pub use model::{
+    RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStoragePlan, RuntimeStorageWrite,
+};
+
 use crate::control_flow::StateKey;
-use crate::layout::{LayoutPlan, TypeLayout};
+use crate::layout::TypeLayout;
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::{
-    RuntimeDispatchBody, RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
-};
-use crate::state_storage::{
-    StateMutation, StateMutationKind, StateMutationLowering, StateStoragePlan,
-};
-use crate::target::NativeTarget;
-use omega_core::arena::Arena;
+use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use crate::state_storage::{StateMutation, StateMutationLowering};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::types::PrimitiveType;
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RuntimeStoragePlan {
-    pub frame_slots: Arena<RuntimeFrameSlot>,
-    pub writes: Arena<RuntimeStorageWrite>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct RuntimeFrameSlot {
-    pub dispatch_index: u32,
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub name: ProgramName,
-    pub type_name: String,
-    pub byte_offset: usize,
-    pub byte_size: usize,
-    pub alignment: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStorageWrite {
-    pub dispatch_index: u32,
-    pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub statement_index: usize,
-    pub target: Expression,
-    pub value: Expression,
-    pub mutation_kind: StateMutationKind,
-    pub lowering: StateMutationLowering,
-}
-
-impl Default for RuntimeStorageWrite {
-    fn default() -> Self {
-        Self {
-            dispatch_index: 0,
-            source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            statement_index: 0,
-            target: Expression::Integer(0),
-            value: Expression::Integer(0),
-            mutation_kind: StateMutationKind::Unknown,
-            lowering: StateMutationLowering::Unknown,
-        }
-    }
-}
 
 pub fn build_runtime_storage_plan(native_plan: &NativePlan) -> RuntimeStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
@@ -108,29 +59,6 @@ pub fn build_runtime_storage_plan_with_workers(
     }
 
     plan
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RuntimeStorageContext {
-    pub layouts: LayoutPlan,
-    pub state_storage: StateStoragePlan,
-    pub target: NativeTarget,
-}
-
-impl RuntimeStorageContext {
-    pub fn from_native_plan(native_plan: &NativePlan) -> Self {
-        Self {
-            layouts: native_plan.layouts.clone(),
-            state_storage: native_plan.state_storage.clone(),
-            target: native_plan.target,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct RuntimeStorageBodyInput {
-    pub body: RuntimeDispatchBody,
-    pub operations: Vec<RuntimeDispatchBodyOperation>,
 }
 
 pub fn runtime_storage_body_inputs(native_plan: &NativePlan) -> Vec<RuntimeStorageBodyInput> {
