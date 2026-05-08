@@ -5,6 +5,7 @@ use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::expression::display_name_path;
 use omega_typed_program::machine::Machine;
+use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use std::sync::Arc;
@@ -74,8 +75,8 @@ pub enum OperationKind {
         value: Expression,
     },
     Call {
-        receiver: Option<String>,
-        target: String,
+        receiver: Option<ProgramName>,
+        target: ProgramName,
         arguments: Vec<Expression>,
     },
     ConstantIntegerAssignment,
@@ -384,8 +385,8 @@ fn operation_kind(statement: &Statement) -> OperationKind {
             value: assignment.value.clone(),
         },
         Statement::Call(call) => OperationKind::Call {
-            receiver: call.receiver.as_ref().map(ToString::to_string),
-            target: call.target.to_string(),
+            receiver: call.receiver.clone(),
+            target: call.target.clone(),
             arguments: call.arguments.clone(),
         },
         Statement::Expression(_) => OperationKind::Expression,

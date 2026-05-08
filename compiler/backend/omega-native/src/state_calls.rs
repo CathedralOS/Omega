@@ -291,12 +291,15 @@ fn collect_machine_state_calls(
                 source_machine: machine.name.to_string(),
                 source_state: state.name.to_string(),
                 statement_index: operation.statement_index,
-                receiver: receiver.clone().unwrap_or_else(|| "self".to_owned()),
+                receiver: receiver
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "self".to_owned()),
                 target_machine: resolved_target
                     .as_ref()
                     .map(|target| target.machine.clone())
                     .unwrap_or_default(),
-                target_state: target.clone(),
+                target_state: target.to_string(),
                 raw_arguments: arguments.clone(),
                 reachable: context.runtime_state_is_reachable(&machine.name, &state.name),
                 required: false,

@@ -95,14 +95,10 @@ fn count_control_flow_strings(native_plan: &NativePlan, storage: &mut NativeStri
                 count_expression_strings(value, storage);
             }
             OperationKind::Call {
-                receiver,
-                target,
+                receiver: _,
+                target: _,
                 arguments,
             } => {
-                if let Some(receiver) = receiver {
-                    storage.count_identity(receiver);
-                }
-                storage.count_identity(target);
                 for argument in arguments {
                     count_expression_strings(argument, storage);
                 }

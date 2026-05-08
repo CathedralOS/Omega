@@ -189,7 +189,7 @@ fn append_local_state_calls(
         bind_state_arguments(
             native_plan,
             &target_machine,
-            target,
+            target.as_str(),
             arguments,
             aliases,
             values,
@@ -292,7 +292,7 @@ fn next_state(
             bind_state_arguments(native_plan, machine_name, name, arguments, aliases, values)?;
             Ok(Some(ScheduledState {
                 machine: machine_name.to_owned(),
-                state: name.clone(),
+                state: name.to_string(),
             }))
         }
         PlannedTransitionTarget::Terminal => Ok(None),
