@@ -1,9 +1,15 @@
 use crate::control_flow::OperationKind;
-use crate::host_calls::HostCall;
+use crate::control_flow::{ControlFlowPlan, Operation};
+use crate::host_calls::{HostCall, HostCallPlan};
 use crate::plan::NativePlan;
+use crate::runtime_dispatch::states::DispatchState;
 use crate::state_calls::{StateCall, StateCallLowering};
-use crate::state_storage::{StateMutationKind, StateMutationLowering};
+use crate::state_storage::{
+    StateLocalStorage, StateMutation, StateMutationKind, StateMutationLowering, StateStoragePlan,
+};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyPlan {
@@ -84,23 +90,49 @@ pub enum RuntimeDispatchBodyOperationKind {
 }
 
 pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDispatchBodyPlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_runtime_dispatch_body_plan_with_workers(
+        Arc::new(RuntimeDispatchBodyContext::from_native_plan(native_plan)),
+        native_plan
+            .state_dispatch
+            .states
+            .iter()
+            .map(|(_, dispatch_state)| dispatch_state.clone())
+            .collect(),
+        workers.handle(),
+    )
+}
+
+pub fn build_runtime_dispatch_body_plan_with_workers(
+    context: Arc<RuntimeDispatchBodyContext>,
+    dispatch_states: Vec<DispatchState>,
+    workers: WorkerPoolHandle,
+) -> RuntimeDispatchBodyPlan {
+    if dispatch_states.is_empty() {
+        return RuntimeDispatchBodyPlan::default();
+    }
+
+    let dispatch_states = Arc::new(dispatch_states);
+    let state_count = dispatch_states.len();
+    let context_for_bodies = Arc::clone(&context);
+    let collected_bodies = workers.map_ordered(state_count, move |index| {
+        let dispatch_state = dispatch_states
+            .get(index)
+            .expect("runtime-body worker index should be in range");
+
+        build_dispatch_body(&context_for_bodies, dispatch_state)
+    });
+
     let mut plan = RuntimeDispatchBodyPlan::default();
 
-    for (_, dispatch_state) in native_plan.state_dispatch.states.iter() {
-        let mut operations = Vec::new();
-        append_state_body_operations(
-            native_plan,
-            &dispatch_state.machine,
-            &dispatch_state.state,
-            &mut operations,
-            &mut Vec::new(),
-        );
-        let operations = plan.operations.insert_many(operations);
+    for collected_body in collected_bodies {
+        let operations = plan.operations.insert_many(collected_body.operations);
 
         plan.bodies.insert(RuntimeDispatchBody {
-            machine: dispatch_state.machine.clone(),
-            state: dispatch_state.state.clone(),
-            dispatch_index: dispatch_state.dispatch_index,
+            machine: collected_body.machine,
+            state: collected_body.state,
+            dispatch_index: collected_body.dispatch_index,
             operations,
         });
     }
@@ -108,8 +140,56 @@ pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDisp
     plan
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RuntimeDispatchBodyContext {
+    pub control_flow: ControlFlowPlan,
+    pub host_calls: HostCallPlan,
+    pub state_calls: crate::state_calls::StateCallPlan,
+    pub state_storage: StateStoragePlan,
+}
+
+impl RuntimeDispatchBodyContext {
+    pub fn from_native_plan(native_plan: &NativePlan) -> Self {
+        Self {
+            control_flow: native_plan.control_flow.clone(),
+            host_calls: native_plan.host_calls.clone(),
+            state_calls: native_plan.state_calls.clone(),
+            state_storage: native_plan.state_storage.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CollectedRuntimeDispatchBody {
+    machine: String,
+    state: String,
+    dispatch_index: u32,
+    operations: Vec<RuntimeDispatchBodyOperation>,
+}
+
+fn build_dispatch_body(
+    context: &RuntimeDispatchBodyContext,
+    dispatch_state: &DispatchState,
+) -> CollectedRuntimeDispatchBody {
+    let mut operations = Vec::new();
+    append_state_body_operations(
+        context,
+        &dispatch_state.machine,
+        &dispatch_state.state,
+        &mut operations,
+        &mut Vec::new(),
+    );
+
+    CollectedRuntimeDispatchBody {
+        machine: dispatch_state.machine.clone(),
+        state: dispatch_state.state.clone(),
+        dispatch_index: dispatch_state.dispatch_index,
+        operations,
+    }
+}
+
 fn append_state_body_operations(
-    native_plan: &NativePlan,
+    context: &RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
@@ -123,18 +203,15 @@ fn append_state_body_operations(
     }
     visiting.push((machine_name.to_owned(), state_name.to_owned()));
 
-    let Some(state_operations) = state_operations(native_plan, machine_name, state_name) else {
+    let Some(state_operations) = state_operations(context, machine_name, state_name) else {
         visiting.pop();
         return;
     };
 
     for operation in state_operations {
-        if let Some(host_call) = host_call_for_statement(
-            native_plan,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) {
+        if let Some(host_call) =
+            host_call_for_statement(context, machine_name, state_name, operation.statement_index)
+        {
             operations.push(body_operation(
                 machine_name,
                 state_name,
@@ -146,18 +223,15 @@ fn append_state_body_operations(
             continue;
         }
 
-        if let Some(state_call) = state_call_for_statement(
-            native_plan,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) {
-            append_state_call_body_operation(native_plan, state_call, operations, visiting);
+        if let Some(state_call) =
+            state_call_for_statement(context, machine_name, state_name, operation.statement_index)
+        {
+            append_state_call_body_operation(context, state_call, operations, visiting);
             continue;
         }
 
         if let Some(local_storage) = local_storage_for_statement(
-            native_plan,
+            context,
             machine_name,
             state_name,
             operation.statement_index,
@@ -174,12 +248,9 @@ fn append_state_body_operations(
             continue;
         }
 
-        if let Some(mutation) = mutation_for_statement(
-            native_plan,
-            machine_name,
-            state_name,
-            operation.statement_index,
-        ) {
+        if let Some(mutation) =
+            mutation_for_statement(context, machine_name, state_name, operation.statement_index)
+        {
             operations.push(body_operation(
                 machine_name,
                 state_name,
@@ -206,7 +277,7 @@ fn append_state_body_operations(
 }
 
 fn append_state_call_body_operation(
-    native_plan: &NativePlan,
+    context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
     visiting: &mut Vec<(String, String)>,
@@ -223,7 +294,7 @@ fn append_state_call_body_operation(
             },
         ));
         append_state_body_operations(
-            native_plan,
+            context,
             &state_call.target_machine,
             &state_call.target_state,
             operations,
@@ -233,7 +304,7 @@ fn append_state_call_body_operation(
     }
 
     if state_has_no_transitions(
-        native_plan,
+        context,
         &state_call.target_machine,
         &state_call.target_state,
     ) {
@@ -249,7 +320,7 @@ fn append_state_call_body_operation(
             },
         ));
         append_state_body_operations(
-            native_plan,
+            context,
             &state_call.target_machine,
             &state_call.target_state,
             operations,
@@ -286,43 +357,43 @@ fn body_operation(
 }
 
 fn state_operations<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
-) -> Option<&'plan [crate::control_flow::Operation]> {
-    native_plan
+) -> Option<&'plan [Operation]> {
+    context
         .control_flow
         .machines
         .iter()
         .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .and_then(|state| native_plan.control_flow.operations.span(state.operations))
+        .and_then(|state| context.control_flow.operations.span(state.operations))
 }
 
 fn state_has_no_transitions(
-    native_plan: &NativePlan,
+    context: &RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
 ) -> bool {
-    native_plan
+    context
         .control_flow
         .machines
         .iter()
         .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| native_plan.control_flow.states.span(machine.states))
+        .and_then(|(_, machine)| context.control_flow.states.span(machine.states))
         .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .and_then(|state| native_plan.control_flow.transitions.span(state.transitions))
+        .and_then(|state| context.control_flow.transitions.span(state.transitions))
         .is_none_or(|transitions| transitions.is_empty())
 }
 
 fn host_call_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
 ) -> Option<&'plan HostCall> {
-    native_plan
+    context
         .host_calls
         .calls
         .iter()
@@ -335,12 +406,12 @@ fn host_call_for_statement<'plan>(
 }
 
 fn state_call_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
-    native_plan
+    context
         .state_calls
         .calls
         .iter()
@@ -353,12 +424,12 @@ fn state_call_for_statement<'plan>(
 }
 
 fn local_storage_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
-) -> Option<&'plan crate::state_storage::StateLocalStorage> {
-    native_plan
+) -> Option<&'plan StateLocalStorage> {
+    context
         .state_storage
         .locals
         .iter()
@@ -371,12 +442,12 @@ fn local_storage_for_statement<'plan>(
 }
 
 fn mutation_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan RuntimeDispatchBodyContext,
     machine_name: &str,
     state_name: &str,
     statement_index: usize,
-) -> Option<&'plan crate::state_storage::StateMutation> {
-    native_plan
+) -> Option<&'plan StateMutation> {
+    context
         .state_storage
         .mutations
         .iter()

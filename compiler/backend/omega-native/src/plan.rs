@@ -8,7 +8,10 @@ use crate::layout::{LayoutPlan, build_layout_plan};
 use crate::machine_code::{MachineCodePlan, build_machine_code_plan};
 use crate::object::{ObjectPlan, build_object_plan};
 use crate::relocations::{RelocationPlan, build_relocation_plan};
-use crate::runtime_dispatch::bodies::{RuntimeDispatchBodyPlan, build_runtime_dispatch_body_plan};
+use crate::runtime_dispatch::bodies::{
+    RuntimeDispatchBodyContext, RuntimeDispatchBodyPlan,
+    build_runtime_dispatch_body_plan_with_workers,
+};
 use crate::runtime_dispatch::branching::{
     RuntimeBranchingCallPlan, build_runtime_branching_call_plan,
 };
@@ -169,7 +172,16 @@ pub fn build_native_plan_with_workers(
     );
     native_plan.state_storage = state_storage;
     native_plan.state_values = state_values;
-    native_plan.runtime_bodies = build_runtime_dispatch_body_plan(&native_plan);
+    native_plan.runtime_bodies = build_runtime_dispatch_body_plan_with_workers(
+        Arc::new(RuntimeDispatchBodyContext::from_native_plan(&native_plan)),
+        native_plan
+            .state_dispatch
+            .states
+            .iter()
+            .map(|(_, dispatch_state)| dispatch_state.clone())
+            .collect(),
+        workers.clone(),
+    );
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
     native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan(&native_plan);
     native_plan.runtime_storage = build_runtime_storage_plan(&native_plan);
