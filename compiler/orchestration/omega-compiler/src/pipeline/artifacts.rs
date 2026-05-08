@@ -192,8 +192,8 @@ impl ArtifactWriter {
             "stored path members: {}\n\n",
             resolve_report.symbols.path_member_arena().len()
         ));
-        let reference_name_storage = resolve_report.reference_name_storage_counts();
-        output.push_str("## Reference Name Members\n");
+        let reference_name_storage = resolve_report.name_storage_counts();
+        output.push_str("## Name Members\n");
         output.push_str(&format!(
             "source members: {}\n",
             reference_name_storage.source_members
@@ -209,7 +209,7 @@ impl ArtifactWriter {
 
         output.push_str("## Imports\n");
         for (_, import) in resolve_report.imports.iter() {
-            output.push_str(&format!("- {}\n", import.path));
+            output.push_str(&format!("- {}\n", resolve_report.import_path(import)));
         }
 
         output.push_str("\n## Definitions\n");

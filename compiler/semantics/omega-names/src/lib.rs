@@ -24,7 +24,7 @@ pub struct ResolveReport {
     pub definitions: Arena<ResolvedDefinition>,
     pub imports: Arena<ResolvedImport>,
     pub references: Arena<ResolvedReference>,
-    pub reference_name_members: Arena<ResolvedReferenceNameMember>,
+    pub name_members: Arena<ResolvedNameMember>,
     pub symbols: SymbolTable,
 }
 
@@ -49,26 +49,26 @@ pub enum ResolvedDefinitionKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolvedImport {
-    pub path: String,
+    pub path: HandleSpan<ResolvedNameMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolvedReference {
-    pub name: HandleSpan<ResolvedReferenceNameMember>,
+    pub name: HandleSpan<ResolvedNameMember>,
     pub kind: ResolvedReferenceKind,
     pub owner: String,
     pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum ResolvedReferenceNameMember {
+pub enum ResolvedNameMember {
     #[default]
     Missing,
     Source(SourceSpan),
     Generated(String),
 }
 
-impl ResolvedReferenceNameMember {
+impl ResolvedNameMember {
     pub fn from_identifier(identifier: &Identifier) -> Self {
         if identifier.is_source_backed() {
             Self::Source(identifier.source_span())
@@ -99,15 +99,23 @@ pub enum ResolvedReferenceKind {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct ReferenceNameStorageCounts {
+pub struct ResolvedNameStorageCounts {
     pub missing: usize,
     pub source_members: usize,
     pub generated_members: usize,
 }
 
 impl ResolveReport {
+    pub fn import_path(&self, import: &ResolvedImport) -> String {
+        self.name_from_members(import.path)
+    }
+
     pub fn reference_name(&self, reference: &ResolvedReference) -> String {
-        let members = self.reference_name_members.span_or_empty(reference.name);
+        self.name_from_members(reference.name)
+    }
+
+    fn name_from_members(&self, name: HandleSpan<ResolvedNameMember>) -> String {
+        let members = self.name_members.span_or_empty(name);
         let byte_count = members
             .iter()
             .map(|member| member.as_str(&self.symbols).len())
@@ -126,14 +134,14 @@ impl ResolveReport {
         name
     }
 
-    pub fn reference_name_storage_counts(&self) -> ReferenceNameStorageCounts {
-        let mut counts = ReferenceNameStorageCounts::default();
+    pub fn name_storage_counts(&self) -> ResolvedNameStorageCounts {
+        let mut counts = ResolvedNameStorageCounts::default();
 
-        for (_, member) in self.reference_name_members.iter() {
+        for (_, member) in self.name_members.iter() {
             match member {
-                ResolvedReferenceNameMember::Missing => counts.missing += 1,
-                ResolvedReferenceNameMember::Source(_) => counts.source_members += 1,
-                ResolvedReferenceNameMember::Generated(_) => counts.generated_members += 1,
+                ResolvedNameMember::Missing => counts.missing += 1,
+                ResolvedNameMember::Source(_) => counts.source_members += 1,
+                ResolvedNameMember::Generated(_) => counts.generated_members += 1,
             }
         }
 
@@ -218,9 +226,8 @@ fn build_resolve_report_with_optional_sources(
                 );
             }
             Item::Use(use_item) => {
-                report.imports.insert(ResolvedImport {
-                    path: use_item.path.join("::"),
-                });
+                let path = insert_name_members(&mut report, use_item.path.iter());
+                report.imports.insert(ResolvedImport { path });
             }
             Item::Machine(machine) => {
                 insert_definition(
@@ -613,11 +620,7 @@ fn insert_reference_from_identifiers<'identifier>(
     owner: &str,
     symbol: SymbolHandle,
 ) {
-    let name = report.reference_name_members.insert_many(
-        identifiers
-            .into_iter()
-            .map(ResolvedReferenceNameMember::from_identifier),
-    );
+    let name = insert_name_members(report, identifiers);
 
     report.references.insert(ResolvedReference {
         name,
@@ -625,6 +628,17 @@ fn insert_reference_from_identifiers<'identifier>(
         owner: owner.to_owned(),
         symbol,
     });
+}
+
+fn insert_name_members<'identifier>(
+    report: &mut ResolveReport,
+    identifiers: impl IntoIterator<Item = &'identifier Identifier>,
+) -> HandleSpan<ResolvedNameMember> {
+    report.name_members.insert_many(
+        identifiers
+            .into_iter()
+            .map(ResolvedNameMember::from_identifier),
+    )
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
