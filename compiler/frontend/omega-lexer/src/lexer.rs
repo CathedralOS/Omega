@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::{LexError, Span, Token, TokenKind};
+use crate::{LexError, Span, Token, TokenKind, TokenText};
 
 pub struct Lexer<'source> {
     source: &'source str,
@@ -16,8 +16,9 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    pub fn tokenize(mut self) -> Result<Vec<Token>, LexError> {
+    pub fn tokenize(mut self) -> Result<Vec<Token<'source>>, LexError> {
         let mut tokens = Vec::new();
+        let source = self.source;
 
         while let Some((start, character)) = self.chars.next() {
             if character.is_whitespace() {
@@ -30,21 +31,41 @@ impl<'source> Lexer<'source> {
             }
 
             if character.is_ascii_alphabetic() || character == '_' {
-                tokens.push(self.lex_identifier(start, character));
+                let end = self.lex_identifier_end(start, character);
+                tokens.push(Token {
+                    kind: TokenKind::Identifier,
+                    lexeme: TokenText::source(&source[start..end]),
+                    span: Span::new(start, end),
+                });
                 continue;
             }
 
             if character.is_ascii_digit() {
-                tokens.push(self.lex_number(start, character));
+                let (kind, end) = self.lex_number(start, character);
+                tokens.push(Token {
+                    kind,
+                    lexeme: TokenText::source(&source[start..end]),
+                    span: Span::new(start, end),
+                });
                 continue;
             }
 
             if character == '"' {
-                tokens.push(self.lex_string(start)?);
+                let (lexeme, span) = self.lex_string(start)?;
+                tokens.push(Token {
+                    kind: TokenKind::String,
+                    lexeme: TokenText::owned(lexeme),
+                    span,
+                });
                 continue;
             }
 
-            tokens.push(self.lex_symbol(start, character));
+            let end = self.lex_symbol_end(start, character);
+            tokens.push(Token {
+                kind: TokenKind::Symbol,
+                lexeme: TokenText::source(&source[start..end]),
+                span: Span::new(start, end),
+            });
         }
 
         Ok(tokens)
@@ -58,7 +79,7 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    fn lex_identifier(&mut self, start: usize, first: char) -> Token {
+    fn lex_identifier_end(&mut self, start: usize, first: char) -> usize {
         let mut end = start + first.len_utf8();
 
         while let Some((next_index, next)) = self.chars.peek().copied() {
@@ -70,14 +91,10 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        Token {
-            kind: TokenKind::Identifier,
-            lexeme: self.source[start..end].to_owned(),
-            span: Span::new(start, end),
-        }
+        end
     }
 
-    fn lex_number(&mut self, start: usize, first: char) -> Token {
+    fn lex_number(&mut self, start: usize, first: char) -> (TokenKind, usize) {
         let mut end = start + first.len_utf8();
         let mut is_float = false;
 
@@ -118,27 +135,22 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        Token {
-            kind: if is_float {
+        (
+            if is_float {
                 TokenKind::Float
             } else {
                 TokenKind::Integer
             },
-            lexeme: self.source[start..end].to_owned(),
-            span: Span::new(start, end),
-        }
+            end,
+        )
     }
 
-    fn lex_string(&mut self, start: usize) -> Result<Token, LexError> {
+    fn lex_string(&mut self, start: usize) -> Result<(String, Span), LexError> {
         let mut lexeme = String::new();
 
         while let Some((index, character)) = self.chars.next() {
             if character == '"' {
-                return Ok(Token {
-                    kind: TokenKind::String,
-                    lexeme,
-                    span: Span::new(start, index + character.len_utf8()),
-                });
+                return Ok((lexeme, Span::new(start, index + character.len_utf8())));
             }
 
             if character == '\\' {
@@ -172,7 +184,7 @@ impl<'source> Lexer<'source> {
         ))
     }
 
-    fn lex_symbol(&mut self, start: usize, first: char) -> Token {
+    fn lex_symbol_end(&mut self, start: usize, first: char) -> usize {
         let mut end = start + first.len_utf8();
 
         if matches!(
@@ -191,11 +203,7 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        Token {
-            kind: TokenKind::Symbol,
-            lexeme: self.source[start..end].to_owned(),
-            span: Span::new(start, end),
-        }
+        end
     }
 
     fn peek_character(&mut self) -> Option<char> {

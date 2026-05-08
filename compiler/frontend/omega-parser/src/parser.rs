@@ -21,16 +21,16 @@ pub struct AstFile {
     pub items: Vec<Item>,
 }
 
-pub fn parse_file(tokens: &[Token]) -> Result<AstFile, ParseError> {
+pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
     Parser { tokens, index: 0 }.parse_file()
 }
 
-struct Parser<'a> {
-    tokens: &'a [Token],
+struct Parser<'tokens, 'source> {
+    tokens: &'tokens [Token<'source>],
     index: usize,
 }
 
-impl Parser<'_> {
+impl Parser<'_, '_> {
     fn parse_file(&mut self) -> Result<AstFile, ParseError> {
         let mut items = Vec::new();
 
@@ -830,20 +830,21 @@ impl Parser<'_> {
             match token.kind {
                 TokenKind::Integer => token
                     .lexeme
+                    .as_str()
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
-                TokenKind::Float => Ok(Expression::Float(token.lexeme.clone())),
+                TokenKind::Float => Ok(Expression::Float(token.lexeme.as_str().to_owned())),
                 TokenKind::Identifier => {
-                    if token.lexeme == "true" {
+                    if token.lexeme.as_str() == "true" {
                         return Ok(Expression::Boolean(true));
                     }
 
-                    if token.lexeme == "false" {
+                    if token.lexeme.as_str() == "false" {
                         return Ok(Expression::Boolean(false));
                     }
 
-                    let mut path = vec![token.lexeme.clone()];
+                    let mut path = vec![token.lexeme.as_str().to_owned()];
 
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_identifier()?);
@@ -855,7 +856,7 @@ impl Parser<'_> {
                         self.parse_reference_tail(Expression::Name(path))
                     }
                 }
-                TokenKind::String => Ok(Expression::String(token.lexeme.clone())),
+                TokenKind::String => Ok(Expression::String(token.lexeme.as_str().to_owned())),
                 _ => Err(ParseError::at_span("expected expression", token.span)),
             }
         } else {
@@ -950,9 +951,9 @@ impl Parser<'_> {
                 return Err(self.error_here("unterminated block"));
             };
 
-            if token.lexeme == "{" {
+            if token.lexeme.as_str() == "{" {
                 depth += 1;
-            } else if token.lexeme == "}" {
+            } else if token.lexeme.as_str() == "}" {
                 depth -= 1;
             }
         }
@@ -970,9 +971,9 @@ impl Parser<'_> {
                 return Err(self.error_here("unterminated block"));
             };
 
-            if token.lexeme == "{" {
+            if token.lexeme.as_str() == "{" {
                 depth += 1;
-            } else if token.lexeme == "}" {
+            } else if token.lexeme.as_str() == "}" {
                 depth -= 1;
             }
 
@@ -993,9 +994,9 @@ impl Parser<'_> {
                 return Err(self.error_here("unterminated parenthesized value"));
             };
 
-            if token.lexeme == "(" {
+            if token.lexeme.as_str() == "(" {
                 depth += 1;
-            } else if token.lexeme == ")" {
+            } else if token.lexeme.as_str() == ")" {
                 depth -= 1;
             }
 
@@ -1017,7 +1018,8 @@ impl Parser<'_> {
     }
 
     fn check(&self, lexeme: &str) -> bool {
-        self.peek().is_some_and(|token| token.lexeme == lexeme)
+        self.peek()
+            .is_some_and(|token| token.lexeme.as_str() == lexeme)
     }
 
     fn check_kind(&self, kind: TokenKind) -> bool {
@@ -1038,7 +1040,7 @@ impl Parser<'_> {
         };
 
         if token.kind == TokenKind::Identifier {
-            Ok(token.lexeme.clone())
+            Ok(token.lexeme.as_str().to_owned())
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
@@ -1055,17 +1057,18 @@ impl Parser<'_> {
 
         token
             .lexeme
+            .as_str()
             .parse::<usize>()
             .map_err(|_| ParseError::at_span("invalid integer literal", token.span))
     }
 
-    fn advance(&mut self) -> Option<&Token> {
+    fn advance(&mut self) -> Option<&Token<'_>> {
         let token = self.tokens.get(self.index)?;
         self.index += 1;
         Some(token)
     }
 
-    fn peek(&self) -> Option<&Token> {
+    fn peek(&self) -> Option<&Token<'_>> {
         self.tokens.get(self.index)
     }
 
