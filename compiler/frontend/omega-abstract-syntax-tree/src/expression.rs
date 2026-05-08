@@ -1,11 +1,12 @@
 use crate::identifier::{Identifier, IdentifierPath};
+use omega_core::source::SourceText;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     ArrayLiteral(Vec<Expression>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
-    Float(String),
+    Float(SourceText),
     Indexed(Box<IndexedExpression>),
     Integer(i64),
     Mutable(Box<Expression>),
@@ -67,7 +68,7 @@ impl Expression {
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),
-            Expression::Float(value) => value.clone(),
+            Expression::Float(value) => value.to_string(),
             Expression::Indexed(indexed) => {
                 format!(
                     "{}[{}]",

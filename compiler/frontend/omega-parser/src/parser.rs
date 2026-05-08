@@ -15,7 +15,7 @@ use omega_abstract_syntax_tree::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
-use omega_core::source::FileId;
+use omega_core::source::{FileId, SourceText};
 use omega_lexer::{Token, TokenKind};
 use std::sync::Arc;
 
@@ -879,7 +879,11 @@ impl Parser<'_, '_> {
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
-                TokenKind::Float => Ok(Expression::Float(token.lexeme.as_str().to_owned())),
+                TokenKind::Float => Ok(Expression::Float(source_text_from_token(
+                    file_id,
+                    source.as_ref(),
+                    token,
+                ))),
                 TokenKind::Identifier => {
                     if token.lexeme.as_str() == "true" {
                         return Ok(Expression::Boolean(true));
@@ -1147,6 +1151,20 @@ fn identifier_from_token(
         Identifier::source(Arc::clone(source), source_span)
     } else {
         Identifier::new(token.lexeme.as_str(), source_span)
+    }
+}
+
+fn source_text_from_token(
+    file_id: FileId,
+    source: Option<&Arc<str>>,
+    token: &Token<'_>,
+) -> SourceText {
+    let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
+
+    if let Some(source) = source {
+        SourceText::source(Arc::clone(source), source_span)
+    } else {
+        SourceText::generated(token.lexeme.as_str())
     }
 }
 

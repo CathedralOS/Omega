@@ -304,7 +304,7 @@ fn float_range_for_transition_argument(
 ) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
-            let value = float_literal(&value)?;
+            let value = float_literal(value.as_str())?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -323,7 +323,7 @@ fn float_range_for_assignment(
 ) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(&value)?;
+            let value = float_literal(value.as_str())?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -341,7 +341,7 @@ fn float_range_for_call_argument(
 ) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
-            let value = float_literal(&value)?;
+            let value = float_literal(value.as_str())?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -360,7 +360,7 @@ fn float_range_for_return_value(
 ) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(&value)?;
+            let value = float_literal(value.as_str())?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -375,7 +375,7 @@ fn float_range_for_return_value(
 fn float_range_for_initializer(obligation: &BoundedInitializerObligation) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(&value)?;
+            let value = float_literal(value.as_str())?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -490,7 +490,7 @@ fn integer_literal(expression: &Expression) -> Option<i64> {
 
 fn float_literal_expression(expression: &Expression) -> Option<f64> {
     match expression {
-        Expression::Float(value) => float_literal(&value),
+        Expression::Float(value) => float_literal(value.as_str()),
         Expression::Integer(value) => Some(*value as f64),
         _ => None,
     }
@@ -708,7 +708,7 @@ fn argument_satisfies_named_constraint(
 
 fn expression_is_finite_literal(expression: &Expression) -> bool {
     match expression {
-        Expression::Float(value) => float_literal(&value).is_some(),
+        Expression::Float(value) => float_literal(value.as_str()).is_some(),
         Expression::Integer(_) => true,
         _ => false,
     }

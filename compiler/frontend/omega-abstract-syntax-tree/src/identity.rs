@@ -14,6 +14,8 @@ pub struct AstIdentityStorageCounts {
     pub path_members: usize,
     pub string_literals: usize,
     pub float_literals: usize,
+    pub source_float_literals: usize,
+    pub generated_float_literals: usize,
 }
 
 impl AstIdentityStorageCounts {
@@ -207,7 +209,14 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
             count_expression(&binary.right, counts);
         }
         Expression::Boolean(_) | Expression::Integer(_) => {}
-        Expression::Float(_) => counts.float_literals += 1,
+        Expression::Float(value) => {
+            counts.float_literals += 1;
+            if value.is_source_backed() {
+                counts.source_float_literals += 1;
+            } else {
+                counts.generated_float_literals += 1;
+            }
+        }
         Expression::Indexed(indexed) => {
             count_expression(&indexed.collection, counts);
             count_expression(&indexed.index, counts);

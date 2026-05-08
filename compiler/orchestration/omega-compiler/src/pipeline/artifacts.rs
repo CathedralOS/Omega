@@ -138,8 +138,16 @@ impl ArtifactWriter {
             identity_storage.string_literals
         ));
         output.push_str(&format!(
-            "float literals: {}\n\n",
+            "float literals: {}\n",
             identity_storage.float_literals
+        ));
+        output.push_str(&format!(
+            "source float literals: {}\n",
+            identity_storage.source_float_literals
+        ));
+        output.push_str(&format!(
+            "generated float literals: {}\n\n",
+            identity_storage.generated_float_literals
         ));
 
         for file in &loaded_program.files {
@@ -343,8 +351,16 @@ impl ArtifactWriter {
             identity_storage.string_literals
         ));
         output.push_str(&format!(
-            "float literals: {}\n\n",
+            "float literals: {}\n",
             identity_storage.float_literals
+        ));
+        output.push_str(&format!(
+            "source float literals: {}\n",
+            identity_storage.source_float_literals
+        ));
+        output.push_str(&format!(
+            "generated float literals: {}\n\n",
+            identity_storage.generated_float_literals
         ));
 
         output.push_str("## Symbol Arenas\n");

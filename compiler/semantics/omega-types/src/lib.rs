@@ -294,6 +294,7 @@ mod tests {
     use omega_abstract_syntax_tree::identifier::Identifier;
     use omega_abstract_syntax_tree::item::{Item, Machine, OwnedData, State, StateParameter};
     use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+    use omega_core::source::SourceText;
 
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
 
@@ -310,10 +311,10 @@ mod tests {
                         TypeConstraint::Named(Identifier::generated("finite")),
                         TypeConstraint::Range {
                             minimum: omega_abstract_syntax_tree::expression::Expression::Float(
-                                "0.0f".to_owned(),
+                                SourceText::generated("0.0f"),
                             ),
                             maximum: omega_abstract_syntax_tree::expression::Expression::Float(
-                                "100000.0f".to_owned(),
+                                SourceText::generated("100000.0f"),
                             ),
                         },
                     ],
