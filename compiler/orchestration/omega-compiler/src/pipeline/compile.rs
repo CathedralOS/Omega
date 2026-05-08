@@ -55,7 +55,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
     let workers = WorkerPool::with_available_parallelism();
     let mut phase_timings = Vec::new();
-    let loaded_program = record_phase(&mut phase_timings, "sources", || {
+    let loaded_program = Arc::new(record_phase(&mut phase_timings, "sources", || {
         let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
@@ -63,7 +63,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(loaded_program)
-    })?;
+    })?);
 
     debug_assert!(loaded_program.file_ranges_are_valid());
     record_phase(&mut phase_timings, "ast", || {
@@ -83,8 +83,12 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
-        let type_surface = build_type_surface_report(&loaded_program.items);
-        let effect_plan = infer_effects(&program);
+        let loaded_program_for_types = Arc::clone(&loaded_program);
+        let program_for_effects = Arc::clone(&program);
+        let (type_surface, effect_plan) = workers.handle().join2(
+            move || build_type_surface_report(&loaded_program_for_types.items),
+            move || infer_effects(&program_for_effects),
+        );
         artifacts
             .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -101,16 +105,24 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
-        let source_graph = build_source_graph_report(&loaded_program.items);
-        let control_flow =
-            build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
+        let loaded_program_for_graph = Arc::clone(&loaded_program);
+        let program_for_control_flow = Arc::clone(&program);
+        let (source_graph, control_flow) = workers.handle().join2(
+            move || build_source_graph_report(&loaded_program_for_graph.items),
+            move || build_control_flow_plan(&program_for_control_flow),
+        );
+        let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_graphs(&source_graph, &control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
-        let proof_surface = build_proof_surface_report(&loaded_program.items);
-        let proof_plan = build_proof_plan(&program);
+        let loaded_program_for_proof = Arc::clone(&loaded_program);
+        let program_for_proof = Arc::clone(&program);
+        let (proof_surface, proof_plan) = workers.handle().join2(
+            move || build_proof_surface_report(&loaded_program_for_proof.items),
+            move || build_proof_plan(&program_for_proof),
+        );
         artifacts
             .write_proof_report(&proof_surface, &proof_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -163,7 +175,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let artifacts = ArtifactWriter::new(&build_dir).map_err(|diagnostic| vec![diagnostic])?;
     let workers = WorkerPool::with_available_parallelism();
     let mut phase_timings = Vec::new();
-    let loaded_program = record_phase(&mut phase_timings, "sources", || {
+    let loaded_program = Arc::new(record_phase(&mut phase_timings, "sources", || {
         let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
@@ -171,7 +183,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(loaded_program)
-    })?;
+    })?);
 
     debug_assert!(loaded_program.file_ranges_are_valid());
     record_phase(&mut phase_timings, "ast", || {
@@ -191,8 +203,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         || lower_program(&loaded_program.items).map_err(|diagnostic| vec![diagnostic]),
     )?);
     record_phase(&mut phase_timings, "types/effects", || {
-        let type_surface = build_type_surface_report(&loaded_program.items);
-        let effect_plan = infer_effects(&program);
+        let loaded_program_for_types = Arc::clone(&loaded_program);
+        let program_for_effects = Arc::clone(&program);
+        let (type_surface, effect_plan) = workers.handle().join2(
+            move || build_type_surface_report(&loaded_program_for_types.items),
+            move || infer_effects(&program_for_effects),
+        );
         artifacts
             .write_type_surface_and_effects(&type_surface, &effect_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -209,16 +225,24 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "graph", || {
-        let source_graph = build_source_graph_report(&loaded_program.items);
-        let control_flow =
-            build_control_flow_plan(&program).map_err(|diagnostic| vec![diagnostic])?;
+        let loaded_program_for_graph = Arc::clone(&loaded_program);
+        let program_for_control_flow = Arc::clone(&program);
+        let (source_graph, control_flow) = workers.handle().join2(
+            move || build_source_graph_report(&loaded_program_for_graph.items),
+            move || build_control_flow_plan(&program_for_control_flow),
+        );
+        let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_graphs(&source_graph, &control_flow)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     record_phase(&mut phase_timings, "proof", || {
-        let proof_surface = build_proof_surface_report(&loaded_program.items);
-        let proof_plan = build_proof_plan(&program);
+        let loaded_program_for_proof = Arc::clone(&loaded_program);
+        let program_for_proof = Arc::clone(&program);
+        let (proof_surface, proof_plan) = workers.handle().join2(
+            move || build_proof_surface_report(&loaded_program_for_proof.items),
+            move || build_proof_plan(&program_for_proof),
+        );
         artifacts
             .write_proof_report(&proof_surface, &proof_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
