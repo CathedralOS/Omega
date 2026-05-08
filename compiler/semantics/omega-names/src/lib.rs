@@ -6,6 +6,7 @@
 //! That gives later phases a concrete spine to grow from.
 
 use omega_abstract_syntax_tree::expression::Expression;
+use omega_abstract_syntax_tree::identifier::IdentifierPath;
 use omega_abstract_syntax_tree::item::{
     CapabilityMember, DataMember, Item, Machine, State, StateSignature,
 };
@@ -324,12 +325,11 @@ fn collect_statement(
                 .map(|receiver| format!("{receiver}::{}", call.target))
                 .unwrap_or_else(|| call.target.to_string());
 
-            let path = call
-                .receiver
-                .as_ref()
-                .map(|receiver| vec![receiver.as_str(), call.target.as_str()])
-                .unwrap_or_else(|| vec![call.target.as_str()]);
-            let symbol = context.resolve_symbol(&report.symbols, &path);
+            let symbol = context.resolve_call_target(
+                &report.symbols,
+                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+                call.target.as_str(),
+            );
 
             insert_reference(
                 report,
@@ -370,11 +370,7 @@ fn collect_transition_target(
     context: ResolveContext,
 ) {
     if let TransitionTarget::Named { path, arguments } = target {
-        let path_members = path
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>();
-        let symbol = context.resolve_symbol(&report.symbols, &path_members);
+        let symbol = context.resolve_identifier_path(&report.symbols, path);
         insert_reference(
             report,
             &path.join("::"),
@@ -486,11 +482,7 @@ fn collect_expression(
             collect_expression(report, inner_expression, owner, context)
         }
         Expression::Name(path) => {
-            let path_members = path
-                .iter()
-                .map(|member| member.as_str())
-                .collect::<Vec<_>>();
-            let symbol = context.resolve_symbol(&report.symbols, &path_members);
+            let symbol = context.resolve_identifier_path(&report.symbols, path);
             insert_reference(
                 report,
                 &path.join("::"),
@@ -546,14 +538,30 @@ impl ResolveContext {
         Self { machine, state }
     }
 
-    fn resolve_symbol(self, symbols: &SymbolTable, path: &[&str]) -> SymbolHandle {
-        if path.is_empty() {
-            return SymbolHandle::invalid();
+    fn resolve_call_target(
+        self,
+        symbols: &SymbolTable,
+        receiver: Option<&str>,
+        target: &str,
+    ) -> SymbolHandle {
+        if let Some(receiver) = receiver {
+            return self.resolve_symbol(symbols, [receiver, target]);
         }
 
-        if path.first() == Some(&"self") && self.machine.is_valid() {
+        self.resolve_symbol(symbols, [target])
+    }
+
+    fn resolve_identifier_path(self, symbols: &SymbolTable, path: &IdentifierPath) -> SymbolHandle {
+        let Some(first_member) = path.first().map(|member| member.as_str()) else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
             return symbols
-                .find_descendant_by_path(self.machine, path[1..].iter().copied())
+                .find_descendant_by_path(
+                    self.machine,
+                    path.iter().skip(1).map(|member| member.as_str()),
+                )
                 .unwrap_or_else(SymbolHandle::invalid);
         }
 
@@ -562,7 +570,38 @@ impl ResolveContext {
                 continue;
             }
 
-            if let Some(symbol) = symbols.find_descendant_by_path(root, path.iter().copied()) {
+            if let Some(symbol) =
+                symbols.find_descendant_by_path(root, path.iter().map(|member| member.as_str()))
+            {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn resolve_symbol<'path>(
+        self,
+        symbols: &SymbolTable,
+        path: impl IntoIterator<Item = &'path str> + Clone,
+    ) -> SymbolHandle {
+        let mut members = path.clone().into_iter();
+        let Some(first_member) = members.next() else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return symbols
+                .find_descendant_by_path(self.machine, members)
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) = symbols.find_descendant_by_path(root, path.clone()) {
                 return symbol;
             }
         }
