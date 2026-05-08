@@ -1,5 +1,5 @@
 use omega_core::arena::Arena;
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, ObjectFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
@@ -108,4 +108,30 @@ pub enum RelocationKind {
     Aarch64Branch26,
     X86_64Absolute64,
     X86_64Relative32,
+}
+
+pub fn entry_symbol_name(target: NativeTarget) -> String {
+    match target.object_format {
+        ObjectFormat::MachO => "_main".to_owned(),
+        ObjectFormat::Elf | ObjectFormat::Coff => "main".to_owned(),
+    }
+}
+
+pub fn section_name(target: NativeTarget, kind: SectionKind) -> String {
+    match (target.object_format, kind) {
+        (ObjectFormat::MachO, SectionKind::Text) => "__TEXT,__text".to_owned(),
+        (ObjectFormat::MachO, SectionKind::Data) => "__DATA,__data".to_owned(),
+        (ObjectFormat::MachO, SectionKind::Bss) => "__DATA,__bss".to_owned(),
+        (_, SectionKind::Text) => ".text".to_owned(),
+        (_, SectionKind::Data) => ".data".to_owned(),
+        (_, SectionKind::Bss) => ".bss".to_owned(),
+    }
+}
+
+pub fn machine_storage_symbol_name(machine_name: &str) -> String {
+    format!("omega_machine_{machine_name}_storage")
+}
+
+pub fn runtime_frame_storage_symbol_name() -> String {
+    "omega_runtime_frame_storage".to_owned()
 }

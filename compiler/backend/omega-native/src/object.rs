@@ -4,8 +4,10 @@ use crate::runtime_storage::{runtime_frame_storage_alignment, runtime_frame_stor
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_layout::MachineLayout;
-pub use omega_object::{ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan};
-use omega_target::{NativeTarget, ObjectFormat};
+pub use omega_object::{
+    ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, entry_symbol_name,
+    machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
+};
 
 pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnostic> {
     let main_layout = native_plan
@@ -123,34 +125,8 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
     Ok(object_plan)
 }
 
-fn entry_symbol_name(target: NativeTarget) -> String {
-    match target.object_format {
-        ObjectFormat::MachO => "_main".to_owned(),
-        ObjectFormat::Elf | ObjectFormat::Coff => "main".to_owned(),
-    }
-}
-
 fn machine_storage_symbol(machine_layout: &MachineLayout) -> String {
     machine_storage_symbol_name(&machine_layout.name)
-}
-
-pub fn machine_storage_symbol_name(machine_name: &str) -> String {
-    format!("omega_machine_{machine_name}_storage")
-}
-
-pub fn runtime_frame_storage_symbol_name() -> String {
-    "omega_runtime_frame_storage".to_owned()
-}
-
-fn section_name(target: NativeTarget, kind: SectionKind) -> String {
-    match (target.object_format, kind) {
-        (ObjectFormat::MachO, SectionKind::Text) => "__TEXT,__text".to_owned(),
-        (ObjectFormat::MachO, SectionKind::Data) => "__DATA,__data".to_owned(),
-        (ObjectFormat::MachO, SectionKind::Bss) => "__DATA,__bss".to_owned(),
-        (_, SectionKind::Text) => ".text".to_owned(),
-        (_, SectionKind::Data) => ".data".to_owned(),
-        (_, SectionKind::Bss) => ".bss".to_owned(),
-    }
 }
 
 fn align_to(value: usize, alignment: usize) -> usize {
