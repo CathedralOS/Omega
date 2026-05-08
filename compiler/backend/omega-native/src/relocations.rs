@@ -1,7 +1,7 @@
 use crate::abi::{HostBinding, HostBindingMechanism};
 use crate::architecture;
 use crate::instructions::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperandKind, SelectedInstructionKind,
 };
 use crate::object::machine_storage_symbol_name;
 use crate::plan::NativePlan;
@@ -10,6 +10,20 @@ use crate::target::Architecture;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 pub use omega_object::{RelocationKind, RelocationPlan, RelocationRecord};
+
+mod offsets;
+
+use offsets::{
+    external_call_relocation_kind, external_call_relocation_offset, external_call_relocation_width,
+    runtime_storage_compare_right_address_offset, runtime_storage_copy_target_address_offset,
+    runtime_text_buffer_materialize_target_address_offset,
+    runtime_text_line_read_target_address_offset,
+    runtime_text_literal_append_target_address_offset,
+    runtime_text_stored_place_source_address_offset,
+    runtime_text_stored_place_target_address_offset,
+    runtime_text_stored_suffix_source_address_offset,
+    runtime_text_stored_suffix_target_address_offset, string_descriptor_machine_address_offset,
+};
 
 pub fn build_relocation_plan(native_plan: &NativePlan) -> Result<RelocationPlan, Diagnostic> {
     let mut relocation_plan = RelocationPlan {
@@ -527,108 +541,6 @@ fn selected_instruction_text_offset(
                 function.symbol, selected_instruction_index
             ))
         })
-}
-
-fn external_call_relocation_offset(
-    architecture: Architecture,
-    selected_text_offset: usize,
-    operands: &[InstructionOperand],
-) -> usize {
-    let operand_bytes = operands
-        .iter()
-        .map(|operand| crate::architecture::operand_width(architecture, operand))
-        .sum::<usize>();
-
-    selected_text_offset
-        + operand_bytes
-        + match architecture {
-            Architecture::Aarch64 => 0,
-            Architecture::X86_64 => 1,
-        }
-}
-
-fn string_descriptor_machine_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_storage_compare_right_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_stored_suffix_source_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_stored_suffix_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 52,
-        Architecture::X86_64 => 16,
-    }
-}
-
-fn runtime_text_stored_place_source_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 28,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_stored_place_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_literal_append_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_buffer_materialize_target_address_offset(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 8,
-        Architecture::X86_64 => 8,
-    }
-}
-
-fn runtime_text_line_read_target_address_offset(
-    architecture: Architecture,
-    syscall_number: u32,
-) -> usize {
-    crate::architecture::runtime_text_line_read_target_address_offset(architecture, syscall_number)
-}
-
-fn external_call_relocation_width(architecture: Architecture) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 4,
-        Architecture::X86_64 => 4,
-    }
-}
-
-fn external_call_relocation_kind(architecture: Architecture) -> RelocationKind {
-    match architecture {
-        Architecture::Aarch64 => RelocationKind::Aarch64Branch26,
-        Architecture::X86_64 => RelocationKind::X86_64Relative32,
-    }
 }
 
 fn find_host_binding<'plan>(
