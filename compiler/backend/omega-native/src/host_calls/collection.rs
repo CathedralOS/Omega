@@ -1,0 +1,123 @@
+use crate::abi::HostAbiPlan;
+use crate::control_flow::StateKey;
+use crate::host_calls::lowering::{
+    find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
+    platform_call_receiver_type,
+};
+use crate::host_calls::static_values::{
+    StaticValue, apply_call_static_effects, apply_static_assignment, initial_static_values,
+};
+use crate::host_calls::{HostCall, HostCallPlan, UnsupportedHostCall};
+use omega_core::arena::HandleSpan;
+use omega_core::diagnostics::Diagnostic;
+use omega_target::NativeTarget;
+use omega_typed_program::Program;
+use omega_typed_program::machine::Machine;
+use omega_typed_program::state::State;
+use omega_typed_program::statement::{Call, Statement};
+
+pub(super) fn collect_machine_host_calls(
+    program: &Program,
+    target: NativeTarget,
+    host_abi: &HostAbiPlan,
+    machine: &Machine,
+    plan: &mut HostCallPlan,
+) -> Result<(), Diagnostic> {
+    for state in &machine.states {
+        collect_state_host_calls(program, target, host_abi, machine, state, plan)?;
+    }
+
+    Ok(())
+}
+
+fn collect_state_host_calls(
+    program: &Program,
+    target: NativeTarget,
+    host_abi: &HostAbiPlan,
+    machine: &Machine,
+    state: &State,
+    plan: &mut HostCallPlan,
+) -> Result<(), Diagnostic> {
+    let mut static_values = initial_static_values(machine);
+
+    for (statement_index, statement) in state.statements.iter().enumerate() {
+        match statement {
+            Statement::Assignment(assignment) => {
+                apply_static_assignment(&mut static_values, &assignment.target, &assignment.value);
+                continue;
+            }
+            Statement::Call(call) => {
+                collect_call_host_lowering(
+                    program,
+                    target,
+                    host_abi,
+                    machine,
+                    state,
+                    statement_index,
+                    call,
+                    &static_values,
+                    plan,
+                )?;
+                apply_call_static_effects(&mut static_values, call);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+fn collect_call_host_lowering(
+    program: &Program,
+    target: NativeTarget,
+    host_abi: &HostAbiPlan,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    call: &Call,
+    static_values: &[(String, StaticValue)],
+    plan: &mut HostCallPlan,
+) -> Result<(), Diagnostic> {
+    let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
+        return Ok(());
+    };
+
+    let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
+        let platform_call = platform_call_name(call);
+        plan.unsupported_calls.insert(UnsupportedHostCall {
+            source_key: StateKey::default(),
+            machine: machine.name.clone(),
+            state: state.name.clone(),
+            statement_index,
+            platform_call: platform_call.clone(),
+            reason: format!("no native lowering for target {target:?}"),
+        });
+        return Ok(());
+    };
+
+    let operations = host_abi
+        .host_operations
+        .span(lowering.operations)
+        .map(|operations| {
+            plan.operations.insert_many(
+                operations
+                    .iter()
+                    .map(|operation| host_operation(&operation.capability, &operation.operation)),
+            )
+        })
+        .unwrap_or_else(HandleSpan::empty);
+    let arguments = plan
+        .arguments
+        .insert_many(lower_host_call_arguments(call, static_values));
+    plan.calls.insert(HostCall {
+        source_key: StateKey::default(),
+        machine: machine.name.clone(),
+        state: state.name.clone(),
+        statement_index,
+        platform_call: platform_call_name(call),
+        data: lowering.data,
+        operations,
+        arguments,
+    });
+    Ok(())
+}
