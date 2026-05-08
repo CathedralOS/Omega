@@ -165,80 +165,266 @@ fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) 
 }
 
 fn register_program_symbols(program: &Program) -> SymbolTable {
+    let builder = ProgramSymbolDefinitionBuilder { program };
+
     SymbolTable::from_definition(SymbolDefinition::with_children(
         SymbolKind::Root,
         "program",
-        program
-            .invariant_definitions
-            .iter()
-            .map(|invariant| {
+        builtin_type_symbols()
+            .into_iter()
+            .chain(program.invariant_definitions.iter().map(|invariant| {
                 SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())
-            })
-            .chain(program.data_definitions.iter().map(data_symbol_definition))
-            .chain(program.platforms.iter().map(platform_symbol_definition))
-            .chain(program.machines.iter().map(machine_symbol_definition)),
+            }))
+            .chain(
+                program
+                    .data_definitions
+                    .iter()
+                    .map(|data_definition| builder.data_symbol_definition(data_definition)),
+            )
+            .chain(
+                program
+                    .platforms
+                    .iter()
+                    .map(|platform| builder.platform_symbol_definition(platform)),
+            )
+            .chain(
+                program
+                    .machines
+                    .iter()
+                    .map(|machine| builder.machine_symbol_definition(machine)),
+            ),
     ))
 }
 
-fn data_symbol_definition(data_definition: &DataDefinition) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::Data,
-        data_definition.name.as_str(),
-        data_definition.members.iter().map(|member| match member {
-            DataMember::Field(field) => {
-                SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
-            }
+fn builtin_type_symbols() -> [SymbolDefinition<'static>; 19] {
+    [
+        SymbolDefinition::named(SymbolKind::BuiltinType, "bool"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i8"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i16"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "i64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "isize"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u8"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u16"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "u64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "usize"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "f32"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "f64"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "String"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Slice"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Result"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "SyscallResult"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Terminal"),
+        SymbolDefinition::named(SymbolKind::BuiltinType, "Never"),
+    ]
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ProgramSymbolDefinitionBuilder<'program> {
+    program: &'program Program,
+}
+
+impl<'program> ProgramSymbolDefinitionBuilder<'program> {
+    fn data_symbol_definition(
+        self,
+        data_definition: &'program DataDefinition,
+    ) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::Data,
+            data_definition.name.as_str(),
+            data_definition
+                .members
+                .iter()
+                .map(|member| self.data_member_symbol_definition(member, 0)),
+        )
+    }
+
+    fn platform_symbol_definition(
+        self,
+        platform: &'program Platform,
+    ) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::Platform,
+            platform.name.as_str(),
+            platform
+                .states
+                .iter()
+                .map(|signature| self.state_signature_symbol_definition(signature)),
+        )
+    }
+
+    fn machine_symbol_definition(self, machine: &'program Machine) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::Machine,
+            machine.name.as_str(),
+            machine
+                .contains
+                .iter()
+                .map(|contained| {
+                    SymbolDefinition::with_children(
+                        SymbolKind::Object,
+                        contained.name.as_str(),
+                        self.named_type_children(contained.type_name.as_str(), 0),
+                    )
+                })
+                .chain(machine.owned_data.iter().map(|owned_data| {
+                    SymbolDefinition::with_children(
+                        SymbolKind::Field,
+                        owned_data.name.as_str(),
+                        self.type_children(&owned_data.type_reference, 0),
+                    )
+                }))
+                .chain(
+                    machine
+                        .states
+                        .iter()
+                        .map(|state| self.state_symbol_definition(state)),
+                ),
+        )
+    }
+
+    fn state_symbol_definition(self, state: &'program State) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::State,
+            state.name.as_str(),
+            state
+                .parameters
+                .iter()
+                .map(|parameter| self.parameter_symbol_definition(parameter))
+                .chain(
+                    state
+                        .statements
+                        .iter()
+                        .filter_map(|statement| self.local_data_symbol_definition(statement)),
+                ),
+        )
+    }
+
+    fn state_signature_symbol_definition(
+        self,
+        signature: &'program StateSignature,
+    ) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::State,
+            signature.name.as_str(),
+            signature
+                .parameters
+                .iter()
+                .map(|parameter| self.parameter_symbol_definition(parameter)),
+        )
+    }
+
+    fn parameter_symbol_definition(
+        self,
+        parameter: &'program StateParameter,
+    ) -> SymbolDefinition<'program> {
+        SymbolDefinition::with_children(
+            SymbolKind::Parameter,
+            parameter.name.as_str(),
+            self.type_children(&parameter.type_reference, 0),
+        )
+    }
+
+    fn local_data_symbol_definition(
+        self,
+        statement: &'program Statement,
+    ) -> Option<SymbolDefinition<'program>> {
+        let Statement::LocalData(local_data) = statement else {
+            return None;
+        };
+
+        Some(SymbolDefinition::with_children(
+            SymbolKind::Local,
+            local_data.name.as_str(),
+            self.type_children(&local_data.type_reference, 0),
+        ))
+    }
+
+    fn data_member_symbol_definition(
+        self,
+        member: &'program DataMember,
+        depth: usize,
+    ) -> SymbolDefinition<'program> {
+        match member {
+            DataMember::Field(field) => SymbolDefinition::with_children(
+                SymbolKind::Field,
+                field.name.as_str(),
+                self.type_children(&field.type_reference, depth + 1),
+            ),
             DataMember::Variant(variant) => {
                 SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
             }
-        }),
-    )
-}
+        }
+    }
 
-fn platform_symbol_definition(platform: &Platform) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::Platform,
-        platform.name.as_str(),
-        platform
-            .states
+    fn type_children(
+        self,
+        type_reference: &'program TypeReference,
+        depth: usize,
+    ) -> Vec<SymbolDefinition<'program>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        match type_reference {
+            TypeReference::Constrained { base_type, .. } => self.type_children(base_type, depth),
+            TypeReference::FixedArray { element_type, .. } => {
+                self.type_children(element_type, depth + 1)
+            }
+            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+                self.named_type_children(base_name.as_str(), depth + 1)
+            }
+            TypeReference::Unit => Vec::new(),
+        }
+    }
+
+    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'program>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        if let Some(data_definition) = self
+            .program
+            .data_definitions
             .iter()
-            .map(state_signature_symbol_definition),
-    )
-}
+            .find(|definition| definition.name == type_name)
+        {
+            return data_definition
+                .members
+                .iter()
+                .map(|member| self.data_member_symbol_definition(member, depth + 1))
+                .collect();
+        }
 
-fn machine_symbol_definition(machine: &Machine) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::Machine,
-        machine.name.as_str(),
-        machine
-            .contains
+        if let Some(machine) = self
+            .program
+            .machines
             .iter()
-            .map(|contained| SymbolDefinition::named(SymbolKind::Object, contained.name.as_str()))
-            .chain(machine.owned_data.iter().map(|owned_data| {
-                SymbolDefinition::named(SymbolKind::Field, owned_data.name.as_str())
-            }))
-            .chain(machine.states.iter().map(state_symbol_definition)),
-    )
-}
+            .find(|machine| machine.name == type_name)
+        {
+            return machine
+                .states
+                .iter()
+                .map(|state| self.state_symbol_definition(state))
+                .collect();
+        }
 
-fn state_symbol_definition(state: &State) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::State,
-        state.name.as_str(),
-        state.parameters.iter().map(|parameter| {
-            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-        }),
-    )
-}
+        if let Some(platform) = self
+            .program
+            .platforms
+            .iter()
+            .find(|platform| platform.name == type_name)
+        {
+            return platform
+                .states
+                .iter()
+                .map(|signature| self.state_signature_symbol_definition(signature))
+                .collect();
+        }
 
-fn state_signature_symbol_definition(signature: &StateSignature) -> SymbolDefinition<'_> {
-    SymbolDefinition::with_children(
-        SymbolKind::State,
-        signature.name.as_str(),
-        signature.parameters.iter().map(|parameter| {
-            SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-        }),
-    )
+        Vec::new()
+    }
 }
 
 fn remap_data_definition(
@@ -865,5 +1051,88 @@ fn lower_transition_target(
         }
         ast::statement::TransitionTarget::SelfTarget => Ok(TransitionTarget::SelfTarget),
         ast::statement::TransitionTarget::Terminal => Ok(TransitionTarget::Terminal),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Program;
+    use crate::data::{DataDefinition, DataField, DataMember};
+    use crate::machine::{ContainedObject, Machine};
+    use crate::platform::Platform;
+    use crate::signature::StateSignature;
+    use crate::state::State;
+    use crate::statement::{LocalData, Statement};
+    use crate::types::TypeReference;
+
+    use super::register_program_symbols;
+
+    #[test]
+    fn typed_program_symbols_project_children_from_declared_types() {
+        let mut program = Program {
+            data_definitions: vec![DataDefinition {
+                name: "Room".to_owned(),
+                members: vec![DataMember::Field(DataField {
+                    name: "label".to_owned(),
+                    type_reference: TypeReference::Named("String".to_owned()),
+                })],
+            }],
+            machines: vec![Machine {
+                name: "main".to_owned(),
+                contains: vec![ContainedObject {
+                    name: "console".to_owned(),
+                    type_name: "Console".to_owned(),
+                }],
+                owned_data: Vec::new(),
+                states: vec![State {
+                    name: "entry".to_owned(),
+                    parameters: Vec::new(),
+                    return_type: None,
+                    statements: vec![Statement::LocalData(LocalData {
+                        name: "room".to_owned(),
+                        type_reference: TypeReference::Named("Room".to_owned()),
+                    })],
+                }],
+            }],
+            platforms: vec![Platform {
+                name: "Console".to_owned(),
+                states: vec![StateSignature {
+                    name: "write_line".to_owned(),
+                    parameters: Vec::new(),
+                    return_type: None,
+                }],
+            }],
+            ..Program::default()
+        };
+        program.symbols = register_program_symbols(&program);
+
+        let root = program.symbols.root();
+        let main = program
+            .symbols
+            .find_child_by_name(root, "main")
+            .expect("main should resolve");
+        let console = program
+            .symbols
+            .find_child_by_name(main, "console")
+            .expect("console object should resolve");
+        let console_write_line = program
+            .symbols
+            .find_child_by_name(console, "write_line")
+            .expect("contained platform states should project under the object");
+        let entry = program
+            .symbols
+            .find_child_by_name(main, "entry")
+            .expect("entry should resolve");
+        let room = program
+            .symbols
+            .find_child_by_name(entry, "room")
+            .expect("local room should resolve");
+        let room_label = program
+            .symbols
+            .find_child_by_name(room, "label")
+            .expect("local data fields should project from their type");
+
+        assert_eq!(program.symbols.name(console_write_line), "write_line");
+        assert_eq!(program.symbols.name(room_label), "label");
     }
 }
