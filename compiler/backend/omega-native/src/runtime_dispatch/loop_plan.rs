@@ -1,10 +1,15 @@
 use crate::plan::NativePlan;
+use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
+use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_guards::{
     StateGuardLowering, StateGuardOperandKind, StateGuardOperandStorage, StateGuardOperator,
+    StateGuardPlan,
 };
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::statement::TransitionGuard;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopPlan {
@@ -88,13 +93,23 @@ pub enum RuntimeDispatchLoopAction {
 }
 
 pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDispatchLoopPlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_runtime_dispatch_loop_plan_with_workers(
+        Arc::new(RuntimeDispatchLoopContext::from_native_plan(native_plan)),
+        runtime_dispatch_loop_inputs(native_plan),
+        workers.handle(),
+    )
+}
+
+pub fn build_runtime_dispatch_loop_plan_with_workers(
+    context: Arc<RuntimeDispatchLoopContext>,
+    case_inputs: Vec<RuntimeDispatchLoopCaseInput>,
+    workers: WorkerPoolHandle,
+) -> RuntimeDispatchLoopPlan {
     let mut plan = RuntimeDispatchLoopPlan {
-        needed: !native_plan.runtime_flow.cycles.is_empty(),
-        entry_dispatch_index: dispatch_index_for_state(
-            native_plan,
-            &native_plan.entry_machine,
-            &native_plan.entry_state,
-        ),
+        needed: context.needed,
+        entry_dispatch_index: context.entry_dispatch_index,
         terminal_dispatch_index: 0,
         current_state_slot: "omega_current_state".to_owned(),
         next_state_slot: "omega_next_state".to_owned(),
@@ -106,40 +121,30 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
         return plan;
     }
 
-    for (_, state) in native_plan.state_dispatch.states.iter() {
-        let Some(dispatch_edges) = native_plan.state_dispatch.edges.span(state.edges) else {
-            continue;
-        };
-        let edges = plan
-            .edges
-            .insert_many(dispatch_edges.iter().enumerate().map(|(order, edge)| {
-                let guard_comparison =
-                    dispatch_guard_comparison(native_plan, state.dispatch_index, order);
-                RuntimeDispatchLoopEdge {
-                    order,
-                    target: edge.target.clone(),
-                    target_dispatch_index: edge.target_dispatch_index,
-                    continuation: edge.continuation.clone(),
-                    continuation_dispatch_index: edge.continuation_dispatch_index,
-                    guard: edge.guard.clone(),
-                    guard_lowering: guard_comparison.lowering,
-                    guard_operator: guard_comparison.operator,
-                    guard_byte_offset: guard_comparison.byte_offset,
-                    guard_byte_size: guard_comparison.byte_size,
-                    guard_expected_value: guard_comparison.expected_value,
-                    guard_has_storage: guard_comparison.has_storage,
-                    action: dispatch_action(&edge.target),
-                    forms_cycle: edge.forms_cycle,
-                }
-            }));
-        let operation_count = runtime_body_operation_count(native_plan, state.dispatch_index);
+    if case_inputs.is_empty() {
+        return plan;
+    }
+
+    let case_inputs = Arc::new(case_inputs);
+    let case_count = case_inputs.len();
+    let context_for_cases = Arc::clone(&context);
+    let cases = workers.map_ordered(case_count, move |index| {
+        let case_input = case_inputs
+            .get(index)
+            .expect("runtime-dispatch-loop worker index should be in range");
+
+        build_runtime_dispatch_loop_case(&context_for_cases, case_input)
+    });
+
+    for case in cases {
+        let edges = plan.edges.insert_many(case.edges);
 
         plan.cases.insert(RuntimeDispatchLoopCase {
-            machine: state.machine.clone(),
-            state: state.state.clone(),
-            dispatch_index: state.dispatch_index,
-            label: state.label.clone(),
-            operation_count,
+            machine: case.machine,
+            state: case.state,
+            dispatch_index: case.dispatch_index,
+            label: case.label,
+            operation_count: case.operation_count,
             edges,
         });
     }
@@ -147,9 +152,110 @@ pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDisp
     plan
 }
 
-fn dispatch_index_for_state(native_plan: &NativePlan, machine: &str, state: &str) -> u32 {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RuntimeDispatchLoopContext {
+    needed: bool,
+    entry_dispatch_index: u32,
+    state_guards: StateGuardPlan,
+    runtime_bodies: RuntimeDispatchBodyPlan,
+}
+
+impl RuntimeDispatchLoopContext {
+    pub fn from_native_plan(native_plan: &NativePlan) -> Self {
+        Self {
+            needed: !native_plan.runtime_flow.cycles.is_empty(),
+            entry_dispatch_index: dispatch_index_for_state(
+                &native_plan.state_dispatch,
+                &native_plan.entry_machine,
+                &native_plan.entry_state,
+            ),
+            state_guards: native_plan.state_guards.clone(),
+            runtime_bodies: native_plan.runtime_bodies.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RuntimeDispatchLoopCaseInput {
+    machine: String,
+    state: String,
+    dispatch_index: u32,
+    label: String,
+    edges: Vec<DispatchEdge>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+struct CollectedRuntimeDispatchLoopCase {
+    machine: String,
+    state: String,
+    dispatch_index: u32,
+    label: String,
+    operation_count: usize,
+    edges: Vec<RuntimeDispatchLoopEdge>,
+}
+
+pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDispatchLoopCaseInput> {
     native_plan
         .state_dispatch
+        .states
+        .iter()
+        .map(|(_, state)| RuntimeDispatchLoopCaseInput {
+            machine: state.machine.clone(),
+            state: state.state.clone(),
+            dispatch_index: state.dispatch_index,
+            label: state.label.clone(),
+            edges: native_plan
+                .state_dispatch
+                .edges
+                .span(state.edges)
+                .unwrap_or(&[])
+                .to_vec(),
+        })
+        .collect()
+}
+
+fn build_runtime_dispatch_loop_case(
+    context: &RuntimeDispatchLoopContext,
+    case_input: &RuntimeDispatchLoopCaseInput,
+) -> CollectedRuntimeDispatchLoopCase {
+    let edges = case_input
+        .edges
+        .iter()
+        .enumerate()
+        .map(|(order, edge)| {
+            let guard_comparison =
+                dispatch_guard_comparison(context, case_input.dispatch_index, order);
+            RuntimeDispatchLoopEdge {
+                order,
+                target: edge.target.clone(),
+                target_dispatch_index: edge.target_dispatch_index,
+                continuation: edge.continuation.clone(),
+                continuation_dispatch_index: edge.continuation_dispatch_index,
+                guard: edge.guard.clone(),
+                guard_lowering: guard_comparison.lowering,
+                guard_operator: guard_comparison.operator,
+                guard_byte_offset: guard_comparison.byte_offset,
+                guard_byte_size: guard_comparison.byte_size,
+                guard_expected_value: guard_comparison.expected_value,
+                guard_has_storage: guard_comparison.has_storage,
+                action: dispatch_action(&edge.target),
+                forms_cycle: edge.forms_cycle,
+            }
+        })
+        .collect();
+
+    CollectedRuntimeDispatchLoopCase {
+        machine: case_input.machine.clone(),
+        state: case_input.state.clone(),
+        dispatch_index: case_input.dispatch_index,
+        label: case_input.label.clone(),
+        operation_count: runtime_body_operation_count(context, case_input.dispatch_index),
+        edges,
+    }
+}
+
+fn dispatch_index_for_state(state_dispatch: &StateDispatchPlan, machine: &str, state: &str) -> u32 {
+    state_dispatch
         .states
         .iter()
         .find(|(_, dispatch_state)| {
@@ -170,11 +276,11 @@ struct DispatchGuardComparison {
 }
 
 fn dispatch_guard_comparison(
-    native_plan: &NativePlan,
+    context: &RuntimeDispatchLoopContext,
     source_dispatch_index: u32,
     statement_order: usize,
 ) -> DispatchGuardComparison {
-    let Some(guard) = native_plan
+    let Some(guard) = context
         .state_guards
         .guards
         .iter()
@@ -190,7 +296,7 @@ fn dispatch_guard_comparison(
         };
     };
 
-    let Some(operands) = native_plan.state_guards.operands.span(guard.operands) else {
+    let Some(operands) = context.state_guards.operands.span(guard.operands) else {
         return DispatchGuardComparison {
             lowering: guard.lowering,
             operator: guard.operator,
@@ -233,13 +339,16 @@ fn dispatch_action(target: &RuntimeTransitionTarget) -> RuntimeDispatchLoopActio
     }
 }
 
-fn runtime_body_operation_count(native_plan: &NativePlan, dispatch_index: u32) -> usize {
-    native_plan
+fn runtime_body_operation_count(
+    context: &RuntimeDispatchLoopContext,
+    dispatch_index: u32,
+) -> usize {
+    context
         .runtime_bodies
         .bodies
         .iter()
         .find(|(_, body)| body.dispatch_index == dispatch_index)
-        .and_then(|(_, body)| native_plan.runtime_bodies.operations.span(body.operations))
+        .and_then(|(_, body)| context.runtime_bodies.operations.span(body.operations))
         .map(<[_]>::len)
         .unwrap_or(0)
 }

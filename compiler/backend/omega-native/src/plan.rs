@@ -16,7 +16,8 @@ use crate::runtime_dispatch::branching::{
     RuntimeBranchingCallPlan, build_runtime_branching_call_plan,
 };
 use crate::runtime_dispatch::loop_plan::{
-    RuntimeDispatchLoopPlan, build_runtime_dispatch_loop_plan,
+    RuntimeDispatchLoopContext, RuntimeDispatchLoopPlan,
+    build_runtime_dispatch_loop_plan_with_workers, runtime_dispatch_loop_inputs,
 };
 use crate::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
 use crate::runtime_storage::{
@@ -193,7 +194,11 @@ pub fn build_native_plan_with_workers(
         workers.clone(),
     );
     native_plan.runtime_branching_calls = build_runtime_branching_call_plan(&native_plan);
-    native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan(&native_plan);
+    native_plan.runtime_dispatch_loop = build_runtime_dispatch_loop_plan_with_workers(
+        Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan)),
+        runtime_dispatch_loop_inputs(&native_plan),
+        workers.clone(),
+    );
     native_plan.runtime_storage = build_runtime_storage_plan_with_workers(
         Arc::new(RuntimeStorageContext::from_native_plan(&native_plan)),
         runtime_storage_body_inputs(&native_plan),
