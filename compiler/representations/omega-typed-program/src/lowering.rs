@@ -169,7 +169,7 @@ fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) 
 fn register_program_symbols(program: &Program) -> SymbolTable {
     let builder = ProgramSymbolDefinitionBuilder { program };
 
-    SymbolTable::from_definition(SymbolDefinition::with_children(
+    SymbolTable::from_definition(SymbolDefinition::static_with_children(
         SymbolKind::Root,
         "program",
         builtin_type_symbol_definitions()

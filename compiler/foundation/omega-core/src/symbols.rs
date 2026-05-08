@@ -58,9 +58,29 @@ impl HierarchyNode for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SymbolName {
-    pub value: String,
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SymbolName {
+    #[default]
+    Missing,
+    Static(&'static str),
+    Owned(String),
+}
+
+impl SymbolName {
+    pub fn from_ref(name: SymbolNameRef<'_>) -> Self {
+        match name {
+            SymbolNameRef::Borrowed(value) => Self::Owned(value.to_owned()),
+            SymbolNameRef::Static(value) => Self::Static(value),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Missing => "",
+            Self::Static(value) => value,
+            Self::Owned(value) => value.as_str(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -68,11 +88,26 @@ pub struct SymbolDebugName {
     pub value: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymbolNameRef<'name> {
+    Borrowed(&'name str),
+    Static(&'static str),
+}
+
+impl<'name> SymbolNameRef<'name> {
+    pub fn as_str(self) -> &'name str {
+        match self {
+            Self::Borrowed(value) => value,
+            Self::Static(value) => value,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolDefinition<'name> {
     pub kind: SymbolKind,
-    pub name: &'name str,
-    pub debug_name: &'name str,
+    pub name: SymbolNameRef<'name>,
+    pub debug_name: Option<SymbolNameRef<'name>>,
     pub children: Vec<SymbolDefinition<'name>>,
 }
 
@@ -80,8 +115,17 @@ impl<'name> SymbolDefinition<'name> {
     pub fn named(kind: SymbolKind, name: &'name str) -> Self {
         Self {
             kind,
-            name,
-            debug_name: name,
+            name: SymbolNameRef::Borrowed(name),
+            debug_name: None,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn static_named(kind: SymbolKind, name: &'static str) -> Self {
+        Self {
+            kind,
+            name: SymbolNameRef::Static(name),
+            debug_name: None,
             children: Vec::new(),
         }
     }
@@ -93,39 +137,52 @@ impl<'name> SymbolDefinition<'name> {
     ) -> Self {
         Self {
             kind,
-            name,
-            debug_name: name,
+            name: SymbolNameRef::Borrowed(name),
+            debug_name: None,
+            children: children.into_iter().collect(),
+        }
+    }
+
+    pub fn static_with_children(
+        kind: SymbolKind,
+        name: &'static str,
+        children: impl IntoIterator<Item = SymbolDefinition<'name>>,
+    ) -> Self {
+        Self {
+            kind,
+            name: SymbolNameRef::Static(name),
+            debug_name: None,
             children: children.into_iter().collect(),
         }
     }
 
     pub fn with_debug_name(mut self, debug_name: &'name str) -> Self {
-        self.debug_name = debug_name;
+        self.debug_name = Some(SymbolNameRef::Borrowed(debug_name));
         self
     }
 }
 
 pub fn builtin_type_symbol_definitions() -> [SymbolDefinition<'static>; 19] {
     [
-        SymbolDefinition::named(SymbolKind::BuiltinType, "bool"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i8"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i16"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "i64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "isize"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u8"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u16"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "u64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "usize"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "f32"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "f64"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "String"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Slice"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Result"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "SyscallResult"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Terminal"),
-        SymbolDefinition::named(SymbolKind::BuiltinType, "Never"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "bool"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i8"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i16"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i32"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i64"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "isize"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u8"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u16"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u32"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u64"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "usize"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "f32"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "f64"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "String"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Slice"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Result"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "SyscallResult"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Terminal"),
+        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Never"),
     ]
 }
 
@@ -142,6 +199,14 @@ pub struct SymbolTable {
     debug_names: Arena<SymbolDebugName>,
     path_members: Arena<SymbolHandle>,
     root: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SymbolNameStorageCounts {
+    pub missing: usize,
+    pub static_names: usize,
+    pub owned_names: usize,
+    pub explicit_debug_names: usize,
 }
 
 impl SymbolTable {
@@ -171,13 +236,17 @@ impl SymbolTable {
     pub fn name(&self, symbol: SymbolHandle) -> &str {
         let symbol = self.get(symbol);
 
-        self.names.get(symbol.name).value.as_str()
+        self.names.get(symbol.name).as_str()
     }
 
     pub fn debug_name(&self, symbol: SymbolHandle) -> &str {
         let symbol = self.get(symbol);
 
-        self.debug_names.get(symbol.debug_name).value.as_str()
+        if self.debug_names.is_valid(symbol.debug_name) {
+            self.debug_names.get(symbol.debug_name).value.as_str()
+        } else {
+            self.names.get(symbol.name).as_str()
+        }
     }
 
     pub fn root(&self) -> SymbolHandle {
@@ -304,6 +373,23 @@ impl SymbolTable {
         &self.debug_names
     }
 
+    pub fn name_storage_counts(&self) -> SymbolNameStorageCounts {
+        let mut counts = SymbolNameStorageCounts {
+            explicit_debug_names: self.debug_names.len(),
+            ..SymbolNameStorageCounts::default()
+        };
+
+        for (_, name) in self.names.iter() {
+            match name {
+                SymbolName::Missing => counts.missing += 1,
+                SymbolName::Static(_) => counts.static_names += 1,
+                SymbolName::Owned(_) => counts.owned_names += 1,
+            }
+        }
+
+        counts
+    }
+
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members
     }
@@ -369,16 +455,22 @@ fn symbol_from_definition(
     debug_names: &mut Arena<SymbolDebugName>,
     definition: &SymbolDefinition<'_>,
 ) -> Symbol {
+    let debug_name = definition
+        .debug_name
+        .filter(|debug_name| debug_name.as_str() != definition.name.as_str())
+        .map(|debug_name| {
+            debug_names.insert(SymbolDebugName {
+                value: debug_name.as_str().to_owned(),
+            })
+        })
+        .unwrap_or_else(SymbolDebugNameHandle::invalid);
+
     Symbol {
         parent,
         children: HandleSpan::empty(),
         kind: definition.kind,
-        name: names.insert(SymbolName {
-            value: definition.name.to_owned(),
-        }),
-        debug_name: debug_names.insert(SymbolDebugName {
-            value: definition.debug_name.to_owned(),
-        }),
+        name: names.insert(SymbolName::from_ref(definition.name)),
+        debug_name,
     }
 }
 
@@ -577,7 +669,7 @@ mod tests {
         symbols.clear_debug_names();
         assert!(root.is_valid());
         assert_eq!(symbols.name(root), "root");
-        assert_eq!(symbols.debug_name(root), "");
+        assert_eq!(symbols.debug_name(root), "root");
     }
 
     #[test]

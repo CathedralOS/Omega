@@ -621,7 +621,7 @@ fn resolve_global_name(report: &ResolveReport, name: &str) -> SymbolHandle {
 fn build_source_symbol_table(items: &[Item]) -> SymbolTable {
     let builder = SourceSymbolDefinitionBuilder { items };
 
-    SymbolTable::from_definition(SymbolDefinition::with_children(
+    SymbolTable::from_definition(SymbolDefinition::static_with_children(
         SymbolKind::Root,
         "program",
         builtin_type_symbol_definitions().into_iter().chain(

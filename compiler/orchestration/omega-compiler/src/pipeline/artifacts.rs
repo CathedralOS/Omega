@@ -119,6 +119,9 @@ impl ArtifactWriter {
             "names: {}\n",
             resolve_report.symbols.names().len()
         ));
+        let name_storage = resolve_report.symbols.name_storage_counts();
+        output.push_str(&format!("static names: {}\n", name_storage.static_names));
+        output.push_str(&format!("owned names: {}\n", name_storage.owned_names));
         output.push_str(&format!(
             "debug names: {}\n",
             resolve_report.symbols.debug_names().len()
@@ -187,6 +190,9 @@ impl ArtifactWriter {
         output.push_str("## Symbol Arenas\n");
         output.push_str(&format!("symbols: {}\n", program.symbols.symbols().len()));
         output.push_str(&format!("names: {}\n", program.symbols.names().len()));
+        let name_storage = program.symbols.name_storage_counts();
+        output.push_str(&format!("static names: {}\n", name_storage.static_names));
+        output.push_str(&format!("owned names: {}\n", name_storage.owned_names));
         output.push_str(&format!(
             "debug names: {}\n",
             program.symbols.debug_names().len()
