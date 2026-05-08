@@ -67,6 +67,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_runtime_flow_strings(native_plan, &mut storage);
     count_state_dispatch_strings(native_plan, &mut storage);
     count_runtime_body_strings(native_plan, &mut storage);
+    count_state_guard_strings(native_plan, &mut storage);
     count_host_call_strings(native_plan, &mut storage);
     count_state_call_strings(native_plan, &mut storage);
     count_alias_flow_strings(native_plan, &mut storage);
@@ -193,6 +194,19 @@ fn count_runtime_body_strings(native_plan: &NativePlan, storage: &mut NativeStri
             RuntimeDispatchBodyOperationKind::Mutation { .. }
             | RuntimeDispatchBodyOperationKind::Other => {}
         }
+    }
+}
+
+fn count_state_guard_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
+    for (_, guard) in native_plan.state_guards.guards.iter() {
+        storage.count_program_name_identity(&guard.source_machine);
+        storage.count_program_name_identity(&guard.source_state);
+        count_runtime_target_strings(&guard.target, storage);
+        count_runtime_target_strings(&guard.continuation, storage);
+        count_expression_strings(&guard.expression, storage);
+    }
+    for (_, operand) in native_plan.state_guards.operands.iter() {
+        count_expression_strings(&operand.expression, storage);
     }
 }
 

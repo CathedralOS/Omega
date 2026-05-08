@@ -14,8 +14,8 @@ pub struct StateGuardPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateGuard {
-    pub source_machine: String,
-    pub source_state: String,
+    pub source_machine: ProgramName,
+    pub source_state: ProgramName,
     pub source_dispatch_index: u32,
     pub target: RuntimeTransitionTarget,
     pub target_dispatch_index: u32,
@@ -34,8 +34,8 @@ pub struct StateGuard {
 impl Default for StateGuard {
     fn default() -> Self {
         Self {
-            source_machine: String::new(),
-            source_state: String::new(),
+            source_machine: ProgramName::default(),
+            source_state: ProgramName::default(),
             source_dispatch_index: 0,
             target: RuntimeTransitionTarget::None,
             target_dispatch_index: 0,
@@ -181,22 +181,23 @@ fn build_state_guard(
     operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
     entry_machine: &str,
-    source_machine: &str,
-    source_state: &str,
+    source_machine: &ProgramName,
+    source_state: &ProgramName,
     source_dispatch_index: u32,
     statement_order: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let guard_operands = guard_operands(layouts, entry_machine, source_machine, &edge.guard);
+    let guard_operands =
+        guard_operands(layouts, entry_machine, source_machine.as_str(), &edge.guard);
     let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
     let operands = guard_operands
         .map(|operands| operands.insert_into(operand_arena))
         .unwrap_or_default();
 
     StateGuard {
-        source_machine: source_machine.to_owned(),
-        source_state: source_state.to_owned(),
+        source_machine: source_machine.clone(),
+        source_state: source_state.clone(),
         source_dispatch_index,
         target: edge.target.clone(),
         target_dispatch_index: edge.target_dispatch_index,
