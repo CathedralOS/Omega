@@ -2895,6 +2895,8 @@ fn check_writes_phase_artifacts() {
         .expect("emission artifact should be readable");
     let native_plan = std::fs::read_to_string(output.artifacts_dir.join("09_native_plan.txt"))
         .expect("native plan artifact should be readable");
+    assert!(native_plan.contains("## Native String Storage"));
+    assert!(native_plan.contains("identity"));
     assert!(native_plan.contains("## Runtime Text"));
     assert!(emission.contains("status: ready to emit"));
     assert!(emission.contains("data bytes:"));

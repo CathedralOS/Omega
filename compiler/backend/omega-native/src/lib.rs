@@ -13,6 +13,7 @@ pub mod emitter;
 pub mod executable_finalization;
 pub mod final_image;
 pub mod host_calls;
+pub mod identity;
 pub mod instructions;
 pub mod layout;
 pub mod machine_code;

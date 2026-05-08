@@ -22,6 +22,7 @@ use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFi
 use omega_native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
+use omega_native::identity::count_native_string_storage;
 use omega_native::instructions::{
     FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
@@ -686,6 +687,7 @@ impl ArtifactWriter {
         ));
 
         write_native_phase_timings(&mut output, native_plan);
+        write_native_string_storage(&mut output, native_plan);
 
         output.push_str("## Host ABI\n");
         output.push_str(&format!(
@@ -2660,6 +2662,84 @@ fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
         format_integer(u128::from(total_allocations)),
         format_bytes(total_allocated_bytes)
     ));
+}
+
+fn write_native_string_storage(output: &mut String, native_plan: &NativePlan) {
+    let storage = count_native_string_storage(native_plan);
+
+    output.push_str("## Native String Storage\n");
+    output.push_str("This counts `String` fields still carried by native planning structures.\n");
+    output.push_str("Identity strings are compiler debt; payload and generated symbols are expected later-stage text.\n\n");
+
+    let rows = [
+        (
+            "identity",
+            storage.identity_strings,
+            storage.identity_bytes,
+            "machine/state/name strings still used as identity",
+        ),
+        (
+            "payload",
+            storage.payload_strings,
+            storage.payload_bytes,
+            "program text literals copied into native structures",
+        ),
+        (
+            "generated symbols",
+            storage.generated_symbol_strings,
+            storage.generated_symbol_bytes,
+            "labels, object symbols, and section names",
+        ),
+        (
+            "report",
+            storage.report_strings,
+            storage.report_bytes,
+            "diagnostic/report-only strings",
+        ),
+        (
+            "total",
+            storage.total_strings(),
+            storage.total_bytes(),
+            "all counted native strings",
+        ),
+    ];
+    let category_width = rows
+        .iter()
+        .map(|(category, _, _, _)| category.len())
+        .chain(std::iter::once("category".len()))
+        .max()
+        .unwrap_or("category".len());
+    let count_width = rows
+        .iter()
+        .map(|(_, count, _, _)| format_integer(*count as u128).len())
+        .chain(std::iter::once("strings".len()))
+        .max()
+        .unwrap_or("strings".len());
+    let bytes_width = rows
+        .iter()
+        .map(|(_, _, bytes, _)| format_bytes(*bytes as u64).len())
+        .chain(std::iter::once("bytes".len()))
+        .max()
+        .unwrap_or("bytes".len());
+
+    output.push_str(&format!(
+        "{:<category_width$}  {:>count_width$}  {:>bytes_width$}  note\n",
+        "category", "strings", "bytes"
+    ));
+    output.push_str(&format!(
+        "{:-<category_width$}  {:-<count_width$}  {:-<bytes_width$}  {:-<4}\n",
+        "", "", "", ""
+    ));
+    for (category, count, bytes, note) in rows {
+        output.push_str(&format!(
+            "{:<category_width$}  {:>count_width$}  {:>bytes_width$}  {}\n",
+            category,
+            format_integer(count as u128),
+            format_bytes(bytes as u64),
+            note
+        ));
+    }
+    output.push('\n');
 }
 
 fn write_field_layouts(
