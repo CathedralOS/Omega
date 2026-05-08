@@ -1,8 +1,10 @@
+mod lookups;
+
 use super::model::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
 };
 use crate::control_flow::{
-    ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateKey, TransitionFlow,
+    ControlFlowPlan, MachineFlow, PlannedTransitionTarget, TransitionFlow,
 };
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::name::ProgramName;
@@ -220,57 +222,6 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         let states = self.runtime_flow.cycle_states.insert_many(cycle_states);
 
         self.runtime_flow.cycles.insert(RuntimeCycle { states });
-    }
-
-    fn machine_flow_by_symbol(
-        &self,
-        machine_symbol: omega_core::symbols::SymbolHandle,
-    ) -> Result<&MachineFlow, Diagnostic> {
-        self.control_flow
-            .machines
-            .iter()
-            .find(|(_, machine)| machine.symbol == machine_symbol)
-            .map(|(_, machine)| machine)
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "unknown runtime machine symbol `{}`",
-                    machine_symbol.arena_index()
-                ))
-            })
-    }
-
-    fn state_flow_by_key(
-        &self,
-        key: StateKey,
-    ) -> Result<&crate::control_flow::StateFlow, Diagnostic> {
-        let machine = self.machine_flow_by_symbol(key.machine)?;
-        self.control_flow
-            .states
-            .span(machine.states)
-            .and_then(|states| states.iter().find(|state| state.key == key))
-            .ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "unknown runtime state `{}`",
-                    self.state_key_display(key)
-                ))
-            })
-    }
-
-    fn state_key_display(&self, key: StateKey) -> String {
-        let machine = self
-            .machine_flow_by_symbol(key.machine)
-            .map(|machine| machine.name.to_string())
-            .unwrap_or_else(|_| format!("symbol{}", key.machine.arena_index()));
-        let state = self
-            .state_flow_by_key(key)
-            .map(|state| state.name.to_string())
-            .unwrap_or_else(|_| format!("symbol{}", key.state.arena_index()));
-
-        if key.segment_index == 0 {
-            format!("{machine}.{state}")
-        } else {
-            format!("{machine}.{state}#{}", key.segment_index)
-        }
     }
 }
 
