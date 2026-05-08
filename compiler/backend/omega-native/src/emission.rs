@@ -12,7 +12,8 @@ use crate::runtime_text::{
 use crate::state_calls::StateCallLowering;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use crate::state_schedule::{
-    build_entry_state_schedule, scheduled_state_contains, scheduled_state_flow, scheduled_state_key,
+    build_entry_state_schedule, scheduled_state_contains_key, scheduled_state_flow,
+    scheduled_state_key,
 };
 use crate::state_storage::StateMutationLowering;
 use crate::state_values::{StateValueKind, StateValueRole};
@@ -68,12 +69,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 
     for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
-        if !scheduled_state_contains(
-            native_plan,
-            &state_schedule,
-            &unsupported_call.machine,
-            &unsupported_call.state,
-        ) {
+        if !scheduled_state_contains_key(&state_schedule, unsupported_call.source_key) {
             continue;
         }
 
@@ -140,12 +136,7 @@ fn collect_host_argument_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if !scheduled_state_contains(
-            native_plan,
-            state_schedule,
-            &host_call.machine,
-            &host_call.state,
-        ) {
+        if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
             continue;
         }
 
@@ -275,18 +266,8 @@ fn collect_state_call_blockers(
                 | StateCallLowering::InlineBranching
                 | StateCallLowering::InlineExpansion
         ) && !needs_runtime_dispatch
-            && scheduled_state_contains(
-                native_plan,
-                state_schedule,
-                &state_call.source_machine,
-                &state_call.source_state,
-            )
-            && scheduled_state_contains(
-                native_plan,
-                state_schedule,
-                &state_call.target_machine,
-                &state_call.target_state,
-            )
+            && scheduled_state_contains_key(state_schedule, state_call.source_key)
+            && scheduled_state_contains_key(state_schedule, state_call.target_key)
         {
             continue;
         }

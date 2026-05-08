@@ -537,7 +537,7 @@ fn resolve_state_call_target(
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
     let Some(receiver) = receiver else {
-        if let Some(key) = state_key_by_names(control_flow, &machine.name, target_state) {
+        if let Some(key) = control_flow.state_key_by_names(&machine.name, target_state) {
             return Some(ResolvedStateCall {
                 key,
                 machine: machine.name.clone(),
@@ -549,7 +549,7 @@ fn resolve_state_call_target(
     };
 
     if receiver == "self" {
-        let key = state_key_by_names(control_flow, &machine.name, target_state)?;
+        let key = control_flow.state_key_by_names(&machine.name, target_state)?;
         return Some(ResolvedStateCall {
             key,
             machine: machine.name.clone(),
@@ -562,36 +562,20 @@ fn resolve_state_call_target(
         .iter()
         .find(|contained| contained.name == *receiver)
     {
-        return state_key_by_names(control_flow, &contained.type_name, target_state).map(|key| {
-            ResolvedStateCall {
+        return control_flow
+            .state_key_by_names(&contained.type_name, target_state)
+            .map(|key| ResolvedStateCall {
                 key,
                 machine: contained.type_name.clone(),
                 resolution: StateCallResolution::ContainedMachine,
-            }
-        });
+            });
     }
 
-    state_key_by_names(control_flow, receiver, target_state).map(|key| ResolvedStateCall {
-        key,
-        machine: receiver.clone(),
-        resolution: StateCallResolution::NamedMachine,
-    })
-}
-
-fn state_key_by_names(
-    control_flow: &ControlFlowPlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<StateKey> {
     control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| control_flow.states.span(machine.states))
-        .and_then(|states| {
-            states
-                .iter()
-                .find(|state| state.name == state_name)
-                .map(|state| state.key)
+        .state_key_by_names(receiver, target_state)
+        .map(|key| ResolvedStateCall {
+            key,
+            machine: receiver.clone(),
+            resolution: StateCallResolution::NamedMachine,
         })
 }

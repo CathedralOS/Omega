@@ -30,20 +30,8 @@ pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<Schedu
     Ok(schedule)
 }
 
-pub fn scheduled_state_contains(
-    native_plan: &NativePlan,
-    schedule: &[ScheduledState],
-    machine_name: &str,
-    state_name: &str,
-) -> bool {
-    let Ok(machine) = machine_flow(native_plan, machine_name) else {
-        return false;
-    };
-    let Ok(state) = state_flow(native_plan, machine, state_name) else {
-        return false;
-    };
-
-    schedule.iter().any(|scheduled| scheduled.key == state.key)
+pub fn scheduled_state_contains_key(schedule: &[ScheduledState], state_key: StateKey) -> bool {
+    schedule.iter().any(|scheduled| scheduled.key == state_key)
 }
 
 pub fn scheduled_state_flow<'plan>(

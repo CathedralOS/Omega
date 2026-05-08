@@ -293,32 +293,16 @@ fn collect_call_host_lowering(
 
 pub fn attach_host_call_state_keys(plan: &mut HostCallPlan, control_flow: &ControlFlowPlan) {
     plan.calls.for_each_mut(|_, call| {
-        call.source_key =
-            state_key_by_names(control_flow, &call.machine, &call.state).unwrap_or_default();
+        call.source_key = control_flow
+            .state_key_by_names(&call.machine, &call.state)
+            .unwrap_or_default();
     });
 
     plan.unsupported_calls.for_each_mut(|_, call| {
-        call.source_key =
-            state_key_by_names(control_flow, &call.machine, &call.state).unwrap_or_default();
+        call.source_key = control_flow
+            .state_key_by_names(&call.machine, &call.state)
+            .unwrap_or_default();
     });
-}
-
-fn state_key_by_names(
-    control_flow: &ControlFlowPlan,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<StateKey> {
-    control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .and_then(|(_, machine)| control_flow.states.span(machine.states))
-        .and_then(|states| {
-            states
-                .iter()
-                .find(|state| state.name == state_name)
-                .map(|state| state.key)
-        })
 }
 
 fn initial_static_values(machine: &Machine) -> Vec<(String, StaticValue)> {
