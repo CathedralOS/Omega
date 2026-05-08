@@ -7,6 +7,7 @@ use omega_core::arena::Arena;
 
 mod branches;
 mod guards;
+mod text_writes;
 mod writes;
 
 use super::bindings::{

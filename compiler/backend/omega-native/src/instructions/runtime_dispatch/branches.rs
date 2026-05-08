@@ -18,7 +18,8 @@ use super::super::lookups::{
 use super::super::model::{SelectedInstruction, SelectedInstructionKind};
 use super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::guards::select_runtime_leaf_branch_guard;
-use super::writes::{runtime_storage_copy, runtime_text_builder_write_with_resolver};
+use super::text_writes::runtime_text_builder_write_with_resolver;
+use super::writes::runtime_storage_copy;
 
 pub(super) fn select_runtime_leaf_branch_expansions_for_operation(
     native_plan: &NativePlan,
