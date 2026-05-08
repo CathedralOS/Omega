@@ -1,12 +1,10 @@
-use crate::abi::{HostAbiPlan, build_host_abi_plan};
+use crate::abi::build_host_abi_plan;
 use crate::alias_flow::{AliasFlowPlan, build_alias_flow_plan};
-use crate::control_flow::{ControlFlowPlan, build_control_flow_plan_with_workers};
+use crate::control_flow::build_control_flow_plan_with_workers;
 use crate::data::{NativeDataPlan, build_native_data_plan};
-use crate::host_calls::{
-    HostCallPlan, attach_host_call_state_keys, build_host_call_plan_with_workers,
-};
+use crate::host_calls::{attach_host_call_state_keys, build_host_call_plan_with_workers};
 use crate::instructions::{InstructionPlan, build_instruction_plan};
-use crate::layout::{LayoutPlan, build_layout_plan};
+use crate::layout::build_layout_plan;
 use crate::machine_code::{MachineCodePlan, build_machine_code_plan};
 use crate::object::{ObjectPlan, build_object_plan};
 use crate::relocations::{RelocationPlan, build_relocation_plan};
@@ -21,7 +19,7 @@ use crate::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopContext, RuntimeDispatchLoopPlan,
     build_runtime_dispatch_loop_plan_with_workers, runtime_dispatch_loop_inputs,
 };
-use crate::runtime_flow::{RuntimeFlowPlan, build_runtime_flow_plan};
+use crate::runtime_flow::build_runtime_flow_plan;
 use crate::runtime_storage::{
     RuntimeStorageContext, RuntimeStoragePlan, build_runtime_storage_plan_with_workers,
     runtime_storage_body_inputs,
@@ -30,56 +28,22 @@ use crate::runtime_text::{RuntimeTextPlan, build_runtime_text_plan};
 use crate::state_analysis::StateAnalysisContext;
 use crate::state_calls::{StateCallPlan, build_state_call_plan_with_workers};
 use crate::state_dispatch::{
-    StateDispatchContext, StateDispatchPlan, build_state_dispatch_plan_with_workers,
-    runtime_state_inputs,
+    StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
-use crate::state_guards::{StateGuardPlan, build_state_guard_plan};
+use crate::state_guards::build_state_guard_plan;
 use crate::state_storage::{StateStoragePlan, build_state_storage_plan_with_workers};
 use crate::state_values::{StateValuePlan, build_state_value_plan_with_workers};
 use crate::target::NativeTarget;
-use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
 use std::sync::Arc;
-use std::time::Instant;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativePlan {
-    pub target: NativeTarget,
-    pub host_abi: HostAbiPlan,
-    pub host_calls: HostCallPlan,
-    pub state_calls: StateCallPlan,
-    pub alias_flow: AliasFlowPlan,
-    pub state_storage: StateStoragePlan,
-    pub state_values: StateValuePlan,
-    pub data: NativeDataPlan,
-    pub instructions: InstructionPlan,
-    pub control_flow: ControlFlowPlan,
-    pub runtime_flow: RuntimeFlowPlan,
-    pub state_dispatch: StateDispatchPlan,
-    pub state_guards: StateGuardPlan,
-    pub runtime_bodies: RuntimeDispatchBodyPlan,
-    pub runtime_branching_calls: RuntimeBranchingCallPlan,
-    pub runtime_dispatch_loop: RuntimeDispatchLoopPlan,
-    pub runtime_storage: RuntimeStoragePlan,
-    pub runtime_text: RuntimeTextPlan,
-    pub layouts: LayoutPlan,
-    pub machine_code: MachineCodePlan,
-    pub object: ObjectPlan,
-    pub relocations: RelocationPlan,
-    pub entry_key: crate::control_flow::StateKey,
-    pub entry_machine: String,
-    pub entry_state: String,
-    pub phase_timings: Vec<NativePlanPhaseTiming>,
-}
+mod model;
+mod timing;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativePlanPhaseTiming {
-    pub phase: String,
-    pub microseconds: u128,
-    pub allocations: AllocationDelta,
-}
+pub use model::{NativePlan, NativePlanPhaseTiming};
+use timing::record_native_phase;
 
 pub fn build_native_plan(
     program: &Program,
@@ -302,24 +266,4 @@ pub fn build_native_plan_with_workers(
     native_plan.phase_timings = phase_timings;
 
     Ok(native_plan)
-}
-
-fn record_native_phase<T>(
-    timings: &mut Vec<NativePlanPhaseTiming>,
-    phase: &str,
-    work: impl FnOnce() -> T,
-) -> T {
-    let allocation_start = allocation_snapshot();
-    let time_start = Instant::now();
-    let result = work();
-    let microseconds = time_start.elapsed().as_micros();
-    let allocations = allocation_snapshot().delta_since(allocation_start);
-
-    timings.push(NativePlanPhaseTiming {
-        phase: phase.to_owned(),
-        microseconds,
-        allocations,
-    });
-
-    result
 }
