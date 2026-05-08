@@ -13,6 +13,13 @@ const SLOT_FREED: u8 = 2;
 
 const PAGE_SIZE: usize = 16;
 
+/// A bounded, lazily paged, generational arena for concurrent handle allocation.
+///
+/// This is intentionally narrower than [`Arena`](crate::arena::Arena) today:
+/// slots contain `T::default()` and are not mutated through the arena. That
+/// keeps `SlotRef` safe even if another thread frees the handle while the page
+/// reference is still alive. A future initialized-value variant needs a slot
+/// initialization/reclamation protocol before it can safely support `insert`.
 pub struct PagedArena<T: Default> {
     pages: Box<[ArcSwapOption<Page<T>>]>,
     slot_metadata: Box<[AtomicU64]>,
@@ -61,6 +68,10 @@ impl<T: Default> PagedArena<T> {
             dummy_page,
             free_stack: FreeStack::new(total_slots),
         }
+    }
+
+    pub fn alloc_default(&self) -> Handle<T> {
+        self.alloc()
     }
 
     pub fn alloc(&self) -> Handle<T> {
@@ -146,7 +157,7 @@ impl<T: Default> PagedArena<T> {
             return self.dummy();
         }
 
-        let Some(page) = self.load_or_alloc_page(page_index) else {
+        let Some(page) = self.load_page(page_index) else {
             return self.dummy();
         };
 
@@ -203,25 +214,33 @@ impl<T: Default> PagedArena<T> {
         self.pages.len()
     }
 
+    pub fn active_handles(&self) -> Vec<Handle<T>> {
+        self.slot_metadata
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter_map(|(index, slot_metadata)| {
+                let (state, generation) = unpack_slot(slot_metadata.load(Ordering::Acquire));
+
+                if state == SLOT_ACTIVE {
+                    Some(Handle::from_parts(
+                        u32::try_from(index).expect("paged arena index overflow"),
+                        generation,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn reclaim_empty_pages(&self) -> usize {
-        let mut reclaimed = 0;
-        let mut kept_headroom = false;
-
-        for page_index in 1..self.pages.len() {
-            if self.pages[page_index].load().is_none() || !self.page_is_inactive(page_index) {
-                continue;
-            }
-
-            if !kept_headroom {
-                kept_headroom = true;
-                continue;
-            }
-
-            self.pages[page_index].store(None);
-            reclaimed += 1;
-        }
-
-        reclaimed
+        // Page reclamation needs a page-level quiescence protocol. If we swap a
+        // page to None while another thread claims a slot in that page, future
+        // reads can resolve the active handle against a freshly allocated page.
+        // Keep the method as the planned API, but do not reclaim until that
+        // protocol exists.
+        0
     }
 
     fn claim_slot(&self, index: u32, expected_state: u8) -> Option<Handle<T>> {
@@ -272,16 +291,8 @@ impl<T: Default> PagedArena<T> {
         page_slot.load_full()
     }
 
-    fn page_is_inactive(&self, page_index: usize) -> bool {
-        let start_index = page_index * PAGE_SIZE;
-        let end_index = start_index + PAGE_SIZE;
-
-        self.slot_metadata[start_index..end_index]
-            .iter()
-            .all(|slot_metadata| {
-                let (state, _) = unpack_slot(slot_metadata.load(Ordering::Relaxed));
-                state != SLOT_ACTIVE
-            })
+    fn load_page(&self, page_index: usize) -> Option<Arc<Page<T>>> {
+        self.pages.get(page_index)?.load_full()
     }
 
     fn compose(&self, page_index: usize, slot_index: usize) -> u32 {
@@ -346,4 +357,90 @@ fn pack_slot(state: u8, generation: u32) -> u64 {
 #[inline]
 fn unpack_slot(metadata: u64) -> (u8, u32) {
     (metadata as u8, (metadata >> 32) as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::arena::{Handle, PagedArena};
+
+    #[test]
+    fn resolves_invalid_handles_to_dummy() {
+        let arena = PagedArena::<String>::new(16);
+        let invalid = Handle::<String>::invalid();
+        let slot = arena.get(invalid);
+
+        assert!(slot.is_dummy());
+        assert_eq!(slot.value(), "");
+        assert!(!arena.is_valid(invalid));
+    }
+
+    #[test]
+    fn allocates_default_slots_and_tracks_active_handles() {
+        let arena = PagedArena::<String>::new(16);
+        let first = arena.alloc_default();
+        let second = arena.alloc_default();
+
+        assert_eq!(first.arena_index(), 1);
+        assert_eq!(second.arena_index(), 2);
+        assert_eq!(arena.active_count(), 2);
+        assert_eq!(arena.active_handles(), vec![first, second]);
+        assert_eq!(arena.get(first).value(), "");
+        assert_eq!(arena.get(second).value(), "");
+    }
+
+    #[test]
+    fn frees_and_reuses_slots_with_new_generation() {
+        let arena = PagedArena::<String>::new(16);
+        let first = arena.alloc_default();
+
+        assert!(arena.is_valid(first));
+        assert!(arena.free(first));
+        assert!(!arena.is_valid(first));
+        assert!(arena.get(first).is_dummy());
+
+        let reused = arena.alloc_default();
+
+        assert_eq!(reused.arena_index(), first.arena_index());
+        assert_ne!(reused.generation(), first.generation());
+        assert!(!arena.is_valid(first));
+        assert!(arena.is_valid(reused));
+    }
+
+    #[test]
+    fn grows_pages_on_demand_without_allocating_all_pages() {
+        let arena = PagedArena::<String>::new(64);
+
+        assert_eq!(arena.capacity(), 16);
+        assert_eq!(arena.max_capacity(), 64);
+
+        let handles = (0..20).map(|_| arena.alloc_default()).collect::<Vec<_>>();
+
+        assert!(handles.iter().all(|handle| handle.is_valid()));
+        assert_eq!(arena.active_count(), 20);
+        assert_eq!(arena.capacity(), 32);
+    }
+
+    #[test]
+    fn returns_invalid_handle_when_full() {
+        let arena = PagedArena::<String>::new(16);
+        let handles = (0..15).map(|_| arena.alloc_default()).collect::<Vec<_>>();
+        let overflow = arena.alloc_default();
+
+        assert!(handles.iter().all(|handle| handle.is_valid()));
+        assert!(!overflow.is_valid());
+        assert_eq!(arena.active_count(), 15);
+    }
+
+    #[test]
+    fn page_reclamation_is_disabled_until_quiescence_exists() {
+        let arena = PagedArena::<String>::new(32);
+        let handles = (0..20).map(|_| arena.alloc_default()).collect::<Vec<_>>();
+
+        for handle in handles {
+            assert!(arena.free(handle));
+        }
+
+        assert_eq!(arena.reclaim_empty_pages(), 0);
+        assert_eq!(arena.capacity(), 32);
+    }
 }
