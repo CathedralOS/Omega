@@ -286,8 +286,7 @@ fn select_entry_instructions(
     } else if can_inline_state_calls {
         select_state_body_instructions(
             native_plan,
-            &native_plan.entry_machine,
-            &native_plan.entry_state,
+            native_plan.entry_key,
             operands,
             &mut selected_instructions,
             &mut Vec::new(),
@@ -1769,37 +1768,18 @@ fn indexed_expression_path(
 
 fn select_state_body_instructions(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut Vec<SelectedInstruction>,
-    visiting: &mut Vec<(String, String)>,
+    visiting: &mut Vec<StateKey>,
 ) {
-    if visiting
-        .iter()
-        .any(|(machine, state)| machine == machine_name && state == state_name)
-    {
+    if visiting.contains(&state_key) {
         return;
     }
 
-    visiting.push((machine_name.to_owned(), state_name.to_owned()));
+    visiting.push(state_key);
 
-    let Some(machine) = native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.name == machine_name)
-        .map(|(_, machine)| machine)
-    else {
-        visiting.pop();
-        return;
-    };
-    let Some(state) = native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-    else {
+    let Some(state) = native_plan.control_flow.state_by_key(state_key) else {
         visiting.pop();
         return;
     };
@@ -1831,8 +1811,7 @@ fn select_state_body_instructions(
 
         select_state_body_instructions(
             native_plan,
-            &state_call.target_machine,
-            &state_call.target_state,
+            state_call.target_key,
             operands,
             selected_instructions,
             visiting,
