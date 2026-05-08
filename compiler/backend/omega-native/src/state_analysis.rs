@@ -1,4 +1,4 @@
-use crate::control_flow::{ControlFlowPlan, OperationKind};
+use crate::control_flow::{ControlFlowPlan, OperationKind, StateKey};
 use crate::host_calls::HostCallPlan;
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeFlowPlan;
@@ -23,10 +23,12 @@ impl StateAnalysisContext {
     }
 
     pub fn state_is_required(&self, machine_name: &str, state_name: &str) -> bool {
+        let state_key = self.state_key(machine_name, state_name);
+
         self.runtime_flow
             .states
             .iter()
-            .any(|(_, state)| state.machine == machine_name && state.state == state_name)
+            .any(|(_, state)| Some(state.key) == state_key)
             || self.state_calls.calls.iter().any(|(_, state_call)| {
                 state_call.required
                     && ((state_call.source_machine == machine_name
@@ -74,10 +76,12 @@ impl StateAnalysisContext {
     }
 
     pub fn runtime_state_is_reachable(&self, machine_name: &str, state_name: &str) -> bool {
+        let state_key = self.state_key(machine_name, state_name);
+
         self.runtime_flow
             .states
             .iter()
-            .any(|(_, state)| state.machine == machine_name && state.state == state_name)
+            .any(|(_, state)| Some(state.key) == state_key)
     }
 
     pub fn state_statement_has_host_call(
@@ -91,5 +95,21 @@ impl StateAnalysisContext {
                 && host_call.state == state_name
                 && host_call.statement_index == statement_index
         })
+    }
+
+    fn state_key(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
+        let machine = self
+            .control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name == machine_name)
+            .map(|(_, machine)| machine)?;
+
+        self.control_flow
+            .states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.name == state_name)
+            .map(|state| state.key)
     }
 }
