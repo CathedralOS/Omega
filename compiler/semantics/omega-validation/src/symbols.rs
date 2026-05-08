@@ -1,4 +1,5 @@
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::Program;
 use omega_typed_program::data::DataDefinition;
 use omega_typed_program::machine::Machine;
@@ -16,18 +17,21 @@ pub struct ProgramSymbols<'program> {
 struct DataDefinitionSymbol<'program> {
     name: &'program str,
     definition: &'program DataDefinition,
+    symbol: SymbolHandle,
 }
 
 #[derive(Debug)]
 struct MachineSymbol<'program> {
     name: &'program str,
     machine: &'program Machine,
+    symbol: SymbolHandle,
 }
 
 #[derive(Debug)]
 struct PlatformSymbol<'program> {
     name: &'program str,
     platform: &'program Platform,
+    symbol: SymbolHandle,
 }
 
 impl<'program> ProgramSymbols<'program> {
@@ -52,6 +56,7 @@ impl<'program> ProgramSymbols<'program> {
             symbols.data_definitions.push(DataDefinitionSymbol {
                 name: data_definition.name.as_str(),
                 definition: data_definition,
+                symbol: top_level_symbol(program, data_definition.name.as_str()),
             });
         }
 
@@ -73,6 +78,7 @@ impl<'program> ProgramSymbols<'program> {
             symbols.machines.push(MachineSymbol {
                 name: machine.name.as_str(),
                 machine,
+                symbol: top_level_symbol(program, machine.name.as_str()),
             });
         }
 
@@ -101,6 +107,7 @@ impl<'program> ProgramSymbols<'program> {
             symbols.platforms.push(PlatformSymbol {
                 name: platform.name.as_str(),
                 platform,
+                symbol: top_level_symbol(program, platform.name.as_str()),
             });
         }
 
@@ -108,7 +115,15 @@ impl<'program> ProgramSymbols<'program> {
     }
 
     pub fn has_data_definition(&self, name: &str) -> bool {
-        self.data_definition(name).is_some()
+        self.data_definition_symbol(name).is_valid()
+    }
+
+    fn data_definition_symbol(&self, name: &str) -> SymbolHandle {
+        self.data_definitions
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     pub fn machine(&self, name: &str) -> Option<&'program Machine> {
@@ -118,6 +133,14 @@ impl<'program> ProgramSymbols<'program> {
             .map(|symbol| symbol.machine)
     }
 
+    fn machine_symbol(&self, name: &str) -> SymbolHandle {
+        self.machines
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
     pub fn platform(&self, name: &str) -> Option<&'program Platform> {
         self.platforms
             .iter()
@@ -125,8 +148,16 @@ impl<'program> ProgramSymbols<'program> {
             .map(|symbol| symbol.platform)
     }
 
+    fn platform_symbol(&self, name: &str) -> SymbolHandle {
+        self.platforms
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
     pub fn is_callable_receiver_type(&self, name: &str) -> bool {
-        self.machine(name).is_some() || self.platform(name).is_some()
+        self.machine_symbol(name).is_valid() || self.platform_symbol(name).is_valid()
     }
 
     fn data_definition(&self, name: &str) -> Option<&'program DataDefinition> {
@@ -140,8 +171,8 @@ impl<'program> ProgramSymbols<'program> {
 #[derive(Debug)]
 pub struct MachineSymbols<'program> {
     contained_objects: Vec<ContainedObjectSymbol<'program>>,
-    member_names: Vec<&'program str>,
-    owned_data_names: Vec<&'program str>,
+    member_symbols: Vec<MemberSymbol<'program>>,
+    owned_data_symbols: Vec<MemberSymbol<'program>>,
     states: Vec<StateSymbol<'program>>,
 }
 
@@ -149,20 +180,33 @@ pub struct MachineSymbols<'program> {
 struct ContainedObjectSymbol<'program> {
     name: &'program str,
     type_name: &'program str,
+    symbol: SymbolHandle,
+}
+
+#[derive(Debug)]
+struct MemberSymbol<'program> {
+    name: &'program str,
+    symbol: SymbolHandle,
 }
 
 #[derive(Debug)]
 struct StateSymbol<'program> {
     name: &'program str,
     state: &'program State,
+    symbol: SymbolHandle,
 }
 
 impl<'program> MachineSymbols<'program> {
-    pub fn build(machine: &'program Machine, diagnostics: &mut Vec<Diagnostic>) -> Self {
+    pub fn build(
+        program: &'program Program,
+        machine: &'program Machine,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Self {
+        let machine_symbol = top_level_symbol(program, machine.name.as_str());
         let mut symbols = Self {
             contained_objects: Vec::new(),
-            member_names: Vec::new(),
-            owned_data_names: Vec::new(),
+            member_symbols: Vec::new(),
+            owned_data_symbols: Vec::new(),
             states: Vec::new(),
         };
 
@@ -175,8 +219,8 @@ impl<'program> MachineSymbols<'program> {
             }
 
             if symbols
-                .contained_type(contained_object.name.as_str())
-                .is_some()
+                .contained_symbol(contained_object.name.as_str())
+                .is_valid()
             {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate contained object `{}`",
@@ -184,10 +228,15 @@ impl<'program> MachineSymbols<'program> {
                 )));
             }
 
-            symbols.member_names.push(contained_object.name.as_str());
+            let symbol = child_symbol(program, machine_symbol, contained_object.name.as_str());
+            symbols.member_symbols.push(MemberSymbol {
+                name: contained_object.name.as_str(),
+                symbol,
+            });
             symbols.contained_objects.push(ContainedObjectSymbol {
                 name: contained_object.name.as_str(),
                 type_name: contained_object.type_name.as_str(),
+                symbol,
             });
         }
 
@@ -206,8 +255,15 @@ impl<'program> MachineSymbols<'program> {
                 )));
             }
 
-            symbols.member_names.push(owned_data.name.as_str());
-            symbols.owned_data_names.push(owned_data.name.as_str());
+            let symbol = child_symbol(program, machine_symbol, owned_data.name.as_str());
+            symbols.member_symbols.push(MemberSymbol {
+                name: owned_data.name.as_str(),
+                symbol,
+            });
+            symbols.owned_data_symbols.push(MemberSymbol {
+                name: owned_data.name.as_str(),
+                symbol,
+            });
         }
 
         for state in &machine.states {
@@ -221,6 +277,7 @@ impl<'program> MachineSymbols<'program> {
             symbols.states.push(StateSymbol {
                 name: state.name.as_str(),
                 state,
+                symbol: child_symbol(program, machine_symbol, state.name.as_str()),
             });
         }
 
@@ -234,6 +291,14 @@ impl<'program> MachineSymbols<'program> {
             .map(|symbol| symbol.state)
     }
 
+    fn state_symbol(&self, name: &str) -> SymbolHandle {
+        self.states
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
     pub fn contained_type(&self, name: &str) -> Option<&'program str> {
         self.contained_objects
             .iter()
@@ -241,15 +306,54 @@ impl<'program> MachineSymbols<'program> {
             .map(|symbol| symbol.type_name)
     }
 
+    fn contained_symbol(&self, name: &str) -> SymbolHandle {
+        self.contained_objects
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
     pub fn has_state(&self, name: &str) -> bool {
-        self.state(name).is_some()
+        self.state_symbol(name).is_valid()
     }
 
     pub fn has_member(&self, name: &str) -> bool {
-        self.member_names.contains(&name)
+        self.member_symbol(name).is_valid()
     }
 
     pub fn has_owned_data(&self, name: &str) -> bool {
-        self.owned_data_names.contains(&name)
+        self.owned_data_symbol(name).is_valid()
     }
+
+    pub fn member_symbol(&self, name: &str) -> SymbolHandle {
+        self.member_symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+
+    pub fn owned_data_symbol(&self, name: &str) -> SymbolHandle {
+        self.owned_data_symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .map(|symbol| symbol.symbol)
+            .unwrap_or_else(SymbolHandle::invalid)
+    }
+}
+
+fn top_level_symbol(program: &Program, name: &str) -> SymbolHandle {
+    child_symbol(program, program.symbols.root(), name)
+}
+
+fn child_symbol(program: &Program, parent: SymbolHandle, name: &str) -> SymbolHandle {
+    if !parent.is_valid() {
+        return SymbolHandle::invalid();
+    }
+
+    program
+        .symbols
+        .find_child_by_name(parent, name)
+        .unwrap_or_else(SymbolHandle::invalid)
 }

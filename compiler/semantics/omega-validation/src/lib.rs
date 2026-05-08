@@ -19,7 +19,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     validate_entry_point(program, &mut diagnostics);
 
     for machine in &program.machines {
-        let machine_symbols = MachineSymbols::build(machine, &mut diagnostics);
+        let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
         validate_contained_types(machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
