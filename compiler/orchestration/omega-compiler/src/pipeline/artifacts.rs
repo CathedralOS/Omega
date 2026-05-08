@@ -200,6 +200,7 @@ impl ArtifactWriter {
 
         output.push_str("\n## Definitions\n");
         for (_, definition) in resolve_report.definitions.iter() {
+            let name = resolve_report.symbols.name(definition.symbol);
             let symbol_suffix = if definition.symbol.is_valid() {
                 format!(" symbol #{}", definition.symbol.arena_index())
             } else {
@@ -207,7 +208,7 @@ impl ArtifactWriter {
             };
             output.push_str(&format!(
                 "- {:?} `{}`{}\n",
-                definition.kind, definition.name, symbol_suffix
+                definition.kind, name, symbol_suffix
             ));
         }
 

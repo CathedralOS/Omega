@@ -29,7 +29,6 @@ pub struct ResolveReport {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolvedDefinition {
-    pub name: String,
     pub kind: ResolvedDefinitionKind,
     pub symbol: SymbolHandle,
 }
@@ -202,11 +201,9 @@ fn insert_definition(report: &mut ResolveReport, name: &str, kind: ResolvedDefin
         .symbols
         .find_child_by_name(report.symbols.root(), name)
         .unwrap_or_else(SymbolHandle::invalid);
-    report.definitions.insert(ResolvedDefinition {
-        name: name.to_owned(),
-        kind,
-        symbol,
-    });
+    report
+        .definitions
+        .insert(ResolvedDefinition { kind, symbol });
 }
 
 fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
@@ -983,7 +980,7 @@ mod tests {
         let (_, definition) = report
             .definitions
             .iter()
-            .find(|(_, definition)| definition.name == "main")
+            .find(|(_, definition)| report.symbols.name(definition.symbol) == "main")
             .expect("main definition should be collected");
         assert_eq!(definition.kind, ResolvedDefinitionKind::Machine);
         assert!(definition.symbol.is_valid());
