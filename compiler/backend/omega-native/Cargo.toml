@@ -12,6 +12,7 @@ path = "src/lib.rs"
 omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-core = { path = "../../foundation/omega-core" }
+omega-layout = { path = "../omega-layout" }
 omega-object = { path = "../object/omega-object" }
 omega-target = { path = "../omega-target" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }
