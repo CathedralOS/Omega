@@ -1,135 +1,16 @@
+mod model;
+
 use crate::control_flow::StateKey;
 use crate::layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
-use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateGuardPlan {
-    pub guards: Arena<StateGuard>,
-    pub operands: Arena<StateGuardOperand>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateGuard {
-    pub source: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
-    pub source_dispatch_index: u32,
-    pub target: RuntimeTransitionTarget,
-    pub target_dispatch_index: u32,
-    pub continuation: RuntimeTransitionTarget,
-    pub continuation_dispatch_index: u32,
-    pub statement_order: usize,
-    pub kind: StateGuardKind,
-    pub operator: StateGuardOperator,
-    pub lowering: StateGuardLowering,
-    pub expression: Expression,
-    pub operands: HandleSpan<StateGuardOperand>,
-    pub has_expression: bool,
-    pub forms_cycle: bool,
-}
-
-impl Default for StateGuard {
-    fn default() -> Self {
-        Self {
-            source: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
-            source_dispatch_index: 0,
-            target: RuntimeTransitionTarget::None,
-            target_dispatch_index: 0,
-            continuation: RuntimeTransitionTarget::None,
-            continuation_dispatch_index: 0,
-            statement_order: 0,
-            kind: StateGuardKind::Always,
-            operator: StateGuardOperator::None,
-            lowering: StateGuardLowering::NoOp,
-            expression: Expression::Boolean(true),
-            operands: HandleSpan::empty(),
-            has_expression: false,
-            forms_cycle: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardKind {
-    #[default]
-    Always,
-    RuntimeEquality,
-    RuntimeInequality,
-    RuntimeOrdering,
-    RuntimeExpression,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardOperator {
-    #[default]
-    None,
-    Equal,
-    NotEqual,
-    Greater,
-    GreaterOrEqual,
-    Less,
-    LessOrEqual,
-    Add,
-    And,
-    Or,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardLowering {
-    NoOp,
-    CompareStaticValue,
-    CompareRuntimeValue,
-    #[default]
-    NeedsRuntimeExpression,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateGuardOperand {
-    pub expression: Expression,
-    pub kind: StateGuardOperandKind,
-    pub storage: StateGuardOperandStorage,
-    pub byte_offset: usize,
-    pub byte_size: usize,
-    pub resolved_value: i64,
-    pub has_resolved_value: bool,
-}
-
-impl Default for StateGuardOperand {
-    fn default() -> Self {
-        Self {
-            expression: Expression::Boolean(true),
-            kind: StateGuardOperandKind::OtherExpression,
-            storage: StateGuardOperandStorage::Unknown,
-            byte_offset: 0,
-            byte_size: 0,
-            resolved_value: 0,
-            has_resolved_value: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardOperandKind {
-    Place,
-    StaticSymbol,
-    Literal,
-    #[default]
-    OtherExpression,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardOperandStorage {
-    MachineOwned,
-    #[default]
-    Unknown,
-}
+pub use model::{
+    StateGuard, StateGuardKind, StateGuardLowering, StateGuardOperand, StateGuardOperandKind,
+    StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
+};
 
 pub fn build_state_guard_plan(
     state_dispatch: &StateDispatchPlan,
