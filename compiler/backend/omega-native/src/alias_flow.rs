@@ -2,6 +2,7 @@ use crate::plan::NativePlan;
 use crate::state_calls::StateCallArgumentKind;
 use omega_core::arena::Arena;
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AliasFlowPlan {
@@ -10,12 +11,12 @@ pub struct AliasFlowPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AliasBinding {
-    pub caller_machine: String,
-    pub caller_state: String,
+    pub caller_machine: ProgramName,
+    pub caller_state: ProgramName,
     pub statement_index: usize,
-    pub callee_machine: String,
-    pub callee_state: String,
-    pub parameter_name: String,
+    pub callee_machine: ProgramName,
+    pub callee_state: ProgramName,
+    pub parameter_name: ProgramName,
     pub argument: Expression,
     pub required: bool,
 }
@@ -23,12 +24,12 @@ pub struct AliasBinding {
 impl Default for AliasBinding {
     fn default() -> Self {
         Self {
-            caller_machine: String::new(),
-            caller_state: String::new(),
+            caller_machine: ProgramName::default(),
+            caller_state: ProgramName::default(),
             statement_index: 0,
-            callee_machine: String::new(),
-            callee_state: String::new(),
-            parameter_name: String::new(),
+            callee_machine: ProgramName::default(),
+            callee_state: ProgramName::default(),
+            parameter_name: ProgramName::default(),
             argument: Expression::Integer(0),
             required: false,
         }
@@ -49,12 +50,12 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
             }
 
             plan.aliases.insert(AliasBinding {
-                caller_machine: state_call.source_machine.to_string(),
-                caller_state: state_call.source_state.to_string(),
+                caller_machine: state_call.source_machine.clone(),
+                caller_state: state_call.source_state.clone(),
                 statement_index: state_call.statement_index,
-                callee_machine: state_call.target_machine.to_string(),
-                callee_state: state_call.target_state.to_string(),
-                parameter_name: argument.parameter_name.to_string(),
+                callee_machine: state_call.target_machine.clone(),
+                callee_state: state_call.target_state.clone(),
+                parameter_name: argument.parameter_name.clone(),
                 argument: argument.expression.clone(),
                 required: state_call.required && argument.required,
             });

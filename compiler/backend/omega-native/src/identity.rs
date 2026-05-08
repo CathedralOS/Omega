@@ -67,6 +67,7 @@ pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStor
     count_state_dispatch_strings(native_plan, &mut storage);
     count_host_call_strings(native_plan, &mut storage);
     count_state_call_strings(native_plan, &mut storage);
+    count_alias_flow_strings(native_plan, &mut storage);
     count_state_storage_strings(native_plan, &mut storage);
     count_state_value_strings(native_plan, &mut storage);
     count_runtime_text_strings(native_plan, &mut storage);
@@ -191,6 +192,17 @@ fn count_state_call_strings(native_plan: &NativePlan, storage: &mut NativeString
     for (_, argument) in native_plan.state_calls.arguments.iter() {
         storage.count_program_name_identity(&argument.parameter_name);
         count_expression_strings(&argument.expression, storage);
+    }
+}
+
+fn count_alias_flow_strings(native_plan: &NativePlan, storage: &mut NativeStringStorage) {
+    for (_, alias) in native_plan.alias_flow.aliases.iter() {
+        storage.count_program_name_identity(&alias.caller_machine);
+        storage.count_program_name_identity(&alias.caller_state);
+        storage.count_program_name_identity(&alias.callee_machine);
+        storage.count_program_name_identity(&alias.callee_state);
+        storage.count_program_name_identity(&alias.parameter_name);
+        count_expression_strings(&alias.argument, storage);
     }
 }
 
