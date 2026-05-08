@@ -4,6 +4,10 @@ use std::sync::Arc;
 
 use omega_core::source::SourceSpan;
 
+/// Transitional spelling wrapper.
+///
+/// Resolved semantic/native identity should move to symbol handles; this type
+/// exists while source-shaped names are still being lowered out of the pipeline.
 #[derive(Clone, Default, Eq)]
 pub struct ProgramName {
     text: ProgramNameText,
