@@ -376,14 +376,7 @@ impl Expression {
     pub fn display_name(&self) -> String {
         match self {
             Expression::ArrayLiteral(values) => {
-                format!(
-                    "[{}]",
-                    values
-                        .iter()
-                        .map(Expression::display_name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                bracketed_display_names(values.iter(), Expression::display_name)
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),

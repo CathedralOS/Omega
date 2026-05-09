@@ -260,11 +260,7 @@ impl TypeReference {
                 arguments,
                 ..
             } => {
-                let arguments = arguments
-                    .iter()
-                    .map(TypeReference::display_name)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let arguments = comma_join_display(arguments.iter(), TypeReference::display_name);
                 format!("{base_name}<{arguments}>")
             }
             TypeReference::Named { name, .. } => name.to_string(),
@@ -285,11 +281,7 @@ impl TypeReference {
                 format!(
                     "{}[{}]",
                     base_type.display_name_with_constraints(type_constraints),
-                    constraints
-                        .iter()
-                        .map(TypeConstraint::display_name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
+                    comma_join_display(constraints.iter(), TypeConstraint::display_name)
                 )
             }
             TypeReference::FixedArray {
@@ -307,11 +299,9 @@ impl TypeReference {
                 arguments,
                 ..
             } => {
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| argument.display_name_with_constraints(type_constraints))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let arguments = comma_join_display(arguments.iter(), |argument| {
+                    argument.display_name_with_constraints(type_constraints)
+                });
                 format!("{base_name}<{arguments}>")
             }
             TypeReference::Named { name, .. } => name.to_string(),
@@ -391,6 +381,30 @@ impl PrimitiveType {
     pub fn accepts_finite_constraint(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
     }
+}
+
+fn comma_join_display<'item, I, T>(
+    values: I,
+    mut display_name: impl FnMut(&'item T) -> String,
+) -> String
+where
+    I: IntoIterator<Item = &'item T>,
+    T: 'item,
+{
+    let mut output = String::new();
+    let mut first = true;
+
+    for value in values {
+        if first {
+            first = false;
+        } else {
+            output.push_str(", ");
+        }
+
+        output.push_str(&display_name(value));
+    }
+
+    output
 }
 
 #[cfg(test)]
