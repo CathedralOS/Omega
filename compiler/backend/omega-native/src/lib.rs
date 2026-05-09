@@ -1,6 +1,5 @@
 //! Native backend implementation.
 
-pub mod data;
 pub mod emission;
 pub mod identity;
 pub mod instructions;

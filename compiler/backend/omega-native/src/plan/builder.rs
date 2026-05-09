@@ -2,7 +2,6 @@ use super::NativePlan;
 use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
-use crate::data::build_native_data_plan;
 use crate::instructions::build_instruction_plan;
 use crate::runtime_dispatch::bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
@@ -25,6 +24,7 @@ use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
+use omega_data_planning::build_native_data_plan;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};

@@ -161,6 +161,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-data-planning"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-platform-interface",
+ "omega-state-storage",
+ "omega-target-program",
+ "omega-typed-program",
+]
+
+[[package]]
 name = "omega-effects"
 version = "0.1.0"
 dependencies = [
@@ -285,6 +297,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
+ "omega-data-planning",
  "omega-image",
  "omega-image-emission",
  "omega-instruction-selection",

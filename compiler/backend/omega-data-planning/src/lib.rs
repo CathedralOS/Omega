@@ -1,11 +1,11 @@
 mod host_calls;
 mod static_strings;
 
-use crate::data::host_calls::{collect_host_call_data, collect_newline_data};
-use crate::data::static_strings::collect_static_string_assignment_data;
+use host_calls::{collect_host_call_data, collect_newline_data};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target_program::NativeDataPlan;
+use static_strings::collect_static_string_assignment_data;
 
 pub fn build_native_data_plan(
     host_calls: &HostCallPlan,
