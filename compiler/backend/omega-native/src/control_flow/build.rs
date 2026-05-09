@@ -8,7 +8,8 @@ use std::sync::Arc;
 use super::segments::{segment_has_unconditional_transition, split_state_segments};
 use super::transitions::plan_transition;
 use super::{
-    ContainedFlow, ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow,
+    ContainedFlow, ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateFlow, StateKey,
+    TransitionFlow,
 };
 
 pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
@@ -106,7 +107,7 @@ fn build_machine_flow(
         .iter()
         .flat_map(|state_segments| state_segments.iter())
         .enumerate()
-        .map(|(index, segment)| (segment.name.as_str(), segment.key, index))
+        .map(|(index, segment)| (segment.key, index))
         .collect::<Vec<_>>();
 
     let states = segments
@@ -123,10 +124,14 @@ fn build_machine_flow(
             if let Some(next_segment_name) = &segment.next_segment_name
                 && !segment_has_unconditional_transition(segment)
             {
+                let next_segment_key = StateKey {
+                    segment_index: segment.key.segment_index + 1,
+                    ..segment.key
+                };
                 let next_index = state_indexes
                     .iter()
-                    .find(|(name, _, _)| name == next_segment_name)
-                    .map(|(_, _, index)| *index)
+                    .find(|(key, _)| *key == next_segment_key)
+                    .map(|(_, index)| *index)
                     .ok_or_else(|| {
                         Diagnostic::error(format!(
                             "internal control-flow segment `{next_segment_name}` was not indexed"
@@ -134,8 +139,8 @@ fn build_machine_flow(
                     })?;
                 let next_key = state_indexes
                     .iter()
-                    .find(|(name, _, _)| name == next_segment_name)
-                    .map(|(_, key, _)| *key)
+                    .find(|(key, _)| *key == next_segment_key)
+                    .map(|(key, _)| *key)
                     .unwrap_or_default();
 
                 transitions.push(TransitionFlow {

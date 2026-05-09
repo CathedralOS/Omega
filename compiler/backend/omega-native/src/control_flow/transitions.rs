@@ -5,7 +5,7 @@ use omega_typed_program::statement::{Transition, TransitionTarget};
 use super::{PlannedTransitionTarget, StateKey, TransitionFlow};
 
 pub(super) fn plan_transition(
-    state_indexes: &[(&str, StateKey, usize)],
+    state_indexes: &[(StateKey, usize)],
     transition: &Transition,
 ) -> Result<TransitionFlow, Diagnostic> {
     Ok(TransitionFlow {
@@ -20,7 +20,7 @@ pub(super) fn plan_transition(
 }
 
 fn plan_transition_target(
-    state_indexes: &[(&str, StateKey, usize)],
+    state_indexes: &[(StateKey, usize)],
     target: &TransitionTarget,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
@@ -28,16 +28,13 @@ fn plan_transition_target(
             path, arguments, ..
         } if path.len() == 1 || path.len() == 2 && path[0] == "self" => {
             let name = path.last().expect("named transition has a state").clone();
-            let target = if path.symbol().is_valid() {
+            let symbol = path.symbol();
+            let target = symbol.is_valid().then(|| {
                 state_indexes
                     .iter()
-                    .find(|(_, key, _)| key.state == path.symbol() && key.segment_index == 0)
-            } else {
-                state_indexes
-                    .iter()
-                    .find(|(state_name, _, _)| *state_name == name)
-            };
-            let (_, key, index) = target.ok_or_else(|| {
+                    .find(|(key, _)| key.state == symbol && key.segment_index == 0)
+            });
+            let (key, index) = target.flatten().ok_or_else(|| {
                 Diagnostic::error(format!("unknown state transition target `{name}`"))
             })?;
 
