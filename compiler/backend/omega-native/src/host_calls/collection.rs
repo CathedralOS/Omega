@@ -85,7 +85,7 @@ fn collect_call_host_lowering(
     let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
         let platform_call = platform_call_name(call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
-            source_key: StateKey::default(),
+            source_key: state_key(machine, state),
             machine: machine.name.clone(),
             state: state.name.clone(),
             statement_index,
@@ -110,7 +110,7 @@ fn collect_call_host_lowering(
         .arguments
         .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
-        source_key: StateKey::default(),
+        source_key: state_key(machine, state),
         machine: machine.name.clone(),
         state: state.name.clone(),
         statement_index,
@@ -120,4 +120,12 @@ fn collect_call_host_lowering(
         arguments,
     });
     Ok(())
+}
+
+fn state_key(machine: &Machine, state: &State) -> StateKey {
+    StateKey {
+        machine: machine.symbol,
+        state: state.symbol,
+        segment_index: 0,
+    }
 }

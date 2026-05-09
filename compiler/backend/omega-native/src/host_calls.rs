@@ -1,5 +1,4 @@
 use crate::abi::HostAbiPlan;
-use crate::control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;
@@ -7,13 +6,11 @@ use omega_typed_program::Program;
 use std::sync::Arc;
 
 mod collection;
-mod keys;
 mod lowering;
 mod model;
 mod static_values;
 
 use collection::collect_machine_host_calls;
-use keys::attach_host_call_state_keys_to_plan;
 pub use model::{
     HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation,
     UnsupportedHostCall,
@@ -92,8 +89,4 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
             ..call.clone()
         });
     }
-}
-
-pub fn attach_host_call_state_keys(plan: &mut HostCallPlan, control_flow: &ControlFlowPlan) {
-    attach_host_call_state_keys_to_plan(plan, control_flow);
 }

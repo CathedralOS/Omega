@@ -6,7 +6,7 @@ use crate::abi::build_host_abi_plan;
 use crate::alias_flow::build_alias_flow_plan;
 use crate::control_flow::build_control_flow_plan_with_workers;
 use crate::data::build_native_data_plan;
-use crate::host_calls::{attach_host_call_state_keys, build_host_call_plan_with_workers};
+use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
 use crate::machine_code::build_machine_code_plan;
 use crate::object::build_object_plan;
@@ -74,8 +74,7 @@ pub(super) fn build_native_plan_with_workers(
         });
     let control_flow = control_flow?;
     let layouts = layouts?;
-    let mut host_calls = host_calls?;
-    attach_host_call_state_keys(&mut host_calls, &control_flow);
+    let host_calls = host_calls?;
     let entry_key = control_flow
         .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
