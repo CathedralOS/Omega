@@ -245,14 +245,7 @@ impl Expression {
     pub fn display_name(&self) -> String {
         match self {
             Expression::ArrayLiteral(values) => {
-                format!(
-                    "[{}]",
-                    values
-                        .iter()
-                        .map(Expression::display_name)
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                bracketed_display_names(values.iter(), Expression::display_name)
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),
@@ -277,15 +270,9 @@ impl ExpressionNode {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         match self {
             Self::ArrayLiteral(values) => {
-                format!(
-                    "[{}]",
-                    table
-                        .expression_handles(*values)
-                        .iter()
-                        .map(|value| table.display_name(*value))
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
+                bracketed_display_names(table.expression_handles(*values).iter(), |value| {
+                    table.display_name(*value)
+                })
             }
             Self::Binary(binary) => binary.display_name(table),
             Self::Boolean(value) => value.to_string(),
@@ -304,6 +291,31 @@ impl ExpressionNode {
             Self::String(value) => format!("{:?}", value.as_str()),
         }
     }
+}
+
+fn bracketed_display_names<'item, I, T>(
+    values: I,
+    mut display_name: impl FnMut(&'item T) -> String,
+) -> String
+where
+    I: IntoIterator<Item = &'item T>,
+    T: 'item,
+{
+    let mut output = String::from("[");
+    let mut first = true;
+
+    for value in values {
+        if first {
+            first = false;
+        } else {
+            output.push_str(", ");
+        }
+
+        output.push_str(&display_name(value));
+    }
+
+    output.push(']');
+    output
 }
 
 impl BinaryExpression {
