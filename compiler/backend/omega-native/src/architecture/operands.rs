@@ -1,7 +1,7 @@
 use super::aarch64;
-use crate::instructions::{InstructionOperand, InstructionOperandKind};
 use omega_isa_aarch64::Aarch64CallOperand;
 use omega_target::Architecture;
+use omega_target_program::{InstructionOperand, InstructionOperandKind};
 
 pub fn operand_width(architecture: Architecture, operand: &InstructionOperand) -> usize {
     match architecture {

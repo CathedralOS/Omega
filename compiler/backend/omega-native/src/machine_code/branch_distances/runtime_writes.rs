@@ -1,8 +1,8 @@
-use crate::machine_code::model::{MachineInstruction, MachineInstructionKind};
 use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
+use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 
 pub(in crate::machine_code) fn byte_distances_to_next_runtime_machine_write_end(
     native_plan: &NativePlan,

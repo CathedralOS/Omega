@@ -1,12 +1,12 @@
 use super::bindings::host_binding_mechanism;
 use super::buffers::text_expression_for_buffer_target;
-use crate::instructions::model::SelectedInstructionKind;
 use crate::instructions::storage_places::{
     resolve_machine_owned_place, resolve_runtime_storage_place,
 };
 use crate::plan::NativePlan;
 use omega_calling_conventions::{HostBindingMechanism, PlatformCallData};
 use omega_platform_interface::HostCall;
+use omega_target_program::SelectedInstructionKind;
 
 pub(in crate::instructions::host_operations) fn runtime_text_line_read(
     native_plan: &NativePlan,

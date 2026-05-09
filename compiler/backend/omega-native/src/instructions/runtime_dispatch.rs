@@ -13,12 +13,12 @@ use super::host_operations::{
     select_host_call,
 };
 use super::lookups::host_call_for_statement;
-use super::model::{InstructionOperand, SelectedInstruction, SelectedInstructionKind};
 use branches::{
     select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
+use omega_target_program::{InstructionOperand, SelectedInstruction, SelectedInstructionKind};
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 

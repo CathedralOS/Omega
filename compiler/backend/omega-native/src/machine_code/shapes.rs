@@ -3,11 +3,11 @@ mod host;
 mod runtime_storage;
 mod runtime_text;
 
-use crate::instructions::SelectedInstructionKind;
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_target_program::SelectedInstructionKind;
 
-use super::model::MachineInstructionKind;
+use omega_machine_program::MachineInstructionKind;
 
 pub(super) fn machine_instruction_shape(
     native_plan: &NativePlan,

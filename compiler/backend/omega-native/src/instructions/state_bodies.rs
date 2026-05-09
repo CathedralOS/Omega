@@ -5,7 +5,7 @@ use omega_core::arena::Arena;
 
 use super::host_operations::select_host_call;
 use super::lookups::{host_call_for_statement, state_call_for_statement};
-use super::model::{InstructionOperand, SelectedInstruction};
+use omega_target_program::{InstructionOperand, SelectedInstruction};
 
 pub(super) fn select_state_body_instructions(
     native_plan: &NativePlan,

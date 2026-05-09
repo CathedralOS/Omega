@@ -5,12 +5,11 @@ use omega_core::diagnostics::Diagnostic;
 mod branch_distances;
 mod encoding;
 mod host_bindings;
-mod model;
 mod shapes;
 mod widths;
 
 use encoding::encode_machine_instruction;
-pub use model::{MachineCodePlan, MachineFunctionCode, MachineInstruction, MachineInstructionKind};
+use omega_machine_program::{MachineCodePlan, MachineFunctionCode, MachineInstruction};
 use shapes::machine_instruction_shape;
 
 pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePlan, Diagnostic> {
@@ -53,7 +52,7 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePl
 fn select_machine_instructions(
     native_plan: &NativePlan,
     function_offset: usize,
-    function: &crate::instructions::FunctionInstructionPlan,
+    function: &omega_target_program::FunctionInstructionPlan,
     bytes: &mut Arena<u8>,
 ) -> Result<Vec<MachineInstruction>, Diagnostic> {
     let Some(selected_instructions) = native_plan

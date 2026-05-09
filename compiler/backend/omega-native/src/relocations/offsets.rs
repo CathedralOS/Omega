@@ -1,6 +1,6 @@
-use crate::instructions::InstructionOperand;
 use omega_object::RelocationKind;
 use omega_target::Architecture;
+use omega_target_program::InstructionOperand;
 
 pub(super) fn external_call_relocation_offset(
     architecture: Architecture,

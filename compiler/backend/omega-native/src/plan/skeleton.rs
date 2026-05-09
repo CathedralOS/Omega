@@ -1,8 +1,6 @@
 use super::{NativePlan, NativePlanPhaseTiming};
 use crate::alias_flow::AliasFlowPlan;
 use crate::data::NativeDataPlan;
-use crate::instructions::InstructionPlan;
-use crate::machine_code::MachineCodePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
 use crate::runtime_dispatch::branching::RuntimeBranchingCallPlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopPlan;
@@ -17,9 +15,11 @@ use crate::state_values::StateValuePlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
+use omega_machine_program::MachineCodePlan;
 use omega_object::{ObjectPlan, RelocationPlan, entry_symbol_name};
 use omega_platform_interface::HostCallPlan;
 use omega_target::NativeTarget;
+use omega_target_program::InstructionPlan;
 
 pub(super) struct NativePlanSkeletonInput {
     pub target: NativeTarget,

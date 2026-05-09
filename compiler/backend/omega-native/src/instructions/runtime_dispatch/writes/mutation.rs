@@ -6,7 +6,6 @@ use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
     strip_mutable_expression,
 };
-use super::super::super::model::{SelectedInstruction, SelectedInstructionKind};
 use super::super::super::storage_places::resolve_machine_owned_place;
 use super::super::text_writes::{
     runtime_text_builder_write, select_runtime_string_descriptor_write,
@@ -15,6 +14,7 @@ use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
+use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_mutation_writes(

@@ -1,6 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 
-use crate::machine_code::model::{MachineInstruction, MachineInstructionKind};
+use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 
 pub(in crate::machine_code) fn byte_distance_to_case_end(
     machine_instructions: &[MachineInstruction],

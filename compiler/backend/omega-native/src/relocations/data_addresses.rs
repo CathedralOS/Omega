@@ -1,14 +1,14 @@
 use crate::architecture;
-use crate::instructions::{FunctionInstructionPlan, InstructionOperandKind};
 use crate::plan::NativePlan;
 use omega_object::{RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name};
 use omega_target::Architecture;
+use omega_target_program::{FunctionInstructionPlan, InstructionOperandKind};
 
 pub(super) fn collect_data_address_relocations(
     native_plan: &NativePlan,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
-    operands: omega_core::arena::HandleSpan<crate::instructions::InstructionOperand>,
+    operands: omega_core::arena::HandleSpan<omega_target_program::InstructionOperand>,
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {

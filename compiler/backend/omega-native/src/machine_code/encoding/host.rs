@@ -1,8 +1,8 @@
 use crate::architecture;
-use crate::instructions::InstructionOperand;
 use crate::plan::NativePlan;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
+use omega_target_program::InstructionOperand;
 
 use crate::machine_code::host_bindings::host_binding_mechanism;
 

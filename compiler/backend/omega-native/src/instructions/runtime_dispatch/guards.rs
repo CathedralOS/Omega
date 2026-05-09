@@ -5,8 +5,8 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 use super::super::host_operations::runtime_text_input_buffer_for_text_place;
-use super::super::model::SelectedInstructionKind;
 use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
+use omega_target_program::SelectedInstructionKind;
 
 pub(super) fn select_runtime_leaf_branch_guard(
     native_plan: &NativePlan,

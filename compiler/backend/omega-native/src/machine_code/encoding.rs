@@ -4,12 +4,12 @@ mod runtime_storage;
 mod runtime_text;
 
 use crate::architecture;
-use crate::instructions::SelectedInstructionKind;
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use omega_core::diagnostics::Diagnostic;
+use omega_target_program::SelectedInstructionKind;
 
-use super::model::MachineInstruction;
+use omega_machine_program::MachineInstruction;
 
 pub(super) fn encode_machine_instruction(
     native_plan: &NativePlan,

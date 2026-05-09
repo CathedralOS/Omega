@@ -1,7 +1,7 @@
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_control_flow::StateKey;
 
-use super::super::model::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn select_runtime_dispatch_edge(
     edge: &RuntimeDispatchLoopEdge,

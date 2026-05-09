@@ -7,11 +7,11 @@ use super::offsets::{
     runtime_storage_compare_right_address_offset, runtime_storage_copy_target_address_offset,
     string_descriptor_machine_address_offset,
 };
-use crate::instructions::{FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind};
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use context::InstructionRelocationContext;
 use omega_object::{RelocationPlan, machine_storage_symbol_name};
+use omega_target_program::{FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn collect_instruction_relocations(
     native_plan: &NativePlan,

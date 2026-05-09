@@ -1,7 +1,7 @@
-use crate::instructions::SelectedInstructionKind;
 use crate::plan::NativePlan;
 use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
+use omega_target_program::SelectedInstructionKind;
 
 use super::{EmissionBlocker, blocker};
 

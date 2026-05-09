@@ -2,9 +2,9 @@ use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
-use super::super::super::model::{SelectedInstruction, SelectedInstructionKind};
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::writes::runtime_storage_copy;
+use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_mutation_write(

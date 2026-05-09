@@ -2,11 +2,11 @@ use crate::instructions::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
 };
 use crate::instructions::host_operations::runtime_text_input_buffer_for_text_place;
-use crate::instructions::model::SelectedInstructionKind;
 use crate::instructions::storage_places::resolve_runtime_storage_place;
 use crate::plan::NativePlan;
 use crate::runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_control_flow::StateKey;
+use omega_target_program::SelectedInstructionKind;
 use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]

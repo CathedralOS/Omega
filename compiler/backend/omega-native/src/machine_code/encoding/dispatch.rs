@@ -3,10 +3,10 @@ use crate::machine_code::branch_distances::{
     byte_distance_to_case_end, byte_distance_to_case_leave, byte_distance_to_dispatch_loop_start,
     byte_distance_to_next_state_write_end,
 };
-use crate::machine_code::model::MachineInstruction;
 use crate::plan::NativePlan;
 use crate::state_guards::StateGuardOperator;
 use omega_core::diagnostics::Diagnostic;
+use omega_machine_program::MachineInstruction;
 
 pub(super) fn encode_dispatch_loop_enter(
     native_plan: &NativePlan,

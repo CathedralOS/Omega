@@ -1,7 +1,7 @@
 use super::aarch64;
 use super::aarch64_call_operands;
-use crate::instructions::InstructionOperand;
 use omega_target::Architecture;
+use omega_target_program::InstructionOperand;
 
 pub fn host_call_sequence_width(
     architecture: Architecture,

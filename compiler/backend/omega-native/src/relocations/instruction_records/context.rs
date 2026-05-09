@@ -1,7 +1,7 @@
 use super::super::data_addresses::insert_data_address_relocations;
-use crate::instructions::FunctionInstructionPlan;
 use crate::plan::NativePlan;
 use omega_object::RelocationPlan;
+use omega_target_program::FunctionInstructionPlan;
 
 pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
     pub native_plan: &'plan NativePlan,

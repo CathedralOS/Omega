@@ -1,9 +1,9 @@
 use crate::architecture;
 use crate::machine_code::branch_distances::byte_distance_to_next_runtime_write_end;
-use crate::machine_code::model::MachineInstruction;
 use crate::plan::NativePlan;
 use crate::state_guards::StateGuardOperator;
 use omega_core::diagnostics::Diagnostic;
+use omega_machine_program::MachineInstruction;
 
 pub(super) fn encode_runtime_storage_compare(
     native_plan: &NativePlan,

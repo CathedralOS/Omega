@@ -14,8 +14,8 @@ use super::super::super::bindings::{
 use super::super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
 };
-use super::super::super::model::SelectedInstruction;
 use super::mutation::select_runtime_resolved_mutation_write;
+use omega_target_program::SelectedInstruction;
 
 pub(in crate::instructions::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
     native_plan: &NativePlan,

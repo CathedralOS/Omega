@@ -1,4 +1,3 @@
-use crate::machine_code::model::MachineInstructionKind;
 use crate::machine_code::widths::{
     runtime_text_buffer_materialize_width, runtime_text_line_read_width,
     runtime_text_literal_append_width, runtime_text_literal_compare_width,
@@ -8,6 +7,7 @@ use crate::machine_code::widths::{
 };
 use crate::plan::NativePlan;
 use crate::state_guards::StateGuardOperator;
+use omega_machine_program::MachineInstructionKind;
 
 pub(super) fn runtime_text_literal_compare_shape(
     native_plan: &NativePlan,

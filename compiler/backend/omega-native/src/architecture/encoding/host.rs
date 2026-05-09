@@ -1,8 +1,8 @@
 use crate::architecture::aarch64;
 use crate::architecture::aarch64_call_operands;
-use crate::instructions::InstructionOperand;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::Architecture;
+use omega_target_program::InstructionOperand;
 
 pub fn encode_host_call_sequence(
     architecture: Architecture,

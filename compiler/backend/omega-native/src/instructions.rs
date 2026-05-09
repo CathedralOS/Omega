@@ -5,14 +5,13 @@ use omega_core::arena::Arena;
 mod bindings;
 mod host_operations;
 mod lookups;
-mod model;
 mod runtime_dispatch;
 mod state_bodies;
 mod storage_places;
 
-pub use model::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
-    SelectedInstruction, SelectedInstructionKind,
+use omega_target_program::{
+    FunctionInstructionPlan, InstructionOperand, InstructionPlan, SelectedInstruction,
+    SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{

@@ -2,8 +2,8 @@ use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
-use super::super::super::model::SelectedInstructionKind;
 use super::super::super::storage_places::resolve_runtime_storage_place;
+use omega_target_program::SelectedInstructionKind;
 
 pub(in crate::instructions::runtime_dispatch) fn runtime_storage_copy(
     native_plan: &NativePlan,

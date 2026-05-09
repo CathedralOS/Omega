@@ -1,8 +1,8 @@
-use crate::instructions::FunctionInstructionPlan;
 use crate::plan::NativePlan;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_object::RelocationPlan;
+use omega_target_program::FunctionInstructionPlan;
 
 mod data_addresses;
 mod instruction_records;

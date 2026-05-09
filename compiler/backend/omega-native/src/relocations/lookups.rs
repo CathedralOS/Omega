@@ -1,7 +1,7 @@
-use crate::instructions::FunctionInstructionPlan;
 use crate::plan::NativePlan;
 use omega_calling_conventions::HostBinding;
 use omega_core::diagnostics::Diagnostic;
+use omega_target_program::FunctionInstructionPlan;
 
 pub(super) fn selected_instruction_text_offset(
     native_plan: &NativePlan,

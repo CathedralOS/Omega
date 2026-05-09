@@ -7,7 +7,7 @@ use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
 
-use super::model::{
+use omega_target_program::{
     InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use operands::{operand, select_host_operation_operands};

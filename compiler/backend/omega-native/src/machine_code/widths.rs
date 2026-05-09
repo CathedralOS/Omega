@@ -1,6 +1,6 @@
 pub(super) fn host_call_sequence_width(
     architecture: omega_target::Architecture,
-    operands: &[crate::instructions::InstructionOperand],
+    operands: &[omega_target_program::InstructionOperand],
 ) -> usize {
     crate::architecture::host_call_sequence_width(architecture, operands)
 }
