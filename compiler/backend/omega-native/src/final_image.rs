@@ -1,102 +1,16 @@
-use crate::object::{SectionKind, SymbolKind};
 use crate::plan::NativePlan;
-use omega_core::arena::{Arena, Handle};
 pub use omega_image::{
-    FinalImage, FinalImageImport, FinalImageLayout, FinalImageRelocation, FinalImageSection,
-    FinalImageSymbol, FinalImageSymbolHandle, apply_aarch64_relocations,
+    FinalImage, FinalImageImport, FinalImageInput, FinalImageLayout, FinalImageRelocation,
+    FinalImageSection, FinalImageSymbol, FinalImageSymbolHandle, apply_aarch64_relocations,
+    build_final_image as build_image,
 };
 
 pub fn build_final_image(native_plan: &NativePlan) -> FinalImage {
-    let mut image = FinalImage {
+    build_image(FinalImageInput {
         target: native_plan.target,
-        entry_symbol: native_plan.object.entry_symbol.clone(),
-        text: native_plan.machine_code.bytes.storage_slice().to_vec(),
-        data: native_plan.data.bytes.storage_slice().to_vec(),
-        bss_size: section_size(native_plan, SectionKind::Bss),
-        bss_alignment: section_alignment(native_plan, SectionKind::Bss),
-        symbols: Arena::new(),
-        imports: Arena::new(),
-        relocations: Arena::new(),
-    };
-
-    image
-        .symbols
-        .insert_many(native_plan.object.symbols.iter().map(|(_, symbol)| {
-            FinalImageSymbol {
-                name: symbol.name.clone(),
-                section: symbol
-                    .section
-                    .as_deref()
-                    .map(final_image_section)
-                    .unwrap_or(FinalImageSection::None),
-                offset: symbol.offset,
-                size: symbol.size,
-                kind: symbol.kind,
-            }
-        }));
-
-    image.imports.insert_many(
-        native_plan
-            .object
-            .symbols
-            .iter()
-            .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
-            .map(|(_, symbol)| FinalImageImport {
-                symbol: symbol.name.clone(),
-            }),
-    );
-
-    let symbols = &image.symbols;
-    image.relocations.insert_many(
-        native_plan
-            .relocations
-            .records
-            .iter()
-            .map(|(_, relocation)| FinalImageRelocation {
-                text_offset: relocation.text_offset,
-                byte_width: relocation.byte_width,
-                symbol: relocation.symbol.clone(),
-                symbol_handle: symbol_handle(symbols, &relocation.symbol),
-                kind: relocation.kind,
-            }),
-    );
-
-    image
-}
-
-fn symbol_handle(symbols: &Arena<FinalImageSymbol>, symbol_name: &str) -> FinalImageSymbolHandle {
-    symbols
-        .iter()
-        .find(|(_, symbol)| symbol.name == symbol_name)
-        .map(|(handle, _)| handle)
-        .unwrap_or_else(Handle::invalid)
-}
-
-fn final_image_section(section_name: &str) -> FinalImageSection {
-    match section_name {
-        ".text" | "__TEXT,__text" => FinalImageSection::Text,
-        ".data" | "__DATA,__data" => FinalImageSection::Data,
-        ".bss" | "__DATA,__bss" => FinalImageSection::Bss,
-        _ => FinalImageSection::None,
-    }
-}
-
-fn section_size(native_plan: &NativePlan, kind: SectionKind) -> usize {
-    native_plan
-        .object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.size)
-        .unwrap_or(0)
-}
-
-fn section_alignment(native_plan: &NativePlan, kind: SectionKind) -> usize {
-    native_plan
-        .object
-        .sections
-        .iter()
-        .find(|(_, section)| section.kind == kind)
-        .map(|(_, section)| section.alignment)
-        .unwrap_or(1)
+        object: &native_plan.object,
+        relocations: &native_plan.relocations,
+        text_bytes: native_plan.machine_code.bytes.storage_slice(),
+        data_bytes: native_plan.data.bytes.storage_slice(),
+    })
 }
