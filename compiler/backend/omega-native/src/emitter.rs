@@ -1,7 +1,6 @@
 use crate::plan::NativePlan;
 use crate::target_output::emit_target_output;
 use omega_core::diagnostics::Diagnostic;
-use omega_object::{ObjectContainerInput, ObjectContainerOutput, emit_omega_object_container};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmittedNativeOutput {
@@ -22,8 +21,6 @@ pub struct EmittedNativeOutput {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeOutputKind {
     DirectExecutable,
-    LinkableObject,
-    NativeContainer,
 }
 
 pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedNativeOutput, Diagnostic> {
@@ -40,36 +37,8 @@ pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedNativeOutpu
         return emitted_output;
     }
 
-    emit_omega_native_container(native_plan)
-}
-
-fn emit_omega_native_container(
-    native_plan: &NativePlan,
-) -> Result<EmittedNativeOutput, Diagnostic> {
-    let output = emit_omega_object_container(ObjectContainerInput {
-        target: native_plan.target,
-        object: &native_plan.object,
-        relocations: &native_plan.relocations,
-        text_bytes: native_plan.machine_code.bytes.storage_slice(),
-        data_bytes: native_plan.data.bytes.storage_slice(),
-    });
-
-    Ok(emitted_native_container_output(output))
-}
-
-fn emitted_native_container_output(output: ObjectContainerOutput) -> EmittedNativeOutput {
-    EmittedNativeOutput {
-        bytes: output.bytes,
-        file_name: output.file_name,
-        format: output.format,
-        kind: NativeOutputKind::NativeContainer,
-        text_bytes: output.text_bytes,
-        data_bytes: output.data_bytes,
-        bss_bytes: output.bss_bytes,
-        symbols: output.symbols,
-        relocations: output.relocations,
-        final_image_symbols: 0,
-        final_image_imports: 0,
-        final_image_relocations: 0,
-    }
+    Err(Diagnostic::error(format!(
+        "cannot emit native executable for {:?}; no direct image writer is registered for this target",
+        native_plan.target
+    )))
 }
