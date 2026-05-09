@@ -1,10 +1,7 @@
-pub mod elf;
-pub mod macho;
-
 use crate::plan::NativePlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{
-    EmittedImageOutput, ExecutableImageOutput, FinalImage, FinalImageInput, ImageOutputKind,
+    EmittedImageOutput, FinalImage, FinalImageInput, emitted_direct_executable_output,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -23,30 +20,27 @@ pub fn emit_target_output(
         native_plan.target.architecture,
     ) {
         (ObjectFormat::Elf, Architecture::Aarch64) => {
-            Some(elf::emit_elf_arm64_executable(native_plan))
+            Some(emit_elf_aarch64_executable(native_plan))
         }
         (ObjectFormat::MachO, Architecture::Aarch64) => {
-            Some(macho::emit_macho_arm64_executable(native_plan))
+            Some(emit_macho_aarch64_executable(native_plan))
         }
         _ => None,
     }
 }
 
-fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedImageOutput {
-    EmittedImageOutput {
-        bytes: output.bytes,
-        file_name: output.file_name,
-        format: output.format,
-        kind: ImageOutputKind::DirectExecutable,
-        text_bytes: output.text_bytes,
-        data_bytes: output.data_bytes,
-        bss_bytes: output.bss_bytes,
-        symbols: output.symbols,
-        relocations: output.relocations,
-        final_image_symbols: output.symbols,
-        final_image_imports: output.imports,
-        final_image_relocations: output.relocations,
-    }
+fn emit_elf_aarch64_executable(native_plan: &NativePlan) -> Result<EmittedImageOutput, Diagnostic> {
+    let image = build_final_image(native_plan);
+    let output = omega_image_elf::emit_elf_aarch64_executable(image)?;
+    Ok(emitted_direct_executable_output(output))
+}
+
+fn emit_macho_aarch64_executable(
+    native_plan: &NativePlan,
+) -> Result<EmittedImageOutput, Diagnostic> {
+    let image = build_final_image(native_plan);
+    let output = omega_image_macho::emit_macho_aarch64_executable(image)?;
+    Ok(emitted_direct_executable_output(output))
 }
 
 fn build_final_image(native_plan: &NativePlan) -> FinalImage {

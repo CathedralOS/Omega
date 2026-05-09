@@ -44,6 +44,23 @@ pub enum ImageOutputKind {
     DirectExecutable,
 }
 
+pub fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedImageOutput {
+    EmittedImageOutput {
+        bytes: output.bytes,
+        file_name: output.file_name,
+        format: output.format,
+        kind: ImageOutputKind::DirectExecutable,
+        text_bytes: output.text_bytes,
+        data_bytes: output.data_bytes,
+        bss_bytes: output.bss_bytes,
+        symbols: output.symbols,
+        relocations: output.relocations,
+        final_image_symbols: output.symbols,
+        final_image_imports: output.imports,
+        final_image_relocations: output.relocations,
+    }
+}
+
 pub struct FinalImageInput<'a> {
     pub target: NativeTarget,
     pub object: &'a ObjectPlan,
