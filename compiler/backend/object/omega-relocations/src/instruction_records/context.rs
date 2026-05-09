@@ -1,10 +1,10 @@
 use super::super::data_addresses::insert_data_address_relocations;
-use crate::plan::NativePlan;
+use crate::RelocationPlanningInput;
 use omega_object::RelocationPlan;
 use omega_target_program::FunctionInstructionPlan;
 
 pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
-    pub native_plan: &'plan NativePlan,
+    pub input: RelocationPlanningInput<'plan>,
     pub function: &'plan FunctionInstructionPlan,
     pub selected_instruction_index: u32,
     pub selected_text_offset: usize,
@@ -14,7 +14,7 @@ pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
 impl InstructionRelocationContext<'_, '_> {
     pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: &str) {
         insert_data_address_relocations(
-            self.native_plan,
+            self.input,
             self.relocation_plan,
             self.function,
             self.selected_instruction_index,

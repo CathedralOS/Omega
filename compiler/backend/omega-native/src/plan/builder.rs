@@ -7,7 +7,6 @@ use crate::data::build_native_data_plan;
 use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
 use crate::object::build_object_plan;
-use crate::relocations::build_relocation_plan;
 use crate::runtime_dispatch::bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
@@ -34,6 +33,7 @@ use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
+use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
@@ -201,7 +201,15 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         build_object_plan(&native_plan)
     })?;
     native_plan.relocations = record_native_phase(&mut phase_timings, "relocations", || {
-        build_relocation_plan(&native_plan)
+        build_relocation_plan(RelocationPlanningInput {
+            target: native_plan.target,
+            instructions: &native_plan.instructions,
+            machine_code: &native_plan.machine_code,
+            data: &native_plan.data,
+            object: &native_plan.object,
+            host_abi: &native_plan.host_abi,
+            entry_machine_name: native_plan.entry_machine_name(),
+        })
     })?;
     native_plan.phase_timings = phase_timings;
 

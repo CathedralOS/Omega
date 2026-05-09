@@ -19,7 +19,7 @@ pub(super) fn collect_host_operation_relocation(
     else {
         return;
     };
-    let Some(binding) = find_host_binding(context.native_plan, capability, operation) else {
+    let Some(binding) = find_host_binding(context.input, capability, operation) else {
         return;
     };
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {
@@ -30,18 +30,18 @@ pub(super) fn collect_host_operation_relocation(
         function_symbol: context.function.symbol.clone(),
         selected_instruction_index: context.selected_instruction_index,
         text_offset: external_call_relocation_offset(
-            context.native_plan.target.architecture,
+            context.input.target.architecture,
             context.selected_text_offset,
             context
-                .native_plan
+                .input
                 .instructions
                 .operands
                 .span(*operands)
                 .unwrap_or(&[]),
         ),
-        byte_width: external_call_relocation_width(context.native_plan.target.architecture),
+        byte_width: external_call_relocation_width(context.input.target.architecture),
         symbol: symbol.clone(),
-        symbol_handle: object_symbol_handle_by_name(&context.native_plan.object, symbol),
-        kind: external_call_relocation_kind(context.native_plan.target.architecture),
+        symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol),
+        kind: external_call_relocation_kind(context.input.target.architecture),
     });
 }

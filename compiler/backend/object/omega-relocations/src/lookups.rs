@@ -1,16 +1,16 @@
-use crate::plan::NativePlan;
+use crate::RelocationPlanningInput;
 use omega_calling_conventions::HostBinding;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_program::FunctionInstructionPlan;
 
 pub(super) fn selected_instruction_text_offset(
-    native_plan: &NativePlan,
+    input: RelocationPlanningInput<'_>,
     function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
 ) -> Result<usize, Diagnostic> {
-    let Some(machine_function) = native_plan
+    let Some(machine_function) = input
         .machine_code
         .functions
         .iter()
@@ -23,7 +23,7 @@ pub(super) fn selected_instruction_text_offset(
         )));
     };
 
-    let Some(machine_instructions) = native_plan
+    let Some(machine_instructions) = input
         .machine_code
         .instructions
         .span(machine_function.instructions)
@@ -47,11 +47,11 @@ pub(super) fn selected_instruction_text_offset(
 }
 
 pub(super) fn find_host_binding<'plan>(
-    native_plan: &'plan NativePlan,
+    input: RelocationPlanningInput<'plan>,
     capability: &str,
     operation: &str,
 ) -> Option<&'plan HostBinding> {
-    native_plan
+    input
         .host_abi
         .bindings
         .iter()

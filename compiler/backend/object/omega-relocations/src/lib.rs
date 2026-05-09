@@ -1,41 +1,53 @@
-use crate::plan::NativePlan;
+use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
-use omega_object::RelocationPlan;
-use omega_target_program::FunctionInstructionPlan;
+use omega_machine_program::MachineCodePlan;
+use omega_object::{ObjectPlan, RelocationPlan};
+use omega_target::NativeTarget;
+use omega_target_program::{FunctionInstructionPlan, InstructionPlan, NativeDataPlan};
 
 mod data_addresses;
 mod instruction_records;
 mod lookups;
 mod offsets;
+mod storage_regions;
 
 use instruction_records::collect_instruction_relocations;
 use lookups::selected_instruction_text_offset;
 
-pub fn build_relocation_plan(native_plan: &NativePlan) -> Result<RelocationPlan, Diagnostic> {
+#[derive(Debug, Clone, Copy)]
+pub struct RelocationPlanningInput<'plan> {
+    pub target: NativeTarget,
+    pub instructions: &'plan InstructionPlan,
+    pub machine_code: &'plan MachineCodePlan,
+    pub data: &'plan NativeDataPlan,
+    pub object: &'plan ObjectPlan,
+    pub host_abi: &'plan HostAbiPlan,
+    pub entry_machine_name: &'plan str,
+}
+
+pub fn build_relocation_plan(
+    input: RelocationPlanningInput<'_>,
+) -> Result<RelocationPlan, Diagnostic> {
     let mut relocation_plan = RelocationPlan {
-        target: native_plan.target,
+        target: input.target,
         records: Arena::new(),
     };
 
-    for (function_handle, function) in native_plan.instructions.functions.iter() {
-        collect_function_relocations(native_plan, function_handle, function, &mut relocation_plan)?;
+    for (function_handle, function) in input.instructions.functions.iter() {
+        collect_function_relocations(input, function_handle, function, &mut relocation_plan)?;
     }
 
     Ok(relocation_plan)
 }
 
 fn collect_function_relocations(
-    native_plan: &NativePlan,
+    input: RelocationPlanningInput<'_>,
     function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
     relocation_plan: &mut RelocationPlan,
 ) -> Result<(), Diagnostic> {
-    let Some(instructions) = native_plan
-        .instructions
-        .instructions
-        .span(function.instructions)
-    else {
+    let Some(instructions) = input.instructions.instructions.span(function.instructions) else {
         return Ok(());
     };
 
@@ -48,14 +60,14 @@ fn collect_function_relocations(
             .expect("instruction index overflow");
 
         let selected_text_offset = selected_instruction_text_offset(
-            native_plan,
+            input,
             function_handle,
             function,
             selected_instruction_index,
         )?;
 
         collect_instruction_relocations(
-            native_plan,
+            input,
             function,
             selected_instruction_index,
             selected_text_offset,

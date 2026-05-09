@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use crate::RelocationPlanningInput;
 use omega_instruction_selection as architecture;
 use omega_object::{
     RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name,
@@ -8,14 +8,14 @@ use omega_target::Architecture;
 use omega_target_program::{FunctionInstructionPlan, InstructionOperandKind};
 
 pub(super) fn collect_data_address_relocations(
-    native_plan: &NativePlan,
+    input: RelocationPlanningInput<'_>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     operands: omega_core::arena::HandleSpan<omega_target_program::InstructionOperand>,
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {
-    let Some(operands) = native_plan.instructions.operands.span(operands) else {
+    let Some(operands) = input.instructions.operands.span(operands) else {
         return;
     };
 
@@ -27,9 +27,9 @@ pub(super) fn collect_data_address_relocations(
                 if !data.is_valid() {
                     continue;
                 }
-                let symbol = &native_plan.data.objects.get(*data).symbol;
+                let symbol = &input.data.objects.get(*data).symbol;
                 insert_data_address_relocations(
-                    native_plan,
+                    input,
                     relocation_plan,
                     function,
                     selected_instruction_index,
@@ -40,34 +40,33 @@ pub(super) fn collect_data_address_relocations(
             InstructionOperandKind::RuntimeMachineStringPointer { .. }
             | InstructionOperandKind::RuntimeMachineStringLength { .. } => {
                 insert_data_address_relocations(
-                    native_plan,
+                    input,
                     relocation_plan,
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    &machine_storage_symbol_name(native_plan.entry_machine_name()),
+                    &machine_storage_symbol_name(input.entry_machine_name),
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {
             }
         }
 
-        operand_text_offset +=
-            architecture::operand_width(native_plan.target.architecture, operand);
+        operand_text_offset += architecture::operand_width(input.target.architecture, operand);
     }
 }
 
 pub(super) fn insert_data_address_relocations(
-    native_plan: &NativePlan,
+    input: RelocationPlanningInput<'_>,
     relocation_plan: &mut RelocationPlan,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     operand_text_offset: usize,
     symbol: &str,
 ) {
-    let symbol_handle = object_symbol_handle_by_name(&native_plan.object, symbol);
+    let symbol_handle = object_symbol_handle_by_name(&input.object, symbol);
 
-    match native_plan.target.architecture {
+    match input.target.architecture {
         Architecture::Aarch64 => {
             relocation_plan.records.insert(RelocationRecord {
                 function_symbol: function.symbol.clone(),

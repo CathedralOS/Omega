@@ -280,6 +280,7 @@ dependencies = [
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
+ "omega-relocations",
  "omega-state-graph",
  "omega-target",
  "omega-target-program",
@@ -321,6 +322,19 @@ dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
  "omega-typed-program",
+]
+
+[[package]]
+name = "omega-relocations"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-core",
+ "omega-instruction-selection",
+ "omega-machine-program",
+ "omega-object",
+ "omega-target",
+ "omega-target-program",
 ]
 
 [[package]]

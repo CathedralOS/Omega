@@ -9,7 +9,6 @@ pub mod instructions;
 pub mod object;
 pub(crate) mod place_keys;
 pub mod plan;
-pub mod relocations;
 pub mod report;
 pub mod runtime_dispatch;
 pub mod runtime_flow;

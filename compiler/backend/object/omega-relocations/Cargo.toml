@@ -1,0 +1,18 @@
+[package]
+name = "omega-relocations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_relocations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../omega-calling-conventions" }
+omega-core = { path = "../../../foundation/omega-core" }
+omega-instruction-selection = { path = "../../omega-instruction-selection" }
+omega-machine-program = { path = "../../../representations/omega-machine-program" }
+omega-object = { path = "../omega-object" }
+omega-target = { path = "../../omega-target" }
+omega-target-program = { path = "../../../representations/omega-target-program" }

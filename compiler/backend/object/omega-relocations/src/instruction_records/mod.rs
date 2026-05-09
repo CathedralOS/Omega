@@ -7,15 +7,17 @@ use super::offsets::{
     runtime_storage_compare_right_address_offset, runtime_storage_copy_target_address_offset,
     string_descriptor_machine_address_offset,
 };
-use crate::plan::NativePlan;
-use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use crate::RelocationPlanningInput;
 use crate::storage_regions::storage_region_symbol_name;
 use context::InstructionRelocationContext;
 use omega_object::{RelocationPlan, machine_storage_symbol_name};
-use omega_target_program::{FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind};
+use omega_target_program::{
+    FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
+    StateGuardOperator,
+};
 
 pub(super) fn collect_instruction_relocations(
-    native_plan: &NativePlan,
+    input: RelocationPlanningInput<'_>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     selected_text_offset: usize,
@@ -23,7 +25,7 @@ pub(super) fn collect_instruction_relocations(
     relocation_plan: &mut RelocationPlan,
 ) {
     let mut context = InstructionRelocationContext {
-        native_plan,
+        input,
         function,
         selected_instruction_index,
         selected_text_offset,
@@ -33,7 +35,7 @@ pub(super) fn collect_instruction_relocations(
     match &instruction.kind {
         SelectedInstructionKind::HostOperation { operands, .. } => {
             collect_data_address_relocations(
-                native_plan,
+                input,
                 function,
                 selected_instruction_index,
                 *operands,
@@ -49,7 +51,7 @@ pub(super) fn collect_instruction_relocations(
             ..
         } => {
             context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
-                native_plan.entry_machine_name(),
+                input.entry_machine_name,
             ));
         }
         SelectedInstructionKind::CompareRuntimeStorage {
@@ -57,31 +59,29 @@ pub(super) fn collect_instruction_relocations(
             right_region,
             ..
         } => {
-            let left_symbol =
-                storage_region_symbol_name(*left_region, native_plan.entry_machine_name());
-            let right_symbol =
-                storage_region_symbol_name(*right_region, native_plan.entry_machine_name());
+            let left_symbol = storage_region_symbol_name(*left_region, input.entry_machine_name);
+            let right_symbol = storage_region_symbol_name(*right_region, input.entry_machine_name);
             context.insert_data_address_at_instruction_start(&left_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_storage_compare_right_address_offset(native_plan.target.architecture),
+                runtime_storage_compare_right_address_offset(input.target.architecture),
                 &right_symbol,
             );
         }
         SelectedInstructionKind::CompareRuntimeStorageValue { region, .. } => {
-            let symbol = storage_region_symbol_name(*region, native_plan.entry_machine_name());
+            let symbol = storage_region_symbol_name(*region, input.entry_machine_name);
             context.insert_data_address_at_instruction_start(&symbol);
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
             context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
-                native_plan.entry_machine_name(),
+                input.entry_machine_name,
             ));
         }
         SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
-            let data_symbol = &native_plan.data.objects.get(*data).symbol;
+            let data_symbol = &input.data.objects.get(*data).symbol;
             context.insert_data_address_at_instruction_start(data_symbol);
             context.insert_data_address_at_relative_offset(
-                string_descriptor_machine_address_offset(native_plan.target.architecture),
-                &machine_storage_symbol_name(native_plan.entry_machine_name()),
+                string_descriptor_machine_address_offset(input.target.architecture),
+                &machine_storage_symbol_name(input.entry_machine_name),
             );
         }
         SelectedInstructionKind::CopyRuntimeStorage {
@@ -90,12 +90,12 @@ pub(super) fn collect_instruction_relocations(
             ..
         } => {
             let source_symbol =
-                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*source_region, input.entry_machine_name);
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, input.entry_machine_name);
             context.insert_data_address_at_instruction_start(&source_symbol);
             context.insert_data_address_at_relative_offset(
-                runtime_storage_copy_target_address_offset(native_plan.target.architecture),
+                runtime_storage_copy_target_address_offset(input.target.architecture),
                 &target_symbol,
             );
         }
