@@ -215,6 +215,7 @@ Omega/
 |   |   |
 |   |   |-- object/
 |   |   |   |-- [CRATE] omega-object/                   # Shared object representation: sections, symbols, relocations.
+|   |   |   |-- [CRATE] omega-object-planning/          # Builds section/symbol plans before object or image writing.
 |   |   |   |-- [CRATE] omega-relocations/              # Builds relocation records over selected and machine instructions.
 |   |   |   |-- [CRATE] omega-object-elf/               # ELF object/container writer.
 |   |   |   |-- [CRATE] omega-object-macho/             # Mach-O object/container writer.

@@ -293,6 +293,7 @@ dependencies = [
  "omega-machine-emission",
  "omega-machine-program",
  "omega-object",
+ "omega-object-planning",
  "omega-platform-interface",
  "omega-relocations",
  "omega-state-graph",
@@ -308,6 +309,19 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-target",
+]
+
+[[package]]
+name = "omega-object-planning"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-core",
+ "omega-layout",
+ "omega-machine-program",
+ "omega-object",
+ "omega-target",
+ "omega-target-program",
 ]
 
 [[package]]

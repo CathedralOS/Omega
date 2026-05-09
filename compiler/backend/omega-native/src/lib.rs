@@ -6,7 +6,6 @@ pub mod emission;
 pub mod host_calls;
 pub mod identity;
 pub mod instructions;
-pub mod object;
 pub(crate) mod place_keys;
 pub mod plan;
 pub mod report;

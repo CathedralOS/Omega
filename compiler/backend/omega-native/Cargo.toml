@@ -21,6 +21,7 @@ omega-layout = { path = "../omega-layout" }
 omega-machine-emission = { path = "../omega-machine-emission" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-object = { path = "../object/omega-object" }
+omega-object-planning = { path = "../object/omega-object-planning" }
 omega-relocations = { path = "../object/omega-relocations" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }

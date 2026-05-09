@@ -6,7 +6,6 @@ use crate::alias_flow::build_alias_flow_plan;
 use crate::data::build_native_data_plan;
 use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
-use crate::object::build_object_plan;
 use crate::runtime_dispatch::bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
@@ -17,7 +16,8 @@ use crate::runtime_dispatch::loop_plan::{
 };
 use crate::runtime_flow::build_runtime_flow_plan;
 use crate::runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers, runtime_storage_body_inputs,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
+    runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
 };
 use crate::runtime_text::build_runtime_text_plan;
 use crate::state_analysis::StateAnalysisContext;
@@ -34,6 +34,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
+use omega_object_planning::{ObjectPlanningInput, build_object_plan};
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
@@ -208,7 +209,17 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         })
     })?;
     native_plan.object = record_native_phase(&mut phase_timings, "object plan", || {
-        build_object_plan(&native_plan)
+        build_object_plan(ObjectPlanningInput {
+            target: native_plan.target,
+            host_abi: &native_plan.host_abi,
+            layouts: &native_plan.layouts,
+            entry_machine_symbol: native_plan.entry_key.machine,
+            entry_machine_name: native_plan.entry_machine_name(),
+            machine_code: &native_plan.machine_code,
+            data: &native_plan.data,
+            runtime_frame_size: runtime_frame_storage_size(&native_plan.runtime_storage),
+            runtime_frame_alignment: runtime_frame_storage_alignment(&native_plan.runtime_storage),
+        })
     })?;
     native_plan.relocations = record_native_phase(&mut phase_timings, "relocations", || {
         build_relocation_plan(RelocationPlanningInput {

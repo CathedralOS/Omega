@@ -1,0 +1,18 @@
+[package]
+name = "omega-object-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_object_planning"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../omega-calling-conventions" }
+omega-core = { path = "../../../foundation/omega-core" }
+omega-layout = { path = "../../omega-layout" }
+omega-machine-program = { path = "../../../representations/omega-machine-program" }
+omega-object = { path = "../omega-object" }
+omega-target = { path = "../../omega-target" }
+omega-target-program = { path = "../../../representations/omega-target-program" }

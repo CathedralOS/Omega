@@ -31,6 +31,7 @@ members = [
     "compiler/backend/images/omega-image-elf",
     "compiler/backend/images/omega-image-macho",
     "compiler/backend/object/omega-object",
+    "compiler/backend/object/omega-object-planning",
     "compiler/backend/object/omega-relocations",
     "compiler/backend/omega-native",
     "compiler/orchestration/omega-artifacts",
