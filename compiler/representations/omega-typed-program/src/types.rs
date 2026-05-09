@@ -61,6 +61,61 @@ impl TypeReferenceTable {
         self.constraints.insert_many(constraints)
     }
 
+    fn insert_type_reference_handle_span_from_trees<'type_reference>(
+        &mut self,
+        type_references: impl IntoIterator<Item = &'type_reference TypeReference>,
+        expressions: &mut crate::expression::ExpressionTable,
+        source_constraints: &Arena<TypeConstraint>,
+    ) -> HandleSpan<TypeReferenceHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for type_reference in type_references {
+            let type_reference = self.insert_tree(type_reference, expressions, source_constraints);
+            let handle = self.type_reference_handles.append(type_reference);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("type reference handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_constraint_span_from_tree(
+        &mut self,
+        constraints: HandleSpan<TypeConstraint>,
+        expressions: &mut crate::expression::ExpressionTable,
+        source_constraints: &Arena<TypeConstraint>,
+    ) -> HandleSpan<TypeConstraintNode> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for constraint in source_constraints.span_or_empty(constraints) {
+            let handle = self
+                .constraints
+                .append(TypeConstraintNode::from_tree(constraint, expressions));
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("type constraint span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
         self.type_references.get(handle)
     }
@@ -96,12 +151,11 @@ impl TypeReferenceTable {
                 constraints,
             } => {
                 let base_type = self.insert_tree(base_type, expressions, source_constraints);
-                let constraints = source_constraints
-                    .span_or_empty(*constraints)
-                    .iter()
-                    .map(|constraint| TypeConstraintNode::from_tree(constraint, expressions))
-                    .collect::<Vec<_>>();
-                let constraints = self.insert_constraints(constraints);
+                let constraints = self.insert_constraint_span_from_tree(
+                    *constraints,
+                    expressions,
+                    source_constraints,
+                );
                 self.insert(TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
@@ -122,11 +176,11 @@ impl TypeReferenceTable {
                 base_name,
                 arguments,
             } => {
-                let arguments = arguments
-                    .iter()
-                    .map(|argument| self.insert_tree(argument, expressions, source_constraints))
-                    .collect::<Vec<_>>();
-                let arguments = self.insert_type_reference_handles(arguments);
+                let arguments = self.insert_type_reference_handle_span_from_trees(
+                    arguments,
+                    expressions,
+                    source_constraints,
+                );
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
                     base_name: base_name.clone(),

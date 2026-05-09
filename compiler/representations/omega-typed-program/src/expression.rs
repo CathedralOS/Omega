@@ -54,6 +54,59 @@ impl ExpressionTable {
         self.struct_fields.insert_many(fields)
     }
 
+    fn insert_expression_handle_span_from_trees<'expression>(
+        &mut self,
+        expressions: impl IntoIterator<Item = &'expression Expression>,
+    ) -> HandleSpan<ExpressionHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for expression in expressions {
+            let expression = self.insert_tree(expression);
+            let handle = self.expression_handles.append(expression);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("expression handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_struct_field_span_from_tree(
+        &mut self,
+        fields: &[StructLiteralField],
+    ) -> HandleSpan<TableStructLiteralField> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for field in fields {
+            let value = self.insert_tree(&field.value);
+            let handle = self.struct_fields.append(TableStructLiteralField {
+                name: field.name.clone(),
+                value,
+            });
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("struct field span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }
@@ -80,11 +133,7 @@ impl ExpressionTable {
     pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
         match expression {
             Expression::ArrayLiteral(values) => {
-                let values = values
-                    .iter()
-                    .map(|value| self.insert_tree(value))
-                    .collect::<Vec<_>>();
-                let values = self.insert_expression_handles(values);
+                let values = self.insert_expression_handle_span_from_trees(values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
             Expression::Binary(binary) => {
@@ -113,15 +162,7 @@ impl ExpressionTable {
             }
             Expression::Name(path) => self.insert(ExpressionNode::Name(path.clone())),
             Expression::StructLiteral(struct_literal) => {
-                let fields = struct_literal
-                    .fields
-                    .iter()
-                    .map(|field| TableStructLiteralField {
-                        name: field.name.clone(),
-                        value: self.insert_tree(&field.value),
-                    })
-                    .collect::<Vec<_>>();
-                let fields = self.insert_struct_fields(fields);
+                let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),
                     fields,

@@ -69,6 +69,20 @@ impl<T: Default> Arena<T> {
         Handle::from_arena_index(arena_index)
     }
 
+    pub fn append(&mut self, item: T) -> Handle<T> {
+        let arena_index = self.items.len().try_into().expect("arena index overflow");
+
+        self.items.push(item);
+        self.generations.push(1);
+        self.occupied.push(true);
+        self.active_count = self
+            .active_count
+            .checked_add(1)
+            .expect("arena active count overflow");
+
+        Handle::from_arena_index(arena_index)
+    }
+
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots.
