@@ -1,5 +1,4 @@
-use super::aarch64;
-use omega_isa_aarch64::Aarch64CallOperand;
+use omega_isa_aarch64::{Aarch64CallOperand, aarch64};
 use omega_target::Architecture;
 use omega_target_program::{InstructionOperand, InstructionOperandKind};
 

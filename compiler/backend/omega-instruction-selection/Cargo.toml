@@ -1,0 +1,14 @@
+[package]
+name = "omega-instruction-selection"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_instruction_selection"
+path = "src/lib.rs"
+
+[dependencies]
+omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
+omega-target = { path = "../omega-target" }
+omega-target-program = { path = "../../representations/omega-target-program" }

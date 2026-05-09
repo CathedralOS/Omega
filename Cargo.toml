@@ -22,6 +22,7 @@ members = [
     "compiler/backend/omega-platform-interface",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
+    "compiler/backend/omega-instruction-selection",
     "compiler/backend/instruction_set_architectures/omega-isa-aarch64",
     "compiler/backend/images/omega-image",
     "compiler/backend/images/omega-image-elf",

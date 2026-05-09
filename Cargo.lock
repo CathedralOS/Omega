@@ -202,6 +202,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-instruction-selection"
+version = "0.1.0"
+dependencies = [
+ "omega-isa-aarch64",
+ "omega-target",
+ "omega-target-program",
+]
+
+[[package]]
 name = "omega-isa-aarch64"
 version = "0.1.0"
 dependencies = [
@@ -252,6 +261,7 @@ dependencies = [
  "omega-image",
  "omega-image-elf",
  "omega-image-macho",
+ "omega-instruction-selection",
  "omega-isa-aarch64",
  "omega-layout",
  "omega-machine-program",
