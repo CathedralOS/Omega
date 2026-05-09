@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::ast::item::Item;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
+use omega_calling_conventions::{
+    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
+};
 use omega_control_flow::{
     ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
 };
@@ -14,21 +17,17 @@ use omega_layout::{DataShape, FieldLayout};
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
-use omega_native::abi::{
-    HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
-};
 use omega_native::emission::EmissionPlan;
 use omega_native::emitter::EmittedNativeOutput;
 use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFinalizationStatus};
 use omega_native::identity::count_native_string_storage;
-use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;
-use omega_native::relocations::RelocationRecord;
 use omega_native::runtime_dispatch::branching::{
     RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
 use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
+use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };

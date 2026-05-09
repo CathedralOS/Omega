@@ -2706,7 +2706,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
             .iter()
             .any(|(_, binding)| matches!(
                 &binding.mechanism,
-                omega_native::abi::HostBindingMechanism::Syscall { number: 64, .. }
+                omega_calling_conventions::HostBindingMechanism::Syscall { number: 64, .. }
             ))
     );
     assert!(
@@ -2716,7 +2716,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
             .iter()
             .any(|(_, binding)| matches!(
                 &binding.mechanism,
-                omega_native::abi::HostBindingMechanism::Syscall { number: 94, .. }
+                omega_calling_conventions::HostBindingMechanism::Syscall { number: 94, .. }
             ))
     );
 }
@@ -2765,13 +2765,13 @@ fn selected_macos_arm64_plans_relocation_byte_offsets() {
         relocations,
         vec![
             (
-                omega_native::relocations::RelocationKind::Aarch64Page21,
+                omega_object::RelocationKind::Aarch64Page21,
                 4,
                 4,
                 "omega_string_literal_1",
             ),
             (
-                omega_native::relocations::RelocationKind::Aarch64PageOffset12,
+                omega_object::RelocationKind::Aarch64PageOffset12,
                 8,
                 4,
                 "omega_string_literal_1",

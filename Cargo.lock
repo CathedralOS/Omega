@@ -109,6 +109,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-to-typed",
  "omega-abstract-syntax-tree",
+ "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
@@ -118,6 +119,7 @@ dependencies = [
  "omega-machine-program",
  "omega-names",
  "omega-native",
+ "omega-object",
  "omega-parser",
  "omega-platform-interface",
  "omega-proof",
