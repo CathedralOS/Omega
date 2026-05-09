@@ -33,10 +33,6 @@ pub(super) fn bind_runtime_operation_aliases(
     };
 
     for argument in arguments {
-        if argument.kind != crate::state_calls::StateCallArgumentKind::MutableAlias {
-            continue;
-        }
-
         let resolved_expression =
             resolve_runtime_alias_binding(&argument.expression, state_call.source_key, aliases);
         let expression = strip_mutable_expression(resolved_expression.expression);

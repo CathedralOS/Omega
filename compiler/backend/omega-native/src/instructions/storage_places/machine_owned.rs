@@ -47,21 +47,51 @@ fn root_machine_field_layout_for_machine<'plan>(
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
 ) -> Option<(usize, &'plan FieldLayout)> {
+    if !root_symbol.is_valid() {
+        return None;
+    }
+    root_machine_field_layout_in_machine(layouts, entry_machine, source_machine, root_symbol)
+        .or_else(|| root_machine_field_layout_by_symbol(layouts, entry_machine, root_symbol))
+}
+
+fn root_machine_field_layout_in_machine<'plan>(
+    layouts: &'plan LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    root_symbol: SymbolHandle,
+) -> Option<(usize, &'plan FieldLayout)> {
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
         .map(|(_, machine_layout)| machine_layout)?;
-    if !root_symbol.is_valid() {
-        return None;
-    }
     let root_field = layouts
         .fields
         .span(machine_layout.fields)?
         .iter()
         .find(|field| field.symbol == root_symbol)?;
     Some((machine_base_offset, root_field))
+}
+
+fn root_machine_field_layout_by_symbol(
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    root_symbol: SymbolHandle,
+) -> Option<(usize, &FieldLayout)> {
+    layouts
+        .machine_layouts
+        .iter()
+        .find_map(|(_, machine_layout)| {
+            let machine_base_offset =
+                machine_storage_offset(layouts, entry_machine, machine_layout.symbol)?;
+            let root_field = layouts
+                .fields
+                .span(machine_layout.fields)?
+                .iter()
+                .find(|field| field.symbol == root_symbol)?;
+            Some((machine_base_offset, root_field))
+        })
 }
 
 fn machine_storage_offset(
