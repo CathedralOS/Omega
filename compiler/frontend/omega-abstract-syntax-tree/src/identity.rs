@@ -77,6 +77,27 @@ fn count_item(item: &Item, counts: &mut AstIdentityStorageCounts) {
                 count_type_constraint(constraint, counts);
             }
         }
+        Item::Library(library) => {
+            if let Some(name) = &library.name {
+                count_identifier(name, counts);
+            }
+            counts.string_literals += 1;
+            count_identifier(&library.calling_convention, counts);
+            for function in &library.functions {
+                count_state_signature(&function.signature, counts);
+                if function.symbol.is_some() {
+                    counts.string_literals += 1;
+                }
+                if let Some(calling_convention) = &function.calling_convention {
+                    count_identifier(calling_convention, counts);
+                }
+                for trust in &function.trusts {
+                    if let TrustLevel::Named(name) = trust {
+                        count_identifier(name, counts);
+                    }
+                }
+            }
+        }
         Item::TrustDefinition(trust_definition) => {
             count_identifier(&trust_definition.name, counts);
         }

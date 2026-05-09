@@ -5,6 +5,7 @@ pub enum Item {
     Capability(CapabilityDefinition),
     Data(DataDefinition),
     Invariant(InvariantDefinition),
+    Library(LibraryDefinition),
     TrustDefinition(TrustDefinition),
     Use(UseItem),
     Machine(Machine),
@@ -27,6 +28,22 @@ pub struct InvariantDefinition {
 pub struct TrustDefinition {
     pub name: Identifier,
     pub token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LibraryDefinition {
+    pub name: Option<Identifier>,
+    pub path: String,
+    pub calling_convention: Identifier,
+    pub functions: Vec<LibraryFunction>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LibraryFunction {
+    pub signature: StateSignature,
+    pub symbol: Option<String>,
+    pub calling_convention: Option<Identifier>,
+    pub trusts: Vec<TrustLevel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

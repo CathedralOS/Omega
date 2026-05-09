@@ -162,6 +162,7 @@ fn lower_top_level_item(
             )),
             ast::item::Item::Capability(_)
             | ast::item::Item::Invariant(_)
+            | ast::item::Item::Library(_)
             | ast::item::Item::Target(_)
             | ast::item::Item::TrustDefinition(_)
             | ast::item::Item::Use(_) => None,

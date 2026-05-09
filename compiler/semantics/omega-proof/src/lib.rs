@@ -52,6 +52,23 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
                     constraints: constraints_name(&invariant.constraints),
                 });
             }
+            Item::Library(library) => {
+                for function in &library.functions {
+                    collect_state_signature(
+                        &mut report,
+                        &function.signature,
+                        &format!(
+                            "library `{}` function `{}`",
+                            library
+                                .name
+                                .as_ref()
+                                .map(ToString::to_string)
+                                .unwrap_or_else(|| library.path.clone()),
+                            function.signature.name
+                        ),
+                    );
+                }
+            }
             Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, machine),
             Item::Platform(platform) => collect_platform(&mut report, platform),

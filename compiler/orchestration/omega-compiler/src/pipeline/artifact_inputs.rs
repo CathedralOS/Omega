@@ -146,6 +146,22 @@ fn ast_item_summary(item: &Item) -> String {
                 invariant.constraints.len()
             )
         }
+        Item::Library(library) => format!(
+            "library `{}` path `{}` calling convention `{}` functions {} trusts {}",
+            library
+                .name
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "<anonymous>".to_owned()),
+            library.path,
+            library.calling_convention,
+            library.functions.len(),
+            library
+                .functions
+                .iter()
+                .map(|function| function.trusts.len())
+                .sum::<usize>()
+        ),
         Item::TrustDefinition(trust_definition) => format!(
             "trust `{}` body tokens {}",
             trust_definition.name, trust_definition.token_count

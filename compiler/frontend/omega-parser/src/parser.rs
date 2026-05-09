@@ -7,9 +7,10 @@ use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
 use omega_abstract_syntax_tree::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, Contains, DataDefinition, DataField, DataMember,
-    DataVariant, InvariantDefinition, Item, Machine, OwnedData, Platform, State, StateParameter,
-    StateSignature, TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue,
-    TrustDefinition, TrustLevel, TrustMode, TrustPolicy, UseItem,
+    DataVariant, InvariantDefinition, Item, LibraryDefinition, LibraryFunction, Machine, OwnedData,
+    Platform, State, StateParameter, StateSignature, TargetDefinition, TargetHost,
+    TargetHostSetting, TargetHostSettingValue, TrustDefinition, TrustLevel, TrustMode, TrustPolicy,
+    UseItem,
 };
 use omega_abstract_syntax_tree::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -77,6 +78,8 @@ impl Parser<'_, '_> {
                 items.push(Item::Capability(self.parse_capability_definition()?));
             } else if self.consume("invariant") {
                 items.push(Item::Invariant(self.parse_invariant_definition()?));
+            } else if self.consume("library") {
+                items.push(Item::Library(self.parse_library_definition()?));
             } else if self.consume("enum") {
                 items.push(Item::Data(self.parse_enum_definition()?));
             } else if self.consume("data") {
@@ -108,6 +111,65 @@ impl Parser<'_, '_> {
         let token_count = self.skip_balanced_braces_with_count()?;
 
         Ok(TrustDefinition { name, token_count })
+    }
+
+    fn parse_library_definition(&mut self) -> Result<LibraryDefinition, ParseError> {
+        let (name, path) = if self.check_kind(TokenKind::String) {
+            (None, self.expect_string_literal()?)
+        } else {
+            let name = self.expect_identifier()?;
+            self.expect("=")?;
+            (Some(name), self.expect_string_literal()?)
+        };
+
+        self.expect("calling_convention")?;
+        let calling_convention = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut functions = Vec::new();
+
+        while !self.consume("}") {
+            self.expect("fn")?;
+            functions.push(self.parse_library_function()?);
+        }
+
+        Ok(LibraryDefinition {
+            name,
+            path,
+            calling_convention,
+            functions,
+        })
+    }
+
+    fn parse_library_function(&mut self) -> Result<LibraryFunction, ParseError> {
+        let signature = self.parse_state_signature()?;
+        let mut symbol = None;
+        let mut calling_convention = None;
+        let mut trusts = Vec::new();
+
+        while !self.check("fn") && !self.check("}") && !self.is_at_end() {
+            if self.consume("trust") {
+                trusts.push(self.parse_trust_level()?);
+                let _ = self.consume(";");
+            } else if self.consume("symbol") {
+                symbol = Some(self.expect_string_literal()?);
+                let _ = self.consume(";");
+            } else if self.consume("calling_convention") {
+                calling_convention = Some(self.expect_identifier()?);
+                let _ = self.consume(";");
+            } else if self.consume(";") {
+                continue;
+            } else {
+                return Err(self.error_here("expected library function binding item"));
+            }
+        }
+
+        Ok(LibraryFunction {
+            signature,
+            symbol,
+            calling_convention,
+            trusts,
+        })
     }
 
     fn parse_target_definition(&mut self) -> Result<TargetDefinition, ParseError> {
@@ -1162,6 +1224,18 @@ impl Parser<'_, '_> {
             .as_str()
             .parse::<usize>()
             .map_err(|_| ParseError::at_span("invalid integer literal", token.span))
+    }
+
+    fn expect_string_literal(&mut self) -> Result<String, ParseError> {
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected string literal"));
+        };
+
+        if token.kind == TokenKind::String {
+            Ok(token.lexeme.as_str().to_owned())
+        } else {
+            Err(ParseError::at_span("expected string literal", token.span))
+        }
     }
 
     fn advance(&mut self) -> Option<&Token<'_>> {

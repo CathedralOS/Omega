@@ -27,6 +27,7 @@ pub enum TypeDeclarationKind {
     Capability,
     Data,
     Invariant,
+    Library,
     Machine,
     Platform,
     State,
@@ -114,6 +115,27 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                     &invariant.constraints,
                     &format!("invariant `{}`", invariant.name),
                 );
+            }
+            Item::Library(library) => {
+                if let Some(name) = &library.name {
+                    insert_declaration(&mut report, name, TypeDeclarationKind::Library);
+                }
+
+                for function in &library.functions {
+                    collect_state_signature(
+                        &mut report,
+                        &function.signature,
+                        &format!(
+                            "library `{}` function `{}`",
+                            library
+                                .name
+                                .as_ref()
+                                .map(ToString::to_string)
+                                .unwrap_or_else(|| library.path.clone()),
+                            function.signature.name
+                        ),
+                    );
+                }
             }
             Item::Use(_) => {}
             Item::Machine(machine) => collect_machine(&mut report, machine),

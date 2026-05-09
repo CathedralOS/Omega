@@ -39,6 +39,7 @@ pub enum ResolvedDefinitionKind {
     Capability,
     Data,
     Invariant,
+    Library,
     Machine,
     Platform,
     Target,
@@ -224,6 +225,27 @@ fn build_resolve_report_with_optional_sources(
                     &invariant.constraints,
                     &format!("invariant `{}`", invariant.name),
                 );
+            }
+            Item::Library(library) => {
+                if let Some(name) = &library.name {
+                    insert_definition(&mut report, name.as_str(), ResolvedDefinitionKind::Library);
+                }
+
+                for function in &library.functions {
+                    collect_state_signature_references(
+                        &mut report,
+                        &function.signature,
+                        &format!(
+                            "library `{}` function `{}`",
+                            library
+                                .name
+                                .as_ref()
+                                .map(ToString::to_string)
+                                .unwrap_or_else(|| library.path.clone()),
+                            function.signature.name
+                        ),
+                    );
+                }
             }
             Item::Use(use_item) => {
                 let path = insert_name_members(&mut report, use_item.path.iter());
@@ -809,6 +831,15 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
             Item::Invariant(invariant) => {
                 Some(source_symbol(SymbolKind::Invariant, &invariant.name))
             }
+            Item::Library(library) => library.name.as_ref().map(|name| {
+                source_symbol_with_children(
+                    SymbolKind::Import,
+                    name,
+                    library.functions.iter().map(|function| {
+                        self.function_signature_symbol_definition(&function.signature)
+                    }),
+                )
+            }),
             Item::Machine(machine) => Some(source_symbol_with_children(
                 SymbolKind::Machine,
                 &machine.name,
@@ -907,6 +938,23 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
         )
     }
 
+    fn function_signature_symbol_definition(
+        self,
+        signature: &'items StateSignature,
+    ) -> SymbolDefinition<'items> {
+        source_symbol_with_children(
+            SymbolKind::Function,
+            &signature.name,
+            signature.parameters.iter().map(|parameter| {
+                source_symbol_with_children(
+                    SymbolKind::Parameter,
+                    &parameter.name,
+                    self.type_children(&parameter.type_reference, 0),
+                )
+            }),
+        )
+    }
+
     fn data_member_symbol_definition(
         self,
         member: &'items DataMember,
@@ -976,6 +1024,11 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
                 .iter()
                 .map(|member| self.data_member_symbol_definition(member, depth + 1))
                 .collect(),
+            Item::Library(library) => library
+                .functions
+                .iter()
+                .map(|function| self.function_signature_symbol_definition(&function.signature))
+                .collect(),
             Item::Machine(machine) => machine
                 .states
                 .iter()
@@ -998,6 +1051,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
         Item::Capability(capability) => Some(capability.name.as_str()),
         Item::Data(data_definition) => Some(data_definition.name.as_str()),
         Item::Invariant(invariant) => Some(invariant.name.as_str()),
+        Item::Library(library) => library.name.as_ref().map(|name| name.as_str()),
         Item::Machine(machine) => Some(machine.name.as_str()),
         Item::Platform(platform) => Some(platform.name.as_str()),
         Item::Target(target) => Some(target.name.as_str()),

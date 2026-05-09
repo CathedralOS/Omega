@@ -50,6 +50,37 @@ pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) ->
                     }
                 }
             }
+            Item::Library(library) => {
+                let library_name = library
+                    .name
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| library.path.clone());
+
+                for function in &library.functions {
+                    for trust_level in &function.trusts {
+                        let trust_level_name = trust_level_name(trust_level);
+                        let resolved = trust_level_resolves(trust_level, &trust_root_names);
+
+                        report.trusted_contracts.insert(TrustedContract {
+                            capability: library_name.clone(),
+                            state: function.signature.name.to_string(),
+                            trust_level: trust_level_name.clone(),
+                            resolved,
+                            requires_count: 0,
+                            ensures_count: 0,
+                        });
+
+                        if !resolved {
+                            report.unresolved_trusts.insert(UnresolvedTrustReference {
+                                capability: library_name.clone(),
+                                state: function.signature.name.to_string(),
+                                trust_level: trust_level_name,
+                            });
+                        }
+                    }
+                }
+            }
             Item::Target(target) => {
                 if selected_target_name.is_some_and(|selected| target.name.as_str() != selected) {
                     continue;

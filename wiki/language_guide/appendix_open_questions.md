@@ -36,6 +36,6 @@ This page tracks design pressure that is not fully nailed down yet.
 - Which assembly instructions belong in the first accepted subset for each target, and what exact contracts should each instruction emit?
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
-- How should foreign operation signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
+- How should imported library/syscall signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
 - If the paradigm shifts again, should `fn` remain the spelling for frame boundaries or should it collapse back into a state-only model?
 - Should Omega eventually support explicit tail calls into functions, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?

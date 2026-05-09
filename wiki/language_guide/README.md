@@ -14,6 +14,6 @@ The syntax is not final. These chapters exist so language ideas can be organized
 - [Chapter 8: Invariant Propagation](chapter_8_invariant_propagation.md)
 - [Chapter 9: Proof Obligations](chapter_9_proof_obligations.md)
 - [Chapter 10: Tooling And UX](chapter_10_tooling_and_ux.md)
-- [Chapter 11: Host Trust Boundaries](chapter_11_host_trust_boundaries.md)
+- [Chapter 11: Host Libraries And Trust Boundaries](chapter_11_host_trust_boundaries.md)
 - [Chapter 12: Inline Assembly](chapter_12_inline_assembly.md)
 - [Appendix: Open Questions](appendix_open_questions.md)
