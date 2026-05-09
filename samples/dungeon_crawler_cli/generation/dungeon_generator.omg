@@ -1,7 +1,7 @@
 use data::dungeon_types;
 
-machine SampleLevel {
-    state write(mut out_level: Level) {
+machine DungeonGenerator {
+    state generate(seed: u32, mut out_level: Level) {
         out_level.start_cell = CellId::A1;
         out_level.room_count = 4;
         write_room_a1(mut out_level.rooms[0]);

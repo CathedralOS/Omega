@@ -1,0 +1,39 @@
+use data::dungeon_types;
+use rooms::room_lookup;
+
+machine RoomFormatter {
+    state write_current_cell(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+        let room: Room;
+        RoomLookup.find_room(level, cell, mut room);
+        out_line.text = "Room " + room.label;
+    }
+
+    state write_room_info(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+        let room: Room;
+        RoomLookup.find_room(level, cell, mut room);
+        out_line.text = room.description;
+    }
+
+    state write_adjacent_rooms(level: Level, cell: CellId, mut out_line: ConsoleLine) {
+        let room: Room;
+        RoomLookup.find_room(level, cell, mut room);
+        format_exits(room, mut out_line);
+    }
+
+    state format_exits(room: Room, mut out_line: ConsoleLine) {
+        out_line.text = "Commands: look info exits help quit ";
+        append_exit(room.exits[0], mut out_line);
+        append_exit(room.exits[1], mut out_line);
+        append_exit(room.exits[2], mut out_line);
+        append_exit(room.exits[3], mut out_line);
+    }
+
+    state append_exit(exit: Exit, mut out_line: ConsoleLine) {
+        -> append_open_exit(exit, mut out_line) when exit.destination != CellId::Empty;
+        ->
+    }
+
+    state append_open_exit(exit: Exit, mut out_line: ConsoleLine) {
+        out_line.text = out_line.text + exit.command + " ";
+    }
+}

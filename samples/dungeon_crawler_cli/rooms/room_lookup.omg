@@ -1,0 +1,19 @@
+use data::dungeon_types;
+
+machine RoomLookup {
+    state find_room(level: Level, cell: CellId, mut out_room: Room) {
+        scan_room(level.rooms[0], cell, mut out_room);
+        scan_room(level.rooms[1], cell, mut out_room);
+        scan_room(level.rooms[2], cell, mut out_room);
+        scan_room(level.rooms[3], cell, mut out_room);
+    }
+
+    state scan_room(room: Room, cell: CellId, mut out_room: Room) {
+        -> apply_room(room, mut out_room) when room.cell == cell;
+        ->
+    }
+
+    state apply_room(room: Room, mut out_room: Room) {
+        out_room = room;
+    }
+}

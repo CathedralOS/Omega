@@ -1,12 +1,15 @@
 use data::dungeon_types;
 use dungeon::dungeon;
+use screens::title_screen;
 
 machine main {
     contains dungeon: Dungeon;
+    contains title: TitleScreen;
 
     owns return_code: i32 = 0;
 
     state entry {
+        title.show();
         dungeon.start();
 
         -> running;

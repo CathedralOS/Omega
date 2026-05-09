@@ -1,0 +1,48 @@
+use data::dungeon_types;
+use rooms::room_lookup;
+
+machine CommandParser {
+    state resolve_command(line: ConsoleLine, mut out_navigation: Navigation) {
+        -> resolve_quit(mut out_navigation) when line.text == "quit";
+        -> resolve_look(mut out_navigation) when line.text == "look";
+        -> resolve_look(mut out_navigation) when line.text == "info";
+        -> resolve_exits(mut out_navigation) when line.text == "exits";
+        -> resolve_exits(mut out_navigation) when line.text == "help";
+        ->
+    }
+
+    state resolve_quit(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Quit;
+    }
+
+    state resolve_look(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Look;
+    }
+
+    state resolve_exits(mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Exits;
+    }
+
+    state resolve_move(destination: CellId, mut out_navigation: Navigation) {
+        out_navigation.choice = NavigationChoice::Move;
+        out_navigation.destination = destination;
+    }
+
+    state resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
+        let room: Room;
+        RoomLookup.find_room(level, cell, mut room);
+        find_exit(room, line.text, mut out_navigation);
+    }
+
+    state find_exit(room: Room, command: String, mut out_navigation: Navigation) {
+        scan_exit(room.exits[0], command, mut out_navigation);
+        scan_exit(room.exits[1], command, mut out_navigation);
+        scan_exit(room.exits[2], command, mut out_navigation);
+        scan_exit(room.exits[3], command, mut out_navigation);
+    }
+
+    state scan_exit(exit: Exit, command: String, mut out_navigation: Navigation) {
+        -> resolve_move(exit.destination, mut out_navigation) when exit.command == command;
+        ->
+    }
+}
