@@ -32,10 +32,10 @@ use omega_native::runtime_dispatch::branching::{
     RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
-use omega_native::runtime_flow::RuntimeTransitionTarget;
 use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
+use omega_state_graph::RuntimeTransitionTarget;
 use omega_target_program::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
     SelectedInstructionKind,
