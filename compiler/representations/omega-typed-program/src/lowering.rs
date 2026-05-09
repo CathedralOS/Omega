@@ -127,6 +127,7 @@ fn lower_program_with_symbol_table_source(
     program.symbols = symbols
         .unwrap_or_else(|| register_program_symbols(&program, Some(items.as_slice()), sources));
     attach_program_symbols(&mut program);
+    attach_type_reference_symbols(&mut program);
     attach_expression_symbols(&mut program);
 
     Ok(program)
@@ -364,6 +365,84 @@ fn attach_local_symbols(symbols: &SymbolTable, parent: SymbolHandle, statements:
         local_data.symbol =
             find_child_symbol(symbols, parent, SymbolKind::Local, local_data.name.as_str());
     }
+}
+
+fn attach_type_reference_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+    let root = symbols.root();
+
+    for data_definition in &mut program.data_definitions {
+        for member in &mut data_definition.members {
+            if let DataMember::Field(field) = member {
+                attach_type_reference_symbol(symbols, root, &mut field.type_reference);
+            }
+        }
+    }
+
+    for platform in &mut program.platforms {
+        for signature in &mut platform.states {
+            if let Some(return_type) = &mut signature.return_type {
+                attach_type_reference_symbol(symbols, root, return_type);
+            }
+            for parameter in &mut signature.parameters {
+                attach_type_reference_symbol(symbols, root, &mut parameter.type_reference);
+            }
+        }
+    }
+
+    for machine in &mut program.machines {
+        for owned_data in &mut machine.owned_data {
+            attach_type_reference_symbol(symbols, root, &mut owned_data.type_reference);
+        }
+        for state in &mut machine.states {
+            if let Some(return_type) = &mut state.return_type {
+                attach_type_reference_symbol(symbols, root, return_type);
+            }
+            for parameter in &mut state.parameters {
+                attach_type_reference_symbol(symbols, root, &mut parameter.type_reference);
+            }
+            for statement in &mut state.statements {
+                if let Statement::LocalData(local_data) = statement {
+                    attach_type_reference_symbol(symbols, root, &mut local_data.type_reference);
+                }
+            }
+        }
+    }
+}
+
+fn attach_type_reference_symbol(
+    symbols: &SymbolTable,
+    root: SymbolHandle,
+    type_reference: &mut TypeReference,
+) {
+    match type_reference {
+        TypeReference::Constrained { base_type, .. } => {
+            attach_type_reference_symbol(symbols, root, base_type);
+        }
+        TypeReference::FixedArray { element_type, .. } => {
+            attach_type_reference_symbol(symbols, root, element_type);
+        }
+        TypeReference::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+        } => {
+            *base_symbol = resolve_type_symbol(symbols, root, base_name.as_str());
+            for argument in arguments {
+                attach_type_reference_symbol(symbols, root, argument);
+            }
+        }
+        TypeReference::Named { symbol, name } => {
+            *symbol = resolve_type_symbol(symbols, root, name.as_str());
+        }
+        TypeReference::Unit => {}
+    }
+}
+
+fn resolve_type_symbol(symbols: &SymbolTable, root: SymbolHandle, name: &str) -> SymbolHandle {
+    symbols
+        .find_child_by_name(root, name)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 fn attach_expression_symbols(program: &mut Program) {
@@ -912,9 +991,10 @@ impl<'program, 'source> ProgramSymbolDefinitionBuilder<'program, 'source> {
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_children(element_type, depth + 1)
             }
-            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
-                self.named_type_children(base_name.as_str(), depth + 1)
-            }
+            TypeReference::Generic { base_name, .. }
+            | TypeReference::Named {
+                name: base_name, ..
+            } => self.named_type_children(base_name.as_str(), depth + 1),
             TypeReference::Unit => Vec::new(),
         }
     }
@@ -1284,9 +1364,11 @@ fn remap_type_reference(
             length,
         },
         TypeReference::Generic {
+            base_symbol,
             base_name,
             arguments,
         } => TypeReference::Generic {
+            base_symbol,
             base_name,
             arguments: arguments
                 .into_iter()
@@ -1295,7 +1377,7 @@ fn remap_type_reference(
                 })
                 .collect(),
         },
-        TypeReference::Named(_) | TypeReference::Unit => type_reference,
+        TypeReference::Named { .. } | TypeReference::Unit => type_reference,
     }
 }
 
@@ -1477,13 +1559,17 @@ fn lower_type_reference(
             base_name,
             arguments,
         } => Ok(TypeReference::Generic {
+            base_symbol: SymbolHandle::invalid(),
             base_name: lower_name(base_name),
             arguments: arguments
                 .iter()
                 .map(|argument| lower_type_reference(argument, aliases, type_constraints))
                 .collect::<Result<Vec<_>, _>>()?,
         }),
-        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named(lower_name(name))),
+        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(name),
+        }),
         ast::types::TypeReference::Unit => Ok(TypeReference::Unit),
     }
 }
@@ -1752,7 +1838,10 @@ mod tests {
                 members: vec![DataMember::Field(DataField {
                     symbol: SymbolHandle::invalid(),
                     name: "label".into(),
-                    type_reference: TypeReference::Named("String".into()),
+                    type_reference: TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: "String".into(),
+                    },
                 })],
             }],
             machines: vec![Machine {
@@ -1773,7 +1862,10 @@ mod tests {
                     statements: vec![Statement::LocalData(LocalData {
                         symbol: SymbolHandle::invalid(),
                         name: "room".into(),
-                        type_reference: TypeReference::Named("Room".into()),
+                        type_reference: TypeReference::Named {
+                            symbol: SymbolHandle::invalid(),
+                            name: "Room".into(),
+                        },
                     })],
                 }],
             }],

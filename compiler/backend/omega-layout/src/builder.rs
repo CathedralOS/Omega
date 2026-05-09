@@ -237,7 +237,7 @@ impl<'program> LayoutBuilder<'program> {
             TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
                 "native layout for generic type `{base_name}` is not implemented yet"
             ))),
-            TypeReference::Named(name) => self.layout_named_type(name),
+            TypeReference::Named { symbol, name } => self.layout_named_type(*symbol, name),
             TypeReference::Unit => Ok(TypeLayout {
                 size: 0,
                 alignment: 1,
@@ -245,12 +245,20 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    fn layout_named_type(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
+    fn layout_named_type(
+        &mut self,
+        symbol: SymbolHandle,
+        name: &str,
+    ) -> Result<TypeLayout, Diagnostic> {
         if let Some(primitive_type) = PrimitiveType::from_name(name) {
             return Ok(primitive_type_layout(self.target, primitive_type));
         }
 
-        let data_symbol = self.data_definition(name)?.symbol;
+        let data_symbol = if symbol.is_valid() {
+            symbol
+        } else {
+            self.data_definition(name)?.symbol
+        };
         self.layout_data_definition(data_symbol)
     }
 
@@ -260,9 +268,15 @@ impl<'program> LayoutBuilder<'program> {
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_reference_symbol(element_type)
             }
-            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+            TypeReference::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => {
                 if PrimitiveType::from_name(base_name).is_some() {
                     SymbolHandle::invalid()
+                } else if base_symbol.is_valid() {
+                    *base_symbol
                 } else {
                     self.data_definition(base_name)
                         .map(|definition| definition.symbol)
@@ -270,6 +284,18 @@ impl<'program> LayoutBuilder<'program> {
                             self.machine_definition(base_name)
                                 .map(|machine| machine.symbol)
                         })
+                        .unwrap_or_else(|_| SymbolHandle::invalid())
+                }
+            }
+            TypeReference::Named { symbol, name } => {
+                if PrimitiveType::from_name(name).is_some() {
+                    SymbolHandle::invalid()
+                } else if symbol.is_valid() {
+                    *symbol
+                } else {
+                    self.data_definition(name)
+                        .map(|definition| definition.symbol)
+                        .or_else(|_| self.machine_definition(name).map(|machine| machine.symbol))
                         .unwrap_or_else(|_| SymbolHandle::invalid())
                 }
             }

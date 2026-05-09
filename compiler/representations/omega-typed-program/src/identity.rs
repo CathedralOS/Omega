@@ -220,13 +220,14 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentitySto
         TypeReference::Generic {
             base_name,
             arguments,
+            ..
         } => {
             count_type_name(base_name, counts);
             for argument in arguments {
                 count_type_reference(argument, counts);
             }
         }
-        TypeReference::Named(name) => count_type_name(name, counts),
+        TypeReference::Named { name, .. } => count_type_name(name, counts),
         TypeReference::Unit => {}
     }
 }

@@ -244,7 +244,7 @@ fn collect_bounded_value_obligation(
                 collect_bounded_value_obligation(program, owner.clone(), argument, proof_plan);
             }
         }
-        TypeReference::Named(_) => {}
+        TypeReference::Named { name: _, .. } => {}
         TypeReference::Unit => {}
     }
 }
@@ -287,7 +287,7 @@ fn collect_bounded_initializer_obligation(
                 );
             }
         }
-        TypeReference::Named(_) => {}
+        TypeReference::Named { name: _, .. } => {}
         TypeReference::Unit => {}
     }
 }
@@ -647,7 +647,7 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
             .iter()
             .flat_map(|argument| collect_constraints(program, argument))
             .collect(),
-        TypeReference::Named(_) => Vec::new(),
+        TypeReference::Named { name: _, .. } => Vec::new(),
         TypeReference::Unit => Vec::new(),
     }
 }

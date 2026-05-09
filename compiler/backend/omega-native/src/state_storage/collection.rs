@@ -116,9 +116,16 @@ fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> S
         TypeReference::FixedArray { element_type, .. } => {
             type_reference_symbol(program, element_type)
         }
-        TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+        TypeReference::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => {
             if PrimitiveType::from_name(base_name).is_some() {
                 return SymbolHandle::invalid();
+            }
+            if base_symbol.is_valid() {
+                return *base_symbol;
             }
 
             program
@@ -131,6 +138,28 @@ fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> S
                         .machines
                         .iter()
                         .find(|machine| machine.name == *base_name)
+                        .map(|machine| machine.symbol)
+                })
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+        TypeReference::Named { symbol, name } => {
+            if PrimitiveType::from_name(name).is_some() {
+                return SymbolHandle::invalid();
+            }
+            if symbol.is_valid() {
+                return *symbol;
+            }
+
+            program
+                .data_definitions
+                .iter()
+                .find(|definition| definition.name == *name)
+                .map(|definition| definition.symbol)
+                .or_else(|| {
+                    program
+                        .machines
+                        .iter()
+                        .find(|machine| machine.name == *name)
                         .map(|machine| machine.symbol)
                 })
                 .unwrap_or_else(SymbolHandle::invalid)

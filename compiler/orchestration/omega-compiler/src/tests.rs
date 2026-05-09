@@ -1052,10 +1052,10 @@ fn expands_invariant_aliases_during_lowering() {
         panic!("expected constrained owned data");
     };
 
-    assert_eq!(
-        base_type.as_ref(),
-        &omega_typed_program::types::TypeReference::Named("f32".into())
-    );
+    let omega_typed_program::types::TypeReference::Named { name, .. } = base_type.as_ref() else {
+        panic!("expected f32 base type");
+    };
+    assert_eq!(name, "f32");
     let owned_data_constraints = program
         .type_constraints
         .span(*constraints)

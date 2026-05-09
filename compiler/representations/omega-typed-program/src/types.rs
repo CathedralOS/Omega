@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 
 use crate::name::ProgramName;
 
@@ -13,10 +14,14 @@ pub enum TypeReference {
         length: usize,
     },
     Generic {
+        base_symbol: SymbolHandle,
         base_name: ProgramName,
         arguments: Vec<TypeReference>,
     },
-    Named(ProgramName),
+    Named {
+        symbol: SymbolHandle,
+        name: ProgramName,
+    },
     Unit,
 }
 
@@ -72,6 +77,7 @@ impl TypeReference {
             TypeReference::Generic {
                 base_name,
                 arguments,
+                ..
             } => {
                 let arguments = arguments
                     .iter()
@@ -80,7 +86,7 @@ impl TypeReference {
                     .join(", ");
                 format!("{base_name}<{arguments}>")
             }
-            TypeReference::Named(name) => name.to_string(),
+            TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -118,6 +124,7 @@ impl TypeReference {
             TypeReference::Generic {
                 base_name,
                 arguments,
+                ..
             } => {
                 let arguments = arguments
                     .iter()
@@ -126,7 +133,7 @@ impl TypeReference {
                     .join(", ");
                 format!("{base_name}<{arguments}>")
             }
-            TypeReference::Named(name) => name.to_string(),
+            TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -134,7 +141,7 @@ impl TypeReference {
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
             TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
-            TypeReference::Named(name) => PrimitiveType::from_name(name),
+            TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
             TypeReference::FixedArray { .. }
             | TypeReference::Generic { .. }
             | TypeReference::Unit => None,

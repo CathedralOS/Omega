@@ -455,6 +455,7 @@ fn validate_type_reference(
         TypeReference::Generic {
             base_name,
             arguments,
+            ..
         } => {
             if !symbols.has_type(base_name) {
                 diagnostics.push(Diagnostic::error(format!(
@@ -472,7 +473,7 @@ fn validate_type_reference(
                 );
             }
         }
-        TypeReference::Named(name) => {
+        TypeReference::Named { name, .. } => {
             if !symbols.has_type(name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown data type `{name}`"
@@ -956,7 +957,9 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
                 | Expression::Name(_)
                 | Expression::StructLiteral(_)
         ),
-        TypeReference::Named(type_name) => {
+        TypeReference::Named {
+            name: type_name, ..
+        } => {
             if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
                 return matches!(argument, Expression::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
