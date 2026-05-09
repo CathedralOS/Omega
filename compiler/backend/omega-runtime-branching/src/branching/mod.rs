@@ -25,12 +25,12 @@ pub use model::{
 };
 
 pub fn build_runtime_branching_call_plan(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
 ) -> RuntimeBranchingCallPlan {
     let mut plan = RuntimeBranchingCallPlan::default();
 
-    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan
+    for (_, body) in context.runtime_bodies.bodies.iter() {
+        let Some(operations) = context
             .runtime_bodies
             .operations
             .paged_span(body.operations)
@@ -40,11 +40,8 @@ pub fn build_runtime_branching_call_plan(
         let mut aliases = Vec::new();
 
         for operation in operations.iter() {
-            let state_call = state_call_for_operation(
-                native_plan,
-                operation.source_key,
-                operation.statement_index,
-            );
+            let state_call =
+                state_call_for_operation(context, operation.source_key, operation.statement_index);
             let RuntimeDispatchBodyOperationKind::StateCall {
                 target_key,
                 argument_count,
@@ -53,7 +50,7 @@ pub fn build_runtime_branching_call_plan(
             } = &operation.kind
             else {
                 if let Some(state_call) = state_call {
-                    bind_runtime_branch_aliases(native_plan, &mut aliases, state_call);
+                    bind_runtime_branch_aliases(context, &mut aliases, state_call);
                 }
                 continue;
             };
@@ -61,11 +58,8 @@ pub fn build_runtime_branching_call_plan(
             let Some(state_call) = state_call else {
                 continue;
             };
-            let branch_edges = build_branch_edges(
-                native_plan,
-                state_call.target_key,
-                &mut plan.target_arguments,
-            );
+            let branch_edges =
+                build_branch_edges(context, state_call.target_key, &mut plan.target_arguments);
             let expansion = classify_branch_call_expansion(&branch_edges);
             if matches!(
                 expansion,
@@ -74,7 +68,7 @@ pub fn build_runtime_branching_call_plan(
                     | RuntimeBranchCallExpansion::NeedsStraightLineTarget
             ) {
                 append_leaf_branch_expansions(
-                    native_plan,
+                    context,
                     &mut plan,
                     operation.source_key,
                     *target_key,
@@ -87,7 +81,7 @@ pub fn build_runtime_branching_call_plan(
             }
             if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
                 append_straight_line_branch_expansions(
-                    native_plan,
+                    context,
                     &mut plan,
                     operation.source_key,
                     *target_key,
@@ -108,7 +102,7 @@ pub fn build_runtime_branching_call_plan(
                 expansion,
                 edges,
             });
-            bind_runtime_branch_aliases(native_plan, &mut aliases, state_call);
+            bind_runtime_branch_aliases(context, &mut aliases, state_call);
         }
     }
 

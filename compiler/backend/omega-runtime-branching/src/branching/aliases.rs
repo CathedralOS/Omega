@@ -23,11 +23,11 @@ pub(super) fn resolve_branch_guard(
 }
 
 pub(super) fn branch_parameter_bindings(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
 ) -> Vec<BranchParameterBinding> {
-    native_plan
+    context
         .state_calls
         .arguments
         .span(state_call.arguments)
@@ -58,11 +58,11 @@ pub(super) fn branch_parameter_bindings(
 }
 
 pub(super) fn bind_runtime_branch_aliases(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
     aliases: &mut Vec<RuntimeBranchAlias>,
     state_call: &StateCall,
 ) {
-    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+    let Some(arguments) = context.state_calls.arguments.span(state_call.arguments) else {
         return;
     };
 

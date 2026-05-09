@@ -9,20 +9,17 @@ use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
 
 pub(super) fn build_branch_edges(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
     state_key: StateKey,
     target_arguments: &mut Arena<Expression>,
 ) -> Vec<RuntimeBranchingCallEdge> {
-    let Some(machine) = native_plan
-        .control_flow
-        .machine_by_symbol(state_key.machine)
-    else {
+    let Some(machine) = context.control_flow.machine_by_symbol(state_key.machine) else {
         return Vec::new();
     };
-    let Some(state) = native_plan.control_flow.state_by_key(state_key) else {
+    let Some(state) = context.control_flow.state_by_key(state_key) else {
         return Vec::new();
     };
-    let Some(transitions) = native_plan.control_flow.transitions.span(state.transitions) else {
+    let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
         return Vec::new();
     };
 
@@ -30,17 +27,16 @@ pub(super) fn build_branch_edges(
         .iter()
         .enumerate()
         .map(|(order, transition)| {
-            let target =
-                runtime_transition_target(native_plan, machine, state.key, &transition.target);
+            let target = runtime_transition_target(context, machine, state.key, &transition.target);
             RuntimeBranchingCallEdge {
                 order,
-                lowering: branch_target_lowering(native_plan, &target),
+                lowering: branch_target_lowering(context, &target),
                 target,
                 continuation: transition
                     .continuation
                     .as_ref()
                     .map(|continuation| {
-                        runtime_transition_target(native_plan, machine, state.key, continuation)
+                        runtime_transition_target(context, machine, state.key, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
                 target_arguments: transition_target_arguments(&transition.target, target_arguments),
@@ -65,7 +61,7 @@ fn transition_target_arguments(
 }
 
 fn branch_target_lowering(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
     target: &RuntimeTransitionTarget,
 ) -> RuntimeBranchTargetLowering {
     let RuntimeTransitionTarget::State { key, .. } = target else {
@@ -78,11 +74,11 @@ fn branch_target_lowering(
         };
     };
 
-    let Some(target_state) = native_plan.control_flow.state_by_key(*key) else {
+    let Some(target_state) = context.control_flow.state_by_key(*key) else {
         return RuntimeBranchTargetLowering::Unknown;
     };
 
-    if native_plan
+    if context
         .control_flow
         .transitions
         .span(target_state.transitions)
@@ -91,14 +87,14 @@ fn branch_target_lowering(
         return RuntimeBranchTargetLowering::InlineBranching;
     }
 
-    let has_state_call = native_plan
+    let has_state_call = context
         .control_flow
         .operations
         .span(target_state.operations)
         .is_some_and(|operations| {
             operations.iter().any(|operation| {
                 matches!(operation.kind, OperationKind::Call { .. })
-                    && !state_statement_has_host_call(native_plan, *key, operation.statement_index)
+                    && !state_statement_has_host_call(context, *key, operation.statement_index)
             })
         });
 
@@ -110,7 +106,7 @@ fn branch_target_lowering(
 }
 
 fn runtime_transition_target(
-    native_plan: &RuntimeBranchingContext,
+    context: &RuntimeBranchingContext,
     machine: &MachineFlow,
     current_state: StateKey,
     target: &PlannedTransitionTarget,
@@ -128,12 +124,12 @@ fn runtime_transition_target(
             .iter()
             .find(|contained| receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
             .and_then(|contained| {
-                native_plan
+                context
                     .control_flow
                     .machine_by_symbol(contained.type_symbol)
             })
             .and_then(|target_machine| {
-                native_plan
+                context
                     .control_flow
                     .states
                     .span(target_machine.states)
