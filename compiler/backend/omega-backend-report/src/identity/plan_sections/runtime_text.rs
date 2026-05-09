@@ -1,9 +1,9 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
-use omega_backend_plan::NativePlan;
 
 pub(in crate::identity) fn count_runtime_text_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, text_use) in native_plan.runtime_text.uses.iter() {

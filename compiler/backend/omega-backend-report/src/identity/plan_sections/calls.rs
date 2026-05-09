@@ -1,10 +1,10 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
-use omega_backend_plan::NativePlan;
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, call) in native_plan.host_calls.calls.iter() {
@@ -30,7 +30,7 @@ pub(in crate::identity) fn count_host_call_strings(
 }
 
 pub(in crate::identity) fn count_state_call_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, call) in native_plan.state_calls.calls.iter() {
@@ -43,7 +43,7 @@ pub(in crate::identity) fn count_state_call_strings(
 }
 
 pub(in crate::identity) fn count_alias_flow_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, alias) in native_plan.alias_flow.aliases.iter() {

@@ -1,10 +1,13 @@
 use super::format;
 
+use crate::BackendReportInput;
 use crate::identity::count_native_string_storage;
-use omega_backend_plan::NativePlan;
 
-pub(super) fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
-    let timings = &native_plan.phase_timings;
+pub(super) fn write_native_phase_timings(
+    output: &mut String,
+    native_plan: &BackendReportInput<'_>,
+) {
+    let timings = native_plan.phase_timings;
 
     output.push_str("## Native Subphases\n");
     if timings.is_empty() {
@@ -81,7 +84,10 @@ pub(super) fn write_native_phase_timings(output: &mut String, native_plan: &Nati
     ));
 }
 
-pub(super) fn write_native_string_storage(output: &mut String, native_plan: &NativePlan) {
+pub(super) fn write_native_string_storage(
+    output: &mut String,
+    native_plan: &BackendReportInput<'_>,
+) {
     let storage = count_native_string_storage(native_plan);
 
     output.push_str("## Native String Storage\n");

@@ -1,8 +1,8 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
-use omega_backend_plan::NativePlan;
 
 pub(in crate::identity) fn count_instruction_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, function) in native_plan.instructions.functions.iter() {
@@ -11,7 +11,7 @@ pub(in crate::identity) fn count_instruction_strings(
 }
 
 pub(in crate::identity) fn count_object_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     storage.count_generated_symbol(&native_plan.object.entry_symbol);
@@ -27,10 +27,10 @@ pub(in crate::identity) fn count_object_strings(
 }
 
 pub(in crate::identity) fn count_phase_timing_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for timing in &native_plan.phase_timings {
+    for timing in native_plan.phase_timings {
         storage.count_report(&timing.phase);
     }
 }

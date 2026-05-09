@@ -1,6 +1,6 @@
 use super::native_state_name;
 
-use omega_backend_plan::NativePlan;
+use crate::BackendReportInput;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_object::storage_region_symbol_name;
 use omega_target_program::{
@@ -8,7 +8,7 @@ use omega_target_program::{
     SelectedInstruction, SelectedInstructionKind,
 };
 
-pub(super) fn write_codegen_sections(output: &mut String, native_plan: &NativePlan) {
+pub(super) fn write_codegen_sections(output: &mut String, native_plan: &BackendReportInput<'_>) {
     output.push_str("## Native Data\n");
     output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
     output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));
@@ -61,7 +61,7 @@ pub(super) fn write_codegen_sections(output: &mut String, native_plan: &NativePl
 
 fn write_native_data_object(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     data_object: &NativeDataObject,
 ) {
     let byte_count = native_plan
@@ -84,7 +84,7 @@ fn write_native_data_object(
 
 fn write_function_instruction_plan(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     function: &FunctionInstructionPlan,
 ) {
     let source_name = native_state_name(native_plan, function.source_key);
@@ -111,7 +111,7 @@ fn write_function_instruction_plan(
 
 fn write_selected_instruction(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     instruction: &SelectedInstruction,
 ) {
     output.push_str(&format!(
@@ -122,7 +122,7 @@ fn write_selected_instruction(
 }
 
 fn selected_instruction_name(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     instruction: &SelectedInstruction,
 ) -> String {
     let kind = &instruction.kind;
@@ -364,7 +364,7 @@ fn selected_instruction_name(
 }
 
 fn selected_instruction_operands_name(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     operands: omega_core::arena::HandleSpan<InstructionOperand>,
 ) -> String {
     let Some(operands) = native_plan.instructions.operands.span(operands) else {
@@ -393,7 +393,7 @@ fn selected_instruction_operands_name(
 
 fn write_machine_function_code(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     function: &MachineFunctionCode,
 ) {
     let function_symbol = machine_function_symbol(native_plan, function);
@@ -418,7 +418,10 @@ fn write_machine_function_code(
     }
 }
 
-fn machine_function_symbol(native_plan: &NativePlan, function: &MachineFunctionCode) -> String {
+fn machine_function_symbol(
+    native_plan: &BackendReportInput<'_>,
+    function: &MachineFunctionCode,
+) -> String {
     native_plan
         .instructions
         .functions
@@ -429,7 +432,7 @@ fn machine_function_symbol(native_plan: &NativePlan, function: &MachineFunctionC
 
 fn write_machine_instruction(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     instruction: &MachineInstruction,
 ) {
     output.push_str(&format!(
@@ -443,7 +446,7 @@ fn write_machine_instruction(
 }
 
 fn machine_instruction_bytes_name(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     instruction: &MachineInstruction,
 ) -> String {
     let Some((_, encoded_instruction)) =

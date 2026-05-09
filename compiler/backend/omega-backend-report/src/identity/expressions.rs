@@ -1,11 +1,11 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
-use omega_backend_plan::NativePlan;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_expression_span_strings(
     span: omega_core::arena::HandleSpan<Expression>,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     if let Some(expressions) = native_plan

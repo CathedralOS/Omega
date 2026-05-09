@@ -1,6 +1,6 @@
 use super::native_state_name;
 
-use omega_backend_plan::NativePlan;
+use crate::BackendReportInput;
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
@@ -8,7 +8,7 @@ use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
 
-pub(super) fn write_host_sections(output: &mut String, native_plan: &NativePlan) {
+pub(super) fn write_host_sections(output: &mut String, native_plan: &BackendReportInput<'_>) {
     output.push_str("## Host ABI\n");
     output.push_str(&format!(
         "bindings: {}\n",
@@ -89,7 +89,7 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
 
 fn write_platform_call_lowering(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     lowering: &PlatformCallLowering,
 ) {
     let operations = native_plan
@@ -121,7 +121,7 @@ fn write_platform_call_lowering(
     output.push('\n');
 }
 
-fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCall) {
+fn write_host_call(output: &mut String, native_plan: &BackendReportInput<'_>, call: &HostCall) {
     let source_name = native_state_name(native_plan, call.source_key);
     output.push_str(&format!(
         "- {} statement {} `{}`\n",

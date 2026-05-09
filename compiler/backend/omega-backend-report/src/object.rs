@@ -1,8 +1,11 @@
-use omega_backend_plan::NativePlan;
+use crate::BackendReportInput;
 use omega_layout::{DataShape, FieldLayout};
 use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
 
-pub(super) fn write_layout_object_sections(output: &mut String, native_plan: &NativePlan) {
+pub(super) fn write_layout_object_sections(
+    output: &mut String,
+    native_plan: &BackendReportInput<'_>,
+) {
     output.push_str("\n## Layouts\n");
     output.push_str(&format!(
         "data layouts: {}\n",

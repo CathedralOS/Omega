@@ -1,9 +1,9 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
-use omega_backend_plan::NativePlan;
 
 pub(in crate::identity) fn count_state_storage_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, local) in native_plan.state_storage.locals.iter() {
@@ -17,7 +17,7 @@ pub(in crate::identity) fn count_state_storage_strings(
 }
 
 pub(in crate::identity) fn count_state_value_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, value) in native_plan.state_values.values.iter() {
@@ -26,7 +26,7 @@ pub(in crate::identity) fn count_state_value_strings(
 }
 
 pub(in crate::identity) fn count_runtime_storage_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {

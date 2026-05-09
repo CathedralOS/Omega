@@ -6,9 +6,9 @@ mod runtime_sections;
 mod storage;
 mod targets;
 
+use crate::BackendReportInput;
 use branching::count_runtime_branching_strings;
 use control_flow_section::count_control_flow_strings;
-use omega_backend_plan::NativePlan;
 use plan_sections::{
     count_alias_flow_strings, count_host_call_strings, count_instruction_strings,
     count_layout_strings, count_object_strings, count_phase_timing_strings,
@@ -21,7 +21,7 @@ use runtime_sections::{
 };
 pub use storage::NativeStringStorage;
 
-pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStorage {
+pub fn count_native_string_storage(native_plan: &BackendReportInput<'_>) -> NativeStringStorage {
     let mut storage = NativeStringStorage::default();
 
     storage.count_identity(native_plan.entry_machine_name());

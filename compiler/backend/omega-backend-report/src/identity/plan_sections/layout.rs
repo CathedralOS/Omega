@@ -1,8 +1,8 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
-use omega_backend_plan::NativePlan;
 
 pub(in crate::identity) fn count_layout_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, data_layout) in native_plan.layouts.data_layouts.iter() {

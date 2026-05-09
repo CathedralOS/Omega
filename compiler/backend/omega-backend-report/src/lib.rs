@@ -6,21 +6,121 @@ mod object;
 mod stats;
 
 use omega_artifacts::NativeSurfaceReport;
-use omega_backend_plan::NativePlan;
-use omega_control_flow::StateKey;
+use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
+use omega_calling_conventions::HostAbiPlan;
+use omega_control_flow::{ControlFlowPlan, StateKey};
+use omega_layout::LayoutPlan;
+use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
+use omega_object::{ObjectPlan, RelocationPlan};
+use omega_platform_interface::HostCallPlan;
+use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::{
-    RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
-    RuntimeStraightLineBranchOperationKind,
+    RuntimeBranchingCallPlan, RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind,
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
+use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
+use omega_runtime_storage::RuntimeStoragePlan;
+use omega_runtime_text::RuntimeTextPlan;
+use omega_state_calls::{AliasFlowPlan, StateCallPlan};
+use omega_state_dispatch::StateDispatchPlan;
+use omega_state_graph::RuntimeFlowPlan;
 use omega_state_graph::RuntimeTransitionTarget;
+use omega_state_guards::StateGuardPlan;
 use omega_state_schedule::{
     StateScheduleContext, build_entry_state_schedule, scheduled_state_flow,
 };
+use omega_state_storage::StateStoragePlan;
+use omega_state_values::StateValuePlan;
+use omega_target::NativeTarget;
+use omega_target_program::{InstructionPlan, NativeDataPlan};
 use omega_typed_program::statement::TransitionGuard;
 
 pub fn native_report_text(
     native_surface: &NativeSurfaceReport,
     native_plan: &NativePlan,
+) -> String {
+    native_report_text_from_input(native_surface, &BackendReportInput::from(native_plan))
+}
+
+pub struct BackendReportInput<'plan> {
+    pub target: NativeTarget,
+    pub entry_key: StateKey,
+    pub phase_timings: &'plan [NativePlanPhaseTiming],
+    pub host_abi: &'plan HostAbiPlan,
+    pub host_calls: &'plan HostCallPlan,
+    pub state_calls: &'plan StateCallPlan,
+    pub alias_flow: &'plan AliasFlowPlan,
+    pub state_storage: &'plan StateStoragePlan,
+    pub state_values: &'plan StateValuePlan,
+    pub data: &'plan NativeDataPlan,
+    pub instructions: &'plan InstructionPlan,
+    pub control_flow: &'plan ControlFlowPlan,
+    pub runtime_flow: &'plan RuntimeFlowPlan,
+    pub state_dispatch: &'plan StateDispatchPlan,
+    pub state_guards: &'plan StateGuardPlan,
+    pub runtime_bodies: &'plan RuntimeDispatchBodyPlan,
+    pub runtime_branching_calls: &'plan RuntimeBranchingCallPlan,
+    pub runtime_dispatch_loop: &'plan RuntimeDispatchLoopPlan,
+    pub runtime_storage: &'plan RuntimeStoragePlan,
+    pub runtime_text: &'plan RuntimeTextPlan,
+    pub layouts: &'plan LayoutPlan,
+    pub machine_code: &'plan MachineCodePlan,
+    pub encoded_machine: &'plan EncodedMachinePlan,
+    pub object: &'plan ObjectPlan,
+    pub relocations: &'plan RelocationPlan,
+}
+
+impl<'plan> BackendReportInput<'plan> {
+    pub fn entry_machine_name(&self) -> &str {
+        self.control_flow
+            .machine_by_symbol(self.entry_key.machine)
+            .map(|machine| machine.name.as_str())
+            .unwrap_or("")
+    }
+
+    pub fn entry_state_name(&self) -> &str {
+        self.control_flow
+            .state_by_key(self.entry_key)
+            .map(|state| state.name.as_str())
+            .unwrap_or("")
+    }
+}
+
+impl<'plan> From<&'plan NativePlan> for BackendReportInput<'plan> {
+    fn from(native_plan: &'plan NativePlan) -> Self {
+        Self {
+            target: native_plan.target,
+            entry_key: native_plan.entry_key,
+            phase_timings: &native_plan.phase_timings,
+            host_abi: &native_plan.host_abi,
+            host_calls: &native_plan.host_calls,
+            state_calls: &native_plan.state_calls,
+            alias_flow: &native_plan.alias_flow,
+            state_storage: &native_plan.state_storage,
+            state_values: &native_plan.state_values,
+            data: &native_plan.data,
+            instructions: &native_plan.instructions,
+            control_flow: &native_plan.control_flow,
+            runtime_flow: &native_plan.runtime_flow,
+            state_dispatch: &native_plan.state_dispatch,
+            state_guards: &native_plan.state_guards,
+            runtime_bodies: &native_plan.runtime_bodies,
+            runtime_branching_calls: &native_plan.runtime_branching_calls,
+            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
+            runtime_storage: &native_plan.runtime_storage,
+            runtime_text: &native_plan.runtime_text,
+            layouts: &native_plan.layouts,
+            machine_code: &native_plan.machine_code,
+            encoded_machine: &native_plan.encoded_machine,
+            object: &native_plan.object,
+            relocations: &native_plan.relocations,
+        }
+    }
+}
+
+pub fn native_report_text_from_input(
+    native_surface: &NativeSurfaceReport,
+    native_plan: &BackendReportInput<'_>,
 ) -> String {
     let mut output = String::new();
 
@@ -965,7 +1065,7 @@ pub fn native_report_text(
 
 fn write_runtime_leaf_branch_operation(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     operation: &RuntimeLeafBranchOperation,
 ) {
     let source_name = native_state_name(native_plan, operation.source_key);
@@ -1003,7 +1103,7 @@ fn write_runtime_leaf_branch_operation(
 
 fn write_runtime_straight_line_branch_operation(
     output: &mut String,
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     operation: &RuntimeStraightLineBranchOperation,
 ) {
     let source_name = native_state_name(native_plan, operation.source_key);
@@ -1065,7 +1165,7 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 }
 
 fn runtime_transition_target_name(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     target: &RuntimeTransitionTarget,
 ) -> String {
     match target {
@@ -1076,7 +1176,7 @@ fn runtime_transition_target_name(
     }
 }
 
-fn native_state_name(native_plan: &NativePlan, key: StateKey) -> String {
+fn native_state_name(native_plan: &BackendReportInput<'_>, key: StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

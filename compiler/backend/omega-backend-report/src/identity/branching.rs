@@ -1,15 +1,15 @@
+use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::{
     count_expression_span_strings, count_expression_strings, count_guard_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
-use omega_backend_plan::NativePlan;
 use omega_runtime_branching::{
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperationKind,
 };
 
 pub(in crate::identity) fn count_runtime_branching_strings(
-    native_plan: &NativePlan,
+    native_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
     for (_, edge) in native_plan.runtime_branching_calls.edges.iter() {
