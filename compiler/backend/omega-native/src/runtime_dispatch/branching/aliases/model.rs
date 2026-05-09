@@ -5,8 +5,6 @@ use omega_typed_program::name::ProgramName;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(in crate::runtime_dispatch::branching) struct RuntimeBranchAlias {
     pub(super) source_key: StateKey,
-    pub(super) machine: ProgramName,
-    pub(super) state: ProgramName,
     pub(super) parameter_name: ProgramName,
     pub(super) expression: Expression,
 }

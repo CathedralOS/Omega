@@ -74,13 +74,10 @@ pub(super) fn bind_runtime_branch_aliases(
         } else {
             argument.expression.clone()
         };
-        let (machine, state) = state_names(native_plan, state_call.target_key);
         set_runtime_branch_alias(
             aliases,
             RuntimeBranchAlias {
                 source_key: state_call.target_key,
-                machine,
-                state,
                 parameter_name: argument.parameter_name.clone(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
@@ -90,13 +87,6 @@ pub(super) fn bind_runtime_branch_aliases(
             },
         );
     }
-}
-
-fn state_names(
-    native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
 }
 
 fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
