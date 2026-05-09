@@ -14,15 +14,11 @@ pub struct RuntimeFlowPlan {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeState {
     pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
     pub from: StateKey,
-    pub from_machine: ProgramName,
-    pub from_state: ProgramName,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
@@ -33,8 +29,6 @@ impl Default for RuntimeEdge {
     fn default() -> Self {
         Self {
             from: StateKey::default(),
-            from_machine: ProgramName::default(),
-            from_state: ProgramName::default(),
             target: RuntimeTransitionTarget::Terminal,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,

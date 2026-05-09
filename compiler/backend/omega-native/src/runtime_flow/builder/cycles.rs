@@ -13,17 +13,8 @@ impl RuntimeFlowBuilder<'_> {
     }
 
     pub(super) fn record_cycle_target(&mut self, target: &RuntimeTransitionTarget) {
-        if let RuntimeTransitionTarget::State {
-            key,
-            machine,
-            state,
-        } = target
-        {
-            self.record_cycle_to(&RuntimeState {
-                key: *key,
-                machine: machine.clone(),
-                state: state.clone(),
-            });
+        if let RuntimeTransitionTarget::State { key, .. } = target {
+            self.record_cycle_to(&RuntimeState { key: *key });
         }
     }
 

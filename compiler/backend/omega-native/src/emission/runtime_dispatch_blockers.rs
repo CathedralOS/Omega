@@ -1,7 +1,7 @@
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
-use crate::state_schedule::{ScheduledState, scheduled_state_key};
+use crate::state_schedule::ScheduledState;
 use omega_core::arena::Arena;
 
 use super::{EmissionBlocker, blocker};
@@ -10,7 +10,7 @@ pub(super) fn runtime_and_required_states(native_plan: &NativePlan) -> Vec<Sched
     let mut states = Vec::new();
 
     for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
+        push_scheduled_state_key(&mut states, state.key);
     }
 
     for (_, state_call) in native_plan.state_calls.calls.iter() {
@@ -26,16 +26,7 @@ pub(super) fn runtime_and_required_states(native_plan: &NativePlan) -> Vec<Sched
     states
 }
 
-fn push_scheduled_state(
-    native_plan: &NativePlan,
-    states: &mut Vec<ScheduledState>,
-    machine: &str,
-    state: &str,
-) {
-    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
-        return;
-    };
-
+fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {
     if states
         .iter()
         .any(|scheduled_state| scheduled_state.key == key)
@@ -46,15 +37,12 @@ fn push_scheduled_state(
     states.push(ScheduledState { key });
 }
 
-fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
-    }
-
-    states.push(ScheduledState { key });
+fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }
 
 pub(super) fn collect_runtime_dispatch_blockers(
@@ -71,7 +59,7 @@ pub(super) fn collect_runtime_dispatch_blockers(
         };
         let cycle_path = states
             .iter()
-            .map(|state| format!("{}.{}", state.machine, state.state))
+            .map(|state| state_name(native_plan, state.key))
             .collect::<Vec<_>>()
             .join(" -> ");
 

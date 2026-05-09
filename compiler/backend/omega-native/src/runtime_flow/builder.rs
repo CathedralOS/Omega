@@ -89,8 +89,6 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
         self.runtime_flow.edges.insert(RuntimeEdge {
             from: from.key,
-            from_machine: from.machine.clone(),
-            from_state: from.state.clone(),
             target: target.clone(),
             continuation: continuation.clone(),
             guard: transition.guard.clone(),

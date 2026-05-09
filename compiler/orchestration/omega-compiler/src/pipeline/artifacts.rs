@@ -1138,16 +1138,18 @@ impl ArtifactWriter {
         } else {
             output.push_str("states:\n");
             for (_, state) in native_plan.runtime_flow.states.iter() {
-                output.push_str(&format!("- {}.{}\n", state.machine, state.state));
+                output.push_str(&format!(
+                    "- {}\n",
+                    native_state_name(native_plan, state.key)
+                ));
             }
         }
         if !native_plan.runtime_flow.edges.is_empty() {
             output.push_str("edges:\n");
             for (_, edge) in native_plan.runtime_flow.edges.iter() {
                 output.push_str(&format!(
-                    "- {}.{} -> {} {}",
-                    edge.from_machine,
-                    edge.from_state,
+                    "- {} -> {} {}",
+                    native_state_name(native_plan, edge.from),
                     runtime_transition_target_name(&edge.target),
                     transition_guard_name(&edge.guard)
                 ));
@@ -1173,7 +1175,7 @@ impl ArtifactWriter {
                     Some(states) => {
                         let path = states
                             .iter()
-                            .map(|state| format!("{}.{}", state.machine, state.state))
+                            .map(|state| native_state_name(native_plan, state.key))
                             .collect::<Vec<_>>()
                             .join(" -> ");
                         output.push_str(&format!("- {path}\n"));

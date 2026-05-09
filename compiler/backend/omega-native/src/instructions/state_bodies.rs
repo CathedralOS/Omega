@@ -85,7 +85,7 @@ pub(super) fn runtime_reachable_states(native_plan: &NativePlan) -> Vec<Schedule
     let mut states = Vec::new();
 
     for (_, state) in native_plan.runtime_flow.states.iter() {
-        push_scheduled_state(native_plan, &mut states, &state.machine, &state.state);
+        push_scheduled_state_key(&mut states, state.key);
     }
 
     for (_, state_call) in native_plan.state_calls.calls.iter() {
@@ -101,26 +101,6 @@ pub(super) fn runtime_reachable_states(native_plan: &NativePlan) -> Vec<Schedule
     }
 
     states
-}
-
-fn push_scheduled_state(
-    native_plan: &NativePlan,
-    states: &mut Vec<ScheduledState>,
-    machine: &str,
-    state: &str,
-) {
-    let Some(key) = scheduled_state_key(native_plan, machine, state) else {
-        return;
-    };
-
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
-    }
-
-    states.push(ScheduledState { key });
 }
 
 fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {

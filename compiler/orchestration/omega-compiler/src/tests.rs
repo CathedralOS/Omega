@@ -1148,7 +1148,7 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
         .runtime_flow
         .states
         .iter()
-        .map(|(_, state)| format!("{}.{}", state.machine, state.state))
+        .map(|(_, state)| native_state_name(&native_plan, state.key))
         .collect::<Vec<_>>();
 
     assert_eq!(
@@ -1322,7 +1322,14 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
         .expect("prompt edges should resolve");
 
     assert_eq!(prompt.dispatch_index, 2);
-    assert_eq!(prompt.label, "omega_state_main_prompt");
+    assert_eq!(
+        prompt.label,
+        format!(
+            "omega_state_symbol{}_symbol{}",
+            prompt.key.machine.arena_index(),
+            prompt.key.state.arena_index()
+        )
+    );
     assert_eq!(prompt_edges.len(), 1);
     assert_eq!(prompt_edges[0].target_dispatch_index, 3);
 }
@@ -1429,6 +1436,13 @@ fn selects_runtime_dispatch_loop_instructions() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = omega_native::plan::build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should select dispatch loop instructions");
+    let prompt_label = native_plan
+        .state_dispatch
+        .states
+        .iter()
+        .find(|(_, state)| native_state_name(&native_plan, state.key) == "main.prompt")
+        .map(|(_, state)| state.label.clone())
+        .expect("prompt dispatch state should exist");
 
     assert!(
         native_plan
@@ -1453,7 +1467,7 @@ fn selects_runtime_dispatch_loop_instructions() {
                     omega_native::instructions::SelectedInstructionKind::EnterDispatchCase {
                         ref label,
                         ..
-                    } if label == "omega_state_main_prompt"
+                    } if label == &prompt_label
                 )
             })
     );

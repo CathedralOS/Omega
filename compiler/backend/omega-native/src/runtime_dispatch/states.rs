@@ -1,6 +1,5 @@
 mod context;
 mod input;
-mod labels;
 mod model;
 
 pub use context::StateDispatchContext;
@@ -9,7 +8,6 @@ pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
 use crate::control_flow::StateKey;
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
-use labels::dispatch_label;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
@@ -90,9 +88,17 @@ fn build_dispatch_state(
     CollectedDispatchState {
         key: runtime_state.key,
         dispatch_index: runtime_state.handle.arena_index(),
-        label: dispatch_label(&runtime_state.machine, &runtime_state.state),
+        label: dispatch_label(runtime_state.key),
         edges,
     }
+}
+
+fn dispatch_label(key: StateKey) -> String {
+    format!(
+        "omega_state_symbol{}_symbol{}",
+        key.machine.arena_index(),
+        key.state.arena_index()
+    )
 }
 
 fn terminal_continuation_edges(

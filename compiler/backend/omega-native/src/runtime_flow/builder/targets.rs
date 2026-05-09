@@ -9,17 +9,8 @@ impl RuntimeFlowBuilder<'_> {
         &mut self,
         target: RuntimeTransitionTarget,
     ) -> Result<(), Diagnostic> {
-        if let RuntimeTransitionTarget::State {
-            key,
-            machine,
-            state,
-        } = target
-        {
-            self.visit_state(RuntimeState {
-                key,
-                machine,
-                state,
-            })?;
+        if let RuntimeTransitionTarget::State { key, .. } = target {
+            self.visit_state(RuntimeState { key })?;
         }
 
         Ok(())
@@ -73,7 +64,11 @@ impl RuntimeFlowBuilder<'_> {
                 state: self
                     .active_states
                     .last()
-                    .map(|active_state| active_state.state.clone())
+                    .and_then(|active_state| {
+                        self.control_flow
+                            .state_by_key(active_state.key)
+                            .map(|state| state.name.clone())
+                    })
                     .unwrap_or_default(),
             },
             PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,

@@ -9,19 +9,9 @@ pub(in crate::identity) fn count_runtime_flow_strings(
     native_plan: &NativePlan,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, state) in native_plan.runtime_flow.states.iter() {
-        storage.count_program_name_identity(&state.machine);
-        storage.count_program_name_identity(&state.state);
-    }
     for (_, edge) in native_plan.runtime_flow.edges.iter() {
-        storage.count_program_name_identity(&edge.from_machine);
-        storage.count_program_name_identity(&edge.from_state);
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
-    }
-    for (_, state) in native_plan.runtime_flow.cycle_states.iter() {
-        storage.count_program_name_identity(&state.machine);
-        storage.count_program_name_identity(&state.state);
     }
 }
 
