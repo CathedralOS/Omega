@@ -31,8 +31,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         kind: SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index: native_plan.runtime_dispatch_loop.entry_dispatch_index,
             terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
-            current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
-            next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
         },
         source_key: native_plan.entry_key,
         source_statement: 0,

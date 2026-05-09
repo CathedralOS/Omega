@@ -127,11 +127,13 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,
-            current_state_slot,
-            next_state_slot,
-        } => format!(
-            "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
-        ),
+        } => {
+            let current_state_slot = &native_plan.runtime_dispatch_loop.current_state_slot;
+            let next_state_slot = &native_plan.runtime_dispatch_loop.next_state_slot;
+            format!(
+                "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
+            )
+        }
         SelectedInstructionKind::EnterDispatchCase {
             dispatch_index,
             label,

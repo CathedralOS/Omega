@@ -26,8 +26,6 @@ pub enum SelectedInstructionKind {
     EnterDispatchLoop {
         entry_dispatch_index: u32,
         terminal_dispatch_index: u32,
-        current_state_slot: String,
-        next_state_slot: String,
     },
     EnterDispatchCase {
         dispatch_index: u32,
