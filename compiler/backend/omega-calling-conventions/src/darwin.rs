@@ -3,13 +3,11 @@ use crate::{
     insert_platform_lowering,
 };
 
-const DARWIN_SYSCALL_CLASS_UNIX: u32 = 0x0200_0000;
-
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
     plan.bindings.insert_many([
-        darwin_syscall("Stdin", "read", DARWIN_SYSCALL_CLASS_UNIX | 3),
-        darwin_syscall("Stdout", "write", DARWIN_SYSCALL_CLASS_UNIX | 4),
-        darwin_syscall("Process", "exit", DARWIN_SYSCALL_CLASS_UNIX | 1),
+        darwin_import("Stdin", "read", "_read"),
+        darwin_import("Stdout", "write", "_write"),
+        darwin_import("Process", "exit", "_exit"),
     ]);
 
     insert_platform_lowering(
@@ -46,15 +44,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     );
 }
 
-fn darwin_syscall(capability: &str, operation: &str, number: u32) -> HostBinding {
+fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding {
     HostBinding {
         capability: capability.to_owned(),
         operation: operation.to_owned(),
-        mechanism: HostBindingMechanism::Syscall {
-            name: operation.to_owned(),
-            number,
-            number_register: 16,
-            supervisor_call: 0x80,
+        mechanism: HostBindingMechanism::Import {
+            library: "libSystem.B.dylib".to_owned(),
+            symbol: symbol.to_owned(),
         },
         trust_policy: "omega::host::targets::darwin".to_owned(),
     }

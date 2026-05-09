@@ -1,6 +1,6 @@
 use super::super::offsets::{
     runtime_text_buffer_materialize_target_address_offset,
-    runtime_text_line_read_target_address_offset,
+    runtime_text_line_read_import_call_offset, runtime_text_line_read_target_address_offset,
     runtime_text_literal_append_target_address_offset,
     runtime_text_stored_place_source_address_offset,
     runtime_text_stored_place_target_address_offset,
@@ -8,8 +8,8 @@ use super::super::offsets::{
     runtime_text_stored_suffix_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
-use omega_object::storage_region_symbol_name;
-use omega_target_program::SelectedInstructionKind;
+use omega_object::{RelocationRecord, object_symbol_handle_by_name, storage_region_symbol_name};
+use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
 
 pub(super) fn collect_runtime_text_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,
@@ -116,7 +116,7 @@ pub(super) fn collect_runtime_text_relocations(
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer,
             target_region,
-            syscall_number,
+            source,
             ..
         } => {
             let buffer_symbol = &context.input.data.objects.get(*buffer).symbol;
@@ -126,10 +126,26 @@ pub(super) fn collect_runtime_text_relocations(
             context.insert_data_address_at_relative_offset(
                 runtime_text_line_read_target_address_offset(
                     context.input.target.architecture,
-                    *syscall_number,
+                    source,
                 ),
                 &target_symbol,
             );
+            if let RuntimeTextReadSource::Import { symbol } = source {
+                context.relocation_plan.records.insert(RelocationRecord {
+                    function_symbol: context.function.symbol.clone(),
+                    selected_instruction_index: context.selected_instruction_index,
+                    text_offset: runtime_text_line_read_import_call_offset(
+                        context.input.target.architecture,
+                        context.selected_text_offset,
+                    ),
+                    byte_width: 4,
+                    symbol: symbol.clone(),
+                    symbol_handle: object_symbol_handle_by_name(&context.input.object, symbol),
+                    kind: super::super::offsets::external_call_relocation_kind(
+                        context.input.target.architecture,
+                    ),
+                });
+            }
         }
         _ => {}
     }

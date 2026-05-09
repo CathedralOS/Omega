@@ -4,4 +4,6 @@ mod selected;
 
 pub use operand::{InstructionOperand, InstructionOperandKind};
 pub use plan::{FunctionInstructionPlan, InstructionPlan};
-pub use selected::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind};
+pub use selected::{
+    RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstruction, SelectedInstructionKind,
+};

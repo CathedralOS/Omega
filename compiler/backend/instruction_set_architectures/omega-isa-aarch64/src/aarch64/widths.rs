@@ -87,12 +87,24 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
 
-pub fn runtime_text_line_read_width(_byte_capacity: usize, syscall_number: u32) -> usize {
+pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
+    100
+}
+
+pub fn runtime_text_line_read_syscall_width(_byte_capacity: usize, syscall_number: u32) -> usize {
     100 + unsigned_immediate_width(u64::from(syscall_number))
 }
 
-pub fn runtime_text_line_read_target_address_offset(syscall_number: u32) -> usize {
+pub fn runtime_text_line_read_import_target_address_offset() -> usize {
+    84
+}
+
+pub fn runtime_text_line_read_syscall_target_address_offset(syscall_number: u32) -> usize {
     84 + unsigned_immediate_width(u64::from(syscall_number))
+}
+
+pub fn runtime_text_line_read_import_call_offset() -> usize {
+    28
 }
 
 pub fn runtime_storage_copy_width(byte_count: usize) -> usize {

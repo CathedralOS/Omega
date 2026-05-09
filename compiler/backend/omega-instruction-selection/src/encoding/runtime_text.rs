@@ -1,6 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
+use omega_target_program::RuntimeTextReadSource;
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,
@@ -121,18 +122,25 @@ pub fn encode_runtime_text_line_read(
     architecture: Architecture,
     target_offset: usize,
     byte_capacity: usize,
-    syscall_number: u32,
-    syscall_number_register: u8,
-    supervisor_call: u16,
+    source: &RuntimeTextReadSource,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_line_read(
-            target_offset,
-            byte_capacity,
-            syscall_number,
-            syscall_number_register,
-            supervisor_call,
-        ),
+        Architecture::Aarch64 => match source {
+            RuntimeTextReadSource::Import { .. } => {
+                aarch64::encode_runtime_text_line_read_import(target_offset, byte_capacity)
+            }
+            RuntimeTextReadSource::Syscall {
+                number,
+                number_register,
+                supervisor_call,
+            } => aarch64::encode_runtime_text_line_read_syscall(
+                target_offset,
+                byte_capacity,
+                *number,
+                *number_register,
+                *supervisor_call,
+            ),
+        },
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

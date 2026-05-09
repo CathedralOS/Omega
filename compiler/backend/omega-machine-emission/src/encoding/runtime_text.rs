@@ -8,6 +8,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_instruction_selection::runtime_text_storage_compare_width;
 use omega_machine_program::MachineInstruction;
+use omega_target_program::RuntimeTextReadSource;
 use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_runtime_text_literal_compare(
@@ -131,16 +132,12 @@ pub(super) fn encode_runtime_text_line_read(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
     byte_capacity: usize,
-    syscall_number: u32,
-    syscall_number_register: u8,
-    supervisor_call: u16,
+    source: &RuntimeTextReadSource,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_line_read(
         input.target.architecture,
         target_offset,
         byte_capacity,
-        syscall_number,
-        syscall_number_register,
-        supervisor_call,
+        source,
     )
 }

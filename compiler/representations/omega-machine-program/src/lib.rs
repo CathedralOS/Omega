@@ -154,9 +154,7 @@ pub enum MachineInstructionKind {
     RuntimeTextLineRead {
         target_offset: usize,
         byte_capacity: usize,
-        syscall_number: u32,
-        syscall_number_register: u8,
-        supervisor_call: u16,
+        source: MachineRuntimeTextReadSource,
     },
     RuntimeStorageCopy {
         source_offset: usize,
@@ -175,4 +173,16 @@ pub enum MachineInstructionKind {
         operation: String,
     },
     Return,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MachineRuntimeTextReadSource {
+    Import {
+        symbol: String,
+    },
+    Syscall {
+        number: u32,
+        number_register: u8,
+        supervisor_call: u16,
+    },
 }

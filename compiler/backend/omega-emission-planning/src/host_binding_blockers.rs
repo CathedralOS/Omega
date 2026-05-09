@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
-use omega_target_program::SelectedInstructionKind;
+use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
 
 use super::{EmissionBlocker, blocker};
 
@@ -16,7 +16,10 @@ pub(super) fn collect_host_binding_blockers(
     for (_, instruction) in input.instructions.instructions.iter() {
         if !matches!(
             instruction.kind,
-            SelectedInstructionKind::ReadRuntimeTextLine { .. }
+            SelectedInstructionKind::ReadRuntimeTextLine {
+                source: RuntimeTextReadSource::Syscall { .. },
+                ..
+            }
         ) {
             continue;
         }

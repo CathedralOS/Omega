@@ -307,15 +307,14 @@ fn selected_instruction_name(
             target_region,
             target_offset,
             byte_capacity,
-            syscall_number,
-            syscall_number_register,
-            supervisor_call,
+            source,
         } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
-                "read runtime text line syscall {syscall_number} via x{syscall_number_register}/svc #{supervisor_call} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
+                "read runtime text line {} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}",
+                runtime_text_read_source_name(source)
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {
@@ -363,6 +362,19 @@ fn selected_instruction_name(
             )
         }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
+    }
+}
+
+fn runtime_text_read_source_name(source: &omega_target_program::RuntimeTextReadSource) -> String {
+    match source {
+        omega_target_program::RuntimeTextReadSource::Import { symbol } => {
+            format!("import {symbol}")
+        }
+        omega_target_program::RuntimeTextReadSource::Syscall {
+            number,
+            number_register,
+            supervisor_call,
+        } => format!("syscall {number} via x{number_register}/svc #{supervisor_call}"),
     }
 }
 

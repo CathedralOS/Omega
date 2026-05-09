@@ -1,7 +1,7 @@
 use crate::aarch64_call_operands;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
-use omega_target_program::InstructionOperand;
+use omega_target_program::{InstructionOperand, RuntimeTextReadSource};
 
 pub fn host_call_sequence_width(
     architecture: Architecture,
@@ -160,25 +160,42 @@ pub fn runtime_machine_string_write_width(architecture: Architecture, byte_lengt
 pub fn runtime_text_line_read_width(
     architecture: Architecture,
     byte_capacity: usize,
-    syscall_number: u32,
+    source: &RuntimeTextReadSource,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_text_line_read_width(byte_capacity, syscall_number)
-        }
+        Architecture::Aarch64 => match source {
+            RuntimeTextReadSource::Import { .. } => {
+                aarch64::runtime_text_line_read_import_width(byte_capacity)
+            }
+            RuntimeTextReadSource::Syscall { number, .. } => {
+                aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
+            }
+        },
         Architecture::X86_64 => 0,
     }
 }
 
 pub fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
-    syscall_number: u32,
+    source: &RuntimeTextReadSource,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::runtime_text_line_read_target_address_offset(syscall_number)
-        }
+        Architecture::Aarch64 => match source {
+            RuntimeTextReadSource::Import { .. } => {
+                aarch64::runtime_text_line_read_import_target_address_offset()
+            }
+            RuntimeTextReadSource::Syscall { number, .. } => {
+                aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
+            }
+        },
         Architecture::X86_64 => 8,
+    }
+}
+
+pub fn runtime_text_line_read_import_call_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_line_read_import_call_offset(),
+        Architecture::X86_64 => 0,
     }
 }
 

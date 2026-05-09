@@ -114,9 +114,7 @@ pub enum SelectedInstructionKind {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
-        syscall_number: u32,
-        syscall_number_register: u8,
-        supervisor_call: u16,
+        source: RuntimeTextReadSource,
     },
     CopyRuntimeStorage {
         source_region: RuntimeStorageRegion,
@@ -138,6 +136,18 @@ pub enum SelectedInstructionKind {
         operands: HandleSpan<InstructionOperand>,
     },
     LeaveFunction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeTextReadSource {
+    Import {
+        symbol: String,
+    },
+    Syscall {
+        number: u32,
+        number_register: u8,
+        supervisor_call: u16,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

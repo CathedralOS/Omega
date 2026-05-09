@@ -134,17 +134,13 @@ pub(super) fn machine_instruction_shape(
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,
-            syscall_number,
-            syscall_number_register,
-            supervisor_call,
+            source,
             ..
         } => runtime_text::runtime_text_line_read_shape(
             input,
             *target_offset,
             *byte_capacity,
-            *syscall_number,
-            *syscall_number_register,
-            *supervisor_call,
+            source,
         ),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,

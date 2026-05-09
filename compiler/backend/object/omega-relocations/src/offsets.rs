@@ -93,12 +93,17 @@ pub(super) fn runtime_text_buffer_materialize_target_address_offset(
 
 pub(super) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
-    syscall_number: u32,
+    source: &omega_target_program::RuntimeTextReadSource,
 ) -> usize {
-    omega_instruction_selection::runtime_text_line_read_target_address_offset(
-        architecture,
-        syscall_number,
-    )
+    omega_instruction_selection::runtime_text_line_read_target_address_offset(architecture, source)
+}
+
+pub(super) fn runtime_text_line_read_import_call_offset(
+    architecture: Architecture,
+    selected_text_offset: usize,
+) -> usize {
+    selected_text_offset
+        + omega_instruction_selection::runtime_text_line_read_import_call_offset(architecture)
 }
 
 pub(super) fn external_call_relocation_width(architecture: Architecture) -> usize {

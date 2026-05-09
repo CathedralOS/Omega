@@ -6,7 +6,7 @@ use crate::selection::storage_places::{
 };
 use omega_calling_conventions::{HostBindingMechanism, PlatformCallData};
 use omega_platform_interface::HostCall;
-use omega_target_program::SelectedInstructionKind;
+use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,
@@ -15,13 +15,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
     let PlatformCallData::MutableOutputBuffer { byte_capacity } = host_call.data else {
         return None;
     };
-    let Some(HostBindingMechanism::Syscall {
-        number: syscall_number,
-        number_register: syscall_number_register,
-        supervisor_call,
-        ..
-    }) = host_binding_mechanism(input, "Stdin", "read")
-    else {
+    let Some(read_source) = runtime_text_read_source(input) else {
         return None;
     };
 
@@ -67,10 +61,28 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,
-        syscall_number: *syscall_number,
-        syscall_number_register: *syscall_number_register,
-        supervisor_call: *supervisor_call,
+        source: read_source,
     })
+}
+
+fn runtime_text_read_source(
+    input: &InstructionSelectionInput<'_>,
+) -> Option<RuntimeTextReadSource> {
+    match host_binding_mechanism(input, "Stdin", "read")? {
+        HostBindingMechanism::Import { symbol, .. } => Some(RuntimeTextReadSource::Import {
+            symbol: symbol.clone(),
+        }),
+        HostBindingMechanism::Syscall {
+            number,
+            number_register,
+            supervisor_call,
+            ..
+        } => Some(RuntimeTextReadSource::Syscall {
+            number: *number,
+            number_register: *number_register,
+            supervisor_call: *supervisor_call,
+        }),
+    }
 }
 
 pub(in crate::selection) fn runtime_machine_string_descriptor_offset(

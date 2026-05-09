@@ -164,17 +164,13 @@ pub(super) fn encode_machine_instruction(
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,
-            syscall_number,
-            syscall_number_register,
-            supervisor_call,
+            source,
             ..
         } => runtime_text::encode_runtime_text_line_read(
             input,
             *target_offset,
             *byte_capacity,
-            *syscall_number,
-            *syscall_number_register,
-            *supervisor_call,
+            source,
         ),
         SelectedInstructionKind::CopyRuntimeStorage {
             source_offset,

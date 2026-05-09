@@ -5,7 +5,7 @@ pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
-    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
+    RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstruction, SelectedInstructionKind,
 };
 
 mod guard {
