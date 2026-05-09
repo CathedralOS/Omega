@@ -13,8 +13,6 @@ pub struct RuntimeDispatchBodyPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchBody {
     pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub dispatch_index: u32,
     pub operations: HandleSpan<RuntimeDispatchBodyOperation>,
 }
@@ -23,8 +21,6 @@ impl Default for RuntimeDispatchBody {
     fn default() -> Self {
         Self {
             key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             dispatch_index: 0,
             operations: HandleSpan::empty(),
         }

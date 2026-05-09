@@ -56,8 +56,6 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
 
         plan.bodies.insert(RuntimeDispatchBody {
             key: collected_body.key,
-            machine: collected_body.machine,
-            state: collected_body.state,
             dispatch_index: collected_body.dispatch_index,
             operations,
         });

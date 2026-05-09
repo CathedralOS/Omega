@@ -25,11 +25,12 @@ pub(super) fn collect_runtime_body_state_call_blockers(
             .operations
             .paged_span(body.operations)
         else {
+            let source_name = state_name(native_plan, body.key);
             blockers.insert(blocker(
                 "runtime bodies",
                 &format!(
-                    "#{} {}.{} has an invalid runtime body operation span",
-                    body.dispatch_index, body.machine, body.state
+                    "#{} {} has an invalid runtime body operation span",
+                    body.dispatch_index, source_name
                 ),
             ));
             continue;
@@ -96,4 +97,12 @@ fn state_names(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> 
         .state_names_by_key(key)
         .map(|(machine, state)| (machine.to_string(), state.to_string()))
         .unwrap_or_default()
+}
+
+fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

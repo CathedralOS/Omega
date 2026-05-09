@@ -1725,7 +1725,7 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
         .runtime_bodies
         .bodies
         .iter()
-        .find(|(_, body)| body.machine == "main" && body.state == "entry")
+        .find(|(_, body)| native_state_name(&native_plan, body.key) == "main.entry")
         .map(|(_, body)| body)
         .expect("entry runtime body should exist");
     let operations = native_plan

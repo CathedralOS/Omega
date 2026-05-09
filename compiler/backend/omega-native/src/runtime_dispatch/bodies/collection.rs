@@ -7,13 +7,10 @@ use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKin
 use crate::control_flow::{OperationKind, StateKey};
 use crate::runtime_dispatch::states::DispatchState;
 use crate::state_calls::{StateCall, StateCallLowering};
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
     pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub dispatch_index: u32,
     pub operations: Vec<RuntimeDispatchBodyOperation>,
 }
@@ -22,7 +19,6 @@ pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
-    let (machine_name, state_name) = state_names(context, dispatch_state.key);
     let mut operations = Vec::new();
     append_state_body_operations(
         context,
@@ -33,15 +29,9 @@ pub(super) fn build_dispatch_body(
 
     CollectedRuntimeDispatchBody {
         key: dispatch_state.key,
-        machine: machine_name,
-        state: state_name,
         dispatch_index: dispatch_state.dispatch_index,
         operations,
     }
-}
-
-fn state_names(context: &RuntimeDispatchBodyContext, key: StateKey) -> (ProgramName, ProgramName) {
-    context.control_flow.state_names_by_key_cloned(key)
 }
 
 fn append_state_body_operations(

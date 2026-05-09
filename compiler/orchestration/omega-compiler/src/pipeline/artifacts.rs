@@ -1433,10 +1433,8 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-                output.push_str(&format!(
-                    "- #{} {}.{}\n",
-                    body.dispatch_index, body.machine, body.state
-                ));
+                let source_name = native_state_name(native_plan, body.key);
+                output.push_str(&format!("- #{} {}\n", body.dispatch_index, source_name));
 
                 match native_plan.runtime_bodies.operations.span(body.operations) {
                     Some(operations) if operations.is_empty() => {
