@@ -51,9 +51,5 @@ fn state_names(
     native_plan: &NativePlan,
     key: crate::control_flow::StateKey,
 ) -> (ProgramName, ProgramName) {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
+    native_plan.control_flow.state_names_by_key_cloned(key)
 }

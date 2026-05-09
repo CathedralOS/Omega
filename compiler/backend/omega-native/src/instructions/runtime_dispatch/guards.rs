@@ -188,15 +188,9 @@ fn source_machine_name(
 ) -> ProgramName {
     native_plan
         .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, _)| machine.clone())
-        .unwrap_or_default()
+        .state_machine_name_by_key_cloned(key)
 }
 
 fn source_state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> ProgramName {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(_, state)| state.clone())
-        .unwrap_or_default()
+    native_plan.control_flow.state_name_by_key_cloned(key)
 }

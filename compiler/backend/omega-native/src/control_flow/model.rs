@@ -67,6 +67,24 @@ impl ControlFlowPlan {
 
         Some((&machine.name, &state.name))
     }
+
+    pub fn state_names_by_key_cloned(&self, key: StateKey) -> (ProgramName, ProgramName) {
+        self.state_names_by_key(key)
+            .map(|(machine, state)| (machine.clone(), state.clone()))
+            .unwrap_or_default()
+    }
+
+    pub fn state_machine_name_by_key_cloned(&self, key: StateKey) -> ProgramName {
+        self.state_names_by_key(key)
+            .map(|(machine, _)| machine.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn state_name_by_key_cloned(&self, key: StateKey) -> ProgramName {
+        self.state_names_by_key(key)
+            .map(|(_, state)| state.clone())
+            .unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

@@ -101,9 +101,5 @@ fn state_names(
     omega_typed_program::name::ProgramName,
     omega_typed_program::name::ProgramName,
 ) {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
+    native_plan.control_flow.state_names_by_key_cloned(key)
 }

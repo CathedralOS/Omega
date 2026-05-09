@@ -41,11 +41,7 @@ pub(super) fn build_dispatch_body(
 }
 
 fn state_names(context: &RuntimeDispatchBodyContext, key: StateKey) -> (ProgramName, ProgramName) {
-    context
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
+    context.control_flow.state_names_by_key_cloned(key)
 }
 
 fn append_state_body_operations(

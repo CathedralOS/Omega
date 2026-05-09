@@ -113,11 +113,7 @@ fn select_runtime_straight_line_branch_writes(
 }
 
 fn state_names(native_plan: &NativePlan, key: StateKey) -> (ProgramName, ProgramName) {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
+    native_plan.control_flow.state_names_by_key_cloned(key)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -185,7 +181,5 @@ fn select_runtime_straight_line_leaf_state_call_writes(
 fn source_machine_name(native_plan: &NativePlan, key: StateKey) -> ProgramName {
     native_plan
         .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, _)| machine.clone())
-        .unwrap_or_default()
+        .state_machine_name_by_key_cloned(key)
 }
