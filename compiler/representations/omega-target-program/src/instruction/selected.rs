@@ -29,7 +29,6 @@ pub enum SelectedInstructionKind {
     },
     EnterDispatchCase {
         dispatch_index: u32,
-        label: String,
     },
     EvaluateDispatchGuard {
         guard_lowering: StateGuardLowering,

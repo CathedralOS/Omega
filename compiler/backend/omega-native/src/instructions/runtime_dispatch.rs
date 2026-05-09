@@ -40,7 +40,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EnterDispatchCase {
                 dispatch_index: dispatch_case.dispatch_index,
-                label: dispatch_case.label.clone(),
             },
             source_key: dispatch_case.key,
             source_statement: 0,

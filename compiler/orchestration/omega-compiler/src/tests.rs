@@ -1508,12 +1508,12 @@ fn selects_runtime_dispatch_loop_instructions() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should select dispatch loop instructions");
-    let prompt_label = native_plan
+    let prompt_dispatch_index = native_plan
         .state_dispatch
         .states
         .iter()
         .find(|(_, state)| native_state_name(&native_plan, state.key) == "main.prompt")
-        .map(|(_, state)| state.label.clone())
+        .map(|(_, state)| state.dispatch_index)
         .expect("prompt dispatch state should exist");
 
     assert!(
@@ -1537,9 +1537,9 @@ fn selects_runtime_dispatch_loop_instructions() {
                 matches!(
                     instruction.kind,
                     omega_target_program::SelectedInstructionKind::EnterDispatchCase {
-                        ref label,
+                        dispatch_index,
                         ..
-                    } if label == &prompt_label
+                    } if dispatch_index == prompt_dispatch_index
                 )
             })
     );

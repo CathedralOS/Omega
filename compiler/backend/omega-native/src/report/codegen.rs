@@ -134,10 +134,16 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
             )
         }
-        SelectedInstructionKind::EnterDispatchCase {
-            dispatch_index,
-            label,
-        } => format!("enter dispatch case #{dispatch_index} `{label}`"),
+        SelectedInstructionKind::EnterDispatchCase { dispatch_index } => {
+            let label = native_plan
+                .runtime_dispatch_loop
+                .cases
+                .iter()
+                .find(|(_, dispatch_case)| dispatch_case.dispatch_index == *dispatch_index)
+                .map(|(_, dispatch_case)| dispatch_case.label.as_str())
+                .unwrap_or("unknown");
+            format!("enter dispatch case #{dispatch_index} `{label}`")
+        }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering,
             operator,
