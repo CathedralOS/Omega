@@ -94,6 +94,13 @@ impl StateAnalysisContext {
             .any(|(_, state)| Some(state.key) == state_key)
     }
 
+    pub fn runtime_state_is_reachable_by_key(&self, state_key: StateKey) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.key == state_key)
+    }
+
     pub fn state_statement_has_host_call(
         &self,
         machine_name: &str,

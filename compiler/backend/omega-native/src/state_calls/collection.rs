@@ -1,5 +1,6 @@
 use crate::control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey};
 use crate::state_analysis::StateAnalysisContext;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -67,7 +68,7 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
                     .unwrap_or_default(),
                 target_state: target.clone(),
                 raw_arguments: arguments.clone(),
-                reachable: context.runtime_state_is_reachable(&machine.name, &state.name),
+                reachable: context.runtime_state_is_reachable_by_key(state.key),
                 required: false,
                 resolution: resolved_target
                     .map(|target| target.resolution)
@@ -91,7 +92,9 @@ fn resolve_state_call_target(
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
     let Some(receiver) = receiver else {
-        if let Some(key) = control_flow.state_key_by_names(&machine.name, target_state) {
+        if let Some(key) =
+            state_key_by_machine_symbol_and_state_name(control_flow, machine.symbol, target_state)
+        {
             return Some(ResolvedStateCall {
                 key,
                 resolution: StateCallResolution::Local,
@@ -102,7 +105,8 @@ fn resolve_state_call_target(
     };
 
     if receiver == "self" {
-        let key = control_flow.state_key_by_names(&machine.name, target_state)?;
+        let key =
+            state_key_by_machine_symbol_and_state_name(control_flow, machine.symbol, target_state)?;
         return Some(ResolvedStateCall {
             key,
             resolution: StateCallResolution::Local,
@@ -115,17 +119,59 @@ fn resolve_state_call_target(
         .find(|contained| contained.name == *receiver)
     {
         return control_flow
-            .state_key_by_names(&contained.type_name, target_state)
+            .state_key_by_symbols(
+                contained.type_symbol,
+                state_symbol_by_machine_symbol_and_state_name(
+                    control_flow,
+                    contained.type_symbol,
+                    target_state,
+                )?,
+            )
             .map(|key| ResolvedStateCall {
                 key,
                 resolution: StateCallResolution::ContainedMachine,
             });
     }
 
+    let target_machine = control_flow
+        .machines
+        .iter()
+        .find(|(_, candidate)| candidate.name == *receiver)
+        .map(|(_, candidate)| candidate)?;
+    let key = state_key_by_machine_symbol_and_state_name(
+        control_flow,
+        target_machine.symbol,
+        target_state,
+    )?;
+
+    Some(ResolvedStateCall {
+        key,
+        resolution: StateCallResolution::NamedMachine,
+    })
+}
+
+fn state_key_by_machine_symbol_and_state_name(
+    control_flow: &ControlFlowPlan,
+    machine_symbol: SymbolHandle,
+    state_name: &ProgramName,
+) -> Option<StateKey> {
+    let state_symbol =
+        state_symbol_by_machine_symbol_and_state_name(control_flow, machine_symbol, state_name)?;
+
+    control_flow.state_key_by_symbols(machine_symbol, state_symbol)
+}
+
+fn state_symbol_by_machine_symbol_and_state_name(
+    control_flow: &ControlFlowPlan,
+    machine_symbol: SymbolHandle,
+    state_name: &ProgramName,
+) -> Option<SymbolHandle> {
+    let machine = control_flow.machine_by_symbol(machine_symbol)?;
+
     control_flow
-        .state_key_by_names(receiver, target_state)
-        .map(|key| ResolvedStateCall {
-            key,
-            resolution: StateCallResolution::NamedMachine,
-        })
+        .states
+        .span(machine.states)?
+        .iter()
+        .find(|state| state.name == *state_name)
+        .map(|state| state.key.state)
 }
