@@ -13,34 +13,23 @@ pub(in crate::host_calls) fn platform_call_receiver_type(
     machine: &Machine,
     call: &Call,
 ) -> Option<String> {
-    let Some(receiver) = call.receiver.as_deref() else {
-        return None;
-    };
+    call.receiver.as_ref()?;
 
-    let Some(receiver_type) = machine
+    if !call.receiver_symbol.is_valid() {
+        return None;
+    }
+
+    let receiver_type_symbol = machine
         .contains
         .iter()
-        .find(|contained_object| {
-            if call.receiver_symbol.is_valid() {
-                contained_object.symbol == call.receiver_symbol
-            } else {
-                contained_object.name == receiver
-            }
-        })
-        .map(|contained_object| contained_object.type_name.as_str())
-    else {
-        return None;
-    };
+        .find(|contained_object| contained_object.symbol == call.receiver_symbol)
+        .map(|contained_object| contained_object.type_symbol)?;
 
-    if program
+    program
         .platforms
         .iter()
-        .any(|platform| platform.name == receiver_type)
-    {
-        Some(receiver_type.to_owned())
-    } else {
-        None
-    }
+        .find(|platform| platform.symbol == receiver_type_symbol)
+        .map(|platform| platform.name.to_string())
 }
 
 pub(in crate::host_calls) fn find_platform_call_lowering<'abi>(

@@ -14,7 +14,7 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         .layouts
         .machine_layouts
         .iter()
-        .find(|(_, layout)| layout.name == native_plan.entry_machine_name())
+        .find(|(_, layout)| layout.symbol == native_plan.entry_key.machine)
         .map(|(_, layout)| layout)
         .ok_or_else(|| {
             Diagnostic::error(format!(
