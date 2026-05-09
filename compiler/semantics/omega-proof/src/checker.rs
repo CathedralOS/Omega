@@ -304,7 +304,7 @@ fn float_range_for_transition_argument(
 ) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
-            let value = float_literal(value.as_str())?;
+            let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -323,7 +323,7 @@ fn float_range_for_assignment(
 ) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(value.as_str())?;
+            let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -341,7 +341,7 @@ fn float_range_for_call_argument(
 ) -> Option<FloatRange> {
     match &obligation.argument {
         Expression::Float(value) => {
-            let value = float_literal(value.as_str())?;
+            let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -360,7 +360,7 @@ fn float_range_for_return_value(
 ) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(value.as_str())?;
+            let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -375,7 +375,7 @@ fn float_range_for_return_value(
 fn float_range_for_initializer(obligation: &BoundedInitializerObligation) -> Option<FloatRange> {
     match &obligation.value {
         Expression::Float(value) => {
-            let value = float_literal(value.as_str())?;
+            let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
                 maximum: value,
@@ -490,17 +490,15 @@ fn integer_literal(expression: &Expression) -> Option<i64> {
 
 fn float_literal_expression(expression: &Expression) -> Option<f64> {
     match expression {
-        Expression::Float(value) => float_literal(value.as_str()),
+        Expression::Float(value) => finite_float_literal(*value),
         Expression::Integer(value) => Some(*value as f64),
         _ => None,
     }
 }
 
-fn float_literal(value: &str) -> Option<f64> {
-    let trimmed = value.trim_end_matches(['f', 'F']);
-    let parsed = trimmed.parse::<f64>().ok()?;
-
-    parsed.is_finite().then_some(parsed)
+fn finite_float_literal(value: omega_typed_program::expression::FloatLiteral) -> Option<f64> {
+    let value = value.value();
+    value.is_finite().then_some(value)
 }
 
 fn apply_guard(
@@ -708,7 +706,7 @@ fn argument_satisfies_named_constraint(
 
 fn expression_is_finite_literal(expression: &Expression) -> bool {
     match expression {
-        Expression::Float(value) => float_literal(value.as_str()).is_some(),
+        Expression::Float(value) => finite_float_literal(*value).is_some(),
         Expression::Integer(_) => true,
         _ => false,
     }

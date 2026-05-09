@@ -1,12 +1,12 @@
 use crate::name::ProgramName;
-use omega_core::source::SourceText;
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     ArrayLiteral(Vec<Expression>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
-    Float(SourceText),
+    Float(FloatLiteral),
     Indexed(Box<IndexedExpression>),
     Integer(i64),
     Mutable(Box<Expression>),
@@ -18,6 +18,34 @@ pub enum Expression {
 impl Default for Expression {
     fn default() -> Self {
         Self::Integer(0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FloatLiteral {
+    bits: u64,
+}
+
+impl FloatLiteral {
+    pub fn new(value: f64) -> Self {
+        Self {
+            bits: value.to_bits(),
+        }
+    }
+
+    pub fn parse(source: &str) -> Option<Self> {
+        let normalized = source.trim_end_matches(['f', 'F']);
+        normalized.parse::<f64>().ok().map(Self::new)
+    }
+
+    pub fn value(self) -> f64 {
+        f64::from_bits(self.bits)
+    }
+}
+
+impl fmt::Display for FloatLiteral {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}", self.value())
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::Program;
 use crate::data::{DataDefinition, DataField, DataMember, DataVariant};
 use crate::expression::{
-    BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
+    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
 use crate::invariant::InvariantDefinition;
@@ -1386,7 +1386,9 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             })))
         }
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
-        ast::expression::Expression::Float(value) => Ok(Expression::Float(value.clone())),
+        ast::expression::Expression::Float(value) => FloatLiteral::parse(value.as_str())
+            .map(Expression::Float)
+            .ok_or_else(|| Diagnostic::error(format!("invalid float literal `{value}`"))),
         ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
             Box::new(lower_expression(inner_expression)?),
         )),
