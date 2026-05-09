@@ -70,7 +70,8 @@ pub(super) fn collect_instruction_relocations(
                 native_plan.entry_machine_name(),
             ));
         }
-        SelectedInstructionKind::WriteRuntimeMachineString { data_symbol, .. } => {
+        SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
+            let data_symbol = &native_plan.data.objects.get(*data).symbol;
             context.insert_data_address_at_instruction_start(data_symbol);
             context.insert_data_address_at_relative_offset(
                 string_descriptor_machine_address_offset(native_plan.target.architecture),

@@ -257,9 +257,10 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         }
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
-            data_symbol,
+            data,
             byte_length,
         } => {
+            let data_symbol = native_plan.data.objects.get(*data).symbol.as_str();
             format!(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )

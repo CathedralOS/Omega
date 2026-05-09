@@ -1,4 +1,4 @@
-use crate::InstructionOperand;
+use crate::{InstructionOperand, NativeDataObjectHandle};
 use crate::{StateGuardLowering, StateGuardOperator};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
@@ -109,7 +109,7 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimeMachineString {
         byte_offset: usize,
-        data_symbol: String,
+        data: NativeDataObjectHandle,
         byte_length: usize,
     },
     ReadRuntimeTextLine {

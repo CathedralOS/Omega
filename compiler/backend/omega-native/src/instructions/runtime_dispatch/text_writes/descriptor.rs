@@ -1,7 +1,7 @@
 use crate::instructions::storage_places::resolve_machine_owned_place;
 use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
-use omega_target_program::NativeDataObject;
+use omega_target_program::{NativeDataObject, NativeDataObjectHandle};
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 use omega_typed_program::expression::Expression;
 
@@ -27,7 +27,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     if byte_size != native_plan.target.pointer_size * 2 {
         return;
     }
-    let Some(data_object) =
+    let Some((data, _data_object)) =
         string_literal_data_object(native_plan, literal_source_key, statement_index, value)
     else {
         return;
@@ -36,7 +36,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
-            data_symbol: data_object.symbol.clone(),
+            data,
             byte_length: value.len(),
         },
         source_key: literal_source_key,
@@ -49,21 +49,16 @@ fn string_literal_data_object<'plan>(
     source_key: StateKey,
     statement_index: usize,
     value: &str,
-) -> Option<&'plan NativeDataObject> {
-    native_plan
-        .data
-        .objects
-        .iter()
-        .find(|(_, data_object)| {
-            data_object.source_key == source_key
-                && data_object.source_statement == statement_index
-                && native_plan
-                    .data
-                    .bytes
-                    .span(data_object.bytes)
-                    .is_some_and(|bytes| {
-                        bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
-                    })
-        })
-        .map(|(_, data_object)| data_object)
+) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+    native_plan.data.objects.iter().find(|(_, data_object)| {
+        data_object.source_key == source_key
+            && data_object.source_statement == statement_index
+            && native_plan
+                .data
+                .bytes
+                .span(data_object.bytes)
+                .is_some_and(|bytes| {
+                    bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
+                })
+    })
 }
