@@ -1,3 +1,5 @@
+mod format;
+
 use crate::identity::count_native_string_storage;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::{
@@ -1130,51 +1132,6 @@ pub fn native_report_text(
     output
 }
 
-fn format_duration(microseconds: u128) -> String {
-    if microseconds >= 1_000_000 {
-        format!("{:.3} s", microseconds as f64 / 1_000_000.0)
-    } else {
-        format!("{:.3} ms", microseconds as f64 / 1_000.0)
-    }
-}
-
-fn format_percentage(part: u128, total: u128) -> String {
-    if total == 0 {
-        return "0.00%".to_owned();
-    }
-
-    format!("{:.2}%", part as f64 * 100.0 / total as f64)
-}
-
-fn format_integer(value: u128) -> String {
-    let digits = value.to_string();
-    let mut output = String::with_capacity(digits.len() + digits.len() / 3);
-    for (index, character) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index).is_multiple_of(3) {
-            output.push(',');
-        }
-        output.push(character);
-    }
-    output
-}
-
-fn format_bytes(bytes: u64) -> String {
-    const KIB: f64 = 1024.0;
-    const MIB: f64 = KIB * 1024.0;
-    const GIB: f64 = MIB * 1024.0;
-
-    let bytes = bytes as f64;
-    if bytes >= GIB {
-        format!("{:.2} GiB", bytes / GIB)
-    } else if bytes >= MIB {
-        format!("{:.2} MiB", bytes / MIB)
-    } else if bytes >= KIB {
-        format!("{:.2} KiB", bytes / KIB)
-    } else {
-        format!("{} B", bytes as u64)
-    }
-}
-
 fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
     let timings = &native_plan.phase_timings;
 
@@ -1204,19 +1161,19 @@ fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
         .unwrap_or("subphase".len());
     let duration_width = timings
         .iter()
-        .map(|timing| format_duration(timing.microseconds).len())
+        .map(|timing| format::duration(timing.microseconds).len())
         .chain(std::iter::once("time".len()))
         .max()
         .unwrap_or("time".len());
     let alloc_width = timings
         .iter()
-        .map(|timing| format_integer(u128::from(timing.allocations.allocation_calls)).len())
+        .map(|timing| format::integer(u128::from(timing.allocations.allocation_calls)).len())
         .chain(std::iter::once("allocs".len()))
         .max()
         .unwrap_or("allocs".len());
     let allocated_width = timings
         .iter()
-        .map(|timing| format_bytes(timing.allocations.allocated_bytes).len())
+        .map(|timing| format::bytes(timing.allocations.allocated_bytes).len())
         .chain(std::iter::once("allocated".len()))
         .max()
         .unwrap_or("allocated".len());
@@ -1233,10 +1190,10 @@ fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
         output.push_str(&format!(
             "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>alloc_width$}  {:>allocated_width$}\n",
             timing.phase,
-            format_duration(timing.microseconds),
-            format_percentage(timing.microseconds, total_microseconds),
-            format_integer(u128::from(timing.allocations.allocation_calls)),
-            format_bytes(timing.allocations.allocated_bytes)
+            format::duration(timing.microseconds),
+            format::percentage(timing.microseconds, total_microseconds),
+            format::integer(u128::from(timing.allocations.allocation_calls)),
+            format::bytes(timing.allocations.allocated_bytes)
         ));
     }
     output.push_str(&format!(
@@ -1246,10 +1203,10 @@ fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
     output.push_str(&format!(
         "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>alloc_width$}  {:>allocated_width$}\n\n",
         "total",
-        format_duration(total_microseconds),
+        format::duration(total_microseconds),
         "100.00%",
-        format_integer(u128::from(total_allocations)),
-        format_bytes(total_allocated_bytes)
+        format::integer(u128::from(total_allocations)),
+        format::bytes(total_allocated_bytes)
     ));
 }
 
@@ -1300,13 +1257,13 @@ fn write_native_string_storage(output: &mut String, native_plan: &NativePlan) {
         .unwrap_or("category".len());
     let count_width = rows
         .iter()
-        .map(|(_, count, _, _)| format_integer(*count as u128).len())
+        .map(|(_, count, _, _)| format::integer(*count as u128).len())
         .chain(std::iter::once("strings".len()))
         .max()
         .unwrap_or("strings".len());
     let bytes_width = rows
         .iter()
-        .map(|(_, _, bytes, _)| format_bytes(*bytes as u64).len())
+        .map(|(_, _, bytes, _)| format::bytes(*bytes as u64).len())
         .chain(std::iter::once("bytes".len()))
         .max()
         .unwrap_or("bytes".len());
@@ -1323,8 +1280,8 @@ fn write_native_string_storage(output: &mut String, native_plan: &NativePlan) {
         output.push_str(&format!(
             "{:<category_width$}  {:>count_width$}  {:>bytes_width$}  {}\n",
             category,
-            format_integer(count as u128),
-            format_bytes(bytes as u64),
+            format::integer(count as u128),
+            format::bytes(bytes as u64),
             note
         ));
     }
