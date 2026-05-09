@@ -441,6 +441,104 @@ impl ArtifactWriter {
 
         self.write_text("00_timings.txt", &output)
     }
+
+    pub fn write_trust_report(&self, trust_report: &TrustReport) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega Trust\n\n");
+        output.push_str(&format!("targets: {}\n", trust_report.targets.len()));
+        output.push_str(&format!(
+            "trust roots: {}\n",
+            trust_report.trust_roots.len()
+        ));
+        output.push_str(&format!(
+            "trusted contracts: {}\n",
+            trust_report.trusted_contracts.len()
+        ));
+        output.push_str(&format!(
+            "unresolved trusts: {}\n",
+            trust_report.unresolved_trusts.len()
+        ));
+        output.push_str(&format!(
+            "unchecked policies: {}\n\n",
+            trust_report.unchecked_policies.len()
+        ));
+
+        output.push_str("## Targets\n");
+        if trust_report.targets.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, target) in trust_report.targets.iter() {
+                output.push_str(&format!(
+                    "- target `{}` host `{}` settings {} checked trusts {} unchecked trusts {}\n",
+                    target.name,
+                    target.host_provider,
+                    target.host_settings,
+                    target.checked_trusts,
+                    target.unchecked_trusts
+                ));
+            }
+        }
+
+        output.push_str("\n## Trust Roots\n");
+        if trust_report.trust_roots.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, root) in trust_report.trust_roots.iter() {
+                output.push_str(&format!(
+                    "- trust `{}` body tokens {}\n",
+                    root.name, root.token_count
+                ));
+            }
+        }
+
+        output.push_str("\n## Trusted Contracts\n");
+        if trust_report.trusted_contracts.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, contract) in trust_report.trusted_contracts.iter() {
+                output.push_str(&format!(
+                    "- {}.{} trusts `{}` ({}) requires {} ensures {}\n",
+                    contract.capability,
+                    contract.state,
+                    contract.trust_level,
+                    if contract.resolved {
+                        "resolved"
+                    } else {
+                        "unresolved"
+                    },
+                    contract.requires_count,
+                    contract.ensures_count
+                ));
+            }
+        }
+
+        output.push_str("\n## Unresolved Trusts\n");
+        if trust_report.unresolved_trusts.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, unresolved) in trust_report.unresolved_trusts.iter() {
+                output.push_str(&format!(
+                    "- {}.{} trust `{}`\n",
+                    unresolved.capability, unresolved.state, unresolved.trust_level
+                ));
+            }
+        }
+
+        output.push_str("\n## Unchecked Policies\n");
+        if trust_report.unchecked_policies.is_empty() {
+            output.push_str("none\n");
+        } else {
+            for (_, policy) in trust_report.unchecked_policies.iter() {
+                output.push_str(&format!(
+                    "- target `{}` trusts unchecked `{}`\n",
+                    policy.target, policy.name
+                ));
+            }
+        }
+
+        self.write_text("10_trust.txt", &output)
+    }
 }
 
 fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
