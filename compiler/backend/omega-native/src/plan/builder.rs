@@ -6,7 +6,6 @@ use crate::alias_flow::build_alias_flow_plan;
 use crate::data::build_native_data_plan;
 use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
-use crate::machine_code::build_machine_code_plan;
 use crate::object::build_object_plan;
 use crate::relocations::build_relocation_plan;
 use crate::runtime_dispatch::bodies::{
@@ -36,6 +35,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
 use omega_target::NativeTarget;
+use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
 use std::sync::Arc;
 
@@ -190,7 +190,12 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         build_instruction_plan(&native_plan)
     });
     native_plan.machine_code = record_native_phase(&mut phase_timings, "machine code", || {
-        build_machine_code_plan(&native_plan)
+        build_machine_code_plan(TargetToMachineInput {
+            target: native_plan.target,
+            instructions: &native_plan.instructions,
+            host_abi: &native_plan.host_abi,
+            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+        })
     })?;
     native_plan.object = record_native_phase(&mut phase_timings, "object plan", || {
         build_object_plan(&native_plan)

@@ -195,8 +195,7 @@ Omega/
 |   |   |-- [CRATE] omega-source-to-typed/              # Source program to typed program.
 |   |   |-- [CRATE] omega-typed-to-state-graph/         # Typed program to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/  # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-target/       # Control flow to target-aware operations.
-|   |   `-- [CRATE] omega-target-to-machine/            # Target program to machine program.
+|   |   `-- [CRATE] omega-control-flow-to-target/       # Control flow to target-aware operations.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
@@ -204,6 +203,7 @@ Omega/
 |   |   |-- [CRATE] omega-calling-conventions/          # ABI rules for registers, stack, parameter/return passing.
 |   |   |-- [CRATE] omega-layout/                       # Type layout, alignments, field offsets, calling-convention records.
 |   |   |-- [CRATE] omega-instruction-selection/        # Shared instruction selection framework.
+|   |   |-- [CRATE] omega-target-to-machine/            # Target instructions to machine program bytes using backend facts.
 |   |   |-- [CRATE] omega-regalloc/                     # Register allocation.
 |   |   |-- instruction_set_architectures/
 |   |   |   |-- [CRATE] omega-isa-aarch64/              # AArch64 instruction defs, encodings, lowering hooks.

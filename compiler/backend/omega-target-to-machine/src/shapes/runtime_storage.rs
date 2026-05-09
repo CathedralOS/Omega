@@ -1,13 +1,13 @@
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
+use crate::TargetToMachineInput;
 use omega_instruction_selection::{
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
 };
 use omega_machine_program::MachineInstructionKind;
+use omega_target_program::StateGuardOperator;
 
 pub(super) fn runtime_storage_compare_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     left_offset: usize,
     right_offset: usize,
     byte_size: usize,
@@ -20,12 +20,12 @@ pub(super) fn runtime_storage_compare_shape(
             byte_size,
             operator,
         },
-        runtime_storage_compare_width(native_plan.target.architecture),
+        runtime_storage_compare_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_storage_value_compare_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     byte_size: usize,
     expected_value: i64,
@@ -38,12 +38,12 @@ pub(super) fn runtime_storage_value_compare_shape(
             expected_value,
             operator,
         },
-        runtime_storage_value_compare_width(native_plan.target.architecture),
+        runtime_storage_value_compare_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_machine_integer_write_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     byte_size: usize,
     value: i64,
@@ -54,12 +54,12 @@ pub(super) fn runtime_machine_integer_write_shape(
             byte_size,
             value,
         },
-        runtime_machine_integer_write_width(native_plan.target.architecture),
+        runtime_machine_integer_write_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_machine_string_write_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     byte_length: usize,
 ) -> (MachineInstructionKind, usize) {
@@ -68,12 +68,12 @@ pub(super) fn runtime_machine_string_write_shape(
             byte_offset,
             byte_length,
         },
-        runtime_machine_string_write_width(native_plan.target.architecture, byte_length),
+        runtime_machine_string_write_width(input.target.architecture, byte_length),
     )
 }
 
 pub(super) fn runtime_storage_copy_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     source_offset: usize,
     target_offset: usize,
     byte_count: usize,
@@ -84,6 +84,6 @@ pub(super) fn runtime_storage_copy_shape(
             target_offset,
             byte_count,
         },
-        runtime_storage_copy_width(native_plan.target.architecture, byte_count),
+        runtime_storage_copy_width(input.target.architecture, byte_count),
     )
 }

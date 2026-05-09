@@ -283,6 +283,7 @@ dependencies = [
  "omega-state-graph",
  "omega-target",
  "omega-target-program",
+ "omega-target-to-machine",
  "omega-typed-program",
 ]
 
@@ -345,6 +346,19 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-target",
+]
+
+[[package]]
+name = "omega-target-to-machine"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-instruction-selection",
+ "omega-machine-program",
+ "omega-target",
+ "omega-target-program",
 ]
 
 [[package]]

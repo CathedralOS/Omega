@@ -1,5 +1,4 @@
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
+use crate::TargetToMachineInput;
 use omega_instruction_selection::{
     runtime_text_buffer_materialize_width, runtime_text_line_read_width,
     runtime_text_literal_append_width, runtime_text_literal_compare_width,
@@ -8,21 +7,22 @@ use omega_instruction_selection::{
     runtime_text_stored_suffix_append_width,
 };
 use omega_machine_program::MachineInstructionKind;
+use omega_target_program::StateGuardOperator;
 
 pub(super) fn runtime_text_literal_compare_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     literal: &str,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::RuntimeTextLiteralCompare {
             literal: literal.to_owned(),
         },
-        runtime_text_literal_compare_width(native_plan.target.architecture, literal),
+        runtime_text_literal_compare_width(input.target.architecture, literal),
     )
 }
 
 pub(super) fn runtime_text_storage_compare_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     source_offset: usize,
     operator: StateGuardOperator,
 ) -> (MachineInstructionKind, usize) {
@@ -31,24 +31,24 @@ pub(super) fn runtime_text_storage_compare_shape(
             source_offset,
             operator,
         },
-        runtime_text_storage_compare_width(native_plan.target.architecture),
+        runtime_text_storage_compare_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_text_literal_write_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     literal: &str,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::RuntimeTextLiteralWrite {
             literal: literal.to_owned(),
         },
-        runtime_text_literal_write_width(native_plan.target.architecture, literal),
+        runtime_text_literal_write_width(input.target.architecture, literal),
     )
 }
 
 pub(super) fn runtime_text_literal_segment_write_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     literal: &str,
 ) -> (MachineInstructionKind, usize) {
@@ -57,12 +57,12 @@ pub(super) fn runtime_text_literal_segment_write_shape(
             byte_offset,
             literal: literal.to_owned(),
         },
-        runtime_text_literal_segment_write_width(native_plan.target.architecture, literal),
+        runtime_text_literal_segment_write_width(input.target.architecture, literal),
     )
 }
 
 pub(super) fn runtime_text_stored_suffix_append_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     buffer_offset: usize,
     source_offset: usize,
     target_offset: usize,
@@ -75,22 +75,22 @@ pub(super) fn runtime_text_stored_suffix_append_shape(
             target_offset,
             length_delta,
         },
-        runtime_text_stored_suffix_append_width(native_plan.target.architecture),
+        runtime_text_stored_suffix_append_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_text_buffer_materialize_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     target_offset: usize,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::RuntimeTextBufferMaterialize { target_offset },
-        runtime_text_buffer_materialize_width(native_plan.target.architecture),
+        runtime_text_buffer_materialize_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_text_stored_place_append_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     source_offset: usize,
     target_offset: usize,
 ) -> (MachineInstructionKind, usize) {
@@ -99,12 +99,12 @@ pub(super) fn runtime_text_stored_place_append_shape(
             source_offset,
             target_offset,
         },
-        runtime_text_stored_place_append_width(native_plan.target.architecture),
+        runtime_text_stored_place_append_width(input.target.architecture),
     )
 }
 
 pub(super) fn runtime_text_literal_append_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     target_offset: usize,
     literal: &str,
 ) -> (MachineInstructionKind, usize) {
@@ -113,12 +113,12 @@ pub(super) fn runtime_text_literal_append_shape(
             target_offset,
             literal: literal.to_owned(),
         },
-        runtime_text_literal_append_width(native_plan.target.architecture, literal),
+        runtime_text_literal_append_width(input.target.architecture, literal),
     )
 }
 
 pub(super) fn runtime_text_line_read_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     target_offset: usize,
     byte_capacity: usize,
     syscall_number: u32,
@@ -133,10 +133,6 @@ pub(super) fn runtime_text_line_read_shape(
             syscall_number_register,
             supervisor_call,
         },
-        runtime_text_line_read_width(
-            native_plan.target.architecture,
-            byte_capacity,
-            syscall_number,
-        ),
+        runtime_text_line_read_width(input.target.architecture, byte_capacity, syscall_number),
     )
 }

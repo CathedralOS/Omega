@@ -3,16 +3,15 @@ mod host;
 mod runtime_storage;
 mod runtime_text;
 
-use crate::plan::NativePlan;
-use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use crate::TargetToMachineInput;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_program::SelectedInstructionKind;
+use omega_target_program::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
 use omega_machine_program::MachineInstruction;
 
 pub(super) fn encode_machine_instruction(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     kind: &SelectedInstructionKind,
@@ -23,19 +22,19 @@ pub(super) fn encode_machine_instruction(
             operation,
             operands,
         } => {
-            let Some(operands) = native_plan.instructions.operands.span(*operands) else {
+            let Some(operands) = input.instructions.operands.span(*operands) else {
                 return Ok(Vec::new());
             };
 
-            host::encode_host_operation(native_plan, capability, operation, operands)
+            host::encode_host_operation(input, capability, operation, operands)
         }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
             ..
-        } => dispatch::encode_dispatch_loop_enter(native_plan, *entry_dispatch_index),
+        } => dispatch::encode_dispatch_loop_enter(input, *entry_dispatch_index),
         SelectedInstructionKind::EnterDispatchCase { dispatch_index, .. } => {
             dispatch::encode_dispatch_case_enter(
-                native_plan,
+                input,
                 machine_instructions,
                 machine_instruction_index,
                 *dispatch_index,
@@ -50,7 +49,7 @@ pub(super) fn encode_machine_instruction(
             has_storage: true,
             ..
         } => dispatch::encode_dispatch_guard_compare_static(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
             *byte_offset,
@@ -60,7 +59,7 @@ pub(super) fn encode_machine_instruction(
         ),
         SelectedInstructionKind::CompareRuntimeTextLiteral { literal, .. } => {
             runtime_text::encode_runtime_text_literal_compare(
-                native_plan,
+                input,
                 machine_instructions,
                 machine_instruction_index,
                 literal,
@@ -71,7 +70,7 @@ pub(super) fn encode_machine_instruction(
             operator,
             ..
         } => runtime_text::encode_runtime_text_storage_compare(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
             *source_offset,
@@ -84,7 +83,7 @@ pub(super) fn encode_machine_instruction(
             operator,
             ..
         } => runtime_storage::encode_runtime_storage_compare(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
             *left_offset,
@@ -99,7 +98,7 @@ pub(super) fn encode_machine_instruction(
             operator,
             ..
         } => runtime_storage::encode_runtime_storage_value_compare(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
             *byte_offset,
@@ -108,17 +107,13 @@ pub(super) fn encode_machine_instruction(
             *operator,
         ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
-            runtime_text::encode_runtime_text_literal_write(native_plan, literal)
+            runtime_text::encode_runtime_text_literal_write(input, literal)
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
             byte_offset,
             literal,
             ..
-        } => runtime_text::encode_runtime_text_literal_segment_write(
-            native_plan,
-            *byte_offset,
-            literal,
-        ),
+        } => runtime_text::encode_runtime_text_literal_segment_write(input, *byte_offset, literal),
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_offset,
             source_offset,
@@ -126,7 +121,7 @@ pub(super) fn encode_machine_instruction(
             length_delta,
             ..
         } => runtime_text::encode_runtime_text_stored_suffix_append(
-            native_plan,
+            input,
             *buffer_offset,
             *source_offset,
             *target_offset,
@@ -137,7 +132,7 @@ pub(super) fn encode_machine_instruction(
             target_offset,
             ..
         } => runtime_text::encode_runtime_text_stored_place_append(
-            native_plan,
+            input,
             *source_offset,
             *target_offset,
         ),
@@ -145,16 +140,16 @@ pub(super) fn encode_machine_instruction(
             target_offset,
             literal,
             ..
-        } => runtime_text::encode_runtime_text_literal_append(native_plan, *target_offset, literal),
+        } => runtime_text::encode_runtime_text_literal_append(input, *target_offset, literal),
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
-            runtime_text::encode_runtime_text_buffer_materialize(native_plan, *target_offset)
+            runtime_text::encode_runtime_text_buffer_materialize(input, *target_offset)
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
             value,
         } => runtime_storage::encode_runtime_machine_integer_write(
-            native_plan,
+            input,
             *byte_offset,
             *byte_size,
             *value,
@@ -163,11 +158,9 @@ pub(super) fn encode_machine_instruction(
             byte_offset,
             byte_length,
             ..
-        } => runtime_storage::encode_runtime_machine_string_write(
-            native_plan,
-            *byte_offset,
-            *byte_length,
-        ),
+        } => {
+            runtime_storage::encode_runtime_machine_string_write(input, *byte_offset, *byte_length)
+        }
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,
@@ -176,7 +169,7 @@ pub(super) fn encode_machine_instruction(
             supervisor_call,
             ..
         } => runtime_text::encode_runtime_text_line_read(
-            native_plan,
+            input,
             *target_offset,
             *byte_capacity,
             *syscall_number,
@@ -189,31 +182,31 @@ pub(super) fn encode_machine_instruction(
             byte_count,
             ..
         } => runtime_storage::encode_runtime_storage_copy(
-            native_plan,
+            input,
             *source_offset,
             *target_offset,
             *byte_count,
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             dispatch::encode_dispatch_state_write(
-                native_plan,
+                input,
                 machine_instructions,
                 machine_instruction_index,
                 *dispatch_index,
             )
         }
         SelectedInstructionKind::TerminateDispatch => dispatch::encode_dispatch_terminal_write(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
         ),
         SelectedInstructionKind::LeaveDispatchCase => dispatch::encode_dispatch_case_leave(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
         ),
         SelectedInstructionKind::LeaveFunction => {
-            architecture::encode_return(native_plan.target.architecture)
+            architecture::encode_return(input.target.architecture)
         }
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }

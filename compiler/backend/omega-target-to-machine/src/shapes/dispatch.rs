@@ -1,35 +1,35 @@
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
+use crate::TargetToMachineInput;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, return_width,
 };
 use omega_machine_program::MachineInstructionKind;
+use omega_target_program::StateGuardOperator;
 
 pub(super) fn dispatch_loop_enter_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     entry_dispatch_index: u32,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::DispatchLoopEnter {
             entry_dispatch_index,
         },
-        dispatch_loop_enter_width(native_plan.target.architecture),
+        dispatch_loop_enter_width(input.target.architecture),
     )
 }
 
 pub(super) fn dispatch_case_enter_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     dispatch_index: u32,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::DispatchCaseEnter { dispatch_index },
-        dispatch_case_enter_width(native_plan.target.architecture),
+        dispatch_case_enter_width(input.target.architecture),
     )
 }
 
 pub(super) fn dispatch_guard_compare_static_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     operator: StateGuardOperator,
     byte_offset: usize,
     byte_size: usize,
@@ -42,43 +42,43 @@ pub(super) fn dispatch_guard_compare_static_shape(
             byte_size,
             expected_value,
         },
-        dispatch_guard_compare_static_width(native_plan.target.architecture),
+        dispatch_guard_compare_static_width(input.target.architecture),
     )
 }
 
 pub(super) fn dispatch_state_write_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     dispatch_index: u32,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::DispatchStateWrite { dispatch_index },
-        dispatch_state_write_width(native_plan.target.architecture),
+        dispatch_state_write_width(input.target.architecture),
     )
 }
 
 pub(super) fn dispatch_terminate_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::DispatchTerminate {
-            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+            terminal_dispatch_index: input.terminal_dispatch_index,
         },
-        dispatch_state_write_width(native_plan.target.architecture),
+        dispatch_state_write_width(input.target.architecture),
     )
 }
 
 pub(super) fn dispatch_case_leave_shape(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
 ) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::DispatchCaseLeave,
-        dispatch_case_leave_width(native_plan.target.architecture),
+        dispatch_case_leave_width(input.target.architecture),
     )
 }
 
-pub(super) fn return_shape(native_plan: &NativePlan) -> (MachineInstructionKind, usize) {
+pub(super) fn return_shape(input: TargetToMachineInput<'_>) -> (MachineInstructionKind, usize) {
     (
         MachineInstructionKind::Return,
-        return_width(native_plan.target.architecture),
+        return_width(input.target.architecture),
     )
 }

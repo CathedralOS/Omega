@@ -1,12 +1,12 @@
-use crate::machine_code::branch_distances::byte_distance_to_next_runtime_write_end;
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
+use crate::TargetToMachineInput;
+use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_machine_program::MachineInstruction;
+use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_runtime_storage_compare(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     left_offset: usize,
@@ -15,12 +15,12 @@ pub(super) fn encode_runtime_storage_compare(
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_storage_compare(
-        native_plan.target.architecture,
+        input.target.architecture,
         left_offset,
         right_offset,
         byte_size,
         byte_distance_to_next_runtime_write_end(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
         )?,
@@ -29,7 +29,7 @@ pub(super) fn encode_runtime_storage_compare(
 }
 
 pub(super) fn encode_runtime_storage_value_compare(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
@@ -38,12 +38,12 @@ pub(super) fn encode_runtime_storage_value_compare(
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_storage_value_compare(
-        native_plan.target.architecture,
+        input.target.architecture,
         byte_offset,
         byte_size,
         expected_value,
         byte_distance_to_next_runtime_write_end(
-            native_plan,
+            input,
             machine_instructions,
             machine_instruction_index,
         )?,
@@ -52,13 +52,13 @@ pub(super) fn encode_runtime_storage_value_compare(
 }
 
 pub(super) fn encode_runtime_machine_integer_write(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_machine_integer_write(
-        native_plan.target.architecture,
+        input.target.architecture,
         byte_offset,
         byte_size,
         value,
@@ -66,25 +66,25 @@ pub(super) fn encode_runtime_machine_integer_write(
 }
 
 pub(super) fn encode_runtime_machine_string_write(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_machine_string_write(
-        native_plan.target.architecture,
+        input.target.architecture,
         byte_offset,
         byte_length,
     )
 }
 
 pub(super) fn encode_runtime_storage_copy(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     source_offset: usize,
     target_offset: usize,
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_storage_copy(
-        native_plan.target.architecture,
+        input.target.architecture,
         source_offset,
         target_offset,
         byte_count,

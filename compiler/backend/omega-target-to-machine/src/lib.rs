@@ -1,6 +1,8 @@
-use crate::plan::NativePlan;
+use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
+use omega_target::NativeTarget;
+use omega_target_program::InstructionPlan;
 
 mod branch_distances;
 mod encoding;
@@ -11,19 +13,29 @@ use encoding::encode_machine_instruction;
 use omega_machine_program::{MachineCodePlan, MachineFunctionCode, MachineInstruction};
 use shapes::machine_instruction_shape;
 
-pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePlan, Diagnostic> {
+#[derive(Debug, Clone, Copy)]
+pub struct TargetToMachineInput<'plan> {
+    pub target: NativeTarget,
+    pub instructions: &'plan InstructionPlan,
+    pub host_abi: &'plan HostAbiPlan,
+    pub terminal_dispatch_index: u32,
+}
+
+pub fn build_machine_code_plan(
+    input: TargetToMachineInput<'_>,
+) -> Result<MachineCodePlan, Diagnostic> {
     let mut machine_code_plan = MachineCodePlan {
-        target: native_plan.target,
+        target: input.target,
         functions: Arena::new(),
         instructions: Arena::new(),
         bytes: Arena::new(),
         byte_count: 0,
     };
 
-    for (function_handle, function) in native_plan.instructions.functions.iter() {
+    for (function_handle, function) in input.instructions.functions.iter() {
         let function_offset = machine_code_plan.byte_count;
         let machine_instructions = select_machine_instructions(
-            native_plan,
+            input,
             function_offset,
             function,
             &mut machine_code_plan.bytes,
@@ -49,15 +61,12 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePl
 }
 
 fn select_machine_instructions(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     function_offset: usize,
     function: &omega_target_program::FunctionInstructionPlan,
     bytes: &mut Arena<u8>,
 ) -> Result<Vec<MachineInstruction>, Diagnostic> {
-    let Some(selected_instructions) = native_plan
-        .instructions
-        .instructions
-        .span(function.instructions)
+    let Some(selected_instructions) = input.instructions.instructions.span(function.instructions)
     else {
         return Ok(Vec::new());
     };
@@ -73,8 +82,7 @@ fn select_machine_instructions(
                 .arena_index()
                 .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
                 .expect("selected instruction overflow");
-            let (kind, byte_width) =
-                machine_instruction_shape(native_plan, &selected_instruction.kind);
+            let (kind, byte_width) = machine_instruction_shape(input, &selected_instruction.kind);
             let instruction = MachineInstruction {
                 selected_instruction_index,
                 offset,
@@ -91,7 +99,7 @@ fn select_machine_instructions(
         let selected_instruction_index =
             machine_instructions[selected_offset].selected_instruction_index;
         let byte_span = bytes.insert_many(encode_machine_instruction(
-            native_plan,
+            input,
             &machine_instructions,
             selected_offset,
             &selected_instruction.kind,

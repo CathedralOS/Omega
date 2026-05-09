@@ -1,35 +1,35 @@
-use crate::machine_code::branch_distances::{
+use crate::TargetToMachineInput;
+use crate::branch_distances::{
     byte_distance_to_case_end, byte_distance_to_case_leave, byte_distance_to_dispatch_loop_start,
     byte_distance_to_next_state_write_end,
 };
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_machine_program::MachineInstruction;
+use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_dispatch_loop_enter(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     entry_dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
-    architecture::encode_dispatch_loop_enter(native_plan.target.architecture, entry_dispatch_index)
+    architecture::encode_dispatch_loop_enter(input.target.architecture, entry_dispatch_index)
 }
 
 pub(super) fn encode_dispatch_case_enter(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_case_enter(
-        native_plan.target.architecture,
+        input.target.architecture,
         dispatch_index,
         byte_distance_to_case_end(machine_instructions, machine_instruction_index)?,
     )
 }
 
 pub(super) fn encode_dispatch_guard_compare_static(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
@@ -38,7 +38,7 @@ pub(super) fn encode_dispatch_guard_compare_static(
     operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_guard_compare_static(
-        native_plan.target.architecture,
+        input.target.architecture,
         byte_offset,
         byte_size,
         expected_value,
@@ -48,38 +48,38 @@ pub(super) fn encode_dispatch_guard_compare_static(
 }
 
 pub(super) fn encode_dispatch_state_write(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_state_write(
-        native_plan.target.architecture,
+        input.target.architecture,
         dispatch_index,
         byte_distance_to_case_leave(machine_instructions, machine_instruction_index)?,
     )
 }
 
 pub(super) fn encode_dispatch_terminal_write(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_dispatch_state_write(
-        native_plan,
+        input,
         machine_instructions,
         machine_instruction_index,
-        native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+        input.terminal_dispatch_index,
     )
 }
 
 pub(super) fn encode_dispatch_case_leave(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_case_leave(
-        native_plan.target.architecture,
+        input.target.architecture,
         byte_distance_to_dispatch_loop_start(machine_instructions, machine_instruction_index)?,
     )
 }

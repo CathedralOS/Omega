@@ -1,11 +1,11 @@
-use crate::plan::NativePlan;
+use crate::TargetToMachineInput;
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 
-pub(in crate::machine_code) fn byte_distances_to_next_runtime_machine_write_end(
-    native_plan: &NativePlan,
+pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
@@ -14,7 +14,7 @@ pub(in crate::machine_code) fn byte_distances_to_next_runtime_machine_write_end(
         return Ok(Vec::new());
     };
     let Some(machine_write) =
-        next_runtime_write_group_end(native_plan, machine_instructions, machine_instruction_index)
+        next_runtime_write_group_end(input, machine_instructions, machine_instruction_index)
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode runtime text guard at byte {}: missing guarded runtime write",
@@ -34,8 +34,8 @@ pub(in crate::machine_code) fn byte_distances_to_next_runtime_machine_write_end(
         .collect())
 }
 
-pub(in crate::machine_code) fn byte_distance_to_next_runtime_write_end(
-    native_plan: &NativePlan,
+pub(crate) fn byte_distance_to_next_runtime_write_end(
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -43,15 +43,15 @@ pub(in crate::machine_code) fn byte_distance_to_next_runtime_write_end(
         return Ok(0);
     };
     byte_distance_to_next_runtime_write_end_from_branch_offset(
-        native_plan,
+        input,
         machine_instructions,
         machine_instruction_index,
         current.byte_width.saturating_sub(4),
     )
 }
 
-pub(in crate::machine_code) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
-    native_plan: &NativePlan,
+pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
+    input: TargetToMachineInput<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     branch_offset: usize,
@@ -60,7 +60,7 @@ pub(in crate::machine_code) fn byte_distance_to_next_runtime_write_end_from_bran
         return Ok(0);
     };
     let Some(machine_write) =
-        next_runtime_write_group_end(native_plan, machine_instructions, machine_instruction_index)
+        next_runtime_write_group_end(input, machine_instructions, machine_instruction_index)
     else {
         return Err(Diagnostic::error(format!(
             "cannot encode runtime storage guard at byte {}: missing guarded runtime write",
@@ -74,7 +74,7 @@ pub(in crate::machine_code) fn byte_distance_to_next_runtime_write_end_from_bran
 }
 
 fn next_runtime_write_group_end<'instructions>(
-    native_plan: &NativePlan,
+    input: TargetToMachineInput<'_>,
     machine_instructions: &'instructions [MachineInstruction],
     machine_instruction_index: usize,
 ) -> Option<&'instructions MachineInstruction> {
@@ -84,8 +84,7 @@ fn next_runtime_write_group_end<'instructions>(
         .skip(machine_instruction_index + 1)
         .find_map(|(index, instruction)| is_runtime_write(instruction).then_some(index))?;
 
-    let first_source =
-        selected_instruction_source(native_plan, &machine_instructions[first_write_index]);
+    let first_source = selected_instruction_source(input, &machine_instructions[first_write_index]);
     let mut last_write_index = first_write_index;
     for (index, instruction) in machine_instructions
         .iter()
@@ -95,7 +94,7 @@ fn next_runtime_write_group_end<'instructions>(
         if !is_runtime_write(instruction) {
             break;
         }
-        if selected_instruction_source(native_plan, instruction) != first_source {
+        if selected_instruction_source(input, instruction) != first_source {
             break;
         }
         last_write_index = index;
@@ -105,14 +104,14 @@ fn next_runtime_write_group_end<'instructions>(
 }
 
 fn selected_instruction_source<'plan>(
-    native_plan: &'plan NativePlan,
+    input: TargetToMachineInput<'plan>,
     instruction: &MachineInstruction,
 ) -> Option<StateKey> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
-    if !native_plan.instructions.instructions.is_valid(handle) {
+    if !input.instructions.instructions.is_valid(handle) {
         return None;
     }
-    let selected = native_plan.instructions.instructions.get(handle);
+    let selected = input.instructions.instructions.get(handle);
     Some(selected.source_key)
 }
 

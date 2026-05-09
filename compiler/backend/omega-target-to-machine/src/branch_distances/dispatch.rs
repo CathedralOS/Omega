@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 
 use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 
-pub(in crate::machine_code) fn byte_distance_to_case_end(
+pub(crate) fn byte_distance_to_case_end(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -25,7 +25,7 @@ pub(in crate::machine_code) fn byte_distance_to_case_end(
     Ok(target as isize - branch_program_counter as isize)
 }
 
-pub(in crate::machine_code) fn byte_distance_to_next_state_write_end(
+pub(crate) fn byte_distance_to_next_state_write_end(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -53,7 +53,7 @@ pub(in crate::machine_code) fn byte_distance_to_next_state_write_end(
     Ok(target as isize - branch_program_counter as isize)
 }
 
-pub(in crate::machine_code) fn byte_distance_to_case_leave(
+pub(crate) fn byte_distance_to_case_leave(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -75,7 +75,7 @@ pub(in crate::machine_code) fn byte_distance_to_case_leave(
     Ok(case_leave.offset as isize - branch_program_counter as isize)
 }
 
-pub(in crate::machine_code) fn byte_distance_to_dispatch_loop_start(
+pub(crate) fn byte_distance_to_dispatch_loop_start(
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
