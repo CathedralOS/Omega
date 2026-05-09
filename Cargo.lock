@@ -88,6 +88,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-artifacts"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+ "omega-target",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -109,6 +118,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-to-typed",
  "omega-abstract-syntax-tree",
+ "omega-artifacts",
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",

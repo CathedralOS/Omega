@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::emitter::{EmittedNativeOutput, NativeOutputKind};
-use crate::plan::NativePlan;
 use omega_core::diagnostics::Diagnostic;
+use omega_image::{EmittedImageOutput, ImageOutputKind};
+use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFinalization {
@@ -18,12 +18,12 @@ pub enum ExecutableFinalizationStatus {
     AlreadyExecutable,
 }
 
-pub fn finalize_native_output(
-    native_plan: &NativePlan,
-    emitted_output: &EmittedNativeOutput,
+pub fn finalize_emitted_image_output(
+    target: NativeTarget,
+    emitted_output: &EmittedImageOutput,
     output_path: &Path,
 ) -> Result<ExecutableFinalization, Diagnostic> {
-    if emitted_output.kind == NativeOutputKind::DirectExecutable {
+    if emitted_output.kind == ImageOutputKind::DirectExecutable {
         mark_executable_if_needed(output_path)?;
         return Ok(ExecutableFinalization {
             executable_path: output_path.to_path_buf(),
@@ -36,7 +36,7 @@ pub fn finalize_native_output(
 
     Err(Diagnostic::error(format!(
         "native output `{}` is {:?} for {:?}; Omega does not invoke external linkers, so this target must emit a direct executable image",
-        emitted_output.format, emitted_output.kind, native_plan.target
+        emitted_output.format, emitted_output.kind, target
     )))
 }
 

@@ -28,6 +28,7 @@ members = [
     "compiler/backend/images/omega-image-macho",
     "compiler/backend/object/omega-object",
     "compiler/backend/omega-native",
+    "compiler/orchestration/omega-artifacts",
     "compiler/orchestration/omega-compiler",
 ]
 resolver = "3"

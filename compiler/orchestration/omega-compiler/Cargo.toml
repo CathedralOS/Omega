@@ -9,6 +9,7 @@ name = "omega_compiler"
 path = "src/lib.rs"
 
 [dependencies]
+omega-artifacts = { path = "../omega-artifacts" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
 omega-abstract-syntax-to-typed = { path = "../../lowering/omega-abstract-syntax-to-typed" }

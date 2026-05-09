@@ -8,7 +8,6 @@ pub mod architecture;
 pub mod data;
 pub mod emission;
 pub mod emitter;
-pub mod executable_finalization;
 pub mod host_calls;
 pub mod identity;
 pub mod instructions;

@@ -1,0 +1,14 @@
+[package]
+name = "omega-artifacts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_artifacts"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-image = { path = "../../backend/images/omega-image" }
+omega-target = { path = "../../backend/omega-target" }

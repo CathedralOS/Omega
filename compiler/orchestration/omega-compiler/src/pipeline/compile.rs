@@ -11,6 +11,7 @@ use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
+use omega_artifacts::finalize_emitted_image_output;
 use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -20,7 +21,6 @@ use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
-use omega_native::executable_finalization::finalize_native_output;
 use omega_native::plan::build_native_plan_from_control_flow_with_workers;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
@@ -348,7 +348,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         })?;
     let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
         let executable_finalization =
-            finalize_native_output(&native_plan, &emitted_output, &native_output_path)
+            finalize_emitted_image_output(native_plan.target, &emitted_output, &native_output_path)
                 .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_executable_finalization_report(&executable_finalization)
