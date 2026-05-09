@@ -7,7 +7,7 @@ use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedProgramTables {
@@ -34,6 +34,29 @@ impl TypedProgramTables {
 
         for machine in &program.machines {
             tables.insert_machine(machine, &program.type_constraints);
+        }
+
+        tables
+    }
+
+    pub fn from_program_with_state_spans(program: &mut Program) -> Self {
+        let mut tables = Self::default();
+        let type_constraints = &program.type_constraints;
+
+        for invariant in &program.invariant_definitions {
+            tables.insert_type_constraints(invariant.constraints, type_constraints);
+        }
+
+        for data_definition in &program.data_definitions {
+            tables.insert_data_definition(data_definition, type_constraints);
+        }
+
+        for platform in &program.platforms {
+            tables.insert_platform(platform, type_constraints);
+        }
+
+        for machine in &mut program.machines {
+            tables.insert_machine_with_state_spans(machine, type_constraints);
         }
 
         tables
@@ -67,6 +90,20 @@ impl TypedProgramTables {
         }
     }
 
+    fn insert_machine_with_state_spans(
+        &mut self,
+        machine: &mut Machine,
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for owned_data in &machine.owned_data {
+            self.insert_owned_data(owned_data, type_constraints);
+        }
+
+        for state in &mut machine.states {
+            self.insert_state_with_statement_span(state, type_constraints);
+        }
+    }
+
     fn insert_owned_data(
         &mut self,
         owned_data: &OwnedData,
@@ -91,6 +128,41 @@ impl TypedProgramTables {
         for statement in &state.statements {
             self.insert_statement(statement, type_constraints);
         }
+    }
+
+    fn insert_state_with_statement_span(
+        &mut self,
+        state: &mut State,
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for parameter in &state.parameters {
+            self.insert_type_reference(&parameter.type_reference, type_constraints);
+        }
+
+        if let Some(return_type) = &state.return_type {
+            self.insert_type_reference(return_type, type_constraints);
+        }
+
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+        for statement in &state.statements {
+            let handle = self.statements.insert_tree(
+                statement,
+                &mut self.expressions,
+                &mut self.type_references,
+                type_constraints,
+            );
+            if count == 0 {
+                start = handle;
+            }
+            count = count.checked_add(1).expect("state statement span overflow");
+        }
+
+        state.statement_nodes = if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        };
     }
 
     fn insert_state_signature(
@@ -156,6 +228,7 @@ mod tests {
     use crate::state::State;
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
+    use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -179,6 +252,7 @@ mod tests {
                         continuation: None,
                         guard: TransitionGuard::When(Expression::Integer(1)),
                     })],
+                    statement_nodes: HandleSpan::empty(),
                 }],
             }],
             ..Program::default()
@@ -189,5 +263,6 @@ mod tests {
         assert_eq!(program.type_reference_table.type_reference_count(), 1);
         assert_eq!(program.expression_table.expression_count(), 1);
         assert_eq!(program.statement_table.statement_count(), 1);
+        assert_eq!(program.machines[0].states[0].statement_nodes.count(), 1);
     }
 }

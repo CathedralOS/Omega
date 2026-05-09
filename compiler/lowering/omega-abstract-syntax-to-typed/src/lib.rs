@@ -1327,6 +1327,7 @@ fn remap_state(
             .into_iter()
             .map(|statement| remap_statement(statement, source_constraints, target_constraints))
             .collect(),
+        statement_nodes: omega_core::arena::HandleSpan::empty(),
     }
 }
 
@@ -1723,6 +1724,7 @@ fn lower_state(
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?,
         statements,
+        statement_nodes: omega_core::arena::HandleSpan::empty(),
     })
 }
 

@@ -74,7 +74,7 @@ impl StatementTable {
     }
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
-        self.statements.insert(statement)
+        self.statements.append(statement)
     }
 
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {

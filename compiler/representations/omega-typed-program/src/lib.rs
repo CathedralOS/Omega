@@ -29,7 +29,7 @@ pub struct Program {
 
 impl Program {
     pub fn rebuild_tables(&mut self) {
-        let tables = tables::TypedProgramTables::from_program(self);
+        let tables = tables::TypedProgramTables::from_program_with_state_spans(self);
         self.expression_table = tables.expressions;
         self.statement_table = tables.statements;
         self.type_reference_table = tables.type_references;
