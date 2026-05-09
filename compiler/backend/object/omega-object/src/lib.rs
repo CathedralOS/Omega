@@ -209,8 +209,8 @@ pub fn emit_omega_object_container(input: ObjectContainerInput<'_>) -> ObjectCon
 
     ObjectContainerOutput {
         bytes,
-        file_name: "omega-native.omgobj".to_owned(),
-        format: "omega-native-object-container".to_owned(),
+        file_name: "omega-backend.omgobj".to_owned(),
+        format: "omega-backend-object-container".to_owned(),
         text_bytes: input.text_bytes.len(),
         data_bytes: input.data_bytes.len(),
         bss_bytes,

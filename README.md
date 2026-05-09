@@ -127,7 +127,7 @@ Long-term design assumptions:
 - The backend is shared where it should be shared, but architecture and platform boundaries stay obvious in the tree.
 - The standard library, host contracts, startup/runtime, and calling-convention/platform ABI knowledge are versioned inside the workspace, not treated as mysterious external glue.
 
-Current migration note: the old `compiler/backend/omega-native` bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing and `compiler/representations/omega-backend-plan` carries the temporary aggregate report surface. The long-term pressure stays the same: shrink the aggregate plan as phase-specific representations and artifacts become precise enough to stand alone.
+Current migration note: the old native bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing and `compiler/representations/omega-backend-plan` carries the temporary aggregate report surface. The long-term pressure stays the same: shrink the aggregate plan as phase-specific representations and artifacts become precise enough to stand alone.
 
 Legend:
 

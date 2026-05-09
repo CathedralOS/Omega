@@ -68,8 +68,8 @@ fn representation_crates_do_not_depend_on_native_bridge() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
         assert!(
-            !contents.contains("omega-native"),
-            "{} must not depend on omega-native; native is a temporary backend bridge, not a representation owner",
+            !contents.contains("omega-backend-pipeline"),
+            "{} must not depend on omega-backend-pipeline; backend phase sequencing belongs at orchestration edges, not inside lower layers",
             cargo_toml.display()
         );
     }
@@ -112,8 +112,8 @@ fn artifact_crates_do_not_depend_on_native_bridge() {
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
 
         assert!(
-            !contents.contains("omega-native"),
-            "{} must not depend on omega-native; artifacts describe outputs and reports without reaching back through the native bridge",
+            !contents.contains("omega-backend-pipeline"),
+            "{} must not depend on omega-backend-pipeline; artifacts describe outputs and reports without reaching back through phase orchestration",
             cargo_toml.display()
         );
     }
