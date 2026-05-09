@@ -2965,9 +2965,10 @@ fn write_function_instruction_plan(
     native_plan: &NativePlan,
     function: &FunctionInstructionPlan,
 ) {
+    let source_name = native_state_name(native_plan, function.source_key);
     output.push_str(&format!(
-        "- function {} from {}.{}\n",
-        function.symbol, function.machine, function.state
+        "- function {} from {}\n",
+        function.symbol, source_name
     ));
 
     match native_plan

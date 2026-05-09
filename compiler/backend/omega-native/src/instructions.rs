@@ -35,8 +35,7 @@ pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
 
     instruction_plan.functions.insert(FunctionInstructionPlan {
         symbol: native_plan.object.entry_symbol.clone(),
-        machine: native_plan.entry_machine_name().into(),
-        state: native_plan.entry_state_name().into(),
+        source_key: native_plan.entry_key,
         instructions,
     });
 

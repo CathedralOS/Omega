@@ -7,8 +7,6 @@ pub(in crate::identity) fn count_instruction_strings(
 ) {
     for (_, function) in native_plan.instructions.functions.iter() {
         storage.count_generated_symbol(&function.symbol);
-        storage.count_program_name_identity(&function.machine);
-        storage.count_program_name_identity(&function.state);
     }
 }
 

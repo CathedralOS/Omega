@@ -1,8 +1,8 @@
 use super::SelectedInstruction;
+use crate::control_flow::StateKey;
 use crate::instructions::model::InstructionOperand;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionPlan {
@@ -26,8 +26,7 @@ impl Default for InstructionPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionInstructionPlan {
     pub symbol: String,
-    pub machine: ProgramName,
-    pub state: ProgramName,
+    pub source_key: StateKey,
     pub instructions: HandleSpan<SelectedInstruction>,
 }
 
@@ -35,8 +34,7 @@ impl Default for FunctionInstructionPlan {
     fn default() -> Self {
         Self {
             symbol: String::new(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
+            source_key: StateKey::default(),
             instructions: HandleSpan::empty(),
         }
     }
