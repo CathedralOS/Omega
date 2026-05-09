@@ -3,10 +3,10 @@ mod host;
 mod runtime_storage;
 mod runtime_text;
 
-use crate::architecture;
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use omega_core::diagnostics::Diagnostic;
+use omega_instruction_selection as architecture;
 use omega_target_program::SelectedInstructionKind;
 
 use omega_machine_program::MachineInstruction;

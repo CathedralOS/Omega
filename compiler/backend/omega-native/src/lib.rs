@@ -1,7 +1,6 @@
 //! Native backend implementation.
 
 pub mod alias_flow;
-pub mod architecture;
 pub mod data;
 pub mod emission;
 pub mod emitter;

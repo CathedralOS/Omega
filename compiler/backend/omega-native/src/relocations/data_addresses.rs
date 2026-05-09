@@ -1,5 +1,5 @@
-use crate::architecture;
 use crate::plan::NativePlan;
+use omega_instruction_selection as architecture;
 use omega_object::{RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name};
 use omega_target::Architecture;
 use omega_target_program::{FunctionInstructionPlan, InstructionOperandKind};

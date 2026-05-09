@@ -9,7 +9,7 @@ pub(super) fn external_call_relocation_offset(
 ) -> usize {
     let operand_bytes = operands
         .iter()
-        .map(|operand| crate::architecture::operand_width(architecture, operand))
+        .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
         .sum::<usize>();
 
     selected_text_offset
@@ -95,7 +95,10 @@ pub(super) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
     syscall_number: u32,
 ) -> usize {
-    crate::architecture::runtime_text_line_read_target_address_offset(architecture, syscall_number)
+    omega_instruction_selection::runtime_text_line_read_target_address_offset(
+        architecture,
+        syscall_number,
+    )
 }
 
 pub(super) fn external_call_relocation_width(architecture: Architecture) -> usize {

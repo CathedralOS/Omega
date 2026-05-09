@@ -1,4 +1,3 @@
-use crate::architecture;
 use crate::machine_code::branch_distances::{
     byte_distance_to_next_runtime_write_end,
     byte_distance_to_next_runtime_write_end_from_branch_offset,
@@ -8,6 +7,7 @@ use crate::machine_code::widths::runtime_text_storage_compare_width;
 use crate::plan::NativePlan;
 use crate::state_guards::StateGuardOperator;
 use omega_core::diagnostics::Diagnostic;
+use omega_instruction_selection as architecture;
 use omega_machine_program::MachineInstruction;
 
 pub(super) fn encode_runtime_text_literal_compare(

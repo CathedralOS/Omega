@@ -1,8 +1,8 @@
-use crate::architecture;
 use crate::machine_code::host_bindings::host_binding_mechanism;
 use crate::machine_code::widths::host_call_sequence_width;
 use crate::plan::NativePlan;
 use omega_calling_conventions::HostBindingMechanism;
+use omega_instruction_selection as architecture;
 use omega_machine_program::MachineInstructionKind;
 use omega_target_program::InstructionOperand;
 
