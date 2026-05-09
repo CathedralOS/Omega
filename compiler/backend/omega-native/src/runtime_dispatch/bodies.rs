@@ -4,7 +4,6 @@ mod lookups;
 mod model;
 
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::states::DispatchState;
 use collection::build_dispatch_body;
 pub use context::RuntimeDispatchBodyContext;
 pub use model::{
@@ -12,6 +11,7 @@ pub use model::{
     RuntimeDispatchBodyPlan,
 };
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_state_dispatch::DispatchState;
 use std::sync::Arc;
 
 pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDispatchBodyPlan {

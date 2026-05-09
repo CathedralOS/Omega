@@ -336,6 +336,7 @@ dependencies = [
  "omega-relocations",
  "omega-runtime-text",
  "omega-state-calls",
+ "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-schedule",
  "omega-state-storage",
@@ -360,6 +361,7 @@ dependencies = [
  "omega-object",
  "omega-platform-interface",
  "omega-runtime-text",
+ "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-schedule",
  "omega-target-program",
@@ -449,6 +451,16 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
+ "omega-state-graph",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-state-dispatch"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
  "omega-state-graph",
  "omega-typed-program",
 ]

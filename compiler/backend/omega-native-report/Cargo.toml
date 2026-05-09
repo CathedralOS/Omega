@@ -20,6 +20,7 @@ omega-object = { path = "../object/omega-object" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-schedule = { path = "../omega-state-schedule" }
 omega-target-program = { path = "../../representations/omega-target-program" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }

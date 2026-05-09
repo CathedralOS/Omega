@@ -1,6 +1,6 @@
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 use omega_control_flow::StateKey;
+use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCaseInput {
