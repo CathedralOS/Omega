@@ -1,7 +1,7 @@
 mod model;
 mod operands;
 
-use crate::control_flow::StateKey;
+use crate::control_flow::{ControlFlowPlan, StateKey};
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 pub use model::{
     StateGuard, StateGuardKind, StateGuardLowering, StateGuardOperand, StateGuardOperandKind,
@@ -16,6 +16,7 @@ use operands::{GuardOperands, guard_operands};
 
 pub fn build_state_guard_plan(
     state_dispatch: &StateDispatchPlan,
+    control_flow: &ControlFlowPlan,
     layouts: &LayoutPlan,
     entry_machine: &str,
 ) -> StateGuardPlan {
@@ -27,13 +28,25 @@ pub fn build_state_guard_plan(
         };
 
         for (statement_order, edge) in edges.iter().enumerate() {
+            let Some(source_machine) = control_flow
+                .machine_by_symbol(state.key.machine)
+                .map(|machine| machine.name.clone())
+            else {
+                continue;
+            };
+            let Some(source_state) = control_flow
+                .state_by_key(state.key)
+                .map(|state| state.name.clone())
+            else {
+                continue;
+            };
             plan.guards.insert(build_state_guard(
                 &mut plan.operands,
                 layouts,
                 entry_machine,
                 state.key,
-                &state.machine,
-                &state.state,
+                &source_machine,
+                &source_state,
                 state.dispatch_index,
                 statement_order,
                 edge,

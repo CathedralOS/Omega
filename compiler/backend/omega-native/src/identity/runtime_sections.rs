@@ -30,8 +30,6 @@ pub(in crate::identity) fn count_state_dispatch_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, state) in native_plan.state_dispatch.states.iter() {
-        storage.count_program_name_identity(&state.machine);
-        storage.count_program_name_identity(&state.state);
         storage.count_generated_symbol(&state.label);
     }
     for (_, edge) in native_plan.state_dispatch.edges.iter() {

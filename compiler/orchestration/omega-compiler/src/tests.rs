@@ -1318,7 +1318,7 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
         .state_dispatch
         .states
         .iter()
-        .find(|(_, state)| state.machine == "main" && state.state == "prompt")
+        .find(|(_, state)| native_state_name(&native_plan, state.key) == "main.prompt")
         .map(|(_, state)| state)
         .expect("prompt dispatch state should exist");
     let prompt_edges = native_plan

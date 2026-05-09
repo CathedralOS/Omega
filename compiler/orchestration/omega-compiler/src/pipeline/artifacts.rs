@@ -1200,9 +1200,19 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, state) in native_plan.state_dispatch.states.iter() {
+                let machine_name = native_plan
+                    .control_flow
+                    .machine_by_symbol(state.key.machine)
+                    .map(|machine| machine.name.as_str())
+                    .unwrap_or("<unknown>");
+                let state_name = native_plan
+                    .control_flow
+                    .state_by_key(state.key)
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
                 output.push_str(&format!(
                     "- #{} {}.{} label `{}`\n",
-                    state.dispatch_index, state.machine, state.state, state.label
+                    state.dispatch_index, machine_name, state_name, state.label
                 ));
 
                 match native_plan.state_dispatch.edges.span(state.edges) {

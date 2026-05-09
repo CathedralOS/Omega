@@ -22,23 +22,38 @@ pub(super) fn build_dispatch_body(
     context: &RuntimeDispatchBodyContext,
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
+    let (machine_name, state_name) = state_names(context, dispatch_state.key);
     let mut operations = Vec::new();
     append_state_body_operations(
         context,
         dispatch_state.key,
-        &dispatch_state.machine,
-        &dispatch_state.state,
+        &machine_name,
+        &state_name,
         &mut operations,
         &mut Vec::new(),
     );
 
     CollectedRuntimeDispatchBody {
         key: dispatch_state.key,
-        machine: dispatch_state.machine.clone(),
-        state: dispatch_state.state.clone(),
+        machine: machine_name,
+        state: state_name,
         dispatch_index: dispatch_state.dispatch_index,
         operations,
     }
+}
+
+fn state_names(context: &RuntimeDispatchBodyContext, key: StateKey) -> (ProgramName, ProgramName) {
+    let machine = context
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.clone())
+        .unwrap_or_default();
+    let state = context
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.clone())
+        .unwrap_or_default();
+    (machine, state)
 }
 
 fn append_state_body_operations(

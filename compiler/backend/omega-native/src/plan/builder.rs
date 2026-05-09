@@ -94,7 +94,7 @@ pub(super) fn build_native_plan_with_workers(
         .map(|machine| machine.name.as_str())
         .unwrap_or(ENTRY_MACHINE_NAME);
     let state_guards = record_native_phase(&mut phase_timings, "state guards", || {
-        build_state_guard_plan(&state_dispatch, &layouts, entry_machine_name)
+        build_state_guard_plan(&state_dispatch, &control_flow, &layouts, entry_machine_name)
     });
 
     let mut native_plan = build_native_plan_skeleton(NativePlanSkeletonInput {

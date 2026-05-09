@@ -1,7 +1,6 @@
 use crate::control_flow::StateKey;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -13,8 +12,6 @@ pub struct StateDispatchPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchState {
     pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub dispatch_index: u32,
     pub label: String,
     pub edges: HandleSpan<DispatchEdge>,
@@ -24,8 +21,6 @@ impl Default for DispatchState {
     fn default() -> Self {
         Self {
             key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             dispatch_index: 0,
             label: String::new(),
             edges: HandleSpan::empty(),

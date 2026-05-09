@@ -11,7 +11,6 @@ use crate::control_flow::StateKey;
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
 use labels::dispatch_label;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
 
@@ -52,8 +51,6 @@ pub fn build_state_dispatch_plan_with_workers(
 
         plan.states.insert(DispatchState {
             key: dispatch_state.key,
-            machine: dispatch_state.machine,
-            state: dispatch_state.state,
             dispatch_index: dispatch_state.dispatch_index,
             label: dispatch_state.label,
             edges,
@@ -66,8 +63,6 @@ pub fn build_state_dispatch_plan_with_workers(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 struct CollectedDispatchState {
     key: StateKey,
-    machine: ProgramName,
-    state: ProgramName,
     dispatch_index: u32,
     label: String,
     edges: Vec<DispatchEdge>,
@@ -94,8 +89,6 @@ fn build_dispatch_state(
 
     CollectedDispatchState {
         key: runtime_state.key,
-        machine: runtime_state.machine.clone(),
-        state: runtime_state.state.clone(),
         dispatch_index: runtime_state.handle.arena_index(),
         label: dispatch_label(&runtime_state.machine, &runtime_state.state),
         edges,
