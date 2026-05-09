@@ -778,6 +778,33 @@ fn parses_typed_state_final_expression_and_self_parameter() {
 }
 
 #[test]
+fn parses_mutable_borrow_parameter_syntax() {
+    let tokens = Lexer::new(
+        r#"
+            machine Rooms {
+                state write_room(room: &mut Room) {
+                    room.cell = CellId::A1;
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+
+    assert_eq!(machine.states[0].parameters[0].name, "room");
+    assert_eq!(
+        machine.states[0].parameters[0].type_reference,
+        TypeReference::named("Room")
+    );
+    assert!(machine.states[0].parameters[0].is_mutable);
+    assert!(!machine.states[0].parameters[0].is_self);
+}
+
+#[test]
 fn parses_transition_arguments_and_guarded_terminal_completion() {
     let tokens = Lexer::new(
         r#"

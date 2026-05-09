@@ -394,10 +394,14 @@ impl Parser<'_, '_> {
                     true,
                 )
             } else {
-                let is_mutable = self.consume("mut");
+                let mut is_mutable = self.consume("mut");
                 let name = self.expect_identifier()?;
                 self.expect(":")?;
                 let is_const = self.consume("const");
+                if self.consume("&") {
+                    self.expect("mut")?;
+                    is_mutable = true;
+                }
                 let type_reference = self.parse_type_reference()?;
                 (name, type_reference, is_const, is_mutable, false)
             };
