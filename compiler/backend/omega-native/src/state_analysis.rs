@@ -36,6 +36,17 @@ impl StateAnalysisContext {
             })
     }
 
+    pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.key == state_key)
+            || self.state_calls.calls.iter().any(|(_, state_call)| {
+                state_call.required
+                    && (state_call.source_key == state_key || state_call.target_key == state_key)
+            })
+    }
+
     pub fn state_mutation_is_already_lowered(
         &self,
         machine_name: &str,

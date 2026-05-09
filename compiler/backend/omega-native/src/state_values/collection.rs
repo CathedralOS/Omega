@@ -14,10 +14,12 @@ pub(super) fn build_machine_state_value_plan(
     let mut plan = StateValuePlan::default();
 
     for state in &machine.states {
-        let required = context.state_is_required(&machine.name, &state.name);
-        let source_key = context
-            .state_key(&machine.name, &state.name)
-            .unwrap_or_default();
+        let source_key = StateKey {
+            machine: machine.symbol,
+            state: state.symbol,
+            segment_index: 0,
+        };
+        let required = context.state_is_required_by_key(source_key);
 
         for (statement_index, statement) in state.statements.iter().enumerate() {
             match statement {
