@@ -14,6 +14,7 @@ members = [
     "compiler/lowering/omega-abstract-syntax-to-typed",
     "compiler/lowering/omega-typed-to-control-flow",
     "compiler/representations/omega-typed-program",
+    "compiler/representations/omega-state-graph",
     "compiler/representations/omega-control-flow",
     "compiler/representations/omega-target-program",
     "compiler/representations/omega-machine-program",

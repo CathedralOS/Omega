@@ -239,6 +239,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-program",
  "omega-object",
+ "omega-state-graph",
  "omega-target",
  "omega-target-program",
  "omega-typed-program",
@@ -266,6 +267,15 @@ name = "omega-proof"
 version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",
+ "omega-core",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-state-graph"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
  "omega-core",
  "omega-typed-program",
 ]
