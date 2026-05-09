@@ -47,8 +47,23 @@ impl Default for FieldLayout {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VariantLayout {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+}
+
+impl Default for VariantLayout {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DataShape {
-    Enum { variants: Vec<ProgramName> },
+    Enum { variants: Vec<VariantLayout> },
     Record { fields: HandleSpan<FieldLayout> },
 }
 

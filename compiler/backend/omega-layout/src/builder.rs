@@ -1,6 +1,8 @@
 use crate::packing::{PlannedField, pack_fields};
 use crate::sizing::primitive_type_layout;
-use crate::{DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout};
+use crate::{
+    DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout,
+};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -129,7 +131,10 @@ impl<'program> LayoutBuilder<'program> {
                 .members
                 .iter()
                 .filter_map(|member| match member {
-                    DataMember::Variant(variant) => Some(variant.name.clone()),
+                    DataMember::Variant(variant) => Some(VariantLayout {
+                        symbol: variant.symbol,
+                        name: variant.name.clone(),
+                    }),
                     DataMember::Field(_) => None,
                 })
                 .collect();

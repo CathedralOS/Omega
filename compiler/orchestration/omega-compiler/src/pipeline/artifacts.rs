@@ -1728,7 +1728,7 @@ impl ArtifactWriter {
                 DataShape::Enum { variants } => {
                     let variants = variants
                         .iter()
-                        .map(ToString::to_string)
+                        .map(|variant| variant.name.to_string())
                         .collect::<Vec<_>>()
                         .join(", ");
                     output.push_str(&format!("  variants: {}\n", variants));

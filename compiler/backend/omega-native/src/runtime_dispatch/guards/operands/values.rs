@@ -14,18 +14,23 @@ pub(super) fn resolved_guard_operand_value(
     let Expression::Name(path) = expression else {
         return None;
     };
-    let [type_name, variant_name] = path.as_slice() else {
+    let [_, _] = path.as_slice() else {
         return None;
     };
+    let type_symbol = path.head_symbol();
+    let variant_symbol = path.symbol();
+    if !type_symbol.is_valid() || !variant_symbol.is_valid() {
+        return None;
+    }
 
     layouts
         .data_layouts
         .iter()
-        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
         .and_then(|(_, data_layout)| match &data_layout.shape {
             DataShape::Enum { variants } => variants
                 .iter()
-                .position(|candidate| candidate == variant_name)
+                .position(|candidate| candidate.symbol == variant_symbol)
                 .and_then(|index| i64::try_from(index).ok()),
             DataShape::Record { .. } => None,
         })

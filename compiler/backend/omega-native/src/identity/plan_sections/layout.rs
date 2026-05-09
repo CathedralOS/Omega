@@ -9,7 +9,7 @@ pub(in crate::identity) fn count_layout_strings(
         storage.count_program_name_identity(&data_layout.name);
         if let omega_layout::DataShape::Enum { variants } = &data_layout.shape {
             for variant in variants {
-                storage.count_program_name_identity(variant);
+                storage.count_program_name_identity(&variant.name);
             }
         }
     }

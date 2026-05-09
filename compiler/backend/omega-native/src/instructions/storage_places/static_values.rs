@@ -8,20 +8,25 @@ pub(in crate::instructions) fn enum_variant_value(
     let Expression::Name(path) = expression else {
         return None;
     };
-    let [type_name, variant_name] = path.as_slice() else {
+    let [_, _] = path.as_slice() else {
         return None;
     };
+    let type_symbol = path.head_symbol();
+    let variant_symbol = path.symbol();
+    if !type_symbol.is_valid() || !variant_symbol.is_valid() {
+        return None;
+    }
     let data_layout = layouts
         .data_layouts
         .iter()
-        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
         .map(|(_, data_layout)| data_layout)?;
     let DataShape::Enum { variants } = &data_layout.shape else {
         return None;
     };
     variants
         .iter()
-        .position(|variant| variant == variant_name)
+        .position(|variant| variant.symbol == variant_symbol)
         .and_then(|index| i64::try_from(index).ok())
 }
 
