@@ -1,8 +1,16 @@
 use std::path::{Path, PathBuf};
 
+use omega_core::allocations::AllocationDelta;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::NativeTarget;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
+    pub allocations: AllocationDelta,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFinalization {

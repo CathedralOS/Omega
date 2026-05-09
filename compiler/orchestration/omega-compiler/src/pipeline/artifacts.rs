@@ -2,9 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::ast::item::Item;
-use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
+use crate::pipeline::compile::{LoadedFile, LoadedProgram};
 use crate::pipeline::trust::TrustReport;
-use omega_artifacts::{ExecutableFinalization, ExecutableFinalizationStatus};
+use omega_artifacts::{ExecutableFinalization, ExecutableFinalizationStatus, PhaseTiming};
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };

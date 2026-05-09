@@ -11,8 +11,8 @@ use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
-use omega_artifacts::finalize_emitted_image_output;
-use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
+use omega_artifacts::{PhaseTiming, finalize_emitted_image_output};
+use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_effects::infer_effects;
@@ -43,13 +43,6 @@ pub struct CheckOutput {
     pub summary: String,
     pub artifacts_dir: PathBuf,
     pub phase_timings: Vec<PhaseTiming>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PhaseTiming {
-    pub phase: String,
-    pub microseconds: u128,
-    pub allocations: AllocationDelta,
 }
 
 pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
