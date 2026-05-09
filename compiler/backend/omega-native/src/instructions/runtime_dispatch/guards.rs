@@ -87,7 +87,7 @@ fn runtime_text_storage_guard(
     {
         return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
             buffer_symbol: buffer.symbol.clone(),
-            source_symbol: source_place.symbol,
+            source_symbol: source_place.symbol_name(native_plan.entry_machine_name()),
             source_offset: source_place.byte_offset,
             operator,
         });
@@ -98,7 +98,7 @@ fn runtime_text_storage_guard(
     {
         return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
             buffer_symbol: buffer.symbol.clone(),
-            source_symbol: source_place.symbol,
+            source_symbol: source_place.symbol_name(native_plan.entry_machine_name()),
             source_offset: source_place.byte_offset,
             operator,
         });
@@ -146,9 +146,9 @@ fn runtime_storage_guard(
         }
 
         return Some(SelectedInstructionKind::CompareRuntimeStorage {
-            left_symbol: left.symbol,
+            left_symbol: left.symbol_name(native_plan.entry_machine_name()),
             left_offset: left.byte_offset,
-            right_symbol: right.symbol,
+            right_symbol: right.symbol_name(native_plan.entry_machine_name()),
             right_offset: right.byte_offset,
             byte_size: left.byte_count,
             operator,
@@ -159,7 +159,7 @@ fn runtime_storage_guard(
         && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.right)
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            symbol: place.symbol,
+            symbol: place.symbol_name(native_plan.entry_machine_name()),
             byte_offset: place.byte_offset,
             byte_size: place.byte_count,
             expected_value,
@@ -171,7 +171,7 @@ fn runtime_storage_guard(
         && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.left)
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
-            symbol: place.symbol,
+            symbol: place.symbol_name(native_plan.entry_machine_name()),
             byte_offset: place.byte_offset,
             byte_size: place.byte_count,
             expected_value,

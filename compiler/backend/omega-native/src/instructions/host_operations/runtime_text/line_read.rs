@@ -64,7 +64,7 @@ pub(in crate::instructions::host_operations) fn runtime_text_line_read(
 
     Some(SelectedInstructionKind::ReadRuntimeTextLine {
         buffer_symbol: data_object.symbol.clone(),
-        target_symbol: target_place.symbol,
+        target_symbol: target_place.symbol_name(native_plan.entry_machine_name()),
         target_offset: target_place.byte_offset,
         byte_capacity,
         syscall_number: *syscall_number,

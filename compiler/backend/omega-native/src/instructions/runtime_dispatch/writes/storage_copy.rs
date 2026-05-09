@@ -36,9 +36,9 @@ pub(in crate::instructions::runtime_dispatch) fn runtime_storage_copy(
     }
 
     Some(SelectedInstructionKind::CopyRuntimeStorage {
-        source_symbol: source_place.symbol,
+        source_symbol: source_place.symbol_name(native_plan.entry_machine_name()),
         source_offset: source_place.byte_offset,
-        target_symbol: target_place.symbol,
+        target_symbol: target_place.symbol_name(native_plan.entry_machine_name()),
         target_offset: target_place.byte_offset,
         byte_count: target_place.byte_count,
     })

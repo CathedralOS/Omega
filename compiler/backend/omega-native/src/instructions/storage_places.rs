@@ -6,7 +6,7 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::resolve_machine_owned_place;
-pub(super) use model::RuntimeStoragePlace;
+pub(super) use model::{RuntimeStoragePlace, RuntimeStorageRegion};
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
 use crate::plan::NativePlan;
@@ -15,7 +15,6 @@ use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
-use omega_object::{machine_storage_symbol_name, runtime_frame_storage_symbol_name};
 use omega_typed_program::expression::{Expression, NamePath};
 
 pub(super) fn resolve_runtime_storage_place(
@@ -33,7 +32,7 @@ pub(super) fn resolve_runtime_storage_place(
         expression,
     ) {
         return Some(RuntimeStoragePlace {
-            symbol: machine_storage_symbol_name(native_plan.entry_machine_name()),
+            region: RuntimeStorageRegion::Machine,
             byte_offset,
             byte_count,
         });
@@ -81,7 +80,7 @@ pub(super) fn resolve_runtime_storage_place(
         resolve_nested_field_layout(&native_plan.layouts, &root_field, suffix)?;
 
     Some(RuntimeStoragePlace {
-        symbol: runtime_frame_storage_symbol_name(),
+        region: RuntimeStorageRegion::RuntimeFrame,
         byte_offset,
         byte_count: layout.size,
     })
