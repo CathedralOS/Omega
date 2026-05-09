@@ -7,7 +7,7 @@ mod table;
 
 pub use definition::{SymbolDefinition, builtin_type_symbol_definitions};
 pub use kind::SymbolKind;
-pub use name::{SymbolDebugName, SymbolName, SymbolNameRef};
+pub use name::{SymbolDebugName, SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
 pub use symbol::{Symbol, SymbolDebugNameHandle, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{SymbolNameStorageCounts, SymbolTable};

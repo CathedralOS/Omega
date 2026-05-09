@@ -7,7 +7,7 @@ use crate::source::{SourceMap, SourceSpan};
 
 use super::{
     Symbol, SymbolDebugName, SymbolDebugNameHandle, SymbolDefinition, SymbolHandle, SymbolName,
-    SymbolPath,
+    SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -215,11 +215,11 @@ impl SymbolTable {
         };
 
         for (_, name) in self.names.iter() {
-            match name {
-                SymbolName::Missing => counts.missing += 1,
-                SymbolName::Source(_) => counts.source_names += 1,
-                SymbolName::Static(_) => counts.static_names += 1,
-                SymbolName::Owned(_) => counts.owned_names += 1,
+            match name.storage_kind() {
+                SymbolNameStorageKind::Missing => counts.missing += 1,
+                SymbolNameStorageKind::Source => counts.source_names += 1,
+                SymbolNameStorageKind::Static => counts.static_names += 1,
+                SymbolNameStorageKind::Owned => counts.owned_names += 1,
             }
         }
 
