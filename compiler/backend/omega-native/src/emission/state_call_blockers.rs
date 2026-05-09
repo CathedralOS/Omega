@@ -33,7 +33,7 @@ pub(super) fn collect_state_call_blockers(
                 "state calls",
                 &format!(
                     "{} statement {} has unresolved state call through `{}`",
-                    source_name, state_call.statement_index, state_call.receiver
+                    source_name, state_call.statement_index, state_call.receiver_display
                 ),
             ));
             continue;
@@ -89,7 +89,7 @@ pub(super) fn collect_state_call_blockers(
                     "{} statement {} has unresolved state call through `{}`",
                     source_name,
                     state_call.statement_index,
-                    state_call.receiver
+                    state_call.receiver_display
                 ),
             )),
         };
@@ -110,7 +110,7 @@ fn collect_unresolved_state_call_blockers(
             "state calls",
             &format!(
                 "{} statement {} has unresolved state call through `{}`",
-                source_name, state_call.statement_index, state_call.receiver
+                source_name, state_call.statement_index, state_call.receiver_display
             ),
         ));
     }

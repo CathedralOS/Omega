@@ -752,7 +752,7 @@ impl ArtifactWriter {
                     "- {} statement {} `{}` -> {} args {} {:?}/{:?} reachable {} required {}\n",
                     source_name,
                     state_call.statement_index,
-                    state_call.receiver,
+                    state_call.receiver_display,
                     target_name,
                     state_call.argument_count,
                     state_call.resolution,

@@ -14,7 +14,7 @@ pub struct StateCallPlan {
 pub struct StateCall {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub receiver: ProgramName,
+    pub receiver_display: ProgramName,
     pub target_key: StateKey,
     pub argument_count: usize,
     pub arguments: HandleSpan<StateCallArgument>,
@@ -29,7 +29,7 @@ impl Default for StateCall {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            receiver: ProgramName::default(),
+            receiver_display: ProgramName::default(),
             target_key: StateKey::default(),
             argument_count: 0,
             arguments: HandleSpan::empty(),

@@ -49,6 +49,12 @@ impl NativeStringStorage {
             self.count_identity(name.as_str());
         }
     }
+
+    pub(in crate::identity) fn count_program_name_report(&mut self, name: &ProgramName) {
+        if !name.as_str().is_empty() {
+            self.count_report(name.as_str());
+        }
+    }
 }
 
 fn count_string(count: &mut usize, bytes: &mut usize, value: &str) {
