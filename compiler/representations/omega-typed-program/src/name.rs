@@ -80,11 +80,7 @@ impl fmt::Display for ProgramName {
 
 impl fmt::Debug for ProgramName {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("ProgramName")
-            .field("text", &self.as_str())
-            .field("source_span", &self.source_span)
-            .finish()
+        fmt::Debug::fmt(self.as_str(), formatter)
     }
 }
 
