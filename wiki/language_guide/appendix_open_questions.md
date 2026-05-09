@@ -13,6 +13,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 - Omega should distinguish proof numbers from machine numbers. `Nat`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
+- Inline assembly should emit compiler-checked contracts rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared.
 - Typed states remain branch-free semantically. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states with explicit edges.
 - `state entry` is for implicit invocation, such as `machine main`, anonymous machines, and future thread/task machines. Ordinary machines can still be entered through explicit state names.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
@@ -28,5 +29,8 @@ This page tracks design pressure that is not fully nailed down yet.
 - What exact spelling should arithmetic modes use: `i32[exact]`, `i32[wrapping]`, `i32[trap]`, `i32[saturating]`, and `i32[checked]`, or a separate syntax?
 - Does `checked` arithmetic return `Option`, `Result`, a language-specific checked value, or require explicit operator forms?
 - How should `Real` contracts lower when called with `f32` or `f64`: explicit `approx<Real, eps=...>`, compiler-inferred error bounds, or named approximation policies?
+- Should inline assembly allow local labels and internal jumps, or only structured exits that map to Omega transitions?
+- What is the minimum contract syntax for assembly clobbers, memory effects, target features, and emitted invariants?
+- Should assembly contracts be inferred from known instruction definitions, declared manually, or both?
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should host operation signatures describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
