@@ -1,7 +1,7 @@
 //! Native backend implementation and surface collection.
 
-use omega_abstract_syntax_tree::item::{Item, Machine, Platform};
 use omega_core::arena::Arena;
+use omega_typed_program::{Program, machine::Machine, platform::Platform};
 
 pub mod abi;
 pub mod alias_flow;
@@ -60,17 +60,15 @@ pub struct NativePlatformSurface {
     pub states: usize,
 }
 
-pub fn build_native_surface_report(items: &[Item]) -> NativeSurfaceReport {
+pub fn build_native_surface_report(program: &Program) -> NativeSurfaceReport {
     let mut report = NativeSurfaceReport::default();
 
-    for item in items {
-        match item {
-            Item::Capability(_) => {}
-            Item::Machine(machine) => collect_machine(&mut report, machine),
-            Item::Platform(platform) => collect_platform(&mut report, platform),
-            Item::Data(_) | Item::Invariant(_) | Item::Use(_) => {}
-            Item::Target(_) | Item::TrustDefinition(_) => {}
-        }
+    for machine in &program.machines {
+        collect_machine(&mut report, machine);
+    }
+
+    for platform in &program.platforms {
+        collect_platform(&mut report, platform);
     }
 
     report
@@ -101,34 +99,44 @@ fn collect_platform(report: &mut NativeSurfaceReport, platform: &Platform) {
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::identifier::Identifier;
-    use omega_abstract_syntax_tree::item::{Item, Machine, Platform, State, StateSignature};
+    use omega_core::symbols::SymbolHandle;
+    use omega_typed_program::Program;
+    use omega_typed_program::machine::Machine;
+    use omega_typed_program::name::ProgramName;
+    use omega_typed_program::platform::Platform;
+    use omega_typed_program::signature::StateSignature;
+    use omega_typed_program::state::State;
 
     use super::build_native_surface_report;
 
     #[test]
     fn collects_entry_machine_and_platforms() {
-        let report = build_native_surface_report(&[
-            Item::Platform(Platform {
-                name: Identifier::generated("Console"),
+        let report = build_native_surface_report(&Program {
+            platforms: vec![Platform {
+                symbol: SymbolHandle::default(),
+                name: ProgramName::generated("Console"),
                 states: vec![StateSignature {
-                    name: Identifier::generated("write_line"),
+                    symbol: SymbolHandle::default(),
+                    name: ProgramName::generated("write_line"),
                     parameters: Vec::new(),
                     return_type: None,
                 }],
-            }),
-            Item::Machine(Machine {
-                name: Identifier::generated("main"),
+            }],
+            machines: vec![Machine {
+                symbol: SymbolHandle::default(),
+                name: ProgramName::generated("main"),
                 contains: Vec::new(),
                 owned_data: Vec::new(),
                 states: vec![State {
-                    name: Identifier::generated("entry"),
+                    symbol: SymbolHandle::default(),
+                    name: ProgramName::generated("entry"),
                     parameters: Vec::new(),
                     return_type: None,
                     statements: Vec::new(),
                 }],
-            }),
-        ]);
+            }],
+            ..Program::default()
+        });
 
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.platforms.len(), 1);

@@ -154,12 +154,12 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
-        let native_surface = build_native_surface_report(&loaded_program.items);
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
         let native_plan =
             build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let native_surface = build_native_surface_report(&program);
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -290,12 +290,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
-        let native_surface = build_native_surface_report(&loaded_program.items);
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
         let native_plan =
             build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
                 .map_err(|diagnostic| vec![diagnostic])?;
+        let native_surface = build_native_surface_report(&program);
         artifacts
             .write_native_report(&native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;

@@ -107,11 +107,11 @@ The native path currently supports a small but real subset:
 - Constant integer assignment into host-call arguments.
 - Static guarded transition selection for compile-time-known enum-style values.
 - Static record/array/field text lowering for simple sample data.
-- Enough runtime dispatch, storage, text building, and host calls to emit the dungeon crawler sample as a direct macOS ARM64 executable image.
+- Enough runtime dispatch, storage, text building, and host calls to plan the dungeon crawler sample up to native emission.
 
 Current known limitation:
 
-- `console.read_line` is still lowered as a raw host read. Interactive terminal line mode can make the dungeon crawler usable, but piped multi-line input is not yet line-buffered and EOF is not handled cleanly. The next runtime milestone is explicit line discipline for stdin.
+- `console.read_line` on macOS is blocked before emission because the old direct Darwin stdin syscall path can produce unsafe, unkillable test binaries. The next runtime milestone is explicit line discipline through a compiler-owned buffer or a libSystem-backed host binding.
 - Linux ARM64 direct ELF currently targets the small CLI path first. More runtime dispatch coverage should move over once the direct image writer grows beyond the initial syscall proof.
 
 Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.

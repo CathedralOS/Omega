@@ -198,7 +198,6 @@ dependencies = [
 name = "omega-native"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-calling-conventions",
  "omega-core",
  "omega-image",

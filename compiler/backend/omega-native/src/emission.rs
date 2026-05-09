@@ -4,6 +4,7 @@ use crate::target_output::can_emit_target_output;
 use omega_core::arena::Arena;
 
 mod host_argument_blockers;
+mod host_binding_blockers;
 mod model;
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
@@ -15,6 +16,7 @@ mod storage_blockers;
 pub use model::{EmissionBlocker, EmissionPlan};
 
 use host_argument_blockers::collect_host_argument_blockers;
+use host_binding_blockers::collect_host_binding_blockers;
 use model::blocker;
 use runtime_dispatch_blockers::{
     collect_runtime_dispatch_blockers, runtime_and_required_states, runtime_dispatch_loop_blocker,
@@ -67,6 +69,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         ));
     }
 
+    collect_host_binding_blockers(native_plan, &mut blockers);
     collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
     collect_state_call_blockers(
         native_plan,

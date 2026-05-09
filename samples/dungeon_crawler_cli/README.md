@@ -14,10 +14,11 @@ What it is trying to prove:
 
 Current runtime note:
 
-- Native macOS ARM64 emission can build this sample as a direct executable image.
-- Interactive terminal input can exercise the loop.
-- Piped multi-line input is not reliable yet because `read_line` currently uses
-  raw host reads rather than compiler-owned line buffering.
+- Native macOS ARM64 planning reaches the emission phase, then blocks before
+  writing a binary because stdin is not yet routed through a safe line-buffered
+  runtime or libSystem-backed host binding.
+- Interactive terminal input is the intended runtime path once `read_line`
+  lowering is made safe again.
 
 Current loop:
 
