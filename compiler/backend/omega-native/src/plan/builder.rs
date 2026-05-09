@@ -15,7 +15,6 @@ use crate::runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
     runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
 };
-use crate::runtime_text::build_runtime_text_plan;
 use crate::state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
@@ -30,6 +29,7 @@ use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
+use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
     StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
 };
@@ -193,7 +193,7 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     native_plan.runtime_dispatch_loop = runtime_dispatch_loop;
     native_plan.runtime_storage = runtime_storage;
     native_plan.runtime_text = record_native_phase(&mut phase_timings, "runtime text", || {
-        build_runtime_text_plan(&native_plan)
+        build_runtime_text_plan(&native_plan.host_calls, &native_plan.state_storage)
     });
     native_plan.data = record_native_phase(&mut phase_timings, "native data", || {
         build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage)

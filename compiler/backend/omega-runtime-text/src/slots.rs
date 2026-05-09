@@ -5,7 +5,7 @@ use omega_typed_program::name::ProgramName;
 use super::places::expression_place_eq;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
 
-pub(in crate::runtime_text) fn build_runtime_text_slots(
+pub(crate) fn build_runtime_text_slots(
     plan: &RuntimeTextPlan,
 ) -> Arena<RuntimeTextSlot> {
     let mut slots = Vec::new();

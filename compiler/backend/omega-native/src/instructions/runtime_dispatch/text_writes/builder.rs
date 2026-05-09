@@ -4,7 +4,7 @@ use crate::instructions::bindings::{
 use crate::instructions::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::instructions::storage_places::resolve_runtime_storage_place;
 use crate::plan::NativePlan;
-use crate::runtime_text::RuntimeTextBuilderSegmentKind;
+use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_control_flow::StateKey;
 use omega_target_program::{NativeDataObjectHandle, RuntimeStorageRegion, SelectedInstructionKind};
 use omega_typed_program::expression::Expression;
@@ -150,8 +150,8 @@ fn prefixed_stored_place_write(
     buffer: NativeDataObjectHandle,
     target_region: RuntimeStorageRegion,
     target_offset: usize,
-    prefix: &crate::runtime_text::RuntimeTextBuilderSegment,
-    suffix: &crate::runtime_text::RuntimeTextBuilderSegment,
+    prefix: &omega_runtime_text::RuntimeTextBuilderSegment,
+    suffix: &omega_runtime_text::RuntimeTextBuilderSegment,
     resolve_expression: &dyn Fn(&Expression) -> Expression,
 ) -> Option<Vec<SelectedInstructionKind>> {
     let Expression::String(prefix) = &prefix.expression else {

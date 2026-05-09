@@ -138,6 +138,7 @@ dependencies = [
  "omega-parser",
  "omega-platform-interface",
  "omega-proof",
+ "omega-runtime-text",
  "omega-state-graph",
  "omega-target",
  "omega-target-program",
@@ -193,6 +194,7 @@ dependencies = [
  "omega-image-emission",
  "omega-native",
  "omega-platform-interface",
+ "omega-runtime-text",
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-storage",
@@ -330,6 +332,7 @@ dependencies = [
  "omega-object-planning",
  "omega-platform-interface",
  "omega-relocations",
+ "omega-runtime-text",
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-storage",
@@ -353,6 +356,7 @@ dependencies = [
  "omega-native",
  "omega-object",
  "omega-platform-interface",
+ "omega-runtime-text",
  "omega-state-graph",
  "omega-target-program",
  "omega-typed-program",
@@ -420,6 +424,18 @@ dependencies = [
  "omega-object",
  "omega-target",
  "omega-target-program",
+]
+
+[[package]]
+name = "omega-runtime-text"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-platform-interface",
+ "omega-state-storage",
+ "omega-typed-program",
 ]
 
 [[package]]

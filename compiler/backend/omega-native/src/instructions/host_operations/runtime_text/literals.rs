@@ -1,7 +1,7 @@
 use super::buffers::find_runtime_text_input_buffer_data;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use crate::runtime_text::RuntimeTextWriteKind;
+use omega_runtime_text::RuntimeTextWriteKind;
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
@@ -101,7 +101,7 @@ fn runtime_text_write_for_operation<'plan>(
     native_plan: &'plan NativePlan,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&'plan crate::runtime_text::RuntimeTextWrite> {
+) -> Option<&'plan omega_runtime_text::RuntimeTextWrite> {
     native_plan
         .runtime_text
         .writes

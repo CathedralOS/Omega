@@ -3475,7 +3475,7 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
 
     assert_eq!(
         runtime_text.source,
-        omega_native::runtime_text::RuntimeTextSource::StoredPlace
+        omega_runtime_text::RuntimeTextSource::StoredPlace
     );
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
@@ -3524,7 +3524,7 @@ fn invalidates_static_text_after_mutable_host_output() {
     assert!(native_plan.runtime_text.uses.iter().any(|(_, text_use)| {
         text_use.statement_index == 3
             && text_use.expression.display_name() == "line::text"
-            && text_use.source == omega_native::runtime_text::RuntimeTextSource::StoredPlace
+            && text_use.source == omega_runtime_text::RuntimeTextSource::StoredPlace
     }));
     assert!(
         native_plan
@@ -3670,7 +3670,7 @@ fn plans_required_state_value_uses() {
             .any(|(_, text_write)| {
                 text_write.target.display_name() == "line::text"
                     && text_write.kind
-                        == omega_native::runtime_text::RuntimeTextWriteKind::GeneratedString
+                        == omega_runtime_text::RuntimeTextWriteKind::GeneratedString
             })
     );
     let (_, builder) = native_plan
@@ -3689,12 +3689,12 @@ fn plans_required_state_value_uses() {
     assert_eq!(segments[0].expression.display_name(), "\"Room \"");
     assert_eq!(
         segments[0].kind,
-        omega_native::runtime_text::RuntimeTextBuilderSegmentKind::StaticText
+        omega_runtime_text::RuntimeTextBuilderSegmentKind::StaticText
     );
     assert_eq!(segments[1].expression.display_name(), "\"A1\"");
     assert_eq!(
         segments[1].kind,
-        omega_native::runtime_text::RuntimeTextBuilderSegmentKind::StaticText
+        omega_runtime_text::RuntimeTextBuilderSegmentKind::StaticText
     );
 }
 

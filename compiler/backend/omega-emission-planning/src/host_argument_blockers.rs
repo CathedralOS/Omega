@@ -1,6 +1,6 @@
 use omega_native::plan::NativePlan;
-use omega_native::runtime_text::places::expression_place_eq;
-use omega_native::runtime_text::{RuntimeTextSource, RuntimeTextUse};
+use omega_runtime_text::places::expression_place_eq;
+use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use omega_native::state_schedule::{ScheduledState, scheduled_state_contains_key};
 use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;

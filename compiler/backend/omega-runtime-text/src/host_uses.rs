@@ -4,7 +4,7 @@ use omega_typed_program::expression::Expression;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
-pub(in crate::runtime_text) fn collect_host_call_runtime_text(
+pub(crate) fn collect_host_call_runtime_text(
     host_calls: &HostCallPlan,
     host_call: &HostCall,
     plan: &mut RuntimeTextPlan,

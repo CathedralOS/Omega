@@ -3,31 +3,35 @@ mod model;
 pub mod places;
 mod slots;
 
-use crate::plan::NativePlan;
 use host_uses::collect_host_call_runtime_text;
 pub use model::{
     RuntimeTextBuffer, RuntimeTextBuilder, RuntimeTextBuilderSegment,
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource,
     RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
 };
+use omega_platform_interface::HostCallPlan;
+use omega_state_storage::StateStoragePlan;
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use slots::build_runtime_text_slots;
 
-pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
+pub fn build_runtime_text_plan(
+    host_calls: &HostCallPlan,
+    state_storage: &StateStoragePlan,
+) -> RuntimeTextPlan {
     let mut plan = RuntimeTextPlan::default();
 
-    for (_, host_call) in native_plan.host_calls.calls.iter() {
-        collect_host_call_runtime_text(&native_plan.host_calls, host_call, &mut plan);
+    for (_, host_call) in host_calls.calls.iter() {
+        collect_host_call_runtime_text(host_calls, host_call, &mut plan);
     }
-    collect_runtime_text_writes(native_plan, &mut plan);
+    collect_runtime_text_writes(state_storage, &mut plan);
     collect_runtime_text_builders(&mut plan);
     plan.slots = build_runtime_text_slots(&plan);
 
     plan
 }
 
-fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextPlan) {
-    for (_, mutation) in native_plan.state_storage.mutations.iter() {
+fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
+    for (_, mutation) in state_storage.mutations.iter() {
         if !is_text_place(&mutation.target) {
             continue;
         }
