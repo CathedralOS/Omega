@@ -118,7 +118,7 @@ pub(super) fn select_runtime_mutation_writes(
     };
     let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        &native_plan.entry_machine,
+        native_plan.entry_machine_name(),
         source_machine,
         &resolved_target,
     ) else {

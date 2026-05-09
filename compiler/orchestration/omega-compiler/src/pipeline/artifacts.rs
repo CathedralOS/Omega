@@ -683,7 +683,9 @@ impl ArtifactWriter {
         output.push_str(&format!("target: {:?}\n", native_plan.target));
         output.push_str(&format!(
             "entry: {}.{} as `{}`\n\n",
-            native_plan.entry_machine, native_plan.entry_state, native_plan.object.entry_symbol
+            native_plan.entry_machine_name(),
+            native_plan.entry_state_name(),
+            native_plan.object.entry_symbol
         ));
 
         write_native_phase_timings(&mut output, native_plan);

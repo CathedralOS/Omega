@@ -27,12 +27,12 @@ pub(super) fn resolve_runtime_storage_place(
 ) -> Option<RuntimeStoragePlace> {
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        &native_plan.entry_machine,
+        native_plan.entry_machine_name(),
         source_machine,
         expression,
     ) {
         return Some(RuntimeStoragePlace {
-            symbol: machine_storage_symbol_name(&native_plan.entry_machine),
+            symbol: machine_storage_symbol_name(native_plan.entry_machine_name()),
             byte_offset,
             byte_count,
         });

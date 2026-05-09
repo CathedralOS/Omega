@@ -34,8 +34,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
             next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
         },
-        source_machine: native_plan.entry_machine.clone().into(),
-        source_state: native_plan.entry_state.clone().into(),
+        source_machine: native_plan.entry_machine_name().into(),
+        source_state: native_plan.entry_state_name().into(),
         source_statement: 0,
     });
 
@@ -138,8 +138,8 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::LeaveDispatchLoop,
-        source_machine: native_plan.entry_machine.clone().into(),
-        source_state: native_plan.entry_state.clone().into(),
+        source_machine: native_plan.entry_machine_name().into(),
+        source_state: native_plan.entry_state_name().into(),
         source_statement: 0,
     });
 }

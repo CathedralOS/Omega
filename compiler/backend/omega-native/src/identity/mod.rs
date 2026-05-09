@@ -24,8 +24,8 @@ pub use storage::NativeStringStorage;
 pub fn count_native_string_storage(native_plan: &NativePlan) -> NativeStringStorage {
     let mut storage = NativeStringStorage::default();
 
-    storage.count_identity(&native_plan.entry_machine);
-    storage.count_identity(&native_plan.entry_state);
+    storage.count_identity(native_plan.entry_machine_name());
+    storage.count_identity(native_plan.entry_state_name());
 
     count_control_flow_strings(native_plan, &mut storage);
     count_runtime_flow_strings(native_plan, &mut storage);

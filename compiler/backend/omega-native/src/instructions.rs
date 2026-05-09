@@ -35,8 +35,8 @@ pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
 
     instruction_plan.functions.insert(FunctionInstructionPlan {
         symbol: native_plan.object.entry_symbol.clone(),
-        machine: native_plan.entry_machine.clone().into(),
-        state: native_plan.entry_state.clone().into(),
+        machine: native_plan.entry_machine_name().into(),
+        state: native_plan.entry_state_name().into(),
         instructions,
     });
 
@@ -98,8 +98,8 @@ fn select_entry_instructions(
 fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::EnterFunction,
-        source_machine: native_plan.entry_machine.clone().into(),
-        source_state: native_plan.entry_state.clone().into(),
+        source_machine: native_plan.entry_machine_name().into(),
+        source_state: native_plan.entry_state_name().into(),
         source_statement: 0,
     }
 }
@@ -107,8 +107,8 @@ fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
 fn exit_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::LeaveFunction,
-        source_machine: native_plan.entry_machine.clone().into(),
-        source_state: native_plan.entry_state.clone().into(),
+        source_machine: native_plan.entry_machine_name().into(),
+        source_state: native_plan.entry_state_name().into(),
         source_statement: 0,
     }
 }

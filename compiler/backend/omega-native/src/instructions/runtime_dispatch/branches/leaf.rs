@@ -147,7 +147,7 @@ fn runtime_leaf_machine_integer_write(
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &native_plan.layouts,
-        &native_plan.entry_machine,
+        native_plan.entry_machine_name(),
         &expansion.source_machine,
         target,
     )?;

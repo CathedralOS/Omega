@@ -39,7 +39,7 @@ pub(super) fn collect_data_address_relocations(
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    &machine_storage_symbol_name(&native_plan.entry_machine),
+                    &machine_storage_symbol_name(native_plan.entry_machine_name()),
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {

@@ -360,8 +360,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             native_plan.machine_code.bytes.len(),
             native_plan.relocations.records.len(),
             emission_plan.blockers.len(),
-            native_plan.entry_machine,
-            native_plan.entry_state,
+            native_plan.entry_machine_name(),
+            native_plan.entry_state_name(),
             native_plan.object.entry_symbol
         ),
         phase_timings,

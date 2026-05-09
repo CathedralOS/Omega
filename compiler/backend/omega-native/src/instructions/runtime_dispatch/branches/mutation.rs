@@ -21,7 +21,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
 ) {
     if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        &native_plan.entry_machine,
+        native_plan.entry_machine_name(),
         source_machine,
         resolved_target,
     ) && let Some(value) = static_integer_value(&native_plan.layouts, resolved_value)

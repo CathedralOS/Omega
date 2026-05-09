@@ -32,8 +32,6 @@ pub(super) struct NativePlanSkeletonInput {
     pub state_guards: StateGuardPlan,
     pub layouts: LayoutPlan,
     pub entry_key: StateKey,
-    pub entry_machine: String,
-    pub entry_state: String,
     pub phase_timings: Vec<NativePlanPhaseTiming>,
 }
 
@@ -70,8 +68,6 @@ pub(super) fn build_native_plan_skeleton(input: NativePlanSkeletonInput) -> Nati
             records: omega_core::arena::Arena::new(),
         },
         entry_key: input.entry_key,
-        entry_machine: input.entry_machine,
-        entry_state: input.entry_state,
         phase_timings: input.phase_timings,
     }
 }

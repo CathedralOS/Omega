@@ -49,7 +49,7 @@ pub(super) fn collect_instruction_relocations(
             ..
         } => {
             context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
-                &native_plan.entry_machine,
+                native_plan.entry_machine_name(),
             ));
         }
         SelectedInstructionKind::CompareRuntimeStorage {
@@ -68,14 +68,14 @@ pub(super) fn collect_instruction_relocations(
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
             context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
-                &native_plan.entry_machine,
+                native_plan.entry_machine_name(),
             ));
         }
         SelectedInstructionKind::WriteRuntimeMachineString { data_symbol, .. } => {
             context.insert_data_address_at_instruction_start(data_symbol);
             context.insert_data_address_at_relative_offset(
                 string_descriptor_machine_address_offset(native_plan.target.architecture),
-                &machine_storage_symbol_name(&native_plan.entry_machine),
+                &machine_storage_symbol_name(native_plan.entry_machine_name()),
             );
         }
         SelectedInstructionKind::CopyRuntimeStorage {

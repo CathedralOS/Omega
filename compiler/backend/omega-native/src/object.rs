@@ -14,12 +14,12 @@ pub fn build_object_plan(native_plan: &NativePlan) -> Result<ObjectPlan, Diagnos
         .layouts
         .machine_layouts
         .iter()
-        .find(|(_, layout)| layout.name == native_plan.entry_machine)
+        .find(|(_, layout)| layout.name == native_plan.entry_machine_name())
         .map(|(_, layout)| layout)
         .ok_or_else(|| {
             Diagnostic::error(format!(
                 "missing native layout for entry machine `{}`",
-                native_plan.entry_machine
+                native_plan.entry_machine_name()
             ))
         })?;
     let entry_symbol = entry_symbol_name(native_plan.target);

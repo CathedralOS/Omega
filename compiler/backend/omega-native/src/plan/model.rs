@@ -47,9 +47,23 @@ pub struct NativePlan {
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
     pub entry_key: StateKey,
-    pub entry_machine: String,
-    pub entry_state: String,
     pub phase_timings: Vec<NativePlanPhaseTiming>,
+}
+
+impl NativePlan {
+    pub fn entry_machine_name(&self) -> &str {
+        self.control_flow
+            .machine_by_symbol(self.entry_key.machine)
+            .map(|machine| machine.name.as_str())
+            .unwrap_or("")
+    }
+
+    pub fn entry_state_name(&self) -> &str {
+        self.control_flow
+            .state_by_key(self.entry_key)
+            .map(|state| state.name.as_str())
+            .unwrap_or("")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
