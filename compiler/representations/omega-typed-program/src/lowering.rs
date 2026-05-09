@@ -1,8 +1,8 @@
 use crate::Program;
 use crate::data::{DataDefinition, DataField, DataMember, DataVariant};
 use crate::expression::{
-    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, StructLiteral,
-    StructLiteralField,
+    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, NamePath,
+    StructLiteral, StructLiteralField,
 };
 use crate::invariant::InvariantDefinition;
 use crate::machine::{ContainedObject, Machine, OwnedData};
@@ -127,6 +127,7 @@ fn lower_program_with_symbol_table_source(
     program.symbols = symbols
         .unwrap_or_else(|| register_program_symbols(&program, Some(items.as_slice()), sources));
     attach_program_symbols(&mut program);
+    attach_expression_symbols(&mut program);
 
     Ok(program)
 }
@@ -362,6 +363,165 @@ fn attach_local_symbols(symbols: &SymbolTable, parent: SymbolHandle, statements:
 
         local_data.symbol =
             find_child_symbol(symbols, parent, SymbolKind::Local, local_data.name.as_str());
+    }
+}
+
+fn attach_expression_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+
+    for machine in &mut program.machines {
+        for state in &mut machine.states {
+            let context = ExpressionResolveContext::from_symbols(machine.symbol, state.symbol);
+
+            for statement in &mut state.statements {
+                attach_statement_expression_symbols(symbols, context, statement);
+            }
+        }
+    }
+}
+
+fn attach_statement_expression_symbols(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    statement: &mut Statement,
+) {
+    match statement {
+        Statement::Assignment(assignment) => {
+            attach_expression_symbol(symbols, context, &mut assignment.target);
+            attach_expression_symbol(symbols, context, &mut assignment.value);
+        }
+        Statement::Call(call) => {
+            for argument in &mut call.arguments {
+                attach_expression_symbol(symbols, context, argument);
+            }
+        }
+        Statement::Expression(expression) => attach_expression_symbol(symbols, context, expression),
+        Statement::LocalData(_) => {}
+        Statement::Transition(transition) => {
+            attach_transition_target_expression_symbols(symbols, context, &mut transition.target);
+            if let Some(continuation) = &mut transition.continuation {
+                attach_transition_target_expression_symbols(symbols, context, continuation);
+            }
+            if let TransitionGuard::When(expression) = &mut transition.guard {
+                attach_expression_symbol(symbols, context, expression);
+            }
+        }
+    }
+}
+
+fn attach_transition_target_expression_symbols(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    target: &mut TransitionTarget,
+) {
+    let TransitionTarget::Named { arguments, .. } = target else {
+        return;
+    };
+
+    for argument in arguments {
+        attach_expression_symbol(symbols, context, argument);
+    }
+}
+
+fn attach_expression_symbol(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    expression: &mut Expression,
+) {
+    match expression {
+        Expression::ArrayLiteral(values) => {
+            for value in values {
+                attach_expression_symbol(symbols, context, value);
+            }
+        }
+        Expression::Binary(binary) => {
+            attach_expression_symbol(symbols, context, &mut binary.left);
+            attach_expression_symbol(symbols, context, &mut binary.right);
+        }
+        Expression::Indexed(indexed) => {
+            attach_expression_symbol(symbols, context, &mut indexed.collection);
+            attach_expression_symbol(symbols, context, &mut indexed.index);
+        }
+        Expression::Mutable(inner_expression) => {
+            attach_expression_symbol(symbols, context, inner_expression);
+        }
+        Expression::Name(path) => {
+            let head_symbol = context.resolve_identifier_head(symbols, path.members());
+            let symbol = context.resolve_identifier_path(symbols, path.members());
+            *path = path.clone().with_symbols(head_symbol, symbol);
+        }
+        Expression::StructLiteral(struct_literal) => {
+            for field in &mut struct_literal.fields {
+                attach_expression_symbol(symbols, context, &mut field.value);
+            }
+        }
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::String(_) => {}
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct ExpressionResolveContext {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+}
+
+impl ExpressionResolveContext {
+    fn from_symbols(machine: SymbolHandle, state: SymbolHandle) -> Self {
+        Self { machine, state }
+    }
+
+    fn resolve_identifier_head(self, symbols: &SymbolTable, path: &[ProgramName]) -> SymbolHandle {
+        let Some(first_member) = path.first().map(|member| member.as_str()) else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return self.machine;
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) = symbols.find_child_by_name(root, first_member) {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn resolve_identifier_path(self, symbols: &SymbolTable, path: &[ProgramName]) -> SymbolHandle {
+        let Some(first_member) = path.first().map(|member| member.as_str()) else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return symbols
+                .find_descendant_by_path(
+                    self.machine,
+                    path.iter().skip(1).map(|member| member.as_str()),
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) =
+                symbols.find_descendant_by_path(root, path.iter().map(|member| member.as_str()))
+            {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
     }
 }
 
@@ -1359,8 +1519,8 @@ fn lower_transition_guard(
     }
 }
 
-fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> Vec<ProgramName> {
-    path.iter().map(lower_name).collect()
+fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> NamePath {
+    NamePath::unresolved(path.iter().map(lower_name).collect())
 }
 
 fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
@@ -1434,7 +1594,7 @@ fn lower_transition_target(
     match target {
         ast::statement::TransitionTarget::Named { path, arguments } => {
             Ok(TransitionTarget::Named {
-                path: lower_identifier_path(path),
+                path: lower_identifier_path(path).into_members(),
                 arguments: arguments
                     .iter()
                     .map(lower_expression)

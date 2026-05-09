@@ -1,6 +1,7 @@
 use crate::control_flow::StateKey;
 use crate::runtime_dispatch::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
-use omega_typed_program::expression::{BinaryExpression, Expression, IndexedExpression};
+use omega_core::symbols::SymbolHandle;
+use omega_typed_program::expression::{BinaryExpression, Expression, IndexedExpression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::runtime_dispatch::branching) fn resolve_branch_expression(
@@ -18,7 +19,7 @@ pub(in crate::runtime_dispatch::branching) fn resolve_branch_expression(
         }
         Expression::Name(path) if !path.is_empty() => branch_bindings
             .iter()
-            .find(|binding| binding.parameter_name == path[0])
+            .find(|binding| branch_binding_matches_path(binding, path))
             .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         Expression::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
@@ -56,10 +57,26 @@ pub(super) fn resolve_runtime_branch_alias_expression(
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| alias.source_key == source_key && alias.parameter_name == path[0])
+            .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
+    }
+}
+
+fn branch_binding_matches_path(binding: &BranchParameterBinding, path: &NamePath) -> bool {
+    symbol_or_name_matches(binding.parameter_symbol, &binding.parameter_name, path)
+}
+
+fn alias_matches_path(alias: &RuntimeBranchAlias, path: &NamePath) -> bool {
+    symbol_or_name_matches(alias.parameter_symbol, &alias.parameter_name, path)
+}
+
+fn symbol_or_name_matches(symbol: SymbolHandle, name: &ProgramName, path: &NamePath) -> bool {
+    if symbol.is_valid() && path.head_symbol().is_valid() {
+        symbol == path.head_symbol()
+    } else {
+        !path.is_empty() && name == &path[0]
     }
 }
 
@@ -89,7 +106,7 @@ pub(super) fn append_place_suffix(expression: &Expression, suffix: &[ProgramName
     }
 }
 
-fn indexed_expression_path(indexed: &IndexedExpression) -> Option<Vec<ProgramName>> {
+fn indexed_expression_path(indexed: &IndexedExpression) -> Option<NamePath> {
     let Expression::Integer(index) = &indexed.index else {
         return None;
     };

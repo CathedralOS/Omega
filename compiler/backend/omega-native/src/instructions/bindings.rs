@@ -1,6 +1,6 @@
 use crate::control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
@@ -60,7 +60,7 @@ pub(super) fn resolve_runtime_alias_expression(
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
-            .find(|alias| alias.source_key == source_key && alias.parameter_name == path[0])
+            .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
             .map(|alias| append_place_suffix(&alias.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
@@ -83,13 +83,13 @@ pub(super) fn resolve_leaf_binding_expression(
         Expression::Name(path) if !path.is_empty() => bindings
             .iter()
             .find(|binding| {
-                binding.parameter_name == path[0]
+                leaf_binding_matches_path(binding, path)
                     && binding.kind == RuntimeLeafBranchBindingKind::LeafParameter
             })
             .or_else(|| {
                 bindings
                     .iter()
-                    .find(|binding| binding.parameter_name == path[0])
+                    .find(|binding| leaf_binding_matches_path(binding, path))
             })
             .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
@@ -113,17 +113,40 @@ pub(super) fn resolve_straight_line_binding_expression(
         Expression::Name(path) if !path.is_empty() => bindings
             .iter()
             .find(|binding| {
-                binding.parameter_name == path[0]
+                straight_line_binding_matches_path(binding, path)
                     && binding.kind == RuntimeStraightLineBranchBindingKind::TargetParameter
             })
             .or_else(|| {
                 bindings
                     .iter()
-                    .find(|binding| binding.parameter_name == path[0])
+                    .find(|binding| straight_line_binding_matches_path(binding, path))
             })
             .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
+    }
+}
+
+fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
+    symbol_or_name_matches(alias.parameter_symbol, &alias.parameter_name, path)
+}
+
+fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {
+    symbol_or_name_matches(binding.parameter_symbol, &binding.parameter_name, path)
+}
+
+fn straight_line_binding_matches_path(
+    binding: &RuntimeStraightLineBranchBinding,
+    path: &NamePath,
+) -> bool {
+    symbol_or_name_matches(binding.parameter_symbol, &binding.parameter_name, path)
+}
+
+fn symbol_or_name_matches(symbol: SymbolHandle, name: &ProgramName, path: &NamePath) -> bool {
+    if symbol.is_valid() && path.head_symbol().is_valid() {
+        symbol == path.head_symbol()
+    } else {
+        !path.is_empty() && name == &path[0]
     }
 }
 

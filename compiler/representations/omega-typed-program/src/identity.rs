@@ -181,7 +181,7 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
         }
         Expression::Mutable(expression) => count_expression(expression, counts),
         Expression::Name(path) => {
-            for name in path {
+            for name in path.members() {
                 count_expression_path_member(name, counts);
             }
         }

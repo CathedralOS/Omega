@@ -1,4 +1,4 @@
-use omega_typed_program::expression::{Expression, IndexedExpression};
+use omega_typed_program::expression::{Expression, IndexedExpression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::instructions) fn normalized_storage_expression(
@@ -14,7 +14,7 @@ pub(in crate::instructions) fn normalized_storage_expression(
 
 pub(in crate::instructions) fn indexed_expression_path(
     indexed: &IndexedExpression,
-) -> Option<Vec<ProgramName>> {
+) -> Option<NamePath> {
     let Expression::Integer(index) = &indexed.index else {
         return None;
     };

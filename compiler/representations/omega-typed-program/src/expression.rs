@@ -1,5 +1,7 @@
 use crate::name::ProgramName;
+use omega_core::symbols::SymbolHandle;
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
@@ -10,7 +12,7 @@ pub enum Expression {
     Indexed(Box<IndexedExpression>),
     Integer(i64),
     Mutable(Box<Expression>),
-    Name(Vec<ProgramName>),
+    Name(NamePath),
     StructLiteral(StructLiteral),
     String(String),
 }
@@ -18,6 +20,101 @@ pub enum Expression {
 impl Default for Expression {
     fn default() -> Self {
         Self::Integer(0)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NamePath {
+    members: Vec<ProgramName>,
+    head_symbol: SymbolHandle,
+    symbol: SymbolHandle,
+}
+
+impl NamePath {
+    pub fn unresolved(members: Vec<ProgramName>) -> Self {
+        Self {
+            members,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }
+    }
+
+    pub fn resolved(
+        members: Vec<ProgramName>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self {
+            members,
+            head_symbol,
+            symbol,
+        }
+    }
+
+    pub fn members(&self) -> &[ProgramName] {
+        &self.members
+    }
+
+    pub fn as_slice(&self) -> &[ProgramName] {
+        self.members()
+    }
+
+    pub fn into_members(self) -> Vec<ProgramName> {
+        self.members
+    }
+
+    pub fn push(&mut self, member: ProgramName) {
+        self.members.push(member);
+        self.symbol = SymbolHandle::invalid();
+    }
+
+    pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
+        self.members.extend_from_slice(members);
+        self.symbol = SymbolHandle::invalid();
+    }
+
+    pub fn head_symbol(&self) -> SymbolHandle {
+        self.head_symbol
+    }
+
+    pub fn symbol(&self) -> SymbolHandle {
+        self.symbol
+    }
+
+    pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
+        self.head_symbol = head_symbol;
+        self.symbol = symbol;
+        self
+    }
+}
+
+impl From<Vec<ProgramName>> for NamePath {
+    fn from(members: Vec<ProgramName>) -> Self {
+        Self::unresolved(members)
+    }
+}
+
+impl Deref for NamePath {
+    type Target = [ProgramName];
+
+    fn deref(&self) -> &Self::Target {
+        self.members()
+    }
+}
+
+impl DerefMut for NamePath {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.symbol = SymbolHandle::invalid();
+        &mut self.members
+    }
+}
+
+impl<'path> IntoIterator for &'path NamePath {
+    type Item = &'path ProgramName;
+    type IntoIter = std::slice::Iter<'path, ProgramName>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.members.iter()
     }
 }
 
