@@ -16,6 +16,7 @@ omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-effects = { path = "../../semantics/omega-effects" }
 omega-graph = { path = "../../semantics/omega-graph" }
+omega-image = { path = "../../backend/images/omega-image" }
 omega-lexer = { path = "../../frontend/omega-lexer" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }

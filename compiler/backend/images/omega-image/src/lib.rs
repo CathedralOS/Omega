@@ -23,6 +23,27 @@ pub struct ExecutableImageOutput {
     pub relocations: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmittedImageOutput {
+    pub bytes: Vec<u8>,
+    pub file_name: String,
+    pub format: String,
+    pub kind: ImageOutputKind,
+    pub text_bytes: usize,
+    pub data_bytes: usize,
+    pub bss_bytes: usize,
+    pub symbols: usize,
+    pub relocations: usize,
+    pub final_image_symbols: usize,
+    pub final_image_imports: usize,
+    pub final_image_relocations: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageOutputKind {
+    DirectExecutable,
+}
+
 pub struct FinalImageInput<'a> {
     pub target: NativeTarget,
     pub object: &'a ObjectPlan,

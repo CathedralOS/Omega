@@ -13,12 +13,12 @@ use omega_control_flow::{
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
+use omega_image::EmittedImageOutput;
 use omega_layout::{DataShape, FieldLayout};
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
 use omega_native::emission::EmissionPlan;
-use omega_native::emitter::EmittedNativeOutput;
 use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFinalizationStatus};
 use omega_native::identity::count_native_string_storage;
 use omega_native::plan::NativePlan;
@@ -1830,7 +1830,7 @@ impl ArtifactWriter {
 
     pub(crate) fn write_emitted_native_output(
         &self,
-        emitted_output: &EmittedNativeOutput,
+        emitted_output: &EmittedImageOutput,
     ) -> Result<PathBuf, Diagnostic> {
         let output_path = self.root.join(&emitted_output.file_name);
         fs::write(&output_path, &emitted_output.bytes).map_err(|error| {

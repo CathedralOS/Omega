@@ -114,6 +114,7 @@ dependencies = [
  "omega-core",
  "omega-effects",
  "omega-graph",
+ "omega-image",
  "omega-layout",
  "omega-lexer",
  "omega-machine-program",
