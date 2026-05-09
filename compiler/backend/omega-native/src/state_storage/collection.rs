@@ -37,7 +37,7 @@ pub fn build_state_storage_plan_with_workers(
             .get(index)
             .expect("state-storage worker index should be in range");
 
-        build_machine_state_storage_plan(&program, &context, machine)
+        build_machine_state_storage_plan(&context, machine)
     });
 
     let mut plan = StateStoragePlan::default();
@@ -57,7 +57,6 @@ pub fn build_state_storage_plan_with_workers(
 }
 
 fn build_machine_state_storage_plan(
-    program: &Program,
     context: &StateAnalysisContext,
     machine: &Machine,
 ) -> StateStoragePlan {
@@ -79,7 +78,7 @@ fn build_machine_state_storage_plan(
                         statement_index,
                         symbol: local_data.symbol,
                         name: local_data.name.clone(),
-                        type_symbol: type_reference_symbol(&program, &local_data.type_reference),
+                        type_symbol: type_reference_symbol(&local_data.type_reference),
                         type_name: local_data.type_reference.display_name(),
                         required,
                     });
@@ -109,12 +108,10 @@ fn build_machine_state_storage_plan(
     plan
 }
 
-fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> SymbolHandle {
+fn type_reference_symbol(type_reference: &TypeReference) -> SymbolHandle {
     match type_reference {
-        TypeReference::Constrained { base_type, .. } => type_reference_symbol(program, base_type),
-        TypeReference::FixedArray { element_type, .. } => {
-            type_reference_symbol(program, element_type)
-        }
+        TypeReference::Constrained { base_type, .. } => type_reference_symbol(base_type),
+        TypeReference::FixedArray { element_type, .. } => type_reference_symbol(element_type),
         TypeReference::Generic {
             base_symbol,
             base_name,
@@ -127,19 +124,7 @@ fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> S
                 return *base_symbol;
             }
 
-            program
-                .data_definitions
-                .iter()
-                .find(|definition| definition.name == *base_name)
-                .map(|definition| definition.symbol)
-                .or_else(|| {
-                    program
-                        .machines
-                        .iter()
-                        .find(|machine| machine.name == *base_name)
-                        .map(|machine| machine.symbol)
-                })
-                .unwrap_or_else(SymbolHandle::invalid)
+            SymbolHandle::invalid()
         }
         TypeReference::Named { symbol, name } => {
             if PrimitiveType::from_name(name).is_some() {
@@ -149,19 +134,7 @@ fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> S
                 return *symbol;
             }
 
-            program
-                .data_definitions
-                .iter()
-                .find(|definition| definition.name == *name)
-                .map(|definition| definition.symbol)
-                .or_else(|| {
-                    program
-                        .machines
-                        .iter()
-                        .find(|machine| machine.name == *name)
-                        .map(|machine| machine.symbol)
-                })
-                .unwrap_or_else(SymbolHandle::invalid)
+            SymbolHandle::invalid()
         }
         TypeReference::Unit => SymbolHandle::invalid(),
     }
