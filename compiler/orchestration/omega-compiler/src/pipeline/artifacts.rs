@@ -1870,6 +1870,28 @@ impl ArtifactWriter {
         Ok(output_path)
     }
 
+    pub(crate) fn remove_stale_native_output(&self) -> Result<(), Diagnostic> {
+        for file_name in [
+            "omega-program",
+            "12_emitted_output.txt",
+            "13_finalization.txt",
+        ] {
+            let path = self.root.join(file_name);
+            match fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(Diagnostic::error(format!(
+                        "failed to remove stale native output {}: {error}",
+                        path.display()
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn write_executable_finalization_report(
         &self,
         finalization: &ExecutableFinalization,

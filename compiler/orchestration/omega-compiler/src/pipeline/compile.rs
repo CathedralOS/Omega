@@ -311,6 +311,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         Ok(emission_plan)
     })?;
     if !emission_plan.blockers.is_empty() {
+        artifacts
+            .remove_stale_native_output()
+            .map_err(|diagnostic| vec![diagnostic])?;
         return Err(emission_plan
             .blockers
             .iter()
