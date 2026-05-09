@@ -46,8 +46,7 @@ fn select_runtime_leaf_branch_expansion(
     if let Some(guard) = select_runtime_leaf_branch_guard(native_plan, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
-            source_machine: expansion.source_machine.clone(),
-            source_state: expansion.source_state.clone(),
+            source_key: expansion.source_key,
             source_statement: expansion.statement_index,
         });
     } else {
@@ -93,8 +92,7 @@ fn select_runtime_leaf_branch_mutation_writes(
                     byte_size,
                     value,
                 },
-                source_machine: operation.source_machine.clone(),
-                source_state: operation.source_state.clone(),
+                source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });
             continue;
@@ -113,8 +111,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             for kind in instructions {
                 selected_instructions.push(SelectedInstruction {
                     kind,
-                    source_machine: operation.source_machine.clone(),
-                    source_state: operation.source_state.clone(),
+                    source_key: operation.source_key,
                     source_statement: operation.statement_index,
                 });
             }
@@ -131,8 +128,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         ) {
             selected_instructions.push(SelectedInstruction {
                 kind: copy,
-                source_machine: operation.source_machine.clone(),
-                source_state: operation.source_state.clone(),
+                source_key: operation.source_key,
                 source_statement: operation.statement_index,
             });
         }

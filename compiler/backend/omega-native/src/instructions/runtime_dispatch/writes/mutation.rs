@@ -58,7 +58,6 @@ pub(super) fn select_runtime_mutation_writes(
             native_plan,
             source_key,
             source_machine,
-            source_state,
             statement_index,
             &resolved_target,
             value,
@@ -80,8 +79,7 @@ pub(super) fn select_runtime_mutation_writes(
         for kind in instructions {
             selected_instructions.push(SelectedInstruction {
                 kind,
-                source_machine: source_machine.to_owned().into(),
-                source_state: source_state.to_owned().into(),
+                source_key,
                 source_statement: statement_index,
             });
         }
@@ -100,8 +98,7 @@ pub(super) fn select_runtime_mutation_writes(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
-            source_machine: source_machine.to_owned().into(),
-            source_state: source_state.to_owned().into(),
+            source_key,
             source_statement: statement_index,
         });
         return;
@@ -136,8 +133,7 @@ pub(super) fn select_runtime_mutation_writes(
             byte_size,
             value,
         },
-        source_machine: source_machine.to_owned().into(),
-        source_state: source_state.to_owned().into(),
+        source_key,
         source_statement: statement_index,
     });
 }

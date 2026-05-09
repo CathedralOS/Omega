@@ -34,8 +34,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             current_state_slot: native_plan.runtime_dispatch_loop.current_state_slot.clone(),
             next_state_slot: native_plan.runtime_dispatch_loop.next_state_slot.clone(),
         },
-        source_machine: native_plan.entry_machine_name().into(),
-        source_state: native_plan.entry_state_name().into(),
+        source_key: native_plan.entry_key,
         source_statement: 0,
     });
 
@@ -45,8 +44,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 dispatch_index: dispatch_case.dispatch_index,
                 label: dispatch_case.label.clone(),
             },
-            source_machine: dispatch_case.machine.clone(),
-            source_state: dispatch_case.state.clone(),
+            source_key: dispatch_case.key,
             source_statement: 0,
         });
 
@@ -103,8 +101,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                 buffer_symbol,
                                 literal,
                             },
-                            source_machine: host_call.machine.clone(),
-                            source_state: host_call.state.clone(),
+                            source_key: host_call.source_key,
                             source_statement: host_call.statement_index,
                         });
                     }
@@ -119,27 +116,20 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             .span(dispatch_case.edges)
         {
             for edge in edges {
-                select_runtime_dispatch_edge(
-                    edge,
-                    &dispatch_case.machine,
-                    &dispatch_case.state,
-                    selected_instructions,
-                );
+                select_runtime_dispatch_edge(edge, dispatch_case.key, selected_instructions);
             }
         }
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::LeaveDispatchCase,
-            source_machine: dispatch_case.machine.clone(),
-            source_state: dispatch_case.state.clone(),
+            source_key: dispatch_case.key,
             source_statement: 0,
         });
     }
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::LeaveDispatchLoop,
-        source_machine: native_plan.entry_machine_name().into(),
-        source_state: native_plan.entry_state_name().into(),
+        source_key: native_plan.entry_key,
         source_statement: 0,
     });
 }

@@ -10,7 +10,6 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     native_plan: &NativePlan,
     source_key: StateKey,
     source_machine: &str,
-    source_state: &str,
     statement_index: usize,
     resolved_target: &Expression,
     value: &str,
@@ -39,8 +38,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
             data_symbol: data_object.symbol.clone(),
             byte_length: value.len(),
         },
-        source_machine: source_machine.to_owned().into(),
-        source_state: source_state.to_owned().into(),
+        source_key,
         source_statement: statement_index,
     });
 }

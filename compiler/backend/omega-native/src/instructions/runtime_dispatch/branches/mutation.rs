@@ -32,8 +32,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
                 byte_size,
                 value,
             },
-            source_machine: operation_machine.to_owned().into(),
-            source_state: operation_state.to_owned().into(),
+            source_key: operation_key,
             source_statement: statement_index,
         });
         return;
@@ -50,8 +49,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
-            source_machine: operation_machine.to_owned().into(),
-            source_state: operation_state.to_owned().into(),
+            source_key: operation_key,
             source_statement: statement_index,
         });
     }

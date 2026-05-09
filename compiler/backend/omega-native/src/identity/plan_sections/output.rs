@@ -10,10 +10,6 @@ pub(in crate::identity) fn count_instruction_strings(
         storage.count_program_name_identity(&function.machine);
         storage.count_program_name_identity(&function.state);
     }
-    for (_, instruction) in native_plan.instructions.instructions.iter() {
-        storage.count_program_name_identity(&instruction.source_machine);
-        storage.count_program_name_identity(&instruction.source_state);
-    }
 }
 
 pub(in crate::identity) fn count_object_strings(

@@ -1,5 +1,6 @@
 use crate::machine_code::model::{MachineInstruction, MachineInstructionKind};
 use crate::plan::NativePlan;
+use crate::control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 
@@ -106,16 +107,13 @@ fn next_runtime_write_group_end<'instructions>(
 fn selected_instruction_source<'plan>(
     native_plan: &'plan NativePlan,
     instruction: &MachineInstruction,
-) -> Option<(&'plan str, &'plan str)> {
+) -> Option<StateKey> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
     if !native_plan.instructions.instructions.is_valid(handle) {
         return None;
     }
     let selected = native_plan.instructions.instructions.get(handle);
-    Some((
-        selected.source_machine.as_str(),
-        selected.source_state.as_str(),
-    ))
+    Some(selected.source_key)
 }
 
 fn is_runtime_write(instruction: &MachineInstruction) -> bool {

@@ -98,8 +98,7 @@ fn select_entry_instructions(
 fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::EnterFunction,
-        source_machine: native_plan.entry_machine_name().into(),
-        source_state: native_plan.entry_state_name().into(),
+        source_key: native_plan.entry_key,
         source_statement: 0,
     }
 }
@@ -107,8 +106,7 @@ fn entry_instruction(native_plan: &NativePlan) -> SelectedInstruction {
 fn exit_instruction(native_plan: &NativePlan) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::LeaveFunction,
-        source_machine: native_plan.entry_machine_name().into(),
-        source_state: native_plan.entry_state_name().into(),
+        source_key: native_plan.entry_key,
         source_statement: 0,
     }
 }

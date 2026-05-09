@@ -1,11 +1,11 @@
+use crate::control_flow::StateKey;
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 
 use super::super::model::{SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn select_runtime_dispatch_edge(
     edge: &RuntimeDispatchLoopEdge,
-    source_machine: &str,
-    source_state: &str,
+    source_key: StateKey,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     selected_instructions.push(SelectedInstruction {
@@ -17,8 +17,7 @@ pub(super) fn select_runtime_dispatch_edge(
             expected_value: edge.guard_expected_value,
             has_storage: edge.guard_has_storage,
         },
-        source_machine: source_machine.to_owned().into(),
-        source_state: source_state.to_owned().into(),
+        source_key,
         source_statement: edge.order,
     });
 
@@ -28,16 +27,14 @@ pub(super) fn select_runtime_dispatch_edge(
                 kind: SelectedInstructionKind::SetDispatchState {
                     dispatch_index: edge.target_dispatch_index,
                 },
-                source_machine: source_machine.to_owned().into(),
-                source_state: source_state.to_owned().into(),
+                source_key,
                 source_statement: edge.order,
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
-                source_machine: source_machine.to_owned().into(),
-                source_state: source_state.to_owned().into(),
+                source_key,
                 source_statement: edge.order,
             });
         }

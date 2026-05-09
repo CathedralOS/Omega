@@ -1,13 +1,12 @@
 use super::InstructionOperand;
+use crate::control_flow::StateKey;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use omega_core::arena::HandleSpan;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedInstruction {
     pub kind: SelectedInstructionKind,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
+    pub source_key: StateKey,
     pub source_statement: usize,
 }
 
@@ -15,8 +14,7 @@ impl Default for SelectedInstruction {
     fn default() -> Self {
         Self {
             kind: SelectedInstructionKind::EnterFunction,
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
+            source_key: StateKey::default(),
             source_statement: 0,
         }
     }

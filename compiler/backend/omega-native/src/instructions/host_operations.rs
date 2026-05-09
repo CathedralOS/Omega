@@ -27,16 +27,14 @@ pub(super) fn select_host_call(
         kind: SelectedInstructionKind::BeginPlatformCall {
             platform_call: host_call.platform_call.clone(),
         },
-        source_machine: host_call.machine.clone(),
-        source_state: host_call.state.clone(),
+        source_key: host_call.source_key,
         source_statement: host_call.statement_index,
     });
 
     if let Some(read_line) = runtime_text_line_read(native_plan, host_call) {
         selected_instructions.push(SelectedInstruction {
             kind: read_line,
-            source_machine: host_call.machine.clone(),
-            source_state: host_call.state.clone(),
+            source_key: host_call.source_key,
             source_statement: host_call.statement_index,
         });
         return;
@@ -61,8 +59,7 @@ pub(super) fn select_host_call(
                 operation: operation.operation.clone(),
                 operands: operation_operands,
             },
-            source_machine: host_call.machine.clone(),
-            source_state: host_call.state.clone(),
+            source_key: host_call.source_key,
             source_statement: host_call.statement_index,
         });
     }
@@ -84,8 +81,7 @@ pub(super) fn select_host_call(
                 operation: "write".to_owned(),
                 operands: newline_operands,
             },
-            source_machine: host_call.machine.clone(),
-            source_state: host_call.state.clone(),
+            source_key: host_call.source_key,
             source_statement: host_call.statement_index,
         });
     }
