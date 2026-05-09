@@ -20,7 +20,7 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePl
         byte_count: 0,
     };
 
-    for (_, function) in native_plan.instructions.functions.iter() {
+    for (function_handle, function) in native_plan.instructions.functions.iter() {
         let function_offset = machine_code_plan.byte_count;
         let machine_instructions = select_machine_instructions(
             native_plan,
@@ -37,7 +37,7 @@ pub fn build_machine_code_plan(native_plan: &NativePlan) -> Result<MachineCodePl
             .insert_many(machine_instructions);
 
         machine_code_plan.functions.insert(MachineFunctionCode {
-            symbol: function.symbol.clone(),
+            source_function: function_handle,
             offset: function_offset,
             byte_count: function_byte_count,
             instructions,

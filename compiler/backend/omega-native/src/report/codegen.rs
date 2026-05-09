@@ -341,9 +341,10 @@ fn write_machine_function_code(
     native_plan: &NativePlan,
     function: &MachineFunctionCode,
 ) {
+    let function_symbol = machine_function_symbol(native_plan, function);
     output.push_str(&format!(
         "- function {} @{} bytes {}\n",
-        function.symbol, function.offset, function.byte_count
+        function_symbol, function.offset, function.byte_count
     ));
 
     match native_plan
@@ -360,6 +361,15 @@ fn write_machine_function_code(
         }
         None => output.push_str("  instructions: invalid span\n"),
     }
+}
+
+fn machine_function_symbol(native_plan: &NativePlan, function: &MachineFunctionCode) -> String {
+    native_plan
+        .instructions
+        .functions
+        .get(function.source_function)
+        .symbol
+        .clone()
 }
 
 fn write_machine_instruction(

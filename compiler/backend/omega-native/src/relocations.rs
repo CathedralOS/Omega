@@ -1,5 +1,5 @@
 use crate::plan::NativePlan;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 use omega_core::diagnostics::Diagnostic;
 use omega_object::RelocationPlan;
 use omega_target_program::FunctionInstructionPlan;
@@ -18,8 +18,8 @@ pub fn build_relocation_plan(native_plan: &NativePlan) -> Result<RelocationPlan,
         records: Arena::new(),
     };
 
-    for (_, function) in native_plan.instructions.functions.iter() {
-        collect_function_relocations(native_plan, function, &mut relocation_plan)?;
+    for (function_handle, function) in native_plan.instructions.functions.iter() {
+        collect_function_relocations(native_plan, function_handle, function, &mut relocation_plan)?;
     }
 
     Ok(relocation_plan)
@@ -27,6 +27,7 @@ pub fn build_relocation_plan(native_plan: &NativePlan) -> Result<RelocationPlan,
 
 fn collect_function_relocations(
     native_plan: &NativePlan,
+    function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
     relocation_plan: &mut RelocationPlan,
 ) -> Result<(), Diagnostic> {
@@ -46,8 +47,12 @@ fn collect_function_relocations(
             .checked_add(u32::try_from(offset).expect("instruction offset overflow"))
             .expect("instruction index overflow");
 
-        let selected_text_offset =
-            selected_instruction_text_offset(native_plan, function, selected_instruction_index)?;
+        let selected_text_offset = selected_instruction_text_offset(
+            native_plan,
+            function_handle,
+            function,
+            selected_instruction_index,
+        )?;
 
         collect_instruction_relocations(
             native_plan,

@@ -1,6 +1,6 @@
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_program::StateGuardOperator;
+use omega_target_program::{FunctionInstructionPlan, StateGuardOperator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineCodePlan {
@@ -25,7 +25,7 @@ impl Default for MachineCodePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFunctionCode {
-    pub symbol: String,
+    pub source_function: Handle<FunctionInstructionPlan>,
     pub offset: usize,
     pub byte_count: usize,
     pub instructions: HandleSpan<MachineInstruction>,
@@ -34,7 +34,7 @@ pub struct MachineFunctionCode {
 impl Default for MachineFunctionCode {
     fn default() -> Self {
         Self {
-            symbol: String::new(),
+            source_function: Handle::invalid(),
             offset: 0,
             byte_count: 0,
             instructions: HandleSpan::empty(),

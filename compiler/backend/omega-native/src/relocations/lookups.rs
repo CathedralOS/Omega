@@ -1,10 +1,12 @@
 use crate::plan::NativePlan;
 use omega_calling_conventions::HostBinding;
+use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_program::FunctionInstructionPlan;
 
 pub(super) fn selected_instruction_text_offset(
     native_plan: &NativePlan,
+    function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
 ) -> Result<usize, Diagnostic> {
@@ -12,7 +14,7 @@ pub(super) fn selected_instruction_text_offset(
         .machine_code
         .functions
         .iter()
-        .find(|(_, machine_function)| machine_function.symbol == function.symbol)
+        .find(|(_, machine_function)| machine_function.source_function == function_handle)
         .map(|(_, machine_function)| machine_function)
     else {
         return Err(Diagnostic::error(format!(
