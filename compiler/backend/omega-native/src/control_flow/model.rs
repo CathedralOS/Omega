@@ -56,6 +56,17 @@ impl ControlFlowPlan {
             .iter()
             .find(|state| state.key == key)
     }
+
+    pub fn state_names_by_key(&self, key: StateKey) -> Option<(&ProgramName, &ProgramName)> {
+        let machine = self.machine_by_symbol(key.machine)?;
+        let state = self
+            .states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.key == key)?;
+
+        Some((&machine.name, &state.name))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

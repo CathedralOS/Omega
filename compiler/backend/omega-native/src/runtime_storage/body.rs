@@ -64,17 +64,11 @@ pub(super) fn build_runtime_storage_body_plan(
 }
 
 fn state_names(context: &RuntimeStorageContext, key: StateKey) -> (ProgramName, ProgramName) {
-    let machine = context
+    context
         .control_flow
-        .machine_by_symbol(key.machine)
-        .map(|machine| machine.name.clone())
-        .unwrap_or_default();
-    let state = context
-        .control_flow
-        .state_by_key(key)
-        .map(|state| state.name.clone())
-        .unwrap_or_default();
-    (machine, state)
+        .state_names_by_key(key)
+        .map(|(machine, state)| (machine.clone(), state.clone()))
+        .unwrap_or_default()
 }
 
 fn mutation_for_operation<'plan>(

@@ -113,17 +113,11 @@ fn select_runtime_straight_line_branch_writes(
 }
 
 fn state_names(native_plan: &NativePlan, key: StateKey) -> (ProgramName, ProgramName) {
-    let machine = native_plan
+    native_plan
         .control_flow
-        .machine_by_symbol(key.machine)
-        .map(|machine| machine.name.clone())
-        .unwrap_or_default();
-    let state = native_plan
-        .control_flow
-        .state_by_key(key)
-        .map(|state| state.name.clone())
-        .unwrap_or_default();
-    (machine, state)
+        .state_names_by_key(key)
+        .map(|(machine, state)| (machine.clone(), state.clone()))
+        .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments)]

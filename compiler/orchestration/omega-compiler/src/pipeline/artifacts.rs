@@ -3497,15 +3497,9 @@ fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
 }
 
 fn native_state_name(native_plan: &NativePlan, key: StateKey) -> String {
-    let machine = native_plan
+    native_plan
         .control_flow
-        .machine_by_symbol(key.machine)
-        .map(|machine| machine.name.as_str())
-        .unwrap_or("<unknown>");
-    let state = native_plan
-        .control_flow
-        .state_by_key(key)
-        .map(|state| state.name.as_str())
-        .unwrap_or("<unknown>");
-    format!("{machine}.{state}")
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

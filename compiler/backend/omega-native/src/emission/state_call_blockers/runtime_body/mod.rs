@@ -92,15 +92,9 @@ pub(super) fn collect_runtime_body_state_call_blockers(
 }
 
 fn state_names(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> (String, String) {
-    let machine = native_plan
+    native_plan
         .control_flow
-        .machine_by_symbol(key.machine)
-        .map(|machine| machine.name.to_string())
-        .unwrap_or_default();
-    let state = native_plan
-        .control_flow
-        .state_by_key(key)
-        .map(|state| state.name.to_string())
-        .unwrap_or_default();
-    (machine, state)
+        .state_names_by_key(key)
+        .map(|(machine, state)| (machine.to_string(), state.to_string()))
+        .unwrap_or_default()
 }

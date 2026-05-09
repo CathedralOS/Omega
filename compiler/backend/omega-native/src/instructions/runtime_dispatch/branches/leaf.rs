@@ -99,7 +99,7 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
-        let (operation_machine, operation_state) = state_name(native_plan, operation.source_key);
+        let (operation_machine, operation_state) = state_names(native_plan, operation.source_key);
         if let Some(instructions) = runtime_text_builder_write_with_resolver(
             native_plan,
             expansion.dispatch_index,
@@ -137,21 +137,15 @@ fn select_runtime_leaf_branch_mutation_writes(
     }
 }
 
-fn state_name(
+fn state_names(
     native_plan: &NativePlan,
     key: crate::control_flow::StateKey,
 ) -> (ProgramName, ProgramName) {
-    let machine = native_plan
+    native_plan
         .control_flow
-        .machine_by_symbol(key.machine)
-        .map(|machine| machine.name.clone())
-        .unwrap_or_default();
-    let state = native_plan
-        .control_flow
-        .state_by_key(key)
-        .map(|state| state.name.clone())
-        .unwrap_or_default();
-    (machine, state)
+        .state_names_by_key(key)
+        .map(|(machine, state)| (machine.clone(), state.clone()))
+        .unwrap_or_default()
 }
 
 fn runtime_leaf_machine_integer_write(
