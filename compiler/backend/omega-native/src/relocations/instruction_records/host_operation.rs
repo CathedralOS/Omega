@@ -4,7 +4,7 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use omega_calling_conventions::HostBindingMechanism;
-use omega_object::RelocationRecord;
+use omega_object::{RelocationRecord, object_symbol_handle_by_name};
 use omega_target_program::SelectedInstructionKind;
 
 pub(super) fn collect_host_operation_relocation(
@@ -41,6 +41,7 @@ pub(super) fn collect_host_operation_relocation(
         ),
         byte_width: external_call_relocation_width(context.native_plan.target.architecture),
         symbol: symbol.clone(),
+        symbol_handle: object_symbol_handle_by_name(&context.native_plan.object, symbol),
         kind: external_call_relocation_kind(context.native_plan.target.architecture),
     });
 }

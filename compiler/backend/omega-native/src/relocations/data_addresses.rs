@@ -1,6 +1,9 @@
 use crate::plan::NativePlan;
 use omega_instruction_selection as architecture;
-use omega_object::{RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name};
+use omega_object::{
+    RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name,
+    object_symbol_handle_by_name,
+};
 use omega_target::Architecture;
 use omega_target_program::{FunctionInstructionPlan, InstructionOperandKind};
 
@@ -22,7 +25,7 @@ pub(super) fn collect_data_address_relocations(
         match &operand.kind {
             InstructionOperandKind::DataAddress { symbol } => {
                 insert_data_address_relocations(
-                    native_plan.target.architecture,
+                    native_plan,
                     relocation_plan,
                     function,
                     selected_instruction_index,
@@ -33,7 +36,7 @@ pub(super) fn collect_data_address_relocations(
             InstructionOperandKind::RuntimeMachineStringPointer { .. }
             | InstructionOperandKind::RuntimeMachineStringLength { .. } => {
                 insert_data_address_relocations(
-                    native_plan.target.architecture,
+                    native_plan,
                     relocation_plan,
                     function,
                     selected_instruction_index,
@@ -51,14 +54,16 @@ pub(super) fn collect_data_address_relocations(
 }
 
 pub(super) fn insert_data_address_relocations(
-    architecture: Architecture,
+    native_plan: &NativePlan,
     relocation_plan: &mut RelocationPlan,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
     operand_text_offset: usize,
     symbol: &str,
 ) {
-    match architecture {
+    let symbol_handle = object_symbol_handle_by_name(&native_plan.object, symbol);
+
+    match native_plan.target.architecture {
         Architecture::Aarch64 => {
             relocation_plan.records.insert(RelocationRecord {
                 function_symbol: function.symbol.clone(),
@@ -66,6 +71,7 @@ pub(super) fn insert_data_address_relocations(
                 text_offset: operand_text_offset,
                 byte_width: 4,
                 symbol: symbol.to_owned(),
+                symbol_handle,
                 kind: RelocationKind::Aarch64Page21,
             });
             relocation_plan.records.insert(RelocationRecord {
@@ -74,6 +80,7 @@ pub(super) fn insert_data_address_relocations(
                 text_offset: operand_text_offset + 4,
                 byte_width: 4,
                 symbol: symbol.to_owned(),
+                symbol_handle,
                 kind: RelocationKind::Aarch64PageOffset12,
             });
         }
@@ -84,6 +91,7 @@ pub(super) fn insert_data_address_relocations(
                 text_offset: operand_text_offset,
                 byte_width: 8,
                 symbol: symbol.to_owned(),
+                symbol_handle,
                 kind: RelocationKind::X86_64Absolute64,
             });
         }

@@ -7,7 +7,7 @@ pub use model::{
     FinalImageSymbol, FinalImageSymbolHandle,
 };
 use omega_core::arena::{Arena, Handle};
-use omega_object::{ObjectPlan, RelocationPlan, SectionKind, SymbolKind};
+use omega_object::{ObjectPlan, ObjectSymbolHandle, RelocationPlan, SectionKind, SymbolKind};
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,12 +117,20 @@ pub fn build_final_image(input: FinalImageInput<'_>) -> FinalImage {
                 text_offset: relocation.text_offset,
                 byte_width: relocation.byte_width,
                 symbol: relocation.symbol.clone(),
-                symbol_handle: symbol_handle(symbols, &relocation.symbol),
+                symbol_handle: final_image_symbol_handle(relocation.symbol_handle)
+                    .filter(|handle| symbols.is_valid(*handle))
+                    .unwrap_or_else(|| symbol_handle(symbols, &relocation.symbol)),
                 kind: relocation.kind,
             }
         }));
 
     image
+}
+
+fn final_image_symbol_handle(symbol: ObjectSymbolHandle) -> Option<FinalImageSymbolHandle> {
+    symbol
+        .is_valid()
+        .then(|| Handle::from_parts(symbol.arena_index(), symbol.generation()))
 }
 
 pub fn final_image_symbol_address(

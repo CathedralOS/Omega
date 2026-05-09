@@ -14,7 +14,7 @@ pub(super) struct InstructionRelocationContext<'plan, 'relocations> {
 impl InstructionRelocationContext<'_, '_> {
     pub(super) fn insert_data_address(&mut self, byte_offset: usize, symbol: &str) {
         insert_data_address_relocations(
-            self.native_plan.target.architecture,
+            self.native_plan,
             self.relocation_plan,
             self.function,
             self.selected_instruction_index,

@@ -1,4 +1,4 @@
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +44,8 @@ pub struct SymbolPlan {
     pub kind: SymbolKind,
 }
 
+pub type ObjectSymbolHandle = Handle<SymbolPlan>;
+
 impl Default for SymbolPlan {
     fn default() -> Self {
         Self {
@@ -85,6 +87,7 @@ pub struct RelocationRecord {
     pub text_offset: usize,
     pub byte_width: usize,
     pub symbol: String,
+    pub symbol_handle: ObjectSymbolHandle,
     pub kind: RelocationKind,
 }
 
@@ -96,9 +99,19 @@ impl Default for RelocationRecord {
             text_offset: 0,
             byte_width: 0,
             symbol: String::new(),
+            symbol_handle: Handle::invalid(),
             kind: RelocationKind::Aarch64Branch26,
         }
     }
+}
+
+pub fn object_symbol_handle_by_name(object: &ObjectPlan, symbol_name: &str) -> ObjectSymbolHandle {
+    object
+        .symbols
+        .iter()
+        .find(|(_, symbol)| symbol.name == symbol_name)
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(Handle::invalid)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
