@@ -21,7 +21,7 @@ machine RoomFormatter {
     }
 
     fn format_exits(room: Room, out_line: &mut ConsoleLine) {
-        out_line.text = "Commands: look info exits help quit ";
+        out_line.text = "Commands: look | info | exits | help | quit";
         append_exit(room.exits[0], mut out_line);
         append_exit(room.exits[1], mut out_line);
         append_exit(room.exits[2], mut out_line);
@@ -34,6 +34,6 @@ machine RoomFormatter {
     }
 
     state append_open_exit(exit: Exit, out_line: &mut ConsoleLine) {
-        out_line.text = out_line.text + exit.command + " ";
+        out_line.text = out_line.text + " | " + exit.command;
     }
 }
