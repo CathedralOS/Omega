@@ -1,10 +1,10 @@
 mod operands;
 mod runtime_text;
 
-use crate::abi::PlatformCallData;
 use crate::data::NativeDataObject;
 use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
+use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 
 use super::model::{

@@ -1,4 +1,3 @@
-use crate::abi::HostAbiPlan;
 use crate::host_calls::lowering::{
     find_platform_call_lowering, host_operation, lower_host_call_arguments, platform_call_name,
     platform_call_receiver_type,
@@ -8,6 +7,7 @@ use crate::host_calls::static_values::{
 };
 use crate::host_calls::{HostCall, HostCallPlan, UnsupportedHostCall};
 use crate::place_keys::PlaceKey;
+use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;

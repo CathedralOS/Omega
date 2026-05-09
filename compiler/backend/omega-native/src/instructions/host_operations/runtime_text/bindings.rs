@@ -1,5 +1,5 @@
-use crate::abi::HostBindingMechanism;
 use crate::plan::NativePlan;
+use omega_calling_conventions::HostBindingMechanism;
 
 pub(super) fn host_binding_mechanism<'plan>(
     native_plan: &'plan NativePlan,

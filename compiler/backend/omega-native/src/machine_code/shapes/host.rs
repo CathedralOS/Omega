@@ -1,10 +1,10 @@
-use crate::abi::HostBindingMechanism;
 use crate::architecture;
 use crate::instructions::InstructionOperand;
 use crate::machine_code::host_bindings::host_binding_mechanism;
 use crate::machine_code::model::MachineInstructionKind;
 use crate::machine_code::widths::host_call_sequence_width;
 use crate::plan::NativePlan;
+use omega_calling_conventions::HostBindingMechanism;
 
 pub(super) fn host_operation_shape(
     native_plan: &NativePlan,

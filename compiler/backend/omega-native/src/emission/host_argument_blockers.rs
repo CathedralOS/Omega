@@ -1,9 +1,9 @@
-use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
 use crate::runtime_text::places::expression_place_eq;
 use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::state_schedule::{ScheduledState, scheduled_state_contains_key};
+use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 
 use super::{EmissionBlocker, blocker};

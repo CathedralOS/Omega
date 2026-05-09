@@ -1,5 +1,5 @@
-use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
+use omega_calling_conventions::PlatformCallData;
 use omega_typed_program::expression::Expression;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};

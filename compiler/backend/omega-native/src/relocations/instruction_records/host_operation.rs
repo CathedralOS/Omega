@@ -3,8 +3,8 @@ use super::super::offsets::{
     external_call_relocation_kind, external_call_relocation_offset, external_call_relocation_width,
 };
 use super::context::InstructionRelocationContext;
-use crate::abi::HostBindingMechanism;
 use crate::instructions::SelectedInstructionKind;
+use omega_calling_conventions::HostBindingMechanism;
 use omega_object::RelocationRecord;
 
 pub(super) fn collect_host_operation_relocation(

@@ -1,4 +1,4 @@
-use crate::abi::HostAbiPlan;
+use omega_calling_conventions::HostAbiPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;

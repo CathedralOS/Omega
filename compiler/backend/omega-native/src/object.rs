@@ -1,6 +1,6 @@
-use crate::abi::HostBindingMechanism;
 use crate::plan::NativePlan;
 use crate::runtime_storage::{runtime_frame_storage_alignment, runtime_frame_storage_size};
+use omega_calling_conventions::HostBindingMechanism;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_layout::MachineLayout;

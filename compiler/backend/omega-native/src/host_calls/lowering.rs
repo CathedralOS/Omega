@@ -1,6 +1,6 @@
-use crate::abi::{HostAbiPlan, PlatformCallLowering};
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::place_keys::PlaceKey;
+use omega_calling_conventions::{HostAbiPlan, PlatformCallLowering};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;

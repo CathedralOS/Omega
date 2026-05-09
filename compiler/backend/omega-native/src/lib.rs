@@ -3,7 +3,6 @@
 use omega_core::arena::Arena;
 use omega_typed_program::{Program, machine::Machine, platform::Platform};
 
-pub mod abi;
 pub mod alias_flow;
 pub mod architecture;
 pub mod data;
