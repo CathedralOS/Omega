@@ -109,6 +109,7 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-to-typed",
  "omega-abstract-syntax-tree",
+ "omega-control-flow",
  "omega-core",
  "omega-effects",
  "omega-graph",

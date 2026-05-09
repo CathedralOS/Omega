@@ -19,7 +19,7 @@ fn identifier_path(members: &[&str]) -> IdentifierPath {
 
 fn native_state_name(
     native_plan: &omega_native::plan::NativePlan,
-    key: omega_native::control_flow::StateKey,
+    key: omega_control_flow::StateKey,
 ) -> String {
     native_plan
         .control_flow

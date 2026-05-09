@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::ast::item::Item;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram, PhaseTiming};
 use crate::pipeline::trust::TrustReport;
+use omega_control_flow::{
+    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
+};
 use omega_core::diagnostics::Diagnostic;
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
@@ -12,9 +15,6 @@ use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
 use omega_native::abi::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
-};
-use omega_native::control_flow::{
-    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
 };
 use omega_native::data::NativeDataObject;
 use omega_native::emission::EmissionPlan;
