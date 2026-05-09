@@ -2201,7 +2201,7 @@ fn plans_state_calls_separately_from_host_calls() {
         .map(|(_, state_call)| {
             (
                 native_state_name(&native_plan, state_call.source_key),
-                state_call.target_machine.as_str(),
+                native_state_name(&native_plan, state_call.target_key),
                 state_call.target_state.as_str(),
                 state_call.argument_count,
                 state_call.required,
@@ -2213,8 +2213,20 @@ fn plans_state_calls_separately_from_host_calls() {
     assert_eq!(
         state_calls,
         vec![
-            ("main.entry".to_owned(), "main", "prepare", 1, true),
-            ("main.entry".to_owned(), "Helper", "write", 0, true),
+            (
+                "main.entry".to_owned(),
+                "main.prepare".to_owned(),
+                "prepare",
+                1,
+                true,
+            ),
+            (
+                "main.entry".to_owned(),
+                "Helper.write".to_owned(),
+                "write",
+                0,
+                true,
+            ),
         ]
     );
     let prepare_call = native_plan

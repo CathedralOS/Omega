@@ -46,7 +46,7 @@ pub(super) fn select_state_body_instructions(
             continue;
         };
 
-        if state_call.target_machine.is_empty() {
+        if !state_call.target_key.is_valid() {
             continue;
         }
 
@@ -92,7 +92,7 @@ pub(super) fn runtime_reachable_states(native_plan: &NativePlan) -> Vec<Schedule
 
         push_scheduled_state_key(&mut states, state_call.source_key);
 
-        if !state_call.target_machine.is_empty() {
+        if state_call.target_key.is_valid() {
             push_scheduled_state_key(&mut states, state_call.target_key);
         }
     }

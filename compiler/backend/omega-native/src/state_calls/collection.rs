@@ -11,7 +11,6 @@ pub(in crate::state_calls) struct CollectedStateCall {
     pub statement_index: usize,
     pub receiver: ProgramName,
     pub target_key: StateKey,
-    pub target_machine: ProgramName,
     pub target_state: ProgramName,
     pub raw_arguments: Vec<Expression>,
     pub reachable: bool,
@@ -62,10 +61,6 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
                     .as_ref()
                     .cloned()
                     .unwrap_or_else(|| ProgramName::generated("self")),
-                target_machine: resolved_target
-                    .as_ref()
-                    .map(|target| target.machine.clone())
-                    .unwrap_or_default(),
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
@@ -86,7 +81,6 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
 
 struct ResolvedStateCall {
     key: StateKey,
-    machine: ProgramName,
     resolution: StateCallResolution,
 }
 
@@ -100,7 +94,6 @@ fn resolve_state_call_target(
         if let Some(key) = control_flow.state_key_by_names(&machine.name, target_state) {
             return Some(ResolvedStateCall {
                 key,
-                machine: machine.name.clone(),
                 resolution: StateCallResolution::Local,
             });
         }
@@ -112,7 +105,6 @@ fn resolve_state_call_target(
         let key = control_flow.state_key_by_names(&machine.name, target_state)?;
         return Some(ResolvedStateCall {
             key,
-            machine: machine.name.clone(),
             resolution: StateCallResolution::Local,
         });
     }
@@ -126,7 +118,6 @@ fn resolve_state_call_target(
             .state_key_by_names(&contained.type_name, target_state)
             .map(|key| ResolvedStateCall {
                 key,
-                machine: contained.type_name.clone(),
                 resolution: StateCallResolution::ContainedMachine,
             });
     }
@@ -135,7 +126,6 @@ fn resolve_state_call_target(
         .state_key_by_names(receiver, target_state)
         .map(|key| ResolvedStateCall {
             key,
-            machine: receiver.clone(),
             resolution: StateCallResolution::NamedMachine,
         })
 }

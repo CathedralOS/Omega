@@ -28,7 +28,7 @@ pub(super) fn collect_state_call_blockers(
         }
 
         let source_name = state_name(native_plan, state_call.source_key);
-        if state_call.target_machine.is_empty() {
+        if !state_call.target_key.is_valid() {
             blockers.insert(blocker(
                 "state calls",
                 &format!(
@@ -41,6 +41,7 @@ pub(super) fn collect_state_call_blockers(
             ));
             continue;
         }
+        let target_name = state_name(native_plan, state_call.target_key);
 
         if matches!(
             state_call.lowering,
@@ -58,33 +59,30 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineLeaf => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls leaf state {}.{} with {} argument(s); native emission needs leaf state-call inlining",
+                    "{} statement {} calls leaf state {} with {} argument(s); native emission needs leaf state-call inlining",
                     source_name,
                     state_call.statement_index,
-                    state_call.target_machine,
-                    state_call.target_state,
+                    target_name,
                     state_call.argument_count
                 ),
             )),
             StateCallLowering::InlineBranching => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls branching state {}.{} with {} argument(s); native emission needs guarded state-call expansion",
+                    "{} statement {} calls branching state {} with {} argument(s); native emission needs guarded state-call expansion",
                     source_name,
                     state_call.statement_index,
-                    state_call.target_machine,
-                    state_call.target_state,
+                    target_name,
                     state_call.argument_count
                 ),
             )),
             StateCallLowering::InlineExpansion => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls {}.{} with {} argument(s); native emission needs inline state-call expansion",
+                    "{} statement {} calls {} with {} argument(s); native emission needs inline state-call expansion",
                     source_name,
                     state_call.statement_index,
-                    state_call.target_machine,
-                    state_call.target_state,
+                    target_name,
                     state_call.argument_count
                 ),
             )),
@@ -107,7 +105,7 @@ fn collect_unresolved_state_call_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, state_call) in native_plan.state_calls.calls.iter() {
-        if !state_call.required || !state_call.target_machine.is_empty() {
+        if !state_call.required || state_call.target_key.is_valid() {
             continue;
         }
 

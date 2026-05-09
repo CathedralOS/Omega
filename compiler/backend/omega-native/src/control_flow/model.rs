@@ -76,6 +76,12 @@ pub struct StateKey {
     pub segment_index: usize,
 }
 
+impl StateKey {
+    pub fn is_valid(self) -> bool {
+        self.machine.is_valid() && self.state.is_valid()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFlow {
     pub symbol: SymbolHandle,

@@ -17,7 +17,7 @@ pub(super) fn runtime_and_required_states(native_plan: &NativePlan) -> Vec<Sched
         if state_call.required {
             push_scheduled_state_key(&mut states, state_call.source_key);
 
-            if !state_call.target_machine.is_empty() {
+            if state_call.target_key.is_valid() {
                 push_scheduled_state_key(&mut states, state_call.target_key);
             }
         }

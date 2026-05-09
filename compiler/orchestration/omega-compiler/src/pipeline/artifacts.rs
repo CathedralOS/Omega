@@ -747,17 +747,17 @@ impl ArtifactWriter {
         } else {
             for (_, state_call) in native_plan.state_calls.calls.iter() {
                 let source_name = native_state_name(native_plan, state_call.source_key);
+                let target_name = if state_call.target_key.is_valid() {
+                    native_state_name(native_plan, state_call.target_key)
+                } else {
+                    format!("unresolved.{}", state_call.target_state)
+                };
                 output.push_str(&format!(
-                    "- {} statement {} `{}` -> {}.{} args {} {:?}/{:?} reachable {} required {}\n",
+                    "- {} statement {} `{}` -> {} args {} {:?}/{:?} reachable {} required {}\n",
                     source_name,
                     state_call.statement_index,
                     state_call.receiver,
-                    if state_call.target_machine.is_empty() {
-                        "unresolved"
-                    } else {
-                        state_call.target_machine.as_str()
-                    },
-                    state_call.target_state,
+                    target_name,
                     state_call.argument_count,
                     state_call.resolution,
                     state_call.lowering,
