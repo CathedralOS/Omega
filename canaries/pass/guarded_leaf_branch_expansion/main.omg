@@ -1,4 +1,4 @@
-data CellId {
+enum CellId {
     Empty,
     A1,
     A2,

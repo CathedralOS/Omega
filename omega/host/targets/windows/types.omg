@@ -1,13 +1,13 @@
-data WinBool {
+enum WinBool {
     False,
     True,
 }
 
-data WinHandle {
+enum WinHandle {
     Invalid,
     Valid,
 }
 
-data WinOverlapped {
+enum WinOverlapped {
     None,
 }

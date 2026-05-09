@@ -1,4 +1,4 @@
-data LinuxErrno {
+enum LinuxErrno {
     Interrupted,
     BrokenPipe,
     PermissionDenied,

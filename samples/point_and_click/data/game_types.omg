@@ -1,4 +1,4 @@
-data ClickTarget {
+enum ClickTarget {
     None,
     Door,
     Key,
@@ -22,7 +22,7 @@ data MainView {
     hud: HudView;
 }
 
-data RoomId {
+enum RoomId {
     Foyer,
     Cellar,
 }

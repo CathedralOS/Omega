@@ -1,4 +1,4 @@
-data DarwinErrno {
+enum DarwinErrno {
     Interrupted,
     BrokenPipe,
     PermissionDenied,

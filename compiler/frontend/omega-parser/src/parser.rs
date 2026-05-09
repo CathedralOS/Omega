@@ -77,6 +77,8 @@ impl Parser<'_, '_> {
                 items.push(Item::Capability(self.parse_capability_definition()?));
             } else if self.consume("invariant") {
                 items.push(Item::Invariant(self.parse_invariant_definition()?));
+            } else if self.consume("enum") {
+                items.push(Item::Data(self.parse_enum_definition()?));
             } else if self.consume("data") {
                 items.push(Item::Data(self.parse_data_definition()?));
             } else if self.consume("platform") {
@@ -319,6 +321,24 @@ impl Parser<'_, '_> {
                 if !self.check("}") {
                     self.expect(",")?;
                 }
+            }
+        }
+
+        Ok(DataDefinition { name, members })
+    }
+
+    fn parse_enum_definition(&mut self) -> Result<DataDefinition, ParseError> {
+        let name = self.expect_identifier()?;
+        self.expect("{")?;
+
+        let mut members = Vec::new();
+
+        while !self.consume("}") {
+            let name = self.expect_identifier()?;
+            members.push(DataMember::Variant(DataVariant { name }));
+
+            if !self.check("}") {
+                self.expect(",")?;
             }
         }
 

@@ -1,4 +1,4 @@
-data IOError {
+enum IOError {
     Interrupted,
     PermissionDenied,
     BrokenPipe,
