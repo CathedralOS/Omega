@@ -1,5 +1,5 @@
 use super::model::RuntimeBodyStateCallBlocker;
-use omega_native::plan::NativePlan;
+use omega_backend_plan::NativePlan;
 use omega_runtime_branching::{RuntimeBranchCallExpansion, RuntimeBranchingCall};
 use omega_state_calls::StateCallLowering;
 

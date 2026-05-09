@@ -1,6 +1,6 @@
+use omega_backend_plan::NativePlan;
 use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
-use omega_native::plan::NativePlan;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
 use omega_runtime_text::places::expression_place_eq;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};

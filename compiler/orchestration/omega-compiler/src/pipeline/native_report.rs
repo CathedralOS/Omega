@@ -1,8 +1,8 @@
 use super::artifacts::ArtifactWriter;
 
 use omega_artifacts::NativeSurfaceReport;
+use omega_backend_plan::NativePlan;
 use omega_core::diagnostics::Diagnostic;
-use omega_native::plan::NativePlan;
 
 pub(crate) fn write_native_report(
     artifacts: &ArtifactWriter,

@@ -6,8 +6,8 @@ mod object;
 mod stats;
 
 use omega_artifacts::NativeSurfaceReport;
+use omega_backend_plan::NativePlan;
 use omega_control_flow::StateKey;
-use omega_native::plan::NativePlan;
 use omega_runtime_branching::{
     RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,

@@ -1,6 +1,6 @@
+use omega_backend_plan::NativePlan;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_native::plan::NativePlan;
 use omega_state_calls::StateCallLowering;
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 

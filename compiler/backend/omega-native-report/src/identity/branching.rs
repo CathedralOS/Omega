@@ -3,7 +3,7 @@ use crate::identity::expressions::{
     count_expression_span_strings, count_expression_strings, count_guard_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
-use omega_native::plan::NativePlan;
+use omega_backend_plan::NativePlan;
 use omega_runtime_branching::{
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperationKind,
 };

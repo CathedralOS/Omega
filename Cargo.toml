@@ -18,6 +18,7 @@ members = [
     "compiler/representations/omega-control-flow",
     "compiler/representations/omega-target-program",
     "compiler/representations/omega-machine-program",
+    "compiler/representations/omega-backend-plan",
     "compiler/backend/omega-target",
     "compiler/backend/omega-data-planning",
     "compiler/backend/omega-platform-interface",
@@ -47,8 +48,8 @@ members = [
     "compiler/backend/object/omega-object",
     "compiler/backend/object/omega-object-planning",
     "compiler/backend/object/omega-relocations",
-    "compiler/backend/omega-native",
     "compiler/orchestration/omega-artifacts",
+    "compiler/orchestration/omega-backend-pipeline",
     "compiler/orchestration/omega-compiler",
 ]
 resolver = "3"

@@ -1,5 +1,5 @@
+use omega_backend_plan::NativePlan;
 use omega_core::arena::Arena;
-use omega_native::plan::NativePlan;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardLowering;
 

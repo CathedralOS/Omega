@@ -1,5 +1,5 @@
 use crate::identity::NativeStringStorage;
-use omega_native::plan::NativePlan;
+use omega_backend_plan::NativePlan;
 
 pub(in crate::identity) fn count_layout_strings(
     native_plan: &NativePlan,

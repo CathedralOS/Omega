@@ -18,7 +18,7 @@ fn identifier_path(members: &[&str]) -> IdentifierPath {
 }
 
 fn native_state_name(
-    native_plan: &omega_native::plan::NativePlan,
+    native_plan: &omega_backend_plan::NativePlan,
     key: omega_control_flow::StateKey,
 ) -> String {
     native_plan
@@ -31,11 +31,11 @@ fn native_state_name(
 fn build_native_plan(
     program: &omega_typed_program::Program,
     target: NativeTarget,
-) -> Result<omega_native::plan::NativePlan, omega_core::diagnostics::Diagnostic> {
+) -> Result<omega_backend_plan::NativePlan, omega_core::diagnostics::Diagnostic> {
     let workers = omega_core::parallel::WorkerPool::with_available_parallelism();
     let control_flow = omega_typed_to_control_flow::build_control_flow_plan(program)?;
 
-    omega_native::plan::build_native_plan_from_control_flow_with_workers(
+    omega_backend_pipeline::build_native_plan_from_control_flow_with_workers(
         std::sync::Arc::new(program.clone()),
         target,
         std::sync::Arc::new(control_flow),

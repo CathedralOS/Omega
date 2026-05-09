@@ -1,6 +1,6 @@
 use super::model::RuntimeBodyStateCallBlocker;
 use super::planned::runtime_branching_call_matches_grouped_blocker;
-use omega_native::plan::NativePlan;
+use omega_backend_plan::NativePlan;
 use omega_runtime_branching::RuntimeBranchCallExpansion;
 use omega_state_calls::StateCallLowering;
 

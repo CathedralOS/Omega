@@ -1,4 +1,4 @@
-use super::NativePlanPhaseTiming;
+use omega_backend_plan::NativePlanPhaseTiming;
 use omega_core::allocations::snapshot as allocation_snapshot;
 use std::time::Instant;
 

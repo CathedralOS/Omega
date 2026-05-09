@@ -3,8 +3,8 @@ mod model;
 mod planned;
 mod reasons;
 
+use omega_backend_plan::NativePlan;
 use omega_core::arena::Arena;
-use omega_native::plan::NativePlan;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 use super::super::{EmissionBlocker, blocker};

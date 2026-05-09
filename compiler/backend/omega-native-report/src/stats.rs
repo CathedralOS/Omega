@@ -1,7 +1,7 @@
 use super::format;
 
 use crate::identity::count_native_string_storage;
-use omega_native::plan::NativePlan;
+use omega_backend_plan::NativePlan;
 
 pub(super) fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {
     let timings = &native_plan.phase_timings;

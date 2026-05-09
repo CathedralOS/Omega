@@ -1,6 +1,6 @@
+use omega_backend_plan::NativePlan;
 use omega_control_flow::{OperationKind, StateFlow, StateKey};
 use omega_core::arena::Arena;
-use omega_native::plan::NativePlan;
 use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state_flow};
 
 use super::{EmissionBlocker, blocker};

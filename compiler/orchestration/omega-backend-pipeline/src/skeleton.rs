@@ -1,4 +1,4 @@
-use super::{NativePlan, NativePlanPhaseTiming};
+use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;

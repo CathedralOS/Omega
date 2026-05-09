@@ -1,7 +1,7 @@
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
+use omega_backend_plan::NativePlan;
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
-use omega_native::plan::NativePlan;
 use omega_state_schedule::{
     StateScheduleContext, build_entry_state_schedule, scheduled_state_contains_key,
 };

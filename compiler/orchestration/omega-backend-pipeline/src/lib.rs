@@ -8,11 +8,10 @@ use omega_control_flow::ControlFlowPlan;
 
 mod builder;
 mod entry;
-mod model;
 mod skeleton;
 mod timing;
 
-pub use model::{NativePlan, NativePlanPhaseTiming};
+pub use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
 
 pub fn build_native_plan_from_control_flow_with_workers(
     program: Arc<Program>,
