@@ -2,7 +2,6 @@ use super::NativePlan;
 use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
-use crate::alias_flow::build_alias_flow_plan;
 use crate::data::build_native_data_plan;
 use crate::instructions::build_instruction_plan;
 use crate::runtime_dispatch::bodies::{
@@ -35,7 +34,9 @@ use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
-use omega_state_calls::{StateCallPlanningContext, build_state_call_plan_with_workers};
+use omega_state_calls::{
+    StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
+};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
@@ -113,7 +114,7 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         )
     });
     native_plan.alias_flow = record_native_phase(&mut phase_timings, "alias flow", || {
-        build_alias_flow_plan(&native_plan)
+        build_alias_flow_plan(&native_plan.state_calls)
     });
     let state_analysis_context = Arc::new(StateAnalysisContext::from_native_plan(&native_plan));
     let state_storage_program = Arc::clone(&program);

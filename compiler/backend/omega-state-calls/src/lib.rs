@@ -1,3 +1,4 @@
+mod alias_flow;
 mod arguments;
 mod collection;
 mod lookups;
@@ -15,6 +16,7 @@ use omega_state_graph::RuntimeFlowPlan;
 use required::mark_required_state_calls;
 use std::sync::Arc;
 
+pub use alias_flow::{AliasBinding, AliasFlowPlan, build_alias_flow_plan};
 pub use model::{
     StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
     StateCallResolution,

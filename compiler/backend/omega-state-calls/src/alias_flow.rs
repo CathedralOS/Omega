@@ -1,8 +1,7 @@
-use crate::plan::NativePlan;
+use crate::{StateCallArgumentKind, StateCallPlan};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
-use omega_state_calls::StateCallArgumentKind;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -36,11 +35,11 @@ impl Default for AliasBinding {
     }
 }
 
-pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
+pub fn build_alias_flow_plan(state_calls: &StateCallPlan) -> AliasFlowPlan {
     let mut plan = AliasFlowPlan::default();
 
-    for (_, state_call) in native_plan.state_calls.calls.iter() {
-        let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+    for (_, state_call) in state_calls.calls.iter() {
+        let Some(arguments) = state_calls.arguments.span(state_call.arguments) else {
             continue;
         };
 
