@@ -5,7 +5,7 @@ mod reasons;
 
 use omega_core::arena::Arena;
 use omega_native::plan::NativePlan;
-use omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 use super::super::{EmissionBlocker, blocker};
 use grouping::{push_runtime_body_state_call_blocker, repeated_count_suffix};

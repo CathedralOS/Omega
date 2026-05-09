@@ -1,6 +1,6 @@
 use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan};
-use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use omega_control_flow::StateKey;
+use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_storage::{StateMutation, StateMutationLowering};
 
 use super::layout::{align_to, layout_for_type};

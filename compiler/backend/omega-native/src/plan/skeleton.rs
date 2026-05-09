@@ -1,5 +1,4 @@
 use super::{NativePlan, NativePlanPhaseTiming};
-use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
 use crate::runtime_dispatch::branching::RuntimeBranchingCallPlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopPlan;
 use crate::runtime_storage::RuntimeStoragePlan;
@@ -10,6 +9,7 @@ use omega_layout::LayoutPlan;
 use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
 use omega_object::{ObjectPlan, RelocationPlan, entry_symbol_name};
 use omega_platform_interface::HostCallPlan;
+use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_calls::{AliasFlowPlan, StateCallPlan};
 use omega_state_dispatch::StateDispatchPlan;

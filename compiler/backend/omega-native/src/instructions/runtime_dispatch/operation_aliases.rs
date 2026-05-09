@@ -1,7 +1,5 @@
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::{
-    RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
-};
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 
 use super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_binding, set_runtime_alias, strip_mutable_expression,

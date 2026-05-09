@@ -3,7 +3,6 @@ mod context;
 mod lookups;
 mod model;
 
-use crate::plan::NativePlan;
 use collection::build_dispatch_body;
 pub use context::RuntimeDispatchBodyContext;
 pub use model::{
@@ -14,17 +13,15 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_dispatch::DispatchState;
 use std::sync::Arc;
 
-pub fn build_runtime_dispatch_body_plan(native_plan: &NativePlan) -> RuntimeDispatchBodyPlan {
+pub fn build_runtime_dispatch_body_plan(
+    context: RuntimeDispatchBodyContext,
+    dispatch_states: Vec<DispatchState>,
+) -> RuntimeDispatchBodyPlan {
     let workers = WorkerPool::with_available_parallelism();
 
     build_runtime_dispatch_body_plan_with_workers(
-        Arc::new(RuntimeDispatchBodyContext::from_native_plan(native_plan)),
-        native_plan
-            .state_dispatch
-            .states
-            .iter()
-            .map(|(_, dispatch_state)| dispatch_state.clone())
-            .collect(),
+        Arc::new(context),
+        dispatch_states,
         workers.handle(),
     )
 }

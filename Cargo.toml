@@ -27,6 +27,7 @@ members = [
     "compiler/backend/omega-state-schedule",
     "compiler/backend/omega-state-dispatch",
     "compiler/backend/omega-runtime-text",
+    "compiler/backend/omega-runtime-bodies",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/omega-instruction-selection",

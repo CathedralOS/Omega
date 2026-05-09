@@ -5,9 +5,7 @@ mod storage_copy;
 use super::super::bindings::RuntimeAliasBinding;
 use super::super::lookups::state_mutation_for_statement;
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::{
-    RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
-};
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_program::SelectedInstruction;
 use omega_typed_program::name::ProgramName;
 use static_values::RuntimeStaticValues;
