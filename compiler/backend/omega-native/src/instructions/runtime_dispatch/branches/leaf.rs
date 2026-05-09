@@ -157,12 +157,23 @@ fn runtime_leaf_machine_integer_write(
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &native_plan.layouts,
         native_plan.entry_machine_name(),
-        &expansion.source_machine,
+        &source_machine_name(native_plan, expansion.source_key),
         target,
     )?;
     let value = static_integer_value(&native_plan.layouts, value_expression)?;
 
     Some((byte_offset, byte_size, value))
+}
+
+fn source_machine_name(
+    native_plan: &NativePlan,
+    key: crate::control_flow::StateKey,
+) -> ProgramName {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, _)| machine.clone())
+        .unwrap_or_default()
 }
 
 fn runtime_leaf_storage_copy(

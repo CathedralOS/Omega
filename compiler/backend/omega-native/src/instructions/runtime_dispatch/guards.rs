@@ -2,6 +2,7 @@ use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::RuntimeLeafBranchExpansion;
 use crate::state_guards::StateGuardOperator;
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 
 use super::super::host_operations::runtime_text_input_buffer_for_text_place;
 use super::super::model::SelectedInstructionKind;
@@ -58,21 +59,23 @@ fn runtime_text_storage_guard(
         return None;
     }
     let operator = StateGuardOperator::Equal;
+    let source_machine = source_machine_name(native_plan, expansion.source_key);
+    let source_state = source_state_name(native_plan, expansion.source_key);
 
     let left_place = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
+        &source_machine,
+        &source_state,
         &binary.left,
     );
     let right_place = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
+        &source_machine,
+        &source_state,
         &binary.right,
     );
     let left_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.left);
@@ -118,20 +121,22 @@ fn runtime_storage_guard(
         omega_typed_program::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
         _ => return None,
     };
+    let source_machine = source_machine_name(native_plan, expansion.source_key);
+    let source_state = source_state_name(native_plan, expansion.source_key);
     let left = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
+        &source_machine,
+        &source_state,
         &binary.left,
     );
     let right = resolve_runtime_storage_place(
         native_plan,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.source_machine,
-        &expansion.source_state,
+        &source_machine,
+        &source_state,
         &binary.right,
     );
 
@@ -175,4 +180,23 @@ fn runtime_storage_guard(
     }
 
     None
+}
+
+fn source_machine_name(
+    native_plan: &NativePlan,
+    key: crate::control_flow::StateKey,
+) -> ProgramName {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, _)| machine.clone())
+        .unwrap_or_default()
+}
+
+fn source_state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> ProgramName {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(_, state)| state.clone())
+        .unwrap_or_default()
 }

@@ -1472,11 +1472,11 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, call) in native_plan.runtime_branching_calls.calls.iter() {
+                let source_name = native_state_name(native_plan, call.source_key);
                 output.push_str(&format!(
-                    "- #{} {}.{} statement {} -> {}.{} args {}\n",
+                    "- #{} {} statement {} -> {}.{} args {}\n",
                     call.dispatch_index,
-                    call.source_machine,
-                    call.source_state,
+                    source_name,
                     call.statement_index,
                     call.target_machine,
                     call.target_state,
@@ -1549,11 +1549,11 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
+                let source_name = native_state_name(native_plan, expansion.source_key);
                 output.push_str(&format!(
-                    "- #{} {}.{} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    "- #{} {} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
                     expansion.dispatch_index,
-                    expansion.source_machine,
-                    expansion.source_state,
+                    source_name,
                     expansion.statement_index,
                     expansion.branch_machine,
                     expansion.branch_state,
@@ -1649,11 +1649,11 @@ impl ArtifactWriter {
                 .straight_line_expansions
                 .iter()
             {
+                let source_name = native_state_name(native_plan, expansion.source_key);
                 output.push_str(&format!(
-                    "- #{} {}.{} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    "- #{} {} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
                     expansion.dispatch_index,
-                    expansion.source_machine,
-                    expansion.source_state,
+                    source_name,
                     expansion.statement_index,
                     expansion.branch_machine,
                     expansion.branch_state,

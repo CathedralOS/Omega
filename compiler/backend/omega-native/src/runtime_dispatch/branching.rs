@@ -1,7 +1,6 @@
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::state_calls::StateCallLowering;
-use omega_typed_program::name::ProgramName;
 
 mod aliases;
 mod classify;
@@ -73,13 +72,10 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                     | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
                     | RuntimeBranchCallExpansion::NeedsStraightLineTarget
             ) {
-                let (source_machine, source_state) = state_names(native_plan, operation.source_key);
                 append_leaf_branch_expansions(
                     native_plan,
                     &mut plan,
                     operation.source_key,
-                    &source_machine,
-                    &source_state,
                     operation.statement_index,
                     body.dispatch_index,
                     target_machine,
@@ -90,13 +86,10 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 );
             }
             if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
-                let (source_machine, source_state) = state_names(native_plan, operation.source_key);
                 append_straight_line_branch_expansions(
                     native_plan,
                     &mut plan,
                     operation.source_key,
-                    &source_machine,
-                    &source_state,
                     operation.statement_index,
                     body.dispatch_index,
                     target_machine,
@@ -107,12 +100,9 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 );
             }
             let edges = plan.edges.insert_many(branch_edges);
-            let (source_machine, source_state) = state_names(native_plan, operation.source_key);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
                 source_key: operation.source_key,
-                source_machine,
-                source_state,
                 statement_index: operation.statement_index,
                 target_key: state_call.target_key,
                 target_machine: target_machine.clone(),
@@ -126,15 +116,4 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
     }
 
     plan
-}
-
-fn state_names(
-    native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
 }

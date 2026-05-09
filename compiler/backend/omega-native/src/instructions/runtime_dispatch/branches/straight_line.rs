@@ -82,7 +82,7 @@ fn select_runtime_straight_line_branch_writes(
                     native_plan,
                     expansion.dispatch_index,
                     operation.source_key,
-                    &expansion.source_machine,
+                    &source_machine_name(native_plan, expansion.source_key),
                     &operation_machine,
                     &operation_state,
                     operation.statement_index,
@@ -171,7 +171,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             native_plan,
             expansion.dispatch_index,
             target_key,
-            &expansion.source_machine,
+            &source_machine_name(native_plan, expansion.source_key),
             target_machine,
             target_state,
             leaf_operation.statement_index,
@@ -180,4 +180,12 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             selected_instructions,
         );
     }
+}
+
+fn source_machine_name(native_plan: &NativePlan, key: StateKey) -> ProgramName {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, _)| machine.clone())
+        .unwrap_or_default()
 }

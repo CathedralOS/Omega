@@ -11,8 +11,6 @@ use omega_typed_program::statement::TransitionGuard;
 pub struct RuntimeStraightLineBranchExpansion {
     pub dispatch_index: u32,
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub branch_machine: ProgramName,
     pub branch_state: ProgramName,
@@ -31,8 +29,6 @@ impl Default for RuntimeStraightLineBranchExpansion {
         Self {
             dispatch_index: 0,
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             statement_index: 0,
             branch_machine: ProgramName::default(),
             branch_state: ProgramName::default(),
