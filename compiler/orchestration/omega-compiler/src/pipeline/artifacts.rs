@@ -2,8 +2,7 @@ use std::path::{Path, PathBuf};
 
 use omega_artifacts::{
     ArtifactWriter as ArtifactSink, AstArtifact, EmissionPlan, ExecutableFinalization,
-    ExecutableFinalizationStatus, NativeSurfaceReport, PhaseTiming, SourceLoadArtifact,
-    TrustReport,
+    NativeSurfaceReport, PhaseTiming, SourceLoadArtifact, TrustReport,
 };
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
@@ -1691,279 +1690,29 @@ impl ArtifactWriter {
         &self,
         emission_plan: &EmissionPlan,
     ) -> Result<(), Diagnostic> {
-        let mut output = String::new();
-
-        output.push_str("# Omega Emission Plan\n\n");
-        output.push_str(&format!("image format: {:?}\n", emission_plan.image_format));
-        output.push_str(&format!("entry symbol: {}\n", emission_plan.entry_symbol));
-        output.push_str(&format!("sections: {}\n", emission_plan.sections));
-        output.push_str(&format!("symbols: {}\n", emission_plan.symbols));
-        output.push_str(&format!("host bindings: {}\n", emission_plan.host_bindings));
-        output.push_str(&format!("host calls: {}\n", emission_plan.host_calls));
-        output.push_str(&format!("data bytes: {}\n", emission_plan.data_bytes));
-        output.push_str(&format!(
-            "selected instructions: {}\n",
-            emission_plan.selected_instructions
-        ));
-        output.push_str(&format!(
-            "instruction operands: {}\n",
-            emission_plan.instruction_operands
-        ));
-        output.push_str(&format!(
-            "machine code bytes: {}\n",
-            emission_plan.machine_code_bytes
-        ));
-        output.push_str(&format!(
-            "encoded machine bytes: {}\n",
-            emission_plan.encoded_machine_bytes
-        ));
-        output.push_str(&format!("relocations: {}\n", emission_plan.relocations));
-        output.push_str(&format!("blockers: {}\n\n", emission_plan.blockers.len()));
-
-        if emission_plan.blockers.is_empty() {
-            output.push_str("status: ready to emit\n");
-        } else {
-            output.push_str("status: blocked before byte emission\n\n");
-            output.push_str("## Blockers\n");
-
-            for (_, blocker) in emission_plan.blockers.iter() {
-                output.push_str(&format!("- {}: {}\n", blocker.stage, blocker.reason));
-            }
-        }
-
-        self.write("11_emission.txt", &output)
+        self.sink.write_emission_plan(emission_plan)
     }
 
     pub(crate) fn write_emitted_native_output(
         &self,
         emitted_output: &EmittedImageOutput,
     ) -> Result<PathBuf, Diagnostic> {
-        let output_path = self
-            .sink
-            .write_bytes(&emitted_output.file_name, &emitted_output.bytes)?;
-
-        let mut output = String::new();
-        output.push_str("# Omega Emitted Native Output\n\n");
-        output.push_str(&format!("path: {}\n", output_path.display()));
-        output.push_str(&format!("format: {}\n", emitted_output.format));
-        output.push_str(&format!("kind: {:?}\n", emitted_output.kind));
-        output.push_str(&format!("bytes: {}\n", emitted_output.bytes.len()));
-        output.push_str(&format!("text bytes: {}\n", emitted_output.text_bytes));
-        output.push_str(&format!("data bytes: {}\n", emitted_output.data_bytes));
-        output.push_str(&format!("bss bytes: {}\n", emitted_output.bss_bytes));
-        output.push_str(&format!("symbols: {}\n", emitted_output.symbols));
-        output.push_str(&format!("relocations: {}\n", emitted_output.relocations));
-        output.push_str(&format!(
-            "final image symbols: {}\n",
-            emitted_output.final_image_symbols
-        ));
-        output.push_str(&format!(
-            "final image imports: {}\n",
-            emitted_output.final_image_imports
-        ));
-        output.push_str(&format!(
-            "final image relocations: {}\n",
-            emitted_output.final_image_relocations
-        ));
-
-        self.write("12_emitted_output.txt", &output)?;
-
-        Ok(output_path)
+        self.sink.write_emitted_native_output(emitted_output)
     }
 
     pub(crate) fn remove_stale_native_output(&self) -> Result<(), Diagnostic> {
-        self.sink.remove_files([
-            "omega-program",
-            "12_emitted_output.txt",
-            "13_finalization.txt",
-        ])
+        self.sink.remove_stale_native_output()
     }
 
     pub(crate) fn write_executable_finalization_report(
         &self,
         finalization: &ExecutableFinalization,
     ) -> Result<(), Diagnostic> {
-        let mut output = String::new();
-
-        output.push_str("# Omega Executable Finalization\n\n");
-        output.push_str(&format!("status: {:?}\n", finalization.status));
-        output.push_str(&format!(
-            "output: {}\n",
-            finalization.executable_path.display()
-        ));
-        if finalization.command.is_empty() {
-            output.push_str("command: none\n");
-        } else {
-            output.push_str(&format!("command: {}\n", finalization.command.join(" ")));
-        }
-        if !finalization.stdout.is_empty() {
-            output.push_str("\n## stdout\n");
-            output.push_str(&finalization.stdout);
-            output.push('\n');
-        }
-        if !finalization.stderr.is_empty() {
-            output.push_str("\n## stderr\n");
-            output.push_str(&finalization.stderr);
-            output.push('\n');
-        }
-        if finalization.status == ExecutableFinalizationStatus::AlreadyExecutable {
-            output.push_str(
-                "\nno finalization command was needed; the backend emitted an executable image directly.\n",
-            );
-        }
-
-        self.write("13_finalization.txt", &output)
+        self.sink.write_executable_finalization_report(finalization)
     }
 
     pub(crate) fn write_timings(&self, timings: &[PhaseTiming]) -> Result<(), Diagnostic> {
-        let mut output = String::new();
-
-        output.push_str("# Omega Phase Timings\n\n");
-
-        let total_microseconds = timings
-            .iter()
-            .map(|timing| timing.microseconds)
-            .sum::<u128>();
-        let total_allocation_calls = timings
-            .iter()
-            .map(|timing| timing.allocations.allocation_calls)
-            .sum::<u64>();
-        let total_deallocation_calls = timings
-            .iter()
-            .map(|timing| timing.allocations.deallocation_calls)
-            .sum::<u64>();
-        let total_allocated_bytes = timings
-            .iter()
-            .map(|timing| timing.allocations.allocated_bytes)
-            .sum::<u64>();
-        let total_deallocated_bytes = timings
-            .iter()
-            .map(|timing| timing.allocations.deallocated_bytes)
-            .sum::<u64>();
-        let total_net_live_bytes =
-            i128::from(total_allocated_bytes) - i128::from(total_deallocated_bytes);
-        let slowest = timings.iter().max_by_key(|timing| timing.microseconds);
-        let allocation_heaviest = timings
-            .iter()
-            .max_by_key(|timing| timing.allocations.allocated_bytes);
-        let average_microseconds = if timings.is_empty() {
-            0
-        } else {
-            total_microseconds / timings.len() as u128
-        };
-
-        output.push_str("## Summary\n\n");
-        output.push_str(&format!("phase count: {}\n", timings.len()));
-        output.push_str(&format!(
-            "total measured: {}\n",
-            format_duration(total_microseconds)
-        ));
-        output.push_str(&format!(
-            "average phase: {}\n",
-            format_duration(average_microseconds)
-        ));
-        output.push_str(&format!(
-            "allocation calls: {} alloc / {} free\n",
-            format_integer(u128::from(total_allocation_calls)),
-            format_integer(u128::from(total_deallocation_calls))
-        ));
-        output.push_str(&format!(
-            "allocated bytes: {} allocated / {} freed / {} net\n",
-            format_bytes(total_allocated_bytes),
-            format_bytes(total_deallocated_bytes),
-            format_signed_bytes(total_net_live_bytes)
-        ));
-        if let Some(slowest) = slowest {
-            output.push_str(&format!(
-                "slowest phase: {} ({}, {})\n",
-                slowest.phase,
-                format_duration(slowest.microseconds),
-                format_percentage(slowest.microseconds, total_microseconds)
-            ));
-        }
-        if let Some(allocation_heaviest) = allocation_heaviest {
-            output.push_str(&format!(
-                "allocation-heaviest phase: {} ({} in {} allocation calls)\n",
-                allocation_heaviest.phase,
-                format_bytes(allocation_heaviest.allocations.allocated_bytes),
-                format_integer(u128::from(allocation_heaviest.allocations.allocation_calls))
-            ));
-        }
-
-        output.push_str("\n## Phases\n\n");
-        let phase_width = timings
-            .iter()
-            .map(|timing| timing.phase.len())
-            .max()
-            .unwrap_or("phase".len())
-            .max("phase".len());
-        let duration_width = timings
-            .iter()
-            .map(|timing| format_duration(timing.microseconds).len())
-            .chain(std::iter::once("time".len()))
-            .max()
-            .unwrap_or("time".len());
-        let raw_width = timings
-            .iter()
-            .map(|timing| format!("{} us", format_integer(timing.microseconds)).len())
-            .chain(std::iter::once("raw".len()))
-            .max()
-            .unwrap_or("raw".len());
-        let alloc_calls_width = timings
-            .iter()
-            .map(|timing| format_integer(u128::from(timing.allocations.allocation_calls)).len())
-            .chain(std::iter::once("allocs".len()))
-            .max()
-            .unwrap_or("allocs".len());
-        let allocated_width = timings
-            .iter()
-            .map(|timing| format_bytes(timing.allocations.allocated_bytes).len())
-            .chain(std::iter::once("allocated".len()))
-            .max()
-            .unwrap_or("allocated".len());
-        let net_width = timings
-            .iter()
-            .map(|timing| format_signed_bytes(timing.allocations.net_live_bytes()).len())
-            .chain(std::iter::once("net".len()))
-            .max()
-            .unwrap_or("net".len());
-
-        output.push_str(&format!(
-            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
-            "phase", "time", "share", "raw", "allocs", "allocated", "net"
-        ));
-        output.push_str(&format!(
-            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}  {:-<alloc_calls_width$}  {:-<allocated_width$}  {:-<net_width$}\n",
-            "", "", "", "", "", "", ""
-        ));
-        for timing in timings {
-            output.push_str(&format!(
-                "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
-                timing.phase,
-                format_duration(timing.microseconds),
-                format_percentage(timing.microseconds, total_microseconds),
-                format!("{} us", format_integer(timing.microseconds)),
-                format_integer(u128::from(timing.allocations.allocation_calls)),
-                format_bytes(timing.allocations.allocated_bytes),
-                format_signed_bytes(timing.allocations.net_live_bytes()),
-            ));
-        }
-        output.push_str(&format!(
-            "{:-<phase_width$}  {:-<duration_width$}  {:-<7}  {:-<raw_width$}  {:-<alloc_calls_width$}  {:-<allocated_width$}  {:-<net_width$}\n",
-            "", "", "", "", "", "", ""
-        ));
-        output.push_str(&format!(
-            "{:<phase_width$}  {:>duration_width$}  {:>7}  {:>raw_width$}  {:>alloc_calls_width$}  {:>allocated_width$}  {:>net_width$}\n",
-            "total",
-            format_duration(total_microseconds),
-            "100.00%",
-            format!("{} us", format_integer(total_microseconds)),
-            format_integer(u128::from(total_allocation_calls)),
-            format_bytes(total_allocated_bytes),
-            format_signed_bytes(total_net_live_bytes),
-        ));
-
-        self.write("00_timings.txt", &output)
+        self.sink.write_timings(timings)
     }
 
     pub(crate) fn root(&self) -> &Path {
@@ -2017,14 +1766,6 @@ fn format_bytes(bytes: u64) -> String {
         format!("{:.2} KiB", bytes / KIB)
     } else {
         format!("{} B", bytes as u64)
-    }
-}
-
-fn format_signed_bytes(bytes: i128) -> String {
-    if bytes < 0 {
-        format!("-{}", format_bytes(bytes.unsigned_abs() as u64))
-    } else {
-        format_bytes(bytes as u64)
     }
 }
 
