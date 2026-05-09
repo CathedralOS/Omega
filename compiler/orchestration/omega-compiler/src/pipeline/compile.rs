@@ -19,9 +19,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
+use omega_image_emission::{ExecutableImageInput, emit_checked_executable_image};
 use omega_names::build_resolve_report;
 use omega_native::emission::build_emission_plan;
-use omega_native::emitter::emit_native_output;
 use omega_native::plan::build_native_plan_from_control_flow_with_workers;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
@@ -331,8 +331,17 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     }
     let (native_output_path, emitted_output) =
         record_phase(&mut phase_timings, "emit native output", || {
-            let emitted_output =
-                emit_native_output(&native_plan).map_err(|diagnostic| vec![diagnostic])?;
+            let emitted_output = emit_checked_executable_image(
+                ExecutableImageInput {
+                    target: native_plan.target,
+                    object: &native_plan.object,
+                    relocations: &native_plan.relocations,
+                    text_bytes: native_plan.machine_code.bytes.storage_slice(),
+                    data_bytes: native_plan.data.bytes.storage_slice(),
+                },
+                native_plan.machine_code.byte_count,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
             let native_output_path = artifacts
                 .write_emitted_native_output(&emitted_output)
                 .map_err(|diagnostic| vec![diagnostic])?;

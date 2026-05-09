@@ -30,6 +30,28 @@ pub fn emit_executable_image(
     }
 }
 
+pub fn emit_checked_executable_image(
+    input: ExecutableImageInput<'_>,
+    planned_text_bytes: usize,
+) -> Result<EmittedImageOutput, Diagnostic> {
+    if input.text_bytes.len() != planned_text_bytes {
+        return Err(Diagnostic::error(format!(
+            "cannot emit native output for {:?}: encoded {} machine byte(s), planned {} byte(s)",
+            input.target,
+            input.text_bytes.len(),
+            planned_text_bytes
+        )));
+    }
+
+    if let Some(emitted_output) = emit_executable_image(input) {
+        return emitted_output;
+    }
+
+    Err(Diagnostic::error(
+        "cannot emit native executable; no direct image writer is registered for this target",
+    ))
+}
+
 fn emit_elf_aarch64_executable(
     input: ExecutableImageInput<'_>,
 ) -> Result<EmittedImageOutput, Diagnostic> {
