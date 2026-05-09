@@ -12,7 +12,6 @@ pub(in crate::state_calls) struct CollectedStateCall {
     pub statement_index: usize,
     pub receiver: ProgramName,
     pub target_key: StateKey,
-    pub target_state: ProgramName,
     pub raw_arguments: Vec<Expression>,
     pub reachable: bool,
     pub required: bool,
@@ -66,7 +65,6 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
                     .as_ref()
                     .map(|target| target.key)
                     .unwrap_or_default(),
-                target_state: target.clone(),
                 raw_arguments: arguments.clone(),
                 reachable: context.runtime_state_is_reachable_by_key(state.key),
                 required: false,

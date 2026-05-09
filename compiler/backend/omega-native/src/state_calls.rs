@@ -69,7 +69,6 @@ pub fn build_state_call_plan_with_workers(
             statement_index: call.statement_index,
             receiver: call.receiver,
             target_key: call.target_key,
-            target_state: call.target_state,
             argument_count: arguments.len(),
             arguments,
             reachable: call.reachable,

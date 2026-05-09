@@ -750,7 +750,7 @@ impl ArtifactWriter {
                 let target_name = if state_call.target_key.is_valid() {
                     native_state_name(native_plan, state_call.target_key)
                 } else {
-                    format!("unresolved.{}", state_call.target_state)
+                    "unresolved".to_owned()
                 };
                 output.push_str(&format!(
                     "- {} statement {} `{}` -> {} args {} {:?}/{:?} reachable {} required {}\n",

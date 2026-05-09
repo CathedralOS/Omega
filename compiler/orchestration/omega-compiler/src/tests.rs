@@ -2218,7 +2218,6 @@ fn plans_state_calls_separately_from_host_calls() {
             (
                 native_state_name(&native_plan, state_call.source_key),
                 native_state_name(&native_plan, state_call.target_key),
-                state_call.target_state.as_str(),
                 state_call.argument_count,
                 state_call.required,
             )
@@ -2229,27 +2228,17 @@ fn plans_state_calls_separately_from_host_calls() {
     assert_eq!(
         state_calls,
         vec![
-            (
-                "main.entry".to_owned(),
-                "main.prepare".to_owned(),
-                "prepare",
-                1,
-                true,
-            ),
-            (
-                "main.entry".to_owned(),
-                "Helper.write".to_owned(),
-                "write",
-                0,
-                true,
-            ),
+            ("main.entry".to_owned(), "main.prepare".to_owned(), 1, true,),
+            ("main.entry".to_owned(), "Helper.write".to_owned(), 0, true,),
         ]
     );
     let prepare_call = native_plan
         .state_calls
         .calls
         .iter()
-        .find(|(_, state_call)| state_call.target_state == "prepare")
+        .find(|(_, state_call)| {
+            native_state_name(&native_plan, state_call.target_key) == "main.prepare"
+        })
         .map(|(_, state_call)| state_call)
         .expect("prepare state call should be planned");
     let prepare_arguments = native_plan

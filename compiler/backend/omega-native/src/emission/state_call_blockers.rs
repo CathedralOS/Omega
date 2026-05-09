@@ -32,11 +32,8 @@ pub(super) fn collect_state_call_blockers(
             blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls unresolved state `{}` through `{}`",
-                    source_name,
-                    state_call.statement_index,
-                    state_call.target_state,
-                    state_call.receiver
+                    "{} statement {} has unresolved state call through `{}`",
+                    source_name, state_call.statement_index, state_call.receiver
                 ),
             ));
             continue;
@@ -89,10 +86,9 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::Unresolved => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls unresolved state `{}` through `{}`",
+                    "{} statement {} has unresolved state call through `{}`",
                     source_name,
                     state_call.statement_index,
-                    state_call.target_state,
                     state_call.receiver
                 ),
             )),
@@ -113,11 +109,8 @@ fn collect_unresolved_state_call_blockers(
         blockers.insert(blocker(
             "state calls",
             &format!(
-                "{} statement {} calls unresolved state `{}` through `{}`",
-                source_name,
-                state_call.statement_index,
-                state_call.target_state,
-                state_call.receiver
+                "{} statement {} has unresolved state call through `{}`",
+                source_name, state_call.statement_index, state_call.receiver
             ),
         ));
     }
