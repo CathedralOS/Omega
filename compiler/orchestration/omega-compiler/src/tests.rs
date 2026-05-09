@@ -1799,8 +1799,8 @@ fn plans_runtime_branching_state_call_edges() {
     assert_eq!(edges.len(), 2);
     assert!(matches!(
         edges[0].target,
-        omega_native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
-            if state == "yes"
+        omega_native::runtime_flow::RuntimeTransitionTarget::State { key }
+            if native_state_name(&native_plan, key) == "main.yes"
     ));
     assert_eq!(
         edges[0].lowering,
@@ -1812,8 +1812,8 @@ fn plans_runtime_branching_state_call_edges() {
     );
     assert!(matches!(
         edges[1].target,
-        omega_native::runtime_flow::RuntimeTransitionTarget::State { ref state, .. }
-            if state == "no"
+        omega_native::runtime_flow::RuntimeTransitionTarget::State { key }
+            if native_state_name(&native_plan, key) == "main.no"
     ));
     assert_eq!(
         edges[1].lowering,

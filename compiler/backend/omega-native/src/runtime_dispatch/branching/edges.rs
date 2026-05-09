@@ -30,7 +30,8 @@ pub(super) fn build_branch_edges(
         .iter()
         .enumerate()
         .map(|(order, transition)| {
-            let target = runtime_transition_target(machine, &state.name, &transition.target);
+            let target =
+                runtime_transition_target(native_plan, machine, state.key, &transition.target);
             RuntimeBranchingCallEdge {
                 order,
                 lowering: branch_target_lowering(native_plan, &target),
@@ -39,7 +40,7 @@ pub(super) fn build_branch_edges(
                     .continuation
                     .as_ref()
                     .map(|continuation| {
-                        runtime_transition_target(machine, &state.name, continuation)
+                        runtime_transition_target(native_plan, machine, state.key, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
                 target_arguments: transition_target_arguments(&transition.target, target_arguments),
@@ -109,35 +110,40 @@ fn branch_target_lowering(
 }
 
 fn runtime_transition_target(
+    native_plan: &NativePlan,
     machine: &MachineFlow,
-    current_state: &str,
+    current_state: StateKey,
     target: &PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
-        PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
-            key: *key,
-            machine: machine.name.clone(),
-            state: name.clone(),
-        },
+        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
         PlannedTransitionTarget::Nested {
             receiver, state, ..
         } => machine
             .contains
             .iter()
             .find(|contained| contained.name == *receiver)
-            .map(|contained| RuntimeTransitionTarget::State {
-                key: Default::default(),
-                machine: contained.type_name.clone(),
-                state: state.clone(),
+            .and_then(|contained| {
+                native_plan
+                    .control_flow
+                    .machine_by_symbol(contained.type_symbol)
+            })
+            .and_then(|target_machine| {
+                native_plan
+                    .control_flow
+                    .states
+                    .span(target_machine.states)
+                    .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+            })
+            .map(|target_state| RuntimeTransitionTarget::State {
+                key: target_state.key,
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
             }),
-        PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-            key: Default::default(),
-            machine: machine.name.clone(),
-            state: current_state.to_owned().into(),
-        },
+        PlannedTransitionTarget::SelfTarget => {
+            RuntimeTransitionTarget::State { key: current_state }
+        }
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
 }

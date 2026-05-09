@@ -3,7 +3,7 @@ use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_analysis::StateAnalysisContext;
 
 use super::collection::CollectedStateCall;
-use super::lookups::{state_flow_from_key, state_key_is_valid};
+use super::lookups::state_key_is_valid;
 
 pub(in crate::state_calls) fn mark_required_state_calls(
     context: &StateAnalysisContext,
@@ -110,11 +110,7 @@ fn runtime_transition_target(
     target: &PlannedTransitionTarget,
 ) -> RuntimeTransitionTarget {
     match target {
-        PlannedTransitionTarget::State { key, name, .. } => RuntimeTransitionTarget::State {
-            key: *key,
-            machine: machine.name.clone(),
-            state: name.clone(),
-        },
+        PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
         PlannedTransitionTarget::Nested {
             receiver, state, ..
         } => machine
@@ -129,7 +125,7 @@ fn runtime_transition_target(
                     .find(|(_, machine)| machine.symbol == contained.type_symbol)
                     .map(|(_, machine)| (contained, machine))
             })
-            .and_then(|(contained, target_machine)| {
+            .and_then(|(_, target_machine)| {
                 context
                     .control_flow
                     .states
@@ -137,20 +133,14 @@ fn runtime_transition_target(
                     .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
                     .map(|target_state| RuntimeTransitionTarget::State {
                         key: target_state.key,
-                        machine: contained.type_name.clone(),
-                        state: target_state.name.clone(),
                     })
             })
             .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {
                 name: format!("{receiver}.{state}"),
             }),
-        PlannedTransitionTarget::SelfTarget => RuntimeTransitionTarget::State {
-            key: current_state,
-            machine: machine.name.clone(),
-            state: state_flow_from_key(context, current_state)
-                .map(|state| state.name.clone())
-                .unwrap_or_default(),
-        },
+        PlannedTransitionTarget::SelfTarget => {
+            RuntimeTransitionTarget::State { key: current_state }
+        }
         PlannedTransitionTarget::Terminal => RuntimeTransitionTarget::Terminal,
     }
 }

@@ -1,6 +1,5 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -44,16 +43,10 @@ pub struct RuntimeCycle {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeTransitionTarget {
-    State {
-        key: StateKey,
-        machine: ProgramName,
-        state: ProgramName,
-    },
+    State { key: StateKey },
     Terminal,
     None,
-    Unknown {
-        name: String,
-    },
+    Unknown { name: String },
 }
 
 impl Default for RuntimeTransitionTarget {

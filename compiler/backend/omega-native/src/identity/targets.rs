@@ -36,11 +36,9 @@ pub(in crate::identity) fn count_runtime_target_strings(
     storage: &mut NativeStringStorage,
 ) {
     match target {
-        RuntimeTransitionTarget::State { machine, state, .. } => {
-            storage.count_program_name_identity(machine);
-            storage.count_program_name_identity(state);
-        }
         RuntimeTransitionTarget::Unknown { name } => storage.count_identity(name),
-        RuntimeTransitionTarget::Terminal | RuntimeTransitionTarget::None => {}
+        RuntimeTransitionTarget::State { .. }
+        | RuntimeTransitionTarget::Terminal
+        | RuntimeTransitionTarget::None => {}
     }
 }

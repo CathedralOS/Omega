@@ -37,7 +37,7 @@ pub(super) fn collect_state_guard_blockers(
                 state_name,
                 guard.statement_order,
                 guard.target_dispatch_index,
-                runtime_transition_target_name(&guard.target),
+                runtime_transition_target_name(native_plan, &guard.target),
                 guard.kind,
                 guard.lowering,
                 guard.expression.display_name()
@@ -46,9 +46,16 @@ pub(super) fn collect_state_guard_blockers(
     }
 }
 
-fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
+fn runtime_transition_target_name(
+    native_plan: &NativePlan,
+    target: &RuntimeTransitionTarget,
+) -> String {
     match target {
-        RuntimeTransitionTarget::State { machine, state, .. } => format!("{machine}.{state}"),
+        RuntimeTransitionTarget::State { key } => native_plan
+            .control_flow
+            .state_names_by_key(*key)
+            .map(|(machine, state)| format!("{machine}.{state}"))
+            .unwrap_or_else(|| "<unknown>.<unknown>".to_owned()),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),

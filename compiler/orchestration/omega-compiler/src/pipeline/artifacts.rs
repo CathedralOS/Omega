@@ -1150,14 +1150,14 @@ impl ArtifactWriter {
                 output.push_str(&format!(
                     "- {} -> {} {}",
                     native_state_name(native_plan, edge.from),
-                    runtime_transition_target_name(&edge.target),
+                    runtime_transition_target_name(native_plan, &edge.target),
                     transition_guard_name(&edge.guard)
                 ));
 
                 if edge.continuation != RuntimeTransitionTarget::None {
                     output.push_str(&format!(
                         " -> {}",
-                        runtime_transition_target_name(&edge.continuation)
+                        runtime_transition_target_name(native_plan, &edge.continuation)
                     ));
                 }
 
@@ -1221,7 +1221,7 @@ impl ArtifactWriter {
                             output.push_str(&format!(
                                 "    - -> #{} {} {}",
                                 edge.target_dispatch_index,
-                                runtime_transition_target_name(&edge.target),
+                                runtime_transition_target_name(native_plan, &edge.target),
                                 transition_guard_name(&edge.guard)
                             ));
 
@@ -1229,7 +1229,7 @@ impl ArtifactWriter {
                                 output.push_str(&format!(
                                     " -> #{} {}",
                                     edge.continuation_dispatch_index,
-                                    runtime_transition_target_name(&edge.continuation)
+                                    runtime_transition_target_name(native_plan, &edge.continuation)
                                 ));
                             }
 
@@ -1275,7 +1275,7 @@ impl ArtifactWriter {
                     state_name,
                     guard.statement_order,
                     guard.target_dispatch_index,
-                    runtime_transition_target_name(&guard.target),
+                    runtime_transition_target_name(native_plan, &guard.target),
                     guard.kind,
                     guard.operator,
                     guard.lowering
@@ -1289,7 +1289,7 @@ impl ArtifactWriter {
                     output.push_str(&format!(
                         " -> #{} {}",
                         guard.continuation_dispatch_index,
-                        runtime_transition_target_name(&guard.continuation)
+                        runtime_transition_target_name(native_plan, &guard.continuation)
                     ));
                 }
 
@@ -1386,7 +1386,7 @@ impl ArtifactWriter {
                                 "    - #{} -> #{} {} {:?}/{:?} {}",
                                 edge.order,
                                 edge.target_dispatch_index,
-                                runtime_transition_target_name(&edge.target),
+                                runtime_transition_target_name(native_plan, &edge.target),
                                 edge.guard_lowering,
                                 edge.action,
                                 transition_guard_name(&edge.guard)
@@ -1404,7 +1404,7 @@ impl ArtifactWriter {
                                 output.push_str(&format!(
                                     " -> #{} {}",
                                     edge.continuation_dispatch_index,
-                                    runtime_transition_target_name(&edge.continuation)
+                                    runtime_transition_target_name(native_plan, &edge.continuation)
                                 ));
                             }
 
@@ -1490,7 +1490,7 @@ impl ArtifactWriter {
                             output.push_str(&format!(
                                 "    - #{} -> {} {:?} {:?} {}",
                                 edge.order,
-                                runtime_transition_target_name(&edge.target),
+                                runtime_transition_target_name(native_plan, &edge.target),
                                 edge.lowering,
                                 edge.guard_kind,
                                 transition_guard_name(&edge.guard)
@@ -1514,7 +1514,7 @@ impl ArtifactWriter {
                             if edge.continuation != RuntimeTransitionTarget::None {
                                 output.push_str(&format!(
                                     " -> {}",
-                                    runtime_transition_target_name(&edge.continuation)
+                                    runtime_transition_target_name(native_plan, &edge.continuation)
                                 ));
                             }
 
@@ -3481,9 +3481,12 @@ fn transition_target_name(target: &PlannedTransitionTarget) -> String {
     }
 }
 
-fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
+fn runtime_transition_target_name(
+    native_plan: &NativePlan,
+    target: &RuntimeTransitionTarget,
+) -> String {
     match target {
-        RuntimeTransitionTarget::State { machine, state, .. } => format!("{machine}.{state}"),
+        RuntimeTransitionTarget::State { key } => native_state_name(native_plan, *key),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
