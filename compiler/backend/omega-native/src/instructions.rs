@@ -16,8 +16,7 @@ pub use model::{
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
 use state_bodies::{
-    machine_name_for_state, runtime_reachable_states, select_state_body_instructions,
-    select_state_host_calls,
+    runtime_reachable_states, select_state_body_instructions, select_state_host_calls,
 };
 
 pub fn build_instruction_plan(native_plan: &NativePlan) -> InstructionPlan {
@@ -76,13 +75,9 @@ fn select_entry_instructions(
     } else {
         for scheduled_state in &state_schedule {
             if let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) {
-                let Some(machine_name) = machine_name_for_state(native_plan, state_flow) else {
-                    continue;
-                };
                 select_state_host_calls(
                     native_plan,
-                    machine_name,
-                    &state_flow.name,
+                    state_flow.key,
                     operands,
                     &mut selected_instructions,
                 );

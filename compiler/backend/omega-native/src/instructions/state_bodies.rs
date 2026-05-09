@@ -1,6 +1,6 @@
-use crate::control_flow::{OperationKind, StateFlow, StateKey};
+use crate::control_flow::{OperationKind, StateKey};
 use crate::plan::NativePlan;
-use crate::state_schedule::{ScheduledState, scheduled_state_key};
+use crate::state_schedule::ScheduledState;
 use omega_core::arena::Arena;
 
 use super::host_operations::select_host_call;
@@ -64,14 +64,10 @@ pub(super) fn select_state_body_instructions(
 
 pub(super) fn select_state_host_calls(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let Some(state_key) = scheduled_state_key(native_plan, machine_name, state_name) else {
-        return;
-    };
     for (_, host_call) in native_plan.host_calls.calls.iter() {
         if host_call.source_key != state_key {
             continue;
@@ -112,16 +108,4 @@ fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::contro
     }
 
     states.push(ScheduledState { key });
-}
-
-pub(super) fn machine_name_for_state<'plan>(
-    native_plan: &'plan NativePlan,
-    state_flow: &StateFlow,
-) -> Option<&'plan str> {
-    native_plan
-        .control_flow
-        .machines
-        .iter()
-        .find(|(_, machine)| machine.symbol == state_flow.key.machine)
-        .map(|(_, machine)| machine.name.as_str())
 }
