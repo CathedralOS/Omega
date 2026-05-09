@@ -12,7 +12,9 @@ use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::backend_report;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
-use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
+use omega_abstract_syntax_to_typed::{
+    AstLoweringInput, lower_program_input_with_symbol_table_and_workers,
+};
 use omega_artifacts::{PhaseTiming, build_backend_surface_report, finalize_emitted_image_output};
 use omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers;
 use omega_backend_plan::BackendPlan;
@@ -108,8 +110,12 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_symbol_table_and_workers(
-                Arc::clone(&loaded_program.items),
+            let lowering_input = AstLoweringInput::new(Arc::clone(&loaded_program.items))
+                .with_syntax_tables(Arc::clone(&loaded_program.syntax_tables))
+                .with_sources(Arc::clone(&loaded_program.sources));
+
+            lower_program_input_with_symbol_table_and_workers(
+                lowering_input,
                 resolve_report.symbols.clone(),
                 workers.handle(),
             )
@@ -249,8 +255,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_symbol_table_and_workers(
-                Arc::clone(&loaded_program.items),
+            let lowering_input = AstLoweringInput::new(Arc::clone(&loaded_program.items))
+                .with_syntax_tables(Arc::clone(&loaded_program.syntax_tables))
+                .with_sources(Arc::clone(&loaded_program.sources));
+
+            lower_program_input_with_symbol_table_and_workers(
+                lowering_input,
                 resolve_report.symbols.clone(),
                 workers.handle(),
             )

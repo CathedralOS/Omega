@@ -29,6 +29,33 @@ struct InvariantAliases {
     items: Vec<ast::item::InvariantDefinition>,
 }
 
+#[derive(Clone)]
+pub struct AstLoweringInput {
+    pub items: Arc<Vec<ast::item::Item>>,
+    pub syntax_tables: Option<Arc<Vec<ast::tables::AstTables>>>,
+    pub sources: Option<Arc<SourceMap>>,
+}
+
+impl AstLoweringInput {
+    pub fn new(items: Arc<Vec<ast::item::Item>>) -> Self {
+        Self {
+            items,
+            syntax_tables: None,
+            sources: None,
+        }
+    }
+
+    pub fn with_syntax_tables(mut self, syntax_tables: Arc<Vec<ast::tables::AstTables>>) -> Self {
+        self.syntax_tables = Some(syntax_tables);
+        self
+    }
+
+    pub fn with_sources(mut self, sources: Arc<SourceMap>) -> Self {
+        self.sources = Some(sources);
+        self
+    }
+}
+
 impl InvariantAliases {
     fn build(items: &[ast::item::Item]) -> Result<Self, Diagnostic> {
         let mut aliases = Self { items: Vec::new() };
@@ -66,7 +93,7 @@ pub fn lower_program_with_workers(
     items: Arc<Vec<ast::item::Item>>,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
-    lower_program_with_sources_and_workers(items, None, workers)
+    lower_program_input_with_workers(AstLoweringInput::new(items), workers)
 }
 
 pub fn lower_program_with_sources_and_workers(
@@ -74,7 +101,13 @@ pub fn lower_program_with_sources_and_workers(
     sources: Option<Arc<SourceMap>>,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
-    lower_program_with_symbol_table_source(items, None, sources, workers)
+    let input = if let Some(sources) = sources {
+        AstLoweringInput::new(items).with_sources(sources)
+    } else {
+        AstLoweringInput::new(items)
+    };
+
+    lower_program_input_with_workers(input, workers)
 }
 
 pub fn lower_program_with_symbol_table_and_workers(
@@ -82,15 +115,42 @@ pub fn lower_program_with_symbol_table_and_workers(
     symbols: SymbolTable,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
-    lower_program_with_symbol_table_source(items, Some(symbols), None, workers)
+    lower_program_input_with_symbol_table_and_workers(
+        AstLoweringInput::new(items),
+        symbols,
+        workers,
+    )
 }
 
-fn lower_program_with_symbol_table_source(
-    items: Arc<Vec<ast::item::Item>>,
-    symbols: Option<SymbolTable>,
-    sources: Option<Arc<SourceMap>>,
+pub fn lower_program_input_with_workers(
+    input: AstLoweringInput,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
+    lower_program_input_with_optional_symbol_table(input, None, workers)
+}
+
+pub fn lower_program_input_with_symbol_table_and_workers(
+    input: AstLoweringInput,
+    symbols: SymbolTable,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_input_with_optional_symbol_table(input, Some(symbols), workers)
+}
+
+fn lower_program_input_with_optional_symbol_table(
+    input: AstLoweringInput,
+    symbols: Option<SymbolTable>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    let items = input.items;
+    let sources = input.sources;
+    debug_assert!(
+        input
+            .syntax_tables
+            .as_ref()
+            .is_none_or(|syntax_tables| syntax_tables.is_empty() || !items.is_empty())
+    );
+
     let aliases = InvariantAliases::build(&items)?;
     let mut program = Program::default();
 
