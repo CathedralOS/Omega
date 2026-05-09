@@ -1,9 +1,9 @@
-use crate::machine_code::widths::{
+use crate::plan::NativePlan;
+use crate::state_guards::StateGuardOperator;
+use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, return_width,
 };
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
 use omega_machine_program::MachineInstructionKind;
 
 pub(super) fn dispatch_loop_enter_shape(

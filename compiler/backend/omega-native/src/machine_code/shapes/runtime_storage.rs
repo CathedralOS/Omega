@@ -1,9 +1,9 @@
-use crate::machine_code::widths::{
+use crate::plan::NativePlan;
+use crate::state_guards::StateGuardOperator;
+use omega_instruction_selection::{
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
     runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
 };
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
 use omega_machine_program::MachineInstructionKind;
 
 pub(super) fn runtime_storage_compare_shape(

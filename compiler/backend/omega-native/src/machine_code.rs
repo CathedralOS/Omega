@@ -6,7 +6,6 @@ mod branch_distances;
 mod encoding;
 mod host_bindings;
 mod shapes;
-mod widths;
 
 use encoding::encode_machine_instruction;
 use omega_machine_program::{MachineCodePlan, MachineFunctionCode, MachineInstruction};

@@ -1,12 +1,12 @@
-use crate::machine_code::widths::{
+use crate::plan::NativePlan;
+use crate::state_guards::StateGuardOperator;
+use omega_instruction_selection::{
     runtime_text_buffer_materialize_width, runtime_text_line_read_width,
     runtime_text_literal_append_width, runtime_text_literal_compare_width,
     runtime_text_literal_segment_write_width, runtime_text_literal_write_width,
     runtime_text_storage_compare_width, runtime_text_stored_place_append_width,
     runtime_text_stored_suffix_append_width,
 };
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardOperator;
 use omega_machine_program::MachineInstructionKind;
 
 pub(super) fn runtime_text_literal_compare_shape(
