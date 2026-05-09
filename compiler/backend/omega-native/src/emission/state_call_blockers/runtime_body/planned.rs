@@ -1,7 +1,7 @@
 use super::model::RuntimeBodyStateCallBlocker;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::{RuntimeBranchCallExpansion, RuntimeBranchingCall};
-use crate::state_calls::StateCallLowering;
+use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_has_planned_expansion(
     native_plan: &NativePlan,

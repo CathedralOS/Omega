@@ -1,9 +1,9 @@
 use crate::runtime_dispatch::guards::StateGuardKind;
-use crate::state_calls::StateCallLowering;
 use crate::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
+use omega_state_calls::StateCallLowering;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;

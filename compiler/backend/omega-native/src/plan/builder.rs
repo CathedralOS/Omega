@@ -20,7 +20,6 @@ use crate::runtime_storage::{
 };
 use crate::runtime_text::build_runtime_text_plan;
 use crate::state_analysis::StateAnalysisContext;
-use crate::state_calls::build_state_call_plan_with_workers;
 use crate::state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
@@ -36,6 +35,7 @@ use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
 use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
+use omega_state_calls::{StateCallPlanningContext, build_state_call_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
@@ -104,7 +104,11 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     let mut phase_timings = std::mem::take(&mut native_plan.phase_timings);
     native_plan.state_calls = record_native_phase(&mut phase_timings, "state calls", || {
         build_state_call_plan_with_workers(
-            Arc::new(StateAnalysisContext::from_native_plan(&native_plan)),
+            Arc::new(StateCallPlanningContext {
+                control_flow: native_plan.control_flow.clone(),
+                host_calls: native_plan.host_calls.clone(),
+                runtime_flow: native_plan.runtime_flow.clone(),
+            }),
             workers.clone(),
         )
     });

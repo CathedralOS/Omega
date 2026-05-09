@@ -1,8 +1,8 @@
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateCallPlanningContext;
 use omega_control_flow::{StateFlow, StateKey};
 
-pub(in crate::state_calls) fn state_flow_from_key(
-    context: &StateAnalysisContext,
+pub(crate) fn state_flow_from_key(
+    context: &StateCallPlanningContext,
     state_key: StateKey,
 ) -> Option<&StateFlow> {
     let machine = context
@@ -20,6 +20,6 @@ pub(in crate::state_calls) fn state_flow_from_key(
         .find(|state| state.key == state_key)
 }
 
-pub(in crate::state_calls) fn state_key_is_valid(state_key: StateKey) -> bool {
+pub(crate) fn state_key_is_valid(state_key: StateKey) -> bool {
     state_key.machine.is_valid() && state_key.state.is_valid()
 }

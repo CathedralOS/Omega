@@ -1,12 +1,12 @@
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateCallPlanningContext;
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_state_graph::RuntimeTransitionTarget;
 
 use super::collection::CollectedStateCall;
 use super::lookups::state_key_is_valid;
 
-pub(in crate::state_calls) fn mark_required_state_calls(
-    context: &StateAnalysisContext,
+pub(crate) fn mark_required_state_calls(
+    context: &StateCallPlanningContext,
     calls: &mut [CollectedStateCall],
 ) {
     let mut required_states = context
@@ -57,7 +57,7 @@ pub(in crate::state_calls) fn mark_required_state_calls(
 }
 
 fn transition_targets_from(
-    context: &StateAnalysisContext,
+    context: &StateCallPlanningContext,
     state_key: StateKey,
 ) -> Vec<RuntimeTransitionTarget> {
     let Some(machine) = context
@@ -104,7 +104,7 @@ fn transition_targets_from(
 }
 
 fn runtime_transition_target(
-    context: &StateAnalysisContext,
+    context: &StateCallPlanningContext,
     machine: &MachineFlow,
     current_state: StateKey,
     target: &PlannedTransitionTarget,

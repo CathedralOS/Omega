@@ -1,7 +1,7 @@
 use crate::plan::NativePlan;
-use crate::state_calls::StateCallPlan;
 use omega_control_flow::{ControlFlowPlan, OperationKind, StateKey};
 use omega_platform_interface::HostCallPlan;
+use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

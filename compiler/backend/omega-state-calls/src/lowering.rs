@@ -1,12 +1,12 @@
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateCallPlanningContext;
 use omega_control_flow::OperationKind;
 
 use super::StateCallLowering;
 use super::collection::CollectedStateCall;
 use super::lookups::{state_flow_from_key, state_key_is_valid};
 
-pub(in crate::state_calls) fn state_call_lowering(
-    context: &StateAnalysisContext,
+pub(crate) fn state_call_lowering(
+    context: &StateCallPlanningContext,
     call: &CollectedStateCall,
 ) -> StateCallLowering {
     if !state_key_is_valid(call.target_key) {
@@ -21,7 +21,7 @@ pub(in crate::state_calls) fn state_call_lowering(
 }
 
 fn state_call_targets_branching_state(
-    context: &StateAnalysisContext,
+    context: &StateCallPlanningContext,
     call: &CollectedStateCall,
 ) -> bool {
     state_flow_from_key(context, call.target_key)
@@ -29,7 +29,7 @@ fn state_call_targets_branching_state(
         .is_some_and(|transitions| !transitions.is_empty())
 }
 
-fn state_call_targets_leaf(context: &StateAnalysisContext, call: &CollectedStateCall) -> bool {
+fn state_call_targets_leaf(context: &StateCallPlanningContext, call: &CollectedStateCall) -> bool {
     let Some(state) = state_flow_from_key(context, call.target_key) else {
         return false;
     };

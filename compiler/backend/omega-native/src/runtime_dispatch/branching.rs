@@ -1,6 +1,6 @@
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use crate::state_calls::StateCallLowering;
+use omega_state_calls::StateCallLowering;
 
 mod aliases;
 mod classify;

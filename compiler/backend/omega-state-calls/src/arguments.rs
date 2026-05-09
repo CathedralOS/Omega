@@ -1,4 +1,4 @@
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateCallPlanningContext;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
@@ -7,8 +7,8 @@ use omega_typed_program::name::ProgramName;
 use super::lookups::state_flow_from_key;
 use super::{StateCallArgument, StateCallArgumentKind};
 
-pub(in crate::state_calls) fn build_call_arguments<'a>(
-    context: &StateAnalysisContext,
+pub(crate) fn build_call_arguments<'a>(
+    context: &StateCallPlanningContext,
     target_key: StateKey,
     required: bool,
     raw_arguments: &'a [Expression],
@@ -39,7 +39,7 @@ pub(in crate::state_calls) fn build_call_arguments<'a>(
 }
 
 fn state_parameters(
-    context: &StateAnalysisContext,
+    context: &StateCallPlanningContext,
     target_key: StateKey,
 ) -> Vec<(SymbolHandle, ProgramName)> {
     state_flow_from_key(context, target_key)

@@ -1,4 +1,4 @@
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateCallPlanningContext;
 use omega_control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
@@ -7,7 +7,7 @@ use omega_typed_program::name::ProgramName;
 use super::StateCallResolution;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::state_calls) struct CollectedStateCall {
+pub(crate) struct CollectedStateCall {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub receiver: ProgramName,
@@ -18,8 +18,8 @@ pub(in crate::state_calls) struct CollectedStateCall {
     pub resolution: StateCallResolution,
 }
 
-pub(in crate::state_calls) fn collect_machine_state_calls(
-    context: &StateAnalysisContext,
+pub(crate) fn collect_machine_state_calls(
+    context: &StateCallPlanningContext,
     machine: &MachineFlow,
 ) -> Vec<CollectedStateCall> {
     let mut calls = Vec::new();

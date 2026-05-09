@@ -296,6 +296,7 @@ dependencies = [
  "omega-object-planning",
  "omega-platform-interface",
  "omega-relocations",
+ "omega-state-calls",
  "omega-state-graph",
  "omega-target",
  "omega-target-program",
@@ -365,6 +366,17 @@ dependencies = [
  "omega-object",
  "omega-target",
  "omega-target-program",
+]
+
+[[package]]
+name = "omega-state-calls"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-platform-interface",
+ "omega-state-graph",
+ "omega-typed-program",
 ]
 
 [[package]]

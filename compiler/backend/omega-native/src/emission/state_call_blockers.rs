@@ -1,8 +1,8 @@
 use crate::plan::NativePlan;
-use crate::state_calls::StateCallLowering;
 use crate::state_schedule::{ScheduledState, scheduled_state_contains_key};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_state_calls::StateCallLowering;
 
 use super::{EmissionBlocker, blocker};
 

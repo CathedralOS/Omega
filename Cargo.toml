@@ -20,6 +20,7 @@ members = [
     "compiler/representations/omega-machine-program",
     "compiler/backend/omega-target",
     "compiler/backend/omega-platform-interface",
+    "compiler/backend/omega-state-calls",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/omega-instruction-selection",

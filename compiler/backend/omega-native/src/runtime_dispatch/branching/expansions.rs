@@ -11,8 +11,8 @@ use super::{
     RuntimeStraightLineBranchExpansion,
 };
 use crate::plan::NativePlan;
-use crate::state_calls::StateCall;
 use omega_control_flow::StateKey;
+use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_typed_program::expression::Expression;
 

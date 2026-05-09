@@ -7,7 +7,7 @@ use omega_platform_interface::HostCallPlan;
 pub struct RuntimeDispatchBodyContext {
     pub control_flow: ControlFlowPlan,
     pub host_calls: HostCallPlan,
-    pub state_calls: crate::state_calls::StateCallPlan,
+    pub state_calls: omega_state_calls::StateCallPlan,
     pub state_storage: StateStoragePlan,
 }
 

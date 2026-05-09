@@ -1,0 +1,153 @@
+mod arguments;
+mod collection;
+mod lookups;
+mod lowering;
+mod model;
+mod required;
+
+use arguments::build_call_arguments;
+use collection::collect_machine_state_calls;
+use lowering::state_call_lowering;
+use omega_control_flow::{ControlFlowPlan, OperationKind, StateKey};
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_platform_interface::HostCallPlan;
+use omega_state_graph::RuntimeFlowPlan;
+use required::mark_required_state_calls;
+use std::sync::Arc;
+
+pub use model::{
+    StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
+    StateCallResolution,
+};
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateCallPlanningContext {
+    pub control_flow: ControlFlowPlan,
+    pub host_calls: HostCallPlan,
+    pub runtime_flow: RuntimeFlowPlan,
+}
+
+impl StateCallPlanningContext {
+    pub fn runtime_state_is_reachable_by_key(&self, state_key: StateKey) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.key == state_key)
+    }
+
+    pub fn state_statement_has_host_call_by_key(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> bool {
+        self.host_calls.calls.iter().any(|(_, host_call)| {
+            host_call.source_key == source_key && host_call.statement_index == statement_index
+        })
+    }
+
+    pub fn state_mutation_is_already_lowered_by_key(
+        &self,
+        state_key: StateKey,
+        statement_index: usize,
+    ) -> bool {
+        let Some(machine) = self
+            .control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.symbol == state_key.machine)
+            .map(|(_, machine)| machine)
+        else {
+            return false;
+        };
+        let Some(state) = self
+            .control_flow
+            .states
+            .span(machine.states)
+            .and_then(|states| states.iter().find(|state| state.key == state_key))
+        else {
+            return false;
+        };
+        let Some(operations) = self.control_flow.operations.span(state.operations) else {
+            return false;
+        };
+
+        operations.iter().any(|operation| {
+            operation.statement_index == statement_index
+                && matches!(
+                    operation.kind,
+                    OperationKind::ConstantIntegerAssignment
+                        | OperationKind::StaticAssignment { .. }
+                )
+        })
+    }
+}
+
+pub fn build_state_call_plan(
+    control_flow: &ControlFlowPlan,
+    host_calls: &HostCallPlan,
+    runtime_flow: &RuntimeFlowPlan,
+) -> StateCallPlan {
+    let workers = WorkerPool::with_available_parallelism();
+
+    build_state_call_plan_with_workers(
+        Arc::new(StateCallPlanningContext {
+            control_flow: control_flow.clone(),
+            host_calls: host_calls.clone(),
+            runtime_flow: runtime_flow.clone(),
+        }),
+        workers.handle(),
+    )
+}
+
+pub fn build_state_call_plan_with_workers(
+    context: Arc<StateCallPlanningContext>,
+    workers: WorkerPoolHandle,
+) -> StateCallPlan {
+    let machines = Arc::new(
+        context
+            .control_flow
+            .machines
+            .iter()
+            .map(|(_, machine)| machine.clone())
+            .collect::<Vec<_>>(),
+    );
+    let machine_count = machines.len();
+    let context_for_collection = Arc::clone(&context);
+    let machine_calls = workers.map_ordered(machine_count, move |index| {
+        let machine = machines
+            .get(index)
+            .expect("state-call worker index should be in range");
+
+        collect_machine_state_calls(&context_for_collection, machine)
+    });
+
+    let mut calls = machine_calls.into_iter().flatten().collect::<Vec<_>>();
+
+    mark_required_state_calls(&context, &mut calls);
+
+    let mut plan = StateCallPlan::default();
+    for call in calls {
+        let lowering = state_call_lowering(&context, &call);
+        let arguments = plan.arguments.insert_many(build_call_arguments(
+            &context,
+            call.target_key,
+            call.required,
+            &call.raw_arguments,
+        ));
+
+        plan.calls.insert(StateCall {
+            source_key: call.source_key,
+            statement_index: call.statement_index,
+            receiver_display: call.receiver,
+            target_key: call.target_key,
+            argument_count: arguments.len(),
+            arguments,
+            reachable: call.reachable,
+            required: call.required,
+            lowering,
+            resolution: call.resolution,
+        });
+    }
+
+    plan
+}

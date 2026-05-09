@@ -1,8 +1,8 @@
 use super::context::RuntimeDispatchBodyContext;
-use crate::state_calls::StateCall;
 use crate::state_storage::{StateLocalStorage, StateMutation};
 use omega_control_flow::{Operation, StateKey};
 use omega_platform_interface::HostCall;
+use omega_state_calls::StateCall;
 
 pub(super) fn state_operations(
     context: &RuntimeDispatchBodyContext,

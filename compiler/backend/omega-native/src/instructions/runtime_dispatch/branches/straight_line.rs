@@ -93,7 +93,7 @@ fn select_runtime_straight_line_branch_writes(
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
                 target_key,
-                lowering: crate::state_calls::StateCallLowering::InlineLeaf,
+                lowering: omega_state_calls::StateCallLowering::InlineLeaf,
                 ..
             } => select_runtime_straight_line_leaf_state_call_writes(
                 native_plan,

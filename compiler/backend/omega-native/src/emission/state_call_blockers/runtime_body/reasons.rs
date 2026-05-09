@@ -2,7 +2,7 @@ use super::model::RuntimeBodyStateCallBlocker;
 use super::planned::runtime_branching_call_matches_grouped_blocker;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::RuntimeBranchCallExpansion;
-use crate::state_calls::StateCallLowering;
+use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_expansion_reason(
     native_plan: &NativePlan,

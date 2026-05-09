@@ -1,5 +1,5 @@
 use crate::plan::NativePlan;
-use crate::state_calls::{StateCall, StateCallArgumentKind};
+use omega_state_calls::{StateCall, StateCallArgumentKind};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 

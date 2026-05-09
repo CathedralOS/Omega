@@ -12,7 +12,6 @@ pub mod runtime_flow;
 pub mod runtime_storage;
 pub mod runtime_text;
 pub mod state_analysis;
-pub mod state_calls;
 pub mod state_schedule;
 pub mod state_storage;
 pub mod state_values;
