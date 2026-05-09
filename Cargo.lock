@@ -120,6 +120,7 @@ dependencies = [
  "omega-parser",
  "omega-proof",
  "omega-target",
+ "omega-target-program",
  "omega-typed-program",
  "omega-typed-to-control-flow",
  "omega-types",

@@ -22,6 +22,7 @@ omega-parser = { path = "../../frontend/omega-parser" }
 omega-proof = { path = "../../semantics/omega-proof" }
 omega-names = { path = "../../semantics/omega-names" }
 omega-target = { path = "../../backend/omega-target" }
+omega-target-program = { path = "../../representations/omega-target-program" }
 omega-typed-to-control-flow = { path = "../../lowering/omega-typed-to-control-flow" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }
 omega-types = { path = "../../semantics/omega-types" }

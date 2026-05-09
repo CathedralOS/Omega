@@ -24,9 +24,6 @@ use omega_native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
 use omega_native::identity::count_native_string_storage;
-use omega_native::instructions::{
-    FunctionInstructionPlan, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
-};
 use omega_native::machine_code::{MachineFunctionCode, MachineInstruction};
 use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;
@@ -39,6 +36,10 @@ use omega_native::runtime_flow::RuntimeTransitionTarget;
 use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
+use omega_target_program::{
+    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
+    SelectedInstructionKind,
+};
 use omega_typed_program::Program;
 use omega_typed_program::data::DataMember;
 use omega_typed_program::statement::TransitionGuard;
@@ -3210,7 +3211,7 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
 
 fn selected_instruction_operands_name(
     native_plan: &NativePlan,
-    operands: omega_core::arena::HandleSpan<omega_native::instructions::InstructionOperand>,
+    operands: omega_core::arena::HandleSpan<InstructionOperand>,
 ) -> String {
     let Some(operands) = native_plan.instructions.operands.span(operands) else {
         return "invalid operands".to_owned();

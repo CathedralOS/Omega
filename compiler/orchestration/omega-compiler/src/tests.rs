@@ -1471,7 +1471,7 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
             && edge.target_dispatch_index != 0
     }));
     assert!(prompt_edges.iter().any(|edge| {
-        edge.guard_lowering == omega_native::state_guards::StateGuardLowering::CompareStaticValue
+        edge.guard_lowering == omega_target_program::StateGuardLowering::CompareStaticValue
     }));
 }
 
@@ -1525,7 +1525,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_native::instructions::SelectedInstructionKind::EnterDispatchLoop { .. }
+                    omega_target_program::SelectedInstructionKind::EnterDispatchLoop { .. }
                 )
             })
     );
@@ -1537,7 +1537,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_native::instructions::SelectedInstructionKind::EnterDispatchCase {
+                    omega_target_program::SelectedInstructionKind::EnterDispatchCase {
                         ref label,
                         ..
                     } if label == &prompt_label
@@ -1552,7 +1552,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_native::instructions::SelectedInstructionKind::SetDispatchState { .. }
+                    omega_target_program::SelectedInstructionKind::SetDispatchState { .. }
                 )
             })
     );
@@ -1565,7 +1565,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_native::instructions::SelectedInstructionKind::HostOperation { .. }
+                    omega_target_program::SelectedInstructionKind::HostOperation { .. }
                 )
             })
     );
@@ -1600,8 +1600,8 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         native_state_name(&native_plan, guard.source) == "main.entry"
             && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
-            && guard.operator == omega_native::state_guards::StateGuardOperator::Equal
-            && guard.lowering == omega_native::state_guards::StateGuardLowering::CompareStaticValue
+            && guard.operator == omega_target_program::StateGuardOperator::Equal
+            && guard.lowering == omega_target_program::StateGuardLowering::CompareStaticValue
             && guard.expression.display_name() == "ready == true"
     }));
     let equality_guard = native_plan
@@ -2044,7 +2044,7 @@ fn plans_runtime_straight_line_branch_expansion() {
             .iter()
             .any(|(_, instruction)| matches!(
                 instruction.kind,
-                omega_native::instructions::SelectedInstructionKind::WriteRuntimeMachineInteger {
+                omega_target_program::SelectedInstructionKind::WriteRuntimeMachineInteger {
                     value: 2,
                     ..
                 }
@@ -2186,7 +2186,7 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
         .filter(|(_, instruction)| {
             matches!(
                 instruction.kind,
-                omega_native::instructions::SelectedInstructionKind::HostOperation { .. }
+                omega_target_program::SelectedInstructionKind::HostOperation { .. }
             )
         })
         .count();
@@ -2239,7 +2239,7 @@ fn selects_host_calls_inside_required_state_call_targets() {
         .filter(|(_, instruction)| {
             matches!(
                 instruction.kind,
-                omega_native::instructions::SelectedInstructionKind::HostOperation { .. }
+                omega_target_program::SelectedInstructionKind::HostOperation { .. }
             )
         })
         .count();
@@ -3988,7 +3988,7 @@ fn lowers_mutable_output_host_call() {
             .iter()
             .any(|(_, instruction)| matches!(
                 &instruction.kind,
-                omega_native::instructions::SelectedInstructionKind::ReadRuntimeTextLine {
+                omega_target_program::SelectedInstructionKind::ReadRuntimeTextLine {
                     buffer_symbol,
                     ..
                 } if buffer_symbol == &read_buffer.symbol
