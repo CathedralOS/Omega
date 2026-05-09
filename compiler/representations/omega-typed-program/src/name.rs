@@ -39,12 +39,6 @@ impl From<&str> for ProgramName {
     }
 }
 
-impl From<String> for ProgramName {
-    fn from(text: String) -> Self {
-        Self::generated(text)
-    }
-}
-
 impl Deref for ProgramName {
     type Target = str;
 
@@ -83,20 +77,8 @@ impl PartialEq<str> for ProgramName {
     }
 }
 
-impl PartialEq<String> for ProgramName {
-    fn eq(&self, other: &String) -> bool {
-        self.as_str() == other.as_str()
-    }
-}
-
 impl PartialEq<ProgramName> for &str {
     fn eq(&self, other: &ProgramName) -> bool {
         *self == other.as_str()
-    }
-}
-
-impl PartialEq<ProgramName> for String {
-    fn eq(&self, other: &ProgramName) -> bool {
-        self.as_str() == other.as_str()
     }
 }
