@@ -91,7 +91,7 @@ pub(super) fn collect_runtime_body_state_call_blockers(
     }
 }
 
-fn state_names(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> (String, String) {
+fn state_names(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> (String, String) {
     native_plan
         .control_flow
         .state_names_by_key(key)
@@ -99,7 +99,7 @@ fn state_names(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> 
         .unwrap_or_default()
 }
 
-fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

@@ -1,8 +1,8 @@
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_storage::RuntimeStorageWrite;
 use crate::runtime_text::places::expression_place_eq;
 use crate::state_storage::StateMutationLowering;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
 use super::runtime_text_blockers::{

@@ -1,5 +1,5 @@
-use crate::control_flow::{OperationKind, StateKey};
 use crate::plan::NativePlan;
+use omega_control_flow::{OperationKind, StateKey};
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
 use super::{

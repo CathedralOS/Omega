@@ -1,7 +1,7 @@
-use crate::control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::guards::classify_transition_guard;
 use crate::runtime_flow::RuntimeTransitionTarget;
+use omega_control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
 

@@ -1,5 +1,5 @@
-use crate::control_flow::StateKey;
 use crate::state_calls::StateCallLowering;
+use omega_control_flow::StateKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RuntimeBodyStateCallBlocker {

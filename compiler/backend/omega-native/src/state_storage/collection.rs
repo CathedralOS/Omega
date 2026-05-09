@@ -1,8 +1,8 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_analysis::StateAnalysisContext;
 use crate::state_storage::mutation_kind::{mutation_kind, mutation_lowering};
+use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::Program;

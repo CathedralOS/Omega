@@ -32,7 +32,7 @@ pub(super) fn collect_host_binding_blockers(
     }
 }
 
-fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

@@ -1,6 +1,6 @@
-use crate::control_flow::StateKey;
 use crate::data::{NativeDataObject, NativeDataPlan};
 use crate::state_storage::StateStoragePlan;
+use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
 pub(super) fn collect_static_string_assignment_data(

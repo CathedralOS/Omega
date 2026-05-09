@@ -1,6 +1,6 @@
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCallArgumentKind;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;

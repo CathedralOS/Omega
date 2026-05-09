@@ -1,5 +1,5 @@
 use super::aliases::{PlaceKey, canonical_place_key};
-use crate::control_flow::TransitionFlow;
+use omega_control_flow::TransitionFlow;
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use omega_typed_program::statement::TransitionGuard;
 

@@ -1,4 +1,3 @@
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperation;
 use crate::runtime_dispatch::branching::{
@@ -6,6 +5,7 @@ use crate::runtime_dispatch::branching::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
+use omega_control_flow::StateKey;
 use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::{

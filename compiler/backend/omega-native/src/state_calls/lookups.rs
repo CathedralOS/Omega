@@ -1,5 +1,5 @@
-use crate::control_flow::{StateFlow, StateKey};
 use crate::state_analysis::StateAnalysisContext;
+use omega_control_flow::{StateFlow, StateKey};
 
 pub(in crate::state_calls) fn state_flow_from_key(
     context: &StateAnalysisContext,

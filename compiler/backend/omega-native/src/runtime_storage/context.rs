@@ -1,6 +1,6 @@
-use crate::control_flow::ControlFlowPlan;
 use crate::plan::NativePlan;
 use crate::state_storage::StateStoragePlan;
+use omega_control_flow::ControlFlowPlan;
 use omega_layout::LayoutPlan;
 use omega_target::NativeTarget;
 

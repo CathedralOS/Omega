@@ -1,4 +1,4 @@
-use crate::control_flow::StateKey;
+use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;

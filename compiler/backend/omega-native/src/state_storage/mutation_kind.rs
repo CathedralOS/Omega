@@ -1,6 +1,6 @@
 use super::{StateMutationKind, StateMutationLowering};
-use crate::control_flow::StateKey;
 use crate::state_analysis::StateAnalysisContext;
+use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{Expression, NamePath};
 use omega_typed_program::machine::Machine;

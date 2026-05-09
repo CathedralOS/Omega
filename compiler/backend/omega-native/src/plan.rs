@@ -4,7 +4,7 @@ use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use std::sync::Arc;
 
-use crate::control_flow::ControlFlowPlan;
+use omega_control_flow::ControlFlowPlan;
 
 mod builder;
 mod entry;

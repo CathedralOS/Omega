@@ -4,9 +4,9 @@ use super::lookups::{
     state_call_for_statement, state_has_no_transitions, state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use crate::control_flow::{OperationKind, StateKey};
 use crate::runtime_dispatch::states::DispatchState;
 use crate::state_calls::{StateCall, StateCallLowering};
+use omega_control_flow::{OperationKind, StateKey};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {

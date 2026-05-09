@@ -1,5 +1,5 @@
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
+use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
 use super::super::super::model::SelectedInstructionKind;

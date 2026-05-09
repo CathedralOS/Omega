@@ -1,12 +1,12 @@
 mod model;
 mod operands;
 
-use crate::control_flow::{ControlFlowPlan, StateKey};
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 pub use model::{
     StateGuard, StateGuardKind, StateGuardLowering, StateGuardOperand, StateGuardOperandKind,
     StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
 };
+use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;

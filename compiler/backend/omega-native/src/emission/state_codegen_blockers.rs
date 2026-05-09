@@ -1,6 +1,6 @@
-use crate::control_flow::{OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
 use crate::state_schedule::{ScheduledState, scheduled_state_flow};
+use omega_control_flow::{OperationKind, StateFlow, StateKey};
 use omega_core::arena::Arena;
 
 use super::{EmissionBlocker, blocker};

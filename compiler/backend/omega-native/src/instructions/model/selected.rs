@@ -1,6 +1,6 @@
 use super::InstructionOperand;
-use crate::control_flow::StateKey;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

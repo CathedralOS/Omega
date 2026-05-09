@@ -1,6 +1,6 @@
-use crate::control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_analysis::StateAnalysisContext;
+use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 
 use super::collection::CollectedStateCall;
 use super::lookups::state_key_is_valid;

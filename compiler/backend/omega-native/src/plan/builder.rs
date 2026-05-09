@@ -4,7 +4,6 @@ use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::abi::build_host_abi_plan;
 use crate::alias_flow::build_alias_flow_plan;
-use crate::control_flow::ControlFlowPlan;
 use crate::data::build_native_data_plan;
 use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
@@ -32,6 +31,7 @@ use crate::state_dispatch::{
 use crate::state_guards::build_state_guard_plan;
 use crate::state_storage::build_state_storage_plan_with_workers;
 use crate::state_values::build_state_value_plan_with_workers;
+use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;

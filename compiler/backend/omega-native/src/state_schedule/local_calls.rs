@@ -4,8 +4,8 @@ use super::model::ScheduledState;
 use super::static_values::{
     PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
 };
-use crate::control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
+use omega_control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;

@@ -1,5 +1,5 @@
-use crate::control_flow::StateKey;
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState};
+use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

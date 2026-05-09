@@ -26,7 +26,7 @@ pub(super) fn runtime_and_required_states(native_plan: &NativePlan) -> Vec<Sched
     states
 }
 
-fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {
+fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control_flow::StateKey) {
     if states
         .iter()
         .any(|scheduled_state| scheduled_state.key == key)
@@ -37,7 +37,7 @@ fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::contro
     states.push(ScheduledState { key });
 }
 
-fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

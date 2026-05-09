@@ -1,10 +1,10 @@
 use super::buffers::find_runtime_text_input_buffer_data_object;
 use crate::abi::PlatformCallData;
-use crate::control_flow::StateKey;
 use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_text::RuntimeTextWriteKind;
+use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
 pub(in crate::instructions) fn runtime_text_literal_write_for_host_call(

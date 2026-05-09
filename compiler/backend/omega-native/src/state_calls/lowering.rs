@@ -1,5 +1,5 @@
-use crate::control_flow::OperationKind;
 use crate::state_analysis::StateAnalysisContext;
+use omega_control_flow::OperationKind;
 
 use super::StateCallLowering;
 use super::collection::CollectedStateCall;

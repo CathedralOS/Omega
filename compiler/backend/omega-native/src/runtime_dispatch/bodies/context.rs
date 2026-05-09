@@ -1,7 +1,7 @@
-use crate::control_flow::ControlFlowPlan;
 use crate::host_calls::HostCallPlan;
 use crate::plan::NativePlan;
 use crate::state_storage::StateStoragePlan;
+use omega_control_flow::ControlFlowPlan;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyContext {

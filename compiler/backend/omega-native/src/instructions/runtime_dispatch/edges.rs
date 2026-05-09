@@ -1,5 +1,5 @@
-use crate::control_flow::StateKey;
 use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
+use omega_control_flow::StateKey;
 
 use super::super::model::{SelectedInstruction, SelectedInstructionKind};
 

@@ -10,10 +10,10 @@ use super::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
     RuntimeStraightLineBranchExpansion,
 };
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_calls::StateCall;
+use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]

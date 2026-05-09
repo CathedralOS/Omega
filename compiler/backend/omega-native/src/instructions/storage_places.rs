@@ -9,11 +9,11 @@ pub(super) use machine_owned::resolve_machine_owned_place;
 pub(super) use model::RuntimeStoragePlace;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
-use crate::control_flow::StateKey;
 use crate::object::{machine_storage_symbol_name, runtime_frame_storage_symbol_name};
 use crate::plan::NativePlan;
 use expressions::normalized_storage_expression;
 use nested_fields::resolve_nested_field_layout;
+use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
 use omega_typed_program::expression::{Expression, NamePath};

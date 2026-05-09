@@ -1,8 +1,8 @@
-use crate::control_flow::{Operation, StateKey, StateParameterFlow};
 use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCall;
 use crate::state_storage::StateMutation;
+use omega_control_flow::{Operation, StateKey, StateParameterFlow};
 
 pub(super) fn host_call_for_statement(
     native_plan: &NativePlan,

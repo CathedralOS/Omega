@@ -1,6 +1,5 @@
 use crate::abi::HostAbiPlan;
 use crate::alias_flow::AliasFlowPlan;
-use crate::control_flow::{ControlFlowPlan, StateKey};
 use crate::data::NativeDataPlan;
 use crate::host_calls::HostCallPlan;
 use crate::instructions::InstructionPlan;
@@ -18,6 +17,7 @@ use crate::state_dispatch::StateDispatchPlan;
 use crate::state_guards::StateGuardPlan;
 use crate::state_storage::StateStoragePlan;
 use crate::state_values::StateValuePlan;
+use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_target::NativeTarget;

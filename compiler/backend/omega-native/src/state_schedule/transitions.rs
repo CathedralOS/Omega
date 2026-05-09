@@ -3,8 +3,8 @@ use super::local_calls::bind_state_arguments_by_key;
 use super::lookups::{machine_flow_by_symbol, state_flow_by_key, validate_state_index};
 use super::model::ScheduledState;
 use super::static_values::PlaceKey;
-use crate::control_flow::{MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow};
 use crate::plan::NativePlan;
+use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow};
 
 pub(super) fn next_state(
     native_plan: &NativePlan,

@@ -1,5 +1,5 @@
 use super::RuntimeFlowBuilder;
-use crate::control_flow::{MachineFlow, StateFlow, StateKey};
+use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::diagnostics::Diagnostic;
 
 impl<'plan> RuntimeFlowBuilder<'plan> {

@@ -1,5 +1,5 @@
-use crate::control_flow::StateKey;
 use crate::runtime_dispatch::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
+use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{BinaryExpression, Expression, IndexedExpression, NamePath};
 use omega_typed_program::name::ProgramName;

@@ -49,7 +49,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
 
 fn state_names(
     native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
+    key: omega_control_flow::StateKey,
 ) -> (ProgramName, ProgramName) {
     native_plan.control_flow.state_names_by_key_cloned(key)
 }

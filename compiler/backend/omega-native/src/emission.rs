@@ -119,7 +119,7 @@ fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }
 
-fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

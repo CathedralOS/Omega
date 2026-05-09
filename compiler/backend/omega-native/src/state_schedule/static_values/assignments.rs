@@ -1,7 +1,7 @@
 use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key};
 use super::evaluation::resolve_static_value;
-use crate::control_flow::{OperationKind, StateFlow};
 use crate::plan::NativePlan;
+use omega_control_flow::{OperationKind, StateFlow};
 use omega_typed_program::expression::Expression;
 
 pub(in crate::state_schedule) fn apply_static_operations(

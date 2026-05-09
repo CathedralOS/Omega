@@ -1,7 +1,7 @@
 mod builder;
 mod model;
 
-use crate::control_flow::{ControlFlowPlan, StateKey};
+use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::diagnostics::Diagnostic;
 
 use builder::RuntimeFlowBuilder;

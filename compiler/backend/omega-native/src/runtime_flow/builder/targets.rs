@@ -1,6 +1,6 @@
 use super::RuntimeFlowBuilder;
-use crate::control_flow::{MachineFlow, PlannedTransitionTarget};
 use crate::runtime_flow::{RuntimeState, RuntimeTransitionTarget};
+use omega_control_flow::{MachineFlow, PlannedTransitionTarget};
 use omega_core::diagnostics::Diagnostic;
 
 impl RuntimeFlowBuilder<'_> {

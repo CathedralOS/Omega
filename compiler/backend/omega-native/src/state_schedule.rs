@@ -1,5 +1,5 @@
-use crate::control_flow::{StateFlow, StateKey};
 use crate::plan::NativePlan;
+use omega_control_flow::{StateFlow, StateKey};
 
 mod display;
 mod local_calls;

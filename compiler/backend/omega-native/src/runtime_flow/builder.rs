@@ -3,7 +3,7 @@ mod lookups;
 mod targets;
 
 use super::model::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
-use crate::control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
+use omega_control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
 
 pub(super) struct RuntimeFlowBuilder<'plan> {

@@ -182,15 +182,12 @@ fn runtime_storage_guard(
     None
 }
 
-fn source_machine_name(
-    native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
-) -> ProgramName {
+fn source_machine_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> ProgramName {
     native_plan
         .control_flow
         .state_machine_name_by_key_cloned(key)
 }
 
-fn source_state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> ProgramName {
+fn source_state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> ProgramName {
     native_plan.control_flow.state_name_by_key_cloned(key)
 }

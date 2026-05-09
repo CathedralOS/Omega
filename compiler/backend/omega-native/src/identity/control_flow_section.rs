@@ -1,8 +1,8 @@
-use crate::control_flow::OperationKind;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_planned_target_strings;
 use crate::plan::NativePlan;
+use omega_control_flow::OperationKind;
 
 pub(in crate::identity) fn count_control_flow_strings(
     native_plan: &NativePlan,

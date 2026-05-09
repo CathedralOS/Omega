@@ -1,5 +1,5 @@
-use crate::control_flow::{MachineFlow, StateFlow, StateKey};
 use crate::plan::NativePlan;
+use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 
 pub(super) fn machine_flow<'plan>(

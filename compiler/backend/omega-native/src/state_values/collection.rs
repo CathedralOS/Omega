@@ -1,7 +1,7 @@
 use super::classify::value_kind;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
-use crate::control_flow::StateKey;
 use crate::state_analysis::StateAnalysisContext;
+use omega_control_flow::StateKey;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::{Statement, TransitionGuard, TransitionTarget};

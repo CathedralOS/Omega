@@ -1,6 +1,6 @@
 use super::SelectedInstruction;
-use crate::control_flow::StateKey;
 use crate::instructions::model::InstructionOperand;
+use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
 

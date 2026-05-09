@@ -1,7 +1,7 @@
 use super::ScheduledState;
 use super::lookups::{machine_flow_by_symbol, state_flow_by_key};
-use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
+use omega_control_flow::StateKey;
 
 pub(super) fn cycle_path(
     native_plan: &NativePlan,

@@ -1,8 +1,8 @@
 use super::context::RuntimeDispatchBodyContext;
-use crate::control_flow::{Operation, StateKey};
 use crate::host_calls::HostCall;
 use crate::state_calls::StateCall;
 use crate::state_storage::{StateLocalStorage, StateMutation};
+use omega_control_flow::{Operation, StateKey};
 
 pub(super) fn state_operations(
     context: &RuntimeDispatchBodyContext,

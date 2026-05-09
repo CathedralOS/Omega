@@ -6,8 +6,8 @@ pub use context::StateDispatchContext;
 pub use input::{RuntimeStateInput, runtime_state_inputs};
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
-use crate::control_flow::StateKey;
 use crate::runtime_flow::{RuntimeFlowPlan, RuntimeTransitionTarget};
+use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;

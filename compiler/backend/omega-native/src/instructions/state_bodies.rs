@@ -1,6 +1,6 @@
-use crate::control_flow::{OperationKind, StateKey};
 use crate::plan::NativePlan;
 use crate::state_schedule::ScheduledState;
+use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 
 use super::host_operations::select_host_call;
@@ -99,7 +99,7 @@ pub(super) fn runtime_reachable_states(native_plan: &NativePlan) -> Vec<Schedule
     states
 }
 
-fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {
+fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control_flow::StateKey) {
     if states
         .iter()
         .any(|scheduled_state| scheduled_state.key == key)
