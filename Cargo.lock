@@ -94,6 +94,7 @@ dependencies = [
  "omega-core",
  "omega-image",
  "omega-target",
+ "omega-typed-program",
 ]
 
 [[package]]

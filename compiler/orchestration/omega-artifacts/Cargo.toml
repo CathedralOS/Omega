@@ -12,3 +12,4 @@ path = "src/lib.rs"
 omega-core = { path = "../../foundation/omega-core" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-target = { path = "../../backend/omega-target" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }
