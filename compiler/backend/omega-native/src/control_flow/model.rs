@@ -118,7 +118,7 @@ pub struct StateFlow {
     pub key: StateKey,
     pub name: ProgramName,
     pub index: usize,
-    pub parameters: Vec<ProgramName>,
+    pub parameters: Vec<StateParameterFlow>,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
 }
@@ -134,6 +134,12 @@ impl Default for StateFlow {
             transitions: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateParameterFlow {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

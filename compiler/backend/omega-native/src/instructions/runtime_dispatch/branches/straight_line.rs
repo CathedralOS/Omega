@@ -133,10 +133,11 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     let leaf_bindings = leaf_parameters
         .iter()
         .enumerate()
-        .filter_map(|(parameter_index, parameter_name)| {
+        .filter_map(|(parameter_index, parameter)| {
             let argument = arguments.get(parameter_index)?;
             Some(RuntimeLeafBranchBinding {
-                parameter_name: parameter_name.clone(),
+                parameter_symbol: parameter.symbol,
+                parameter_name: parameter.name.clone(),
                 expression: resolve_straight_line_binding_expression(
                     &argument.expression,
                     straight_line_bindings,

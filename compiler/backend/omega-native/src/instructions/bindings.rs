@@ -1,4 +1,5 @@
 use crate::control_flow::StateKey;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -11,6 +12,7 @@ use crate::runtime_dispatch::branching::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RuntimeAliasBinding {
     pub(super) source_key: StateKey,
+    pub(super) parameter_symbol: SymbolHandle,
     pub(super) parameter_name: ProgramName,
     pub(super) expression: Expression,
 }
@@ -21,7 +23,7 @@ pub(super) fn set_runtime_alias(
 ) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
         existing_alias.source_key == alias.source_key
-            && existing_alias.parameter_name == alias.parameter_name
+            && existing_alias.parameter_symbol == alias.parameter_symbol
     }) {
         *existing_alias = alias;
     } else {

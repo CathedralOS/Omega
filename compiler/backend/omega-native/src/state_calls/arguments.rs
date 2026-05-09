@@ -1,5 +1,6 @@
 use crate::control_flow::StateKey;
 use crate::state_analysis::StateAnalysisContext;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -12,14 +13,21 @@ pub(in crate::state_calls) fn build_call_arguments<'a>(
     required: bool,
     raw_arguments: &'a [Expression],
 ) -> impl Iterator<Item = StateCallArgument> + 'a {
-    let parameter_names = state_parameter_names(context, target_key);
+    let parameters = state_parameters(context, target_key);
 
     raw_arguments
         .iter()
         .enumerate()
         .map(move |(index, expression)| StateCallArgument {
             index,
-            parameter_name: parameter_names.get(index).cloned().unwrap_or_default(),
+            parameter_symbol: parameters
+                .get(index)
+                .map(|parameter| parameter.0)
+                .unwrap_or_else(SymbolHandle::invalid),
+            parameter_name: parameters
+                .get(index)
+                .map(|parameter| parameter.1.clone())
+                .unwrap_or_default(),
             expression: expression.clone(),
             kind: if matches!(expression, Expression::Mutable(_)) {
                 StateCallArgumentKind::MutableAlias
@@ -30,13 +38,16 @@ pub(in crate::state_calls) fn build_call_arguments<'a>(
         })
 }
 
-fn state_parameter_names(context: &StateAnalysisContext, target_key: StateKey) -> Vec<ProgramName> {
+fn state_parameters(
+    context: &StateAnalysisContext,
+    target_key: StateKey,
+) -> Vec<(SymbolHandle, ProgramName)> {
     state_flow_from_key(context, target_key)
         .map(|state| {
             state
                 .parameters
                 .iter()
-                .map(|parameter| parameter.clone())
+                .map(|parameter| (parameter.symbol, parameter.name.clone()))
                 .collect()
         })
         .unwrap_or_default()

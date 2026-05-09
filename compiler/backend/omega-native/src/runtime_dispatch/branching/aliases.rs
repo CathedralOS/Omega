@@ -1,7 +1,6 @@
 use crate::plan::NativePlan;
 use crate::state_calls::{StateCall, StateCallArgumentKind};
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 mod expressions;
@@ -9,11 +8,11 @@ mod model;
 
 pub(super) use expressions::resolve_branch_expression;
 use expressions::resolve_runtime_branch_alias_expression;
-pub(super) use model::RuntimeBranchAlias;
+pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
 
 pub(super) fn resolve_branch_guard(
     guard: &TransitionGuard,
-    branch_bindings: &[(ProgramName, Expression)],
+    branch_bindings: &[BranchParameterBinding],
 ) -> TransitionGuard {
     match guard {
         TransitionGuard::Always => TransitionGuard::Always,
@@ -27,7 +26,7 @@ pub(super) fn branch_parameter_bindings(
     native_plan: &NativePlan,
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
-) -> Vec<(ProgramName, Expression)> {
+) -> Vec<BranchParameterBinding> {
     native_plan
         .state_calls
         .arguments
@@ -43,14 +42,15 @@ pub(super) fn branch_parameter_bindings(
                     } else {
                         argument.expression.clone()
                     };
-                    (
-                        argument.parameter_name.clone(),
-                        resolve_runtime_branch_alias_expression(
+                    BranchParameterBinding {
+                        parameter_symbol: argument.parameter_symbol,
+                        parameter_name: argument.parameter_name.clone(),
+                        expression: resolve_runtime_branch_alias_expression(
                             &expression,
                             state_call.source_key,
                             aliases,
                         ),
-                    )
+                    }
                 })
                 .collect()
         })
@@ -78,6 +78,7 @@ pub(super) fn bind_runtime_branch_aliases(
             aliases,
             RuntimeBranchAlias {
                 source_key: state_call.target_key,
+                parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
                 expression: resolve_runtime_branch_alias_expression(
                     &expression,
@@ -92,7 +93,7 @@ pub(super) fn bind_runtime_branch_aliases(
 fn set_runtime_branch_alias(aliases: &mut Vec<RuntimeBranchAlias>, alias: RuntimeBranchAlias) {
     if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
         existing_alias.source_key == alias.source_key
-            && existing_alias.parameter_name == alias.parameter_name
+            && existing_alias.parameter_symbol == alias.parameter_symbol
     }) {
         *existing_alias = alias;
     } else {

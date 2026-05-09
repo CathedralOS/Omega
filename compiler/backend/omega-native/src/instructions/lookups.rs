@@ -1,9 +1,8 @@
-use crate::control_flow::{Operation, StateKey};
+use crate::control_flow::{Operation, StateKey, StateParameterFlow};
 use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCall;
 use crate::state_storage::StateMutation;
-use omega_typed_program::name::ProgramName;
 
 pub(super) fn host_call_for_statement(
     native_plan: &NativePlan,
@@ -35,7 +34,10 @@ pub(super) fn state_call_for_statement(
         .map(|(_, state_call)| state_call)
 }
 
-pub(super) fn state_parameters(native_plan: &NativePlan, state_key: StateKey) -> Vec<ProgramName> {
+pub(super) fn state_parameters(
+    native_plan: &NativePlan,
+    state_key: StateKey,
+) -> Vec<StateParameterFlow> {
     native_plan
         .control_flow
         .state_by_key(state_key)

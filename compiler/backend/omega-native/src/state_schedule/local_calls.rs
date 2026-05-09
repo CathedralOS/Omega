@@ -123,11 +123,11 @@ pub(super) fn bind_state_arguments_by_key(
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
         let canonical_argument = argument_binding_place_name(argument, aliases);
         if let Some(canonical_argument) = canonical_argument {
-            set_alias(aliases, parameter.to_string(), canonical_argument);
+            set_alias(aliases, parameter.name.to_string(), canonical_argument);
         }
 
         if let Some(value) = resolve_static_value(argument, aliases, values) {
-            set_static_value(values, parameter.to_string(), value);
+            set_static_value(values, parameter.name.to_string(), value);
         }
     }
 

@@ -6,5 +6,5 @@ mod transitions;
 pub use build::{build_control_flow_plan, build_control_flow_plan_with_workers};
 pub use model::{
     ContainedFlow, ControlFlowPlan, MachineFlow, Operation, OperationKind, PlannedTransitionTarget,
-    StateFlow, StateKey, TransitionFlow,
+    StateFlow, StateKey, StateParameterFlow, TransitionFlow,
 };

@@ -1,11 +1,11 @@
 use crate::control_flow::StateKey;
-use crate::runtime_dispatch::branching::aliases::RuntimeBranchAlias;
+use crate::runtime_dispatch::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
 use omega_typed_program::expression::{BinaryExpression, Expression, IndexedExpression};
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::runtime_dispatch::branching) fn resolve_branch_expression(
     expression: &Expression,
-    branch_bindings: &[(ProgramName, Expression)],
+    branch_bindings: &[BranchParameterBinding],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
@@ -18,8 +18,8 @@ pub(in crate::runtime_dispatch::branching) fn resolve_branch_expression(
         }
         Expression::Name(path) if !path.is_empty() => branch_bindings
             .iter()
-            .find(|(parameter_name, _)| parameter_name == &path[0])
-            .map(|(_, bound_expression)| append_place_suffix(bound_expression, &path[1..]))
+            .find(|binding| binding.parameter_name == path[0])
+            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         Expression::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
             left: resolve_branch_expression(&binary.left, branch_bindings),

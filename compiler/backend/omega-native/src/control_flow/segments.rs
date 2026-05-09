@@ -3,13 +3,13 @@ use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Assignment, Statement, Transition, TransitionGuard};
 
-use super::{Operation, OperationKind, StateKey};
+use super::{Operation, OperationKind, StateKey, StateParameterFlow};
 
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment<'program> {
     pub key: StateKey,
     pub name: ProgramName,
-    pub parameters: Vec<ProgramName>,
+    pub parameters: Vec<StateParameterFlow>,
     pub operations: Vec<Operation>,
     pub transitions: Vec<&'program Transition>,
     pub next_segment_name: Option<ProgramName>,
@@ -97,7 +97,7 @@ fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
     }
 }
 
-fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<ProgramName> {
+fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<StateParameterFlow> {
     if segment_index > 0 {
         return Vec::new();
     }
@@ -106,7 +106,10 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Prog
         .parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| parameter.name.clone())
+        .map(|parameter| StateParameterFlow {
+            symbol: parameter.symbol,
+            name: parameter.name.clone(),
+        })
         .collect()
 }
 

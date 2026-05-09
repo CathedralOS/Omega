@@ -1,5 +1,6 @@
 use super::aliases::{
-    RuntimeBranchAlias, branch_parameter_bindings, resolve_branch_expression, resolve_branch_guard,
+    BranchParameterBinding, RuntimeBranchAlias, branch_parameter_bindings,
+    resolve_branch_expression, resolve_branch_guard,
 };
 use super::lookups::state_parameters;
 use super::operations::{leaf_operations, straight_line_operations};
@@ -14,7 +15,6 @@ use crate::plan::NativePlan;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use crate::state_calls::StateCall;
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(
@@ -119,7 +119,7 @@ pub(super) fn append_straight_line_branch_expansions(
 }
 
 fn leaf_branch_bindings<'a>(
-    branch_bindings: &'a [(ProgramName, Expression)],
+    branch_bindings: &'a [BranchParameterBinding],
     native_plan: &NativePlan,
     leaf_key: StateKey,
     leaf_arguments: &'a [Expression],
@@ -127,47 +127,54 @@ fn leaf_branch_bindings<'a>(
     let branch_parameter_bindings =
         branch_bindings
             .iter()
-            .map(|(parameter_name, expression)| RuntimeLeafBranchBinding {
-                parameter_name: parameter_name.clone(),
-                expression: expression.clone(),
+            .map(|binding| RuntimeLeafBranchBinding {
+                parameter_symbol: binding.parameter_symbol,
+                parameter_name: binding.parameter_name.clone(),
+                expression: binding.expression.clone(),
                 kind: RuntimeLeafBranchBindingKind::BranchParameter,
             });
 
     let leaf_parameters = state_parameters(native_plan, leaf_key);
-    let leaf_parameter_bindings = leaf_parameters.into_iter().enumerate().filter_map(
-        move |(parameter_index, parameter_name)| {
-            let expression = leaf_arguments.get(parameter_index)?;
-            Some(RuntimeLeafBranchBinding {
-                parameter_name,
-                expression: resolve_branch_expression(expression, branch_bindings),
-                kind: RuntimeLeafBranchBindingKind::LeafParameter,
-            })
-        },
-    );
+    let leaf_parameter_bindings =
+        leaf_parameters
+            .into_iter()
+            .enumerate()
+            .filter_map(move |(parameter_index, parameter)| {
+                let expression = leaf_arguments.get(parameter_index)?;
+                Some(RuntimeLeafBranchBinding {
+                    parameter_symbol: parameter.symbol,
+                    parameter_name: parameter.name,
+                    expression: resolve_branch_expression(expression, branch_bindings),
+                    kind: RuntimeLeafBranchBindingKind::LeafParameter,
+                })
+            });
 
     branch_parameter_bindings.chain(leaf_parameter_bindings)
 }
 
 fn straight_line_branch_bindings<'a>(
-    branch_bindings: &'a [(ProgramName, Expression)],
+    branch_bindings: &'a [BranchParameterBinding],
     native_plan: &NativePlan,
     target_key: StateKey,
     target_arguments: &'a [Expression],
 ) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
-    let branch_parameter_bindings = branch_bindings.iter().map(|(parameter_name, expression)| {
-        RuntimeStraightLineBranchBinding {
-            parameter_name: parameter_name.clone(),
-            expression: expression.clone(),
-            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
-        }
-    });
+    let branch_parameter_bindings =
+        branch_bindings
+            .iter()
+            .map(|binding| RuntimeStraightLineBranchBinding {
+                parameter_symbol: binding.parameter_symbol,
+                parameter_name: binding.parameter_name.clone(),
+                expression: binding.expression.clone(),
+                kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+            });
 
     let target_parameters = state_parameters(native_plan, target_key);
     let target_parameter_bindings = target_parameters.into_iter().enumerate().filter_map(
-        move |(parameter_index, parameter_name)| {
+        move |(parameter_index, parameter)| {
             let expression = target_arguments.get(parameter_index)?;
             Some(RuntimeStraightLineBranchBinding {
-                parameter_name,
+                parameter_symbol: parameter.symbol,
+                parameter_name: parameter.name,
                 expression: resolve_branch_expression(expression, branch_bindings),
                 kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
             })

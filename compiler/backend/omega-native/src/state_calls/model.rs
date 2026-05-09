@@ -1,5 +1,6 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -43,6 +44,7 @@ impl Default for StateCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCallArgument {
     pub index: usize,
+    pub parameter_symbol: SymbolHandle,
     pub parameter_name: ProgramName,
     pub expression: Expression,
     pub kind: StateCallArgumentKind,
@@ -53,6 +55,7 @@ impl Default for StateCallArgument {
     fn default() -> Self {
         Self {
             index: 0,
+            parameter_symbol: SymbolHandle::invalid(),
             parameter_name: ProgramName::default(),
             expression: Expression::Integer(0),
             kind: StateCallArgumentKind::Value,

@@ -47,6 +47,7 @@ pub(super) fn bind_runtime_operation_aliases(
             aliases,
             RuntimeAliasBinding {
                 source_key: state_call.target_key,
+                parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
                 expression,
             },

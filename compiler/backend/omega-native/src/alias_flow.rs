@@ -2,6 +2,7 @@ use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCallArgumentKind;
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -15,6 +16,7 @@ pub struct AliasBinding {
     pub caller_key: StateKey,
     pub statement_index: usize,
     pub callee_key: StateKey,
+    pub parameter_symbol: SymbolHandle,
     pub parameter_name: ProgramName,
     pub argument: Expression,
     pub required: bool,
@@ -26,6 +28,7 @@ impl Default for AliasBinding {
             caller_key: StateKey::default(),
             statement_index: 0,
             callee_key: StateKey::default(),
+            parameter_symbol: SymbolHandle::invalid(),
             parameter_name: ProgramName::default(),
             argument: Expression::Integer(0),
             required: false,
@@ -50,6 +53,7 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
                 caller_key: state_call.source_key,
                 statement_index: state_call.statement_index,
                 callee_key: state_call.target_key,
+                parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
                 argument: argument.expression.clone(),
                 required: state_call.required && argument.required,

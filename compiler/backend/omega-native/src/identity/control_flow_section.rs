@@ -19,7 +19,7 @@ pub(in crate::identity) fn count_control_flow_strings(
     for (_, state) in native_plan.control_flow.states.iter() {
         storage.count_program_name_identity(&state.name);
         for parameter in &state.parameters {
-            storage.count_program_name_identity(parameter);
+            storage.count_program_name_identity(&parameter.name);
         }
     }
 
