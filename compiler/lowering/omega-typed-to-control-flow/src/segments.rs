@@ -3,7 +3,7 @@ use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Assignment, Statement, Transition, TransitionGuard};
 
-use super::{Operation, OperationKind, StateKey, StateParameterFlow};
+use omega_control_flow::{Operation, OperationKind, StateKey, StateParameterFlow};
 
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment<'program> {

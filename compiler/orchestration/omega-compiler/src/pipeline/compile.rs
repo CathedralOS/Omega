@@ -18,7 +18,6 @@ use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
 use omega_names::build_resolve_report;
 use omega_native::build_native_surface_report;
-use omega_native::control_flow::build_control_flow_plan_with_workers;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
 use omega_native::executable_finalization::finalize_native_output;
@@ -27,6 +26,7 @@ use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
 use omega_target::NativeTarget;
+use omega_typed_to_control_flow::build_control_flow_plan_with_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 

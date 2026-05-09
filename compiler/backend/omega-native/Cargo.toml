@@ -20,3 +20,4 @@ omega-layout = { path = "../omega-layout" }
 omega-object = { path = "../object/omega-object" }
 omega-target = { path = "../omega-target" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-typed-to-control-flow = { path = "../../lowering/omega-typed-to-control-flow" }

@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_program::expression::display_name_path;
 use omega_typed_program::statement::{Transition, TransitionTarget};
 
-use super::{PlannedTransitionTarget, StateKey, TransitionFlow};
+use omega_control_flow::{PlannedTransitionTarget, StateKey, TransitionFlow};
 
 pub(super) fn plan_transition(
     state_indexes: &[(StateKey, usize)],

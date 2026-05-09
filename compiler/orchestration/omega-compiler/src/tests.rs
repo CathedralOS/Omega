@@ -1155,7 +1155,7 @@ fn plans_state_control_flow() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let control_flow = omega_native::control_flow::build_control_flow_plan(&program)
+    let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
         .machines
@@ -2458,7 +2458,7 @@ fn plans_mid_state_transition_as_generated_segments() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let control_flow = omega_native::control_flow::build_control_flow_plan(&program)
+    let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
         .machines

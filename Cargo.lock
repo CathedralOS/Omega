@@ -120,6 +120,7 @@ dependencies = [
  "omega-proof",
  "omega-target",
  "omega-typed-program",
+ "omega-typed-to-control-flow",
  "omega-types",
  "omega-validation",
 ]
@@ -227,6 +228,7 @@ dependencies = [
  "omega-object",
  "omega-target",
  "omega-typed-program",
+ "omega-typed-to-control-flow",
 ]
 
 [[package]]
@@ -267,6 +269,15 @@ name = "omega-typed-program"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+]
+
+[[package]]
+name = "omega-typed-to-control-flow"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-typed-program",
 ]
 
 [[package]]

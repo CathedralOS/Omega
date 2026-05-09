@@ -5,9 +5,12 @@ use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
 
-use super::segments::{segment_has_unconditional_transition, split_state_segments};
-use super::transitions::plan_transition;
-use super::{
+mod segments;
+mod transitions;
+
+use crate::segments::{segment_has_unconditional_transition, split_state_segments};
+use crate::transitions::plan_transition;
+use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateFlow, StateKey,
     TransitionFlow,
 };
