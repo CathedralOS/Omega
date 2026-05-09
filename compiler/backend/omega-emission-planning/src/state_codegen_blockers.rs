@@ -1,5 +1,5 @@
-use crate::plan::NativePlan;
-use crate::state_schedule::{ScheduledState, scheduled_state_flow};
+use omega_native::plan::NativePlan;
+use omega_native::state_schedule::{ScheduledState, scheduled_state_flow};
 use omega_control_flow::{OperationKind, StateFlow, StateKey};
 use omega_core::arena::Arena;
 

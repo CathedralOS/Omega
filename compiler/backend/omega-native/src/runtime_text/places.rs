@@ -1,6 +1,6 @@
 use omega_typed_program::expression::{Expression, NamePath};
 
-pub(crate) fn expression_place_eq(left: &Expression, right: &Expression) -> bool {
+pub fn expression_place_eq(left: &Expression, right: &Expression) -> bool {
     match (left, right) {
         (Expression::Name(left), Expression::Name(right)) => name_path_eq(left, right),
         (Expression::Indexed(left), Expression::Indexed(right)) => {

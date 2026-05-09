@@ -1,5 +1,5 @@
-use crate::plan::NativePlan;
-use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
+use omega_native::plan::NativePlan;
+use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;

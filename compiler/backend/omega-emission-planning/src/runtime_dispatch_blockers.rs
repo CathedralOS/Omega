@@ -1,7 +1,9 @@
-use crate::plan::NativePlan;
-use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use crate::state_guards::{StateGuardLowering, StateGuardOperator};
-use crate::state_schedule::ScheduledState;
+use omega_native::plan::NativePlan;
+use omega_native::runtime_dispatch::loop_plan::{
+    RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge,
+};
+use omega_native::state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_native::state_schedule::ScheduledState;
 use omega_core::arena::Arena;
 
 use super::{EmissionBlocker, blocker};

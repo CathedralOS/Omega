@@ -1,6 +1,6 @@
-use crate::plan::NativePlan;
-use crate::runtime_text::places::expression_place_eq;
-use crate::runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
+use omega_native::plan::NativePlan;
+use omega_native::runtime_text::places::expression_place_eq;
+use omega_native::runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
@@ -86,7 +86,7 @@ pub(super) fn runtime_text_write_for_statement<'plan>(
 fn runtime_text_builder_for_write<'plan>(
     native_plan: &'plan NativePlan,
     text_write: &RuntimeTextWrite,
-) -> Option<&'plan crate::runtime_text::RuntimeTextBuilder> {
+) -> Option<&'plan omega_native::runtime_text::RuntimeTextBuilder> {
     native_plan
         .runtime_text
         .builders

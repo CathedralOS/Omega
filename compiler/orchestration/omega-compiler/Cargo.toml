@@ -15,6 +15,7 @@ omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree
 omega-abstract-syntax-to-typed = { path = "../../lowering/omega-abstract-syntax-to-typed" }
 omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-emission-planning = { path = "../../backend/omega-emission-planning" }
 omega-effects = { path = "../../semantics/omega-effects" }
 omega-graph = { path = "../../semantics/omega-graph" }
 omega-image = { path = "../../backend/images/omega-image" }

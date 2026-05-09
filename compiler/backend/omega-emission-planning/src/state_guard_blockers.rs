@@ -1,5 +1,5 @@
-use crate::plan::NativePlan;
-use crate::state_guards::StateGuardLowering;
+use omega_native::plan::NativePlan;
+use omega_native::state_guards::StateGuardLowering;
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 

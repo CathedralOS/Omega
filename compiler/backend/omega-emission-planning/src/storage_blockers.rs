@@ -1,6 +1,6 @@
-use crate::plan::NativePlan;
-use crate::runtime_storage::RuntimeStorageWrite;
-use crate::runtime_text::places::expression_place_eq;
+use omega_native::plan::NativePlan;
+use omega_native::runtime_storage::RuntimeStorageWrite;
+use omega_native::runtime_text::places::expression_place_eq;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_storage::StateMutationLowering;

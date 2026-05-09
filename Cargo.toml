@@ -27,6 +27,7 @@ members = [
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/omega-instruction-selection",
+    "compiler/backend/omega-emission-planning",
     "compiler/backend/omega-machine-emission",
     "compiler/lowering/omega-target-to-machine",
     "compiler/backend/omega-native-report",

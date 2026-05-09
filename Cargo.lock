@@ -124,6 +124,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-effects",
+ "omega-emission-planning",
  "omega-graph",
  "omega-image",
  "omega-image-emission",
@@ -179,6 +180,25 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-typed-program",
+]
+
+[[package]]
+name = "omega-emission-planning"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-image-emission",
+ "omega-native",
+ "omega-platform-interface",
+ "omega-state-calls",
+ "omega-state-graph",
+ "omega-state-storage",
+ "omega-state-values",
+ "omega-target",
+ "omega-target-program",
 ]
 
 [[package]]

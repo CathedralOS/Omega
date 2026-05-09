@@ -21,7 +21,7 @@ use omega_effects::infer_effects;
 use omega_graph::build_source_graph_report;
 use omega_image_emission::{ExecutableImageInput, emit_checked_executable_image};
 use omega_names::build_resolve_report;
-use omega_native::emission::build_emission_plan;
+use omega_emission_planning::build_emission_plan;
 use omega_native::plan::build_native_plan_from_control_flow_with_workers;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;

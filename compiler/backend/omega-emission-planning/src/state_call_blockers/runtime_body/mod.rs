@@ -3,8 +3,8 @@ mod model;
 mod planned;
 mod reasons;
 
-use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use omega_native::plan::NativePlan;
+use omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use omega_core::arena::Arena;
 
 use super::super::{EmissionBlocker, blocker};
