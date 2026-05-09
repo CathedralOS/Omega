@@ -189,6 +189,7 @@ fn lower_program_input_with_optional_symbol_table(
     attach_program_symbols(&mut program);
     attach_type_reference_symbols(&mut program);
     attach_expression_symbols(&mut program);
+    program.rebuild_tables();
 
     Ok(program)
 }

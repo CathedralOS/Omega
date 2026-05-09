@@ -157,6 +157,12 @@ impl ArtifactWriter {
             "type constraints: {}\n\n",
             program.type_constraints.len()
         ));
+        output.push_str(&format!(
+            "tables: expressions {} type_references {} type_constraints {}\n\n",
+            program.expression_table.expression_count(),
+            program.type_reference_table.type_reference_count(),
+            program.type_reference_table.constraint_count()
+        ));
 
         let identity_storage = omega_typed_program::identity::count_identity_storage(program);
         output.push_str("## Identity Storage\n");

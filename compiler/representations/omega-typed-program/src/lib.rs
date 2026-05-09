@@ -8,6 +8,7 @@ pub mod platform;
 pub mod signature;
 pub mod state;
 pub mod statement;
+pub mod tables;
 pub mod types;
 
 use omega_core::arena::Arena;
@@ -20,5 +21,15 @@ pub struct Program {
     pub machines: Vec<machine::Machine>,
     pub platforms: Vec<platform::Platform>,
     pub type_constraints: Arena<types::TypeConstraint>,
+    pub expression_table: expression::ExpressionTable,
+    pub type_reference_table: types::TypeReferenceTable,
     pub symbols: SymbolTable,
+}
+
+impl Program {
+    pub fn rebuild_tables(&mut self) {
+        let tables = tables::TypedProgramTables::from_program(self);
+        self.expression_table = tables.expressions;
+        self.type_reference_table = tables.type_references;
+    }
 }
