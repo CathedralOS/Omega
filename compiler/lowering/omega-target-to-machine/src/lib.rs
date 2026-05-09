@@ -1,5 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
@@ -25,7 +25,6 @@ pub fn build_machine_code_plan(
         target: input.target,
         functions: Arena::new(),
         instructions: Arena::new(),
-        bytes: Arena::new(),
         byte_count: 0,
     };
 
@@ -78,7 +77,6 @@ fn select_machine_instructions(
                 selected_instruction_index,
                 offset,
                 byte_width,
-                bytes: HandleSpan::empty(),
                 kind,
             };
             offset += byte_width;

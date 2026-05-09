@@ -42,7 +42,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         }
     };
 
-    if native_plan.machine_code.bytes.len() < native_plan.machine_code.byte_count {
+    if native_plan.encoded_machine.bytes.len() < native_plan.machine_code.byte_count {
         blockers.insert(emission_blocker(
             "machine encoding",
             "not all selected native instructions are encoded into target bytes yet",
@@ -105,7 +105,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         selected_instructions: native_plan.instructions.instructions.len(),
         instruction_operands: native_plan.instructions.operands.len(),
         machine_code_bytes: native_plan.machine_code.byte_count,
-        encoded_machine_bytes: native_plan.machine_code.bytes.len(),
+        encoded_machine_bytes: native_plan.encoded_machine.bytes.len(),
         relocations: native_plan.relocations.records.len(),
         blockers,
     }
@@ -113,7 +113,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 
 fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
     can_emit_executable_image(native_plan.target)
-        && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
+        && native_plan.encoded_machine.bytes.len() == native_plan.machine_code.byte_count
 }
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {

@@ -199,15 +199,16 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
             terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
         })
     })?;
-    record_native_phase(&mut phase_timings, "machine emission", || {
-        emit_machine_bytes(MachineEmissionInput {
-            target: native_plan.target,
-            instructions: &native_plan.instructions,
-            machine_code: &mut native_plan.machine_code,
-            host_abi: &native_plan.host_abi,
-            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
-        })
-    })?;
+    native_plan.encoded_machine =
+        record_native_phase(&mut phase_timings, "machine emission", || {
+            emit_machine_bytes(MachineEmissionInput {
+                target: native_plan.target,
+                instructions: &native_plan.instructions,
+                machine_code: &native_plan.machine_code,
+                host_abi: &native_plan.host_abi,
+                terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+            })
+        })?;
     native_plan.object = record_native_phase(&mut phase_timings, "object plan", || {
         build_object_plan(ObjectPlanningInput {
             target: native_plan.target,

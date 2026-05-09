@@ -13,7 +13,7 @@ use crate::state_values::StateValuePlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
-use omega_machine_program::MachineCodePlan;
+use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
 use omega_object::{ObjectPlan, RelocationPlan, entry_symbol_name};
 use omega_platform_interface::HostCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
@@ -56,6 +56,7 @@ pub(super) fn build_native_plan_skeleton(input: NativePlanSkeletonInput) -> Nati
         runtime_text: RuntimeTextPlan::default(),
         layouts: input.layouts,
         machine_code: MachineCodePlan::default(),
+        encoded_machine: EncodedMachinePlan::default(),
         object: ObjectPlan {
             target: input.target,
             sections: omega_core::arena::Arena::new(),

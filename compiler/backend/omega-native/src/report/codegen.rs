@@ -50,7 +50,7 @@ pub(super) fn write_codegen_sections(output: &mut String, native_plan: &NativePl
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
-        native_plan.machine_code.bytes.len()
+        native_plan.encoded_machine.bytes.len()
     ));
     output.push_str(&format!("bytes: {}\n", native_plan.machine_code.byte_count));
     for (_, function) in native_plan.machine_code.functions.iter() {
@@ -446,7 +446,23 @@ fn machine_instruction_bytes_name(
     native_plan: &NativePlan,
     instruction: &MachineInstruction,
 ) -> String {
-    let Some(bytes) = native_plan.machine_code.bytes.span(instruction.bytes) else {
+    let Some((_, encoded_instruction)) =
+        native_plan
+            .encoded_machine
+            .instructions
+            .iter()
+            .find(|(_, encoded_instruction)| {
+                encoded_instruction.selected_instruction_index
+                    == instruction.selected_instruction_index
+            })
+    else {
+        return "invalid".to_owned();
+    };
+    let Some(bytes) = native_plan
+        .encoded_machine
+        .bytes
+        .span(encoded_instruction.bytes)
+    else {
         return "invalid".to_owned();
     };
 

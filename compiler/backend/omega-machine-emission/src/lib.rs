@@ -1,7 +1,9 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::{MachineCodePlan, MachineInstruction};
+use omega_machine_program::{
+    EncodedMachineInstruction, EncodedMachinePlan, MachineCodePlan, MachineInstruction,
+};
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
 
@@ -15,13 +17,20 @@ use encoding::encode_machine_instruction;
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
     pub instructions: &'plan InstructionPlan,
-    pub machine_code: &'machine mut MachineCodePlan,
+    pub machine_code: &'machine MachineCodePlan,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,
 }
 
-pub fn emit_machine_bytes(input: MachineEmissionInput<'_, '_>) -> Result<(), Diagnostic> {
-    input.machine_code.bytes.clear();
+pub fn emit_machine_bytes(
+    input: MachineEmissionInput<'_, '_>,
+) -> Result<EncodedMachinePlan, Diagnostic> {
+    let mut encoded_plan = EncodedMachinePlan {
+        target: input.target,
+        instructions: Arena::new(),
+        bytes: Arena::new(),
+        byte_count: input.machine_code.byte_count,
+    };
 
     let function_spans = input
         .machine_code
@@ -37,11 +46,12 @@ pub fn emit_machine_bytes(input: MachineEmissionInput<'_, '_>) -> Result<(), Dia
             input.host_abi,
             input.terminal_dispatch_index,
             input.machine_code,
+            &mut encoded_plan,
             instructions,
         )?;
     }
 
-    Ok(())
+    Ok(encoded_plan)
 }
 
 fn emit_function_bytes(
@@ -49,7 +59,8 @@ fn emit_function_bytes(
     instructions: &InstructionPlan,
     host_abi: &HostAbiPlan,
     terminal_dispatch_index: u32,
-    machine_code: &mut MachineCodePlan,
+    machine_code: &MachineCodePlan,
+    encoded_plan: &mut EncodedMachinePlan,
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
     let Some(machine_instructions) = machine_code.instructions.span(machine_instructions_span)
@@ -76,14 +87,11 @@ fn emit_function_bytes(
             machine_instruction_index,
             &selected_instruction.kind,
         )?;
-        let byte_span = machine_code.bytes.insert_many(encoded);
-        let Some(output_instructions) = machine_code
-            .instructions
-            .span_mut(machine_instructions_span)
-        else {
-            continue;
-        };
-        output_instructions[machine_instruction_index].bytes = byte_span;
+        let byte_span = encoded_plan.bytes.insert_many(encoded);
+        encoded_plan.instructions.insert(EncodedMachineInstruction {
+            selected_instruction_index: machine_instruction.selected_instruction_index,
+            bytes: byte_span,
+        });
     }
 
     Ok(())

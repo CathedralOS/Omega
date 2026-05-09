@@ -1334,11 +1334,20 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
             .instructions
             .iter()
             .any(|(_, instruction)| {
+                let encoded_bytes = native_plan
+                    .encoded_machine
+                    .instructions
+                    .iter()
+                    .find(|(_, encoded)| {
+                        encoded.selected_instruction_index == instruction.selected_instruction_index
+                    })
+                    .map(|(_, encoded)| encoded.bytes.count())
+                    .unwrap_or(0);
                 matches!(
                     instruction.kind,
                     omega_machine_program::MachineInstructionKind::DispatchCaseEnter { .. }
                 ) && instruction.byte_width == 8
-                    && instruction.bytes.count() == 8
+                    && encoded_bytes == 8
             })
     );
     assert!(
@@ -1347,9 +1356,18 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
             .instructions
             .iter()
             .any(|(_, instruction)| {
+                let encoded_bytes = native_plan
+                    .encoded_machine
+                    .instructions
+                    .iter()
+                    .find(|(_, encoded)| {
+                        encoded.selected_instruction_index == instruction.selected_instruction_index
+                    })
+                    .map(|(_, encoded)| encoded.bytes.count())
+                    .unwrap_or(0);
                 instruction.kind == omega_machine_program::MachineInstructionKind::DispatchCaseLeave
                     && instruction.byte_width == 4
-                    && instruction.bytes.count() == 4
+                    && encoded_bytes == 4
             })
     );
 }
@@ -2696,7 +2714,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
-        native_plan.machine_code.bytes.len(),
+        native_plan.encoded_machine.bytes.len(),
         native_plan.machine_code.byte_count
     );
     assert!(

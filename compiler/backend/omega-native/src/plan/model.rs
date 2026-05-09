@@ -13,7 +13,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
-use omega_machine_program::MachineCodePlan;
+use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
@@ -43,6 +43,7 @@ pub struct NativePlan {
     pub runtime_text: RuntimeTextPlan,
     pub layouts: LayoutPlan,
     pub machine_code: MachineCodePlan,
+    pub encoded_machine: EncodedMachinePlan,
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
     pub entry_key: StateKey,

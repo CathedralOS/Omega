@@ -7,7 +7,6 @@ pub struct MachineCodePlan {
     pub target: NativeTarget,
     pub functions: Arena<MachineFunctionCode>,
     pub instructions: Arena<MachineInstruction>,
-    pub bytes: Arena<u8>,
     pub byte_count: usize,
 }
 
@@ -17,7 +16,6 @@ impl Default for MachineCodePlan {
             target: NativeTarget::host(),
             functions: Arena::new(),
             instructions: Arena::new(),
-            bytes: Arena::new(),
             byte_count: 0,
         }
     }
@@ -47,7 +45,6 @@ pub struct MachineInstruction {
     pub selected_instruction_index: u32,
     pub offset: usize,
     pub byte_width: usize,
-    pub bytes: HandleSpan<u8>,
     pub kind: MachineInstructionKind,
 }
 
@@ -57,10 +54,34 @@ impl Default for MachineInstruction {
             selected_instruction_index: 0,
             offset: 0,
             byte_width: 0,
-            bytes: HandleSpan::empty(),
             kind: MachineInstructionKind::NoBytes,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedMachinePlan {
+    pub target: NativeTarget,
+    pub instructions: Arena<EncodedMachineInstruction>,
+    pub bytes: Arena<u8>,
+    pub byte_count: usize,
+}
+
+impl Default for EncodedMachinePlan {
+    fn default() -> Self {
+        Self {
+            target: NativeTarget::host(),
+            instructions: Arena::new(),
+            bytes: Arena::new(),
+            byte_count: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EncodedMachineInstruction {
+    pub selected_instruction_index: u32,
+    pub bytes: HandleSpan<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
