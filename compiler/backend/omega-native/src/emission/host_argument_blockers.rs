@@ -21,21 +21,23 @@ pub(super) fn collect_host_argument_blockers(
             continue;
         };
         let Some(arguments) = native_plan.host_calls.arguments.span(host_call.arguments) else {
+            let source_name = state_name(native_plan, host_call.source_key);
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
-                    "{}.{} statement {} has an invalid argument span",
-                    host_call.machine, host_call.state, host_call.statement_index
+                    "{} statement {} has an invalid argument span",
+                    source_name, host_call.statement_index
                 ),
             ));
             continue;
         };
         let Some(first_argument) = arguments.first() else {
+            let source_name = state_name(native_plan, host_call.source_key);
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
-                    "{}.{} statement {} needs a text argument",
-                    host_call.machine, host_call.state, host_call.statement_index
+                    "{} statement {} needs a text argument",
+                    source_name, host_call.statement_index
                 ),
             ));
             continue;
@@ -53,10 +55,10 @@ pub(super) fn collect_host_argument_blockers(
                 &runtime_text_use
                     .map(host_text_argument_blocker_reason)
                     .unwrap_or_else(|| {
+                        let source_name = state_name(native_plan, host_call.source_key);
                         format!(
-                            "{}.{} statement {} text argument `{}` needs runtime text lowering",
-                            host_call.machine,
-                            host_call.state,
+                            "{} statement {} text argument `{}` needs runtime text lowering",
+                            source_name,
                             host_call.statement_index,
                             expression.display_name()
                         )
@@ -103,4 +105,12 @@ fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
         text_use.statement_index,
         text_use.expression.display_name()
     )
+}
+
+fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

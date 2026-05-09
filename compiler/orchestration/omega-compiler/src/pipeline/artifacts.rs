@@ -728,10 +728,10 @@ impl ArtifactWriter {
         if !native_plan.host_calls.unsupported_calls.is_empty() {
             output.push_str("unsupported:\n");
             for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
+                let source_name = native_state_name(native_plan, unsupported_call.source_key);
                 output.push_str(&format!(
-                    "- {}.{} statement {} `{}`: {}\n",
-                    unsupported_call.machine,
-                    unsupported_call.state,
+                    "- {} statement {} `{}`: {}\n",
+                    source_name,
                     unsupported_call.statement_index,
                     unsupported_call.platform_call,
                     unsupported_call.reason
@@ -2889,9 +2889,10 @@ fn write_platform_call_lowering(
 }
 
 fn write_host_call(output: &mut String, native_plan: &NativePlan, call: &HostCall) {
+    let source_name = native_state_name(native_plan, call.source_key);
     output.push_str(&format!(
-        "- {}.{} statement {} `{}`\n",
-        call.machine, call.state, call.statement_index, call.platform_call
+        "- {} statement {} `{}`\n",
+        source_name, call.statement_index, call.platform_call
     ));
 
     match native_plan.host_calls.arguments.span(call.arguments) {

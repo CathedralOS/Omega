@@ -44,12 +44,18 @@ pub(in crate::instructions::host_operations) fn runtime_text_line_read(
         })
         .map(|(_, data_object)| data_object)?;
     let text_place = text_expression_for_buffer_target(&buffer.target)?;
+    let source_machine = native_plan
+        .control_flow
+        .state_machine_name_by_key_cloned(host_call.source_key);
+    let source_state = native_plan
+        .control_flow
+        .state_name_by_key_cloned(host_call.source_key);
     let target_place = resolve_runtime_storage_place(
         native_plan,
         0,
         host_call.source_key,
-        &host_call.machine,
-        &host_call.state,
+        &source_machine,
+        &source_state,
         &text_place,
     )?;
     if target_place.byte_count != native_plan.target.pointer_size * 2 {
@@ -83,7 +89,9 @@ pub(in crate::instructions) fn runtime_machine_string_descriptor_offset(
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &native_plan.layouts,
         native_plan.entry_machine_name(),
-        &host_call.machine,
+        &native_plan
+            .control_flow
+            .state_machine_name_by_key_cloned(host_call.source_key),
         expression,
     )?;
     (byte_size == native_plan.target.pointer_size * 2).then_some(byte_offset)

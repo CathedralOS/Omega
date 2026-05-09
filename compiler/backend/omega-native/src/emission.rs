@@ -58,9 +58,8 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         blockers.insert(blocker(
             "host lowering",
             &format!(
-                "{}.{} statement {} platform call `{}`: {}",
-                unsupported_call.machine,
-                unsupported_call.state,
+                "{} statement {} platform call `{}`: {}",
+                state_name(native_plan, unsupported_call.source_key),
                 unsupported_call.statement_index,
                 unsupported_call.platform_call,
                 unsupported_call.reason
@@ -115,4 +114,12 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
     can_emit_target_output(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
+}
+
+fn state_name(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

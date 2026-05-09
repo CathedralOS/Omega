@@ -2,7 +2,6 @@ use crate::abi::PlatformCallData;
 use crate::control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
@@ -26,8 +25,6 @@ impl Default for HostCallPlan {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UnsupportedHostCall {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub reason: String,
@@ -36,8 +33,6 @@ pub struct UnsupportedHostCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCall {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub data: PlatformCallData,
@@ -49,8 +44,6 @@ impl Default for HostCall {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             data: PlatformCallData::None,

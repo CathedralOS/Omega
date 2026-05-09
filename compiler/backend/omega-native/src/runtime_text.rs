@@ -16,7 +16,7 @@ pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
     let mut plan = RuntimeTextPlan::default();
 
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        collect_host_call_runtime_text(&native_plan.host_calls, host_call, &mut plan);
+        collect_host_call_runtime_text(native_plan, &native_plan.host_calls, host_call, &mut plan);
     }
     collect_runtime_text_writes(native_plan, &mut plan);
     collect_runtime_text_builders(&mut plan);

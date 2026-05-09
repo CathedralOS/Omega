@@ -69,8 +69,11 @@ pub(super) fn select_state_host_calls(
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
+    let Some(state_key) = scheduled_state_key(native_plan, machine_name, state_name) else {
+        return;
+    };
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        if host_call.machine != machine_name || host_call.state != state_name {
+        if host_call.source_key != state_key {
             continue;
         }
 

@@ -86,8 +86,6 @@ fn collect_call_host_lowering(
         let platform_call = platform_call_name(call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
-            machine: machine.name.clone(),
-            state: state.name.clone(),
             statement_index,
             platform_call: platform_call.clone(),
             reason: format!("no native lowering for target {target:?}"),
@@ -111,8 +109,6 @@ fn collect_call_host_lowering(
         .insert_many(lower_host_call_arguments(call, static_values));
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
-        machine: machine.name.clone(),
-        state: state.name.clone(),
         statement_index,
         platform_call: platform_call_name(call),
         data: lowering.data,
