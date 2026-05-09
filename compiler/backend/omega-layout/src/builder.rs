@@ -254,12 +254,13 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(primitive_type_layout(self.target, primitive_type));
         }
 
-        let data_symbol = if symbol.is_valid() {
-            symbol
-        } else {
-            self.data_definition(name)?.symbol
-        };
-        self.layout_data_definition(data_symbol)
+        if !symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "non-primitive type `{name}` is missing a resolved symbol"
+            )));
+        }
+
+        self.layout_data_definition(symbol)
     }
 
     fn type_reference_symbol(&self, type_reference: &TypeReference) -> SymbolHandle {
@@ -275,39 +276,19 @@ impl<'program> LayoutBuilder<'program> {
             } => {
                 if PrimitiveType::from_name(base_name).is_some() {
                     SymbolHandle::invalid()
-                } else if base_symbol.is_valid() {
-                    *base_symbol
                 } else {
-                    self.data_definition(base_name)
-                        .map(|definition| definition.symbol)
-                        .or_else(|_| {
-                            self.machine_definition(base_name)
-                                .map(|machine| machine.symbol)
-                        })
-                        .unwrap_or_else(|_| SymbolHandle::invalid())
+                    *base_symbol
                 }
             }
             TypeReference::Named { symbol, name } => {
                 if PrimitiveType::from_name(name).is_some() {
                     SymbolHandle::invalid()
-                } else if symbol.is_valid() {
-                    *symbol
                 } else {
-                    self.data_definition(name)
-                        .map(|definition| definition.symbol)
-                        .or_else(|_| self.machine_definition(name).map(|machine| machine.symbol))
-                        .unwrap_or_else(|_| SymbolHandle::invalid())
+                    *symbol
                 }
             }
             TypeReference::Unit => SymbolHandle::invalid(),
         }
-    }
-
-    fn data_definition(&self, name: &str) -> Result<&'program DataDefinition, Diagnostic> {
-        self.data_definitions
-            .iter()
-            .find(|definition| definition.name == name)
-            .ok_or_else(|| Diagnostic::error(format!("unknown data type `{name}`")))
     }
 
     fn data_definition_by_symbol(
@@ -320,13 +301,6 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| {
                 Diagnostic::error(format!("unknown data type symbol {}", symbol.arena_index()))
             })
-    }
-
-    fn machine_definition(&self, name: &str) -> Result<&'program Machine, Diagnostic> {
-        self.machine_definitions
-            .iter()
-            .find(|machine| machine.name == name)
-            .ok_or_else(|| Diagnostic::error(format!("unknown machine `{name}`")))
     }
 
     fn machine_definition_by_symbol(
