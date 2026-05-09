@@ -452,6 +452,7 @@ mod tests {
         BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable,
         TableBinaryExpression,
     };
+    use crate::identifier::{Identifier, IdentifierPath};
 
     #[test]
     fn expression_table_stores_recursive_expressions_as_handles() {
@@ -497,5 +498,22 @@ mod tests {
 
         assert_eq!(values.count(), 3);
         assert_eq!(table.display_name(root), "[1, 2, 3]");
+    }
+
+    #[test]
+    fn expression_table_stores_name_paths_as_member_spans() {
+        let expression = Expression::Name(IdentifierPath::from(vec![
+            Identifier::generated("player"),
+            Identifier::generated("inventory"),
+        ]));
+
+        let mut table = ExpressionTable::new();
+        let root = table.insert_tree(&expression);
+        let ExpressionNode::Name(path) = table.expression(root) else {
+            panic!("root expression should be a name path");
+        };
+
+        assert_eq!(path.count(), 2);
+        assert_eq!(table.display_name(root), "player::inventory");
     }
 }

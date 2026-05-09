@@ -588,9 +588,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable,
+        BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable, NamePath,
         TableBinaryExpression,
     };
+    use crate::name::ProgramName;
+    use omega_core::symbols::SymbolHandle;
 
     #[test]
     fn expression_table_stores_recursive_typed_expressions_as_handles() {
@@ -618,5 +620,28 @@ mod tests {
 
         assert!(left.is_valid());
         assert!(right.is_valid());
+    }
+
+    #[test]
+    fn expression_table_stores_name_paths_as_member_spans() {
+        let expression = Expression::Name(NamePath::resolved(
+            vec![
+                ProgramName::generated("player"),
+                ProgramName::generated("inventory"),
+            ],
+            SymbolHandle::from_arena_index(1),
+            SymbolHandle::from_arena_index(2),
+        ));
+
+        let mut table = ExpressionTable::new();
+        let root = table.insert_tree(&expression);
+        let ExpressionNode::Name(path) = table.expression(root) else {
+            panic!("root expression should be a name path");
+        };
+
+        assert_eq!(path.members.count(), 2);
+        assert_eq!(path.head_symbol, SymbolHandle::from_arena_index(1));
+        assert_eq!(path.symbol, SymbolHandle::from_arena_index(2));
+        assert_eq!(table.display_name(root), "player::inventory");
     }
 }
