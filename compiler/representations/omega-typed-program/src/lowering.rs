@@ -414,9 +414,13 @@ fn attach_transition_target_expression_symbols(
     context: ExpressionResolveContext,
     target: &mut TransitionTarget,
 ) {
-    let TransitionTarget::Named { arguments, .. } = target else {
+    let TransitionTarget::Named { path, arguments } = target else {
         return;
     };
+
+    let head_symbol = context.resolve_identifier_head(symbols, path.members());
+    let symbol = context.resolve_identifier_path(symbols, path.members());
+    *path = path.clone().with_symbols(head_symbol, symbol);
 
     for argument in arguments {
         attach_expression_symbol(symbols, context, argument);
@@ -1594,7 +1598,7 @@ fn lower_transition_target(
     match target {
         ast::statement::TransitionTarget::Named { path, arguments } => {
             Ok(TransitionTarget::Named {
-                path: lower_identifier_path(path).into_members(),
+                path: lower_identifier_path(path),
                 arguments: arguments
                     .iter()
                     .map(lower_expression)

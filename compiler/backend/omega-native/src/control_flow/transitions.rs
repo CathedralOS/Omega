@@ -28,22 +28,22 @@ fn plan_transition_target(
             path, arguments, ..
         } if path.len() == 1 || path.len() == 2 && path[0] == "self" => {
             let name = path.last().expect("named transition has a state").clone();
-            let index = state_indexes
-                .iter()
-                .find(|(state_name, _, _)| *state_name == name)
-                .map(|(_, _, index)| *index)
-                .ok_or_else(|| {
-                    Diagnostic::error(format!("unknown state transition target `{name}`"))
-                })?;
-            let key = state_indexes
-                .iter()
-                .find(|(state_name, _, _)| *state_name == name)
-                .map(|(_, key, _)| *key)
-                .unwrap_or_default();
+            let target = if path.symbol().is_valid() {
+                state_indexes
+                    .iter()
+                    .find(|(_, key, _)| key.state == path.symbol() && key.segment_index == 0)
+            } else {
+                state_indexes
+                    .iter()
+                    .find(|(state_name, _, _)| *state_name == name)
+            };
+            let (_, key, index) = target.ok_or_else(|| {
+                Diagnostic::error(format!("unknown state transition target `{name}`"))
+            })?;
 
             Ok(PlannedTransitionTarget::State {
-                index,
-                key,
+                index: *index,
+                key: *key,
                 name,
                 arguments: arguments.clone(),
             })

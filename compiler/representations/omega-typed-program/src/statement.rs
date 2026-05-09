@@ -1,4 +1,4 @@
-use crate::expression::Expression;
+use crate::expression::{Expression, NamePath};
 use crate::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
 
@@ -47,7 +47,7 @@ pub enum TransitionGuard {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named {
-        path: Vec<ProgramName>,
+        path: NamePath,
         arguments: Vec<Expression>,
     },
     SelfTarget,
