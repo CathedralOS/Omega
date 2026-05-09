@@ -117,11 +117,15 @@ fn write_selected_instruction(
     output.push_str(&format!(
         "    - statement {}: {}\n",
         instruction.source_statement,
-        selected_instruction_name(native_plan, &instruction.kind)
+        selected_instruction_name(native_plan, instruction)
     ));
 }
 
-fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructionKind) -> String {
+fn selected_instruction_name(
+    native_plan: &NativePlan,
+    instruction: &SelectedInstruction,
+) -> String {
+    let kind = &instruction.kind;
     match kind {
         SelectedInstructionKind::EnterFunction => "enter function".to_owned(),
         SelectedInstructionKind::EnterDispatchLoop {
@@ -332,7 +336,17 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         SelectedInstructionKind::TerminateDispatch => "terminate dispatch".to_owned(),
         SelectedInstructionKind::LeaveDispatchCase => "leave dispatch case".to_owned(),
         SelectedInstructionKind::LeaveDispatchLoop => "leave dispatch loop".to_owned(),
-        SelectedInstructionKind::BeginPlatformCall { platform_call } => {
+        SelectedInstructionKind::BeginPlatformCall => {
+            let platform_call = native_plan
+                .host_calls
+                .calls
+                .iter()
+                .find(|(_, call)| {
+                    call.source_key == instruction.source_key
+                        && call.statement_index == instruction.source_statement
+                })
+                .map(|(_, call)| call.platform_call.as_str())
+                .unwrap_or("unknown");
             format!("begin platform call `{platform_call}`")
         }
         SelectedInstructionKind::HostOperation {

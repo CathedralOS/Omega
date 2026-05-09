@@ -218,6 +218,6 @@ pub(super) fn encode_machine_instruction(
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
-        | SelectedInstructionKind::BeginPlatformCall { .. } => Ok(Vec::new()),
+        | SelectedInstructionKind::BeginPlatformCall => Ok(Vec::new()),
     }
 }

@@ -131,9 +131,7 @@ pub enum SelectedInstructionKind {
     TerminateDispatch,
     LeaveDispatchCase,
     LeaveDispatchLoop,
-    BeginPlatformCall {
-        platform_call: String,
-    },
+    BeginPlatformCall,
     HostOperation {
         capability: String,
         operation: String,

@@ -185,6 +185,6 @@ pub(super) fn machine_instruction_shape(
         SelectedInstructionKind::EnterFunction
         | SelectedInstructionKind::EvaluateDispatchGuard { .. }
         | SelectedInstructionKind::LeaveDispatchLoop
-        | SelectedInstructionKind::BeginPlatformCall { .. } => (MachineInstructionKind::NoBytes, 0),
+        | SelectedInstructionKind::BeginPlatformCall => (MachineInstructionKind::NoBytes, 0),
     }
 }

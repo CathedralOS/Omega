@@ -24,9 +24,7 @@ pub(super) fn select_host_call(
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::BeginPlatformCall {
-            platform_call: host_call.platform_call.clone(),
-        },
+        kind: SelectedInstructionKind::BeginPlatformCall,
         source_key: host_call.source_key,
         source_statement: host_call.statement_index,
     });
