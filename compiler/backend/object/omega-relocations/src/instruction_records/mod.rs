@@ -8,9 +8,8 @@ use super::offsets::{
     string_descriptor_machine_address_offset,
 };
 use crate::RelocationPlanningInput;
-use crate::storage_regions::storage_region_symbol_name;
 use context::InstructionRelocationContext;
-use omega_object::{RelocationPlan, machine_storage_symbol_name};
+use omega_object::{RelocationPlan, machine_storage_symbol_name, storage_region_symbol_name};
 use omega_target_program::{
     FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
     StateGuardOperator,

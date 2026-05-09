@@ -1,5 +1,6 @@
 use omega_core::arena::{Arena, Handle};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
+use omega_target_program::RuntimeStorageRegion;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {
@@ -147,6 +148,16 @@ pub fn machine_storage_symbol_name(machine_name: &str) -> String {
 
 pub fn runtime_frame_storage_symbol_name() -> String {
     "omega_runtime_frame_storage".to_owned()
+}
+
+pub fn storage_region_symbol_name(
+    region: RuntimeStorageRegion,
+    entry_machine_name: &str,
+) -> String {
+    match region {
+        RuntimeStorageRegion::Machine => machine_storage_symbol_name(entry_machine_name),
+        RuntimeStorageRegion::RuntimeFrame => runtime_frame_storage_symbol_name(),
+    }
 }
 
 pub struct ObjectContainerInput<'a> {

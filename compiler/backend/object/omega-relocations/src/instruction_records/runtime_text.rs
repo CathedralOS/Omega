@@ -8,7 +8,7 @@ use super::super::offsets::{
     runtime_text_stored_suffix_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
-use crate::storage_regions::storage_region_symbol_name;
+use omega_object::storage_region_symbol_name;
 use omega_target_program::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_text_relocations(

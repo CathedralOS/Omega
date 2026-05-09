@@ -10,7 +10,6 @@ mod data_addresses;
 mod instruction_records;
 mod lookups;
 mod offsets;
-mod storage_regions;
 
 use instruction_records::collect_instruction_relocations;
 use lookups::selected_instruction_text_offset;

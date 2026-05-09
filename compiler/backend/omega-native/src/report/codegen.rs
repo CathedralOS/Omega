@@ -1,8 +1,8 @@
 use super::native_state_name;
 
 use crate::plan::NativePlan;
-use crate::storage_regions::storage_region_symbol_name;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
+use omega_object::storage_region_symbol_name;
 use omega_target_program::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, NativeDataObject,
     SelectedInstruction, SelectedInstructionKind,
