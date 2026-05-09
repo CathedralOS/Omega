@@ -1260,11 +1260,21 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, guard) in native_plan.state_guards.guards.iter() {
+                let machine_name = native_plan
+                    .control_flow
+                    .machine_by_symbol(guard.source.machine)
+                    .map(|machine| machine.name.as_str())
+                    .unwrap_or("<unknown>");
+                let state_name = native_plan
+                    .control_flow
+                    .state_by_key(guard.source)
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
                 output.push_str(&format!(
                     "- #{} {}.{} edge {} -> #{} {} {:?}/{:?}/{:?}",
                     guard.source_dispatch_index,
-                    guard.source_machine,
-                    guard.source_state,
+                    machine_name,
+                    state_name,
                     guard.statement_order,
                     guard.target_dispatch_index,
                     runtime_transition_target_name(&guard.target),

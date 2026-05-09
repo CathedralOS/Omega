@@ -17,13 +17,24 @@ pub(super) fn collect_state_guard_blockers(
             continue;
         }
 
+        let machine_name = native_plan
+            .control_flow
+            .machine_by_symbol(guard.source.machine)
+            .map(|machine| machine.name.as_str())
+            .unwrap_or("<unknown>");
+        let state_name = native_plan
+            .control_flow
+            .state_by_key(guard.source)
+            .map(|state| state.name.as_str())
+            .unwrap_or("<unknown>");
+
         blockers.insert(blocker(
             "state guards",
             &format!(
                 "#{} {}.{} edge {} -> #{} {} {:?}/{:?} `{}` needs runtime guard lowering",
                 guard.source_dispatch_index,
-                guard.source_machine,
-                guard.source_state,
+                machine_name,
+                state_name,
                 guard.statement_order,
                 guard.target_dispatch_index,
                 runtime_transition_target_name(&guard.target),

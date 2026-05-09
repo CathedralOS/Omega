@@ -86,8 +86,6 @@ pub(in crate::identity) fn count_state_guard_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, guard) in native_plan.state_guards.guards.iter() {
-        storage.count_program_name_identity(&guard.source_machine);
-        storage.count_program_name_identity(&guard.source_state);
         count_runtime_target_strings(&guard.target, storage);
         count_runtime_target_strings(&guard.continuation, storage);
         count_expression_strings(&guard.expression, storage);

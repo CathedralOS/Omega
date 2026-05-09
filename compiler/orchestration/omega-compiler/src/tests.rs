@@ -1517,8 +1517,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
 
     assert_eq!(native_plan.state_guards.guards.len(), 2);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
-        guard.source_machine == "main"
-            && guard.source_state == "entry"
+        native_state_name(&native_plan, guard.source) == "main.entry"
             && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
             && guard.operator == omega_native::state_guards::StateGuardOperator::Equal
             && guard.lowering == omega_native::state_guards::StateGuardLowering::CompareStaticValue
@@ -1529,8 +1528,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
         .guards
         .iter()
         .find(|(_, guard)| {
-            guard.source_machine == "main"
-                && guard.source_state == "entry"
+            native_state_name(&native_plan, guard.source) == "main.entry"
                 && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
@@ -1561,8 +1559,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert!(guard_operands[1].has_resolved_value);
     assert_eq!(guard_operands[1].resolved_value, 1);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
-        guard.source_machine == "main"
-            && guard.source_state == "entry"
+        native_state_name(&native_plan, guard.source) == "main.entry"
             && guard.kind == omega_native::state_guards::StateGuardKind::Always
             && !guard.has_expression
             && guard.forms_cycle
@@ -1603,8 +1600,7 @@ fn resolves_enum_guard_operand_values() {
         .guards
         .iter()
         .find(|(_, guard)| {
-            guard.source_machine == "main"
-                && guard.source_state == "entry"
+            native_state_name(&native_plan, guard.source) == "main.entry"
                 && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
@@ -1664,8 +1660,7 @@ fn resolves_nested_guard_operand_offsets() {
         .guards
         .iter()
         .find(|(_, guard)| {
-            guard.source_machine == "main"
-                && guard.source_state == "entry"
+            native_state_name(&native_plan, guard.source) == "main.entry"
                 && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)

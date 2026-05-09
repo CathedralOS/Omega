@@ -34,19 +34,15 @@ pub fn build_state_guard_plan(
             else {
                 continue;
             };
-            let Some(source_state) = control_flow
-                .state_by_key(state.key)
-                .map(|state| state.name.clone())
-            else {
+            if control_flow.state_by_key(state.key).is_none() {
                 continue;
-            };
+            }
             plan.guards.insert(build_state_guard(
                 &mut plan.operands,
                 layouts,
                 entry_machine,
                 state.key,
                 &source_machine,
-                &source_state,
                 state.dispatch_index,
                 statement_order,
                 edge,
@@ -83,7 +79,6 @@ fn build_state_guard(
     entry_machine: &str,
     source: StateKey,
     source_machine: &ProgramName,
-    source_state: &ProgramName,
     source_dispatch_index: u32,
     statement_order: usize,
     edge: &DispatchEdge,
@@ -98,8 +93,6 @@ fn build_state_guard(
 
     StateGuard {
         source,
-        source_machine: source_machine.clone(),
-        source_state: source_state.clone(),
         source_dispatch_index,
         target: edge.target.clone(),
         target_dispatch_index: edge.target_dispatch_index,

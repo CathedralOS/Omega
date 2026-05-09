@@ -2,7 +2,6 @@ use crate::control_flow::StateKey;
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGuardPlan {
@@ -13,8 +12,6 @@ pub struct StateGuardPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateGuard {
     pub source: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub source_dispatch_index: u32,
     pub target: RuntimeTransitionTarget,
     pub target_dispatch_index: u32,
@@ -34,8 +31,6 @@ impl Default for StateGuard {
     fn default() -> Self {
         Self {
             source: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             source_dispatch_index: 0,
             target: RuntimeTransitionTarget::None,
             target_dispatch_index: 0,
