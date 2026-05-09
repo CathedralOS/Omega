@@ -39,11 +39,11 @@ pub enum SelectedInstructionKind {
         has_storage: bool,
     },
     CompareRuntimeTextLiteral {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         literal: String,
     },
     CompareRuntimeTextStorage {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         operator: StateGuardOperator,
@@ -64,16 +64,16 @@ pub enum SelectedInstructionKind {
         operator: StateGuardOperator,
     },
     WriteRuntimeTextLiteral {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         literal: String,
     },
     WriteRuntimeTextLiteralSegment {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         byte_offset: usize,
         literal: String,
     },
     AppendRuntimeTextStoredSuffix {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         buffer_offset: usize,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
@@ -82,19 +82,19 @@ pub enum SelectedInstructionKind {
         length_delta: usize,
     },
     MaterializeRuntimeTextBuffer {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextStoredPlace {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextLiteral {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         literal: String,
@@ -110,7 +110,7 @@ pub enum SelectedInstructionKind {
         byte_length: usize,
     },
     ReadRuntimeTextLine {
-        buffer_symbol: String,
+        buffer: NativeDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,

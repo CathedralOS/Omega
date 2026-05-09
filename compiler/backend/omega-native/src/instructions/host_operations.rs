@@ -13,7 +13,7 @@ use omega_target_program::{
 use operands::{data_object_handle, operand, select_host_operation_operands};
 use runtime_text::runtime_text_line_read;
 pub(super) use runtime_text::{
-    runtime_machine_string_descriptor_offset, runtime_text_input_buffer_for_text_place,
+    runtime_machine_string_descriptor_offset, runtime_text_input_buffer_data_for_text_place,
     runtime_text_literal_write_for_host_call,
 };
 

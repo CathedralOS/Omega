@@ -90,12 +90,12 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.statement_index,
                 ) {
                     if runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
-                        && let Some((buffer_symbol, literal)) =
+                        && let Some((buffer, literal)) =
                             runtime_text_literal_write_for_host_call(native_plan, host_call)
                     {
                         selected_instructions.push(SelectedInstruction {
                             kind: SelectedInstructionKind::WriteRuntimeTextLiteral {
-                                buffer_symbol,
+                                buffer,
                                 literal,
                             },
                             source_key: host_call.source_key,

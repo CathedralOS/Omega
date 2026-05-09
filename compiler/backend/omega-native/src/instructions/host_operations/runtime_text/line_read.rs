@@ -34,7 +34,7 @@ pub(in crate::instructions::host_operations) fn runtime_text_line_read(
                 && buffer.statement_index == host_call.statement_index
         })
         .map(|(_, buffer)| buffer)?;
-    let data_object = native_plan
+    let (data_object, _) = native_plan
         .data
         .objects
         .iter()
@@ -42,7 +42,7 @@ pub(in crate::instructions::host_operations) fn runtime_text_line_read(
             data_object.source_key == buffer.source_key
                 && data_object.source_statement == buffer.statement_index
         })
-        .map(|(_, data_object)| data_object)?;
+        .map(|(data, data_object)| (data, data_object))?;
     let text_place = text_expression_for_buffer_target(&buffer.target)?;
     let source_machine = native_plan
         .control_flow
@@ -63,7 +63,7 @@ pub(in crate::instructions::host_operations) fn runtime_text_line_read(
     }
 
     Some(SelectedInstructionKind::ReadRuntimeTextLine {
-        buffer_symbol: data_object.symbol.clone(),
+        buffer: data_object,
         target_region: target_place.region,
         target_offset: target_place.byte_offset,
         byte_capacity,

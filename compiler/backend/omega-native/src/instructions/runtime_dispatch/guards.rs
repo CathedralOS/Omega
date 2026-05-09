@@ -4,19 +4,16 @@ use crate::state_guards::StateGuardOperator;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
-use super::super::host_operations::runtime_text_input_buffer_for_text_place;
+use super::super::host_operations::runtime_text_input_buffer_data_for_text_place;
 use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
-use omega_target_program::SelectedInstructionKind;
+use omega_target_program::{NativeDataObjectHandle, SelectedInstructionKind};
 
 pub(super) fn select_runtime_leaf_branch_guard(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    if let Some((buffer_symbol, literal)) = runtime_text_literal_guard(native_plan, expansion) {
-        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer_symbol,
-            literal,
-        });
+    if let Some((buffer, literal)) = runtime_text_literal_guard(native_plan, expansion) {
+        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
     }
 
     runtime_text_storage_guard(native_plan, expansion)
@@ -26,7 +23,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
 fn runtime_text_literal_guard(
     native_plan: &NativePlan,
     expansion: &RuntimeLeafBranchExpansion,
-) -> Option<(String, String)> {
+) -> Option<(NativeDataObjectHandle, String)> {
     let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
@@ -42,8 +39,8 @@ fn runtime_text_literal_guard(
         _ => return None,
     };
 
-    let buffer = runtime_text_input_buffer_for_text_place(native_plan, text_place)?;
-    Some((buffer.symbol.clone(), literal.clone()))
+    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(native_plan, text_place)?;
+    Some((buffer, literal.clone()))
 }
 
 fn runtime_text_storage_guard(
@@ -78,26 +75,26 @@ fn runtime_text_storage_guard(
         &source_state,
         &binary.right,
     );
-    let left_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.left);
-    let right_buffer = runtime_text_input_buffer_for_text_place(native_plan, &binary.right);
+    let left_buffer = runtime_text_input_buffer_data_for_text_place(native_plan, &binary.left);
+    let right_buffer = runtime_text_input_buffer_data_for_text_place(native_plan, &binary.right);
     let string_descriptor_size = native_plan.target.pointer_size * 2;
 
-    if let (Some(source_place), Some(buffer)) = (left_place.clone(), right_buffer)
+    if let (Some(source_place), Some((buffer, _))) = (left_place.clone(), right_buffer)
         && source_place.byte_count == string_descriptor_size
     {
         return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol: buffer.symbol.clone(),
+            buffer,
             source_region: source_place.region,
             source_offset: source_place.byte_offset,
             operator,
         });
     }
 
-    if let (Some(buffer), Some(source_place)) = (left_buffer, right_place)
+    if let (Some((buffer, _)), Some(source_place)) = (left_buffer, right_place)
         && source_place.byte_count == string_descriptor_size
     {
         return Some(SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol: buffer.symbol.clone(),
+            buffer,
             source_region: source_place.region,
             source_offset: source_place.byte_offset,
             operator,

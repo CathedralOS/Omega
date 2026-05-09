@@ -1,19 +1,20 @@
-use super::buffers::find_runtime_text_input_buffer_data_object;
+use super::buffers::find_runtime_text_input_buffer_data;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::runtime_text::RuntimeTextWriteKind;
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
+use omega_target_program::NativeDataObjectHandle;
 use omega_typed_program::expression::Expression;
 
 pub(in crate::instructions) fn runtime_text_literal_write_for_host_call(
     native_plan: &NativePlan,
     host_call: &HostCall,
-) -> Option<(String, String)> {
+) -> Option<(NativeDataObjectHandle, String)> {
     let literal = runtime_text_literal_for_host_call(native_plan, host_call)?;
-    let data_object = find_runtime_text_input_buffer_data_object(native_plan, host_call)?;
-    Some((data_object.symbol.clone(), literal))
+    let (data_object, _) = find_runtime_text_input_buffer_data(native_plan, host_call)?;
+    Some((data_object, literal))
 }
 
 pub(in crate::instructions::host_operations) fn runtime_text_literal_for_host_call(
@@ -93,7 +94,7 @@ fn host_call_uses_runtime_text_input_buffer(
     native_plan: &NativePlan,
     host_call: &HostCall,
 ) -> bool {
-    find_runtime_text_input_buffer_data_object(native_plan, host_call).is_some()
+    find_runtime_text_input_buffer_data(native_plan, host_call).is_some()
 }
 
 fn runtime_text_write_for_operation<'plan>(

@@ -3956,12 +3956,12 @@ fn lowers_mutable_output_host_call() {
         .objects
         .iter()
         .find(|(_, object)| object.source_statement == 1)
-        .map(|(_, object)| object)
+        .map(|(handle, object)| (handle, object))
         .expect("read_line should allocate a mutable output buffer");
     let read_buffer_bytes = native_plan
         .data
         .bytes
-        .span(read_buffer.bytes)
+        .span(read_buffer.1.bytes)
         .expect("read buffer bytes should be present");
     let runtime_text_buffer = native_plan
         .runtime_text
@@ -3988,9 +3988,9 @@ fn lowers_mutable_output_host_call() {
             .any(|(_, instruction)| matches!(
                 &instruction.kind,
                 omega_target_program::SelectedInstructionKind::ReadRuntimeTextLine {
-                    buffer_symbol,
+                    buffer,
                     ..
-                } if buffer_symbol == &read_buffer.symbol
+                } if *buffer == read_buffer.0
             )),
         "stdout should be able to reuse the input buffer as a runtime text operand"
     );

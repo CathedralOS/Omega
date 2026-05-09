@@ -2,16 +2,14 @@ use crate::plan::NativePlan;
 use crate::runtime_text::RuntimeTextSource;
 use crate::runtime_text::places::expression_place_eq;
 use omega_platform_interface::HostCall;
-use omega_target_program::NativeDataObject;
+use omega_target_program::{NativeDataObject, NativeDataObjectHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
-pub(in crate::instructions::host_operations) fn find_runtime_text_input_buffer_data_object<
-    'plan,
->(
+pub(in crate::instructions::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
     native_plan: &'plan NativePlan,
     host_call: &HostCall,
-) -> Option<&'plan NativeDataObject> {
+) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
     let text_use = native_plan
         .runtime_text
         .uses
@@ -43,21 +41,25 @@ pub(in crate::instructions::host_operations) fn find_runtime_text_input_buffer_d
         })
         .map(|(_, buffer)| buffer)?;
 
-    native_plan
-        .data
-        .objects
-        .iter()
-        .find(|(_, data_object)| {
-            data_object.source_key == buffer.source_key
-                && data_object.source_statement == buffer.statement_index
-        })
-        .map(|(_, data_object)| data_object)
+    native_plan.data.objects.iter().find(|(_, data_object)| {
+        data_object.source_key == buffer.source_key
+            && data_object.source_statement == buffer.statement_index
+    })
 }
 
-pub(in crate::instructions) fn runtime_text_input_buffer_for_text_place<'plan>(
+pub(in crate::instructions::host_operations) fn find_runtime_text_input_buffer_data_object<
+    'plan,
+>(
+    native_plan: &'plan NativePlan,
+    host_call: &HostCall,
+) -> Option<&'plan NativeDataObject> {
+    find_runtime_text_input_buffer_data(native_plan, host_call).map(|(_, data_object)| data_object)
+}
+
+pub(in crate::instructions) fn runtime_text_input_buffer_data_for_text_place<'plan>(
     native_plan: &'plan NativePlan,
     text_place: &Expression,
-) -> Option<&'plan NativeDataObject> {
+) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
     let buffer = native_plan
         .runtime_text
         .buffers
@@ -68,15 +70,10 @@ pub(in crate::instructions) fn runtime_text_input_buffer_for_text_place<'plan>(
                 .then_some(buffer)
         })?;
 
-    native_plan
-        .data
-        .objects
-        .iter()
-        .find(|(_, data_object)| {
-            data_object.source_key == buffer.source_key
-                && data_object.source_statement == buffer.statement_index
-        })
-        .map(|(_, data_object)| data_object)
+    native_plan.data.objects.iter().find(|(_, data_object)| {
+        data_object.source_key == buffer.source_key
+            && data_object.source_statement == buffer.statement_index
+    })
 }
 
 pub(super) fn text_place_for_buffer_target(target: &Expression) -> Option<Expression> {

@@ -1,12 +1,12 @@
 use crate::instructions::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
 };
-use crate::instructions::host_operations::runtime_text_input_buffer_for_text_place;
+use crate::instructions::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::instructions::storage_places::resolve_runtime_storage_place;
 use crate::plan::NativePlan;
 use crate::runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_control_flow::StateKey;
-use omega_target_program::SelectedInstructionKind;
+use omega_target_program::{NativeDataObjectHandle, RuntimeStorageRegion, SelectedInstructionKind};
 use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
@@ -56,7 +56,7 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
         .builder_segments
         .span(builder.segments)?;
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let buffer = runtime_text_input_buffer_for_text_place(native_plan, &resolved_target)?;
+    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(native_plan, &resolved_target)?;
     let target_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
@@ -79,7 +79,7 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
             source_key,
             source_machine,
             source_state,
-            &buffer.symbol,
+            buffer,
             target_place.region,
             target_place.byte_offset,
             prefix,
@@ -108,14 +108,14 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
                     && source_place.byte_offset == target_place.byte_offset
                 {
                     instructions.push(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
-                        buffer_symbol: buffer.symbol.clone(),
+                        buffer,
                         target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
                     continue;
                 }
                 instructions.push(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-                    buffer_symbol: buffer.symbol.clone(),
+                    buffer,
                     source_region: source_place.region,
                     source_offset: source_place.byte_offset,
                     target_region: target_place.region,
@@ -127,7 +127,7 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
                     return None;
                 };
                 instructions.push(SelectedInstructionKind::AppendRuntimeTextLiteral {
-                    buffer_symbol: buffer.symbol.clone(),
+                    buffer,
                     target_region: target_place.region,
                     target_offset: target_place.byte_offset,
                     literal: literal.clone(),
@@ -147,8 +147,8 @@ fn prefixed_stored_place_write(
     source_key: StateKey,
     source_machine: &str,
     source_state: &str,
-    buffer_symbol: &str,
-    target_region: omega_target_program::RuntimeStorageRegion,
+    buffer: NativeDataObjectHandle,
+    target_region: RuntimeStorageRegion,
     target_offset: usize,
     prefix: &crate::runtime_text::RuntimeTextBuilderSegment,
     suffix: &crate::runtime_text::RuntimeTextBuilderSegment,
@@ -172,12 +172,12 @@ fn prefixed_stored_place_write(
 
     Some(vec![
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
-            buffer_symbol: buffer_symbol.to_owned(),
+            buffer,
             byte_offset: 0,
             literal: prefix.clone(),
         },
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
-            buffer_symbol: buffer_symbol.to_owned(),
+            buffer,
             buffer_offset: prefix.len(),
             source_region: source_place.region,
             source_offset: source_place.byte_offset,

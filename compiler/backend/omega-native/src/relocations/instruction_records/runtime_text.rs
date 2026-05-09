@@ -16,14 +16,16 @@ pub(super) fn collect_runtime_text_relocations(
     instruction: &SelectedInstructionKind,
 ) {
     match instruction {
-        SelectedInstructionKind::CompareRuntimeTextLiteral { buffer_symbol, .. } => {
+        SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, .. } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             context.insert_data_address_at_instruction_start(buffer_symbol);
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol,
+            buffer,
             source_region,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let source_symbol = storage_region_symbol_name(
                 *source_region,
                 context.native_plan.entry_machine_name(),
@@ -31,18 +33,21 @@ pub(super) fn collect_runtime_text_relocations(
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(8, &source_symbol);
         }
-        SelectedInstructionKind::WriteRuntimeTextLiteral { buffer_symbol, .. } => {
+        SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, .. } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             context.insert_data_address_at_instruction_start(buffer_symbol);
         }
-        SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer_symbol, .. } => {
+        SelectedInstructionKind::WriteRuntimeTextLiteralSegment { buffer, .. } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             context.insert_data_address_at_instruction_start(buffer_symbol);
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
-            buffer_symbol,
+            buffer,
             source_region,
             target_region,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let source_symbol = storage_region_symbol_name(
                 *source_region,
                 context.native_plan.entry_machine_name(),
@@ -66,11 +71,12 @@ pub(super) fn collect_runtime_text_relocations(
             );
         }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-            buffer_symbol,
+            buffer,
             source_region,
             target_region,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let source_symbol = storage_region_symbol_name(
                 *source_region,
                 context.native_plan.entry_machine_name(),
@@ -94,10 +100,11 @@ pub(super) fn collect_runtime_text_relocations(
             );
         }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
-            buffer_symbol,
+            buffer,
             target_region,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let target_symbol = storage_region_symbol_name(
                 *target_region,
                 context.native_plan.entry_machine_name(),
@@ -111,10 +118,11 @@ pub(super) fn collect_runtime_text_relocations(
             );
         }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
-            buffer_symbol,
+            buffer,
             target_region,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let target_symbol = storage_region_symbol_name(
                 *target_region,
                 context.native_plan.entry_machine_name(),
@@ -128,11 +136,12 @@ pub(super) fn collect_runtime_text_relocations(
             );
         }
         SelectedInstructionKind::ReadRuntimeTextLine {
-            buffer_symbol,
+            buffer,
             target_region,
             syscall_number,
             ..
         } => {
+            let buffer_symbol = &context.native_plan.data.objects.get(*buffer).symbol;
             let target_symbol = storage_region_symbol_name(
                 *target_region,
                 context.native_plan.entry_machine_name(),

@@ -160,18 +160,17 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 format!("evaluate dispatch guard {guard_lowering:?}/{operator:?}")
             }
         }
-        SelectedInstructionKind::CompareRuntimeTextLiteral {
-            buffer_symbol,
-            literal,
-        } => {
+        SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
-            buffer_symbol,
+            buffer,
             source_region,
             source_offset,
             operator,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
                 storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
             format!(
@@ -206,21 +205,20 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
                 "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
             )
         }
-        SelectedInstructionKind::WriteRuntimeTextLiteral {
-            buffer_symbol,
-            literal,
-        } => {
+        SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             format!("write runtime text `{buffer_symbol}` = {literal:?}")
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
-            buffer_symbol,
+            buffer,
             byte_offset,
             literal,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             format!("write runtime text segment `{buffer_symbol}`@{byte_offset} = {literal:?}")
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
-            buffer_symbol,
+            buffer,
             buffer_offset,
             source_region,
             source_offset,
@@ -228,6 +226,7 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             target_offset,
             length_delta,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
                 storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
             let target_symbol =
@@ -237,10 +236,11 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             )
         }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
-            buffer_symbol,
+            buffer,
             target_region,
             target_offset,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
                 storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
@@ -248,12 +248,13 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             )
         }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-            buffer_symbol,
+            buffer,
             source_region,
             source_offset,
             target_region,
             target_offset,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
                 storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
             let target_symbol =
@@ -263,11 +264,12 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             )
         }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
-            buffer_symbol,
+            buffer,
             target_region,
             target_offset,
             literal,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
                 storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
@@ -294,7 +296,7 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             )
         }
         SelectedInstructionKind::ReadRuntimeTextLine {
-            buffer_symbol,
+            buffer,
             target_region,
             target_offset,
             byte_capacity,
@@ -302,6 +304,7 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
             syscall_number_register,
             supervisor_call,
         } => {
+            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
                 storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
