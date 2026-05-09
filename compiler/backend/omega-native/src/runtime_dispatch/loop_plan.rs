@@ -61,8 +61,6 @@ pub fn build_runtime_dispatch_loop_plan_with_workers(
 
         plan.cases.insert(RuntimeDispatchLoopCase {
             key: case.key,
-            machine: case.machine,
-            state: case.state,
             dispatch_index: case.dispatch_index,
             label: case.label,
             operation_count: case.operation_count,

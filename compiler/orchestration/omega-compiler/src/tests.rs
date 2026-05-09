@@ -17,6 +17,23 @@ fn identifier_path(members: &[&str]) -> IdentifierPath {
         .into()
 }
 
+fn native_state_name(
+    native_plan: &omega_native::plan::NativePlan,
+    key: omega_native::control_flow::StateKey,
+) -> String {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.as_str())
+        .unwrap_or("<unknown>");
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.as_str())
+        .unwrap_or("<unknown>");
+    format!("{machine}.{state}")
+}
+
 #[test]
 fn tokenizes_simple_source() {
     let tokens = Lexer::new("let answer = 42")
@@ -1352,7 +1369,12 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
         .runtime_dispatch_loop
         .cases
         .iter()
-        .find(|(_, dispatch_case)| dispatch_case.state == "prompt")
+        .find(|(_, dispatch_case)| {
+            native_plan
+                .control_flow
+                .state_by_key(dispatch_case.key)
+                .is_some_and(|state| state.name == "prompt")
+        })
         .map(|(_, dispatch_case)| dispatch_case)
         .expect("prompt dispatch loop case should exist");
     let prompt_edges = native_plan
@@ -1948,7 +1970,7 @@ fn plans_runtime_straight_line_branch_expansion() {
                     value: 2,
                     ..
                 }
-            ) && instruction.source_state == "apply_default"),
+            ) && native_state_name(&native_plan, instruction.source_key) == "main.apply_default"),
         "straight-line branch target should emit its nested leaf mutation"
     );
     assert!(
@@ -3272,7 +3294,7 @@ fn emits_nested_machine_continuations_inline() {
     assert_eq!(
         schedule
             .iter()
-            .map(|state| format!("{}.{}", state.machine, state.state))
+            .map(|state| native_state_name(&native_plan, state.key))
             .collect::<Vec<_>>(),
         vec!["main.entry", "Banner.entry", "main.shutdown"]
     );
@@ -3746,7 +3768,7 @@ fn selects_static_guarded_transition() {
     assert_eq!(
         schedule
             .iter()
-            .map(|state| format!("{}.{}", state.machine, state.state))
+            .map(|state| native_state_name(&native_plan, state.key))
             .collect::<Vec<_>>(),
         vec!["main.entry", "main.look"]
     );
@@ -3805,7 +3827,7 @@ fn propagates_static_state_call_arguments() {
         .expect("entry schedule should evaluate helper-state guards");
     let scheduled_states = schedule
         .iter()
-        .map(|state| format!("{}.{}", state.machine, state.state))
+        .map(|state| native_state_name(&native_plan, state.key))
         .collect::<Vec<_>>();
 
     assert_eq!(

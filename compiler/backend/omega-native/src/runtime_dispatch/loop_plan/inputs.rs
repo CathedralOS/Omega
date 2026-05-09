@@ -1,13 +1,10 @@
 use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopCaseInput {
     pub(super) key: StateKey,
-    pub(super) machine: ProgramName,
-    pub(super) state: ProgramName,
     pub(super) dispatch_index: u32,
     pub(super) label: String,
     pub(super) edges: Vec<DispatchEdge>,
@@ -20,8 +17,6 @@ pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDisp
         .iter()
         .map(|(_, state)| RuntimeDispatchLoopCaseInput {
             key: state.key,
-            machine: state.machine.clone(),
-            state: state.state.clone(),
             dispatch_index: state.dispatch_index,
             label: state.label.clone(),
             edges: native_plan

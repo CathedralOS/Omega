@@ -106,8 +106,6 @@ pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
     storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.current_state_slot);
     storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.next_state_slot);
     for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
-        storage.count_program_name_identity(&dispatch_case.machine);
-        storage.count_program_name_identity(&dispatch_case.state);
         storage.count_generated_symbol(&dispatch_case.label);
     }
     for (_, edge) in native_plan.runtime_dispatch_loop.edges.iter() {

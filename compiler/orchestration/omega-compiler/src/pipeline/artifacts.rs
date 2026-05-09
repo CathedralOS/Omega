@@ -1336,11 +1336,21 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
+                let machine_name = native_plan
+                    .control_flow
+                    .machine_by_symbol(dispatch_case.key.machine)
+                    .map(|machine| machine.name.as_str())
+                    .unwrap_or("<unknown>");
+                let state_name = native_plan
+                    .control_flow
+                    .state_by_key(dispatch_case.key)
+                    .map(|state| state.name.as_str())
+                    .unwrap_or("<unknown>");
                 output.push_str(&format!(
                     "- #{} {}.{} label `{}` operations {}\n",
                     dispatch_case.dispatch_index,
-                    dispatch_case.machine,
-                    dispatch_case.state,
+                    machine_name,
+                    state_name,
                     dispatch_case.label,
                     dispatch_case.operation_count
                 ));

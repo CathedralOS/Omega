@@ -4,13 +4,10 @@ use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use crate::control_flow::StateKey;
 use crate::runtime_flow::RuntimeTransitionTarget;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchLoopCase {
     pub key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub dispatch_index: u32,
     pub label: String,
     pub operation_count: usize,
@@ -49,8 +46,6 @@ pub(super) fn build_runtime_dispatch_loop_case(
 
     CollectedRuntimeDispatchLoopCase {
         key: case_input.key,
-        machine: case_input.machine.clone(),
-        state: case_input.state.clone(),
         dispatch_index: case_input.dispatch_index,
         label: case_input.label.clone(),
         operation_count: runtime_body_operation_count(context, case_input.dispatch_index),
