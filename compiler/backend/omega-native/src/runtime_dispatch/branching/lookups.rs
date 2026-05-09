@@ -1,7 +1,7 @@
-use crate::host_calls::HostCall;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCall;
 use omega_control_flow::{StateKey, StateParameterFlow};
+use omega_platform_interface::HostCall;
 
 pub(super) fn host_call_for_statement(
     native_plan: &NativePlan,

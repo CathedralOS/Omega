@@ -6,8 +6,8 @@ pub use model::{NativeDataObject, NativeDataPlan};
 
 use crate::data::host_calls::{collect_host_call_data, collect_newline_data};
 use crate::data::static_strings::collect_static_string_assignment_data;
-use crate::host_calls::HostCallPlan;
 use crate::state_storage::StateStoragePlan;
+use omega_platform_interface::HostCallPlan;
 
 pub fn build_native_data_plan(
     host_calls: &HostCallPlan,

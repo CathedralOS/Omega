@@ -7,13 +7,11 @@ use std::sync::Arc;
 
 mod collection;
 mod lowering;
-mod model;
 mod static_values;
 
 use collection::collect_machine_host_calls;
-pub use model::{
+use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation,
-    UnsupportedHostCall,
 };
 
 pub fn build_host_call_plan(

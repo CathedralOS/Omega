@@ -1,7 +1,7 @@
-use crate::host_calls::HostCallArgumentKind;
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::plan::NativePlan;
+use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
     native_plan: &NativePlan,

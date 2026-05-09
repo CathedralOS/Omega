@@ -1,5 +1,5 @@
-use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
 use omega_calling_conventions::PlatformCallData;
+use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
 use omega_typed_program::expression::Expression;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
@@ -68,7 +68,7 @@ fn collect_runtime_text_buffer(
 fn first_host_argument<'plan>(
     host_calls: &'plan HostCallPlan,
     host_call: &HostCall,
-) -> Option<&'plan crate::host_calls::HostCallArgument> {
+) -> Option<&'plan omega_platform_interface::HostCallArgument> {
     host_calls
         .arguments
         .span(host_call.arguments)

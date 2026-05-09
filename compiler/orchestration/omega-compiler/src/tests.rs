@@ -3515,7 +3515,7 @@ fn invalidates_static_text_after_mutable_host_output() {
             .iter()
             .any(|(_, argument)| matches!(
                 &argument.kind,
-                omega_native::host_calls::HostCallArgumentKind::Expression(expression)
+                omega_platform_interface::HostCallArgumentKind::Expression(expression)
                     if expression.display_name() == "line::text"
             ))
     );
@@ -3779,7 +3779,7 @@ fn lowers_constant_integer_assignment_before_host_call() {
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
         arguments[0].kind,
-        omega_native::host_calls::HostCallArgumentKind::Integer(0)
+        omega_platform_interface::HostCallArgumentKind::Integer(0)
     );
 }
 

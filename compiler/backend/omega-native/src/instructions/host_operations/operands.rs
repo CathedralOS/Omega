@@ -1,5 +1,5 @@
-use crate::host_calls::{HostCall, HostCallArgument, HostCallArgumentKind};
 use crate::plan::NativePlan;
+use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
 use omega_target::ObjectFormat;
 
 use super::super::model::{InstructionOperand, InstructionOperandKind};
