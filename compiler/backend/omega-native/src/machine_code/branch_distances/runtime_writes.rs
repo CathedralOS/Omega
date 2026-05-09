@@ -1,6 +1,6 @@
+use crate::control_flow::StateKey;
 use crate::machine_code::model::{MachineInstruction, MachineInstructionKind};
 use crate::plan::NativePlan;
-use crate::control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 

@@ -1965,7 +1965,8 @@ fn plans_runtime_straight_line_branch_expansion() {
                     value: 2,
                     ..
                 }
-            ) && native_state_name(&native_plan, instruction.source_key) == "main.apply_default"),
+            ) && native_state_name(&native_plan, instruction.source_key)
+                == "main.apply_default"),
         "straight-line branch target should emit its nested leaf mutation"
     );
     assert!(

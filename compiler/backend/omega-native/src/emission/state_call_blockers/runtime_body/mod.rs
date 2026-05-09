@@ -47,13 +47,14 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                 continue;
             };
 
+            let (source_machine, source_state) = state_names(native_plan, operation.source_key);
             push_runtime_body_state_call_blocker(
                 &mut grouped_blockers,
                 RuntimeBodyStateCallBlocker {
                     dispatch_index: body.dispatch_index,
                     source_key: operation.source_key,
-                    source_machine: operation.source_machine.to_string(),
-                    source_state: operation.source_state.to_string(),
+                    source_machine,
+                    source_state,
                     first_statement_index: operation.statement_index,
                     target_key: *target_key,
                     target_machine: target_machine.to_string(),
@@ -88,4 +89,18 @@ pub(super) fn collect_runtime_body_state_call_blockers(
             ),
         ));
     }
+}
+
+fn state_names(native_plan: &NativePlan, key: crate::control_flow::StateKey) -> (String, String) {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.to_string())
+        .unwrap_or_default();
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.to_string())
+        .unwrap_or_default();
+    (machine, state)
 }

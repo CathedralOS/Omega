@@ -9,6 +9,7 @@ use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::{
     RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind,
 };
+use omega_typed_program::name::ProgramName;
 use static_values::RuntimeStaticValues;
 
 pub(super) use storage_copy::runtime_storage_copy;
@@ -30,12 +31,13 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     };
 
+    let (source_machine, source_state) = state_names(native_plan, mutation.source_key);
     mutation::select_runtime_mutation_writes(
         native_plan,
         dispatch_index,
         mutation.source_key,
-        &operation.source_machine,
-        &operation.source_state,
+        &source_machine,
+        &source_state,
         mutation.statement_index,
         &mutation.target,
         &mutation.value,
@@ -43,4 +45,21 @@ pub(super) fn select_runtime_storage_write_for_operation(
         static_values,
         selected_instructions,
     );
+}
+
+fn state_names(
+    native_plan: &NativePlan,
+    key: crate::control_flow::StateKey,
+) -> (ProgramName, ProgramName) {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.clone())
+        .unwrap_or_default();
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.clone())
+        .unwrap_or_default();
+    (machine, state)
 }

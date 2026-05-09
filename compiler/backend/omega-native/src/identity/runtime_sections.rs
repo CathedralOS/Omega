@@ -47,8 +47,6 @@ pub(in crate::identity) fn count_runtime_body_strings(
         storage.count_program_name_identity(&body.state);
     }
     for (_, operation) in native_plan.runtime_bodies.operations.iter() {
-        storage.count_program_name_identity(&operation.source_machine);
-        storage.count_program_name_identity(&operation.source_state);
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::HostCall { platform_call } => {
                 storage.count_identity(platform_call);

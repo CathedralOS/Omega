@@ -2,6 +2,7 @@ use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, Ru
 use crate::control_flow::StateKey;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::state_storage::{StateMutation, StateMutationLowering};
+use omega_typed_program::name::ProgramName;
 
 use super::layout::{align_to, layout_for_type_name};
 
@@ -15,6 +16,7 @@ pub(super) fn build_runtime_storage_body_plan(
     for operation in &body_input.operations {
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
+                let (source_machine, source_state) = state_names(context, operation.source_key);
                 let layout = layout_for_type_name(context, type_name);
                 let byte_offset = align_to(next_frame_offset, layout.alignment);
                 next_frame_offset = byte_offset
@@ -24,8 +26,8 @@ pub(super) fn build_runtime_storage_body_plan(
                 plan.frame_slots.insert(RuntimeFrameSlot {
                     dispatch_index: body_input.body.dispatch_index,
                     source_key: operation.source_key,
-                    source_machine: operation.source_machine.clone(),
-                    source_state: operation.source_state.clone(),
+                    source_machine,
+                    source_state,
                     statement_index: operation.statement_index,
                     name: name.clone(),
                     type_name: type_name.clone(),
@@ -40,11 +42,12 @@ pub(super) fn build_runtime_storage_body_plan(
                 if let Some(mutation) =
                     mutation_for_operation(context, operation.source_key, operation.statement_index)
                 {
+                    let (source_machine, source_state) = state_names(context, operation.source_key);
                     plan.writes.insert(super::RuntimeStorageWrite {
                         dispatch_index: body_input.body.dispatch_index,
                         source_key: operation.source_key,
-                        source_machine: operation.source_machine.clone(),
-                        source_state: operation.source_state.clone(),
+                        source_machine,
+                        source_state,
                         statement_index: operation.statement_index,
                         target: mutation.target.clone(),
                         value: mutation.value.clone(),
@@ -58,6 +61,20 @@ pub(super) fn build_runtime_storage_body_plan(
     }
 
     plan
+}
+
+fn state_names(context: &RuntimeStorageContext, key: StateKey) -> (ProgramName, ProgramName) {
+    let machine = context
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.clone())
+        .unwrap_or_default();
+    let state = context
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.clone())
+        .unwrap_or_default();
+    (machine, state)
 }
 
 fn mutation_for_operation<'plan>(

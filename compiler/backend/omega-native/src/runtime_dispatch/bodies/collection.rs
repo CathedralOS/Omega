@@ -27,8 +27,6 @@ pub(super) fn build_dispatch_body(
     append_state_body_operations(
         context,
         dispatch_state.key,
-        &machine_name,
-        &state_name,
         &mut operations,
         &mut Vec::new(),
     );
@@ -59,8 +57,6 @@ fn state_names(context: &RuntimeDispatchBodyContext, key: StateKey) -> (ProgramN
 fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
-    machine_name: &ProgramName,
-    state_name: &ProgramName,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
     visiting: &mut Vec<StateKey>,
 ) {
@@ -80,8 +76,6 @@ fn append_state_body_operations(
         {
             operations.push(body_operation(
                 state_key,
-                machine_name,
-                state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::HostCall {
                     platform_call: host_call.platform_call.clone(),
@@ -102,8 +96,6 @@ fn append_state_body_operations(
         {
             operations.push(body_operation(
                 state_key,
-                machine_name,
-                state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::LocalStorage {
                     name: local_storage.name.clone(),
@@ -118,8 +110,6 @@ fn append_state_body_operations(
         {
             operations.push(body_operation(
                 state_key,
-                machine_name,
-                state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::Mutation {
                     mutation_kind: mutation.mutation_kind,
@@ -132,8 +122,6 @@ fn append_state_body_operations(
         if !matches!(operation.kind, OperationKind::LocalData) {
             operations.push(body_operation(
                 state_key,
-                machine_name,
-                state_name,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::Other,
             ));
@@ -152,8 +140,6 @@ fn append_state_call_body_operation(
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.push(body_operation(
             state_call.source_key,
-            &state_call.source_machine,
-            &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
                 target_key: state_call.target_key,
@@ -162,22 +148,13 @@ fn append_state_call_body_operation(
                 argument_count: state_call.argument_count,
             },
         ));
-        append_state_body_operations(
-            context,
-            state_call.target_key,
-            &state_call.target_machine,
-            &state_call.target_state,
-            operations,
-            visiting,
-        );
+        append_state_body_operations(context, state_call.target_key, operations, visiting);
         return;
     }
 
     if state_has_no_transitions(context, state_call.target_key) {
         operations.push(body_operation(
             state_call.source_key,
-            &state_call.source_machine,
-            &state_call.source_state,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
                 target_key: state_call.target_key,
@@ -187,21 +164,12 @@ fn append_state_call_body_operation(
                 lowering: state_call.lowering,
             },
         ));
-        append_state_body_operations(
-            context,
-            state_call.target_key,
-            &state_call.target_machine,
-            &state_call.target_state,
-            operations,
-            visiting,
-        );
+        append_state_body_operations(context, state_call.target_key, operations, visiting);
         return;
     }
 
     operations.push(body_operation(
         state_call.source_key,
-        &state_call.source_machine,
-        &state_call.source_state,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
             target_key: state_call.target_key,
@@ -215,15 +183,11 @@ fn append_state_call_body_operation(
 
 fn body_operation(
     source_key: StateKey,
-    machine_name: &ProgramName,
-    state_name: &ProgramName,
     statement_index: usize,
     kind: RuntimeDispatchBodyOperationKind,
 ) -> RuntimeDispatchBodyOperation {
     RuntimeDispatchBodyOperation {
         source_key,
-        source_machine: machine_name.clone(),
-        source_state: state_name.clone(),
         statement_index,
         kind,
     }

@@ -14,7 +14,7 @@ use omega_native::abi::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
 use omega_native::control_flow::{
-    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, TransitionFlow,
+    ControlFlowPlan, Operation, PlannedTransitionTarget, StateFlow, StateKey, TransitionFlow,
 };
 use omega_native::data::NativeDataObject;
 use omega_native::emission::EmissionPlan;
@@ -1447,12 +1447,10 @@ impl ArtifactWriter {
                     Some(operations) => {
                         output.push_str("  operations:\n");
                         for operation in operations {
+                            let source_name = native_state_name(native_plan, operation.source_key);
                             output.push_str(&format!(
-                                "    - {}.{} statement {} {:?}\n",
-                                operation.source_machine,
-                                operation.source_state,
-                                operation.statement_index,
-                                operation.kind
+                                "    - {} statement {} {:?}\n",
+                                source_name, operation.statement_index, operation.kind
                             ));
                         }
                     }
@@ -1605,7 +1603,11 @@ impl ArtifactWriter {
                     Some(operations) => {
                         output.push_str("  operations:\n");
                         for operation in operations {
-                            write_runtime_leaf_branch_operation(&mut output, operation);
+                            write_runtime_leaf_branch_operation(
+                                &mut output,
+                                native_plan,
+                                operation,
+                            );
                         }
                     }
                     None => output.push_str("  operations: invalid span\n"),
@@ -1701,7 +1703,11 @@ impl ArtifactWriter {
                     Some(operations) => {
                         output.push_str("  operations:\n");
                         for operation in operations {
-                            write_runtime_straight_line_branch_operation(&mut output, operation);
+                            write_runtime_straight_line_branch_operation(
+                                &mut output,
+                                native_plan,
+                                operation,
+                            );
                         }
                     }
                     None => output.push_str("  operations: invalid span\n"),
@@ -3345,16 +3351,15 @@ fn write_state_flow(output: &mut String, control_flow: &ControlFlowPlan, state: 
 
 fn write_runtime_leaf_branch_operation(
     output: &mut String,
+    native_plan: &NativePlan,
     operation: &RuntimeLeafBranchOperation,
 ) {
+    let source_name = native_state_name(native_plan, operation.source_key);
     match &operation.kind {
         RuntimeLeafBranchOperationKind::HostCall { platform_call } => {
             output.push_str(&format!(
-                "    - {}.{} statement {} host call `{}`\n",
-                operation.source_machine,
-                operation.source_state,
-                operation.statement_index,
-                platform_call
+                "    - {} statement {} host call `{}`\n",
+                source_name, operation.statement_index, platform_call
             ));
         }
         RuntimeLeafBranchOperationKind::Mutation {
@@ -3364,9 +3369,8 @@ fn write_runtime_leaf_branch_operation(
             value,
         } => {
             output.push_str(&format!(
-                "    - {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
-                operation.source_machine,
-                operation.source_state,
+                "    - {} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                source_name,
                 operation.statement_index,
                 mutation_kind,
                 lowering,
@@ -3376,8 +3380,8 @@ fn write_runtime_leaf_branch_operation(
         }
         RuntimeLeafBranchOperationKind::Other => {
             output.push_str(&format!(
-                "    - {}.{} statement {} other\n",
-                operation.source_machine, operation.source_state, operation.statement_index
+                "    - {} statement {} other\n",
+                source_name, operation.statement_index
             ));
         }
     }
@@ -3385,16 +3389,15 @@ fn write_runtime_leaf_branch_operation(
 
 fn write_runtime_straight_line_branch_operation(
     output: &mut String,
+    native_plan: &NativePlan,
     operation: &RuntimeStraightLineBranchOperation,
 ) {
+    let source_name = native_state_name(native_plan, operation.source_key);
     match &operation.kind {
         RuntimeStraightLineBranchOperationKind::HostCall { platform_call } => {
             output.push_str(&format!(
-                "    - {}.{} statement {} host call `{}`\n",
-                operation.source_machine,
-                operation.source_state,
-                operation.statement_index,
-                platform_call
+                "    - {} statement {} host call `{}`\n",
+                source_name, operation.statement_index, platform_call
             ));
         }
         RuntimeStraightLineBranchOperationKind::Mutation {
@@ -3404,9 +3407,8 @@ fn write_runtime_straight_line_branch_operation(
             value,
         } => {
             output.push_str(&format!(
-                "    - {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
-                operation.source_machine,
-                operation.source_state,
+                "    - {} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                source_name,
                 operation.statement_index,
                 mutation_kind,
                 lowering,
@@ -3422,9 +3424,8 @@ fn write_runtime_straight_line_branch_operation(
             ..
         } => {
             output.push_str(&format!(
-                "    - {}.{} statement {} state call {}.{} args {} {:?}\n",
-                operation.source_machine,
-                operation.source_state,
+                "    - {} statement {} state call {}.{} args {} {:?}\n",
+                source_name,
                 operation.statement_index,
                 target_machine,
                 target_state,
@@ -3434,14 +3435,14 @@ fn write_runtime_straight_line_branch_operation(
         }
         RuntimeStraightLineBranchOperationKind::LocalData => {
             output.push_str(&format!(
-                "    - {}.{} statement {} local data\n",
-                operation.source_machine, operation.source_state, operation.statement_index
+                "    - {} statement {} local data\n",
+                source_name, operation.statement_index
             ));
         }
         RuntimeStraightLineBranchOperationKind::Other => {
             output.push_str(&format!(
-                "    - {}.{} statement {} other\n",
-                operation.source_machine, operation.source_state, operation.statement_index
+                "    - {} statement {} other\n",
+                source_name, operation.statement_index
             ));
         }
     }
@@ -3493,4 +3494,18 @@ fn runtime_transition_target_name(target: &RuntimeTransitionTarget) -> String {
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
+}
+
+fn native_state_name(native_plan: &NativePlan, key: StateKey) -> String {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.as_str())
+        .unwrap_or("<unknown>");
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.as_str())
+        .unwrap_or("<unknown>");
+    format!("{machine}.{state}")
 }
