@@ -6,7 +6,8 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::resolve_machine_owned_place;
-pub(super) use model::{RuntimeStoragePlace, RuntimeStorageRegion};
+pub(super) use model::RuntimeStoragePlace;
+use omega_target_program::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
 use crate::plan::NativePlan;

@@ -1,6 +1,7 @@
 use super::native_state_name;
 
 use crate::plan::NativePlan;
+use crate::storage_regions::storage_region_symbol_name;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_target_program::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, NativeDataObject,
@@ -159,33 +160,40 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
             buffer_symbol,
-            source_symbol,
+            source_region,
             source_offset,
             operator,
         } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
             format!(
                 "compare runtime text storage {source_symbol}@{source_offset} {operator:?} `{buffer_symbol}`"
             )
         }
         SelectedInstructionKind::CompareRuntimeStorage {
-            left_symbol,
+            left_region,
             left_offset,
-            right_symbol,
+            right_region,
             right_offset,
             byte_size,
             operator,
         } => {
+            let left_symbol =
+                storage_region_symbol_name(*left_region, native_plan.entry_machine_name());
+            let right_symbol =
+                storage_region_symbol_name(*right_region, native_plan.entry_machine_name());
             format!(
                 "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
             )
         }
         SelectedInstructionKind::CompareRuntimeStorageValue {
-            symbol,
+            region,
             byte_offset,
             byte_size,
             expected_value,
             operator,
         } => {
+            let symbol = storage_region_symbol_name(*region, native_plan.entry_machine_name());
             format!(
                 "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
             )
@@ -206,42 +214,54 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_symbol,
             buffer_offset,
-            source_symbol,
+            source_region,
             source_offset,
-            target_symbol,
+            target_region,
             target_offset,
             length_delta,
         } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
             )
         }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
             buffer_symbol,
-            target_symbol,
+            target_region,
             target_offset,
         } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "materialize runtime text buffer `{buffer_symbol}` for {target_symbol}@{target_offset}"
             )
         }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
             buffer_symbol,
-            source_symbol,
+            source_region,
             source_offset,
-            target_symbol,
+            target_region,
             target_offset,
         } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor {target_symbol}@{target_offset}"
             )
         }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             buffer_symbol,
-            target_symbol,
+            target_region,
             target_offset,
             literal,
         } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "append runtime text literal `{buffer_symbol}`, descriptor {target_symbol}@{target_offset} += {literal:?}"
             )
@@ -267,24 +287,30 @@ fn selected_instruction_name(native_plan: &NativePlan, kind: &SelectedInstructio
         }
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer_symbol,
-            target_symbol,
+            target_region,
             target_offset,
             byte_capacity,
             syscall_number,
             syscall_number_register,
             supervisor_call,
         } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "read runtime text line syscall {syscall_number} via x{syscall_number_register}/svc #{supervisor_call} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorage {
-            source_symbol,
+            source_region,
             source_offset,
-            target_symbol,
+            target_region,
             target_offset,
             byte_count,
         } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
             format!(
                 "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )

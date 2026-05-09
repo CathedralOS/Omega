@@ -9,6 +9,7 @@ use super::offsets::{
 };
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use crate::storage_regions::storage_region_symbol_name;
 use context::InstructionRelocationContext;
 use omega_object::{RelocationPlan, machine_storage_symbol_name};
 use omega_target_program::{FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind};
@@ -52,18 +53,23 @@ pub(super) fn collect_instruction_relocations(
             ));
         }
         SelectedInstructionKind::CompareRuntimeStorage {
-            left_symbol,
-            right_symbol,
+            left_region,
+            right_region,
             ..
         } => {
-            context.insert_data_address_at_instruction_start(left_symbol);
+            let left_symbol =
+                storage_region_symbol_name(*left_region, native_plan.entry_machine_name());
+            let right_symbol =
+                storage_region_symbol_name(*right_region, native_plan.entry_machine_name());
+            context.insert_data_address_at_instruction_start(&left_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_storage_compare_right_address_offset(native_plan.target.architecture),
-                right_symbol,
+                &right_symbol,
             );
         }
-        SelectedInstructionKind::CompareRuntimeStorageValue { symbol, .. } => {
-            context.insert_data_address_at_instruction_start(symbol);
+        SelectedInstructionKind::CompareRuntimeStorageValue { region, .. } => {
+            let symbol = storage_region_symbol_name(*region, native_plan.entry_machine_name());
+            context.insert_data_address_at_instruction_start(&symbol);
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { .. } => {
             context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
@@ -79,14 +85,18 @@ pub(super) fn collect_instruction_relocations(
             );
         }
         SelectedInstructionKind::CopyRuntimeStorage {
-            source_symbol,
-            target_symbol,
+            source_region,
+            target_region,
             ..
         } => {
-            context.insert_data_address_at_instruction_start(source_symbol);
+            let source_symbol =
+                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+            let target_symbol =
+                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+            context.insert_data_address_at_instruction_start(&source_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_target_address_offset(native_plan.target.architecture),
-                target_symbol,
+                &target_symbol,
             );
         }
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),

@@ -8,6 +8,7 @@ use super::super::offsets::{
     runtime_text_stored_suffix_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
+use crate::storage_regions::storage_region_symbol_name;
 use omega_target_program::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_text_relocations(
@@ -20,11 +21,15 @@ pub(super) fn collect_runtime_text_relocations(
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
             buffer_symbol,
-            source_symbol,
+            source_region,
             ..
         } => {
+            let source_symbol = storage_region_symbol_name(
+                *source_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
-            context.insert_data_address_at_relative_offset(8, source_symbol);
+            context.insert_data_address_at_relative_offset(8, &source_symbol);
         }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer_symbol, .. } => {
             context.insert_data_address_at_instruction_start(buffer_symbol);
@@ -34,83 +39,111 @@ pub(super) fn collect_runtime_text_relocations(
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_symbol,
-            source_symbol,
-            target_symbol,
+            source_region,
+            target_region,
             ..
         } => {
+            let source_symbol = storage_region_symbol_name(
+                *source_region,
+                context.native_plan.entry_machine_name(),
+            );
+            let target_symbol = storage_region_symbol_name(
+                *target_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_stored_suffix_source_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                source_symbol,
+                &source_symbol,
             );
             context.insert_data_address_at_relative_offset(
                 runtime_text_stored_suffix_target_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                target_symbol,
+                &target_symbol,
             );
         }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
             buffer_symbol,
-            source_symbol,
-            target_symbol,
+            source_region,
+            target_region,
             ..
         } => {
+            let source_symbol = storage_region_symbol_name(
+                *source_region,
+                context.native_plan.entry_machine_name(),
+            );
+            let target_symbol = storage_region_symbol_name(
+                *target_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_stored_place_target_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                target_symbol,
+                &target_symbol,
             );
             context.insert_data_address_at_relative_offset(
                 runtime_text_stored_place_source_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                source_symbol,
+                &source_symbol,
             );
         }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             buffer_symbol,
-            target_symbol,
+            target_region,
             ..
         } => {
+            let target_symbol = storage_region_symbol_name(
+                *target_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_literal_append_target_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                target_symbol,
+                &target_symbol,
             );
         }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
             buffer_symbol,
-            target_symbol,
+            target_region,
             ..
         } => {
+            let target_symbol = storage_region_symbol_name(
+                *target_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_buffer_materialize_target_address_offset(
                     context.native_plan.target.architecture,
                 ),
-                target_symbol,
+                &target_symbol,
             );
         }
         SelectedInstructionKind::ReadRuntimeTextLine {
             buffer_symbol,
-            target_symbol,
+            target_region,
             syscall_number,
             ..
         } => {
+            let target_symbol = storage_region_symbol_name(
+                *target_region,
+                context.native_plan.entry_machine_name(),
+            );
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_line_read_target_address_offset(
                     context.native_plan.target.architecture,
                     *syscall_number,
                 ),
-                target_symbol,
+                &target_symbol,
             );
         }
         _ => {}

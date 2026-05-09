@@ -80,7 +80,7 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
             source_machine,
             source_state,
             &buffer.symbol,
-            &target_place.symbol_name(native_plan.entry_machine_name()),
+            target_place.region,
             target_place.byte_offset,
             prefix,
             suffix,
@@ -109,16 +109,16 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
                 {
                     instructions.push(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
                         buffer_symbol: buffer.symbol.clone(),
-                        target_symbol: target_place.symbol_name(native_plan.entry_machine_name()),
+                        target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
                     continue;
                 }
                 instructions.push(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
                     buffer_symbol: buffer.symbol.clone(),
-                    source_symbol: source_place.symbol_name(native_plan.entry_machine_name()),
+                    source_region: source_place.region,
                     source_offset: source_place.byte_offset,
-                    target_symbol: target_place.symbol_name(native_plan.entry_machine_name()),
+                    target_region: target_place.region,
                     target_offset: target_place.byte_offset,
                 });
             }
@@ -128,7 +128,7 @@ pub(in crate::instructions) fn runtime_text_builder_write_with_resolver(
                 };
                 instructions.push(SelectedInstructionKind::AppendRuntimeTextLiteral {
                     buffer_symbol: buffer.symbol.clone(),
-                    target_symbol: target_place.symbol_name(native_plan.entry_machine_name()),
+                    target_region: target_place.region,
                     target_offset: target_place.byte_offset,
                     literal: literal.clone(),
                 });
@@ -148,7 +148,7 @@ fn prefixed_stored_place_write(
     source_machine: &str,
     source_state: &str,
     buffer_symbol: &str,
-    target_symbol: &str,
+    target_region: omega_target_program::RuntimeStorageRegion,
     target_offset: usize,
     prefix: &crate::runtime_text::RuntimeTextBuilderSegment,
     suffix: &crate::runtime_text::RuntimeTextBuilderSegment,
@@ -179,9 +179,9 @@ fn prefixed_stored_place_write(
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
             buffer_symbol: buffer_symbol.to_owned(),
             buffer_offset: prefix.len(),
-            source_symbol: source_place.symbol_name(native_plan.entry_machine_name()),
+            source_region: source_place.region,
             source_offset: source_place.byte_offset,
-            target_symbol: target_symbol.to_owned(),
+            target_region,
             target_offset,
             length_delta: prefix.len(),
         },

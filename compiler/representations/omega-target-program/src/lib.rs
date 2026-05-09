@@ -5,7 +5,7 @@ pub use data::{NativeDataObject, NativeDataObjectHandle, NativeDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
-    SelectedInstruction, SelectedInstructionKind,
+    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind,
 };
 
 mod guard {

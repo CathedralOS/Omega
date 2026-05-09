@@ -47,20 +47,20 @@ pub enum SelectedInstructionKind {
     },
     CompareRuntimeTextStorage {
         buffer_symbol: String,
-        source_symbol: String,
+        source_region: RuntimeStorageRegion,
         source_offset: usize,
         operator: StateGuardOperator,
     },
     CompareRuntimeStorage {
-        left_symbol: String,
+        left_region: RuntimeStorageRegion,
         left_offset: usize,
-        right_symbol: String,
+        right_region: RuntimeStorageRegion,
         right_offset: usize,
         byte_size: usize,
         operator: StateGuardOperator,
     },
     CompareRuntimeStorageValue {
-        symbol: String,
+        region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,
         expected_value: i64,
@@ -78,27 +78,27 @@ pub enum SelectedInstructionKind {
     AppendRuntimeTextStoredSuffix {
         buffer_symbol: String,
         buffer_offset: usize,
-        source_symbol: String,
+        source_region: RuntimeStorageRegion,
         source_offset: usize,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         length_delta: usize,
     },
     MaterializeRuntimeTextBuffer {
         buffer_symbol: String,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextStoredPlace {
         buffer_symbol: String,
-        source_symbol: String,
+        source_region: RuntimeStorageRegion,
         source_offset: usize,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextLiteral {
         buffer_symbol: String,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         literal: String,
     },
@@ -114,7 +114,7 @@ pub enum SelectedInstructionKind {
     },
     ReadRuntimeTextLine {
         buffer_symbol: String,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,
         syscall_number: u32,
@@ -122,9 +122,9 @@ pub enum SelectedInstructionKind {
         supervisor_call: u16,
     },
     CopyRuntimeStorage {
-        source_symbol: String,
+        source_region: RuntimeStorageRegion,
         source_offset: usize,
-        target_symbol: String,
+        target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_count: usize,
     },
@@ -143,4 +143,11 @@ pub enum SelectedInstructionKind {
         operands: HandleSpan<InstructionOperand>,
     },
     LeaveFunction,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RuntimeStorageRegion {
+    #[default]
+    Machine,
+    RuntimeFrame,
 }
