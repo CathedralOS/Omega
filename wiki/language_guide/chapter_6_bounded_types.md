@@ -3,7 +3,7 @@
 Omega should allow data types to carry proof-friendly refinements.
 
 ```omega
-state clamp(
+callable clamp(
     value: i32,
     min: const i32,
     max: const i32
@@ -29,18 +29,19 @@ Working interpretation:
 The clamp graph produces an obvious proof shape:
 
 ```omega
-state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
-    -> self.clamp_low(min) when value < min;
-    -> self.clamp_high(max) when value > max;
-    -> self.clamp_done(value);
+callable clamp(value: f32, min: f32, max: f32) -> f32 {
+    -> min when value < min
+    -> max when value > max
+
+    -> value
 }
 ```
 
 The ordered transitions create a proof partition:
 
-- If `value < min`, `clamp_low(min)` produces `min`.
-- If `value > max`, `clamp_high(max)` produces `max`.
-- Otherwise, `clamp_done(value)` is only reachable when `min <= value <= max`.
+- If `value < min`, the callable completes with `min`.
+- If `value > max`, the callable completes with `max`.
+- Otherwise, `value` is only returned when `min <= value <= max`.
 
 The order matters. A later transition inherits the fact that earlier transitions did not fire.
 
@@ -49,7 +50,7 @@ The order matters. A later transition inherits the fact that earlier transitions
 Bounds may be generic over compile-time or proof-known values.
 
 ```omega
-state clamp(
+callable clamp(
     value: i32,
     min: const i32,
     max: const i32
@@ -97,7 +98,7 @@ Omega should distinguish mathematical numbers from machine representations.
 
 Working categories:
 
-- `Nat` is a proof-level natural number: zero or positive, unbounded in the mathematical model.
+- `UInt` is a proof-level natural number: zero or positive, unbounded in the mathematical model.
 - `Int` is a proof-level integer: unbounded in the mathematical model.
 - `Real` is a proof-level real number: useful for specifications, generic numeric contracts, and reasoning about approximation.
 - `i32`, `u64`, `f32`, and similar types are machine representations with finite storage and target-level behavior.
@@ -105,7 +106,7 @@ Working categories:
 This lets Omega write proof-facing APIs without pretending every value is already a machine value:
 
 ```omega
-state clamp(value: Real, min: Real, max: Real) -> Real[range<min, max>];
+callable clamp(value: Real, min: Real, max: Real) -> Real[range<min, max>];
 ```
 
 A machine implementation may call or instantiate that shape only when it can prove the machine values satisfy the required embedding or approximation rule.
@@ -119,7 +120,7 @@ f32[finite, approx<Real, eps=1e-12>]
 Working interpretation:
 
 - `Real` is not a runtime floating-point type by default.
-- `Nat`, `Int`, and `Real` are proof/spec types first.
+- `UInt`, `Int`, and `Real` are proof/spec types first.
 - Machine values may carry evidence that they embed into, approximate, or preserve facts about proof numbers.
 - Lowering to native code must erase proof-only numbers or replace them with proven machine representations.
 
@@ -191,8 +192,8 @@ For now, bounded float syntax should describe correctness facts only. Optimizati
 Proof-level `Real` gives Omega a clean way to specify ideal numeric behavior without lying about `f32`.
 
 ```omega
-state ideal_distance(a: Real, b: Real) -> Real;
-state fast_distance(a: f32[finite], b: f32[finite]) -> f32[finite, approx<Real, eps=1e-5>];
+callable ideal_distance(a: Real, b: Real) -> Real;
+callable fast_distance(a: f32[finite], b: f32[finite]) -> f32[finite, approx<Real, eps=1e-5>];
 ```
 
 Working interpretation:

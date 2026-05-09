@@ -1,34 +1,40 @@
 # Chapter 4: Typed States
 
-A state may accept explicit entry data and declare the value shape its graph eventually produces.
+A callable or plain state may accept explicit entry data and declare the value shape its graph eventually produces.
 
 ```omega
-state clamp(&mut self, value: f32, min: f32, max: f32) -> f32 {
-    -> self.clamp_low(min) when value < min;
-    -> self.clamp_high(max) when value > max;
-    -> self.clamp_done(value);
+callable clamp(value: f32, min: f32, max: f32) -> f32 {
+    -> min when value < min
+    -> max when value > max
+
+    -> value
+}
+```
+
+Plain states may also be typed when they are part of a callable's internal transition graph:
+
+```omega
+callable fight_rat(player: &mut Player) -> bool {
+    -> defeated() when player.health == 0
+    -> survived()
 }
 
-state clamp_low(&mut self, min: f32) -> f32 {
-    -> self.clamp_done(min);
+state defeated() -> bool {
+    -> false
 }
 
-state clamp_high(&mut self, max: f32) -> f32 {
-    -> self.clamp_done(max);
-}
-
-state clamp_done(&mut self, value: f32) -> f32 {
-    value
+state survived() -> bool {
+    -> true
 }
 ```
 
 Working interpretation:
 
-- State parameters are local state-entry data.
-- `&mut self` means the state may mutate the current machine.
-- The return type is the value shape the state graph must eventually produce.
-- A state body may end in transitions or a final expression.
-- Transitions can forward values into another state.
-- A transition to another state is a typed goto, not a stack return.
+- Parameters are local entry data.
+- `&mut` parameters are mutable borrows; borrow checking is the long-term model even if early compiler passes treat them as mutable aliases.
+- A callable return type is the value shape its active graph must eventually produce.
+- A plain state return type must be compatible with the callable activation that can reach it.
+- A body may end in terminal value transitions, plain state transitions, or a final expression.
+- A transition to another plain state is a typed goto, not a stack return.
 
-This makes a state feel function-shaped, but it is still a graph node with explicit outgoing edges.
+This makes the syntax function-shaped where stack behavior exists, while keeping plain states as explicit graph nodes.

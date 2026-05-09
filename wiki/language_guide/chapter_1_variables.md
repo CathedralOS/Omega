@@ -9,8 +9,8 @@ machine main {
     owns health: i32[range<1, 100>] = 100;
     owns mass: i32[range<1, 100>];
 
-    state entry {
-        -> running;
+    callable entry() {
+        -> running()
     }
 }
 ```
@@ -21,7 +21,7 @@ Working interpretation:
 - Owned data is stateful and proof-visible.
 - Owned data may carry invariants.
 - State parameters are entry data, not ambient hidden globals.
-- Mutation should be explicit through `&mut self`, `mut` parameters, or owned machine data.
+- Mutation should be explicit through `&mut` parameters or owned machine data.
 
 Bounded data is intentionally part of chapter one because proofs need something concrete to talk about. If a machine owns `health: i32[range<1, 100>]`, then every state that mutates `health` creates proof work.
 

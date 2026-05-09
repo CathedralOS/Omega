@@ -1,35 +1,97 @@
 # Chapter 5: Return Value Compatibility
 
-A typed transition is legal only when the graph handoff lines up.
+A typed transition is legal only when the graph handoff lines up with the active callable's value obligation.
 
-The key check is return value compatibility: the target graph must be able to produce the value shape the source graph is obligated to produce.
-
-Likely checks:
-
-- The target state exists in the current machine or explicitly addressed machine.
-- The provided arguments match the target state's parameters.
-- The target state's return value type can satisfy the current state's return value obligation.
-- Every reachable terminal expression in a typed state graph produces the declared return value type.
-- A guarded transition may add proof assumptions for the target edge, but it does not create a caller frame.
-
-Example:
+The key check is return value compatibility: every reachable terminal completion in a callable's internal graph must be able to produce the value shape the callable promised.
 
 ```omega
-state clamp_low(&mut self, min: f32) -> f32 {
-    -> self.clamp_done(min);
+callable fib(n: i32) -> i32 {
+    -> n when n <= 1
+
+    left: i32 = fib(n - 1);
+    right: i32 = fib(n - 2);
+
+    -> left + right
 }
 ```
 
-`clamp_low` can jump to `clamp_done` because `clamp_done` accepts the forwarded `f32` and produces the same `f32` expected by the `clamp` graph.
+`fib` promises `i32`, so both terminal value transitions must produce `i32`.
 
-This is the key distinction from classic functions: return value compatibility is a graph invariant, not a return path.
+## State Graph Compatibility
 
-Final expressions are constrained by the same idea:
+Plain states can participate in the callable's return-value graph.
 
 ```omega
-state clamp_done(&mut self, value: f32) -> f32 {
-    value
+callable fight_rat(player: &mut Player) -> bool {
+    player.health = saturating_sub(player.health, 10);
+
+    -> defeated() when player.health == 0
+    -> survived()
+}
+
+state defeated() -> bool {
+    -> false
+}
+
+state survived() -> bool {
+    -> true
 }
 ```
 
-The produced value flows to the enclosing graph expectation, not back to an intra-machine caller frame. There is no `return value` statement; the final expression is the value.
+`defeated` and `survived` are not called. They are transition targets inside the active `fight_rat` callable frame.
+
+The compatibility checks are:
+
+- The transition target state exists in the current machine graph.
+- State-transition arguments match the target state's parameters.
+- Terminal value transitions satisfy the active callable's return type.
+- Every reachable terminal path in a typed callable graph produces the declared return value type.
+- Guarded transitions may add proof assumptions for the target edge, but they do not create caller frames.
+
+This is the key distinction from classic functions: return value compatibility is a graph invariant for the active callable frame, not a return path between ordinary states.
+
+## Terminal Value Syntax
+
+Omega does not need a `return` keyword.
+
+```omega
+-> value
+```
+
+means terminal completion with `value`.
+
+```omega
+->
+```
+
+means terminal completion with unit/no value.
+
+```omega
+-> state_name(args)
+```
+
+means transition to a plain state.
+
+State transitions always include parentheses, even when no arguments are passed. That leaves bare values available for terminal completion without requiring `return`.
+
+## Transitioning To Callables
+
+Transitions to callables are rejected in the current model.
+
+```omega
+callable helper() -> i32 {
+    1
+}
+
+state bad {
+    -> helper() // illegal: helper is callable, not a plain transition state
+}
+```
+
+Normal call syntax is the way to enter a callable:
+
+```omega
+value: i32 = helper();
+```
+
+If Omega later needs tail calls into callables, they should have an explicit spelling. They should not masquerade as ordinary state transitions.

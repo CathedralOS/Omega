@@ -29,14 +29,14 @@ An assembly block should still be able to describe what it reads, writes, clobbe
 Sketch:
 
 ```omega
-state my_state(&mut self) {
+state my_state() {
 }
 
-state my_state_with_asm(&mut self) {
-    -> some_other_state when self.value > 0;
+state my_state_with_asm() {
+    -> some_other_state() when self.value > 0
 
     asm {
-        jmp my_state
+        jmp my_state()
     }
 }
 ```
@@ -51,7 +51,7 @@ The compiler must be able to prove that:
 - The assembly block does not create an unmodeled branch.
 - Any registers, memory, or machine state modified by the block are declared and allowed.
 
-In other words, `jmp my_state` is not magic. It is a low-level spelling of a transition the compiler still understands.
+In other words, `jmp my_state()` is not magic. It is a low-level spelling of a transition the compiler still understands.
 
 ## Control Flow Is Still Omega Control Flow
 
@@ -144,7 +144,7 @@ Compact control-flow assembly:
 
 ```omega
 asm {
-    jmp my_state
+    jmp my_state()
 }
 ```
 
