@@ -1780,7 +1780,9 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
                     .collect::<Result<Vec<_>, Diagnostic>>()?,
             }))
         }
-        ast::expression::Expression::String(value) => Ok(Expression::String(value.clone())),
+        ast::expression::Expression::String(value) => {
+            Ok(Expression::String(value.as_str().to_owned()))
+        }
     }
 }
 

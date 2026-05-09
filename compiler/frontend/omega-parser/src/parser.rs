@@ -1002,7 +1002,9 @@ impl Parser<'_, '_> {
                         self.parse_reference_tail(Expression::Name(path.into()))
                     }
                 }
-                TokenKind::String => Ok(Expression::String(token.lexeme.as_str().to_owned())),
+                TokenKind::String => Ok(Expression::String(SourceText::generated(
+                    token.lexeme.as_str(),
+                ))),
                 _ => Err(ParseError::at_span("expected expression", token.span)),
             }
         } else {
