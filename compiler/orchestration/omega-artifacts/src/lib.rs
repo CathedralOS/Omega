@@ -14,6 +14,52 @@ pub struct PhaseTiming {
     pub allocations: AllocationDelta,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SourceLoadArtifact {
+    pub item_count: usize,
+    pub files: Vec<SourceFileArtifact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SourceFileArtifact {
+    pub id: usize,
+    pub path: PathBuf,
+    pub first_item: usize,
+    pub item_count: usize,
+    pub byte_count: usize,
+    pub line_count: usize,
+    pub non_empty_line_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AstArtifact {
+    pub file_count: usize,
+    pub item_count: usize,
+    pub identity: AstIdentityArtifact,
+    pub files: Vec<AstFileArtifact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AstIdentityArtifact {
+    pub owned_identifier_strings: usize,
+    pub identifiers: usize,
+    pub source_identifiers: usize,
+    pub generated_identifiers: usize,
+    pub path_members: usize,
+    pub string_literals: usize,
+    pub float_literals: usize,
+    pub source_float_literals: usize,
+    pub generated_float_literals: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AstFileArtifact {
+    pub path: PathBuf,
+    pub first_item: usize,
+    pub item_summaries: Vec<String>,
+    pub item_range_valid: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmissionPlan {
     pub image_format: ObjectFormat,

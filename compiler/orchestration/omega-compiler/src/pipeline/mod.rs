@@ -1,3 +1,4 @@
+pub(crate) mod artifact_inputs;
 pub mod artifacts;
 pub mod compile;
 pub mod options;

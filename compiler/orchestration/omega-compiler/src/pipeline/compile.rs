@@ -7,6 +7,7 @@ use crate::ast::item::Item;
 use crate::lexer::{Lexer, Span};
 use crate::parser::AstFile;
 use crate::pipeline::CompileOptions;
+use crate::pipeline::artifact_inputs::{ast_artifact, source_load_artifact};
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
@@ -53,7 +54,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
-            .write_sources(&loaded_program)
+            .write_sources(&source_load_artifact(&loaded_program))
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(loaded_program)
@@ -62,7 +63,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     debug_assert!(loaded_program.file_ranges_are_valid());
     record_phase(&mut phase_timings, "ast", || {
         artifacts
-            .write_ast(&loaded_program)
+            .write_ast(&ast_artifact(&loaded_program))
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let resolve_report = Arc::new(record_phase(&mut phase_timings, "resolve", || {
@@ -195,7 +196,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         let loaded_program = load_program_sources(&options, &workers)?;
         debug_assert!(loaded_program.file_ranges_are_valid());
         artifacts
-            .write_sources(&loaded_program)
+            .write_sources(&source_load_artifact(&loaded_program))
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(loaded_program)
@@ -204,7 +205,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     debug_assert!(loaded_program.file_ranges_are_valid());
     record_phase(&mut phase_timings, "ast", || {
         artifacts
-            .write_ast(&loaded_program)
+            .write_ast(&ast_artifact(&loaded_program))
             .map_err(|diagnostic| vec![diagnostic])
     })?;
     let resolve_report = Arc::new(record_phase(&mut phase_timings, "resolve", || {

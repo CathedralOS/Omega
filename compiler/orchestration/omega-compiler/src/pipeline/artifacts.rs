@@ -1,12 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::ast::item::Item;
-use crate::pipeline::compile::{LoadedFile, LoadedProgram};
 use crate::pipeline::trust::TrustReport;
 use omega_artifacts::{
-    EmissionPlan, ExecutableFinalization, ExecutableFinalizationStatus, NativeSurfaceReport,
-    PhaseTiming,
+    AstArtifact, AstFileArtifact, EmissionPlan, ExecutableFinalization,
+    ExecutableFinalizationStatus, NativeSurfaceReport, PhaseTiming, SourceFileArtifact,
+    SourceLoadArtifact,
 };
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
@@ -61,31 +60,32 @@ impl ArtifactWriter {
         Ok(Self { root })
     }
 
-    pub(crate) fn write_sources(&self, loaded_program: &LoadedProgram) -> Result<(), Diagnostic> {
+    pub(crate) fn write_sources(
+        &self,
+        source_artifact: &SourceLoadArtifact,
+    ) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
-        let source_stats = loaded_program
+        let total_bytes = source_artifact
             .files
             .iter()
-            .map(|file| loaded_source_file_stats(loaded_program, file))
-            .collect::<Vec<_>>();
-        let total_bytes = source_stats
-            .iter()
-            .map(|stats| stats.byte_count)
+            .map(|file| file.byte_count)
             .sum::<usize>();
-        let total_lines = source_stats
+        let total_lines = source_artifact
+            .files
             .iter()
-            .map(|stats| stats.line_count)
+            .map(|file| file.line_count)
             .sum::<usize>();
-        let total_non_empty_lines = source_stats
+        let total_non_empty_lines = source_artifact
+            .files
             .iter()
-            .map(|stats| stats.non_empty_line_count)
+            .map(|file| file.non_empty_line_count)
             .sum::<usize>();
 
         output.push_str("# Omega Source Load\n\n");
         output.push_str("## Totals\n");
-        output.push_str(&format!("files: {}\n", loaded_program.files.len()));
-        output.push_str(&format!("items: {}\n", loaded_program.items.len()));
+        output.push_str(&format!("files: {}\n", source_artifact.files.len()));
+        output.push_str(&format!("items: {}\n", source_artifact.item_count));
         output.push_str(&format!("bytes: {}\n", format_bytes(total_bytes as u64)));
         output.push_str(&format!("lines: {}\n", total_lines));
         output.push_str(&format!("non-empty lines: {}\n\n", total_non_empty_lines));
@@ -100,59 +100,60 @@ impl ArtifactWriter {
             "--", "-----", "-----", "----", "-----", "----------", "----"
         ));
 
-        for (file, stats) in loaded_program.files.iter().zip(source_stats.iter()) {
-            write_loaded_file(&mut output, file, stats);
+        for file in &source_artifact.files {
+            write_loaded_file(&mut output, file);
         }
 
         self.write("01_sources.txt", &output)
     }
 
-    pub(crate) fn write_ast(&self, loaded_program: &LoadedProgram) -> Result<(), Diagnostic> {
+    pub(crate) fn write_ast(&self, ast_artifact: &AstArtifact) -> Result<(), Diagnostic> {
         let mut output = String::new();
 
         output.push_str("# Omega AST\n\n");
-        output.push_str(&format!("files: {}\n", loaded_program.files.len()));
-        output.push_str(&format!("items: {}\n\n", loaded_program.items.len()));
+        output.push_str(&format!("files: {}\n", ast_artifact.file_count));
+        output.push_str(&format!("items: {}\n\n", ast_artifact.item_count));
 
-        let identity_storage =
-            crate::ast::identity::count_ast_identity_storage(&loaded_program.items);
         output.push_str("## Identity Storage\n");
         output.push_str(&format!(
             "owned identifier strings: {}\n",
-            identity_storage.owned_identifier_strings()
+            ast_artifact.identity.owned_identifier_strings
         ));
-        output.push_str(&format!("identifiers: {}\n", identity_storage.identifiers));
+        output.push_str(&format!(
+            "identifiers: {}\n",
+            ast_artifact.identity.identifiers
+        ));
         output.push_str(&format!(
             "source identifiers: {}\n",
-            identity_storage.source_identifiers
+            ast_artifact.identity.source_identifiers
         ));
         output.push_str(&format!(
             "generated identifiers: {}\n",
-            identity_storage.generated_identifiers
+            ast_artifact.identity.generated_identifiers
         ));
         output.push_str(&format!(
             "path members: {}\n",
-            identity_storage.path_members
+            ast_artifact.identity.path_members
         ));
         output.push_str(&format!(
             "string literals: {}\n",
-            identity_storage.string_literals
+            ast_artifact.identity.string_literals
         ));
         output.push_str(&format!(
             "float literals: {}\n",
-            identity_storage.float_literals
+            ast_artifact.identity.float_literals
         ));
         output.push_str(&format!(
             "source float literals: {}\n",
-            identity_storage.source_float_literals
+            ast_artifact.identity.source_float_literals
         ));
         output.push_str(&format!(
             "generated float literals: {}\n\n",
-            identity_storage.generated_float_literals
+            ast_artifact.identity.generated_float_literals
         ));
 
-        for file in &loaded_program.files {
-            write_ast_file(&mut output, loaded_program, file);
+        for file in &ast_artifact.files {
+            write_ast_file(&mut output, file);
         }
 
         self.write("02_ast.txt", &output)
@@ -2147,46 +2148,7 @@ fn format_signed_bytes(bytes: i128) -> String {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct LoadedSourceFileStats {
-    byte_count: usize,
-    line_count: usize,
-    non_empty_line_count: usize,
-}
-
-fn loaded_source_file_stats(
-    loaded_program: &LoadedProgram,
-    file: &LoadedFile,
-) -> LoadedSourceFileStats {
-    let Some(source_file) = loaded_program.sources.get(file.file_id) else {
-        return LoadedSourceFileStats::default();
-    };
-
-    LoadedSourceFileStats {
-        byte_count: source_file.source.len(),
-        line_count: line_count(source_file.source.as_ref()),
-        non_empty_line_count: source_file
-            .source
-            .lines()
-            .filter(|line| !line.trim().is_empty())
-            .count(),
-    }
-}
-
-fn line_count(source: &str) -> usize {
-    if source.is_empty() {
-        0
-    } else {
-        source
-            .as_bytes()
-            .iter()
-            .filter(|byte| **byte == b'\n')
-            .count()
-            + 1
-    }
-}
-
-fn write_loaded_file(output: &mut String, file: &LoadedFile, stats: &LoadedSourceFileStats) {
+fn write_loaded_file(output: &mut String, file: &SourceFileArtifact) {
     let item_range = if file.item_count == 0 {
         String::from("-")
     } else {
@@ -2195,118 +2157,38 @@ fn write_loaded_file(output: &mut String, file: &LoadedFile, stats: &LoadedSourc
 
     output.push_str(&format!(
         "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
-        file.file_id.0,
-        format_bytes(stats.byte_count as u64),
-        stats.line_count,
-        stats.non_empty_line_count,
+        file.id,
+        format_bytes(file.byte_count as u64),
+        file.line_count,
+        file.non_empty_line_count,
         file.item_count,
         item_range,
         file.path.display()
     ));
 }
 
-fn write_ast_file(output: &mut String, loaded_program: &LoadedProgram, file: &LoadedFile) {
+fn write_ast_file(output: &mut String, file: &AstFileArtifact) {
     output.push_str(&format!("## {}\n", file.path.display()));
 
-    let Some(items) = loaded_program
-        .items
-        .get(file.first_item..file.first_item + file.item_count)
-    else {
+    if !file.item_range_valid {
         output.push_str("invalid item range\n\n");
         return;
-    };
+    }
 
-    if items.is_empty() {
+    if file.item_summaries.is_empty() {
         output.push_str("items: none\n\n");
         return;
     }
 
-    for (index, item) in items.iter().enumerate() {
+    for (index, summary) in file.item_summaries.iter().enumerate() {
         output.push_str(&format!(
             "- item {}: {}\n",
             file.first_item + index,
-            ast_item_summary(item)
+            summary
         ));
     }
 
     output.push('\n');
-}
-
-fn ast_item_summary(item: &Item) -> String {
-    match item {
-        Item::Capability(capability) => {
-            let mut field_count = 0usize;
-            let mut state_count = 0usize;
-            let mut contract_count = 0usize;
-
-            for member in &capability.members {
-                match member {
-                    crate::ast::item::CapabilityMember::Field(_) => field_count += 1,
-                    crate::ast::item::CapabilityMember::State(state) => {
-                        state_count += 1;
-                        contract_count += state.contracts.len();
-                    }
-                }
-            }
-
-            format!(
-                "capability `{}` fields {} states {} contracts {}",
-                capability.name, field_count, state_count, contract_count
-            )
-        }
-        Item::Data(data_definition) => {
-            let mut field_count = 0usize;
-            let mut variant_count = 0usize;
-
-            for member in &data_definition.members {
-                match member {
-                    crate::ast::item::DataMember::Field(_) => field_count += 1,
-                    crate::ast::item::DataMember::Variant(_) => variant_count += 1,
-                }
-            }
-
-            format!(
-                "data `{}` fields {} variants {}",
-                data_definition.name, field_count, variant_count
-            )
-        }
-        Item::Invariant(invariant) => {
-            format!(
-                "invariant `{}` constraints {}",
-                invariant.name,
-                invariant.constraints.len()
-            )
-        }
-        Item::TrustDefinition(trust_definition) => format!(
-            "trust `{}` body tokens {}",
-            trust_definition.name, trust_definition.token_count
-        ),
-        Item::Use(use_item) => format!("use {}", use_item.path.join("::")),
-        Item::Machine(machine) => format!(
-            "machine `{}` contains {} owned data {} states {}",
-            machine.name,
-            machine.contains.len(),
-            machine.owned_data.len(),
-            machine.states.len()
-        ),
-        Item::Platform(platform) => {
-            format!(
-                "platform `{}` states {}",
-                platform.name,
-                platform.states.len()
-            )
-        }
-        Item::Target(target) => format!(
-            "target `{}` host {} trust policies {}",
-            target.name,
-            target
-                .host
-                .as_ref()
-                .map(|host| host.provider.join("::"))
-                .unwrap_or_else(|| "none".to_owned()),
-            target.trust_policies.len()
-        ),
-    }
 }
 
 fn write_typed_program_data_definitions(output: &mut String, program: &Program) {
