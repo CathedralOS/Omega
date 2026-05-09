@@ -7,7 +7,6 @@ pub mod instructions;
 pub mod plan;
 pub mod report;
 pub mod runtime_dispatch;
-pub mod runtime_flow;
 pub mod runtime_storage;
 pub mod runtime_text;
 pub mod state_schedule;

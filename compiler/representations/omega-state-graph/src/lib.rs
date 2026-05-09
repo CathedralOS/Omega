@@ -2,6 +2,10 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::statement::TransitionGuard;
 
+mod runtime_flow;
+
+pub use runtime_flow::build_runtime_flow_plan;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeFlowPlan {
     pub states: Arena<RuntimeState>,

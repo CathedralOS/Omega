@@ -12,7 +12,6 @@ use crate::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
     runtime_dispatch_loop_inputs,
 };
-use crate::runtime_flow::build_runtime_flow_plan;
 use crate::runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
     runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
@@ -34,6 +33,7 @@ use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_state_calls::{
     StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
 };
+use omega_state_graph::build_runtime_flow_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;

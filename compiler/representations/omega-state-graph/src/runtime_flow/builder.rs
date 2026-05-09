@@ -4,7 +4,8 @@ mod targets;
 
 use omega_control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
-use omega_state_graph::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
+
+use crate::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
 
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,
