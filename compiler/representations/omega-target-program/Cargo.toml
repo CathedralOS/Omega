@@ -1,0 +1,14 @@
+[package]
+name = "omega-target-program"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_target_program"
+path = "src/lib.rs"
+
+[dependencies]
+omega-control-flow = { path = "../omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-target = { path = "../../backend/omega-target" }

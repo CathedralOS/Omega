@@ -19,4 +19,5 @@ omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64
 omega-layout = { path = "../omega-layout" }
 omega-object = { path = "../object/omega-object" }
 omega-target = { path = "../omega-target" }
+omega-target-program = { path = "../../representations/omega-target-program" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }

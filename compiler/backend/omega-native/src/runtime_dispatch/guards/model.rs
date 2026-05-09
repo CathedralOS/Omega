@@ -1,6 +1,7 @@
 use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_target_program::{StateGuardLowering, StateGuardOperator};
 use omega_typed_program::expression::Expression;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -56,30 +57,6 @@ pub enum StateGuardKind {
     RuntimeInequality,
     RuntimeOrdering,
     RuntimeExpression,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardOperator {
-    #[default]
-    None,
-    Equal,
-    NotEqual,
-    Greater,
-    GreaterOrEqual,
-    Less,
-    LessOrEqual,
-    Add,
-    And,
-    Or,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum StateGuardLowering {
-    NoOp,
-    CompareStaticValue,
-    CompareRuntimeValue,
-    #[default]
-    NeedsRuntimeExpression,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

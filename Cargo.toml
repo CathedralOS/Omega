@@ -15,6 +15,7 @@ members = [
     "compiler/lowering/omega-typed-to-control-flow",
     "compiler/representations/omega-typed-program",
     "compiler/representations/omega-control-flow",
+    "compiler/representations/omega-target-program",
     "compiler/backend/omega-target",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",

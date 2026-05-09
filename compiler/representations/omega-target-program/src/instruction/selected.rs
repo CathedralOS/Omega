@@ -1,5 +1,5 @@
-use super::InstructionOperand;
-use crate::state_guards::{StateGuardLowering, StateGuardOperator};
+use crate::InstructionOperand;
+use crate::{StateGuardLowering, StateGuardOperator};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 

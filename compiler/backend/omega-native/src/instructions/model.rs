@@ -1,7 +1,4 @@
-mod operands;
-mod plan;
-mod selected;
-
-pub use operands::{InstructionOperand, InstructionOperandKind};
-pub use plan::{FunctionInstructionPlan, InstructionPlan};
-pub use selected::{SelectedInstruction, SelectedInstructionKind};
+pub use omega_target_program::{
+    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
+    SelectedInstruction, SelectedInstructionKind,
+};

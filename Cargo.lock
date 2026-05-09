@@ -228,6 +228,7 @@ dependencies = [
  "omega-layout",
  "omega-object",
  "omega-target",
+ "omega-target-program",
  "omega-typed-program",
 ]
 
@@ -262,6 +263,15 @@ name = "omega-target"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+]
+
+[[package]]
+name = "omega-target-program"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-target",
 ]
 
 [[package]]

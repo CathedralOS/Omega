@@ -3,13 +3,14 @@ mod operands;
 
 use crate::runtime_dispatch::states::{DispatchEdge, StateDispatchPlan};
 pub use model::{
-    StateGuard, StateGuardKind, StateGuardLowering, StateGuardOperand, StateGuardOperandKind,
-    StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
+    StateGuard, StateGuardKind, StateGuardOperand, StateGuardOperandKind, StateGuardOperandStorage,
+    StateGuardPlan,
 };
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
+pub use omega_target_program::{StateGuardLowering, StateGuardOperator};
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use omega_typed_program::statement::TransitionGuard;
 use operands::{GuardOperands, guard_operands};
