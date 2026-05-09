@@ -1,11 +1,12 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ControlFlowPlan {
+    pub expressions: ExpressionTable,
     pub machines: Arena<MachineFlow>,
     pub states: Arena<StateFlow>,
     pub operations: Arena<Operation>,
@@ -146,6 +147,7 @@ pub struct StateParameterFlow {
 pub struct Operation {
     pub statement_index: usize,
     pub kind: OperationKind,
+    pub expressions: OperationExpressionRefs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,8 +177,23 @@ impl Default for Operation {
         Self {
             statement_index: 0,
             kind: OperationKind::LocalData,
+            expressions: OperationExpressionRefs::None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum OperationExpressionRefs {
+    Assignment {
+        target: ExpressionHandle,
+        value: ExpressionHandle,
+    },
+    Call {
+        arguments: HandleSpan<ExpressionHandle>,
+    },
+    Expression(ExpressionHandle),
+    #[default]
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -184,6 +201,14 @@ pub struct TransitionFlow {
     pub target: PlannedTransitionTarget,
     pub continuation: Option<PlannedTransitionTarget>,
     pub guard: TransitionGuard,
+    pub expressions: TransitionExpressionRefs,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TransitionExpressionRefs {
+    pub target_arguments: HandleSpan<ExpressionHandle>,
+    pub continuation_arguments: HandleSpan<ExpressionHandle>,
+    pub guard: Option<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,6 +236,7 @@ impl Default for TransitionFlow {
             target: PlannedTransitionTarget::Terminal,
             continuation: None,
             guard: TransitionGuard::Always,
+            expressions: TransitionExpressionRefs::default(),
         }
     }
 }

@@ -1,6 +1,8 @@
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::TransitionGuard;
 use std::sync::Arc;
@@ -11,8 +13,8 @@ mod transitions;
 use crate::segments::{segment_has_unconditional_transition, split_state_segments};
 use crate::transitions::plan_transition;
 use omega_control_flow::{
-    ContainedFlow, ControlFlowPlan, MachineFlow, PlannedTransitionTarget, StateFlow, StateKey,
-    TransitionFlow,
+    ContainedFlow, ControlFlowPlan, MachineFlow, Operation, OperationExpressionRefs,
+    PlannedTransitionTarget, StateFlow, StateKey, TransitionExpressionRefs, TransitionFlow,
 };
 
 pub fn build_control_flow_plan(program: &Program) -> Result<ControlFlowPlan, Diagnostic> {
@@ -36,7 +38,7 @@ pub fn build_control_flow_plan_with_workers(
             .get(index)
             .expect("control-flow worker index should be in range");
         let mut local_flow = ControlFlowPlan::default();
-        let machine_flow = build_machine_flow(machine, &mut local_flow)?;
+        let machine_flow = build_machine_flow(machine, &program, &mut local_flow)?;
 
         Ok((local_flow, machine_flow))
     });
@@ -61,27 +63,28 @@ fn merge_machine_flow(
         .span_or_empty(machine_flow.states)
         .iter()
         .map(|state| {
-            let operations = target.operations.insert_many(
-                source
-                    .operations
-                    .span_or_empty(state.operations)
-                    .iter()
-                    .cloned(),
-            );
-            let transitions = target.transitions.insert_many(
-                source
-                    .transitions
-                    .span_or_empty(state.transitions)
-                    .iter()
-                    .cloned(),
-            );
+            let operations = source
+                .operations
+                .span_or_empty(state.operations)
+                .iter()
+                .map(|operation| remap_operation(target, source, operation))
+                .collect::<Vec<_>>();
+            let operations = target.operations.insert_many(operations);
+            let transitions = source
+                .transitions
+                .span_or_empty(state.transitions)
+                .iter()
+                .map(|transition| remap_transition(target, source, transition))
+                .collect::<Vec<_>>();
+            let transitions = target.transitions.insert_many(transitions);
 
             StateFlow {
                 operations,
                 transitions,
                 ..state.clone()
             }
-        });
+        })
+        .collect::<Vec<_>>();
     let states = target.states.insert_many(states);
 
     target.machines.insert(MachineFlow {
@@ -92,6 +95,7 @@ fn merge_machine_flow(
 
 fn build_machine_flow(
     machine: &Machine,
+    program: &Program,
     control_flow: &mut ControlFlowPlan,
 ) -> Result<MachineFlow, Diagnostic> {
     let machine_symbol = machine.symbol;
@@ -104,7 +108,7 @@ fn build_machine_flow(
     let segments = machine
         .states
         .iter()
-        .map(|state| split_state_segments(machine_symbol, state))
+        .map(|state| split_state_segments(machine_symbol, state, program, control_flow))
         .collect::<Vec<_>>();
     let state_indexes = segments
         .iter()
@@ -121,7 +125,9 @@ fn build_machine_flow(
             let mut transitions = segment
                 .transitions
                 .iter()
-                .map(|transition| plan_transition(&state_indexes, transition))
+                .map(|transition| {
+                    plan_transition(&state_indexes, transition, program, control_flow)
+                })
                 .collect::<Result<Vec<_>, Diagnostic>>()?;
 
             if let Some(next_segment_name) = &segment.next_segment_name
@@ -155,6 +161,7 @@ fn build_machine_flow(
                     },
                     continuation: None,
                     guard: TransitionGuard::Always,
+                    expressions: TransitionExpressionRefs::default(),
                 });
             }
 
@@ -190,4 +197,89 @@ fn build_machine_flow(
             .collect(),
         states,
     })
+}
+
+fn remap_operation(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    operation: &Operation,
+) -> Operation {
+    Operation {
+        statement_index: operation.statement_index,
+        kind: operation.kind.clone(),
+        expressions: remap_operation_expression_refs(target, source, operation.expressions),
+    }
+}
+
+fn remap_operation_expression_refs(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    expressions: OperationExpressionRefs,
+) -> OperationExpressionRefs {
+    match expressions {
+        OperationExpressionRefs::Assignment { target: lhs, value } => {
+            OperationExpressionRefs::Assignment {
+                target: copy_expression(target, source, lhs),
+                value: copy_expression(target, source, value),
+            }
+        }
+        OperationExpressionRefs::Call { arguments } => OperationExpressionRefs::Call {
+            arguments: copy_expression_span(target, source, arguments),
+        },
+        OperationExpressionRefs::Expression(expression) => {
+            OperationExpressionRefs::Expression(copy_expression(target, source, expression))
+        }
+        OperationExpressionRefs::None => OperationExpressionRefs::None,
+    }
+}
+
+fn remap_transition(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    transition: &TransitionFlow,
+) -> TransitionFlow {
+    TransitionFlow {
+        target: transition.target.clone(),
+        continuation: transition.continuation.clone(),
+        guard: transition.guard.clone(),
+        expressions: TransitionExpressionRefs {
+            target_arguments: copy_expression_span(
+                target,
+                source,
+                transition.expressions.target_arguments,
+            ),
+            continuation_arguments: copy_expression_span(
+                target,
+                source,
+                transition.expressions.continuation_arguments,
+            ),
+            guard: transition
+                .expressions
+                .guard
+                .map(|guard| copy_expression(target, source, guard)),
+        },
+    }
+}
+
+fn copy_expression(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    target
+        .expressions
+        .copy_from(&source.expressions, expression)
+}
+
+fn copy_expression_span(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    expressions: HandleSpan<ExpressionHandle>,
+) -> HandleSpan<ExpressionHandle> {
+    let expressions = source.expressions.expression_handles(expressions).to_vec();
+    let copied = expressions
+        .iter()
+        .map(|expression| copy_expression(target, source, *expression))
+        .collect::<Vec<_>>();
+    target.expressions.insert_expression_handles(copied)
 }

@@ -1,9 +1,17 @@
 use omega_core::symbols::SymbolHandle;
+use omega_typed_program::Program;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
-use omega_typed_program::statement::{Assignment, Statement, Transition, TransitionGuard};
+use omega_typed_program::statement::{
+    Assignment, Statement, StatementNode, TableTransition, Transition, TransitionGuard,
+    TransitionGuardNode,
+};
 
-use omega_control_flow::{Operation, OperationKind, StateKey, StateParameterFlow};
+use omega_control_flow::{
+    ControlFlowPlan, Operation, OperationExpressionRefs, OperationKind, StateKey,
+    StateParameterFlow,
+};
 
 #[derive(Debug, Clone)]
 pub(super) struct StateSegment<'program> {
@@ -11,13 +19,21 @@ pub(super) struct StateSegment<'program> {
     pub name: ProgramName,
     pub parameters: Vec<StateParameterFlow>,
     pub operations: Vec<Operation>,
-    pub transitions: Vec<&'program Transition>,
+    pub transitions: Vec<SegmentTransition<'program>>,
     pub next_segment_name: Option<ProgramName>,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct SegmentTransition<'program> {
+    pub tree: &'program Transition,
+    pub table: TableTransition,
 }
 
 pub(super) fn split_state_segments<'program>(
     machine_symbol: SymbolHandle,
     state: &'program State,
+    program: &Program,
+    control_flow: &mut ControlFlowPlan,
 ) -> Vec<StateSegment<'program>> {
     let state_symbol = state.symbol;
     let mut segments = Vec::new();
@@ -26,10 +42,18 @@ pub(super) fn split_state_segments<'program>(
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
 
+    let table_statements = program.statement_table.statements(state.statement_nodes);
+
     for (statement_index, statement) in state.statements.iter().enumerate() {
+        let table_statement = table_statements.get(statement_index);
         if let Statement::Transition(transition) = statement {
             transition_section_started = true;
-            transitions.push(transition);
+            if let Some(StatementNode::Transition(table)) = table_statement {
+                transitions.push(SegmentTransition {
+                    tree: transition,
+                    table: *table,
+                });
+            }
             continue;
         }
 
@@ -56,6 +80,16 @@ pub(super) fn split_state_segments<'program>(
         operations.push(Operation {
             statement_index,
             kind: operation_kind(statement),
+            expressions: table_statement
+                .map(|statement| {
+                    operation_expression_refs(
+                        statement,
+                        &program.expression_table,
+                        control_flow,
+                        &program.statement_table,
+                    )
+                })
+                .unwrap_or_default(),
         });
     }
 
@@ -86,7 +120,7 @@ pub(super) fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -
     segment
         .transitions
         .iter()
-        .any(|transition| transition.guard == TransitionGuard::Always)
+        .any(|transition| transition.tree.guard == TransitionGuard::Always)
 }
 
 fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
@@ -141,6 +175,57 @@ fn operation_kind(statement: &Statement) -> OperationKind {
     }
 }
 
+fn operation_expression_refs(
+    statement: &StatementNode,
+    source_expressions: &ExpressionTable,
+    control_flow: &mut ControlFlowPlan,
+    statement_table: &omega_typed_program::statement::StatementTable,
+) -> OperationExpressionRefs {
+    match statement {
+        StatementNode::Assignment(assignment) => OperationExpressionRefs::Assignment {
+            target: control_flow
+                .expressions
+                .copy_from(source_expressions, assignment.target),
+            value: control_flow
+                .expressions
+                .copy_from(source_expressions, assignment.value),
+        },
+        StatementNode::Call(call) => OperationExpressionRefs::Call {
+            arguments: copy_statement_expression_span(
+                control_flow,
+                source_expressions,
+                statement_table,
+                call.arguments,
+            ),
+        },
+        StatementNode::Expression(expression) => OperationExpressionRefs::Expression(
+            control_flow
+                .expressions
+                .copy_from(source_expressions, *expression),
+        ),
+        StatementNode::LocalData(_) | StatementNode::Transition(_) => OperationExpressionRefs::None,
+    }
+}
+
+pub(super) fn copy_statement_expression_span(
+    control_flow: &mut ControlFlowPlan,
+    source_expressions: &ExpressionTable,
+    statement_table: &omega_typed_program::statement::StatementTable,
+    expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
+) -> omega_core::arena::HandleSpan<ExpressionHandle> {
+    let copied = statement_table
+        .expression_handles(expressions)
+        .iter()
+        .map(|expression| {
+            control_flow
+                .expressions
+                .copy_from(source_expressions, *expression)
+        })
+        .collect::<Vec<_>>();
+
+    control_flow.expressions.insert_expression_handles(copied)
+}
+
 fn is_static_assignment(assignment: &Assignment) -> bool {
     use omega_typed_program::expression::Expression;
 
@@ -156,6 +241,15 @@ fn is_static_assignment(assignment: &Assignment) -> bool {
     };
 
     target_is_place && value_is_static
+}
+
+pub(super) fn table_transition_guard_expression(
+    transition: TableTransition,
+) -> Option<ExpressionHandle> {
+    match transition.guard {
+        TransitionGuardNode::Always => None,
+        TransitionGuardNode::When(expression) => Some(expression),
+    }
 }
 
 fn is_constant_integer_assignment(assignment: &Assignment) -> bool {
