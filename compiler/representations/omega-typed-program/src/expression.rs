@@ -56,6 +56,78 @@ impl ExpressionTable {
         self.struct_fields.insert_many(fields)
     }
 
+    pub fn copy_from(
+        &mut self,
+        source: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> ExpressionHandle {
+        match source.expression(expression) {
+            ExpressionNode::ArrayLiteral(values) => {
+                let mut start = Handle::invalid();
+                let mut count = 0u32;
+
+                for value in source.expression_handles(*values) {
+                    let value = self.copy_from(source, *value);
+                    let handle = self.expression_handles.append(value);
+                    if count == 0 {
+                        start = handle;
+                    }
+                    count = count
+                        .checked_add(1)
+                        .expect("expression handle span count overflow");
+                }
+
+                let values = if count == 0 {
+                    HandleSpan::empty()
+                } else {
+                    HandleSpan::from_parts(start, count)
+                };
+
+                self.insert(ExpressionNode::ArrayLiteral(values))
+            }
+            ExpressionNode::Binary(binary) => {
+                let left = self.copy_from(source, binary.left);
+                let right = self.copy_from(source, binary.right);
+                self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }))
+            }
+            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(*value)),
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.copy_from(source, indexed.collection);
+                let index = self.copy_from(source, indexed.index);
+                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection,
+                    index,
+                }))
+            }
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            ExpressionNode::Mutable(inner_expression) => {
+                let inner_expression = self.copy_from(source, *inner_expression);
+                self.insert(ExpressionNode::Mutable(inner_expression))
+            }
+            ExpressionNode::Name(path) => {
+                let members = self.copy_name_path_members(source, path.members);
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: path.head_symbol,
+                    symbol: path.symbol,
+                }))
+            }
+            ExpressionNode::StructLiteral(struct_literal) => {
+                let fields = self.copy_struct_literal_fields(source, struct_literal.fields);
+                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_name: struct_literal.type_name.clone(),
+                    fields,
+                }))
+            }
+            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value.clone())),
+        }
+    }
+
     fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
@@ -68,6 +140,60 @@ impl ExpressionTable {
             count = count
                 .checked_add(1)
                 .expect("name path member span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn copy_name_path_members(
+        &mut self,
+        source: &ExpressionTable,
+        members: HandleSpan<ProgramName>,
+    ) -> HandleSpan<ProgramName> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for member in source.name_path_members(members) {
+            let handle = self.name_path_members.append(member.clone());
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("name path member span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn copy_struct_literal_fields(
+        &mut self,
+        source: &ExpressionTable,
+        fields: HandleSpan<TableStructLiteralField>,
+    ) -> HandleSpan<TableStructLiteralField> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for field in source.struct_fields(fields) {
+            let value = self.copy_from(source, field.value);
+            let handle = self.struct_fields.append(TableStructLiteralField {
+                name: field.name.clone(),
+                value,
+            });
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("struct field span count overflow");
         }
 
         if count == 0 {
@@ -589,7 +715,7 @@ where
 mod tests {
     use super::{
         BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable, NamePath,
-        TableBinaryExpression,
+        StructLiteral, StructLiteralField, TableBinaryExpression, TableNamePath,
     };
     use crate::name::ProgramName;
     use omega_core::symbols::SymbolHandle;
@@ -643,5 +769,69 @@ mod tests {
         assert_eq!(path.head_symbol, SymbolHandle::from_arena_index(1));
         assert_eq!(path.symbol, SymbolHandle::from_arena_index(2));
         assert_eq!(table.display_name(root), "player::inventory");
+    }
+
+    #[test]
+    fn expression_table_copies_table_payloads_without_tree_roundtrip() {
+        let room_symbol = SymbolHandle::from_arena_index(3);
+        let field_symbol = SymbolHandle::from_arena_index(4);
+        let expression = Expression::StructLiteral(StructLiteral {
+            type_name: ProgramName::generated("Room"),
+            fields: vec![
+                StructLiteralField {
+                    name: ProgramName::generated("name"),
+                    value: Expression::String("Hall".to_string()),
+                },
+                StructLiteralField {
+                    name: ProgramName::generated("open"),
+                    value: Expression::Binary(Box::new(BinaryExpression {
+                        left: Expression::Name(NamePath::resolved(
+                            vec![ProgramName::generated("room")],
+                            room_symbol,
+                            room_symbol,
+                        )),
+                        operator: BinaryOperator::Equal,
+                        right: Expression::Name(NamePath::resolved(
+                            vec![
+                                ProgramName::generated("room"),
+                                ProgramName::generated("field"),
+                            ],
+                            room_symbol,
+                            field_symbol,
+                        )),
+                    })),
+                },
+            ],
+        });
+
+        let mut source = ExpressionTable::new();
+        let root = source.insert_tree(&expression);
+
+        let mut copied = ExpressionTable::new();
+        let copied_root = copied.copy_from(&source, root);
+
+        assert_eq!(source.display_name(root), copied.display_name(copied_root));
+
+        let ExpressionNode::StructLiteral(struct_literal) = copied.expression(copied_root) else {
+            panic!("copied root should remain a struct literal");
+        };
+        assert_eq!(copied.struct_fields(struct_literal.fields).len(), 2);
+
+        let open_field = &copied.struct_fields(struct_literal.fields)[1];
+        let ExpressionNode::Binary(binary) = copied.expression(open_field.value) else {
+            panic!("copied field should keep its binary expression");
+        };
+        let ExpressionNode::Name(TableNamePath {
+            members,
+            head_symbol,
+            symbol,
+        }) = copied.expression(binary.right)
+        else {
+            panic!("copied binary rhs should keep its name path");
+        };
+
+        assert_eq!(*head_symbol, room_symbol);
+        assert_eq!(*symbol, field_symbol);
+        assert_eq!(copied.name_path_members(*members).len(), 2);
     }
 }
