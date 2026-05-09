@@ -82,15 +82,15 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
     collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
 
-    if !can_emit_real_object(native_plan) {
+    if !can_emit_direct_image(native_plan) {
         blockers.insert_many([
             blocker(
-                "relocation encoding",
-                "planned relocation records are not serialized into this target object format yet",
+                "image writer",
+                "no direct executable image writer is registered for this target",
             ),
             blocker(
-                "object writer",
-                "this target still falls back to the Omega native object container",
+                "image relocation",
+                "this target cannot apply final image relocations without a direct image writer",
             ),
         ]);
     }
@@ -112,7 +112,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 }
 
-fn can_emit_real_object(native_plan: &NativePlan) -> bool {
+fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
     can_emit_target_output(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }

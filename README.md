@@ -114,7 +114,7 @@ Current known limitation:
 - `console.read_line` is still lowered as a raw host read. Interactive terminal line mode can make the dungeon crawler usable, but piped multi-line input is not yet line-buffered and EOF is not handled cleanly. The next runtime milestone is explicit line discipline for stdin.
 - Linux ARM64 direct ELF currently targets the small CLI path first. More runtime dispatch coverage should move over once the direct image writer grows beyond the initial syscall proof.
 
-Targets without a real object writer still fall back to an Omega native object container so planned bytes remain inspectable.
+Targets without a direct image writer fail the executable emission phase instead of falling back to an object-shaped bridge.
 
 ## Workspace Shape
 
