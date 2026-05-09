@@ -1,7 +1,7 @@
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct NativeStringStorage {
+pub struct BackendStringStorage {
     pub identity_strings: usize,
     pub identity_bytes: usize,
     pub payload_strings: usize,
@@ -12,7 +12,7 @@ pub struct NativeStringStorage {
     pub report_bytes: usize,
 }
 
-impl NativeStringStorage {
+impl BackendStringStorage {
     pub fn total_strings(self) -> usize {
         self.identity_strings
             + self.payload_strings

@@ -1,10 +1,10 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 
 pub(in crate::identity) fn count_runtime_text_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, text_use) in backend_plan.runtime_text.uses.iter() {
         storage.count_identity(&text_use.platform_call);

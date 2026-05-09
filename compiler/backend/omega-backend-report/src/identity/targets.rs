@@ -1,11 +1,11 @@
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use omega_control_flow::PlannedTransitionTarget;
 use omega_state_graph::RuntimeTransitionTarget;
 
 pub(in crate::identity) fn count_planned_target_strings(
     target: &PlannedTransitionTarget,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     match target {
         PlannedTransitionTarget::State {
@@ -34,7 +34,7 @@ pub(in crate::identity) fn count_planned_target_strings(
 
 pub(in crate::identity) fn count_runtime_target_strings(
     target: &RuntimeTransitionTarget,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     match target {
         RuntimeTransitionTarget::Unknown { name } => storage.count_identity(name),

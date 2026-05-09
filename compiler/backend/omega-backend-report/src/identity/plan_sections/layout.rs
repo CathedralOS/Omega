@@ -1,9 +1,9 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 
 pub(in crate::identity) fn count_layout_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, data_layout) in backend_plan.layouts.data_layouts.iter() {
         storage.count_program_name_identity(&data_layout.name);

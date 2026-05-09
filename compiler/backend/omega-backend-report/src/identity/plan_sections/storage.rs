@@ -1,10 +1,10 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 
 pub(in crate::identity) fn count_state_storage_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, local) in backend_plan.state_storage.locals.iter() {
         storage.count_program_name_identity(&local.name);
@@ -18,7 +18,7 @@ pub(in crate::identity) fn count_state_storage_strings(
 
 pub(in crate::identity) fn count_state_value_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, value) in backend_plan.state_values.values.iter() {
         count_expression_strings(&value.expression, storage);
@@ -27,7 +27,7 @@ pub(in crate::identity) fn count_state_value_strings(
 
 pub(in crate::identity) fn count_runtime_storage_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, slot) in backend_plan.runtime_storage.frame_slots.iter() {
         storage.count_program_name_identity(&slot.name);

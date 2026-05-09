@@ -100,8 +100,8 @@ pub fn backend_report_text(
         backend_plan.object.entry_symbol
     ));
 
-    stats::write_native_phase_timings(&mut output, backend_plan);
-    stats::write_native_string_storage(&mut output, backend_plan);
+    stats::write_backend_phase_timings(&mut output, backend_plan);
+    stats::write_backend_string_storage(&mut output, backend_plan);
 
     host::write_host_sections(&mut output, backend_plan);
 

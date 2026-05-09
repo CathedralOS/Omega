@@ -1,15 +1,15 @@
 use super::format;
 
 use crate::BackendReportInput;
-use crate::identity::count_native_string_storage;
+use crate::identity::count_backend_string_storage;
 
-pub(super) fn write_native_phase_timings(
+pub(super) fn write_backend_phase_timings(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
 ) {
     let timings = backend_plan.phase_timings;
 
-    output.push_str("## Native Subphases\n");
+    output.push_str("## Backend Subphases\n");
     if timings.is_empty() {
         output.push_str("none\n\n");
         return;
@@ -84,13 +84,13 @@ pub(super) fn write_native_phase_timings(
     ));
 }
 
-pub(super) fn write_native_string_storage(
+pub(super) fn write_backend_string_storage(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
 ) {
-    let storage = count_native_string_storage(backend_plan);
+    let storage = count_backend_string_storage(backend_plan);
 
-    output.push_str("## Native String Storage\n");
+    output.push_str("## Backend String Storage\n");
     output.push_str("This counts `String` fields still carried by backend planning structures.\n");
     output.push_str("Identity strings are compiler debt; payload and generated symbols are expected later-stage text.\n\n");
 
@@ -105,7 +105,7 @@ pub(super) fn write_native_string_storage(
             "payload",
             storage.payload_strings,
             storage.payload_bytes,
-            "program text literals copied into native structures",
+            "program text literals copied into backend structures",
         ),
         (
             "generated symbols",
@@ -123,7 +123,7 @@ pub(super) fn write_native_string_storage(
             "total",
             storage.total_strings(),
             storage.total_bytes(),
-            "all counted native strings",
+            "all counted backend strings",
         ),
     ];
     let category_width = rows

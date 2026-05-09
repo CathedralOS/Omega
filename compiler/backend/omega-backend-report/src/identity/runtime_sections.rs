@@ -1,5 +1,5 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
@@ -7,7 +7,7 @@ use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, edge) in backend_plan.runtime_flow.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
@@ -17,7 +17,7 @@ pub(in crate::identity) fn count_runtime_flow_strings(
 
 pub(in crate::identity) fn count_state_dispatch_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, state) in backend_plan.state_dispatch.states.iter() {
         storage.count_generated_symbol(&state.label);
@@ -30,7 +30,7 @@ pub(in crate::identity) fn count_state_dispatch_strings(
 
 pub(in crate::identity) fn count_runtime_body_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, operation) in backend_plan.runtime_bodies.operations.iter() {
         match &operation.kind {
@@ -54,7 +54,7 @@ pub(in crate::identity) fn count_runtime_body_strings(
 
 pub(in crate::identity) fn count_state_guard_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, guard) in backend_plan.state_guards.guards.iter() {
         count_runtime_target_strings(&guard.target, storage);
@@ -68,7 +68,7 @@ pub(in crate::identity) fn count_state_guard_strings(
 
 pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.current_state_slot);
     storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.next_state_slot);

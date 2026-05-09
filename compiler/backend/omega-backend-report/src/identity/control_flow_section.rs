@@ -1,12 +1,12 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_planned_target_strings;
 use omega_control_flow::OperationKind;
 
 pub(in crate::identity) fn count_control_flow_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, machine) in backend_plan.control_flow.machines.iter() {
         storage.count_program_name_identity(&machine.name);

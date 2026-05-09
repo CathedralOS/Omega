@@ -1,5 +1,5 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::{
     count_expression_span_strings, count_expression_strings, count_guard_strings,
 };
@@ -10,7 +10,7 @@ use omega_runtime_branching::{
 
 pub(in crate::identity) fn count_runtime_branching_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, edge) in backend_plan.runtime_branching_calls.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);

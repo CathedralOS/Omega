@@ -89,7 +89,7 @@ Important artifact files:
 - `06_validation.txt`: semantic validation summary.
 - `07_graph.txt`: source and lowered state graph.
 - `08_proof.txt`: proof surface and obligations.
-- `09_native_plan.txt`: native target, host ABI, calls, data, instructions, and image planning.
+- `09_backend_plan.txt`: target, host ABI, calls, data, instructions, and image planning.
 - `10_trust.txt`: trusted contracts and unchecked obligations.
 - `11_emission.txt`: whether native emission is currently possible.
 - `12_emitted_output.txt`: emitted native output information.

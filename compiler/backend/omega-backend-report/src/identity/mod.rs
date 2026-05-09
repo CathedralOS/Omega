@@ -19,10 +19,10 @@ use runtime_sections::{
     count_runtime_body_strings, count_runtime_dispatch_loop_strings, count_runtime_flow_strings,
     count_state_dispatch_strings, count_state_guard_strings,
 };
-pub use storage::NativeStringStorage;
+pub use storage::BackendStringStorage;
 
-pub fn count_native_string_storage(backend_plan: &BackendReportInput<'_>) -> NativeStringStorage {
-    let mut storage = NativeStringStorage::default();
+pub fn count_backend_string_storage(backend_plan: &BackendReportInput<'_>) -> BackendStringStorage {
+    let mut storage = BackendStringStorage::default();
 
     storage.count_identity(backend_plan.entry_machine_name());
     storage.count_identity(backend_plan.entry_state_name());

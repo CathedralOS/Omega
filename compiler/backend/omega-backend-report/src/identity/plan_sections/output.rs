@@ -1,9 +1,9 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 
 pub(in crate::identity) fn count_instruction_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, function) in backend_plan.instructions.functions.iter() {
         storage.count_generated_symbol(&function.symbol);
@@ -12,7 +12,7 @@ pub(in crate::identity) fn count_instruction_strings(
 
 pub(in crate::identity) fn count_object_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     storage.count_generated_symbol(&backend_plan.object.entry_symbol);
     for (_, section) in backend_plan.object.sections.iter() {
@@ -28,7 +28,7 @@ pub(in crate::identity) fn count_object_strings(
 
 pub(in crate::identity) fn count_phase_timing_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for timing in backend_plan.phase_timings {
         storage.count_report(&timing.phase);

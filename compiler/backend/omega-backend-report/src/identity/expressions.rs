@@ -1,12 +1,12 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_expression_span_strings(
     span: omega_core::arena::HandleSpan<Expression>,
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     if let Some(expressions) = backend_plan
         .runtime_branching_calls
@@ -21,7 +21,7 @@ pub(in crate::identity) fn count_expression_span_strings(
 
 pub(in crate::identity) fn count_guard_strings(
     guard: &TransitionGuard,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     if let TransitionGuard::When(expression) = guard {
         count_expression_strings(expression, storage);
@@ -30,7 +30,7 @@ pub(in crate::identity) fn count_guard_strings(
 
 pub(in crate::identity) fn count_expression_strings(
     expression: &Expression,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     match expression {
         Expression::ArrayLiteral(values) => {

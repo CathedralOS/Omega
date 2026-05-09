@@ -1,11 +1,11 @@
 use crate::BackendReportInput;
-use crate::identity::NativeStringStorage;
+use crate::identity::BackendStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, call) in backend_plan.host_calls.calls.iter() {
         storage.count_identity(&call.platform_call);
@@ -31,7 +31,7 @@ pub(in crate::identity) fn count_host_call_strings(
 
 pub(in crate::identity) fn count_state_call_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, call) in backend_plan.state_calls.calls.iter() {
         storage.count_program_name_report(&call.receiver_display);
@@ -44,7 +44,7 @@ pub(in crate::identity) fn count_state_call_strings(
 
 pub(in crate::identity) fn count_alias_flow_strings(
     backend_plan: &BackendReportInput<'_>,
-    storage: &mut NativeStringStorage,
+    storage: &mut BackendStringStorage,
 ) {
     for (_, alias) in backend_plan.alias_flow.aliases.iter() {
         storage.count_program_name_identity(&alias.parameter_name);
