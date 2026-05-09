@@ -9,19 +9,18 @@ use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_p
 use omega_target_program::{SelectedInstructionKind, TargetDataObjectHandle};
 
 pub(super) fn select_runtime_leaf_branch_guard(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    if let Some((buffer, literal)) = runtime_text_literal_guard(native_plan, expansion) {
+    if let Some((buffer, literal)) = runtime_text_literal_guard(input, expansion) {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
     }
 
-    runtime_text_storage_guard(native_plan, expansion)
-        .or_else(|| runtime_storage_guard(native_plan, expansion))
+    runtime_text_storage_guard(input, expansion).or_else(|| runtime_storage_guard(input, expansion))
 }
 
 fn runtime_text_literal_guard(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<(TargetDataObjectHandle, String)> {
     let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
@@ -39,12 +38,12 @@ fn runtime_text_literal_guard(
         _ => return None,
     };
 
-    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(native_plan, text_place)?;
+    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(input, text_place)?;
     Some((buffer, literal.clone()))
 }
 
 fn runtime_text_storage_guard(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
     let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
@@ -56,11 +55,11 @@ fn runtime_text_storage_guard(
         return None;
     }
     let operator = StateGuardOperator::Equal;
-    let source_machine = source_machine_name(native_plan, expansion.source_key);
-    let source_state = source_state_name(native_plan, expansion.source_key);
+    let source_machine = source_machine_name(input, expansion.source_key);
+    let source_state = source_state_name(input, expansion.source_key);
 
     let left_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         expansion.dispatch_index,
         expansion.source_key,
         &source_machine,
@@ -68,16 +67,16 @@ fn runtime_text_storage_guard(
         &binary.left,
     );
     let right_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         expansion.dispatch_index,
         expansion.source_key,
         &source_machine,
         &source_state,
         &binary.right,
     );
-    let left_buffer = runtime_text_input_buffer_data_for_text_place(native_plan, &binary.left);
-    let right_buffer = runtime_text_input_buffer_data_for_text_place(native_plan, &binary.right);
-    let string_descriptor_size = native_plan.target.pointer_size * 2;
+    let left_buffer = runtime_text_input_buffer_data_for_text_place(input, &binary.left);
+    let right_buffer = runtime_text_input_buffer_data_for_text_place(input, &binary.right);
+    let string_descriptor_size = input.target.pointer_size * 2;
 
     if let (Some(source_place), Some((buffer, _))) = (left_place.clone(), right_buffer)
         && source_place.byte_count == string_descriptor_size
@@ -105,7 +104,7 @@ fn runtime_text_storage_guard(
 }
 
 fn runtime_storage_guard(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
     let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
@@ -118,10 +117,10 @@ fn runtime_storage_guard(
         omega_typed_program::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
         _ => return None,
     };
-    let source_machine = source_machine_name(native_plan, expansion.source_key);
-    let source_state = source_state_name(native_plan, expansion.source_key);
+    let source_machine = source_machine_name(input, expansion.source_key);
+    let source_state = source_state_name(input, expansion.source_key);
     let left = resolve_runtime_storage_place(
-        native_plan,
+        input,
         expansion.dispatch_index,
         expansion.source_key,
         &source_machine,
@@ -129,7 +128,7 @@ fn runtime_storage_guard(
         &binary.left,
     );
     let right = resolve_runtime_storage_place(
-        native_plan,
+        input,
         expansion.dispatch_index,
         expansion.source_key,
         &source_machine,
@@ -153,7 +152,7 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = left
-        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.right)
+        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -165,7 +164,7 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = right
-        && let Some(expected_value) = enum_variant_value(&native_plan.layouts, &binary.left)
+        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -180,17 +179,15 @@ fn runtime_storage_guard(
 }
 
 fn source_machine_name(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> ProgramName {
-    native_plan
-        .control_flow
-        .state_machine_name_by_key_cloned(key)
+    input.control_flow.state_machine_name_by_key_cloned(key)
 }
 
 fn source_state_name(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> ProgramName {
-    native_plan.control_flow.state_name_by_key_cloned(key)
+    input.control_flow.state_name_by_key_cloned(key)
 }

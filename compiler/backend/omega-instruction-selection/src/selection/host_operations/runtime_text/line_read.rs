@@ -9,7 +9,7 @@ use omega_platform_interface::HostCall;
 use omega_target_program::SelectedInstructionKind;
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> Option<SelectedInstructionKind> {
     let PlatformCallData::MutableOutputBuffer { byte_capacity } = host_call.data else {
@@ -20,12 +20,12 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         number_register: syscall_number_register,
         supervisor_call,
         ..
-    }) = host_binding_mechanism(native_plan, "Stdin", "read")
+    }) = host_binding_mechanism(input, "Stdin", "read")
     else {
         return None;
     };
 
-    let buffer = native_plan
+    let buffer = input
         .runtime_text
         .buffers
         .iter()
@@ -34,7 +34,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
                 && buffer.statement_index == host_call.statement_index
         })
         .map(|(_, buffer)| buffer)?;
-    let (data_object, _) = native_plan
+    let (data_object, _) = input
         .data
         .objects
         .iter()
@@ -44,21 +44,21 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         })
         .map(|(data, data_object)| (data, data_object))?;
     let text_place = text_expression_for_buffer_target(&buffer.target)?;
-    let source_machine = native_plan
+    let source_machine = input
         .control_flow
         .state_machine_name_by_key_cloned(host_call.source_key);
-    let source_state = native_plan
+    let source_state = input
         .control_flow
         .state_name_by_key_cloned(host_call.source_key);
     let target_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         0,
         host_call.source_key,
         &source_machine,
         &source_state,
         &text_place,
     )?;
-    if target_place.byte_count != native_plan.target.pointer_size * 2 {
+    if target_place.byte_count != input.target.pointer_size * 2 {
         return None;
     }
 
@@ -74,10 +74,10 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
 }
 
 pub(in crate::selection) fn runtime_machine_string_descriptor_offset(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> Option<usize> {
-    let first_argument = native_plan
+    let first_argument = input
         .host_calls
         .arguments
         .span(host_call.arguments)
@@ -88,10 +88,10 @@ pub(in crate::selection) fn runtime_machine_string_descriptor_offset(
         return None;
     };
     let (byte_offset, byte_size) = resolve_machine_owned_place(
-        &native_plan.layouts,
-        native_plan.entry_key.machine,
+        &input.layouts,
+        input.entry_key.machine,
         host_call.source_key.machine,
         expression,
     )?;
-    (byte_size == native_plan.target.pointer_size * 2).then_some(byte_offset)
+    (byte_size == input.target.pointer_size * 2).then_some(byte_offset)
 }

@@ -18,7 +18,7 @@ pub(super) use runtime_text::{
 };
 
 pub(super) fn select_host_call(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut Vec<SelectedInstruction>,
@@ -29,7 +29,7 @@ pub(super) fn select_host_call(
         source_statement: host_call.statement_index,
     });
 
-    if let Some(read_line) = runtime_text_line_read(native_plan, host_call) {
+    if let Some(read_line) = runtime_text_line_read(input, host_call) {
         selected_instructions.push(SelectedInstruction {
             kind: read_line,
             source_key: host_call.source_key,
@@ -38,13 +38,13 @@ pub(super) fn select_host_call(
         return;
     }
 
-    let Some(operations) = native_plan.host_calls.operations.span(host_call.operations) else {
+    let Some(operations) = input.host_calls.operations.span(host_call.operations) else {
         return;
     };
 
     for operation in operations {
         let operation_operands = select_host_operation_operands(
-            native_plan,
+            input,
             host_call,
             &operation.capability,
             &operation.operation,
@@ -63,13 +63,13 @@ pub(super) fn select_host_call(
     }
 
     if host_call_appends_newline(host_call)
-        && runtime_machine_string_descriptor_offset(native_plan, host_call).is_some()
-        && let Some(newline) = newline_data_object(native_plan)
+        && runtime_machine_string_descriptor_offset(input, host_call).is_some()
+        && let Some(newline) = newline_data_object(input)
     {
         let newline_operands = operands.insert_many(vec![
             operand(InstructionOperandKind::ImmediateInteger(1)),
             operand(InstructionOperandKind::DataAddress {
-                data: data_object_handle(native_plan, newline),
+                data: data_object_handle(input, newline),
             }),
             operand(InstructionOperandKind::ByteLength(1)),
         ]);
@@ -86,9 +86,9 @@ pub(super) fn select_host_call(
 }
 
 fn newline_data_object<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
 ) -> Option<&'plan TargetDataObject> {
-    native_plan
+    input
         .data
         .objects
         .iter()

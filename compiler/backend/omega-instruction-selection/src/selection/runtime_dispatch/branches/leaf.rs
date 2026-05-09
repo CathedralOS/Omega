@@ -12,37 +12,38 @@ use super::super::writes::runtime_storage_copy;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_for_operation(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    for (_, expansion) in native_plan
-        .runtime_branching_calls
-        .leaf_expansions
-        .iter()
-        .filter(|(_, expansion)| {
-            expansion.dispatch_index == dispatch_index
-                && expansion.source_key == operation.source_key
-                && expansion.statement_index == operation.statement_index
-        })
+    for (_, expansion) in
+        input
+            .runtime_branching_calls
+            .leaf_expansions
+            .iter()
+            .filter(|(_, expansion)| {
+                expansion.dispatch_index == dispatch_index
+                    && expansion.source_key == operation.source_key
+                    && expansion.statement_index == operation.statement_index
+            })
     {
-        select_runtime_leaf_branch_expansion(native_plan, expansion, selected_instructions);
+        select_runtime_leaf_branch_expansion(input, expansion, selected_instructions);
     }
 }
 
 fn select_runtime_leaf_branch_expansion(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     let mut mutation_writes = Vec::new();
-    select_runtime_leaf_branch_mutation_writes(native_plan, expansion, &mut mutation_writes);
+    select_runtime_leaf_branch_mutation_writes(input, expansion, &mut mutation_writes);
     if mutation_writes.is_empty() {
         return;
     }
 
-    if let Some(guard) = select_runtime_leaf_branch_guard(native_plan, expansion) {
+    if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
             source_key: expansion.source_key,
@@ -55,18 +56,18 @@ fn select_runtime_leaf_branch_expansion(
 }
 
 fn select_runtime_leaf_branch_mutation_writes(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let Some(operations) = native_plan
+    let Some(operations) = input
         .runtime_branching_calls
         .leaf_operations
         .span(expansion.operations)
     else {
         return;
     };
-    let bindings = native_plan
+    let bindings = input
         .runtime_branching_calls
         .leaf_bindings
         .span(expansion.bindings)
@@ -79,12 +80,9 @@ fn select_runtime_leaf_branch_mutation_writes(
         let resolved_target = resolve_leaf_binding_expression(target, bindings);
         let resolved_value = resolve_leaf_binding_expression(value, bindings);
 
-        if let Some((byte_offset, byte_size, value)) = runtime_leaf_machine_integer_write(
-            native_plan,
-            expansion,
-            &resolved_target,
-            &resolved_value,
-        ) {
+        if let Some((byte_offset, byte_size, value)) =
+            runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
+        {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
                     byte_offset,
@@ -97,9 +95,9 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
-        let (operation_machine, operation_state) = state_names(native_plan, operation.source_key);
+        let (operation_machine, operation_state) = state_names(input, operation.source_key);
         if let Some(instructions) = runtime_text_builder_write_with_resolver(
-            native_plan,
+            input,
             expansion.dispatch_index,
             operation.source_key,
             &operation_machine,
@@ -119,7 +117,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         }
 
         if let Some(copy) = runtime_leaf_storage_copy(
-            native_plan,
+            input,
             expansion,
             &operation_machine,
             &operation_state,
@@ -136,31 +134,31 @@ fn select_runtime_leaf_branch_mutation_writes(
 }
 
 fn state_names(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> (ProgramName, ProgramName) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
+    input.control_flow.state_names_by_key_cloned(key)
 }
 
 fn runtime_leaf_machine_integer_write(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     target: &Expression,
     value_expression: &Expression,
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place(
-        &native_plan.layouts,
-        native_plan.entry_key.machine,
+        &input.layouts,
+        input.entry_key.machine,
         expansion.source_key.machine,
         target,
     )?;
-    let value = static_integer_value(&native_plan.layouts, value_expression)?;
+    let value = static_integer_value(&input.layouts, value_expression)?;
 
     Some((byte_offset, byte_size, value))
 }
 
 fn runtime_leaf_storage_copy(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
     operation_machine: &str,
     operation_state: &str,
@@ -168,7 +166,7 @@ fn runtime_leaf_storage_copy(
     value: &Expression,
 ) -> Option<SelectedInstructionKind> {
     runtime_storage_copy(
-        native_plan,
+        input,
         expansion.dispatch_index,
         expansion.source_key,
         expansion.source_key,

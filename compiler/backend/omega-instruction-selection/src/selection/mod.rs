@@ -20,22 +20,22 @@ use state_bodies::{
     runtime_reachable_states, select_state_body_instructions, select_state_host_calls,
 };
 
-pub fn build_instruction_plan(native_plan: &InstructionSelectionInput<'_>) -> InstructionPlan {
+pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
     let mut instruction_plan = InstructionPlan {
-        target: native_plan.target,
+        target: input.target,
         functions: Arena::new(),
         instructions: Arena::new(),
         operands: Arena::new(),
     };
 
-    let entry_instructions = select_entry_instructions(native_plan, &mut instruction_plan.operands);
+    let entry_instructions = select_entry_instructions(input, &mut instruction_plan.operands);
     let instructions = instruction_plan
         .instructions
         .insert_many(entry_instructions);
 
     instruction_plan.functions.insert(FunctionInstructionPlan {
-        symbol: native_plan.entry_symbol.clone(),
-        source_key: native_plan.entry_key,
+        symbol: input.entry_symbol.clone(),
+        source_key: input.entry_key,
         instructions,
     });
 
@@ -43,35 +43,28 @@ pub fn build_instruction_plan(native_plan: &InstructionSelectionInput<'_>) -> In
 }
 
 fn select_entry_instructions(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
 ) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
-    let schedule_context =
-        StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
-    let state_schedule_result =
-        build_entry_state_schedule(&schedule_context, native_plan.entry_key);
+    let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
+    let state_schedule_result = build_entry_state_schedule(&schedule_context, input.entry_key);
     let can_inline_state_calls = state_schedule_result.is_ok()
-        && native_plan
+        && input
             .state_calls
             .calls
             .iter()
             .any(|(_, call)| call.required);
-    let state_schedule =
-        state_schedule_result.unwrap_or_else(|_| runtime_reachable_states(native_plan));
+    let state_schedule = state_schedule_result.unwrap_or_else(|_| runtime_reachable_states(input));
 
-    selected_instructions.push(entry_instruction(native_plan));
+    selected_instructions.push(entry_instruction(input));
 
-    if native_plan.runtime_dispatch_loop.needed {
-        select_runtime_dispatch_loop_instructions(
-            native_plan,
-            operands,
-            &mut selected_instructions,
-        );
+    if input.runtime_dispatch_loop.needed {
+        select_runtime_dispatch_loop_instructions(input, operands, &mut selected_instructions);
     } else if can_inline_state_calls {
         select_state_body_instructions(
-            native_plan,
-            native_plan.entry_key,
+            input,
+            input.entry_key,
             operands,
             &mut selected_instructions,
             &mut Vec::new(),
@@ -80,7 +73,7 @@ fn select_entry_instructions(
         for scheduled_state in &state_schedule {
             if let Some(state_flow) = scheduled_state_flow(&schedule_context, scheduled_state) {
                 select_state_host_calls(
-                    native_plan,
+                    input,
                     state_flow.key,
                     operands,
                     &mut selected_instructions,
@@ -89,22 +82,22 @@ fn select_entry_instructions(
         }
     }
 
-    selected_instructions.push(exit_instruction(native_plan));
+    selected_instructions.push(exit_instruction(input));
     selected_instructions
 }
 
-fn entry_instruction(native_plan: &InstructionSelectionInput<'_>) -> SelectedInstruction {
+fn entry_instruction(input: &InstructionSelectionInput<'_>) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::EnterFunction,
-        source_key: native_plan.entry_key,
+        source_key: input.entry_key,
         source_statement: 0,
     }
 }
 
-fn exit_instruction(native_plan: &InstructionSelectionInput<'_>) -> SelectedInstruction {
+fn exit_instruction(input: &InstructionSelectionInput<'_>) -> SelectedInstruction {
     SelectedInstruction {
         kind: SelectedInstructionKind::LeaveFunction,
-        source_key: native_plan.entry_key,
+        source_key: input.entry_key,
         source_statement: 0,
     }
 }

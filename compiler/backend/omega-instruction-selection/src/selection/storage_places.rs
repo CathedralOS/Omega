@@ -19,7 +19,7 @@ use omega_layout::{FieldLayout, TypeLayout};
 use omega_typed_program::expression::{Expression, NamePath};
 
 pub(super) fn resolve_runtime_storage_place(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     _source_machine: &str,
@@ -27,8 +27,8 @@ pub(super) fn resolve_runtime_storage_place(
     expression: &Expression,
 ) -> Option<RuntimeStoragePlace> {
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
-        &native_plan.layouts,
-        native_plan.entry_key.machine,
+        &input.layouts,
+        input.entry_key.machine,
         source_key.machine,
         expression,
     ) {
@@ -46,7 +46,7 @@ pub(super) fn resolve_runtime_storage_place(
     let [_root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
-    let slot = native_plan
+    let slot = input
         .runtime_storage
         .frame_slots
         .iter()
@@ -56,14 +56,10 @@ pub(super) fn resolve_runtime_storage_place(
                 && slot_matches_path(slot.symbol, path, slot.name.as_str())
         })
         .or_else(|| {
-            native_plan
-                .runtime_storage
-                .frame_slots
-                .iter()
-                .find(|(_, slot)| {
-                    slot.dispatch_index == dispatch_index
-                        && slot_matches_path(slot.symbol, path, slot.name.as_str())
-                })
+            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
+                slot.dispatch_index == dispatch_index
+                    && slot_matches_path(slot.symbol, path, slot.name.as_str())
+            })
         })
         .map(|(_, slot)| slot)?;
     let root_field = FieldLayout {
@@ -77,8 +73,7 @@ pub(super) fn resolve_runtime_storage_place(
             alignment: slot.alignment,
         },
     };
-    let (byte_offset, layout) =
-        resolve_nested_field_layout(&native_plan.layouts, &root_field, suffix)?;
+    let (byte_offset, layout) = resolve_nested_field_layout(&input.layouts, &root_field, suffix)?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,

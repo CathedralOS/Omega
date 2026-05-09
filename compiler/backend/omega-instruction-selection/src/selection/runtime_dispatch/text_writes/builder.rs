@@ -11,7 +11,7 @@ use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn runtime_text_builder_write(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     source_machine: &str,
@@ -21,7 +21,7 @@ pub(in crate::selection) fn runtime_text_builder_write(
     aliases: &[RuntimeAliasBinding],
 ) -> Option<Vec<SelectedInstructionKind>> {
     runtime_text_builder_write_with_resolver(
-        native_plan,
+        input,
         dispatch_index,
         source_key,
         source_machine,
@@ -34,7 +34,7 @@ pub(in crate::selection) fn runtime_text_builder_write(
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     source_machine: &str,
@@ -43,7 +43,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
     resolved_target: &Expression,
     resolve_expression: &dyn Fn(&Expression) -> Expression,
 ) -> Option<Vec<SelectedInstructionKind>> {
-    let builder = native_plan
+    let builder = input
         .runtime_text
         .builders
         .iter()
@@ -51,21 +51,18 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
             builder.source_key == source_key && builder.statement_index == statement_index
         })
         .map(|(_, builder)| builder)?;
-    let segments = native_plan
-        .runtime_text
-        .builder_segments
-        .span(builder.segments)?;
+    let segments = input.runtime_text.builder_segments.span(builder.segments)?;
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(native_plan, &resolved_target)?;
+    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(input, &resolved_target)?;
     let target_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &resolved_target,
     )?;
-    if target_place.byte_count != native_plan.target.pointer_size * 2 {
+    if target_place.byte_count != input.target.pointer_size * 2 {
         return None;
     }
 
@@ -74,7 +71,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
         && suffix.kind == RuntimeTextBuilderSegmentKind::StoredPlace
     {
         return prefixed_stored_place_write(
-            native_plan,
+            input,
             dispatch_index,
             source_key,
             source_machine,
@@ -94,14 +91,14 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
             RuntimeTextBuilderSegmentKind::StoredPlace => {
                 let source = resolve_expression(&segment.expression);
                 let source_place = resolve_runtime_storage_place(
-                    native_plan,
+                    input,
                     dispatch_index,
                     source_key,
                     source_machine,
                     source_state,
                     &source,
                 )?;
-                if source_place.byte_count != native_plan.target.pointer_size * 2 {
+                if source_place.byte_count != input.target.pointer_size * 2 {
                     return None;
                 }
                 if source_place.region == target_place.region
@@ -142,7 +139,7 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
 
 #[allow(clippy::too_many_arguments)]
 fn prefixed_stored_place_write(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     source_machine: &str,
@@ -159,14 +156,14 @@ fn prefixed_stored_place_write(
     };
     let source = resolve_expression(&suffix.expression);
     let source_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &source,
     )?;
-    if source_place.byte_count != native_plan.target.pointer_size * 2 {
+    if source_place.byte_count != input.target.pointer_size * 2 {
         return None;
     }
 

@@ -5,11 +5,11 @@ use omega_state_calls::StateCall;
 use omega_state_storage::StateMutation;
 
 pub(super) fn host_call_for_statement<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan HostCall> {
-    native_plan
+    input
         .host_calls
         .calls
         .iter()
@@ -20,11 +20,11 @@ pub(super) fn host_call_for_statement<'plan>(
 }
 
 pub(super) fn state_call_for_statement<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
-    native_plan
+    input
         .state_calls
         .calls
         .iter()
@@ -35,10 +35,10 @@ pub(super) fn state_call_for_statement<'plan>(
 }
 
 pub(super) fn state_parameters(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     state_key: StateKey,
 ) -> Vec<StateParameterFlow> {
-    native_plan
+    input
         .control_flow
         .state_by_key(state_key)
         .map(|state| state.parameters.to_vec())
@@ -46,21 +46,21 @@ pub(super) fn state_parameters(
 }
 
 pub(super) fn state_operations<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     state_key: StateKey,
 ) -> Option<&'plan [Operation]> {
-    native_plan
+    input
         .control_flow
         .state_by_key(state_key)
-        .and_then(|state| native_plan.control_flow.operations.span(state.operations))
+        .and_then(|state| input.control_flow.operations.span(state.operations))
 }
 
 pub(super) fn state_mutation_for_statement<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateMutation> {
-    native_plan
+    input
         .state_storage
         .mutations
         .iter()

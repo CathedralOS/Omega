@@ -12,12 +12,12 @@ use omega_target_program::{
 };
 
 pub(super) fn select_host_operation_operands(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     capability: &str,
     operation: &str,
 ) -> Vec<InstructionOperand> {
-    match (native_plan.target.object_format, capability, operation) {
+    match (input.target.object_format, capability, operation) {
         (ObjectFormat::Coff, "Stdout", "get_std_handle") => {
             vec![operand(InstructionOperandKind::ImmediateInteger(-11))]
         }
@@ -25,11 +25,10 @@ pub(super) fn select_host_operation_operands(
             vec![operand(InstructionOperandKind::ImmediateInteger(-10))]
         }
         (_, "Stdin", "read" | "read_file") => {
-            let Some((data_object_handle, data_object)) = find_data_object(native_plan, host_call)
-            else {
+            let Some((data_object_handle, data_object)) = find_data_object(input, host_call) else {
                 return Vec::new();
             };
-            let byte_count = native_plan
+            let byte_count = input
                 .data
                 .bytes
                 .span(data_object.bytes)
@@ -51,10 +50,8 @@ pub(super) fn select_host_operation_operands(
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
             }
 
-            if let Some((data_object_handle, data_object)) =
-                find_data_object(native_plan, host_call)
-            {
-                let byte_count = native_plan
+            if let Some((data_object_handle, data_object)) = find_data_object(input, host_call) {
+                let byte_count = input
                     .data
                     .bytes
                     .span(data_object.bytes)
@@ -66,21 +63,18 @@ pub(super) fn select_host_operation_operands(
                 return operands;
             }
 
-            if let Some(data_object) =
-                find_runtime_text_input_buffer_data_object(native_plan, host_call)
-                && let Some(literal) = runtime_text_literal_for_host_call(native_plan, host_call)
-                && runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
+            if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
+                && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
+                && runtime_machine_string_descriptor_offset(input, host_call).is_none()
             {
                 operands.push(operand(InstructionOperandKind::DataAddress {
-                    data: data_object_handle(native_plan, data_object),
+                    data: data_object_handle(input, data_object),
                 }));
                 operands.push(operand(InstructionOperandKind::ByteLength(literal.len())));
                 return operands;
             }
 
-            if let Some(byte_offset) =
-                runtime_machine_string_descriptor_offset(native_plan, host_call)
-            {
+            if let Some(byte_offset) = runtime_machine_string_descriptor_offset(input, host_call) {
                 operands.push(operand(
                     InstructionOperandKind::RuntimeMachineStringPointer { byte_offset },
                 ));
@@ -94,7 +88,7 @@ pub(super) fn select_host_operation_operands(
         }
         (_, "Process", "exit" | "exit_group" | "exit_process") => {
             vec![operand(InstructionOperandKind::ImmediateInteger(
-                exit_code(host_call, native_plan),
+                exit_code(host_call, input),
             ))]
         }
         _ => Vec::new(),
@@ -106,20 +100,20 @@ pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
 }
 
 fn find_data_object<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
-    native_plan.data.objects.iter().find(|(_, data_object)| {
+    input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == host_call.source_key
             && data_object.source_statement == host_call.statement_index
     })
 }
 
 pub(super) fn data_object_handle(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     target: &TargetDataObject,
 ) -> TargetDataObjectHandle {
-    native_plan
+    input
         .data
         .objects
         .iter()
@@ -132,8 +126,8 @@ pub(super) fn data_object_handle(
         .unwrap_or_else(Handle::invalid)
 }
 
-fn exit_code(host_call: &HostCall, native_plan: &InstructionSelectionInput<'_>) -> i64 {
-    first_argument(host_call, native_plan)
+fn exit_code(host_call: &HostCall, input: &InstructionSelectionInput<'_>) -> i64 {
+    first_argument(host_call, input)
         .and_then(|argument| match &argument.kind {
             HostCallArgumentKind::Integer(value) => Some(*value),
             _ => None,
@@ -143,9 +137,9 @@ fn exit_code(host_call: &HostCall, native_plan: &InstructionSelectionInput<'_>) 
 
 fn first_argument<'plan>(
     host_call: &HostCall,
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
 ) -> Option<&'plan HostCallArgument> {
-    native_plan
+    input
         .host_calls
         .arguments
         .span(host_call.arguments)

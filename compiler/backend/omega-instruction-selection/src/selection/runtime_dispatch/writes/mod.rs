@@ -13,7 +13,7 @@ use static_values::RuntimeStaticValues;
 pub(super) use storage_copy::runtime_storage_copy;
 
 pub(super) fn select_runtime_storage_write_for_operation(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     aliases: &[RuntimeAliasBinding],
@@ -24,14 +24,14 @@ pub(super) fn select_runtime_storage_write_for_operation(
         return;
     };
     let Some(mutation) =
-        state_mutation_for_statement(native_plan, operation.source_key, operation.statement_index)
+        state_mutation_for_statement(input, operation.source_key, operation.statement_index)
     else {
         return;
     };
 
-    let (source_machine, source_state) = state_names(native_plan, mutation.source_key);
+    let (source_machine, source_state) = state_names(input, mutation.source_key);
     mutation::select_runtime_mutation_writes(
-        native_plan,
+        input,
         dispatch_index,
         mutation.source_key,
         &source_machine,
@@ -46,8 +46,8 @@ pub(super) fn select_runtime_storage_write_for_operation(
 }
 
 fn state_names(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> (ProgramName, ProgramName) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
+    input.control_flow.state_names_by_key_cloned(key)
 }

@@ -7,7 +7,7 @@ use super::super::bindings::{
 use super::super::lookups::state_call_for_statement;
 
 pub(super) fn bind_runtime_operation_aliases(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     operation: &RuntimeDispatchBodyOperation,
     aliases: &mut Vec<RuntimeAliasBinding>,
 ) {
@@ -22,11 +22,11 @@ pub(super) fn bind_runtime_operation_aliases(
     }
 
     let Some(state_call) =
-        state_call_for_statement(native_plan, operation.source_key, operation.statement_index)
+        state_call_for_statement(input, operation.source_key, operation.statement_index)
     else {
         return;
     };
-    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+    let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
         return;
     };
 

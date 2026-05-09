@@ -9,32 +9,32 @@ use omega_target_program::TargetDataObjectHandle;
 use omega_typed_program::expression::Expression;
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> Option<(TargetDataObjectHandle, String)> {
-    let literal = runtime_text_literal_for_host_call(native_plan, host_call)?;
-    let (data_object, _) = find_runtime_text_input_buffer_data(native_plan, host_call)?;
+    let literal = runtime_text_literal_for_host_call(input, host_call)?;
+    let (data_object, _) = find_runtime_text_input_buffer_data(input, host_call)?;
     Some((data_object, literal))
 }
 
 pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> Option<String> {
     let append_newline = match host_call.data {
         PlatformCallData::FirstTextArgument { append_newline } => append_newline,
         PlatformCallData::MutableOutputBuffer { .. } | PlatformCallData::None => return None,
     };
-    if !host_call_uses_runtime_text_input_buffer(native_plan, host_call) {
+    if !host_call_uses_runtime_text_input_buffer(input, host_call) {
         return None;
     }
 
-    let runtime_body = native_plan
+    let runtime_body = input
         .runtime_bodies
         .bodies
         .iter()
         .find(|(_, body)| {
-            native_plan
+            input
                 .runtime_bodies
                 .operations
                 .span(body.operations)
@@ -50,7 +50,7 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
                 })
         })
         .map(|(_, body)| body)?;
-    let operations = native_plan
+    let operations = input
         .runtime_bodies
         .operations
         .span(runtime_body.operations)?;
@@ -68,7 +68,7 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         }
 
         let Some(text_write) = runtime_text_write_for_operation(
-            native_plan,
+            input,
             operation.source_key,
             operation.statement_index,
         ) else {
@@ -91,18 +91,18 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
 }
 
 fn host_call_uses_runtime_text_input_buffer(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
 ) -> bool {
-    find_runtime_text_input_buffer_data(native_plan, host_call).is_some()
+    find_runtime_text_input_buffer_data(input, host_call).is_some()
 }
 
 fn runtime_text_write_for_operation<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan omega_runtime_text::RuntimeTextWrite> {
-    native_plan
+    input
         .runtime_text
         .writes
         .iter()

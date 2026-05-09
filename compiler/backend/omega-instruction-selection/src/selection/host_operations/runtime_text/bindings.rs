@@ -2,11 +2,11 @@ use crate::InstructionSelectionInput;
 use omega_calling_conventions::HostBindingMechanism;
 
 pub(super) fn host_binding_mechanism<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     capability: &str,
     operation: &str,
 ) -> Option<&'plan HostBindingMechanism> {
-    native_plan
+    input
         .host_abi
         .bindings
         .iter()

@@ -6,7 +6,7 @@ use super::super::super::storage_places::resolve_runtime_storage_place;
 use omega_target_program::SelectedInstructionKind;
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
     value_source_key: StateKey,
@@ -16,7 +16,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     value: &Expression,
 ) -> Option<SelectedInstructionKind> {
     let target_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         dispatch_index,
         target_source_key,
         source_machine,
@@ -24,7 +24,7 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
         target,
     )?;
     let source_place = resolve_runtime_storage_place(
-        native_plan,
+        input,
         dispatch_index,
         value_source_key,
         source_machine,

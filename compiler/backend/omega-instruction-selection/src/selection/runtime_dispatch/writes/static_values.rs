@@ -10,7 +10,7 @@ use super::super::super::storage_places::enum_variant_value;
 pub(super) type RuntimeStaticValues = Vec<(Expression, i64)>;
 
 pub(super) fn resolve_runtime_static_integer_value(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
@@ -18,7 +18,7 @@ pub(super) fn resolve_runtime_static_integer_value(
 ) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
-        Expression::Name(_) => enum_variant_value(&native_plan.layouts, expression).or_else(|| {
+        Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
             let resolved_expression =
                 resolve_runtime_alias_expression(expression, source_key, aliases);
             let resolved_expression = strip_mutable_expression(resolved_expression);

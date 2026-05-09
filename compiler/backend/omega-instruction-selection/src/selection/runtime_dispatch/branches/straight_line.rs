@@ -18,12 +18,12 @@ use super::mutation::select_runtime_resolved_mutation_write;
 use omega_target_program::SelectedInstruction;
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    for (_, expansion) in native_plan
+    for (_, expansion) in input
         .runtime_branching_calls
         .straight_line_expansions
         .iter()
@@ -33,16 +33,12 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
                 && expansion.statement_index == operation.statement_index
         })
     {
-        select_runtime_straight_line_branch_expansion(
-            native_plan,
-            expansion,
-            selected_instructions,
-        );
+        select_runtime_straight_line_branch_expansion(input, expansion, selected_instructions);
     }
 }
 
 fn select_runtime_straight_line_branch_expansion(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
@@ -50,22 +46,22 @@ fn select_runtime_straight_line_branch_expansion(
         return;
     }
 
-    select_runtime_straight_line_branch_writes(native_plan, expansion, selected_instructions);
+    select_runtime_straight_line_branch_writes(input, expansion, selected_instructions);
 }
 
 fn select_runtime_straight_line_branch_writes(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let Some(operations) = native_plan
+    let Some(operations) = input
         .runtime_branching_calls
         .straight_line_operations
         .span(expansion.operations)
     else {
         return;
     };
-    let bindings = native_plan
+    let bindings = input
         .runtime_branching_calls
         .straight_line_bindings
         .span(expansion.bindings)
@@ -76,13 +72,12 @@ fn select_runtime_straight_line_branch_writes(
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
                 let resolved_target = resolve_straight_line_binding_expression(target, bindings);
                 let resolved_value = resolve_straight_line_binding_expression(value, bindings);
-                let (operation_machine, operation_state) =
-                    state_names(native_plan, operation.source_key);
+                let (operation_machine, operation_state) = state_names(input, operation.source_key);
                 select_runtime_resolved_mutation_write(
-                    native_plan,
+                    input,
                     expansion.dispatch_index,
                     operation.source_key,
-                    &source_machine_name(native_plan, expansion.source_key),
+                    &source_machine_name(input, expansion.source_key),
                     &operation_machine,
                     &operation_state,
                     operation.statement_index,
@@ -96,7 +91,7 @@ fn select_runtime_straight_line_branch_writes(
                 lowering: omega_state_calls::StateCallLowering::InlineLeaf,
                 ..
             } => select_runtime_straight_line_leaf_state_call_writes(
-                native_plan,
+                input,
                 expansion,
                 operation,
                 bindings,
@@ -108,16 +103,13 @@ fn select_runtime_straight_line_branch_writes(
     }
 }
 
-fn state_names(
-    native_plan: &InstructionSelectionInput<'_>,
-    key: StateKey,
-) -> (ProgramName, ProgramName) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
+fn state_names(input: &InstructionSelectionInput<'_>, key: StateKey) -> (ProgramName, ProgramName) {
+    input.control_flow.state_names_by_key_cloned(key)
 }
 
 #[allow(clippy::too_many_arguments)]
 fn select_runtime_straight_line_leaf_state_call_writes(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     operation: &RuntimeStraightLineBranchOperation,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
@@ -125,14 +117,14 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     let Some(state_call) =
-        state_call_for_statement(native_plan, operation.source_key, operation.statement_index)
+        state_call_for_statement(input, operation.source_key, operation.statement_index)
     else {
         return;
     };
-    let Some(arguments) = native_plan.state_calls.arguments.span(state_call.arguments) else {
+    let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
         return;
     };
-    let leaf_parameters = state_parameters(native_plan, target_key);
+    let leaf_parameters = state_parameters(input, target_key);
     let leaf_bindings = leaf_parameters
         .iter()
         .enumerate()
@@ -150,23 +142,23 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         })
         .collect::<Vec<_>>();
 
-    let Some(operations) = state_operations(native_plan, target_key) else {
+    let Some(operations) = state_operations(input, target_key) else {
         return;
     };
-    let (target_machine, target_state) = state_names(native_plan, target_key);
+    let (target_machine, target_state) = state_names(input, target_key);
     for leaf_operation in operations {
         let Some(mutation) =
-            state_mutation_for_statement(native_plan, target_key, leaf_operation.statement_index)
+            state_mutation_for_statement(input, target_key, leaf_operation.statement_index)
         else {
             continue;
         };
         let resolved_target = resolve_leaf_binding_expression(&mutation.target, &leaf_bindings);
         let resolved_value = resolve_leaf_binding_expression(&mutation.value, &leaf_bindings);
         select_runtime_resolved_mutation_write(
-            native_plan,
+            input,
             expansion.dispatch_index,
             target_key,
-            &source_machine_name(native_plan, expansion.source_key),
+            &source_machine_name(input, expansion.source_key),
             &target_machine,
             &target_state,
             leaf_operation.statement_index,
@@ -177,8 +169,6 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     }
 }
 
-fn source_machine_name(native_plan: &InstructionSelectionInput<'_>, key: StateKey) -> ProgramName {
-    native_plan
-        .control_flow
-        .state_machine_name_by_key_cloned(key)
+fn source_machine_name(input: &InstructionSelectionInput<'_>, key: StateKey) -> ProgramName {
+    input.control_flow.state_machine_name_by_key_cloned(key)
 }

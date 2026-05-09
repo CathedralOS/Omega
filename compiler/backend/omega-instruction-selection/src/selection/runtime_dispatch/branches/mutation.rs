@@ -8,7 +8,7 @@ use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_mutation_write(
-    native_plan: &InstructionSelectionInput<'_>,
+    input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_key: StateKey,
     _source_machine: &str,
@@ -20,11 +20,11 @@ pub(super) fn select_runtime_resolved_mutation_write(
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
-        &native_plan.layouts,
-        native_plan.entry_key.machine,
+        &input.layouts,
+        input.entry_key.machine,
         operation_key.machine,
         resolved_target,
-    ) && let Some(value) = static_integer_value(&native_plan.layouts, resolved_value)
+    ) && let Some(value) = static_integer_value(&input.layouts, resolved_value)
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
@@ -39,7 +39,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
     }
 
     if let Some(copy) = runtime_storage_copy(
-        native_plan,
+        input,
         dispatch_index,
         operation_key,
         operation_key,

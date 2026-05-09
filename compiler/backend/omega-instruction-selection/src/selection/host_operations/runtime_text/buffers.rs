@@ -7,10 +7,10 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
-    let text_use = native_plan
+    let text_use = input
         .runtime_text
         .uses
         .iter()
@@ -22,7 +22,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, text_use)| text_use)?;
 
-    let text_slot = native_plan
+    let text_slot = input
         .runtime_text
         .slots
         .iter()
@@ -31,7 +31,7 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, slot)| slot)?;
 
-    let buffer = native_plan
+    let buffer = input
         .runtime_text
         .buffers
         .iter()
@@ -41,34 +41,30 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         })
         .map(|(_, buffer)| buffer)?;
 
-    native_plan.data.objects.iter().find(|(_, data_object)| {
+    input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == buffer.source_key
             && data_object.source_statement == buffer.statement_index
     })
 }
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data_object<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
 ) -> Option<&'plan TargetDataObject> {
-    find_runtime_text_input_buffer_data(native_plan, host_call).map(|(_, data_object)| data_object)
+    find_runtime_text_input_buffer_data(input, host_call).map(|(_, data_object)| data_object)
 }
 
 pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>(
-    native_plan: &'plan InstructionSelectionInput<'plan>,
+    input: &'plan InstructionSelectionInput<'plan>,
     text_place: &Expression,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
-    let buffer = native_plan
-        .runtime_text
-        .buffers
-        .iter()
-        .find_map(|(_, buffer)| {
-            text_place_for_buffer_target(&buffer.target)
-                .is_some_and(|place| expression_place_eq(&place, text_place))
-                .then_some(buffer)
-        })?;
+    let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
+        text_place_for_buffer_target(&buffer.target)
+            .is_some_and(|place| expression_place_eq(&place, text_place))
+            .then_some(buffer)
+    })?;
 
-    native_plan.data.objects.iter().find(|(_, data_object)| {
+    input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == buffer.source_key
             && data_object.source_statement == buffer.statement_index
     })
