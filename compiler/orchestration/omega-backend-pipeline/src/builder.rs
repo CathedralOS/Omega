@@ -1,4 +1,4 @@
-use super::entry::resolve_native_entry_point;
+use super::entry::resolve_backend_entry_point;
 use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
 use super::timing::record_backend_phase;
 use omega_backend_plan::BackendPlan;
@@ -47,7 +47,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
-    let entry_point = resolve_native_entry_point(&program)?;
+    let entry_point = resolve_backend_entry_point(&program)?;
     let mut phase_timings = Vec::new();
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)

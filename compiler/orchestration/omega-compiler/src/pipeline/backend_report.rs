@@ -1,13 +1,13 @@
 use super::artifacts::ArtifactWriter;
 
-use omega_artifacts::NativeSurfaceReport;
+use omega_artifacts::BackendSurfaceReport;
 use omega_backend_plan::BackendPlan;
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming};
 use omega_core::diagnostics::Diagnostic;
 
 pub(crate) fn write_backend_report(
     artifacts: &ArtifactWriter,
-    native_surface: &NativeSurfaceReport,
+    backend_surface: &BackendSurfaceReport,
     backend_plan: &BackendPlan,
 ) -> Result<(), Diagnostic> {
     let phase_timings = backend_plan
@@ -46,6 +46,6 @@ pub(crate) fn write_backend_report(
         object: &backend_plan.object,
         relocations: &backend_plan.relocations,
     };
-    let output = omega_backend_report::backend_report_text(native_surface, &report_input);
+    let output = omega_backend_report::backend_report_text(backend_surface, &report_input);
     artifacts.write_text("09_backend_plan.txt", &output)
 }

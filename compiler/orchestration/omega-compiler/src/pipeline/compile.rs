@@ -13,7 +13,7 @@ use crate::pipeline::backend_report;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
-use omega_artifacts::{PhaseTiming, build_native_surface_report, finalize_emitted_image_output};
+use omega_artifacts::{PhaseTiming, build_backend_surface_report, finalize_emitted_image_output};
 use omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers;
 use omega_backend_plan::BackendPlan;
 use omega_core::allocations::snapshot as allocation_snapshot;
@@ -187,8 +187,8 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             workers.handle(),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        let native_surface = build_native_surface_report(&program);
-        backend_report::write_backend_report(&artifacts, &native_surface, &backend_plan)
+        let backend_surface = build_backend_surface_report(&program);
+        backend_report::write_backend_report(&artifacts, &backend_surface, &backend_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(backend_plan)
@@ -328,8 +328,8 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             workers.handle(),
         )
         .map_err(|diagnostic| vec![diagnostic])?;
-        let native_surface = build_native_surface_report(&program);
-        backend_report::write_backend_report(&artifacts, &native_surface, &backend_plan)
+        let backend_surface = build_backend_surface_report(&program);
+        backend_report::write_backend_report(&artifacts, &backend_surface, &backend_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(backend_plan)

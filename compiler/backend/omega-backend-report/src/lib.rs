@@ -5,7 +5,7 @@ mod identity;
 mod object;
 mod stats;
 
-use omega_artifacts::NativeSurfaceReport;
+use omega_artifacts::BackendSurfaceReport;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
@@ -86,7 +86,7 @@ impl<'plan> BackendReportInput<'plan> {
 }
 
 pub fn backend_report_text(
-    native_surface: &NativeSurfaceReport,
+    backend_surface: &BackendSurfaceReport,
     backend_plan: &BackendReportInput<'_>,
 ) -> String {
     let mut output = String::new();
@@ -384,25 +384,25 @@ pub fn backend_report_text(
     output.push_str("## Source Native Surface\n");
     output.push_str(&format!(
         "entry candidates: {}\n",
-        native_surface.entry_points.len()
+        backend_surface.entry_points.len()
     ));
-    for (_, entry_point) in native_surface.entry_points.iter() {
+    for (_, entry_point) in backend_surface.entry_points.iter() {
         output.push_str(&format!(
             "- entry {}.{}\n",
             entry_point.machine, entry_point.state
         ));
     }
 
-    output.push_str(&format!("platforms: {}\n", native_surface.platforms.len()));
-    for (_, platform) in native_surface.platforms.iter() {
+    output.push_str(&format!("platforms: {}\n", backend_surface.platforms.len()));
+    for (_, platform) in backend_surface.platforms.iter() {
         output.push_str(&format!(
             "- platform {}: {} state(s)\n",
             platform.name, platform.states
         ));
     }
 
-    output.push_str(&format!("machines: {}\n", native_surface.machines.len()));
-    for (_, machine) in native_surface.machines.iter() {
+    output.push_str(&format!("machines: {}\n", backend_surface.machines.len()));
+    for (_, machine) in backend_surface.machines.iter() {
         output.push_str(&format!(
             "- machine {}: contains {}, owned data {}, states {}\n",
             machine.name, machine.contained_objects, machine.owned_data, machine.states

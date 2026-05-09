@@ -768,20 +768,20 @@ pub fn emission_blocker(stage: &str, reason: &str) -> EmissionBlocker {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NativeSurfaceReport {
-    pub entry_points: Arena<NativeEntryPoint>,
-    pub machines: Arena<NativeMachineSurface>,
-    pub platforms: Arena<NativePlatformSurface>,
+pub struct BackendSurfaceReport {
+    pub entry_points: Arena<BackendEntryPoint>,
+    pub machines: Arena<BackendMachineSurface>,
+    pub platforms: Arena<BackendPlatformSurface>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NativeEntryPoint {
+pub struct BackendEntryPoint {
     pub machine: String,
     pub state: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NativeMachineSurface {
+pub struct BackendMachineSurface {
     pub name: String,
     pub contained_objects: usize,
     pub owned_data: usize,
@@ -789,13 +789,13 @@ pub struct NativeMachineSurface {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NativePlatformSurface {
+pub struct BackendPlatformSurface {
     pub name: String,
     pub states: usize,
 }
 
-pub fn build_native_surface_report(program: &Program) -> NativeSurfaceReport {
-    let mut report = NativeSurfaceReport::default();
+pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
+    let mut report = BackendSurfaceReport::default();
 
     for machine in &program.machines {
         collect_machine(&mut report, machine);
@@ -808,8 +808,8 @@ pub fn build_native_surface_report(program: &Program) -> NativeSurfaceReport {
     report
 }
 
-fn collect_machine(report: &mut NativeSurfaceReport, machine: &Machine) {
-    report.machines.insert(NativeMachineSurface {
+fn collect_machine(report: &mut BackendSurfaceReport, machine: &Machine) {
+    report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
         contained_objects: machine.contains.len(),
         owned_data: machine.owned_data.len(),
@@ -817,15 +817,15 @@ fn collect_machine(report: &mut NativeSurfaceReport, machine: &Machine) {
     });
 
     if machine.name == "main" && machine.states.iter().any(|state| state.name == "entry") {
-        report.entry_points.insert(NativeEntryPoint {
+        report.entry_points.insert(BackendEntryPoint {
             machine: "main".to_owned(),
             state: "entry".to_owned(),
         });
     }
 }
 
-fn collect_platform(report: &mut NativeSurfaceReport, platform: &Platform) {
-    report.platforms.insert(NativePlatformSurface {
+fn collect_platform(report: &mut BackendSurfaceReport, platform: &Platform) {
+    report.platforms.insert(BackendPlatformSurface {
         name: platform.name.to_string(),
         states: platform.states.len(),
     });
@@ -903,11 +903,11 @@ mod tests {
     use omega_typed_program::signature::StateSignature;
     use omega_typed_program::state::State;
 
-    use super::build_native_surface_report;
+    use super::build_backend_surface_report;
 
     #[test]
     fn collects_entry_machine_and_platforms() {
-        let report = build_native_surface_report(&Program {
+        let report = build_backend_surface_report(&Program {
             platforms: vec![Platform {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("Console"),

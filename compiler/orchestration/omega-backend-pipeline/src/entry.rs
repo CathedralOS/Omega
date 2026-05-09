@@ -6,14 +6,14 @@ pub(super) const ENTRY_MACHINE_NAME: &str = "main";
 pub(super) const ENTRY_STATE_NAME: &str = "entry";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct NativeEntryPoint {
+pub(super) struct BackendEntryPoint {
     pub machine_symbol: SymbolHandle,
     pub state_symbol: SymbolHandle,
 }
 
-pub(super) fn resolve_native_entry_point(
+pub(super) fn resolve_backend_entry_point(
     program: &Program,
-) -> Result<NativeEntryPoint, Diagnostic> {
+) -> Result<BackendEntryPoint, Diagnostic> {
     let machine_symbol = program
         .symbols
         .find_child_by_name(program.symbols.root(), ENTRY_MACHINE_NAME)
@@ -23,7 +23,7 @@ pub(super) fn resolve_native_entry_point(
         .find_child_by_name(machine_symbol, ENTRY_STATE_NAME)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
 
-    Ok(NativeEntryPoint {
+    Ok(BackendEntryPoint {
         machine_symbol,
         state_symbol,
     })
