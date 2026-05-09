@@ -72,6 +72,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
+name = "omega-abstract-syntax-to-typed"
+version = "0.1.0"
+dependencies = [
+ "omega-abstract-syntax-tree",
+ "omega-core",
+ "omega-typed-program",
+]
+
+[[package]]
 name = "omega-abstract-syntax-tree"
 version = "0.1.0"
 dependencies = [
@@ -98,6 +107,7 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
+ "omega-abstract-syntax-to-typed",
  "omega-abstract-syntax-tree",
  "omega-core",
  "omega-effects",
@@ -256,7 +266,6 @@ dependencies = [
 name = "omega-typed-program"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-core",
 ]
 

@@ -10,6 +10,7 @@ use crate::pipeline::CompileOptions;
 use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
+use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
 use omega_core::allocations::{AllocationDelta, snapshot as allocation_snapshot};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -26,7 +27,6 @@ use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
 use omega_target::NativeTarget;
-use omega_typed_program::lowering::lower_program_with_symbol_table_and_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 

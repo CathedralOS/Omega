@@ -21,6 +21,26 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
     }
 }
 
+#[test]
+fn representation_crates_do_not_depend_on_frontend_crates() {
+    let repo_root = repo_root();
+    let representations_root = repo_root.join("compiler/representations");
+    let forbidden = ["omega-abstract-syntax-tree", "omega-parser", "omega-lexer"];
+
+    for cargo_toml in cargo_tomls_under(&representations_root) {
+        let contents = fs::read_to_string(&cargo_toml)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+
+        for crate_name in forbidden {
+            assert!(
+                !contents.contains(crate_name),
+                "{} must not depend on frontend crate `{crate_name}`; put parsing/lowering edges under compiler/lowering instead",
+                cargo_toml.display()
+            );
+        }
+    }
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

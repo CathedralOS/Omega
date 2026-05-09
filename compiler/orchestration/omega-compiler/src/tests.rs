@@ -4,9 +4,9 @@ use crate::ast::item::Item;
 use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::parser::parse_file;
+use omega_abstract_syntax_to_typed::lower_program;
 use omega_lexer::Lexer;
 use omega_target::{NativeTarget, ObjectFormat};
-use omega_typed_program::lowering::lower_program;
 
 fn identifier_path(members: &[&str]) -> IdentifierPath {
     members

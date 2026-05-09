@@ -11,6 +11,7 @@ members = [
     "compiler/semantics/omega-effects",
     "compiler/semantics/omega-validation",
     "compiler/semantics/omega-proof",
+    "compiler/lowering/omega-abstract-syntax-to-typed",
     "compiler/representations/omega-typed-program",
     "compiler/representations/omega-control-flow",
     "compiler/backend/omega-target",

@@ -1,19 +1,3 @@
-use crate::Program;
-use crate::data::{DataDefinition, DataField, DataMember, DataVariant};
-use crate::expression::{
-    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, NamePath,
-    StructLiteral, StructLiteralField,
-};
-use crate::invariant::InvariantDefinition;
-use crate::machine::{ContainedObject, Machine, OwnedData};
-use crate::name::ProgramName;
-use crate::platform::Platform;
-use crate::signature::{StateParameter, StateSignature};
-use crate::state::State;
-use crate::statement::{
-    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
-};
-use crate::types::{TypeConstraint, TypeReference};
 use omega_abstract_syntax_tree as ast;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
@@ -22,6 +6,22 @@ use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
+use omega_typed_program::Program;
+use omega_typed_program::data::{DataDefinition, DataField, DataMember, DataVariant};
+use omega_typed_program::expression::{
+    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, NamePath,
+    StructLiteral, StructLiteralField,
+};
+use omega_typed_program::invariant::InvariantDefinition;
+use omega_typed_program::machine::{ContainedObject, Machine, OwnedData};
+use omega_typed_program::name::ProgramName;
+use omega_typed_program::platform::Platform;
+use omega_typed_program::signature::{StateParameter, StateSignature};
+use omega_typed_program::state::State;
+use omega_typed_program::statement::{
+    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+};
+use omega_typed_program::types::{TypeConstraint, TypeReference};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -1817,17 +1817,17 @@ fn lower_transition_target(
 
 #[cfg(test)]
 mod tests {
-    use crate::Program;
-    use crate::data::{DataDefinition, DataField, DataMember};
-    use crate::machine::{ContainedObject, Machine};
-    use crate::platform::Platform;
-    use crate::signature::StateSignature;
-    use crate::state::State;
-    use crate::statement::{LocalData, Statement};
-    use crate::types::TypeReference;
     use omega_core::symbols::SymbolHandle;
+    use omega_typed_program::Program;
+    use omega_typed_program::data::{DataDefinition, DataField, DataMember};
+    use omega_typed_program::machine::{ContainedObject, Machine};
+    use omega_typed_program::platform::Platform;
+    use omega_typed_program::signature::StateSignature;
+    use omega_typed_program::state::State;
+    use omega_typed_program::statement::{LocalData, Statement};
+    use omega_typed_program::types::TypeReference;
 
-    use super::{attach_program_symbols, register_program_symbols};
+    use crate::{attach_program_symbols, register_program_symbols};
 
     #[test]
     fn typed_program_symbols_project_children_from_declared_types() {
