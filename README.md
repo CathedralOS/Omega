@@ -158,8 +158,8 @@ Omega/
 |   |   |-- [CRATE] omega-token/                        # Token definitions, trivia, and doc-comment tokens.
 |   |   |-- [CRATE] omega-lexer/                        # Source text to tokens.
 |   |   |-- [CRATE] omega-concrete-syntax-tree/         # Comments and lossless parse nodes (CST).
-|   |   |-- [CRATE] omega-parser/                       # Tokens to concrete/abstract syntax trees.
-|   |   |-- [CRATE] omega-abstract-syntax-tree/         # Parsed source tree structs with doc comments attached to items (AST).
+|   |   |-- [CRATE] omega-parser/                       # Tokens to concrete/abstract syntax tables.
+|   |   |-- [CRATE] omega-abstract-syntax-tree/         # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
 |   |   `-- [CRATE] omega-format/                       # Formatter and syntax-preserving rewrites.
 |   |
 |   |-- packages/
@@ -317,6 +317,7 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 - `omega-cli`, `omega-language-server`, and `omega-documentation-generator` stay thin. They parse user intent and call `omega-compiler` or `omega-ide`; they do not own compiler semantics.
 - `foundation/` must stay dependency-light. If a crate there starts depending on semantic representations, machine representations, or target details, it is in the wrong layer.
 - `frontend/` owns syntax and source-preserving structure only. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
+- `omega-abstract-syntax-tree` should be table-shaped, not a long-lived recursive heap tree. Recursive syntax edges should be `Handle<T>` and repeated children should be `HandleSpan<T>` so parser output does not normalize tiny allocations into the rest of the compiler.
 - `packages/` owns manifests, dependency graphs, and source loading. It should not grow semantic rules for the language itself.
 - `omega-source-program` is the first meaning-bearing representation, roughly Omega's HIR-shaped layer. Parser conveniences and concrete syntax trivia do not belong there.
 - `semantics/` proves and reports what the program means. `representations/` decides how that meaning is shaped for optimization and code generation.
