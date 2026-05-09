@@ -92,6 +92,33 @@ fn lowering_crates_do_not_depend_on_backend_crates() {
     }
 }
 
+#[test]
+fn artifact_crates_do_not_depend_on_native_bridge() {
+    let repo_root = repo_root();
+    let orchestration_root = repo_root.join("compiler/orchestration");
+
+    for cargo_toml in cargo_tomls_under(&orchestration_root) {
+        let Some(crate_dir) = cargo_toml.parent() else {
+            continue;
+        };
+        if !crate_dir
+            .file_name()
+            .is_some_and(|file_name| file_name.to_string_lossy().contains("artifacts"))
+        {
+            continue;
+        }
+
+        let contents = fs::read_to_string(&cargo_toml)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+
+        assert!(
+            !contents.contains("omega-native"),
+            "{} must not depend on omega-native; artifacts describe outputs and reports without reaching back through the native bridge",
+            cargo_toml.display()
+        );
+    }
+}
+
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
