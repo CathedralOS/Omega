@@ -15,6 +15,7 @@ use omega_abstract_syntax_tree::item::{
 use omega_abstract_syntax_tree::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
+use omega_abstract_syntax_tree::tables::AstTables;
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::source::{FileId, SourceText};
 use omega_lexer::{Token, TokenKind};
@@ -24,6 +25,7 @@ use std::sync::Arc;
 pub struct AstFile {
     pub file_id: FileId,
     pub items: Vec<Item>,
+    pub tables: AstTables,
 }
 
 pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
@@ -93,9 +95,12 @@ impl Parser<'_, '_> {
             }
         }
 
+        let tables = AstTables::from_items(&items);
+
         Ok(AstFile {
             file_id: self.file_id,
             items,
+            tables,
         })
     }
 
