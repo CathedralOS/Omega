@@ -1,8 +1,10 @@
 use crate::name::ProgramName;
 use crate::types::TypeReference;
+use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub members: Vec<DataMember>,
 }
@@ -44,11 +46,13 @@ pub enum DataMember {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_reference: TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
 }

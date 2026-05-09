@@ -20,7 +20,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
-    SymbolDefinition, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
+    SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
 use std::sync::Arc;
 
@@ -101,6 +101,7 @@ fn lower_program_with_symbol_table_source(
         let constraints = program.type_constraints.insert_many(constraints);
 
         program.invariant_definitions.push(InvariantDefinition {
+            symbol: SymbolHandle::invalid(),
             name: lower_name(&alias.name),
             constraints,
         });
@@ -125,6 +126,7 @@ fn lower_program_with_symbol_table_source(
 
     program.symbols = symbols
         .unwrap_or_else(|| register_program_symbols(&program, Some(items.as_slice()), sources));
+    attach_program_symbols(&mut program);
 
     Ok(program)
 }
@@ -239,6 +241,140 @@ fn register_program_symbols(
         ),
         sources,
     )
+}
+
+fn attach_program_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+    let root = symbols.root();
+
+    for invariant in &mut program.invariant_definitions {
+        invariant.symbol = find_child_symbol(
+            symbols,
+            root,
+            SymbolKind::Invariant,
+            invariant.name.as_str(),
+        );
+    }
+
+    for data_definition in &mut program.data_definitions {
+        data_definition.symbol = find_child_symbol(
+            symbols,
+            root,
+            SymbolKind::Data,
+            data_definition.name.as_str(),
+        );
+
+        for member in &mut data_definition.members {
+            match member {
+                DataMember::Field(field) => {
+                    field.symbol = find_child_symbol(
+                        symbols,
+                        data_definition.symbol,
+                        SymbolKind::Field,
+                        field.name.as_str(),
+                    );
+                }
+                DataMember::Variant(variant) => {
+                    variant.symbol = find_child_symbol(
+                        symbols,
+                        data_definition.symbol,
+                        SymbolKind::Variant,
+                        variant.name.as_str(),
+                    );
+                }
+            }
+        }
+    }
+
+    for platform in &mut program.platforms {
+        platform.symbol =
+            find_child_symbol(symbols, root, SymbolKind::Platform, platform.name.as_str());
+
+        for signature in &mut platform.states {
+            signature.symbol = find_child_symbol(
+                symbols,
+                platform.symbol,
+                SymbolKind::State,
+                signature.name.as_str(),
+            );
+            attach_parameter_symbols(symbols, signature.symbol, &mut signature.parameters);
+        }
+    }
+
+    for machine in &mut program.machines {
+        machine.symbol =
+            find_child_symbol(symbols, root, SymbolKind::Machine, machine.name.as_str());
+
+        for contained in &mut machine.contains {
+            contained.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::Object,
+                contained.name.as_str(),
+            );
+            contained.type_symbol = symbols
+                .find_descendant_by_path(root, [contained.type_name.as_str()])
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for owned_data in &mut machine.owned_data {
+            owned_data.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::Field,
+                owned_data.name.as_str(),
+            );
+        }
+
+        for state in &mut machine.states {
+            state.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::State,
+                state.name.as_str(),
+            );
+            attach_parameter_symbols(symbols, state.symbol, &mut state.parameters);
+            attach_local_symbols(symbols, state.symbol, &mut state.statements);
+        }
+    }
+}
+
+fn attach_parameter_symbols(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    parameters: &mut [StateParameter],
+) {
+    for parameter in parameters {
+        parameter.symbol = find_child_symbol(
+            symbols,
+            parent,
+            SymbolKind::Parameter,
+            parameter.name.as_str(),
+        );
+    }
+}
+
+fn attach_local_symbols(symbols: &SymbolTable, parent: SymbolHandle, statements: &mut [Statement]) {
+    for statement in statements {
+        let Statement::LocalData(local_data) = statement else {
+            continue;
+        };
+
+        local_data.symbol =
+            find_child_symbol(symbols, parent, SymbolKind::Local, local_data.name.as_str());
+    }
+}
+
+fn find_child_symbol(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kind: SymbolKind,
+    name: &str,
+) -> SymbolHandle {
+    symbols
+        .find_child_by_name(parent, name)
+        .filter(|symbol| symbols.get(*symbol).kind == kind)
+        .unwrap_or_else(SymbolHandle::invalid)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -661,6 +797,7 @@ fn remap_data_definition(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> DataDefinition {
     DataDefinition {
+        symbol: data_definition.symbol,
         name: data_definition.name,
         members: data_definition
             .members
@@ -677,6 +814,7 @@ fn remap_data_member(
 ) -> DataMember {
     match member {
         DataMember::Field(field) => DataMember::Field(DataField {
+            symbol: field.symbol,
             name: field.name,
             type_reference: remap_type_reference(
                 field.type_reference,
@@ -694,6 +832,7 @@ fn remap_machine(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> Machine {
     Machine {
+        symbol: machine.symbol,
         name: machine.name,
         contains: machine.contains,
         owned_data: machine
@@ -715,6 +854,7 @@ fn remap_owned_data(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> OwnedData {
     OwnedData {
+        symbol: owned_data.symbol,
         name: owned_data.name,
         type_reference: remap_type_reference(
             owned_data.type_reference,
@@ -731,6 +871,7 @@ fn remap_platform(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> Platform {
     Platform {
+        symbol: platform.symbol,
         name: platform.name,
         states: platform
             .states
@@ -746,6 +887,7 @@ fn remap_state(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> State {
     State {
+        symbol: state.symbol,
         name: state.name,
         return_type: state.return_type.map(|return_type| {
             remap_type_reference(return_type, source_constraints, target_constraints)
@@ -771,6 +913,7 @@ fn remap_state_signature(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> StateSignature {
     StateSignature {
+        symbol: signature.symbol,
         name: signature.name,
         return_type: signature.return_type.map(|return_type| {
             remap_type_reference(return_type, source_constraints, target_constraints)
@@ -791,6 +934,7 @@ fn remap_state_parameter(
     target_constraints: &mut Arena<TypeConstraint>,
 ) -> StateParameter {
     StateParameter {
+        symbol: parameter.symbol,
         name: parameter.name,
         type_reference: remap_type_reference(
             parameter.type_reference,
@@ -810,6 +954,7 @@ fn remap_statement(
 ) -> Statement {
     match statement {
         Statement::LocalData(local_data) => Statement::LocalData(LocalData {
+            symbol: local_data.symbol,
             name: local_data.name,
             type_reference: remap_type_reference(
                 local_data.type_reference,
@@ -885,6 +1030,7 @@ fn lower_data_definition(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(DataDefinition {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&data_definition.name),
         members,
     })
@@ -897,10 +1043,12 @@ fn lower_data_member(
 ) -> Result<DataMember, Diagnostic> {
     match member {
         ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
+            symbol: SymbolHandle::invalid(),
             name: lower_name(&field.name),
             type_reference: lower_type_reference(&field.type_reference, aliases, type_constraints)?,
         })),
         ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
+            symbol: SymbolHandle::invalid(),
             name: lower_name(&variant.name),
         })),
     }
@@ -915,6 +1063,8 @@ fn lower_machine(
         .contains
         .iter()
         .map(|contained_object| ContainedObject {
+            symbol: SymbolHandle::invalid(),
+            type_symbol: SymbolHandle::invalid(),
             name: lower_name(&contained_object.name),
             type_name: lower_name(&contained_object.type_name),
         })
@@ -933,6 +1083,7 @@ fn lower_machine(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Machine {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&machine.name),
         contains,
         owned_data,
@@ -946,6 +1097,7 @@ fn lower_owned_data(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<OwnedData, Diagnostic> {
     Ok(OwnedData {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&owned_data.name),
         type_reference: lower_type_reference(
             &owned_data.type_reference,
@@ -972,6 +1124,7 @@ fn lower_platform(
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
     Ok(Platform {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&platform.name),
         states,
     })
@@ -983,6 +1136,7 @@ fn lower_state_signature(
     type_constraints: &mut Arena<TypeConstraint>,
 ) -> Result<StateSignature, Diagnostic> {
     Ok(StateSignature {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&signature.name),
         return_type: signature
             .return_type
@@ -994,6 +1148,7 @@ fn lower_state_signature(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
+                    symbol: SymbolHandle::invalid(),
                     name: lower_name(&parameter.name),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
@@ -1113,6 +1268,7 @@ fn lower_state(
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
+        symbol: SymbolHandle::invalid(),
         name: lower_name(&state.name),
         return_type: state
             .return_type
@@ -1124,6 +1280,7 @@ fn lower_state(
             .iter()
             .map(|parameter| {
                 Ok(StateParameter {
+                    symbol: SymbolHandle::invalid(),
                     name: lower_name(&parameter.name),
                     type_reference: lower_type_reference(
                         &parameter.type_reference,
@@ -1165,6 +1322,7 @@ fn lower_statement(
             Ok(Statement::Expression(lower_expression(expression)?))
         }
         ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
+            symbol: SymbolHandle::invalid(),
             name: lower_name(&local_data.name),
             type_reference: lower_type_reference(
                 &local_data.type_reference,
@@ -1296,39 +1454,49 @@ mod tests {
     use crate::state::State;
     use crate::statement::{LocalData, Statement};
     use crate::types::TypeReference;
+    use omega_core::symbols::SymbolHandle;
 
-    use super::register_program_symbols;
+    use super::{attach_program_symbols, register_program_symbols};
 
     #[test]
     fn typed_program_symbols_project_children_from_declared_types() {
         let mut program = Program {
             data_definitions: vec![DataDefinition {
+                symbol: SymbolHandle::invalid(),
                 name: "Room".into(),
                 members: vec![DataMember::Field(DataField {
+                    symbol: SymbolHandle::invalid(),
                     name: "label".into(),
                     type_reference: TypeReference::Named("String".into()),
                 })],
             }],
             machines: vec![Machine {
+                symbol: SymbolHandle::invalid(),
                 name: "main".into(),
                 contains: vec![ContainedObject {
+                    symbol: SymbolHandle::invalid(),
+                    type_symbol: SymbolHandle::invalid(),
                     name: "console".into(),
                     type_name: "Console".into(),
                 }],
                 owned_data: Vec::new(),
                 states: vec![State {
+                    symbol: SymbolHandle::invalid(),
                     name: "entry".into(),
                     parameters: Vec::new(),
                     return_type: None,
                     statements: vec![Statement::LocalData(LocalData {
+                        symbol: SymbolHandle::invalid(),
                         name: "room".into(),
                         type_reference: TypeReference::Named("Room".into()),
                     })],
                 }],
             }],
             platforms: vec![Platform {
+                symbol: SymbolHandle::invalid(),
                 name: "Console".into(),
                 states: vec![StateSignature {
+                    symbol: SymbolHandle::invalid(),
                     name: "write_line".into(),
                     parameters: Vec::new(),
                     return_type: None,
@@ -1337,6 +1505,7 @@ mod tests {
             ..Program::default()
         };
         program.symbols = register_program_symbols(&program, None, None);
+        attach_program_symbols(&mut program);
 
         let root = program.symbols.root();
         let main = program
@@ -1363,8 +1532,19 @@ mod tests {
             .symbols
             .find_child_by_name(room, "label")
             .expect("local data fields should project from their type");
+        let console_platform = program
+            .symbols
+            .find_child_by_name(root, "Console")
+            .expect("platform should resolve");
 
         assert_eq!(program.symbols.name(console_write_line), "write_line");
         assert_eq!(program.symbols.name(room_label), "label");
+        assert_eq!(program.machines[0].symbol, main);
+        assert_eq!(program.machines[0].contains[0].symbol, console);
+        assert_eq!(
+            program.machines[0].contains[0].type_symbol,
+            console_platform
+        );
+        assert_eq!(program.machines[0].states[0].symbol, entry);
     }
 }

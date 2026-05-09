@@ -1,5 +1,4 @@
-use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_typed_program::Program;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::state::State;
 use omega_typed_program::statement::{Assignment, Statement, Transition, TransitionGuard};
@@ -17,15 +16,10 @@ pub(super) struct StateSegment<'program> {
 }
 
 pub(super) fn split_state_segments<'program>(
-    program: &Program,
     machine_symbol: SymbolHandle,
     state: &'program State,
 ) -> Vec<StateSegment<'program>> {
-    let state_symbol = program
-        .symbols
-        .find_child_by_name(machine_symbol, state.name.as_str())
-        .filter(|symbol| program.symbols.get(*symbol).kind == SymbolKind::State)
-        .unwrap_or_else(SymbolHandle::invalid);
+    let state_symbol = state.symbol;
     let mut segments = Vec::new();
     let mut operations = Vec::new();
     let mut transitions = Vec::new();

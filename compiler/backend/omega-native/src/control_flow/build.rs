@@ -1,6 +1,5 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_core::symbols::SymbolHandle;
 use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::TransitionGuard;
@@ -33,7 +32,7 @@ pub fn build_control_flow_plan_with_workers(
             .get(index)
             .expect("control-flow worker index should be in range");
         let mut local_flow = ControlFlowPlan::default();
-        let machine_flow = build_machine_flow(&program, machine, &mut local_flow)?;
+        let machine_flow = build_machine_flow(machine, &mut local_flow)?;
 
         Ok((local_flow, machine_flow))
     });
@@ -88,18 +87,20 @@ fn merge_machine_flow(
 }
 
 fn build_machine_flow(
-    program: &Program,
     machine: &Machine,
     control_flow: &mut ControlFlowPlan,
 ) -> Result<MachineFlow, Diagnostic> {
-    let machine_symbol = program
-        .symbols
-        .find_descendant_by_path(program.symbols.root(), [machine.name.as_str()])
-        .ok_or_else(|| Diagnostic::error(format!("machine `{}` has no symbol", machine.name)))?;
+    let machine_symbol = machine.symbol;
+    if !machine_symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "machine `{}` has no symbol",
+            machine.name
+        )));
+    }
     let segments = machine
         .states
         .iter()
-        .map(|state| split_state_segments(program, machine_symbol, state))
+        .map(|state| split_state_segments(machine_symbol, state))
         .collect::<Vec<_>>();
     let state_indexes = segments
         .iter()
@@ -173,15 +174,9 @@ fn build_machine_flow(
             .contains
             .iter()
             .map(|contained| ContainedFlow {
-                symbol: program
-                    .symbols
-                    .find_child_by_name(machine_symbol, contained.name.as_str())
-                    .unwrap_or_else(SymbolHandle::invalid),
+                symbol: contained.symbol,
                 name: contained.name.clone(),
-                type_symbol: program
-                    .symbols
-                    .find_descendant_by_path(program.symbols.root(), [contained.type_name.as_str()])
-                    .unwrap_or_else(SymbolHandle::invalid),
+                type_symbol: contained.type_symbol,
                 type_name: contained.type_name.clone(),
             })
             .collect(),
