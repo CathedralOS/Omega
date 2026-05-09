@@ -1,0 +1,13 @@
+[package]
+name = "omega-control-flow"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_control_flow"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-typed-program = { path = "../omega-typed-program" }
