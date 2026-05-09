@@ -107,20 +107,16 @@ fn resolve_nested_field_layout(
 fn data_layout<'plan>(
     layouts: &'plan LayoutPlan,
     type_symbol: SymbolHandle,
-    type_name: &str,
+    _type_name: &str,
 ) -> Option<&'plan omega_layout::DataLayout> {
-    if type_symbol.is_valid() {
-        return layouts
-            .data_layouts
-            .iter()
-            .find(|(_, data_layout)| data_layout.symbol == type_symbol)
-            .map(|(_, data_layout)| data_layout);
+    if !type_symbol.is_valid() {
+        return None;
     }
 
     layouts
         .data_layouts
         .iter()
-        .find(|(_, data_layout)| data_layout.name == type_name)
+        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
         .map(|(_, data_layout)| data_layout)
 }
 

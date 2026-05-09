@@ -30,26 +30,6 @@ pub(super) fn layout_for_type(
         }
     }
 
-    if let Some(data_layout) = context
-        .layouts
-        .data_layouts
-        .iter()
-        .find(|(_, data_layout)| data_layout.name == type_name)
-        .map(|(_, data_layout)| data_layout.layout)
-    {
-        return data_layout;
-    }
-
-    if let Some(machine_layout) = context
-        .layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, machine_layout)| machine_layout.name == type_name)
-        .map(|(_, machine_layout)| machine_layout.layout)
-    {
-        return machine_layout;
-    }
-
     if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
         return primitive_layout(context, primitive_type);
     }
