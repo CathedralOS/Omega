@@ -1,4 +1,4 @@
-pub(in crate::state_schedule) use crate::place_keys::PlaceKey;
+pub(in crate::state_schedule) use omega_platform_interface::PlaceKey;
 use omega_typed_program::expression::Expression;
 
 pub(in crate::state_schedule) fn argument_binding_place_key(

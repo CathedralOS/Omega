@@ -9,10 +9,8 @@ mod collection;
 mod lowering;
 mod static_values;
 
+use crate::{HostCall, HostCallPlan};
 use collection::collect_machine_host_calls;
-use omega_platform_interface::{
-    HostCall, HostCallArgument, HostCallArgumentKind, HostCallPlan, LoweredHostOperation,
-};
 
 pub fn build_host_call_plan(
     program: &Program,

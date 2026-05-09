@@ -3,14 +3,14 @@ use omega_typed_program::expression::{Expression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct PlaceKey {
+pub struct PlaceKey {
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
     members: Vec<ProgramName>,
 }
 
 impl PlaceKey {
-    pub(crate) fn from_expression(expression: &Expression) -> Option<Self> {
+    pub fn from_expression(expression: &Expression) -> Option<Self> {
         match expression {
             Expression::Mutable(inner_expression) => Self::from_expression(inner_expression),
             Expression::Name(path) => Some(Self::from_name_path(path)),
@@ -27,14 +27,14 @@ impl PlaceKey {
         }
     }
 
-    pub(crate) fn append_member(&self, member: ProgramName) -> Self {
+    pub fn append_member(&self, member: ProgramName) -> Self {
         let mut key = self.clone();
         key.members.push(member);
         key.symbol = SymbolHandle::invalid();
         key
     }
 
-    pub(crate) fn from_symbol_name(symbol: SymbolHandle, name: ProgramName) -> Self {
+    pub fn from_symbol_name(symbol: SymbolHandle, name: ProgramName) -> Self {
         Self {
             head_symbol: symbol,
             symbol,
@@ -42,7 +42,7 @@ impl PlaceKey {
         }
     }
 
-    pub(crate) fn starts_with(&self, prefix: &Self) -> bool {
+    pub fn starts_with(&self, prefix: &Self) -> bool {
         if prefix.members.len() > self.members.len() {
             return false;
         }
@@ -60,7 +60,7 @@ impl PlaceKey {
             .all(|(member, prefix_member)| member == prefix_member)
     }
 
-    pub(crate) fn replace_prefix(&self, prefix: &Self, target: &Self) -> Self {
+    pub fn replace_prefix(&self, prefix: &Self, target: &Self) -> Self {
         if !self.starts_with(prefix) {
             return self.clone();
         }

@@ -4,15 +4,13 @@ use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Call;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::host_calls) enum StaticValue {
+pub(crate) enum StaticValue {
     Integer(i64),
     Expression(Expression),
     Text(String),
 }
 
-pub(in crate::host_calls) fn initial_static_values(
-    machine: &Machine,
-) -> Vec<(PlaceKey, StaticValue)> {
+pub(crate) fn initial_static_values(machine: &Machine) -> Vec<(PlaceKey, StaticValue)> {
     machine
         .owned_data
         .iter()
@@ -34,7 +32,7 @@ pub(in crate::host_calls) fn initial_static_values(
         .collect()
 }
 
-pub(in crate::host_calls) fn apply_static_assignment(
+pub(crate) fn apply_static_assignment(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
     target: &Expression,
     value: &Expression,
@@ -67,7 +65,7 @@ pub(in crate::host_calls) fn apply_static_assignment(
     set_static_value(static_values, target_key, value);
 }
 
-pub(in crate::host_calls) fn apply_call_static_effects(
+pub(crate) fn apply_call_static_effects(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
     call: &Call,
 ) {
@@ -84,7 +82,7 @@ pub(in crate::host_calls) fn apply_call_static_effects(
     }
 }
 
-pub(in crate::host_calls) fn resolve_static_value(
+pub(crate) fn resolve_static_value(
     expression: &Expression,
     static_values: &[(PlaceKey, StaticValue)],
 ) -> Option<StaticValue> {

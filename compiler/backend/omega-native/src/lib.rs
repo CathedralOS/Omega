@@ -3,10 +3,8 @@
 pub mod alias_flow;
 pub mod data;
 pub mod emission;
-pub mod host_calls;
 pub mod identity;
 pub mod instructions;
-pub(crate) mod place_keys;
 pub mod plan;
 pub mod report;
 pub mod runtime_dispatch;

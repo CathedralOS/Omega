@@ -1,14 +1,12 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
-use crate::place_keys::PlaceKey;
+use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, PlatformCallLowering};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Call;
 
-use super::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation};
-
-pub(in crate::host_calls) fn platform_call_receiver_type(
+pub(crate) fn platform_call_receiver_type(
     program: &Program,
     machine: &Machine,
     call: &Call,
@@ -32,7 +30,7 @@ pub(in crate::host_calls) fn platform_call_receiver_type(
         .map(|platform| platform.name.to_string())
 }
 
-pub(in crate::host_calls) fn find_platform_call_lowering<'abi>(
+pub(crate) fn find_platform_call_lowering<'abi>(
     host_abi: &'abi HostAbiPlan,
     platform_name: &str,
     call: &Call,
@@ -44,17 +42,14 @@ pub(in crate::host_calls) fn find_platform_call_lowering<'abi>(
         .map(|(_, lowering)| lowering)
 }
 
-pub(in crate::host_calls) fn host_operation(
-    capability: &str,
-    operation: &str,
-) -> LoweredHostOperation {
+pub(crate) fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {
     LoweredHostOperation {
         capability: capability.to_owned(),
         operation: operation.to_owned(),
     }
 }
 
-pub(in crate::host_calls) fn lower_host_call_arguments(
+pub(crate) fn lower_host_call_arguments(
     call: &Call,
     static_values: &[(PlaceKey, StaticValue)],
 ) -> Vec<HostCallArgument> {
@@ -66,7 +61,7 @@ pub(in crate::host_calls) fn lower_host_call_arguments(
         .collect()
 }
 
-pub(in crate::host_calls) fn platform_call_name(call: &Call) -> String {
+pub(crate) fn platform_call_name(call: &Call) -> String {
     match call.receiver.as_deref() {
         Some(receiver) => format!("{receiver}.{}", call.target),
         None => call.target.to_string(),

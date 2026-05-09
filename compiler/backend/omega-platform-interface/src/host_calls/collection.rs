@@ -5,12 +5,11 @@ use crate::host_calls::lowering::{
 use crate::host_calls::static_values::{
     StaticValue, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
-use crate::place_keys::PlaceKey;
+use crate::{HostCall, HostCallPlan, PlaceKey, UnsupportedHostCall};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_platform_interface::{HostCall, HostCallPlan, UnsupportedHostCall};
 use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;

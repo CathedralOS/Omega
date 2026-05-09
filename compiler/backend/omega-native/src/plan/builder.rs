@@ -4,7 +4,6 @@ use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::alias_flow::build_alias_flow_plan;
 use crate::data::build_native_data_plan;
-use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
 use crate::runtime_dispatch::bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
@@ -35,6 +34,7 @@ use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
+use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};

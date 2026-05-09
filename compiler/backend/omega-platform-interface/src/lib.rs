@@ -3,6 +3,12 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
 
+mod host_calls;
+mod place_keys;
+
+pub use host_calls::{build_host_call_plan, build_host_call_plan_with_workers};
+pub use place_keys::PlaceKey;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCallPlan {
     pub calls: Arena<HostCall>,

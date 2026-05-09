@@ -341,6 +341,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
+ "omega-target",
  "omega-typed-program",
 ]
 
