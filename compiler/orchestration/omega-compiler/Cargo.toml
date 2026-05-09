@@ -17,6 +17,7 @@ omega-effects = { path = "../../semantics/omega-effects" }
 omega-graph = { path = "../../semantics/omega-graph" }
 omega-lexer = { path = "../../frontend/omega-lexer" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-native = { path = "../../backend/omega-native" }
 omega-parser = { path = "../../frontend/omega-parser" }
 omega-proof = { path = "../../semantics/omega-proof" }

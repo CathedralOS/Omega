@@ -115,6 +115,7 @@ dependencies = [
  "omega-graph",
  "omega-layout",
  "omega-lexer",
+ "omega-machine-program",
  "omega-names",
  "omega-native",
  "omega-parser",

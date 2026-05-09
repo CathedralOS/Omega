@@ -11,6 +11,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_effects::{EffectPlan, StateEffects};
 use omega_graph::{SourceGraphReport, SourceGraphState};
 use omega_layout::{DataShape, FieldLayout};
+use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
 use omega_native::abi::{
@@ -24,7 +25,6 @@ use omega_native::host_calls::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
 use omega_native::identity::count_native_string_storage;
-use omega_native::machine_code::{MachineFunctionCode, MachineInstruction};
 use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;
 use omega_native::relocations::RelocationRecord;

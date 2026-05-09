@@ -1336,7 +1336,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_native::machine_code::MachineInstructionKind::DispatchCaseEnter { .. }
+                    omega_machine_program::MachineInstructionKind::DispatchCaseEnter { .. }
                 ) && instruction.byte_width == 8
                     && instruction.bytes.count() == 8
             })
@@ -1347,8 +1347,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
             .instructions
             .iter()
             .any(|(_, instruction)| {
-                instruction.kind
-                    == omega_native::machine_code::MachineInstructionKind::DispatchCaseLeave
+                instruction.kind == omega_machine_program::MachineInstructionKind::DispatchCaseLeave
                     && instruction.byte_width == 4
                     && instruction.bytes.count() == 4
             })
