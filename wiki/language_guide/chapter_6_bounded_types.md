@@ -91,6 +91,74 @@ Working interpretation:
 - A bounded type like `f32[speed_range]` is still represented as an `f32`.
 - Recursive aliases are invalid because they never produce a concrete proof fact.
 
+## Proof Numbers And Machine Numbers
+
+Omega should distinguish mathematical numbers from machine representations.
+
+Working categories:
+
+- `Nat` is a proof-level natural number: zero or positive, unbounded in the mathematical model.
+- `Int` is a proof-level integer: unbounded in the mathematical model.
+- `Real` is a proof-level real number: useful for specifications, generic numeric contracts, and reasoning about approximation.
+- `i32`, `u64`, `f32`, and similar types are machine representations with finite storage and target-level behavior.
+
+This lets Omega write proof-facing APIs without pretending every value is already a machine value:
+
+```omega
+state clamp(value: Real, min: Real, max: Real) -> Real[range<min, max>];
+```
+
+A machine implementation may call or instantiate that shape only when it can prove the machine values satisfy the required embedding or approximation rule.
+
+For example, an `f32` value might be usable where a `Real` contract is expected only if the compiler has facts such as:
+
+```omega
+f32[finite, approx<Real, eps=1e-12>]
+```
+
+Working interpretation:
+
+- `Real` is not a runtime floating-point type by default.
+- `Nat`, `Int`, and `Real` are proof/spec types first.
+- Machine values may carry evidence that they embed into, approximate, or preserve facts about proof numbers.
+- Lowering to native code must erase proof-only numbers or replace them with proven machine representations.
+
+## Integer Arithmetic Semantics
+
+Machine integers should carry explicit arithmetic semantics.
+
+The likely default should be exact arithmetic:
+
+```omega
+owns health: i32[exact] = 100;
+```
+
+`i32[exact]` means operations on the value must be proven not to overflow, underflow, divide by zero, or otherwise leave the defined machine integer domain. This is the proof-heavy default: if the compiler cannot prove the operation is safe, it emits a diagnostic or requires a different arithmetic mode.
+
+Possible modes:
+
+- `i32[exact]`: compile-time proof required for overflow, underflow, division by zero, invalid shift, and similar arithmetic hazards.
+- `i32[wrapping]`: arithmetic wraps according to the fixed-width representation.
+- `i32[trap]`: runtime trap on arithmetic failure.
+- `i32[saturating]`: arithmetic clamps to the representable minimum or maximum.
+- `i32[checked]`: operations that can fail must surface failure through an explicit result shape rather than silently continuing.
+
+The exact spelling is still provisional, but the semantic split is important. Overflow policy is not merely an optimization detail; it changes proof obligations and runtime behavior.
+
+Arithmetic modes compose with ordinary refinements:
+
+```omega
+owns ammo: i32[exact, range<0, 999>] = 30;
+owns tick_counter: u64[wrapping] = 0;
+```
+
+Working interpretation:
+
+- If no mode is written, machine integers should probably default to `exact`.
+- Weaker modes must be explicit because they discard proof strength.
+- `checked` likely changes operator typing because failure must be represented.
+- `trap` is checked at runtime, so the build artifact should list the runtime obligation.
+
 ## Float Invariants
 
 Float types need refinements too, but they are trickier than integers.
@@ -119,6 +187,20 @@ Omega likely needs two separate layers:
 Some float optimizations are naturally onion-like: each permission expands the set of legal rewrites. Others are more domain-specific: a program may accept approximate square roots but still care about commutative behavior or signed zero.
 
 For now, bounded float syntax should describe correctness facts only. Optimization policy needs its own syntax or mode later.
+
+Proof-level `Real` gives Omega a clean way to specify ideal numeric behavior without lying about `f32`.
+
+```omega
+state ideal_distance(a: Real, b: Real) -> Real;
+state fast_distance(a: f32[finite], b: f32[finite]) -> f32[finite, approx<Real, eps=1e-5>];
+```
+
+Working interpretation:
+
+- `Real` describes the mathematical contract.
+- `f32[finite]` describes representable runtime data.
+- `approx<Real, eps=...>` describes the relationship between the runtime value and the proof/spec value.
+- Approximation facts are invariants/proof facts, not permission to perform arbitrary fast-math rewrites.
 
 ## Rust Comparison
 
