@@ -9,6 +9,7 @@ name = "omega_native"
 path = "src/lib.rs"
 
 [dependencies]
+omega-artifacts = { path = "../../orchestration/omega-artifacts" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }

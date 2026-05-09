@@ -1,11 +1,11 @@
 use crate::plan::NativePlan;
 use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
 use crate::target_output::can_emit_target_output;
+use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
 
 mod host_argument_blockers;
 mod host_binding_blockers;
-mod model;
 mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
 mod state_call_blockers;
@@ -13,11 +13,8 @@ mod state_codegen_blockers;
 mod state_guard_blockers;
 mod storage_blockers;
 
-pub use model::{EmissionBlocker, EmissionPlan};
-
 use host_argument_blockers::collect_host_argument_blockers;
 use host_binding_blockers::collect_host_binding_blockers;
-use model::blocker;
 use runtime_dispatch_blockers::{
     collect_runtime_dispatch_blockers, runtime_and_required_states, runtime_dispatch_loop_blocker,
     runtime_dispatch_loop_can_emit,
@@ -38,7 +35,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
                     blockers.insert(runtime_dispatch_loop_blocker(native_plan));
                 }
             } else {
-                blockers.insert(blocker("state schedule", &reason));
+                blockers.insert(emission_blocker("state schedule", &reason));
                 collect_runtime_dispatch_blockers(native_plan, &mut blockers);
             }
             (runtime_and_required_states(native_plan), true)
@@ -46,7 +43,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     };
 
     if native_plan.machine_code.bytes.len() < native_plan.machine_code.byte_count {
-        blockers.insert(blocker(
+        blockers.insert(emission_blocker(
             "machine encoding",
             "not all selected native instructions are encoded into target bytes yet",
         ));
@@ -57,7 +54,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
             continue;
         }
 
-        blockers.insert(blocker(
+        blockers.insert(emission_blocker(
             "host lowering",
             &format!(
                 "{} statement {} platform call `{}`: {}",
@@ -86,11 +83,11 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 
     if !can_emit_direct_image(native_plan) {
         blockers.insert_many([
-            blocker(
+            emission_blocker(
                 "image writer",
                 "no direct executable image writer is registered for this target",
             ),
-            blocker(
+            emission_blocker(
                 "image relocation",
                 "this target cannot apply final image relocations without a direct image writer",
             ),
@@ -117,6 +114,10 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
     can_emit_target_output(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
+}
+
+fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
+    emission_blocker(stage, reason)
 }
 
 fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {

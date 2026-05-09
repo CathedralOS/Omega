@@ -1,15 +1,46 @@
 use std::path::{Path, PathBuf};
 
 use omega_core::allocations::AllocationDelta;
+use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
-use omega_target::NativeTarget;
+use omega_target::{NativeTarget, ObjectFormat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseTiming {
     pub phase: String,
     pub microseconds: u128,
     pub allocations: AllocationDelta,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmissionPlan {
+    pub image_format: ObjectFormat,
+    pub entry_symbol: String,
+    pub sections: usize,
+    pub symbols: usize,
+    pub host_bindings: usize,
+    pub host_calls: usize,
+    pub data_bytes: usize,
+    pub selected_instructions: usize,
+    pub instruction_operands: usize,
+    pub machine_code_bytes: usize,
+    pub encoded_machine_bytes: usize,
+    pub relocations: usize,
+    pub blockers: Arena<EmissionBlocker>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EmissionBlocker {
+    pub stage: String,
+    pub reason: String,
+}
+
+pub fn emission_blocker(stage: &str, reason: &str) -> EmissionBlocker {
+    EmissionBlocker {
+        stage: stage.to_owned(),
+        reason: reason.to_owned(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

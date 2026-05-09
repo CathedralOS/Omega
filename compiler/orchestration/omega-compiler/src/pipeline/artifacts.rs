@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use crate::ast::item::Item;
 use crate::pipeline::compile::{LoadedFile, LoadedProgram};
 use crate::pipeline::trust::TrustReport;
-use omega_artifacts::{ExecutableFinalization, ExecutableFinalizationStatus, PhaseTiming};
+use omega_artifacts::{
+    EmissionPlan, ExecutableFinalization, ExecutableFinalizationStatus, PhaseTiming,
+};
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
@@ -19,7 +21,6 @@ use omega_layout::{DataShape, FieldLayout};
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_names::ResolveReport;
 use omega_native::NativeSurfaceReport;
-use omega_native::emission::EmissionPlan;
 use omega_native::identity::count_native_string_storage;
 use omega_native::plan::NativePlan;
 use omega_native::runtime_dispatch::branching::{
