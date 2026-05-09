@@ -21,7 +21,7 @@ use omega_state_schedule::{
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_program::{InstructionPlan, NativeDataPlan};
+use omega_target_program::{InstructionPlan, TargetDataPlan};
 
 mod host_argument_blockers;
 mod host_binding_blockers;
@@ -52,7 +52,7 @@ pub struct EmissionPlanningInput<'plan> {
     pub state_calls: &'plan StateCallPlan,
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
-    pub data: &'plan NativeDataPlan,
+    pub data: &'plan TargetDataPlan,
     pub instructions: &'plan InstructionPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,

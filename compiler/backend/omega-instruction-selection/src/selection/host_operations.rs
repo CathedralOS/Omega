@@ -5,7 +5,7 @@ use crate::InstructionSelectionInput;
 use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
-use omega_target_program::NativeDataObject;
+use omega_target_program::TargetDataObject;
 
 use omega_target_program::{
     InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
@@ -87,7 +87,7 @@ pub(super) fn select_host_call(
 
 fn newline_data_object<'plan>(
     native_plan: &'plan InstructionSelectionInput<'plan>,
-) -> Option<&'plan NativeDataObject> {
+) -> Option<&'plan TargetDataObject> {
     native_plan
         .data
         .objects

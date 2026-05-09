@@ -8,7 +8,7 @@ use super::runtime_text::{
 };
 use omega_core::arena::Handle;
 use omega_target_program::{
-    InstructionOperand, InstructionOperandKind, NativeDataObject, NativeDataObjectHandle,
+    InstructionOperand, InstructionOperandKind, TargetDataObject, TargetDataObjectHandle,
 };
 
 pub(super) fn select_host_operation_operands(
@@ -108,7 +108,7 @@ pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
 fn find_data_object<'plan>(
     native_plan: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
-) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     native_plan.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == host_call.source_key
             && data_object.source_statement == host_call.statement_index
@@ -117,8 +117,8 @@ fn find_data_object<'plan>(
 
 pub(super) fn data_object_handle(
     native_plan: &InstructionSelectionInput<'_>,
-    target: &NativeDataObject,
-) -> NativeDataObjectHandle {
+    target: &TargetDataObject,
+) -> TargetDataObjectHandle {
     native_plan
         .data
         .objects

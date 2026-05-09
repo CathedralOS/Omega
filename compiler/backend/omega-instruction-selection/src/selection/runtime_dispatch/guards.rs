@@ -6,7 +6,7 @@ use omega_typed_program::name::ProgramName;
 
 use super::super::host_operations::runtime_text_input_buffer_data_for_text_place;
 use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
-use omega_target_program::{NativeDataObjectHandle, SelectedInstructionKind};
+use omega_target_program::{SelectedInstructionKind, TargetDataObjectHandle};
 
 pub(super) fn select_runtime_leaf_branch_guard(
     native_plan: &InstructionSelectionInput<'_>,
@@ -23,7 +23,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
 fn runtime_text_literal_guard(
     native_plan: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
-) -> Option<(NativeDataObjectHandle, String)> {
+) -> Option<(TargetDataObjectHandle, String)> {
     let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {

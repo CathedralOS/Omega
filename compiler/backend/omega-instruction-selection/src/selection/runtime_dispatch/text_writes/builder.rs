@@ -6,7 +6,7 @@ use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_p
 use crate::selection::storage_places::resolve_runtime_storage_place;
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
-use omega_target_program::{NativeDataObjectHandle, RuntimeStorageRegion, SelectedInstructionKind};
+use omega_target_program::{RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
@@ -147,7 +147,7 @@ fn prefixed_stored_place_write(
     source_key: StateKey,
     source_machine: &str,
     source_state: &str,
-    buffer: NativeDataObjectHandle,
+    buffer: TargetDataObjectHandle,
     target_region: RuntimeStorageRegion,
     target_offset: usize,
     prefix: &omega_runtime_text::RuntimeTextBuilderSegment,

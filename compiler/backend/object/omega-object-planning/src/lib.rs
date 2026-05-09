@@ -9,7 +9,7 @@ use omega_object::{
     machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
 };
 use omega_target::NativeTarget;
-use omega_target_program::NativeDataPlan;
+use omega_target_program::TargetDataPlan;
 
 pub struct ObjectPlanningInput<'plan> {
     pub target: NativeTarget,
@@ -18,7 +18,7 @@ pub struct ObjectPlanningInput<'plan> {
     pub entry_machine_symbol: SymbolHandle,
     pub entry_machine_name: &'plan str,
     pub machine_code: &'plan MachineCodePlan,
-    pub data: &'plan NativeDataPlan,
+    pub data: &'plan TargetDataPlan,
     pub runtime_frame_size: usize,
     pub runtime_frame_alignment: usize,
 }

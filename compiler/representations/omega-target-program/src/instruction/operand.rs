@@ -13,10 +13,10 @@ impl Default for InstructionOperand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionOperandKind {
-    DataAddress { data: NativeDataObjectHandle },
+    DataAddress { data: TargetDataObjectHandle },
     RuntimeMachineStringPointer { byte_offset: usize },
     RuntimeMachineStringLength { byte_offset: usize },
     ImmediateInteger(i64),
     ByteLength(usize),
 }
-use crate::NativeDataObjectHandle;
+use crate::TargetDataObjectHandle;

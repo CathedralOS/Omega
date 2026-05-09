@@ -2,12 +2,12 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeDataPlan {
-    pub objects: Arena<NativeDataObject>,
+pub struct TargetDataPlan {
+    pub objects: Arena<TargetDataObject>,
     pub bytes: Arena<u8>,
 }
 
-impl Default for NativeDataPlan {
+impl Default for TargetDataPlan {
     fn default() -> Self {
         Self {
             objects: Arena::new(),
@@ -17,7 +17,7 @@ impl Default for NativeDataPlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeDataObject {
+pub struct TargetDataObject {
     pub symbol: String,
     pub offset: usize,
     pub bytes: HandleSpan<u8>,
@@ -26,9 +26,9 @@ pub struct NativeDataObject {
     pub source_statement: usize,
 }
 
-pub type NativeDataObjectHandle = Handle<NativeDataObject>;
+pub type TargetDataObjectHandle = Handle<TargetDataObject>;
 
-impl Default for NativeDataObject {
+impl Default for TargetDataObject {
     fn default() -> Self {
         Self {
             symbol: String::new(),

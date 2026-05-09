@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::MachineCodePlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_target::NativeTarget;
-use omega_target_program::{FunctionInstructionPlan, InstructionPlan, NativeDataPlan};
+use omega_target_program::{FunctionInstructionPlan, InstructionPlan, TargetDataPlan};
 
 mod data_addresses;
 mod instruction_records;
@@ -19,7 +19,7 @@ pub struct RelocationPlanningInput<'plan> {
     pub target: NativeTarget,
     pub instructions: &'plan InstructionPlan,
     pub machine_code: &'plan MachineCodePlan,
-    pub data: &'plan NativeDataPlan,
+    pub data: &'plan TargetDataPlan,
     pub object: &'plan ObjectPlan,
     pub host_abi: &'plan HostAbiPlan,
     pub entry_machine_name: &'plan str,

@@ -5,13 +5,13 @@ use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
-use omega_target_program::NativeDataObjectHandle;
+use omega_target_program::TargetDataObjectHandle;
 use omega_typed_program::expression::Expression;
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
     native_plan: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-) -> Option<(NativeDataObjectHandle, String)> {
+) -> Option<(TargetDataObjectHandle, String)> {
     let literal = runtime_text_literal_for_host_call(native_plan, host_call)?;
     let (data_object, _) = find_runtime_text_input_buffer_data(native_plan, host_call)?;
     Some((data_object, literal))

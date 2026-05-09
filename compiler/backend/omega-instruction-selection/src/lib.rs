@@ -21,7 +21,7 @@ use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
-use omega_target_program::NativeDataPlan;
+use omega_target_program::TargetDataPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InstructionSelectionInput<'plan> {
@@ -40,5 +40,5 @@ pub struct InstructionSelectionInput<'plan> {
     pub runtime_storage: &'plan RuntimeStoragePlan,
     pub runtime_text: &'plan RuntimeTextPlan,
     pub layouts: &'plan LayoutPlan,
-    pub data: &'plan NativeDataPlan,
+    pub data: &'plan TargetDataPlan,
 }

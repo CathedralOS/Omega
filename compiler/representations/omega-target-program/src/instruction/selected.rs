@@ -1,4 +1,4 @@
-use crate::{InstructionOperand, NativeDataObjectHandle};
+use crate::{InstructionOperand, TargetDataObjectHandle};
 use crate::{StateGuardLowering, StateGuardOperator};
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
@@ -39,11 +39,11 @@ pub enum SelectedInstructionKind {
         has_storage: bool,
     },
     CompareRuntimeTextLiteral {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         literal: String,
     },
     CompareRuntimeTextStorage {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         operator: StateGuardOperator,
@@ -64,16 +64,16 @@ pub enum SelectedInstructionKind {
         operator: StateGuardOperator,
     },
     WriteRuntimeTextLiteral {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         literal: String,
     },
     WriteRuntimeTextLiteralSegment {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         byte_offset: usize,
         literal: String,
     },
     AppendRuntimeTextStoredSuffix {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         buffer_offset: usize,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
@@ -82,19 +82,19 @@ pub enum SelectedInstructionKind {
         length_delta: usize,
     },
     MaterializeRuntimeTextBuffer {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextStoredPlace {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         source_region: RuntimeStorageRegion,
         source_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
     },
     AppendRuntimeTextLiteral {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         literal: String,
@@ -106,11 +106,11 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimeMachineString {
         byte_offset: usize,
-        data: NativeDataObjectHandle,
+        data: TargetDataObjectHandle,
         byte_length: usize,
     },
     ReadRuntimeTextLine {
-        buffer: NativeDataObjectHandle,
+        buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
         byte_capacity: usize,

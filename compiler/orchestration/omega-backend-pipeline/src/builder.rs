@@ -6,7 +6,7 @@ use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
-use omega_data_planning::build_native_data_plan;
+use omega_data_planning::build_target_data_plan;
 use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
@@ -219,7 +219,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_runtime_text_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
     backend_plan.data = record_backend_phase(&mut phase_timings, "target data", || {
-        build_native_data_plan(&backend_plan.host_calls, &backend_plan.state_storage)
+        build_target_data_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
     backend_plan.instructions = record_backend_phase(&mut phase_timings, "instructions", || {
         build_instruction_plan(&InstructionSelectionInput {

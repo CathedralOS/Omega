@@ -1,11 +1,11 @@
 use omega_control_flow::StateKey;
 use omega_state_storage::StateStoragePlan;
-use omega_target_program::{NativeDataObject, NativeDataPlan};
+use omega_target_program::{TargetDataObject, TargetDataPlan};
 use omega_typed_program::expression::Expression;
 
 pub(super) fn collect_static_string_assignment_data(
     state_storage: &StateStoragePlan,
-    data_plan: &mut NativeDataPlan,
+    data_plan: &mut TargetDataPlan,
 ) {
     for (_, mutation) in state_storage.mutations.iter() {
         if !mutation.required {
@@ -25,7 +25,7 @@ fn collect_static_string_expression_data(
     expression: &Expression,
     source_key: StateKey,
     source_statement: usize,
-    data_plan: &mut NativeDataPlan,
+    data_plan: &mut TargetDataPlan,
 ) {
     match expression {
         Expression::String(value) => {
@@ -38,7 +38,7 @@ fn collect_static_string_expression_data(
             let byte_span = data_plan.bytes.insert_many(bytes);
             let symbol_index = data_plan.objects.len() + 1;
 
-            data_plan.objects.insert(NativeDataObject {
+            data_plan.objects.insert(TargetDataObject {
                 symbol: format!("omega_string_literal_{symbol_index}"),
                 offset,
                 bytes: byte_span,

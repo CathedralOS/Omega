@@ -2,14 +2,14 @@ use crate::InstructionSelectionInput;
 use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::expression_place_eq;
-use omega_target_program::{NativeDataObject, NativeDataObjectHandle};
+use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
     native_plan: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
-) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let text_use = native_plan
         .runtime_text
         .uses
@@ -50,14 +50,14 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data_object<'plan>(
     native_plan: &'plan InstructionSelectionInput<'plan>,
     host_call: &HostCall,
-) -> Option<&'plan NativeDataObject> {
+) -> Option<&'plan TargetDataObject> {
     find_runtime_text_input_buffer_data(native_plan, host_call).map(|(_, data_object)| data_object)
 }
 
 pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>(
     native_plan: &'plan InstructionSelectionInput<'plan>,
     text_place: &Expression,
-) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let buffer = native_plan
         .runtime_text
         .buffers

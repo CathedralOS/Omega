@@ -1,8 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::storage_places::resolve_machine_owned_place;
 use omega_control_flow::StateKey;
-use omega_target_program::{NativeDataObject, NativeDataObjectHandle};
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
@@ -49,7 +49,7 @@ fn string_literal_data_object<'plan>(
     source_key: StateKey,
     statement_index: usize,
     value: &str,
-) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     native_plan.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == source_key
             && data_object.source_statement == statement_index

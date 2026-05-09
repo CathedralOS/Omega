@@ -18,7 +18,7 @@ use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
-use omega_target_program::NativeDataPlan;
+use omega_target_program::TargetDataPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendPlan {
@@ -29,7 +29,7 @@ pub struct BackendPlan {
     pub alias_flow: AliasFlowPlan,
     pub state_storage: StateStoragePlan,
     pub state_values: StateValuePlan,
-    pub data: NativeDataPlan,
+    pub data: TargetDataPlan,
     pub instructions: InstructionPlan,
     pub control_flow: ControlFlowPlan,
     pub runtime_flow: RuntimeFlowPlan,

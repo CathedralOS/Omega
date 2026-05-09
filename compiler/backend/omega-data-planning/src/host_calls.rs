@@ -1,12 +1,12 @@
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
-use omega_target_program::{NativeDataObject, NativeDataPlan};
+use omega_target_program::{TargetDataObject, TargetDataPlan};
 
 pub(super) fn collect_host_call_data(
     host_calls: &HostCallPlan,
     host_call: &HostCall,
-    data_plan: &mut NativeDataPlan,
+    data_plan: &mut TargetDataPlan,
 ) {
     match host_call.data {
         PlatformCallData::FirstTextArgument { append_newline } => {
@@ -19,7 +19,7 @@ pub(super) fn collect_host_call_data(
     }
 }
 
-pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut NativeDataPlan) {
+pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut TargetDataPlan) {
     let needs_newline = host_calls.calls.iter().any(|(_, host_call)| {
         if !matches!(
             host_call.data,
@@ -42,7 +42,7 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Na
     let offset = data_plan.bytes.len();
     let byte_span = data_plan.bytes.insert_many(vec![b'\n']);
 
-    data_plan.objects.insert(NativeDataObject {
+    data_plan.objects.insert(TargetDataObject {
         symbol: "omega_newline".to_owned(),
         offset,
         bytes: byte_span,
@@ -55,7 +55,7 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Na
 fn collect_text_argument_data(
     host_calls: &HostCallPlan,
     host_call: &HostCall,
-    data_plan: &mut NativeDataPlan,
+    data_plan: &mut TargetDataPlan,
     append_newline: bool,
 ) {
     let Some(arguments) = host_calls.arguments.span(host_call.arguments) else {
@@ -79,7 +79,7 @@ fn collect_text_argument_data(
     let byte_span = data_plan.bytes.insert_many(bytes);
     let symbol_index = data_plan.objects.len() + 1;
 
-    data_plan.objects.insert(NativeDataObject {
+    data_plan.objects.insert(TargetDataObject {
         symbol: format!("omega_string_literal_{symbol_index}"),
         offset,
         bytes: byte_span,
@@ -91,14 +91,14 @@ fn collect_text_argument_data(
 
 fn collect_mutable_output_buffer(
     host_call: &HostCall,
-    data_plan: &mut NativeDataPlan,
+    data_plan: &mut TargetDataPlan,
     byte_capacity: usize,
 ) {
     let offset = data_plan.bytes.len();
     let byte_span = data_plan.bytes.insert_many(vec![0; byte_capacity]);
     let symbol_index = data_plan.objects.len() + 1;
 
-    data_plan.objects.insert(NativeDataObject {
+    data_plan.objects.insert(TargetDataObject {
         symbol: format!("omega_mut_buffer_{symbol_index}"),
         offset,
         bytes: byte_span,

@@ -32,7 +32,7 @@ use omega_state_schedule::{
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_program::{InstructionPlan, NativeDataPlan};
+use omega_target_program::{InstructionPlan, TargetDataPlan};
 use omega_typed_program::statement::TransitionGuard;
 
 pub struct BackendReportPhaseTiming {
@@ -51,7 +51,7 @@ pub struct BackendReportInput<'plan> {
     pub alias_flow: &'plan AliasFlowPlan,
     pub state_storage: &'plan StateStoragePlan,
     pub state_values: &'plan StateValuePlan,
-    pub data: &'plan NativeDataPlan,
+    pub data: &'plan TargetDataPlan,
     pub instructions: &'plan InstructionPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,

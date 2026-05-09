@@ -4,8 +4,8 @@ use crate::BackendReportInput;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_object::storage_region_symbol_name;
 use omega_target_program::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, NativeDataObject,
-    SelectedInstruction, SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
+    SelectedInstructionKind, TargetDataObject,
 };
 
 pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
@@ -65,7 +65,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
 fn write_native_data_object(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    data_object: &NativeDataObject,
+    data_object: &TargetDataObject,
 ) {
     let byte_count = backend_plan
         .data

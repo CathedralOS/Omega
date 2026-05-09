@@ -18,7 +18,7 @@ use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
-use omega_target_program::NativeDataPlan;
+use omega_target_program::TargetDataPlan;
 
 pub(super) struct BackendPlanSkeletonInput {
     pub target: NativeTarget,
@@ -42,7 +42,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         alias_flow: AliasFlowPlan::default(),
         state_storage: StateStoragePlan::default(),
         state_values: StateValuePlan::default(),
-        data: NativeDataPlan::default(),
+        data: TargetDataPlan::default(),
         instructions: InstructionPlan::default(),
         control_flow: input.control_flow,
         runtime_flow: input.runtime_flow,
