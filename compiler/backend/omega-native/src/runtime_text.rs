@@ -1,5 +1,6 @@
 mod host_uses;
 mod model;
+pub(crate) mod places;
 mod slots;
 
 use crate::plan::NativePlan;

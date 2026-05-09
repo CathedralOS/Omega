@@ -1,6 +1,7 @@
 use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind};
 use crate::plan::NativePlan;
+use crate::runtime_text::places::expression_place_eq;
 use crate::runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use crate::state_schedule::{ScheduledState, scheduled_state_contains_key};
 use omega_core::arena::Arena;
@@ -86,7 +87,7 @@ fn runtime_text_use_for_host_call<'plan>(
 
 fn runtime_text_use_has_input_buffer(native_plan: &NativePlan, text_use: &RuntimeTextUse) -> bool {
     native_plan.runtime_text.slots.iter().any(|(_, slot)| {
-        slot.place.display_name() == text_use.expression.display_name() && slot.has_input_buffer
+        expression_place_eq(&slot.place, &text_use.expression) && slot.has_input_buffer
     })
 }
 

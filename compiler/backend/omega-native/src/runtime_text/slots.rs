@@ -2,6 +2,7 @@ use omega_core::arena::Arena;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
+use super::places::expression_place_eq;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
 
 pub(in crate::runtime_text) fn build_runtime_text_slots(
@@ -43,10 +44,9 @@ fn push_or_update_text_slot(
     byte_capacity: usize,
     has_input_buffer: bool,
 ) {
-    let place_name = place.display_name();
     if let Some(existing_slot) = slots
         .iter_mut()
-        .find(|slot| slot.place.display_name() == place_name)
+        .find(|slot| expression_place_eq(&slot.place, &place))
     {
         existing_slot.byte_capacity = existing_slot.byte_capacity.max(byte_capacity);
         existing_slot.has_input_buffer |= has_input_buffer;
@@ -65,7 +65,7 @@ fn text_slot_capacity_for_use(plan: &RuntimeTextPlan, expression: &Expression) -
         .iter()
         .filter_map(|(_, buffer)| {
             text_place_for_buffer_target(&buffer.target)
-                .is_some_and(|place| place.display_name() == expression.display_name())
+                .is_some_and(|place| expression_place_eq(&place, expression))
                 .then_some(buffer.byte_capacity)
         })
         .max()
@@ -75,7 +75,7 @@ fn text_slot_capacity_for_use(plan: &RuntimeTextPlan, expression: &Expression) -
 fn text_place_has_input_buffer(plan: &RuntimeTextPlan, expression: &Expression) -> bool {
     plan.buffers.iter().any(|(_, buffer)| {
         text_place_for_buffer_target(&buffer.target)
-            .is_some_and(|place| place.display_name() == expression.display_name())
+            .is_some_and(|place| expression_place_eq(&place, expression))
     })
 }
 
