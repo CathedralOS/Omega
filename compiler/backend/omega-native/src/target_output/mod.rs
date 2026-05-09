@@ -1,11 +1,11 @@
 pub mod elf;
 pub mod macho;
 
-use crate::emitter::EmittedNativeOutput;
-use crate::emitter::NativeOutputKind;
 use crate::plan::NativePlan;
 use omega_core::diagnostics::Diagnostic;
-use omega_image::{ExecutableImageOutput, FinalImage, FinalImageInput};
+use omega_image::{
+    EmittedImageOutput, ExecutableImageOutput, FinalImage, FinalImageInput, ImageOutputKind,
+};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 pub fn can_emit_target_output(target: NativeTarget) -> bool {
@@ -17,7 +17,7 @@ pub fn can_emit_target_output(target: NativeTarget) -> bool {
 
 pub fn emit_target_output(
     native_plan: &NativePlan,
-) -> Option<Result<EmittedNativeOutput, Diagnostic>> {
+) -> Option<Result<EmittedImageOutput, Diagnostic>> {
     match (
         native_plan.target.object_format,
         native_plan.target.architecture,
@@ -32,12 +32,12 @@ pub fn emit_target_output(
     }
 }
 
-fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedNativeOutput {
-    EmittedNativeOutput {
+fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedImageOutput {
+    EmittedImageOutput {
         bytes: output.bytes,
         file_name: output.file_name,
         format: output.format,
-        kind: NativeOutputKind::DirectExecutable,
+        kind: ImageOutputKind::DirectExecutable,
         text_bytes: output.text_bytes,
         data_bytes: output.data_bytes,
         bss_bytes: output.bss_bytes,

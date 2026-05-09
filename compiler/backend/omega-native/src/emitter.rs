@@ -1,12 +1,9 @@
 use crate::plan::NativePlan;
 use crate::target_output::emit_target_output;
 use omega_core::diagnostics::Diagnostic;
+use omega_image::EmittedImageOutput;
 
-pub use omega_image::{
-    EmittedImageOutput as EmittedNativeOutput, ImageOutputKind as NativeOutputKind,
-};
-
-pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedNativeOutput, Diagnostic> {
+pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedImageOutput, Diagnostic> {
     if native_plan.machine_code.bytes.len() != native_plan.machine_code.byte_count {
         return Err(Diagnostic::error(format!(
             "cannot emit native output for {:?}: encoded {} machine byte(s), planned {} byte(s)",
