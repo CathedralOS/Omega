@@ -20,6 +20,7 @@ use crate::state_guards::StateGuardPlan;
 use crate::state_storage::StateStoragePlan;
 use crate::state_values::StateValuePlan;
 use omega_layout::LayoutPlan;
+use omega_object::entry_symbol_name;
 use omega_target::NativeTarget;
 
 pub(super) struct NativePlanSkeletonInput {
@@ -61,7 +62,7 @@ pub(super) fn build_native_plan_skeleton(input: NativePlanSkeletonInput) -> Nati
             target: input.target,
             sections: omega_core::arena::Arena::new(),
             symbols: omega_core::arena::Arena::new(),
-            entry_symbol: String::new(),
+            entry_symbol: entry_symbol_name(input.target),
         },
         relocations: RelocationPlan {
             target: input.target,
