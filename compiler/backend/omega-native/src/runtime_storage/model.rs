@@ -14,8 +14,6 @@ pub struct RuntimeStoragePlan {
 pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub name: ProgramName,
     pub type_name: String,
@@ -28,8 +26,6 @@ pub struct RuntimeFrameSlot {
 pub struct RuntimeStorageWrite {
     pub dispatch_index: u32,
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -42,8 +38,6 @@ impl Default for RuntimeStorageWrite {
         Self {
             dispatch_index: 0,
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             statement_index: 0,
             target: Expression::Integer(0),
             value: Expression::Integer(0),

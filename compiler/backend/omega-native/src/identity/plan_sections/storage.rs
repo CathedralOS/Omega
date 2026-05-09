@@ -36,14 +36,10 @@ pub(in crate::identity) fn count_runtime_storage_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
-        storage.count_program_name_identity(&slot.source_machine);
-        storage.count_program_name_identity(&slot.source_state);
         storage.count_program_name_identity(&slot.name);
         storage.count_identity(&slot.type_name);
     }
     for (_, write) in native_plan.runtime_storage.writes.iter() {
-        storage.count_program_name_identity(&write.source_machine);
-        storage.count_program_name_identity(&write.source_state);
         count_expression_strings(&write.target, storage);
         count_expression_strings(&write.value, storage);
     }

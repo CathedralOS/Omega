@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_storage::RuntimeStorageWrite;
 use crate::state_storage::StateMutationLowering;
@@ -66,16 +67,12 @@ fn collect_runtime_body_storage_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, slot.source_key);
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "#{} {}.{} statement {} local `{}`: {} needs runtime frame slot layout",
-                slot.dispatch_index,
-                slot.source_machine,
-                slot.source_state,
-                slot.statement_index,
-                slot.name,
-                slot.type_name
+                "#{} {} statement {} local `{}`: {} needs runtime frame slot layout",
+                slot.dispatch_index, source_name, slot.statement_index, slot.name, slot.type_name
             ),
         ));
     }
@@ -85,13 +82,13 @@ fn collect_runtime_body_storage_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, write.source_key);
         blockers.insert(blocker(
             "state mutation",
             &format!(
-                "#{} {}.{} statement {} {:?}/{:?} `{}` = `{}` needs runtime storage write lowering",
+                "#{} {} statement {} {:?}/{:?} `{}` = `{}` needs runtime storage write lowering",
                 write.dispatch_index,
-                write.source_machine,
-                write.source_state,
+                source_name,
                 write.statement_index,
                 write.mutation_kind,
                 write.lowering,
@@ -111,4 +108,12 @@ fn runtime_storage_write_has_planned_text_write(
             text_write.target.display_name() == write.target.display_name()
                 && runtime_text_write_is_planned(native_plan, text_write)
         })
+}
+
+fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

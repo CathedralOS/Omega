@@ -853,11 +853,11 @@ impl ArtifactWriter {
             native_plan.runtime_storage.frame_slots.len()
         ));
         for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
+            let source_name = native_state_name(native_plan, slot.source_key);
             output.push_str(&format!(
-                "- #{} {}.{} statement {} local `{}`: {} offset {} bytes {} align {}\n",
+                "- #{} {} statement {} local `{}`: {} offset {} bytes {} align {}\n",
                 slot.dispatch_index,
-                slot.source_machine,
-                slot.source_state,
+                source_name,
                 slot.statement_index,
                 slot.name,
                 slot.type_name,
@@ -871,11 +871,11 @@ impl ArtifactWriter {
             native_plan.runtime_storage.writes.len()
         ));
         for (_, write) in native_plan.runtime_storage.writes.iter() {
+            let source_name = native_state_name(native_plan, write.source_key);
             output.push_str(&format!(
-                "- #{} {}.{} statement {} {:?}/{:?}: `{}` = `{}`\n",
+                "- #{} {} statement {} {:?}/{:?}: `{}` = `{}`\n",
                 write.dispatch_index,
-                write.source_machine,
-                write.source_state,
+                source_name,
                 write.statement_index,
                 write.mutation_kind,
                 write.lowering,
