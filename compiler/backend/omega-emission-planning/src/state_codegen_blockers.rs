@@ -6,7 +6,7 @@ use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_codegen_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     schedule_context: &StateScheduleContext,
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
@@ -24,15 +24,10 @@ pub(super) fn collect_state_codegen_blockers(
             ));
             continue;
         };
-        let machine_name =
-            machine_name_for_state(native_plan, state_flow).unwrap_or("<missing-machine>");
+        let machine_name = machine_name_for_state(input, state_flow).unwrap_or("<missing-machine>");
         let state_name = state_flow.name.as_str();
 
-        let Some(operations) = native_plan
-            .control_flow
-            .operations
-            .span(state_flow.operations)
-        else {
+        let Some(operations) = input.control_flow.operations.span(state_flow.operations) else {
             blockers.insert(blocker(
                 "state codegen",
                 &format!("{machine_name}.{state_name} has an invalid operation span"),
@@ -44,11 +39,11 @@ pub(super) fn collect_state_codegen_blockers(
             match operation.kind {
                 OperationKind::Call { .. }
                     if state_statement_has_host_call(
-                        native_plan,
+                        input,
                         state_flow.key,
                         operation.statement_index,
                     ) || state_statement_has_state_call(
-                        native_plan,
+                        input,
                         state_flow.key,
                         operation.statement_index,
                     ) => {}
@@ -65,7 +60,7 @@ pub(super) fn collect_state_codegen_blockers(
                 | OperationKind::StaticAssignment { .. } => {}
                 OperationKind::Assignment { .. }
                     if state_statement_has_storage_mutation(
-                        native_plan,
+                        input,
                         state_flow.key,
                         operation.statement_index,
                     ) => {}
@@ -80,7 +75,7 @@ pub(super) fn collect_state_codegen_blockers(
                 }
                 OperationKind::LocalData
                     if state_statement_has_local_storage(
-                        native_plan,
+                        input,
                         state_flow.key,
                         operation.statement_index,
                     ) => {}
@@ -99,44 +94,40 @@ pub(super) fn collect_state_codegen_blockers(
 }
 
 fn state_statement_has_local_storage(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    native_plan.state_storage.locals.iter().any(|(_, local)| {
+    input.state_storage.locals.iter().any(|(_, local)| {
         local.source_key == source_key && local.statement_index == statement_index
     })
 }
 
 fn state_statement_has_storage_mutation(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    native_plan
-        .state_storage
-        .mutations
-        .iter()
-        .any(|(_, mutation)| {
-            mutation.source_key == source_key && mutation.statement_index == statement_index
-        })
+    input.state_storage.mutations.iter().any(|(_, mutation)| {
+        mutation.source_key == source_key && mutation.statement_index == statement_index
+    })
 }
 
 fn state_statement_has_state_call(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    native_plan.state_calls.calls.iter().any(|(_, state_call)| {
+    input.state_calls.calls.iter().any(|(_, state_call)| {
         state_call.source_key == source_key && state_call.statement_index == statement_index
     })
 }
 
 fn machine_name_for_state<'plan>(
-    native_plan: &'plan EmissionPlanningInput<'plan>,
+    input: &'plan EmissionPlanningInput<'plan>,
     state_flow: &StateFlow,
 ) -> Option<&'plan str> {
-    native_plan
+    input
         .control_flow
         .machines
         .iter()
@@ -145,11 +136,11 @@ fn machine_name_for_state<'plan>(
 }
 
 fn state_statement_has_host_call(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    native_plan.host_calls.calls.iter().any(|(_, host_call)| {
+    input.host_calls.calls.iter().any(|(_, host_call)| {
         host_call.source_key == source_key && host_call.statement_index == statement_index
     })
 }

@@ -9,11 +9,11 @@ use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_host_argument_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, host_call) in native_plan.host_calls.calls.iter() {
+    for (_, host_call) in input.host_calls.calls.iter() {
         if !scheduled_state_contains_key(state_schedule, host_call.source_key) {
             continue;
         }
@@ -21,8 +21,8 @@ pub(super) fn collect_host_argument_blockers(
         let PlatformCallData::FirstTextArgument { .. } = host_call.data else {
             continue;
         };
-        let Some(arguments) = native_plan.host_calls.arguments.span(host_call.arguments) else {
-            let source_name = state_name(native_plan, host_call.source_key);
+        let Some(arguments) = input.host_calls.arguments.span(host_call.arguments) else {
+            let source_name = state_name(input, host_call.source_key);
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
@@ -33,7 +33,7 @@ pub(super) fn collect_host_argument_blockers(
             continue;
         };
         let Some(first_argument) = arguments.first() else {
-            let source_name = state_name(native_plan, host_call.source_key);
+            let source_name = state_name(input, host_call.source_key);
             blockers.insert(blocker(
                 "host arguments",
                 &format!(
@@ -45,18 +45,18 @@ pub(super) fn collect_host_argument_blockers(
         };
 
         if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
-            let runtime_text_use = runtime_text_use_for_host_call(native_plan, host_call);
+            let runtime_text_use = runtime_text_use_for_host_call(input, host_call);
             if runtime_text_use
-                .is_some_and(|text_use| runtime_text_use_has_input_buffer(native_plan, text_use))
+                .is_some_and(|text_use| runtime_text_use_has_input_buffer(input, text_use))
             {
                 continue;
             }
             blockers.insert(blocker(
                 "host arguments",
                 &runtime_text_use
-                    .map(|text_use| host_text_argument_blocker_reason(native_plan, text_use))
+                    .map(|text_use| host_text_argument_blocker_reason(input, text_use))
                     .unwrap_or_else(|| {
-                        let source_name = state_name(native_plan, host_call.source_key);
+                        let source_name = state_name(input, host_call.source_key);
                         format!(
                             "{} statement {} text argument `{}` needs runtime text lowering",
                             source_name,
@@ -70,10 +70,10 @@ pub(super) fn collect_host_argument_blockers(
 }
 
 fn runtime_text_use_for_host_call<'plan>(
-    native_plan: &'plan EmissionPlanningInput<'plan>,
+    input: &'plan EmissionPlanningInput<'plan>,
     host_call: &HostCall,
 ) -> Option<&'plan RuntimeTextUse> {
-    native_plan
+    input
         .runtime_text
         .uses
         .iter()
@@ -86,16 +86,16 @@ fn runtime_text_use_for_host_call<'plan>(
 }
 
 fn runtime_text_use_has_input_buffer(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     text_use: &RuntimeTextUse,
 ) -> bool {
-    native_plan.runtime_text.slots.iter().any(|(_, slot)| {
+    input.runtime_text.slots.iter().any(|(_, slot)| {
         expression_place_eq(&slot.place, &text_use.expression) && slot.has_input_buffer
     })
 }
 
 fn host_text_argument_blocker_reason(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     text_use: &RuntimeTextUse,
 ) -> String {
     let lowering_need = match text_use.source {
@@ -105,7 +105,7 @@ fn host_text_argument_blocker_reason(
         RuntimeTextSource::OtherExpression => "runtime string expression lowering",
     };
 
-    let source_name = state_name(native_plan, text_use.source_key);
+    let source_name = state_name(input, text_use.source_key);
     format!(
         "{} statement {} text argument `{}` needs {lowering_need}",
         source_name,
@@ -114,11 +114,8 @@ fn host_text_argument_blocker_reason(
     )
 }
 
-fn state_name(
-    native_plan: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

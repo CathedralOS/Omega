@@ -6,14 +6,14 @@ use omega_target_program::SelectedInstructionKind;
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_host_binding_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    if native_plan.target.object_format != ObjectFormat::MachO {
+    if input.target.object_format != ObjectFormat::MachO {
         return;
     }
 
-    for (_, instruction) in native_plan.instructions.instructions.iter() {
+    for (_, instruction) in input.instructions.instructions.iter() {
         if !matches!(
             instruction.kind,
             SelectedInstructionKind::ReadRuntimeTextLine { .. }
@@ -25,18 +25,15 @@ pub(super) fn collect_host_binding_blockers(
             "host binding",
             &format!(
                 "{} statement {} uses direct Darwin stdin reads; route this through libSystem or compiler-owned line buffering before emitting a Mach-O executable",
-                state_name(native_plan, instruction.source_key),
+                state_name(input, instruction.source_key),
                 instruction.source_statement
             ),
         ));
     }
 }
 
-fn state_name(
-    native_plan: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

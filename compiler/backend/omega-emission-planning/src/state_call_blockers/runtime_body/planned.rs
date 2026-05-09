@@ -4,14 +4,14 @@ use omega_runtime_branching::{RuntimeBranchCallExpansion, RuntimeBranchingCall};
 use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_has_planned_expansion(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> bool {
     if grouped_blocker.lowering != StateCallLowering::InlineBranching {
         return false;
     }
 
-    let mut matching_calls = native_plan
+    let mut matching_calls = input
         .runtime_branching_calls
         .calls
         .iter()
@@ -24,7 +24,7 @@ pub(super) fn runtime_body_state_call_has_planned_expansion(
         return false;
     }
 
-    matching_calls.all(|call| runtime_branching_call_has_planned_expansion(native_plan, call))
+    matching_calls.all(|call| runtime_branching_call_has_planned_expansion(input, call))
 }
 
 pub(super) fn runtime_branching_call_matches_grouped_blocker(
@@ -38,16 +38,16 @@ pub(super) fn runtime_branching_call_matches_grouped_blocker(
 }
 
 fn runtime_branching_call_has_planned_expansion(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> bool {
     match call.expansion {
         RuntimeBranchCallExpansion::GuardedLeaf => {
-            runtime_branching_call_leaf_expansion_count(native_plan, call) > 0
+            runtime_branching_call_leaf_expansion_count(input, call) > 0
         }
         RuntimeBranchCallExpansion::NeedsStraightLineTarget => {
-            runtime_branching_call_leaf_expansion_count(native_plan, call) > 0
-                && runtime_branching_call_straight_line_expansion_count(native_plan, call) > 0
+            runtime_branching_call_leaf_expansion_count(input, call) > 0
+                && runtime_branching_call_straight_line_expansion_count(input, call) > 0
         }
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
         | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
@@ -57,10 +57,10 @@ fn runtime_branching_call_has_planned_expansion(
 }
 
 fn runtime_branching_call_leaf_expansion_count(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> usize {
-    native_plan
+    input
         .runtime_branching_calls
         .leaf_expansions
         .iter()
@@ -74,10 +74,10 @@ fn runtime_branching_call_leaf_expansion_count(
 }
 
 fn runtime_branching_call_straight_line_expansion_count(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> usize {
-    native_plan
+    input
         .runtime_branching_calls
         .straight_line_expansions
         .iter()

@@ -8,10 +8,10 @@ use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_value_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, value) in native_plan.state_values.values.iter() {
+    for (_, value) in input.state_values.values.iter() {
         if !value.required || value.kind != StateValueKind::Binary {
             continue;
         }
@@ -20,40 +20,41 @@ pub(super) fn collect_state_value_blockers(
             continue;
         }
 
-        if state_value_is_static_assignment(native_plan, value) {
+        if state_value_is_static_assignment(input, value) {
             continue;
         }
 
-        if state_value_has_planned_text_builder(native_plan, value) {
+        if state_value_has_planned_text_builder(input, value) {
             continue;
         }
 
         blockers.insert(blocker(
             "state values",
-            &runtime_value_blocker_reason(native_plan, value),
+            &runtime_value_blocker_reason(input, value),
         ));
     }
 }
 
 fn state_value_has_planned_text_builder(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> bool {
-    runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
-        .is_some_and(|text_write| {
+    runtime_text_write_for_statement(input, value.source_key, value.statement_index).is_some_and(
+        |text_write| {
             text_write.kind == RuntimeTextWriteKind::GeneratedString
-                && runtime_text_builder_for_write(native_plan, text_write).is_some()
-        })
+                && runtime_text_builder_for_write(input, text_write).is_some()
+        },
+    )
 }
 
 fn runtime_value_blocker_reason(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> String {
     if let Some(text_write) =
-        runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
+        runtime_text_write_for_statement(input, value.source_key, value.statement_index)
     {
-        let source_name = state_name(native_plan, text_write.source_key);
+        let source_name = state_name(input, text_write.source_key);
         return format!(
             "{} statement {} text write `{}` = `{}` needs {}",
             source_name,
@@ -64,7 +65,7 @@ fn runtime_value_blocker_reason(
         );
     }
 
-    let source_name = state_name(native_plan, value.source_key);
+    let source_name = state_name(input, value.source_key);
     format!(
         "{} statement {} {:?} binary expression `{}` needs runtime value lowering",
         source_name,
@@ -75,11 +76,11 @@ fn runtime_value_blocker_reason(
 }
 
 pub(super) fn runtime_text_write_for_statement<'plan>(
-    native_plan: &'plan EmissionPlanningInput<'plan>,
+    input: &'plan EmissionPlanningInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan RuntimeTextWrite> {
-    native_plan
+    input
         .runtime_text
         .writes
         .iter()
@@ -90,10 +91,10 @@ pub(super) fn runtime_text_write_for_statement<'plan>(
 }
 
 fn runtime_text_builder_for_write<'plan>(
-    native_plan: &'plan EmissionPlanningInput<'plan>,
+    input: &'plan EmissionPlanningInput<'plan>,
     text_write: &RuntimeTextWrite,
 ) -> Option<&'plan omega_runtime_text::RuntimeTextBuilder> {
-    native_plan
+    input
         .runtime_text
         .builders
         .iter()
@@ -115,16 +116,16 @@ fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static s
 }
 
 fn state_value_is_static_assignment(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> bool {
     if value.role != StateValueRole::AssignmentValue {
         return false;
     }
-    let Some(state) = native_plan.control_flow.state_by_key(value.source_key) else {
+    let Some(state) = input.control_flow.state_by_key(value.source_key) else {
         return false;
     };
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+    let Some(operations) = input.control_flow.operations.span(state.operations) else {
         return false;
     };
 
@@ -135,20 +136,20 @@ fn state_value_is_static_assignment(
 }
 
 pub(super) fn runtime_text_write_is_planned(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     text_write: &RuntimeTextWrite,
 ) -> bool {
     match text_write.kind {
         RuntimeTextWriteKind::StaticText | RuntimeTextWriteKind::StoredCopy => true,
         RuntimeTextWriteKind::GeneratedString => {
-            runtime_text_builder_for_write(native_plan, text_write).is_some()
+            runtime_text_builder_for_write(input, text_write).is_some()
         }
         RuntimeTextWriteKind::OtherExpression => false,
     }
 }
 
-fn state_name(native_plan: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

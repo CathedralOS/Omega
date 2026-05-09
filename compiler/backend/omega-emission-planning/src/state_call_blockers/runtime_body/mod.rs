@@ -14,18 +14,14 @@ use planned::runtime_body_state_call_has_planned_expansion;
 use reasons::runtime_body_state_call_expansion_reason;
 
 pub(super) fn collect_runtime_body_state_call_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     let mut grouped_blockers = Vec::<RuntimeBodyStateCallBlocker>::new();
 
-    for (_, body) in native_plan.runtime_bodies.bodies.iter() {
-        let Some(operations) = native_plan
-            .runtime_bodies
-            .operations
-            .paged_span(body.operations)
-        else {
-            let source_name = state_name(native_plan, body.key);
+    for (_, body) in input.runtime_bodies.bodies.iter() {
+        let Some(operations) = input.runtime_bodies.operations.paged_span(body.operations) else {
+            let source_name = state_name(input, body.key);
             blockers.insert(blocker(
                 "runtime bodies",
                 &format!(
@@ -46,8 +42,8 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                 continue;
             };
 
-            let (source_machine, source_state) = state_names(native_plan, operation.source_key);
-            let (target_machine, target_state) = state_names(native_plan, *target_key);
+            let (source_machine, source_state) = state_names(input, operation.source_key);
+            let (target_machine, target_state) = state_names(input, *target_key);
             push_runtime_body_state_call_blocker(
                 &mut grouped_blockers,
                 RuntimeBodyStateCallBlocker {
@@ -68,12 +64,11 @@ pub(super) fn collect_runtime_body_state_call_blockers(
     }
 
     for grouped_blocker in grouped_blockers {
-        if runtime_body_state_call_has_planned_expansion(native_plan, &grouped_blocker) {
+        if runtime_body_state_call_has_planned_expansion(input, &grouped_blocker) {
             continue;
         }
 
-        let expansion_reason =
-            runtime_body_state_call_expansion_reason(native_plan, &grouped_blocker);
+        let expansion_reason = runtime_body_state_call_expansion_reason(input, &grouped_blocker);
         blockers.insert(blocker(
             "state calls",
             &format!(
@@ -92,21 +87,18 @@ pub(super) fn collect_runtime_body_state_call_blockers(
 }
 
 fn state_names(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> (String, String) {
-    native_plan
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| (machine.to_string(), state.to_string()))
         .unwrap_or_default()
 }
 
-fn state_name(
-    native_plan: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

@@ -5,7 +5,7 @@ use omega_runtime_branching::RuntimeBranchCallExpansion;
 use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_expansion_reason(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> String {
     match grouped_blocker.lowering {
@@ -13,16 +13,16 @@ pub(super) fn runtime_body_state_call_expansion_reason(
         StateCallLowering::InlineExpansion => "straight-line state-call expansion".to_owned(),
         StateCallLowering::Unresolved => "unresolved state-call expansion".to_owned(),
         StateCallLowering::InlineBranching => {
-            runtime_branching_call_expansion_reason(native_plan, grouped_blocker)
+            runtime_branching_call_expansion_reason(input, grouped_blocker)
         }
     }
 }
 
 fn runtime_branching_call_expansion_reason(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> String {
-    let mut matching_calls = native_plan
+    let mut matching_calls = input
         .runtime_branching_calls
         .calls
         .iter()

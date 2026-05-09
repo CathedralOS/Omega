@@ -11,23 +11,23 @@ mod runtime_body;
 use runtime_body::collect_runtime_body_state_call_blockers;
 
 pub(super) fn collect_state_call_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     state_schedule: &[ScheduledState],
     needs_runtime_dispatch: bool,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     if needs_runtime_dispatch {
-        collect_runtime_body_state_call_blockers(native_plan, blockers);
-        collect_unresolved_state_call_blockers(native_plan, blockers);
+        collect_runtime_body_state_call_blockers(input, blockers);
+        collect_unresolved_state_call_blockers(input, blockers);
         return;
     }
 
-    for (_, state_call) in native_plan.state_calls.calls.iter() {
+    for (_, state_call) in input.state_calls.calls.iter() {
         if !state_call.required {
             continue;
         }
 
-        let source_name = state_name(native_plan, state_call.source_key);
+        let source_name = state_name(input, state_call.source_key);
         if !state_call.target_key.is_valid() {
             blockers.insert(blocker(
                 "state calls",
@@ -38,7 +38,7 @@ pub(super) fn collect_state_call_blockers(
             ));
             continue;
         }
-        let target_name = state_name(native_plan, state_call.target_key);
+        let target_name = state_name(input, state_call.target_key);
 
         if matches!(
             state_call.lowering,
@@ -97,15 +97,15 @@ pub(super) fn collect_state_call_blockers(
 }
 
 fn collect_unresolved_state_call_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, state_call) in native_plan.state_calls.calls.iter() {
+    for (_, state_call) in input.state_calls.calls.iter() {
         if !state_call.required || state_call.target_key.is_valid() {
             continue;
         }
 
-        let source_name = state_name(native_plan, state_call.source_key);
+        let source_name = state_name(input, state_call.source_key);
         blockers.insert(blocker(
             "state calls",
             &format!(
@@ -116,8 +116,8 @@ fn collect_unresolved_state_call_blockers(
     }
 }
 
-fn state_name(native_plan: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

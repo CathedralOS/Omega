@@ -69,34 +69,33 @@ pub struct EmissionPlanningInput<'plan> {
     pub relocations: &'plan RelocationPlan,
 }
 
-pub fn build_emission_plan(native_plan: &EmissionPlanningInput<'_>) -> EmissionPlan {
+pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     let mut blockers = Arena::new();
-    let schedule_context =
-        StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
+    let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
     let (state_schedule, needs_runtime_dispatch) =
-        match build_entry_state_schedule(&schedule_context, native_plan.entry_key) {
+        match build_entry_state_schedule(&schedule_context, input.entry_key) {
             Ok(state_schedule) => (state_schedule, false),
             Err(reason) => {
-                if native_plan.runtime_dispatch_loop.needed {
-                    if !runtime_dispatch_loop_can_emit(native_plan) {
-                        blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+                if input.runtime_dispatch_loop.needed {
+                    if !runtime_dispatch_loop_can_emit(input) {
+                        blockers.insert(runtime_dispatch_loop_blocker(input));
                     }
                 } else {
                     blockers.insert(emission_blocker("state schedule", &reason));
-                    collect_runtime_dispatch_blockers(native_plan, &mut blockers);
+                    collect_runtime_dispatch_blockers(input, &mut blockers);
                 }
-                (runtime_and_required_states(native_plan), true)
+                (runtime_and_required_states(input), true)
             }
         };
 
-    if native_plan.encoded_machine.bytes.len() < native_plan.machine_code.byte_count {
+    if input.encoded_machine.bytes.len() < input.machine_code.byte_count {
         blockers.insert(emission_blocker(
             "machine encoding",
             "not all selected native instructions are encoded into target bytes yet",
         ));
     }
 
-    for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
+    for (_, unsupported_call) in input.host_calls.unsupported_calls.iter() {
         if !scheduled_state_contains_key(&state_schedule, unsupported_call.source_key) {
             continue;
         }
@@ -105,7 +104,7 @@ pub fn build_emission_plan(native_plan: &EmissionPlanningInput<'_>) -> EmissionP
             "host lowering",
             &format!(
                 "{} statement {} platform call `{}`: {}",
-                state_name(native_plan, unsupported_call.source_key),
+                state_name(input, unsupported_call.source_key),
                 unsupported_call.statement_index,
                 unsupported_call.platform_call,
                 unsupported_call.reason
@@ -113,27 +112,22 @@ pub fn build_emission_plan(native_plan: &EmissionPlanningInput<'_>) -> EmissionP
         ));
     }
 
-    collect_host_binding_blockers(native_plan, &mut blockers);
-    collect_host_argument_blockers(native_plan, &state_schedule, &mut blockers);
+    collect_host_binding_blockers(input, &mut blockers);
+    collect_host_argument_blockers(input, &state_schedule, &mut blockers);
     collect_state_call_blockers(
-        native_plan,
+        input,
         &state_schedule,
         needs_runtime_dispatch,
         &mut blockers,
     );
-    collect_state_storage_blockers(native_plan, needs_runtime_dispatch, &mut blockers);
+    collect_state_storage_blockers(input, needs_runtime_dispatch, &mut blockers);
     if needs_runtime_dispatch {
-        collect_state_guard_blockers(native_plan, &mut blockers);
-        collect_state_value_blockers(native_plan, &mut blockers);
+        collect_state_guard_blockers(input, &mut blockers);
+        collect_state_value_blockers(input, &mut blockers);
     }
-    collect_state_codegen_blockers(
-        native_plan,
-        &schedule_context,
-        &state_schedule,
-        &mut blockers,
-    );
+    collect_state_codegen_blockers(input, &schedule_context, &state_schedule, &mut blockers);
 
-    if !can_emit_direct_image(native_plan) {
+    if !can_emit_direct_image(input) {
         blockers.insert_many([
             emission_blocker(
                 "image writer",
@@ -147,36 +141,33 @@ pub fn build_emission_plan(native_plan: &EmissionPlanningInput<'_>) -> EmissionP
     }
 
     EmissionPlan {
-        image_format: native_plan.target.object_format,
-        entry_symbol: native_plan.object.entry_symbol.clone(),
-        sections: native_plan.object.sections.len(),
-        symbols: native_plan.object.symbols.len(),
-        host_bindings: native_plan.host_abi.bindings.len(),
-        host_calls: native_plan.host_calls.calls.len(),
-        data_bytes: native_plan.data.bytes.len(),
-        selected_instructions: native_plan.instructions.instructions.len(),
-        instruction_operands: native_plan.instructions.operands.len(),
-        machine_code_bytes: native_plan.machine_code.byte_count,
-        encoded_machine_bytes: native_plan.encoded_machine.bytes.len(),
-        relocations: native_plan.relocations.records.len(),
+        image_format: input.target.object_format,
+        entry_symbol: input.object.entry_symbol.clone(),
+        sections: input.object.sections.len(),
+        symbols: input.object.symbols.len(),
+        host_bindings: input.host_abi.bindings.len(),
+        host_calls: input.host_calls.calls.len(),
+        data_bytes: input.data.bytes.len(),
+        selected_instructions: input.instructions.instructions.len(),
+        instruction_operands: input.instructions.operands.len(),
+        machine_code_bytes: input.machine_code.byte_count,
+        encoded_machine_bytes: input.encoded_machine.bytes.len(),
+        relocations: input.relocations.records.len(),
         blockers,
     }
 }
 
-fn can_emit_direct_image(native_plan: &EmissionPlanningInput<'_>) -> bool {
-    can_emit_executable_image(native_plan.target)
-        && native_plan.encoded_machine.bytes.len() == native_plan.machine_code.byte_count
+fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
+    can_emit_executable_image(input.target)
+        && input.encoded_machine.bytes.len() == input.machine_code.byte_count
 }
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
     emission_blocker(stage, reason)
 }
 
-fn state_name(
-    native_plan: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> String {
-    native_plan
+fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
+    input
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))

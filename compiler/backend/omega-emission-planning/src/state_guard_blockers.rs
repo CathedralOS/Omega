@@ -6,10 +6,10 @@ use omega_state_guards::StateGuardLowering;
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_guard_blockers(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
-    for (_, guard) in native_plan.state_guards.guards.iter() {
+    for (_, guard) in input.state_guards.guards.iter() {
         if matches!(
             guard.lowering,
             StateGuardLowering::NoOp | StateGuardLowering::CompareStaticValue
@@ -17,12 +17,12 @@ pub(super) fn collect_state_guard_blockers(
             continue;
         }
 
-        let machine_name = native_plan
+        let machine_name = input
             .control_flow
             .machine_by_symbol(guard.source.machine)
             .map(|machine| machine.name.as_str())
             .unwrap_or("<unknown>");
-        let state_name = native_plan
+        let state_name = input
             .control_flow
             .state_by_key(guard.source)
             .map(|state| state.name.as_str())
@@ -37,7 +37,7 @@ pub(super) fn collect_state_guard_blockers(
                 state_name,
                 guard.statement_order,
                 guard.target_dispatch_index,
-                runtime_transition_target_name(native_plan, &guard.target),
+                runtime_transition_target_name(input, &guard.target),
                 guard.kind,
                 guard.lowering,
                 guard.expression.display_name()
@@ -47,11 +47,11 @@ pub(super) fn collect_state_guard_blockers(
 }
 
 fn runtime_transition_target_name(
-    native_plan: &EmissionPlanningInput<'_>,
+    input: &EmissionPlanningInput<'_>,
     target: &RuntimeTransitionTarget,
 ) -> String {
     match target {
-        RuntimeTransitionTarget::State { key } => native_plan
+        RuntimeTransitionTarget::State { key } => input
             .control_flow
             .state_names_by_key(*key)
             .map(|(machine, state)| format!("{machine}.{state}"))
