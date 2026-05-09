@@ -38,8 +38,6 @@ pub(super) fn collect_runtime_body_state_call_blockers(
         for operation in operations.iter() {
             let RuntimeDispatchBodyOperationKind::StateCall {
                 target_key,
-                target_machine,
-                target_state,
                 argument_count,
                 lowering,
             } = &operation.kind
@@ -48,6 +46,7 @@ pub(super) fn collect_runtime_body_state_call_blockers(
             };
 
             let (source_machine, source_state) = state_names(native_plan, operation.source_key);
+            let (target_machine, target_state) = state_names(native_plan, *target_key);
             push_runtime_body_state_call_blocker(
                 &mut grouped_blockers,
                 RuntimeBodyStateCallBlocker {
@@ -57,8 +56,8 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                     source_state,
                     first_statement_index: operation.statement_index,
                     target_key: *target_key,
-                    target_machine: target_machine.to_string(),
-                    target_state: target_state.to_string(),
+                    target_machine,
+                    target_state,
                     argument_count: *argument_count,
                     lowering: *lowering,
                     count: 1,

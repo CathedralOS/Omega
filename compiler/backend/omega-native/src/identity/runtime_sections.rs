@@ -51,24 +51,9 @@ pub(in crate::identity) fn count_runtime_body_strings(
             RuntimeDispatchBodyOperationKind::HostCall { platform_call } => {
                 storage.count_identity(platform_call);
             }
-            RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-                target_machine,
-                target_state,
-                ..
-            }
-            | RuntimeDispatchBodyOperationKind::InlineStateCall {
-                target_machine,
-                target_state,
-                ..
-            }
-            | RuntimeDispatchBodyOperationKind::StateCall {
-                target_machine,
-                target_state,
-                ..
-            } => {
-                storage.count_program_name_identity(target_machine);
-                storage.count_program_name_identity(target_state);
-            }
+            RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
+            | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
+            | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
             RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
                 storage.count_program_name_identity(name);
                 storage.count_identity(type_name);

@@ -55,21 +55,15 @@ pub enum RuntimeDispatchBodyOperationKind {
     },
     InlineLeafStateCall {
         target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
         argument_count: usize,
     },
     InlineStateCall {
         target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     StateCall {
         target_key: StateKey,
-        target_machine: ProgramName,
-        target_state: ProgramName,
         argument_count: usize,
         lowering: StateCallLowering,
     },

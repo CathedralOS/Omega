@@ -127,15 +127,12 @@ fn append_state_call_body_operation(
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
     visiting: &mut Vec<StateKey>,
 ) {
-    let (target_machine, target_state) = state_names(context, state_call.target_key);
     if state_call.lowering == StateCallLowering::InlineLeaf {
         operations.push(body_operation(
             state_call.source_key,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
                 target_key: state_call.target_key,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
                 argument_count: state_call.argument_count,
             },
         ));
@@ -149,8 +146,6 @@ fn append_state_call_body_operation(
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
                 target_key: state_call.target_key,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
                 argument_count: state_call.argument_count,
                 lowering: state_call.lowering,
             },
@@ -164,8 +159,6 @@ fn append_state_call_body_operation(
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
             target_key: state_call.target_key,
-            target_machine,
-            target_state,
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         },

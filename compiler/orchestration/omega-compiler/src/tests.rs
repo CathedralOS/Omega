@@ -1722,8 +1722,8 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
 
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
-        omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { ref target_state, .. }
-            if target_state == "hello"
+        omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { target_key, .. }
+            if native_state_name(&native_plan, target_key) == "main.hello"
     )));
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
