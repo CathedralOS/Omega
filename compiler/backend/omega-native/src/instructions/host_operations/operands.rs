@@ -6,7 +6,10 @@ use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_machine_string_descriptor_offset,
     runtime_text_literal_for_host_call,
 };
-use omega_target_program::{InstructionOperand, InstructionOperandKind};
+use omega_core::arena::Handle;
+use omega_target_program::{
+    InstructionOperand, InstructionOperandKind, NativeDataObject, NativeDataObjectHandle,
+};
 
 pub(super) fn select_host_operation_operands(
     native_plan: &NativePlan,
@@ -22,7 +25,8 @@ pub(super) fn select_host_operation_operands(
             vec![operand(InstructionOperandKind::ImmediateInteger(-10))]
         }
         (_, "Stdin", "read" | "read_file") => {
-            let Some(data_object) = find_data_object(native_plan, host_call) else {
+            let Some((data_object_handle, data_object)) = find_data_object(native_plan, host_call)
+            else {
                 return Vec::new();
             };
             let byte_count = native_plan
@@ -36,7 +40,7 @@ pub(super) fn select_host_operation_operands(
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(0)));
             }
             operands.push(operand(InstructionOperandKind::DataAddress {
-                symbol: data_object.symbol.clone(),
+                data: data_object_handle,
             }));
             operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
             operands
@@ -47,14 +51,16 @@ pub(super) fn select_host_operation_operands(
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
             }
 
-            if let Some(data_object) = find_data_object(native_plan, host_call) {
+            if let Some((data_object_handle, data_object)) =
+                find_data_object(native_plan, host_call)
+            {
                 let byte_count = native_plan
                     .data
                     .bytes
                     .span(data_object.bytes)
                     .map_or(0, |bytes| bytes.len());
                 operands.push(operand(InstructionOperandKind::DataAddress {
-                    symbol: data_object.symbol.clone(),
+                    data: data_object_handle,
                 }));
                 operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
                 return operands;
@@ -66,7 +72,7 @@ pub(super) fn select_host_operation_operands(
                 && runtime_machine_string_descriptor_offset(native_plan, host_call).is_none()
             {
                 operands.push(operand(InstructionOperandKind::DataAddress {
-                    symbol: data_object.symbol.clone(),
+                    data: data_object_handle(native_plan, data_object),
                 }));
                 operands.push(operand(InstructionOperandKind::ByteLength(literal.len())));
                 return operands;
@@ -102,16 +108,28 @@ pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
 fn find_data_object<'plan>(
     native_plan: &'plan NativePlan,
     host_call: &HostCall,
-) -> Option<&'plan omega_target_program::NativeDataObject> {
+) -> Option<(NativeDataObjectHandle, &'plan NativeDataObject)> {
+    native_plan.data.objects.iter().find(|(_, data_object)| {
+        data_object.source_key == host_call.source_key
+            && data_object.source_statement == host_call.statement_index
+    })
+}
+
+pub(super) fn data_object_handle(
+    native_plan: &NativePlan,
+    target: &NativeDataObject,
+) -> NativeDataObjectHandle {
     native_plan
         .data
         .objects
         .iter()
         .find(|(_, data_object)| {
-            data_object.source_key == host_call.source_key
-                && data_object.source_statement == host_call.statement_index
+            data_object.source_key == target.source_key
+                && data_object.source_statement == target.source_statement
+                && data_object.offset == target.offset
         })
-        .map(|(_, data_object)| data_object)
+        .map(|(handle, _)| handle)
+        .unwrap_or_else(Handle::invalid)
 }
 
 fn exit_code(host_call: &HostCall, native_plan: &NativePlan) -> i64 {

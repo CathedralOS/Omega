@@ -322,7 +322,10 @@ fn selected_instruction_operands_name(
     operands
         .iter()
         .map(|operand| match &operand.kind {
-            InstructionOperandKind::DataAddress { symbol } => format!("addr {symbol}"),
+            InstructionOperandKind::DataAddress { data } => {
+                let symbol = native_plan.data.objects.get(*data).symbol.as_str();
+                format!("addr {symbol}")
+            }
             InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
                 format!("machine string ptr @{byte_offset}")
             }

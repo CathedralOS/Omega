@@ -1,5 +1,5 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeDataPlan {
@@ -25,6 +25,8 @@ pub struct NativeDataObject {
     pub source_key: StateKey,
     pub source_statement: usize,
 }
+
+pub type NativeDataObjectHandle = Handle<NativeDataObject>;
 
 impl Default for NativeDataObject {
     fn default() -> Self {

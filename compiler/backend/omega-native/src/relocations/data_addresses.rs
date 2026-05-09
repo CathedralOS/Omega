@@ -23,7 +23,11 @@ pub(super) fn collect_data_address_relocations(
 
     for operand in operands {
         match &operand.kind {
-            InstructionOperandKind::DataAddress { symbol } => {
+            InstructionOperandKind::DataAddress { data } => {
+                if !data.is_valid() {
+                    continue;
+                }
+                let symbol = &native_plan.data.objects.get(*data).symbol;
                 insert_data_address_relocations(
                     native_plan,
                     relocation_plan,
