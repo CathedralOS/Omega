@@ -8,18 +8,21 @@ pub use model::{
     RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStoragePlan, RuntimeStorageWrite,
 };
 
-use crate::plan::NativePlan;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use std::sync::Arc;
 
 use body::build_runtime_storage_body_plan;
 
-pub fn build_runtime_storage_plan(native_plan: &NativePlan) -> RuntimeStoragePlan {
+pub fn build_runtime_storage_plan(
+    context: RuntimeStorageContext,
+    runtime_bodies: &RuntimeDispatchBodyPlan,
+) -> RuntimeStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
 
     build_runtime_storage_plan_with_workers(
-        Arc::new(RuntimeStorageContext::from_native_plan(native_plan)),
-        runtime_storage_body_inputs(native_plan),
+        Arc::new(context),
+        runtime_storage_body_inputs(runtime_bodies),
         workers.handle(),
     )
 }
@@ -60,15 +63,15 @@ pub fn build_runtime_storage_plan_with_workers(
     plan
 }
 
-pub fn runtime_storage_body_inputs(native_plan: &NativePlan) -> Vec<RuntimeStorageBodyInput> {
-    native_plan
-        .runtime_bodies
+pub fn runtime_storage_body_inputs(
+    runtime_bodies: &RuntimeDispatchBodyPlan,
+) -> Vec<RuntimeStorageBodyInput> {
+    runtime_bodies
         .bodies
         .iter()
         .map(|(_, body)| RuntimeStorageBodyInput {
             body: body.clone(),
-            operations: native_plan
-                .runtime_bodies
+            operations: runtime_bodies
                 .operations
                 .span(body.operations)
                 .unwrap_or(&[])

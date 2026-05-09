@@ -8,10 +8,6 @@ use crate::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
     runtime_dispatch_loop_inputs,
 };
-use crate::runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
-    runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
-};
 use crate::state_guards::build_state_guard_plan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
@@ -25,6 +21,10 @@ use omega_platform_interface::build_host_call_plan_with_workers;
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_runtime_bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
+};
+use omega_runtime_storage::{
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
+    runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -169,8 +169,13 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan));
     let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan);
     let runtime_loop_workers = workers.clone();
-    let runtime_storage_context = Arc::new(RuntimeStorageContext::from_native_plan(&native_plan));
-    let runtime_storage_inputs = runtime_storage_body_inputs(&native_plan);
+    let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
+        &native_plan.control_flow,
+        &native_plan.layouts,
+        &native_plan.state_storage,
+        native_plan.target,
+    ));
+    let runtime_storage_inputs = runtime_storage_body_inputs(&native_plan.runtime_bodies);
     let runtime_storage_workers = workers.clone();
     let (runtime_dispatch_loop, runtime_storage) =
         record_native_phase(&mut phase_timings, "runtime loop/storage", || {

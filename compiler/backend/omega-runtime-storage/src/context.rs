@@ -1,4 +1,3 @@
-use crate::plan::NativePlan;
 use omega_control_flow::ControlFlowPlan;
 use omega_layout::LayoutPlan;
 use omega_state_storage::StateStoragePlan;
@@ -13,12 +12,17 @@ pub struct RuntimeStorageContext {
 }
 
 impl RuntimeStorageContext {
-    pub fn from_native_plan(native_plan: &NativePlan) -> Self {
+    pub fn new(
+        control_flow: &ControlFlowPlan,
+        layouts: &LayoutPlan,
+        state_storage: &StateStoragePlan,
+        target: NativeTarget,
+    ) -> Self {
         Self {
-            control_flow: native_plan.control_flow.clone(),
-            layouts: native_plan.layouts.clone(),
-            state_storage: native_plan.state_storage.clone(),
-            target: native_plan.target,
+            control_flow: control_flow.clone(),
+            layouts: layouts.clone(),
+            state_storage: state_storage.clone(),
+            target,
         }
     }
 }

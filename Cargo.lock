@@ -196,6 +196,7 @@ dependencies = [
  "omega-native",
  "omega-platform-interface",
  "omega-runtime-bodies",
+ "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
  "omega-state-graph",
@@ -336,6 +337,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-relocations",
  "omega-runtime-bodies",
+ "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
  "omega-state-dispatch",
@@ -363,6 +365,7 @@ dependencies = [
  "omega-object",
  "omega-platform-interface",
  "omega-runtime-bodies",
+ "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-dispatch",
  "omega-state-graph",
@@ -445,6 +448,19 @@ dependencies = [
  "omega-state-calls",
  "omega-state-dispatch",
  "omega-state-storage",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-runtime-storage"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-layout",
+ "omega-runtime-bodies",
+ "omega-state-storage",
+ "omega-target",
  "omega-typed-program",
 ]
 
