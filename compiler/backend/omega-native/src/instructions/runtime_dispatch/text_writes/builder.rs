@@ -4,8 +4,8 @@ use crate::instructions::bindings::{
 use crate::instructions::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::instructions::storage_places::resolve_runtime_storage_place;
 use crate::plan::NativePlan;
-use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_control_flow::StateKey;
+use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_target_program::{NativeDataObjectHandle, RuntimeStorageRegion, SelectedInstructionKind};
 use omega_typed_program::expression::Expression;
 

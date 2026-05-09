@@ -1,7 +1,7 @@
-pub(in crate::state_schedule) use omega_platform_interface::PlaceKey;
+pub(crate) use omega_platform_interface::PlaceKey;
 use omega_typed_program::expression::Expression;
 
-pub(in crate::state_schedule) fn argument_binding_place_key(
+pub(crate) fn argument_binding_place_key(
     expression: &Expression,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
@@ -13,7 +13,7 @@ pub(in crate::state_schedule) fn argument_binding_place_key(
     }
 }
 
-pub(in crate::state_schedule) fn canonical_place_key(
+pub(crate) fn canonical_place_key(
     expression: &Expression,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
@@ -28,7 +28,7 @@ pub(in crate::state_schedule) fn canonical_place_key(
     Some(resolve_alias(&key, aliases))
 }
 
-pub(in crate::state_schedule) fn shallow_canonical_place_key(
+pub(crate) fn shallow_canonical_place_key(
     expression: &Expression,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {

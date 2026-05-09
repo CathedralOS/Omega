@@ -1,17 +1,18 @@
-use omega_native::plan::NativePlan;
-use omega_native::state_schedule::{ScheduledState, scheduled_state_flow};
 use omega_control_flow::{OperationKind, StateFlow, StateKey};
 use omega_core::arena::Arena;
+use omega_native::plan::NativePlan;
+use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state_flow};
 
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_codegen_blockers(
     native_plan: &NativePlan,
+    schedule_context: &StateScheduleContext,
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for scheduled_state in state_schedule {
-        let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) else {
+        let Some(state_flow) = scheduled_state_flow(schedule_context, scheduled_state) else {
             blockers.insert(blocker(
                 "state codegen",
                 &format!(

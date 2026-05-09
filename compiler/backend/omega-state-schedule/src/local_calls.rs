@@ -4,14 +4,14 @@ use super::model::ScheduledState;
 use super::static_values::{
     PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
 };
-use crate::plan::NativePlan;
+use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     machine: &MachineFlow,
     state: &StateFlow,
     schedule: &mut Vec<ScheduledState>,
@@ -19,7 +19,7 @@ pub(super) fn append_local_state_calls(
     values: &mut Vec<(PlaceKey, String)>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<(), String> {
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+    let Some(operations) = context.control_flow.operations.span(state.operations) else {
         return Err(format!(
             "{}.{} has an invalid operation span",
             machine.name, state.name
@@ -38,10 +38,10 @@ pub(super) fn append_local_state_calls(
             continue;
         };
 
-        let is_platform_call = native_plan.host_calls.calls.iter().any(|(_, host_call)| {
+        let is_platform_call = context.host_calls.calls.iter().any(|(_, host_call)| {
             host_call.source_key == state.key
                 && host_call.statement_index == operation.statement_index
-        }) || native_plan.host_calls.unsupported_calls.iter().any(
+        }) || context.host_calls.unsupported_calls.iter().any(
             |(_, host_call)| {
                 host_call.source_key == state.key
                     && host_call.statement_index == operation.statement_index
@@ -53,7 +53,7 @@ pub(super) fn append_local_state_calls(
         }
 
         let target_state_key = resolve_state_call_key(
-            native_plan,
+            context,
             machine,
             *receiver_symbol,
             *target_symbol,
@@ -73,9 +73,9 @@ pub(super) fn append_local_state_calls(
 
         let saved_alias_count = aliases.len();
         let saved_visited_count = visited.len();
-        bind_state_arguments_by_key(native_plan, target_state_key, arguments, aliases, values)?;
+        bind_state_arguments_by_key(context, target_state_key, arguments, aliases, values)?;
         append_state_chain(
-            native_plan,
+            context,
             target_state_key,
             schedule,
             visited,
@@ -90,7 +90,7 @@ pub(super) fn append_local_state_calls(
 }
 
 fn resolve_state_call_key(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     machine: &MachineFlow,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
@@ -98,10 +98,10 @@ fn resolve_state_call_key(
     target: &ProgramName,
 ) -> Option<StateKey> {
     let target_machine =
-        resolve_state_call_machine_flow(native_plan, machine, receiver_symbol, receiver)?;
+        resolve_state_call_machine_flow(context, machine, receiver_symbol, receiver)?;
 
     if target_symbol.is_valid() {
-        native_plan
+        context
             .control_flow
             .state_key_by_symbols(target_machine.symbol, target_symbol)
     } else {
@@ -111,7 +111,7 @@ fn resolve_state_call_key(
 }
 
 fn resolve_state_call_machine_flow<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan StateScheduleContext,
     machine: &'plan MachineFlow,
     receiver_symbol: SymbolHandle,
     receiver: Option<&ProgramName>,
@@ -126,10 +126,10 @@ fn resolve_state_call_machine_flow<'plan>(
             .iter()
             .find(|contained| contained.symbol == receiver_symbol)
         {
-            return machine_flow_by_symbol(native_plan, contained.type_symbol).ok();
+            return machine_flow_by_symbol(context, contained.type_symbol).ok();
         }
 
-        return native_plan.control_flow.machine_by_symbol(receiver_symbol);
+        return context.control_flow.machine_by_symbol(receiver_symbol);
     }
 
     let _ = receiver?;
@@ -137,13 +137,13 @@ fn resolve_state_call_machine_flow<'plan>(
 }
 
 pub(super) fn bind_state_arguments_by_key(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     state_key: StateKey,
     arguments: &[Expression],
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
     values: &mut Vec<(PlaceKey, String)>,
 ) -> Result<(), String> {
-    let state = state_flow_by_key(native_plan, state_key)?;
+    let state = state_flow_by_key(context, state_key)?;
 
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
         let canonical_argument = argument_binding_place_key(argument, aliases);

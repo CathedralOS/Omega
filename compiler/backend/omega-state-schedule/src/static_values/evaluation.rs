@@ -3,7 +3,7 @@ use omega_control_flow::TransitionFlow;
 use omega_typed_program::expression::{BinaryOperator, Expression};
 use omega_typed_program::statement::TransitionGuard;
 
-pub(in crate::state_schedule) fn resolve_static_value(
+pub(crate) fn resolve_static_value(
     expression: &Expression,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
@@ -27,7 +27,7 @@ pub(in crate::state_schedule) fn resolve_static_value(
     }
 }
 
-pub(in crate::state_schedule) fn select_transition<'plan>(
+pub(crate) fn select_transition<'plan>(
     transitions: &'plan [TransitionFlow],
     values: &[(PlaceKey, String)],
     aliases: &[(PlaceKey, PlaceKey)],

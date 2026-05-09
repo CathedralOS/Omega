@@ -1,5 +1,5 @@
-use crate::plan::NativePlan;
-use omega_control_flow::{StateFlow, StateKey};
+use omega_control_flow::{ControlFlowPlan, StateFlow, StateKey};
+use omega_platform_interface::HostCallPlan;
 
 mod display;
 mod local_calls;
@@ -16,15 +16,33 @@ use static_values::{
 };
 use transitions::next_state;
 
-pub fn build_entry_state_schedule(native_plan: &NativePlan) -> Result<Vec<ScheduledState>, String> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateScheduleContext {
+    pub control_flow: ControlFlowPlan,
+    pub host_calls: HostCallPlan,
+}
+
+impl StateScheduleContext {
+    pub fn new(control_flow: &ControlFlowPlan, host_calls: &HostCallPlan) -> Self {
+        Self {
+            control_flow: control_flow.clone(),
+            host_calls: host_calls.clone(),
+        }
+    }
+}
+
+pub fn build_entry_state_schedule(
+    context: &StateScheduleContext,
+    entry_key: StateKey,
+) -> Result<Vec<ScheduledState>, String> {
     let mut schedule = Vec::new();
     let mut visited = Vec::<ScheduledState>::new();
     let mut values = Vec::<(PlaceKey, String)>::new();
     let mut aliases = Vec::<(PlaceKey, PlaceKey)>::new();
 
     append_state_chain(
-        native_plan,
-        native_plan.entry_key,
+        context,
+        entry_key,
         &mut schedule,
         &mut visited,
         &mut values,
@@ -39,25 +57,25 @@ pub fn scheduled_state_contains_key(schedule: &[ScheduledState], state_key: Stat
 }
 
 pub fn scheduled_state_flow<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan StateScheduleContext,
     scheduled_state: &ScheduledState,
 ) -> Option<&'plan StateFlow> {
-    lookups::state_flow_by_key(native_plan, scheduled_state.key).ok()
+    lookups::state_flow_by_key(context, scheduled_state.key).ok()
 }
 
 pub fn scheduled_state_key(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     machine_name: &str,
     state_name: &str,
 ) -> Option<StateKey> {
-    let machine = lookups::machine_flow(native_plan, machine_name).ok()?;
-    let state = lookups::state_flow(native_plan, machine, state_name).ok()?;
+    let machine = lookups::machine_flow(context, machine_name).ok()?;
+    let state = lookups::state_flow(context, machine, state_name).ok()?;
 
     Some(state.key)
 }
 
-pub(super) fn append_state_chain(
-    native_plan: &NativePlan,
+pub(crate) fn append_state_chain(
+    context: &StateScheduleContext,
     start_key: StateKey,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
@@ -72,27 +90,19 @@ pub(super) fn append_state_chain(
         if visited.contains(&current) {
             return Err(format!(
                 "cycle {}; native emission does not support loops yet",
-                cycle_path(native_plan, visited, &current)
+                cycle_path(context, visited, &current)
             ));
         }
 
         visited.push(current.clone());
         schedule.push(current.clone());
 
-        let machine = lookups::machine_flow_by_symbol(native_plan, current.key.machine)?;
-        let state = lookups::state_flow_by_key(native_plan, current.key)?;
-        append_local_state_calls(
-            native_plan,
-            machine,
-            state,
-            schedule,
-            visited,
-            values,
-            aliases,
-        )?;
-        apply_static_operations(native_plan, state, aliases, values);
+        let machine = lookups::machine_flow_by_symbol(context, current.key.machine)?;
+        let state = lookups::state_flow_by_key(context, current.key)?;
+        append_local_state_calls(context, machine, state, schedule, visited, values, aliases)?;
+        apply_static_operations(context, state, aliases, values);
 
-        let transitions = native_plan
+        let transitions = context
             .control_flow
             .transitions
             .span(state.transitions)
@@ -106,25 +116,18 @@ pub(super) fn append_state_chain(
                     Some(Err(())) => {
                         return Err(format!(
                             "{} has a guard native emission cannot evaluate statically yet",
-                            state_key_display(native_plan, current.key)
+                            state_key_display(context, current.key)
                         ));
                     }
                     None => {
                         return Err(format!(
                             "{} has no transition whose guard is satisfied",
-                            state_key_display(native_plan, current.key)
+                            state_key_display(context, current.key)
                         ));
                     }
                 };
                 let Some(next_state) = next_state(
-                    native_plan,
-                    machine,
-                    state,
-                    transition,
-                    schedule,
-                    visited,
-                    values,
-                    aliases,
+                    context, machine, state, transition, schedule, visited, values, aliases,
                 )?
                 else {
                     return Ok(());

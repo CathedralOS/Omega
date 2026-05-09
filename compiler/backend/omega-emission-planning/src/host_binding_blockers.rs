@@ -1,5 +1,5 @@
-use omega_native::plan::NativePlan;
 use omega_core::arena::Arena;
+use omega_native::plan::NativePlan;
 use omega_target::ObjectFormat;
 use omega_target_program::SelectedInstructionKind;
 

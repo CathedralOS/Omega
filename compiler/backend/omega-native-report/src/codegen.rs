@@ -1,7 +1,7 @@
 use super::native_state_name;
 
-use omega_native::plan::NativePlan;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
+use omega_native::plan::NativePlan;
 use omega_object::storage_region_symbol_name;
 use omega_target_program::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, NativeDataObject,

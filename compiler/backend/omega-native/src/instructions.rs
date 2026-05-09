@@ -1,6 +1,8 @@
 use crate::plan::NativePlan;
-use crate::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_core::arena::Arena;
+use omega_state_schedule::{
+    StateScheduleContext, build_entry_state_schedule, scheduled_state_flow,
+};
 
 mod bindings;
 mod host_operations;
@@ -45,7 +47,10 @@ fn select_entry_instructions(
     operands: &mut Arena<InstructionOperand>,
 ) -> Vec<SelectedInstruction> {
     let mut selected_instructions = Vec::new();
-    let state_schedule_result = build_entry_state_schedule(native_plan);
+    let schedule_context =
+        StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
+    let state_schedule_result =
+        build_entry_state_schedule(&schedule_context, native_plan.entry_key);
     let can_inline_state_calls = state_schedule_result.is_ok()
         && native_plan
             .state_calls
@@ -73,7 +78,7 @@ fn select_entry_instructions(
         );
     } else {
         for scheduled_state in &state_schedule {
-            if let Some(state_flow) = scheduled_state_flow(native_plan, scheduled_state) {
+            if let Some(state_flow) = scheduled_state_flow(&schedule_context, scheduled_state) {
                 select_state_host_calls(
                     native_plan,
                     state_flow.key,

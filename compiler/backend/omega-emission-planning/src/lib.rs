@@ -1,8 +1,10 @@
-use omega_native::plan::NativePlan;
-use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
+use omega_native::plan::NativePlan;
+use omega_state_schedule::{
+    StateScheduleContext, build_entry_state_schedule, scheduled_state_contains_key,
+};
 
 mod host_argument_blockers;
 mod host_binding_blockers;
@@ -27,20 +29,23 @@ use storage_blockers::collect_state_storage_blockers;
 
 pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     let mut blockers = Arena::new();
-    let (state_schedule, needs_runtime_dispatch) = match build_entry_state_schedule(native_plan) {
-        Ok(state_schedule) => (state_schedule, false),
-        Err(reason) => {
-            if native_plan.runtime_dispatch_loop.needed {
-                if !runtime_dispatch_loop_can_emit(native_plan) {
-                    blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+    let schedule_context =
+        StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
+    let (state_schedule, needs_runtime_dispatch) =
+        match build_entry_state_schedule(&schedule_context, native_plan.entry_key) {
+            Ok(state_schedule) => (state_schedule, false),
+            Err(reason) => {
+                if native_plan.runtime_dispatch_loop.needed {
+                    if !runtime_dispatch_loop_can_emit(native_plan) {
+                        blockers.insert(runtime_dispatch_loop_blocker(native_plan));
+                    }
+                } else {
+                    blockers.insert(emission_blocker("state schedule", &reason));
+                    collect_runtime_dispatch_blockers(native_plan, &mut blockers);
                 }
-            } else {
-                blockers.insert(emission_blocker("state schedule", &reason));
-                collect_runtime_dispatch_blockers(native_plan, &mut blockers);
+                (runtime_and_required_states(native_plan), true)
             }
-            (runtime_and_required_states(native_plan), true)
-        }
-    };
+        };
 
     if native_plan.encoded_machine.bytes.len() < native_plan.machine_code.byte_count {
         blockers.insert(emission_blocker(
@@ -79,7 +84,12 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
         collect_state_guard_blockers(native_plan, &mut blockers);
         collect_state_value_blockers(native_plan, &mut blockers);
     }
-    collect_state_codegen_blockers(native_plan, &state_schedule, &mut blockers);
+    collect_state_codegen_blockers(
+        native_plan,
+        &schedule_context,
+        &state_schedule,
+        &mut blockers,
+    );
 
     if !can_emit_direct_image(native_plan) {
         blockers.insert_many([

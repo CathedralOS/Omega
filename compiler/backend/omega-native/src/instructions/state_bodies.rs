@@ -1,7 +1,7 @@
 use crate::plan::NativePlan;
-use crate::state_schedule::ScheduledState;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
+use omega_state_schedule::ScheduledState;
 
 use super::host_operations::select_host_call;
 use super::lookups::{host_call_for_statement, state_call_for_statement};

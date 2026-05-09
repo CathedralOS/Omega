@@ -19,6 +19,7 @@ omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-schedule = { path = "../omega-state-schedule" }
 omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../omega-target" }

@@ -5,15 +5,17 @@ mod identity;
 mod object;
 mod stats;
 
+use omega_artifacts::NativeSurfaceReport;
+use omega_control_flow::StateKey;
 use omega_native::plan::NativePlan;
 use omega_native::runtime_dispatch::branching::{
     RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
-use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
-use omega_artifacts::NativeSurfaceReport;
-use omega_control_flow::StateKey;
 use omega_state_graph::RuntimeTransitionTarget;
+use omega_state_schedule::{
+    StateScheduleContext, build_entry_state_schedule, scheduled_state_flow,
+};
 use omega_typed_program::statement::TransitionGuard;
 
 pub fn native_report_text(
@@ -335,12 +337,15 @@ pub fn native_report_text(
     output.push('\n');
 
     output.push_str("## State Schedule\n");
-    match build_entry_state_schedule(native_plan) {
+    let schedule_context =
+        StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
+    match build_entry_state_schedule(&schedule_context, native_plan.entry_key) {
         Ok(schedule) if schedule.is_empty() => output.push_str("states: 0\nnone\n"),
         Ok(schedule) => {
             output.push_str(&format!("states: {}\n", schedule.len()));
             for scheduled_state in schedule {
-                if let Some(state_flow) = scheduled_state_flow(native_plan, &scheduled_state) {
+                if let Some(state_flow) = scheduled_state_flow(&schedule_context, &scheduled_state)
+                {
                     output.push_str(&format!(
                         "- {}.{}#{}\n",
                         native_plan

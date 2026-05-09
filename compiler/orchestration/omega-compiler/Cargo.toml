@@ -32,6 +32,7 @@ omega-proof = { path = "../../semantics/omega-proof" }
 omega-names = { path = "../../semantics/omega-names" }
 omega-runtime-text = { path = "../../backend/omega-runtime-text" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-schedule = { path = "../../backend/omega-state-schedule" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-program = { path = "../../representations/omega-target-program" }
 omega-typed-to-control-flow = { path = "../../lowering/omega-typed-to-control-flow" }

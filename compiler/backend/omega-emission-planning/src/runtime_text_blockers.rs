@@ -1,8 +1,8 @@
+use omega_control_flow::{OperationKind, StateKey};
+use omega_core::arena::Arena;
 use omega_native::plan::NativePlan;
 use omega_runtime_text::places::expression_place_eq;
 use omega_runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
-use omega_control_flow::{OperationKind, StateKey};
-use omega_core::arena::Arena;
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 
 use super::{EmissionBlocker, blocker};

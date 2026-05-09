@@ -1,12 +1,12 @@
-use crate::plan::NativePlan;
+use crate::StateScheduleContext;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 
 pub(super) fn machine_flow<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan StateScheduleContext,
     machine_name: &str,
 ) -> Result<&'plan MachineFlow, String> {
-    native_plan
+    context
         .control_flow
         .machines
         .iter()
@@ -16,10 +16,10 @@ pub(super) fn machine_flow<'plan>(
 }
 
 pub(super) fn machine_flow_by_symbol(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     machine_symbol: SymbolHandle,
 ) -> Result<&MachineFlow, String> {
-    native_plan
+    context
         .control_flow
         .machines
         .iter()
@@ -34,11 +34,11 @@ pub(super) fn machine_flow_by_symbol(
 }
 
 pub(super) fn state_flow<'plan>(
-    native_plan: &'plan NativePlan,
+    context: &'plan StateScheduleContext,
     machine: &MachineFlow,
     state_name: &str,
 ) -> Result<&'plan StateFlow, String> {
-    native_plan
+    context
         .control_flow
         .states
         .span(machine.states)
@@ -52,12 +52,12 @@ pub(super) fn state_flow<'plan>(
 }
 
 pub(super) fn state_flow_by_key(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     key: StateKey,
 ) -> Result<&StateFlow, String> {
-    let machine = machine_flow_by_symbol(native_plan, key.machine)?;
+    let machine = machine_flow_by_symbol(context, key.machine)?;
 
-    native_plan
+    context
         .control_flow
         .states
         .span(machine.states)
@@ -73,13 +73,13 @@ pub(super) fn state_flow_by_key(
 }
 
 pub(super) fn validate_state_index(
-    native_plan: &NativePlan,
+    context: &StateScheduleContext,
     machine: &MachineFlow,
     state_index: usize,
     source_machine: &str,
     source_state: &str,
 ) -> Result<(), String> {
-    let states = native_plan
+    let states = context
         .control_flow
         .states
         .span(machine.states)

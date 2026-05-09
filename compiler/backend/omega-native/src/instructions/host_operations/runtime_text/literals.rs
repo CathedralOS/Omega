@@ -1,10 +1,10 @@
 use super::buffers::find_runtime_text_input_buffer_data;
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
-use omega_runtime_text::RuntimeTextWriteKind;
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
+use omega_runtime_text::RuntimeTextWriteKind;
 use omega_target_program::NativeDataObjectHandle;
 use omega_typed_program::expression::Expression;
 

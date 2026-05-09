@@ -1,9 +1,9 @@
 use super::native_state_name;
 
-use omega_native::plan::NativePlan;
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
+use omega_native::plan::NativePlan;
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };

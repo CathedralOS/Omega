@@ -1,5 +1,5 @@
-use omega_native::plan::NativePlan;
 use omega_layout::{DataShape, FieldLayout};
+use omega_native::plan::NativePlan;
 use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
 
 pub(super) fn write_layout_object_sections(output: &mut String, native_plan: &NativePlan) {

@@ -3383,8 +3383,13 @@ fn emits_nested_machine_continuations_inline() {
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should allow nested continuation");
     let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
-    let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
-        .expect("entry schedule should include nested state");
+    let schedule_context = omega_state_schedule::StateScheduleContext::new(
+        &native_plan.control_flow,
+        &native_plan.host_calls,
+    );
+    let schedule =
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+            .expect("entry schedule should include nested state");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
@@ -3669,8 +3674,7 @@ fn plans_required_state_value_uses() {
             .iter()
             .any(|(_, text_write)| {
                 text_write.target.display_name() == "line::text"
-                    && text_write.kind
-                        == omega_runtime_text::RuntimeTextWriteKind::GeneratedString
+                    && text_write.kind == omega_runtime_text::RuntimeTextWriteKind::GeneratedString
             })
     );
     let (_, builder) = native_plan
@@ -3856,8 +3860,13 @@ fn selects_static_guarded_transition() {
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should select a static guarded transition");
     let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
-    let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
-        .expect("entry schedule should select look branch");
+    let schedule_context = omega_state_schedule::StateScheduleContext::new(
+        &native_plan.control_flow,
+        &native_plan.host_calls,
+    );
+    let schedule =
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+            .expect("entry schedule should select look branch");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
@@ -3918,8 +3927,13 @@ fn propagates_static_state_call_arguments() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should propagate static state arguments");
-    let schedule = omega_native::state_schedule::build_entry_state_schedule(&native_plan)
-        .expect("entry schedule should evaluate helper-state guards");
+    let schedule_context = omega_state_schedule::StateScheduleContext::new(
+        &native_plan.control_flow,
+        &native_plan.host_calls,
+    );
+    let schedule =
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+            .expect("entry schedule should evaluate helper-state guards");
     let scheduled_states = schedule
         .iter()
         .map(|state| native_state_name(&native_plan, state.key))

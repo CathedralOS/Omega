@@ -1,16 +1,16 @@
 use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key};
 use super::evaluation::resolve_static_value;
-use crate::plan::NativePlan;
+use crate::StateScheduleContext;
 use omega_control_flow::{OperationKind, StateFlow};
 use omega_typed_program::expression::Expression;
 
-pub(in crate::state_schedule) fn apply_static_operations(
-    native_plan: &NativePlan,
+pub(crate) fn apply_static_operations(
+    context: &StateScheduleContext,
     state: &StateFlow,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &mut Vec<(PlaceKey, String)>,
 ) {
-    let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
+    let Some(operations) = context.control_flow.operations.span(state.operations) else {
         return;
     };
 
@@ -25,7 +25,7 @@ pub(in crate::state_schedule) fn apply_static_operations(
     }
 }
 
-pub(in crate::state_schedule) fn set_static_value(
+pub(crate) fn set_static_value(
     values: &mut Vec<(PlaceKey, String)>,
     target: PlaceKey,
     value: String,
