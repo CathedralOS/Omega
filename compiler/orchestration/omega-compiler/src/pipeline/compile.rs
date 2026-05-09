@@ -26,7 +26,7 @@ use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
 use omega_target::NativeTarget;
-use omega_typed_program::lowering::lower_program_with_sources_and_workers;
+use omega_typed_program::lowering::lower_program_with_symbol_table_and_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 
@@ -73,20 +73,22 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_ast(&loaded_program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "resolve", || {
+    let resolve_report = Arc::new(record_phase(&mut phase_timings, "resolve", || {
         let resolve_report =
             build_resolve_report(&loaded_program.items, Arc::clone(&loaded_program.sources));
         artifacts
             .write_resolve_report(&resolve_report)
-            .map_err(|diagnostic| vec![diagnostic])
-    })?;
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(resolve_report)
+    })?);
     let program = Arc::new(record_phase(
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_sources_and_workers(
+            lower_program_with_symbol_table_and_workers(
                 Arc::clone(&loaded_program.items),
-                Some(Arc::clone(&loaded_program.sources)),
+                resolve_report.symbols.clone(),
                 workers.handle(),
             )
             .map_err(|diagnostic| vec![diagnostic])
@@ -207,20 +209,22 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_ast(&loaded_program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "resolve", || {
+    let resolve_report = Arc::new(record_phase(&mut phase_timings, "resolve", || {
         let resolve_report =
             build_resolve_report(&loaded_program.items, Arc::clone(&loaded_program.sources));
         artifacts
             .write_resolve_report(&resolve_report)
-            .map_err(|diagnostic| vec![diagnostic])
-    })?;
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(resolve_report)
+    })?);
     let program = Arc::new(record_phase(
         &mut phase_timings,
         "typed program lowering",
         || {
-            lower_program_with_sources_and_workers(
+            lower_program_with_symbol_table_and_workers(
                 Arc::clone(&loaded_program.items),
-                Some(Arc::clone(&loaded_program.sources)),
+                resolve_report.symbols.clone(),
                 workers.handle(),
             )
             .map_err(|diagnostic| vec![diagnostic])

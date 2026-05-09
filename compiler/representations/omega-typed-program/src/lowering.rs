@@ -74,6 +74,23 @@ pub fn lower_program_with_sources_and_workers(
     sources: Option<Arc<SourceMap>>,
     workers: WorkerPoolHandle,
 ) -> Result<Program, Diagnostic> {
+    lower_program_with_symbol_table_source(items, None, sources, workers)
+}
+
+pub fn lower_program_with_symbol_table_and_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    symbols: SymbolTable,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_with_symbol_table_source(items, Some(symbols), None, workers)
+}
+
+fn lower_program_with_symbol_table_source(
+    items: Arc<Vec<ast::item::Item>>,
+    symbols: Option<SymbolTable>,
+    sources: Option<Arc<SourceMap>>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
     let aliases = InvariantAliases::build(&items)?;
     let mut program = Program::default();
 
@@ -106,7 +123,8 @@ pub fn lower_program_with_sources_and_workers(
         }
     }
 
-    program.symbols = register_program_symbols(&program, Some(items.as_slice()), sources);
+    program.symbols = symbols
+        .unwrap_or_else(|| register_program_symbols(&program, Some(items.as_slice()), sources));
 
     Ok(program)
 }
