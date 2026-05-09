@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use omega_core::allocations::AllocationDelta;
@@ -6,6 +7,71 @@ use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::{NativeTarget, ObjectFormat};
 use omega_typed_program::{Program, machine::Machine, platform::Platform};
+
+pub struct ArtifactWriter {
+    root: PathBuf,
+}
+
+impl ArtifactWriter {
+    pub fn new(build_dir: &Path) -> Result<Self, Diagnostic> {
+        let root = build_dir.to_path_buf();
+        fs::create_dir_all(&root).map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to create artifact directory {}: {error}",
+                root.display()
+            ))
+        })?;
+
+        Ok(Self { root })
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    pub fn write_text(&self, file_name: &str, contents: &str) -> Result<(), Diagnostic> {
+        let path = self.root.join(file_name);
+        fs::write(&path, contents).map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to write artifact {}: {error}",
+                path.display()
+            ))
+        })
+    }
+
+    pub fn write_bytes(&self, file_name: &str, bytes: &[u8]) -> Result<PathBuf, Diagnostic> {
+        let path = self.root.join(file_name);
+        fs::write(&path, bytes).map_err(|error| {
+            Diagnostic::error(format!(
+                "failed to write artifact {}: {error}",
+                path.display()
+            ))
+        })?;
+
+        Ok(path)
+    }
+
+    pub fn remove_files<'a>(
+        &self,
+        file_names: impl IntoIterator<Item = &'a str>,
+    ) -> Result<(), Diagnostic> {
+        for file_name in file_names {
+            let path = self.root.join(file_name);
+            match fs::remove_file(&path) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(Diagnostic::error(format!(
+                        "failed to remove stale artifact {}: {error}",
+                        path.display()
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PhaseTiming {

@@ -1,10 +1,9 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 
 use omega_artifacts::{
-    AstArtifact, AstFileArtifact, EmissionPlan, ExecutableFinalization,
-    ExecutableFinalizationStatus, NativeSurfaceReport, PhaseTiming, SourceFileArtifact,
-    SourceLoadArtifact, TrustReport,
+    ArtifactWriter as ArtifactSink, AstArtifact, AstFileArtifact, EmissionPlan,
+    ExecutableFinalization, ExecutableFinalizationStatus, NativeSurfaceReport, PhaseTiming,
+    SourceFileArtifact, SourceLoadArtifact, TrustReport,
 };
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
@@ -43,20 +42,14 @@ use omega_typed_program::statement::TransitionGuard;
 use omega_types::TypeSurfaceReport;
 
 pub(crate) struct ArtifactWriter {
-    root: PathBuf,
+    sink: ArtifactSink,
 }
 
 impl ArtifactWriter {
     pub(crate) fn new(build_dir: &Path) -> Result<Self, Diagnostic> {
-        let root = build_dir.to_path_buf();
-        fs::create_dir_all(&root).map_err(|error| {
-            Diagnostic::error(format!(
-                "failed to create artifact directory {}: {error}",
-                root.display()
-            ))
-        })?;
-
-        Ok(Self { root })
+        Ok(Self {
+            sink: ArtifactSink::new(build_dir)?,
+        })
     }
 
     pub(crate) fn write_sources(
@@ -1833,13 +1826,9 @@ impl ArtifactWriter {
         &self,
         emitted_output: &EmittedImageOutput,
     ) -> Result<PathBuf, Diagnostic> {
-        let output_path = self.root.join(&emitted_output.file_name);
-        fs::write(&output_path, &emitted_output.bytes).map_err(|error| {
-            Diagnostic::error(format!(
-                "failed to write native output {}: {error}",
-                output_path.display()
-            ))
-        })?;
+        let output_path = self
+            .sink
+            .write_bytes(&emitted_output.file_name, &emitted_output.bytes)?;
 
         let mut output = String::new();
         output.push_str("# Omega Emitted Native Output\n\n");
@@ -1871,25 +1860,11 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn remove_stale_native_output(&self) -> Result<(), Diagnostic> {
-        for file_name in [
+        self.sink.remove_files([
             "omega-program",
             "12_emitted_output.txt",
             "13_finalization.txt",
-        ] {
-            let path = self.root.join(file_name);
-            match fs::remove_file(&path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(Diagnostic::error(format!(
-                        "failed to remove stale native output {}: {error}",
-                        path.display()
-                    )));
-                }
-            }
-        }
-
-        Ok(())
+        ])
     }
 
     pub(crate) fn write_executable_finalization_report(
@@ -2080,17 +2055,11 @@ impl ArtifactWriter {
     }
 
     pub(crate) fn root(&self) -> &Path {
-        &self.root
+        self.sink.root()
     }
 
     fn write(&self, file_name: &str, contents: &str) -> Result<(), Diagnostic> {
-        let path = self.root.join(file_name);
-        fs::write(&path, contents).map_err(|error| {
-            Diagnostic::error(format!(
-                "failed to write artifact {}: {error}",
-                path.display()
-            ))
-        })
+        self.sink.write_text(file_name, contents)
     }
 }
 
