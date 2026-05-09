@@ -2,7 +2,6 @@ use crate::control_flow::StateKey;
 use crate::data::{NativeDataObject, NativeDataPlan};
 use crate::state_storage::StateStoragePlan;
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 pub(super) fn collect_static_string_assignment_data(
     state_storage: &StateStoragePlan,
@@ -16,8 +15,6 @@ pub(super) fn collect_static_string_assignment_data(
         collect_static_string_expression_data(
             &mutation.value,
             mutation.source_key,
-            &mutation.machine,
-            &mutation.state,
             mutation.statement_index,
             data_plan,
         );
@@ -27,8 +24,6 @@ pub(super) fn collect_static_string_assignment_data(
 fn collect_static_string_expression_data(
     expression: &Expression,
     source_key: StateKey,
-    source_machine: &ProgramName,
-    source_state: &ProgramName,
     source_statement: usize,
     data_plan: &mut NativeDataPlan,
 ) {
@@ -49,8 +44,6 @@ fn collect_static_string_expression_data(
                 bytes: byte_span,
                 alignment: 1,
                 source_key,
-                source_machine: source_machine.clone(),
-                source_state: source_state.clone(),
                 source_statement,
             });
         }
@@ -59,8 +52,6 @@ fn collect_static_string_expression_data(
                 collect_static_string_expression_data(
                     &field.value,
                     source_key,
-                    source_machine,
-                    source_state,
                     source_statement,
                     data_plan,
                 );
@@ -71,8 +62,6 @@ fn collect_static_string_expression_data(
                 collect_static_string_expression_data(
                     element,
                     source_key,
-                    source_machine,
-                    source_state,
                     source_statement,
                     data_plan,
                 );
@@ -82,16 +71,12 @@ fn collect_static_string_expression_data(
             collect_static_string_expression_data(
                 &binary.left,
                 source_key,
-                source_machine,
-                source_state,
                 source_statement,
                 data_plan,
             );
             collect_static_string_expression_data(
                 &binary.right,
                 source_key,
-                source_machine,
-                source_state,
                 source_statement,
                 data_plan,
             );

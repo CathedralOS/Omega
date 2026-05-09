@@ -2950,15 +2950,15 @@ fn write_native_data_object(
         .bytes
         .span(data_object.bytes)
         .map_or(0, |bytes| bytes.len());
+    let source_name = native_state_name(native_plan, data_object.source_key);
 
     output.push_str(&format!(
-        "- {} @{} bytes {} align {} from {}.{} statement {}\n",
+        "- {} @{} bytes {} align {} from {} statement {}\n",
         data_object.symbol,
         data_object.offset,
         byte_count,
         data_object.alignment,
-        data_object.source_machine,
-        data_object.source_state,
+        source_name,
         data_object.source_statement
     ));
 }

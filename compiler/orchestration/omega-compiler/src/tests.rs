@@ -3445,8 +3445,7 @@ fn invalidates_static_text_after_mutable_host_output() {
             ))
     );
     assert!(native_plan.data.objects.iter().all(|(_, object)| {
-        !(object.source_machine == "main"
-            && object.source_state == "entry"
+        !(native_state_name(&native_plan, object.source_key) == "main.entry"
             && object.source_statement == 3)
     }));
 }

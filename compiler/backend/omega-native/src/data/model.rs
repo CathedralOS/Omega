@@ -1,6 +1,5 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeDataPlan {
@@ -24,8 +23,6 @@ pub struct NativeDataObject {
     pub bytes: HandleSpan<u8>,
     pub alignment: usize,
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub source_statement: usize,
 }
 
@@ -37,8 +34,6 @@ impl Default for NativeDataObject {
             bytes: HandleSpan::empty(),
             alignment: 1,
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             source_statement: 0,
         }
     }

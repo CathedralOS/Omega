@@ -2,7 +2,6 @@ use crate::abi::PlatformCallData;
 use crate::control_flow::StateKey;
 use crate::data::{NativeDataObject, NativeDataPlan};
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
-use omega_typed_program::name::ProgramName;
 
 pub(super) fn collect_host_call_data(
     host_calls: &HostCallPlan,
@@ -49,8 +48,6 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Na
         bytes: byte_span,
         alignment: 1,
         source_key: StateKey::default(),
-        source_machine: ProgramName::default(),
-        source_state: ProgramName::default(),
         source_statement: usize::MAX,
     });
 }
@@ -87,9 +84,7 @@ fn collect_text_argument_data(
         offset,
         bytes: byte_span,
         alignment: 1,
-        source_machine: host_call.machine.clone(),
         source_key: host_call.source_key,
-        source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
 }
@@ -108,9 +103,7 @@ fn collect_mutable_output_buffer(
         offset,
         bytes: byte_span,
         alignment: 16,
-        source_machine: host_call.machine.clone(),
         source_key: host_call.source_key,
-        source_state: host_call.state.clone(),
         source_statement: host_call.statement_index,
     });
 }
