@@ -33,6 +33,7 @@ use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
+use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
@@ -193,6 +194,15 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         build_machine_code_plan(TargetToMachineInput {
             target: native_plan.target,
             instructions: &native_plan.instructions,
+            host_abi: &native_plan.host_abi,
+            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+        })
+    })?;
+    record_native_phase(&mut phase_timings, "machine emission", || {
+        emit_machine_bytes(MachineEmissionInput {
+            target: native_plan.target,
+            instructions: &native_plan.instructions,
+            machine_code: &mut native_plan.machine_code,
             host_abi: &native_plan.host_abi,
             terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
         })

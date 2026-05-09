@@ -1,4 +1,4 @@
-use crate::TargetToMachineInput;
+use crate::MachineEmissionContext;
 use crate::branch_distances::{
     byte_distance_to_case_end, byte_distance_to_case_leave, byte_distance_to_dispatch_loop_start,
     byte_distance_to_next_state_write_end,
@@ -9,14 +9,14 @@ use omega_machine_program::MachineInstruction;
 use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_dispatch_loop_enter(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     entry_dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_loop_enter(input.target.architecture, entry_dispatch_index)
 }
 
 pub(super) fn encode_dispatch_case_enter(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
@@ -29,7 +29,7 @@ pub(super) fn encode_dispatch_case_enter(
 }
 
 pub(super) fn encode_dispatch_guard_compare_static(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
@@ -48,7 +48,7 @@ pub(super) fn encode_dispatch_guard_compare_static(
 }
 
 pub(super) fn encode_dispatch_state_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
@@ -61,7 +61,7 @@ pub(super) fn encode_dispatch_state_write(
 }
 
 pub(super) fn encode_dispatch_terminal_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -74,7 +74,7 @@ pub(super) fn encode_dispatch_terminal_write(
 }
 
 pub(super) fn encode_dispatch_case_leave(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {

@@ -1,11 +1,11 @@
-use crate::TargetToMachineInput;
+use crate::MachineEmissionContext;
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::{MachineInstruction, MachineInstructionKind};
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
@@ -35,7 +35,7 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
 }
 
 pub(crate) fn byte_distance_to_next_runtime_write_end(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
@@ -51,7 +51,7 @@ pub(crate) fn byte_distance_to_next_runtime_write_end(
 }
 
 pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     branch_offset: usize,
@@ -74,7 +74,7 @@ pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
 }
 
 fn next_runtime_write_group_end<'instructions>(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &'instructions [MachineInstruction],
     machine_instruction_index: usize,
 ) -> Option<&'instructions MachineInstruction> {
@@ -104,7 +104,7 @@ fn next_runtime_write_group_end<'instructions>(
 }
 
 fn selected_instruction_source<'plan>(
-    input: TargetToMachineInput<'plan>,
+    input: MachineEmissionContext<'plan>,
     instruction: &MachineInstruction,
 ) -> Option<StateKey> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);

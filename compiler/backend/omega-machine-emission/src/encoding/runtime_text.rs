@@ -1,4 +1,4 @@
-use crate::TargetToMachineInput;
+use crate::MachineEmissionContext;
 use crate::branch_distances::{
     byte_distance_to_next_runtime_write_end,
     byte_distance_to_next_runtime_write_end_from_branch_offset,
@@ -11,7 +11,7 @@ use omega_machine_program::MachineInstruction;
 use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_runtime_text_literal_compare(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
@@ -34,7 +34,7 @@ pub(super) fn encode_runtime_text_literal_compare(
 }
 
 pub(super) fn encode_runtime_text_storage_compare(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     source_offset: usize,
@@ -60,14 +60,14 @@ pub(super) fn encode_runtime_text_storage_compare(
 }
 
 pub(super) fn encode_runtime_text_literal_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_literal_write(input.target.architecture, literal)
 }
 
 pub(super) fn encode_runtime_text_literal_segment_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     byte_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -79,7 +79,7 @@ pub(super) fn encode_runtime_text_literal_segment_write(
 }
 
 pub(super) fn encode_runtime_text_stored_suffix_append(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     buffer_offset: usize,
     source_offset: usize,
     target_offset: usize,
@@ -95,7 +95,7 @@ pub(super) fn encode_runtime_text_stored_suffix_append(
 }
 
 pub(super) fn encode_runtime_text_stored_place_append(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     source_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -108,7 +108,7 @@ pub(super) fn encode_runtime_text_stored_place_append(
 }
 
 pub(super) fn encode_runtime_text_literal_append(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     target_offset: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -121,14 +121,14 @@ pub(super) fn encode_runtime_text_literal_append(
 }
 
 pub(super) fn encode_runtime_text_buffer_materialize(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_buffer_materialize(input.target.architecture, target_offset)
 }
 
 pub(super) fn encode_runtime_text_line_read(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     target_offset: usize,
     byte_capacity: usize,
     syscall_number: u32,

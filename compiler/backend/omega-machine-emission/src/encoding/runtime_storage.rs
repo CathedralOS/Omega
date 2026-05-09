@@ -1,4 +1,4 @@
-use crate::TargetToMachineInput;
+use crate::MachineEmissionContext;
 use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
@@ -6,7 +6,7 @@ use omega_machine_program::MachineInstruction;
 use omega_target_program::StateGuardOperator;
 
 pub(super) fn encode_runtime_storage_compare(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     left_offset: usize,
@@ -29,7 +29,7 @@ pub(super) fn encode_runtime_storage_compare(
 }
 
 pub(super) fn encode_runtime_storage_value_compare(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     machine_instructions: &[MachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
@@ -52,7 +52,7 @@ pub(super) fn encode_runtime_storage_value_compare(
 }
 
 pub(super) fn encode_runtime_machine_integer_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     byte_offset: usize,
     byte_size: usize,
     value: i64,
@@ -66,7 +66,7 @@ pub(super) fn encode_runtime_machine_integer_write(
 }
 
 pub(super) fn encode_runtime_machine_string_write(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -78,7 +78,7 @@ pub(super) fn encode_runtime_machine_string_write(
 }
 
 pub(super) fn encode_runtime_storage_copy(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     source_offset: usize,
     target_offset: usize,
     byte_count: usize,

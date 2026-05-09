@@ -1,4 +1,4 @@
-use crate::TargetToMachineInput;
+use crate::MachineEmissionContext;
 use omega_calling_conventions::HostBindingMechanism;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
@@ -7,7 +7,7 @@ use omega_target_program::InstructionOperand;
 use crate::host_bindings::host_binding_mechanism;
 
 pub(super) fn encode_host_operation(
-    input: TargetToMachineInput<'_>,
+    input: MachineEmissionContext<'_>,
     capability: &str,
     operation: &str,
     operands: &[InstructionOperand],

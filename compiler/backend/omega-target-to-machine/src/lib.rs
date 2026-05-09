@@ -4,12 +4,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
 
-mod branch_distances;
-mod encoding;
 mod host_bindings;
 mod shapes;
 
-use encoding::encode_machine_instruction;
 use omega_machine_program::{MachineCodePlan, MachineFunctionCode, MachineInstruction};
 use shapes::machine_instruction_shape;
 
@@ -34,12 +31,7 @@ pub fn build_machine_code_plan(
 
     for (function_handle, function) in input.instructions.functions.iter() {
         let function_offset = machine_code_plan.byte_count;
-        let machine_instructions = select_machine_instructions(
-            input,
-            function_offset,
-            function,
-            &mut machine_code_plan.bytes,
-        )?;
+        let machine_instructions = select_machine_instructions(input, function_offset, function)?;
         let function_byte_count = machine_instructions
             .iter()
             .map(|instruction| instruction.byte_width)
@@ -64,7 +56,6 @@ fn select_machine_instructions(
     input: TargetToMachineInput<'_>,
     function_offset: usize,
     function: &omega_target_program::FunctionInstructionPlan,
-    bytes: &mut Arena<u8>,
 ) -> Result<Vec<MachineInstruction>, Diagnostic> {
     let Some(selected_instructions) = input.instructions.instructions.span(function.instructions)
     else {
@@ -72,7 +63,7 @@ fn select_machine_instructions(
     };
 
     let mut offset = function_offset;
-    let mut machine_instructions = selected_instructions
+    let machine_instructions = selected_instructions
         .iter()
         .enumerate()
         .map(|(selected_offset, selected_instruction)| {
@@ -94,23 +85,6 @@ fn select_machine_instructions(
             instruction
         })
         .collect::<Vec<_>>();
-
-    for (selected_offset, selected_instruction) in selected_instructions.iter().enumerate() {
-        let selected_instruction_index =
-            machine_instructions[selected_offset].selected_instruction_index;
-        let byte_span = bytes.insert_many(encode_machine_instruction(
-            input,
-            &machine_instructions,
-            selected_offset,
-            &selected_instruction.kind,
-        )?);
-
-        debug_assert_eq!(
-            selected_instruction_index,
-            machine_instructions[selected_offset].selected_instruction_index
-        );
-        machine_instructions[selected_offset].bytes = byte_span;
-    }
 
     Ok(machine_instructions)
 }

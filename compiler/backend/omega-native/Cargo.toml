@@ -18,6 +18,7 @@ omega-image-emission = { path = "../images/omega-image-emission" }
 omega-instruction-selection = { path = "../omega-instruction-selection" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
 omega-layout = { path = "../omega-layout" }
+omega-machine-emission = { path = "../omega-machine-emission" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-object = { path = "../object/omega-object" }
 omega-relocations = { path = "../object/omega-relocations" }

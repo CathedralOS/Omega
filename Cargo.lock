@@ -248,6 +248,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-machine-emission"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-instruction-selection",
+ "omega-machine-program",
+ "omega-target",
+ "omega-target-program",
+]
+
+[[package]]
 name = "omega-machine-program"
 version = "0.1.0"
 dependencies = [
@@ -277,6 +290,7 @@ dependencies = [
  "omega-instruction-selection",
  "omega-isa-aarch64",
  "omega-layout",
+ "omega-machine-emission",
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
