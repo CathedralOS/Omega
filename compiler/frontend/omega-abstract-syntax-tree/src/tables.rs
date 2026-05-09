@@ -2,12 +2,13 @@ use crate::expression::{Expression, ExpressionTable};
 use crate::item::{
     CapabilityMember, DataMember, Item, Machine, OwnedData, Platform, State, StateSignature,
 };
-use crate::statement::{Statement, TransitionGuard, TransitionTarget};
+use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AstTables {
     pub expressions: ExpressionTable,
+    pub statements: StatementTable,
     pub type_references: TypeReferenceTable,
 }
 
@@ -108,42 +109,8 @@ impl AstTables {
     }
 
     fn insert_statement(&mut self, statement: &Statement) {
-        match statement {
-            Statement::Assignment(assignment) => {
-                self.insert_expression(&assignment.target);
-                self.insert_expression(&assignment.value);
-            }
-            Statement::Call(call) => {
-                for argument in &call.arguments {
-                    self.insert_expression(argument);
-                }
-            }
-            Statement::Expression(expression) => {
-                self.insert_expression(expression);
-            }
-            Statement::LocalData(local_data) => {
-                self.insert_type_reference(&local_data.type_reference);
-            }
-            Statement::Transition(transition) => {
-                self.insert_transition_target(&transition.target);
-
-                if let Some(continuation) = &transition.continuation {
-                    self.insert_transition_target(continuation);
-                }
-
-                if let TransitionGuard::When(expression) = &transition.guard {
-                    self.insert_expression(expression);
-                }
-            }
-        }
-    }
-
-    fn insert_transition_target(&mut self, target: &TransitionTarget) {
-        if let TransitionTarget::Named { arguments, .. } = target {
-            for argument in arguments {
-                self.insert_expression(argument);
-            }
-        }
+        self.statements
+            .insert_tree(statement, &mut self.expressions, &mut self.type_references);
     }
 
     fn insert_type_reference(&mut self, type_reference: &TypeReference) {
@@ -197,5 +164,6 @@ mod tests {
 
         assert_eq!(tables.type_references.type_reference_count(), 1);
         assert_eq!(tables.expressions.expression_count(), 1);
+        assert_eq!(tables.statements.statement_count(), 1);
     }
 }

@@ -79,11 +79,19 @@ fn ast_file_artifact(loaded_program: &LoadedProgram, file: &LoadedFile) -> AstFi
             ..AstFileArtifact::default()
         };
     };
-    let (expression_count, type_reference_count, type_constraint_count) = loaded_program
+    let (
+        statement_count,
+        transition_target_count,
+        expression_count,
+        type_reference_count,
+        type_constraint_count,
+    ) = loaded_program
         .syntax_tables
         .get(file.syntax_table_index)
         .map(|syntax_tables| {
             (
+                syntax_tables.statements.statement_count(),
+                syntax_tables.statements.transition_target_count(),
                 syntax_tables.expressions.expression_count(),
                 syntax_tables.type_references.type_reference_count(),
                 syntax_tables.type_references.constraint_count(),
@@ -94,6 +102,8 @@ fn ast_file_artifact(loaded_program: &LoadedProgram, file: &LoadedFile) -> AstFi
     AstFileArtifact {
         path: file.path.clone(),
         first_item: file.first_item,
+        statement_count,
+        transition_target_count,
         expression_count,
         type_reference_count,
         type_constraint_count,

@@ -563,8 +563,12 @@ fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
 fn write_ast_file_artifact(output: &mut String, file: &AstFileArtifact) {
     output.push_str(&format!("## {}\n", file.path.display()));
     output.push_str(&format!(
-        "tables: expressions {} type_references {} type_constraints {}\n",
-        file.expression_count, file.type_reference_count, file.type_constraint_count
+        "tables: statements {} transition_targets {} expressions {} type_references {} type_constraints {}\n",
+        file.statement_count,
+        file.transition_target_count,
+        file.expression_count,
+        file.type_reference_count,
+        file.type_constraint_count
     ));
 
     if !file.item_range_valid {
@@ -690,6 +694,8 @@ pub struct AstIdentityArtifact {
 pub struct AstFileArtifact {
     pub path: PathBuf,
     pub first_item: usize,
+    pub statement_count: usize,
+    pub transition_target_count: usize,
     pub expression_count: usize,
     pub type_reference_count: usize,
     pub type_constraint_count: usize,
