@@ -6,6 +6,7 @@ use crate::runtime_dispatch::branching::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
+use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::{
     resolve_leaf_binding_expression, resolve_straight_line_binding_expression,
@@ -75,13 +76,15 @@ fn select_runtime_straight_line_branch_writes(
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
                 let resolved_target = resolve_straight_line_binding_expression(target, bindings);
                 let resolved_value = resolve_straight_line_binding_expression(value, bindings);
+                let (operation_machine, operation_state) =
+                    state_names(native_plan, operation.source_key);
                 select_runtime_resolved_mutation_write(
                     native_plan,
                     expansion.dispatch_index,
                     operation.source_key,
                     &expansion.source_machine,
-                    &operation.source_machine,
-                    &operation.source_state,
+                    &operation_machine,
+                    &operation_state,
                     operation.statement_index,
                     &resolved_target,
                     &resolved_value,
@@ -107,6 +110,20 @@ fn select_runtime_straight_line_branch_writes(
             _ => {}
         }
     }
+}
+
+fn state_names(native_plan: &NativePlan, key: StateKey) -> (ProgramName, ProgramName) {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.clone())
+        .unwrap_or_default();
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.clone())
+        .unwrap_or_default();
+    (machine, state)
 }
 
 #[allow(clippy::too_many_arguments)]

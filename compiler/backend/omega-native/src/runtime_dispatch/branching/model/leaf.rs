@@ -74,8 +74,6 @@ pub enum RuntimeLeafBranchBindingKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeLeafBranchOperation {
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub kind: RuntimeLeafBranchOperationKind,
 }
@@ -84,8 +82,6 @@ impl Default for RuntimeLeafBranchOperation {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             statement_index: 0,
             kind: RuntimeLeafBranchOperationKind::Other,
         }

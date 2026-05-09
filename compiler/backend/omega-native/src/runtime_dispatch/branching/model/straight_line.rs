@@ -75,8 +75,6 @@ pub enum RuntimeStraightLineBranchBindingKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchOperation {
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub kind: RuntimeStraightLineBranchOperationKind,
 }
@@ -85,8 +83,6 @@ impl Default for RuntimeStraightLineBranchOperation {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             statement_index: 0,
             kind: RuntimeStraightLineBranchOperationKind::Other,
         }

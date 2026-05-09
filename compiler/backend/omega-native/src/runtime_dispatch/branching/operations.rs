@@ -11,12 +11,6 @@ pub(super) fn leaf_operations(
     native_plan: &NativePlan,
     source_key: StateKey,
 ) -> Vec<RuntimeLeafBranchOperation> {
-    let Some(machine) = native_plan
-        .control_flow
-        .machine_by_symbol(source_key.machine)
-    else {
-        return Vec::new();
-    };
     let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
         return Vec::new();
     };
@@ -28,8 +22,6 @@ pub(super) fn leaf_operations(
         .iter()
         .map(|operation| RuntimeLeafBranchOperation {
             source_key,
-            source_machine: machine.name.clone(),
-            source_state: state.name.clone(),
             statement_index: operation.statement_index,
             kind: leaf_operation_kind(native_plan, source_key, operation.statement_index),
         })
@@ -40,12 +32,6 @@ pub(super) fn straight_line_operations(
     native_plan: &NativePlan,
     source_key: StateKey,
 ) -> Vec<RuntimeStraightLineBranchOperation> {
-    let Some(machine) = native_plan
-        .control_flow
-        .machine_by_symbol(source_key.machine)
-    else {
-        return Vec::new();
-    };
     let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
         return Vec::new();
     };
@@ -57,8 +43,6 @@ pub(super) fn straight_line_operations(
         .iter()
         .map(|operation| RuntimeStraightLineBranchOperation {
             source_key,
-            source_machine: machine.name.clone(),
-            source_state: state.name.clone(),
             statement_index: operation.statement_index,
             kind: straight_line_operation_kind(
                 native_plan,

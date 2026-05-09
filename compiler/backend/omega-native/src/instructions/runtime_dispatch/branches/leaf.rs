@@ -4,6 +4,7 @@ use crate::runtime_dispatch::branching::{
     RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind,
 };
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::resolve_leaf_binding_expression;
 use super::super::super::model::{SelectedInstruction, SelectedInstructionKind};
@@ -98,12 +99,13 @@ fn select_runtime_leaf_branch_mutation_writes(
             continue;
         }
 
+        let (operation_machine, operation_state) = state_name(native_plan, operation.source_key);
         if let Some(instructions) = runtime_text_builder_write_with_resolver(
             native_plan,
             expansion.dispatch_index,
             operation.source_key,
-            &operation.source_machine,
-            &operation.source_state,
+            &operation_machine,
+            &operation_state,
             operation.statement_index,
             &resolved_target,
             &|expression| resolve_leaf_binding_expression(expression, bindings),
@@ -121,8 +123,8 @@ fn select_runtime_leaf_branch_mutation_writes(
         if let Some(copy) = runtime_leaf_storage_copy(
             native_plan,
             expansion,
-            &operation.source_machine,
-            &operation.source_state,
+            &operation_machine,
+            &operation_state,
             &resolved_target,
             &resolved_value,
         ) {
@@ -133,6 +135,23 @@ fn select_runtime_leaf_branch_mutation_writes(
             });
         }
     }
+}
+
+fn state_name(
+    native_plan: &NativePlan,
+    key: crate::control_flow::StateKey,
+) -> (ProgramName, ProgramName) {
+    let machine = native_plan
+        .control_flow
+        .machine_by_symbol(key.machine)
+        .map(|machine| machine.name.clone())
+        .unwrap_or_default();
+    let state = native_plan
+        .control_flow
+        .state_by_key(key)
+        .map(|state| state.name.clone())
+        .unwrap_or_default();
+    (machine, state)
 }
 
 fn runtime_leaf_machine_integer_write(
