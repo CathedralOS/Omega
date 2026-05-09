@@ -16,7 +16,7 @@ pub fn build_runtime_text_plan(native_plan: &NativePlan) -> RuntimeTextPlan {
     let mut plan = RuntimeTextPlan::default();
 
     for (_, host_call) in native_plan.host_calls.calls.iter() {
-        collect_host_call_runtime_text(native_plan, &native_plan.host_calls, host_call, &mut plan);
+        collect_host_call_runtime_text(&native_plan.host_calls, host_call, &mut plan);
     }
     collect_runtime_text_writes(native_plan, &mut plan);
     collect_runtime_text_builders(&mut plan);
@@ -33,12 +33,6 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
 
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
-            machine: native_plan
-                .control_flow
-                .state_machine_name_by_key_cloned(mutation.source_key),
-            state: native_plan
-                .control_flow
-                .state_name_by_key_cloned(mutation.source_key),
             statement_index: mutation.statement_index,
             target: mutation.target.clone(),
             value: mutation.value.clone(),
@@ -64,8 +58,6 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
         let segment_span = plan.builder_segments.insert_many(segments);
         plan.builders.insert(RuntimeTextBuilder {
             source_key: write.source_key,
-            machine: write.machine,
-            state: write.state,
             statement_index: write.statement_index,
             target: write.target,
             segments: segment_span,

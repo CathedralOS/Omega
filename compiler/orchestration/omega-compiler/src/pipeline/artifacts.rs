@@ -926,10 +926,10 @@ impl ArtifactWriter {
             output.push_str("uses: none\n");
         } else {
             for (_, text_use) in native_plan.runtime_text.uses.iter() {
+                let source_name = native_state_name(native_plan, text_use.source_key);
                 output.push_str(&format!(
-                    "- {}.{} statement {} `{}` {:?} newline {}\n",
-                    text_use.machine,
-                    text_use.state,
+                    "- {} statement {} `{}` {:?} newline {}\n",
+                    source_name,
                     text_use.statement_index,
                     text_use.expression.display_name(),
                     text_use.source,
@@ -941,10 +941,10 @@ impl ArtifactWriter {
             output.push_str("buffers: none\n");
         } else {
             for (_, text_buffer) in native_plan.runtime_text.buffers.iter() {
+                let source_name = native_state_name(native_plan, text_buffer.source_key);
                 output.push_str(&format!(
-                    "- buffer {}.{} statement {} `{}` bytes {}\n",
-                    text_buffer.machine,
-                    text_buffer.state,
+                    "- buffer {} statement {} `{}` bytes {}\n",
+                    source_name,
                     text_buffer.statement_index,
                     text_buffer.target.display_name(),
                     text_buffer.byte_capacity
@@ -967,10 +967,10 @@ impl ArtifactWriter {
             output.push_str("writes: none\n");
         } else {
             for (_, text_write) in native_plan.runtime_text.writes.iter() {
+                let source_name = native_state_name(native_plan, text_write.source_key);
                 output.push_str(&format!(
-                    "- write {}.{} statement {} `{}` = `{}` {:?}\n",
-                    text_write.machine,
-                    text_write.state,
+                    "- write {} statement {} `{}` = `{}` {:?}\n",
+                    source_name,
                     text_write.statement_index,
                     text_write.target.display_name(),
                     text_write.value.display_name(),
@@ -982,10 +982,10 @@ impl ArtifactWriter {
             output.push_str("builders: none\n");
         } else {
             for (_, text_builder) in native_plan.runtime_text.builders.iter() {
+                let source_name = native_state_name(native_plan, text_builder.source_key);
                 output.push_str(&format!(
-                    "- builder {}.{} statement {} `{}` segments {}\n",
-                    text_builder.machine,
-                    text_builder.state,
+                    "- builder {} statement {} `{}` segments {}\n",
+                    source_name,
                     text_builder.statement_index,
                     text_builder.target.display_name(),
                     text_builder.segments.count()

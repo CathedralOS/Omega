@@ -1,7 +1,6 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeTextPlan {
@@ -16,8 +15,6 @@ pub struct RuntimeTextPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextUse {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub expression: Expression,
@@ -28,8 +25,6 @@ pub struct RuntimeTextUse {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuffer {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub platform_call: String,
     pub target: Expression,
@@ -46,8 +41,6 @@ pub struct RuntimeTextSlot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextWrite {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -57,8 +50,6 @@ pub struct RuntimeTextWrite {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuilder {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub segments: HandleSpan<RuntimeTextBuilderSegment>,
@@ -74,8 +65,6 @@ impl Default for RuntimeTextWrite {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::String(String::new()),
             value: Expression::String(String::new()),
@@ -88,8 +77,6 @@ impl Default for RuntimeTextBuilder {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::String(String::new()),
             segments: HandleSpan::empty(),
@@ -137,8 +124,6 @@ impl Default for RuntimeTextBuffer {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             target: Expression::String(String::new()),
@@ -151,8 +136,6 @@ impl Default for RuntimeTextUse {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             platform_call: String::new(),
             expression: Expression::String(String::new()),

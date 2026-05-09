@@ -1,29 +1,26 @@
 use crate::abi::PlatformCallData;
 use crate::host_calls::{HostCall, HostCallArgumentKind, HostCallPlan};
-use crate::plan::NativePlan;
 use omega_typed_program::expression::Expression;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 
 pub(in crate::runtime_text) fn collect_host_call_runtime_text(
-    native_plan: &NativePlan,
     host_calls: &HostCallPlan,
     host_call: &HostCall,
     plan: &mut RuntimeTextPlan,
 ) {
     match host_call.data {
         PlatformCallData::FirstTextArgument { append_newline } => {
-            collect_runtime_text_use(native_plan, host_calls, host_call, plan, append_newline);
+            collect_runtime_text_use(host_calls, host_call, plan, append_newline);
         }
         PlatformCallData::MutableOutputBuffer { byte_capacity } => {
-            collect_runtime_text_buffer(native_plan, host_calls, host_call, plan, byte_capacity);
+            collect_runtime_text_buffer(host_calls, host_call, plan, byte_capacity);
         }
         PlatformCallData::None => {}
     }
 }
 
 fn collect_runtime_text_use(
-    native_plan: &NativePlan,
     host_calls: &HostCallPlan,
     host_call: &HostCall,
     plan: &mut RuntimeTextPlan,
@@ -36,12 +33,6 @@ fn collect_runtime_text_use(
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
         plan.uses.insert(RuntimeTextUse {
             source_key: host_call.source_key,
-            machine: native_plan
-                .control_flow
-                .state_machine_name_by_key_cloned(host_call.source_key),
-            state: native_plan
-                .control_flow
-                .state_name_by_key_cloned(host_call.source_key),
             statement_index: host_call.statement_index,
             platform_call: host_call.platform_call.clone(),
             expression: expression.clone(),
@@ -52,7 +43,6 @@ fn collect_runtime_text_use(
 }
 
 fn collect_runtime_text_buffer(
-    native_plan: &NativePlan,
     host_calls: &HostCallPlan,
     host_call: &HostCall,
     plan: &mut RuntimeTextPlan,
@@ -68,12 +58,6 @@ fn collect_runtime_text_buffer(
 
     plan.buffers.insert(RuntimeTextBuffer {
         source_key: host_call.source_key,
-        machine: native_plan
-            .control_flow
-            .state_machine_name_by_key_cloned(host_call.source_key),
-        state: native_plan
-            .control_flow
-            .state_name_by_key_cloned(host_call.source_key),
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
         target: (**target).clone(),

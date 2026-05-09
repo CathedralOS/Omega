@@ -46,10 +46,10 @@ fn runtime_value_blocker_reason(native_plan: &NativePlan, value: &StateValueUse)
     if let Some(text_write) =
         runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
     {
+        let source_name = state_name(native_plan, text_write.source_key);
         return format!(
-            "{}.{} statement {} text write `{}` = `{}` needs {}",
-            text_write.machine,
-            text_write.state,
+            "{} statement {} text write `{}` = `{}` needs {}",
+            source_name,
             text_write.statement_index,
             text_write.target.display_name(),
             text_write.value.display_name(),

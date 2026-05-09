@@ -53,7 +53,7 @@ pub(super) fn collect_host_argument_blockers(
             blockers.insert(blocker(
                 "host arguments",
                 &runtime_text_use
-                    .map(host_text_argument_blocker_reason)
+                    .map(|text_use| host_text_argument_blocker_reason(native_plan, text_use))
                     .unwrap_or_else(|| {
                         let source_name = state_name(native_plan, host_call.source_key);
                         format!(
@@ -90,7 +90,10 @@ fn runtime_text_use_has_input_buffer(native_plan: &NativePlan, text_use: &Runtim
     })
 }
 
-fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
+fn host_text_argument_blocker_reason(
+    native_plan: &NativePlan,
+    text_use: &RuntimeTextUse,
+) -> String {
     let lowering_need = match text_use.source {
         RuntimeTextSource::StoredPlace => "runtime string storage lowering",
         RuntimeTextSource::GeneratedString => "runtime string builder lowering",
@@ -98,10 +101,10 @@ fn host_text_argument_blocker_reason(text_use: &RuntimeTextUse) -> String {
         RuntimeTextSource::OtherExpression => "runtime string expression lowering",
     };
 
+    let source_name = state_name(native_plan, text_use.source_key);
     format!(
-        "{}.{} statement {} text argument `{}` needs {lowering_need}",
-        text_use.machine,
-        text_use.state,
+        "{} statement {} text argument `{}` needs {lowering_need}",
+        source_name,
         text_use.statement_index,
         text_use.expression.display_name()
     )
