@@ -9,7 +9,7 @@ use omega_typed_program::expression::Expression;
 pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     native_plan: &NativePlan,
     source_key: StateKey,
-    source_machine: &str,
+    _source_machine: &str,
     statement_index: usize,
     resolved_target: &Expression,
     value: &str,
@@ -17,8 +17,8 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
 ) {
     let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        native_plan.entry_machine_name(),
-        source_machine,
+        native_plan.entry_key.machine,
+        source_key.machine,
         resolved_target,
     ) else {
         return;

@@ -22,14 +22,14 @@ pub(super) fn resolve_runtime_storage_place(
     native_plan: &NativePlan,
     dispatch_index: u32,
     source_key: StateKey,
-    source_machine: &str,
+    _source_machine: &str,
     _source_state: &str,
     expression: &Expression,
 ) -> Option<RuntimeStoragePlace> {
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        native_plan.entry_machine_name(),
-        source_machine,
+        native_plan.entry_key.machine,
+        source_key.machine,
         expression,
     ) {
         return Some(RuntimeStoragePlace {

@@ -11,7 +11,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
     native_plan: &NativePlan,
     dispatch_index: u32,
     operation_key: StateKey,
-    source_machine: &str,
+    _source_machine: &str,
     operation_machine: &str,
     operation_state: &str,
     statement_index: usize,
@@ -21,8 +21,8 @@ pub(super) fn select_runtime_resolved_mutation_write(
 ) {
     if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
-        native_plan.entry_machine_name(),
-        source_machine,
+        native_plan.entry_key.machine,
+        operation_key.machine,
         resolved_target,
     ) && let Some(value) = static_integer_value(&native_plan.layouts, resolved_value)
     {

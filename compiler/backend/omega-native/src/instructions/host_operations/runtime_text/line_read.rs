@@ -88,10 +88,8 @@ pub(in crate::instructions) fn runtime_machine_string_descriptor_offset(
     };
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &native_plan.layouts,
-        native_plan.entry_machine_name(),
-        &native_plan
-            .control_flow
-            .state_machine_name_by_key_cloned(host_call.source_key),
+        native_plan.entry_key.machine,
+        host_call.source_key.machine,
         expression,
     )?;
     (byte_size == native_plan.target.pointer_size * 2).then_some(byte_offset)
