@@ -128,26 +128,22 @@ pub(super) fn resolve_straight_line_binding_expression(
 }
 
 fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
-    symbol_or_name_matches(alias.parameter_symbol, &alias.parameter_name, path)
+    symbol_matches_path(alias.parameter_symbol, path)
 }
 
 fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {
-    symbol_or_name_matches(binding.parameter_symbol, &binding.parameter_name, path)
+    symbol_matches_path(binding.parameter_symbol, path)
 }
 
 fn straight_line_binding_matches_path(
     binding: &RuntimeStraightLineBranchBinding,
     path: &NamePath,
 ) -> bool {
-    symbol_or_name_matches(binding.parameter_symbol, &binding.parameter_name, path)
+    symbol_matches_path(binding.parameter_symbol, path)
 }
 
-fn symbol_or_name_matches(symbol: SymbolHandle, name: &ProgramName, path: &NamePath) -> bool {
-    if symbol.is_valid() && path.head_symbol().is_valid() {
-        symbol == path.head_symbol()
-    } else {
-        !path.is_empty() && name == &path[0]
-    }
+fn symbol_matches_path(symbol: SymbolHandle, path: &NamePath) -> bool {
+    symbol.is_valid() && path.head_symbol().is_valid() && symbol == path.head_symbol()
 }
 
 pub(super) fn append_place_suffix(expression: &Expression, suffix: &[ProgramName]) -> Expression {
