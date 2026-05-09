@@ -9,6 +9,7 @@ use crate::parser::AstFile;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifact_inputs::{ast_artifact, source_load_artifact};
 use crate::pipeline::artifacts::ArtifactWriter;
+use crate::pipeline::native_report;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
@@ -159,8 +160,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
-        artifacts
-            .write_native_report(&native_surface, &native_plan)
+        native_report::write_native_report(&artifacts, &native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(native_plan)
@@ -301,8 +301,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
-        artifacts
-            .write_native_report(&native_surface, &native_plan)
+        native_report::write_native_report(&artifacts, &native_surface, &native_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
         Ok(native_plan)
