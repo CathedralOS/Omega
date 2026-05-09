@@ -22,7 +22,6 @@ pub mod state_calls;
 pub mod state_schedule;
 pub mod state_storage;
 pub mod state_values;
-pub mod target_output;
 
 pub use runtime_dispatch::guards as state_guards;
 pub use runtime_dispatch::states as state_dispatch;

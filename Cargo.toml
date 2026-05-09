@@ -25,6 +25,7 @@ members = [
     "compiler/backend/omega-instruction-selection",
     "compiler/backend/instruction_set_architectures/omega-isa-aarch64",
     "compiler/backend/images/omega-image",
+    "compiler/backend/images/omega-image-emission",
     "compiler/backend/images/omega-image-elf",
     "compiler/backend/images/omega-image-macho",
     "compiler/backend/object/omega-object",

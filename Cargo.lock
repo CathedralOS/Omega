@@ -193,6 +193,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-image-emission"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-image",
+ "omega-image-elf",
+ "omega-image-macho",
+ "omega-object",
+ "omega-target",
+]
+
+[[package]]
 name = "omega-image-macho"
 version = "0.1.0"
 dependencies = [
@@ -260,8 +272,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-image",
- "omega-image-elf",
- "omega-image-macho",
+ "omega-image-emission",
  "omega-instruction-selection",
  "omega-isa-aarch64",
  "omega-layout",

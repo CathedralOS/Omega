@@ -1,7 +1,7 @@
 use crate::plan::NativePlan;
-use crate::target_output::emit_target_output;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::EmittedImageOutput;
+use omega_image_emission::{ExecutableImageInput, emit_executable_image};
 
 pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedImageOutput, Diagnostic> {
     if native_plan.machine_code.bytes.len() != native_plan.machine_code.byte_count {
@@ -13,7 +13,13 @@ pub fn emit_native_output(native_plan: &NativePlan) -> Result<EmittedImageOutput
         )));
     }
 
-    if let Some(emitted_output) = emit_target_output(native_plan) {
+    if let Some(emitted_output) = emit_executable_image(ExecutableImageInput {
+        target: native_plan.target,
+        object: &native_plan.object,
+        relocations: &native_plan.relocations,
+        text_bytes: native_plan.machine_code.bytes.storage_slice(),
+        data_bytes: native_plan.data.bytes.storage_slice(),
+    }) {
         return emitted_output;
     }
 

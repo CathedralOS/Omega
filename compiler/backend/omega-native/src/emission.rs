@@ -1,8 +1,8 @@
 use crate::plan::NativePlan;
 use crate::state_schedule::{build_entry_state_schedule, scheduled_state_contains_key};
-use crate::target_output::can_emit_target_output;
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
+use omega_image_emission::can_emit_executable_image;
 
 mod host_argument_blockers;
 mod host_binding_blockers;
@@ -112,7 +112,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
 }
 
 fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
-    can_emit_target_output(native_plan.target)
+    can_emit_executable_image(native_plan.target)
         && native_plan.machine_code.bytes.len() == native_plan.machine_code.byte_count
 }
 
