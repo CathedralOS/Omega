@@ -4,6 +4,7 @@ use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::abi::build_host_abi_plan;
 use crate::alias_flow::build_alias_flow_plan;
+use crate::control_flow::ControlFlowPlan;
 use crate::data::build_native_data_plan;
 use crate::host_calls::build_host_call_plan_with_workers;
 use crate::instructions::build_instruction_plan;
@@ -44,6 +45,20 @@ pub(super) fn build_native_plan_with_workers(
     target: NativeTarget,
     workers: WorkerPoolHandle,
 ) -> Result<NativePlan, Diagnostic> {
+    let control_flow = Arc::new(build_control_flow_plan_with_workers(
+        Arc::clone(&program),
+        workers.clone(),
+    )?);
+
+    build_native_plan_from_control_flow_with_workers(program, target, control_flow, workers)
+}
+
+pub(super) fn build_native_plan_from_control_flow_with_workers(
+    program: Arc<Program>,
+    target: NativeTarget,
+    control_flow: Arc<ControlFlowPlan>,
+    workers: WorkerPoolHandle,
+) -> Result<NativePlan, Diagnostic> {
     let entry_point = resolve_native_entry_point(&program)?;
     let mut phase_timings = Vec::new();
     let host_abi = record_native_phase(&mut phase_timings, "host abi", || {
@@ -51,16 +66,11 @@ pub(super) fn build_native_plan_with_workers(
     });
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
-    let control_flow_program = Arc::clone(&program);
     let host_call_abi = Arc::new(host_abi.clone());
-    let control_flow_workers = workers.clone();
     let host_call_workers = workers.clone();
-    let (control_flow, layouts, host_calls) =
-        record_native_phase(&mut phase_timings, "control/layout/host calls", || {
-            workers.join3(
-                move || {
-                    build_control_flow_plan_with_workers(control_flow_program, control_flow_workers)
-                },
+    let (layouts, host_calls) =
+        record_native_phase(&mut phase_timings, "layout/host calls", || {
+            workers.join2(
                 move || build_layout_plan(&layout_program, target),
                 move || {
                     build_host_call_plan_with_workers(
@@ -72,7 +82,6 @@ pub(super) fn build_native_plan_with_workers(
                 },
             )
         });
-    let control_flow = control_flow?;
     let layouts = layouts?;
     let host_calls = host_calls?;
     let entry_key = control_flow
@@ -96,7 +105,7 @@ pub(super) fn build_native_plan_with_workers(
         target,
         host_abi,
         host_calls,
-        control_flow,
+        control_flow: (*control_flow).clone(),
         runtime_flow,
         state_dispatch,
         state_guards,

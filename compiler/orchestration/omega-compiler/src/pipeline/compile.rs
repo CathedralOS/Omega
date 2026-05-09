@@ -21,7 +21,7 @@ use omega_native::build_native_surface_report;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
 use omega_native::executable_finalization::finalize_native_output;
-use omega_native::plan::build_native_plan_with_workers;
+use omega_native::plan::build_native_plan_from_control_flow_with_workers;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
@@ -116,7 +116,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_validation(&program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "graph", || {
+    let control_flow = Arc::new(record_phase(&mut phase_timings, "graph", || {
         let loaded_program_for_graph = Arc::clone(&loaded_program);
         let program_for_control_flow = Arc::clone(&program);
         let workers_for_control_flow = workers.handle();
@@ -132,8 +132,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_graphs(&source_graph, &control_flow)
-            .map_err(|diagnostic| vec![diagnostic])
-    })?;
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(control_flow)
+    })?);
     record_phase(&mut phase_timings, "proof", || {
         let loaded_program_for_proof = Arc::clone(&loaded_program);
         let program_for_proof = Arc::clone(&program);
@@ -156,9 +158,13 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
-        let native_plan =
-            build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
-                .map_err(|diagnostic| vec![diagnostic])?;
+        let native_plan = build_native_plan_from_control_flow_with_workers(
+            Arc::clone(&program),
+            target,
+            Arc::clone(&control_flow),
+            workers.handle(),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
         artifacts
             .write_native_report(&native_surface, &native_plan)
@@ -252,7 +258,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_validation(&program)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    record_phase(&mut phase_timings, "graph", || {
+    let control_flow = Arc::new(record_phase(&mut phase_timings, "graph", || {
         let loaded_program_for_graph = Arc::clone(&loaded_program);
         let program_for_control_flow = Arc::clone(&program);
         let workers_for_control_flow = workers.handle();
@@ -268,8 +274,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         let control_flow = control_flow.map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_graphs(&source_graph, &control_flow)
-            .map_err(|diagnostic| vec![diagnostic])
-    })?;
+            .map_err(|diagnostic| vec![diagnostic])?;
+
+        Ok(control_flow)
+    })?);
     record_phase(&mut phase_timings, "proof", || {
         let loaded_program_for_proof = Arc::clone(&loaded_program);
         let program_for_proof = Arc::clone(&program);
@@ -292,9 +300,13 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     let native_plan = record_phase(&mut phase_timings, "native plan", || {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
-        let native_plan =
-            build_native_plan_with_workers(Arc::clone(&program), target, workers.handle())
-                .map_err(|diagnostic| vec![diagnostic])?;
+        let native_plan = build_native_plan_from_control_flow_with_workers(
+            Arc::clone(&program),
+            target,
+            Arc::clone(&control_flow),
+            workers.handle(),
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
         artifacts
             .write_native_report(&native_surface, &native_plan)
