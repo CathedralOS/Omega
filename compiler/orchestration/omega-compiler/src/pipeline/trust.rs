@@ -1,54 +1,10 @@
 use crate::ast::item::{
     CapabilityContractKind, CapabilityMember, Item, TrustLevel, TrustMode, TrustPolicy,
 };
-use omega_core::arena::Arena;
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustReport {
-    pub targets: Arena<TrustTarget>,
-    pub trust_roots: Arena<TrustRoot>,
-    pub trusted_contracts: Arena<TrustedContract>,
-    pub unresolved_trusts: Arena<UnresolvedTrustReference>,
-    pub unchecked_policies: Arena<UncheckedTrustPolicy>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustTarget {
-    pub name: String,
-    pub host_provider: String,
-    pub host_settings: usize,
-    pub checked_trusts: usize,
-    pub unchecked_trusts: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustRoot {
-    pub name: String,
-    pub token_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct TrustedContract {
-    pub capability: String,
-    pub state: String,
-    pub trust_level: String,
-    pub resolved: bool,
-    pub requires_count: usize,
-    pub ensures_count: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UnresolvedTrustReference {
-    pub capability: String,
-    pub state: String,
-    pub trust_level: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UncheckedTrustPolicy {
-    pub target: String,
-    pub name: String,
-}
+use omega_artifacts::{
+    TrustReport, TrustRoot, TrustTarget, TrustedContract, UncheckedTrustPolicy,
+    UnresolvedTrustReference,
+};
 
 pub fn build_trust_report(items: &[Item], selected_target_name: Option<&str>) -> TrustReport {
     let mut report = TrustReport::default();

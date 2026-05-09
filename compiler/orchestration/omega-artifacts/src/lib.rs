@@ -60,6 +60,53 @@ pub struct AstFileArtifact {
     pub item_range_valid: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrustReport {
+    pub targets: Arena<TrustTarget>,
+    pub trust_roots: Arena<TrustRoot>,
+    pub trusted_contracts: Arena<TrustedContract>,
+    pub unresolved_trusts: Arena<UnresolvedTrustReference>,
+    pub unchecked_policies: Arena<UncheckedTrustPolicy>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrustTarget {
+    pub name: String,
+    pub host_provider: String,
+    pub host_settings: usize,
+    pub checked_trusts: usize,
+    pub unchecked_trusts: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrustRoot {
+    pub name: String,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrustedContract {
+    pub capability: String,
+    pub state: String,
+    pub trust_level: String,
+    pub resolved: bool,
+    pub requires_count: usize,
+    pub ensures_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UnresolvedTrustReference {
+    pub capability: String,
+    pub state: String,
+    pub trust_level: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UncheckedTrustPolicy {
+    pub target: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmissionPlan {
     pub image_format: ObjectFormat,

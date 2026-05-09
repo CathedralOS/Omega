@@ -1,11 +1,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::pipeline::trust::TrustReport;
 use omega_artifacts::{
     AstArtifact, AstFileArtifact, EmissionPlan, ExecutableFinalization,
     ExecutableFinalizationStatus, NativeSurfaceReport, PhaseTiming, SourceFileArtifact,
-    SourceLoadArtifact,
+    SourceLoadArtifact, TrustReport,
 };
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
