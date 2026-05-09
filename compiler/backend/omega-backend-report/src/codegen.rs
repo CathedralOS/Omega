@@ -1,4 +1,4 @@
-use super::native_state_name;
+use super::backend_state_name;
 
 use crate::BackendReportInput;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
@@ -16,7 +16,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
         output.push_str("none\n");
     } else {
         for (_, data_object) in backend_plan.data.objects.iter() {
-            write_native_data_object(output, backend_plan, data_object);
+            write_target_data_object(output, backend_plan, data_object);
         }
     }
     output.push('\n');
@@ -62,7 +62,7 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     output.push('\n');
 }
 
-fn write_native_data_object(
+fn write_target_data_object(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
     data_object: &TargetDataObject,
@@ -72,7 +72,7 @@ fn write_native_data_object(
         .bytes
         .span(data_object.bytes)
         .map_or(0, |bytes| bytes.len());
-    let source_name = native_state_name(backend_plan, data_object.source_key);
+    let source_name = backend_state_name(backend_plan, data_object.source_key);
 
     output.push_str(&format!(
         "- {} @{} bytes {} align {} from {} statement {}\n",
@@ -90,7 +90,7 @@ fn write_function_instruction_plan(
     backend_plan: &BackendReportInput<'_>,
     function: &FunctionInstructionPlan,
 ) {
-    let source_name = native_state_name(backend_plan, function.source_key);
+    let source_name = backend_state_name(backend_plan, function.source_key);
     output.push_str(&format!(
         "- function {} from {}\n",
         function.symbol, source_name

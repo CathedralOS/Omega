@@ -1,4 +1,4 @@
-use super::native_state_name;
+use super::backend_state_name;
 
 use crate::BackendReportInput;
 use omega_calling_conventions::{
@@ -46,7 +46,7 @@ pub(super) fn write_host_sections(output: &mut String, backend_plan: &BackendRep
     if !backend_plan.host_calls.unsupported_calls.is_empty() {
         output.push_str("unsupported:\n");
         for (_, unsupported_call) in backend_plan.host_calls.unsupported_calls.iter() {
-            let source_name = native_state_name(backend_plan, unsupported_call.source_key);
+            let source_name = backend_state_name(backend_plan, unsupported_call.source_key);
             output.push_str(&format!(
                 "- {} statement {} `{}`: {}\n",
                 source_name,
@@ -122,7 +122,7 @@ fn write_platform_call_lowering(
 }
 
 fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, call: &HostCall) {
-    let source_name = native_state_name(backend_plan, call.source_key);
+    let source_name = backend_state_name(backend_plan, call.source_key);
     output.push_str(&format!(
         "- {} statement {} `{}`\n",
         source_name, call.statement_index, call.platform_call

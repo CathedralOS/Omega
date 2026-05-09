@@ -114,9 +114,9 @@ pub fn backend_report_text(
         output.push_str("none\n");
     } else {
         for (_, state_call) in backend_plan.state_calls.calls.iter() {
-            let source_name = native_state_name(backend_plan, state_call.source_key);
+            let source_name = backend_state_name(backend_plan, state_call.source_key);
             let target_name = if state_call.target_key.is_valid() {
-                native_state_name(backend_plan, state_call.target_key)
+                backend_state_name(backend_plan, state_call.target_key)
             } else {
                 "unresolved".to_owned()
             };
@@ -169,8 +169,8 @@ pub fn backend_report_text(
         output.push_str("none\n");
     } else {
         for (_, alias) in backend_plan.alias_flow.aliases.iter() {
-            let caller_name = native_state_name(backend_plan, alias.caller_key);
-            let callee_name = native_state_name(backend_plan, alias.callee_key);
+            let caller_name = backend_state_name(backend_plan, alias.caller_key);
+            let callee_name = backend_state_name(backend_plan, alias.callee_key);
             output.push_str(&format!(
                 "- {} statement {} -> {} `{}` aliases `{}` required {}\n",
                 caller_name,
@@ -190,7 +190,7 @@ pub fn backend_report_text(
         backend_plan.state_storage.locals.len()
     ));
     for (_, local) in backend_plan.state_storage.locals.iter() {
-        let source_name = native_state_name(backend_plan, local.source_key);
+        let source_name = backend_state_name(backend_plan, local.source_key);
         output.push_str(&format!(
             "- {} statement {} local `{}`: {} required {}\n",
             source_name, local.statement_index, local.name, local.type_name, local.required
@@ -201,7 +201,7 @@ pub fn backend_report_text(
         backend_plan.state_storage.mutations.len()
     ));
     for (_, mutation) in backend_plan.state_storage.mutations.iter() {
-        let source_name = native_state_name(backend_plan, mutation.source_key);
+        let source_name = backend_state_name(backend_plan, mutation.source_key);
         output.push_str(&format!(
             "- {} statement {} {:?}/{:?}: `{}` = `{}` required {}\n",
             source_name,
@@ -221,7 +221,7 @@ pub fn backend_report_text(
         backend_plan.runtime_storage.frame_slots.len()
     ));
     for (_, slot) in backend_plan.runtime_storage.frame_slots.iter() {
-        let source_name = native_state_name(backend_plan, slot.source_key);
+        let source_name = backend_state_name(backend_plan, slot.source_key);
         output.push_str(&format!(
             "- #{} {} statement {} local `{}`: {} offset {} bytes {} align {}\n",
             slot.dispatch_index,
@@ -239,7 +239,7 @@ pub fn backend_report_text(
         backend_plan.runtime_storage.writes.len()
     ));
     for (_, write) in backend_plan.runtime_storage.writes.iter() {
-        let source_name = native_state_name(backend_plan, write.source_key);
+        let source_name = backend_state_name(backend_plan, write.source_key);
         output.push_str(&format!(
             "- #{} {} statement {} {:?}/{:?}: `{}` = `{}`\n",
             write.dispatch_index,
@@ -259,7 +259,7 @@ pub fn backend_report_text(
         backend_plan.state_values.values.len()
     ));
     for (_, value) in backend_plan.state_values.values.iter() {
-        let source_name = native_state_name(backend_plan, value.source_key);
+        let source_name = backend_state_name(backend_plan, value.source_key);
         output.push_str(&format!(
             "- {} statement {} {:?}/{:?}: `{}` required {}\n",
             source_name,
@@ -298,7 +298,7 @@ pub fn backend_report_text(
         output.push_str("uses: none\n");
     } else {
         for (_, text_use) in backend_plan.runtime_text.uses.iter() {
-            let source_name = native_state_name(backend_plan, text_use.source_key);
+            let source_name = backend_state_name(backend_plan, text_use.source_key);
             output.push_str(&format!(
                 "- {} statement {} `{}` {:?} newline {}\n",
                 source_name,
@@ -313,7 +313,7 @@ pub fn backend_report_text(
         output.push_str("buffers: none\n");
     } else {
         for (_, text_buffer) in backend_plan.runtime_text.buffers.iter() {
-            let source_name = native_state_name(backend_plan, text_buffer.source_key);
+            let source_name = backend_state_name(backend_plan, text_buffer.source_key);
             output.push_str(&format!(
                 "- buffer {} statement {} `{}` bytes {}\n",
                 source_name,
@@ -339,7 +339,7 @@ pub fn backend_report_text(
         output.push_str("writes: none\n");
     } else {
         for (_, text_write) in backend_plan.runtime_text.writes.iter() {
-            let source_name = native_state_name(backend_plan, text_write.source_key);
+            let source_name = backend_state_name(backend_plan, text_write.source_key);
             output.push_str(&format!(
                 "- write {} statement {} `{}` = `{}` {:?}\n",
                 source_name,
@@ -354,7 +354,7 @@ pub fn backend_report_text(
         output.push_str("builders: none\n");
     } else {
         for (_, text_builder) in backend_plan.runtime_text.builders.iter() {
-            let source_name = native_state_name(backend_plan, text_builder.source_key);
+            let source_name = backend_state_name(backend_plan, text_builder.source_key);
             output.push_str(&format!(
                 "- builder {} statement {} `{}` segments {}\n",
                 source_name,
@@ -468,7 +468,7 @@ pub fn backend_report_text(
         for (_, state) in backend_plan.runtime_flow.states.iter() {
             output.push_str(&format!(
                 "- {}\n",
-                native_state_name(backend_plan, state.key)
+                backend_state_name(backend_plan, state.key)
             ));
         }
     }
@@ -477,7 +477,7 @@ pub fn backend_report_text(
         for (_, edge) in backend_plan.runtime_flow.edges.iter() {
             output.push_str(&format!(
                 "- {} -> {} {}",
-                native_state_name(backend_plan, edge.from),
+                backend_state_name(backend_plan, edge.from),
                 runtime_transition_target_name(backend_plan, &edge.target),
                 transition_guard_name(&edge.guard)
             ));
@@ -503,7 +503,7 @@ pub fn backend_report_text(
                 Some(states) => {
                     let path = states
                         .iter()
-                        .map(|state| native_state_name(backend_plan, state.key))
+                        .map(|state| backend_state_name(backend_plan, state.key))
                         .collect::<Vec<_>>()
                         .join(" -> ");
                     output.push_str(&format!("- {path}\n"));
@@ -759,7 +759,7 @@ pub fn backend_report_text(
         output.push_str("none\n");
     } else {
         for (_, body) in backend_plan.runtime_bodies.bodies.iter() {
-            let source_name = native_state_name(backend_plan, body.key);
+            let source_name = backend_state_name(backend_plan, body.key);
             output.push_str(&format!("- #{} {}\n", body.dispatch_index, source_name));
 
             match backend_plan.runtime_bodies.operations.span(body.operations) {
@@ -769,7 +769,7 @@ pub fn backend_report_text(
                 Some(operations) => {
                     output.push_str("  operations:\n");
                     for operation in operations {
-                        let source_name = native_state_name(backend_plan, operation.source_key);
+                        let source_name = backend_state_name(backend_plan, operation.source_key);
                         output.push_str(&format!(
                             "    - {} statement {} {:?}\n",
                             source_name, operation.statement_index, operation.kind
@@ -794,8 +794,8 @@ pub fn backend_report_text(
         output.push_str("none\n");
     } else {
         for (_, call) in backend_plan.runtime_branching_calls.calls.iter() {
-            let source_name = native_state_name(backend_plan, call.source_key);
-            let target_name = native_state_name(backend_plan, call.target_key);
+            let source_name = backend_state_name(backend_plan, call.source_key);
+            let target_name = backend_state_name(backend_plan, call.target_key);
             output.push_str(&format!(
                 "- #{} {} statement {} -> {} args {}\n",
                 call.dispatch_index,
@@ -871,9 +871,9 @@ pub fn backend_report_text(
         output.push_str("none\n");
     } else {
         for (_, expansion) in backend_plan.runtime_branching_calls.leaf_expansions.iter() {
-            let source_name = native_state_name(backend_plan, expansion.source_key);
-            let branch_name = native_state_name(backend_plan, expansion.branch_key);
-            let leaf_name = native_state_name(backend_plan, expansion.leaf_key);
+            let source_name = backend_state_name(backend_plan, expansion.source_key);
+            let branch_name = backend_state_name(backend_plan, expansion.branch_key);
+            let leaf_name = backend_state_name(backend_plan, expansion.leaf_key);
             output.push_str(&format!(
                 "- #{} {} statement {} {} edge {} -> {} {:?} {}\n",
                 expansion.dispatch_index,
@@ -967,9 +967,9 @@ pub fn backend_report_text(
             .straight_line_expansions
             .iter()
         {
-            let source_name = native_state_name(backend_plan, expansion.source_key);
-            let branch_name = native_state_name(backend_plan, expansion.branch_key);
-            let target_name = native_state_name(backend_plan, expansion.target_key);
+            let source_name = backend_state_name(backend_plan, expansion.source_key);
+            let branch_name = backend_state_name(backend_plan, expansion.branch_key);
+            let target_name = backend_state_name(backend_plan, expansion.target_key);
             output.push_str(&format!(
                 "- #{} {} statement {} {} edge {} -> {} {:?} {}\n",
                 expansion.dispatch_index,
@@ -1042,7 +1042,7 @@ fn write_runtime_leaf_branch_operation(
     backend_plan: &BackendReportInput<'_>,
     operation: &RuntimeLeafBranchOperation,
 ) {
-    let source_name = native_state_name(backend_plan, operation.source_key);
+    let source_name = backend_state_name(backend_plan, operation.source_key);
     match &operation.kind {
         RuntimeLeafBranchOperationKind::HostCall { platform_call } => {
             output.push_str(&format!(
@@ -1080,7 +1080,7 @@ fn write_runtime_straight_line_branch_operation(
     backend_plan: &BackendReportInput<'_>,
     operation: &RuntimeStraightLineBranchOperation,
 ) {
-    let source_name = native_state_name(backend_plan, operation.source_key);
+    let source_name = backend_state_name(backend_plan, operation.source_key);
     match &operation.kind {
         RuntimeStraightLineBranchOperationKind::HostCall { platform_call } => {
             output.push_str(&format!(
@@ -1110,7 +1110,7 @@ fn write_runtime_straight_line_branch_operation(
             lowering,
             ..
         } => {
-            let target_name = native_state_name(backend_plan, *target_key);
+            let target_name = backend_state_name(backend_plan, *target_key);
             output.push_str(&format!(
                 "    - {} statement {} state call {} args {} {:?}\n",
                 source_name, operation.statement_index, target_name, argument_count, lowering
@@ -1143,14 +1143,14 @@ fn runtime_transition_target_name(
     target: &RuntimeTransitionTarget,
 ) -> String {
     match target {
-        RuntimeTransitionTarget::State { key } => native_state_name(backend_plan, *key),
+        RuntimeTransitionTarget::State { key } => backend_state_name(backend_plan, *key),
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
     }
 }
 
-fn native_state_name(backend_plan: &BackendReportInput<'_>, key: StateKey) -> String {
+fn backend_state_name(backend_plan: &BackendReportInput<'_>, key: StateKey) -> String {
     backend_plan
         .control_flow
         .state_names_by_key(key)
