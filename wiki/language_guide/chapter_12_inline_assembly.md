@@ -13,7 +13,7 @@ This keeps inline assembly useful for low-level work without letting it become a
 
 ## Contract-Emitting Assembly
 
-An assembly block should be parsed as a restricted Omega assembly dialect, not treated as an opaque text blob.
+An assembly block should be parsed as target assembly under Omega's stricter accepted subset, not treated as an opaque text blob.
 
 Known instructions can have compiler-defined contracts. For example, a structured load instruction can declare requirements about alignment, initialized memory, and read permission, then guarantee that a destination register is initialized. A structured store instruction can require writable memory and guarantee initialized destination bytes.
 
@@ -22,7 +22,7 @@ Manual contracts are still useful, but they should fill gaps rather than be the 
 - Parse the assembly.
 - Convert instructions into structured low-level operations.
 - Emit requirements, guarantees, clobbers, and control-flow exits from known instruction contracts.
-- Ask the user for explicit contracts only when the instruction or behavior is outside the known dialect.
+- Ask the user for explicit contracts only when the instruction or behavior is outside the known accepted subset.
 
 An assembly block should still be able to describe what it reads, writes, clobbers, requires, ensures, and how control can leave the block.
 
@@ -138,7 +138,7 @@ asm {
 }
 ```
 
-The compiler accepts this only if `ldr` and `str` are part of the known Omega assembly dialect for the target and their emitted contracts can be discharged.
+The compiler accepts this only if `ldr` and `str` are part of the known accepted subset for the target and their emitted contracts can be discharged.
 
 Compact control-flow assembly:
 

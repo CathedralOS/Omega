@@ -14,7 +14,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Omega should distinguish proof numbers from machine numbers. `Nat`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
-- Inline assembly should be parsed as a restricted contract-emitting dialect rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
+- Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Typed states remain branch-free semantically. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states with explicit edges.
 - `state entry` is for implicit invocation, such as `machine main`, anonymous machines, and future thread/task machines. Ordinary machines can still be entered through explicit state names.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
@@ -32,7 +32,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - How should `Real` contracts lower when called with `f32` or `f64`: explicit `approx<Real, eps=...>`, compiler-inferred error bounds, or named approximation policies?
 - Should inline assembly allow local labels and internal jumps, or only structured exits that map to Omega transitions?
 - What is the minimum contract syntax for assembly clobbers, memory effects, target features, and emitted invariants?
-- Which assembly instructions belong in the first known dialect, and what exact contracts should each instruction emit?
+- Which assembly instructions belong in the first accepted subset for each target, and what exact contracts should each instruction emit?
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should host operation signatures describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
