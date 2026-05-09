@@ -16,6 +16,7 @@ pub mod identity;
 pub mod instructions;
 pub mod machine_code;
 pub mod object;
+pub(crate) mod place_keys;
 pub mod plan;
 pub mod relocations;
 pub mod runtime_dispatch;

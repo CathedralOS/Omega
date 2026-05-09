@@ -1,5 +1,6 @@
 use crate::abi::{HostAbiPlan, PlatformCallLowering};
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
+use crate::place_keys::PlaceKey;
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
@@ -66,7 +67,7 @@ pub(in crate::host_calls) fn host_operation(
 
 pub(in crate::host_calls) fn lower_host_call_arguments(
     call: &Call,
-    static_values: &[(String, StaticValue)],
+    static_values: &[(PlaceKey, StaticValue)],
 ) -> Vec<HostCallArgument> {
     call.arguments
         .iter()
@@ -93,7 +94,7 @@ fn lowering_matches(
 
 fn lower_host_call_argument(
     argument: &Expression,
-    static_values: &[(String, StaticValue)],
+    static_values: &[(PlaceKey, StaticValue)],
 ) -> HostCallArgumentKind {
     match argument {
         Expression::String(value) => HostCallArgumentKind::Text(value.clone()),

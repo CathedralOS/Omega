@@ -8,6 +8,7 @@ use crate::host_calls::static_values::{
     StaticValue, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
 use crate::host_calls::{HostCall, HostCallPlan, UnsupportedHostCall};
+use crate::place_keys::PlaceKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
@@ -75,7 +76,7 @@ fn collect_call_host_lowering(
     state: &State,
     statement_index: usize,
     call: &Call,
-    static_values: &[(String, StaticValue)],
+    static_values: &[(PlaceKey, StaticValue)],
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
     let Some(platform_name) = platform_call_receiver_type(program, machine, call) else {
