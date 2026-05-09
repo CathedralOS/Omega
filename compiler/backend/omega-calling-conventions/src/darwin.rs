@@ -46,8 +46,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
 
 fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding {
     HostBinding {
-        capability: capability.to_owned(),
-        operation: operation.to_owned(),
+        operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
             library: "libSystem.B.dylib".to_owned(),
             symbol: symbol.to_owned(),

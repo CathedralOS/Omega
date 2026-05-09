@@ -51,10 +51,13 @@ pub(super) fn find_host_binding<'plan>(
     capability: &str,
     operation: &str,
 ) -> Option<&'plan HostBinding> {
+    let operation_key =
+        omega_calling_conventions::HostOperationKey::from_names(capability, operation);
+
     input
         .host_abi
         .bindings
         .iter()
-        .find(|(_, binding)| binding.capability == capability && binding.operation == operation)
+        .find(|(_, binding)| binding.operation_key == operation_key)
         .map(|(_, binding)| binding)
 }

@@ -5,6 +5,109 @@ mod windows;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_target::{NativeTarget, ObjectFormat};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct HostOperationKey {
+    pub capability: HostCapability,
+    pub operation: HostOperation,
+}
+
+impl HostOperationKey {
+    pub const fn new(capability: HostCapability, operation: HostOperation) -> Self {
+        Self {
+            capability,
+            operation,
+        }
+    }
+
+    pub fn capability_name(self) -> &'static str {
+        self.capability.name()
+    }
+
+    pub fn operation_name(self) -> &'static str {
+        self.operation.name()
+    }
+
+    pub fn from_names(capability: &str, operation: &str) -> Self {
+        Self::new(
+            HostCapability::from_name(capability),
+            HostOperation::from_name(operation),
+        )
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HostCapability {
+    #[default]
+    Unknown,
+    Process,
+    Stdin,
+    Stdout,
+}
+
+impl HostCapability {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "Process" => Self::Process,
+            "Stdin" => Self::Stdin,
+            "Stdout" => Self::Stdout,
+            _ => Self::Unknown,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Unknown => "<unknown>",
+            Self::Process => "Process",
+            Self::Stdin => "Stdin",
+            Self::Stdout => "Stdout",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HostOperation {
+    #[default]
+    Unknown,
+    Exit,
+    ExitGroup,
+    ExitProcess,
+    GetStdHandle,
+    Read,
+    ReadFile,
+    Write,
+    WriteFile,
+}
+
+impl HostOperation {
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "exit" => Self::Exit,
+            "exit_group" => Self::ExitGroup,
+            "exit_process" => Self::ExitProcess,
+            "get_std_handle" => Self::GetStdHandle,
+            "read" => Self::Read,
+            "read_file" => Self::ReadFile,
+            "write" => Self::Write,
+            "write_file" => Self::WriteFile,
+            _ => Self::Unknown,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Unknown => "<unknown>",
+            Self::Exit => "exit",
+            Self::ExitGroup => "exit_group",
+            Self::ExitProcess => "exit_process",
+            Self::GetStdHandle => "get_std_handle",
+            Self::Read => "read",
+            Self::ReadFile => "read_file",
+            Self::Write => "write",
+            Self::WriteFile => "write_file",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostAbiPlan {
     pub target: NativeTarget,
@@ -15,8 +118,7 @@ pub struct HostAbiPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostBinding {
-    pub capability: String,
-    pub operation: String,
+    pub operation_key: HostOperationKey,
     pub mechanism: HostBindingMechanism,
     pub trust_policy: String,
 }
@@ -24,8 +126,7 @@ pub struct HostBinding {
 impl Default for HostBinding {
     fn default() -> Self {
         Self {
-            capability: String::new(),
-            operation: String::new(),
+            operation_key: HostOperationKey::default(),
             mechanism: HostBindingMechanism::Import {
                 library: String::new(),
                 symbol: String::new(),
@@ -82,15 +183,13 @@ pub enum PlatformCallData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostOperationReference {
-    pub capability: String,
-    pub operation: String,
+    pub key: HostOperationKey,
 }
 
 impl Default for HostOperationReference {
     fn default() -> Self {
         Self {
-            capability: String::new(),
-            operation: String::new(),
+            key: HostOperationKey::default(),
         }
     }
 }
@@ -130,7 +229,6 @@ fn insert_platform_lowering<const COUNT: usize>(
 
 fn host_operation(capability: &str, operation: &str) -> HostOperationReference {
     HostOperationReference {
-        capability: capability.to_owned(),
-        operation: operation.to_owned(),
+        key: HostOperationKey::from_names(capability, operation),
     }
 }

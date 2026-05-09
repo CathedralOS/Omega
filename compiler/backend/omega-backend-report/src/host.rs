@@ -64,7 +64,11 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
         HostBindingMechanism::Import { library, symbol } => {
             output.push_str(&format!(
                 "- {}.{} import {}!{} trust `{}`\n",
-                binding.capability, binding.operation, library, symbol, binding.trust_policy
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
+                library,
+                symbol,
+                binding.trust_policy
             ));
         }
         HostBindingMechanism::Syscall {
@@ -75,8 +79,8 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
         } => {
             output.push_str(&format!(
                 "- {}.{} syscall {}({}) register x{} svc #{} trust `{}`\n",
-                binding.capability,
-                binding.operation,
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
                 name,
                 number,
                 number_register,
@@ -99,7 +103,13 @@ fn write_platform_call_lowering(
         .map(|operations| {
             operations
                 .iter()
-                .map(|operation| format!("{}.{}", operation.capability, operation.operation))
+                .map(|operation| {
+                    format!(
+                        "{}.{}",
+                        operation.key.capability_name(),
+                        operation.key.operation_name()
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(" -> ")
         })

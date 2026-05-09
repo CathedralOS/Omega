@@ -70,8 +70,7 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
 
 fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding {
     HostBinding {
-        capability: capability.to_owned(),
-        operation: operation.to_owned(),
+        operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Syscall {
             name: operation.to_owned(),
             number,

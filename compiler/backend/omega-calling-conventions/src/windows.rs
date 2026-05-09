@@ -57,8 +57,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
 
 fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str) -> HostBinding {
     HostBinding {
-        capability: capability.to_owned(),
-        operation: operation.to_owned(),
+        operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
             library: library.to_owned(),
             symbol: symbol.to_owned(),

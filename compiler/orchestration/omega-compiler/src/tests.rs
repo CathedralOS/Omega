@@ -5,6 +5,7 @@ use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::parser::parse_file;
 use omega_abstract_syntax_to_typed::lower_program;
+use omega_calling_conventions::HostOperation;
 use omega_lexer::Lexer;
 use omega_target::{NativeTarget, ObjectFormat};
 
@@ -2707,7 +2708,7 @@ fn selected_linux_target_plans_elf_and_syscalls() {
             .host_abi
             .bindings
             .iter()
-            .any(|(_, binding)| binding.operation == "exit_group")
+            .any(|(_, binding)| binding.operation_key.operation == HostOperation::ExitGroup)
     );
     assert_eq!(backend_plan.host_calls.calls.len(), 2);
     assert_eq!(backend_plan.host_calls.operations.len(), 2);
