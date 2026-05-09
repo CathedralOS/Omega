@@ -1,4 +1,4 @@
-use crate::runtime_dispatch::guards::StateGuardOperandKind;
+use crate::StateGuardOperandKind;
 use omega_typed_program::expression::Expression;
 
 pub(super) fn classify_guard_operand(

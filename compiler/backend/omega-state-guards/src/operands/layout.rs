@@ -1,4 +1,4 @@
-use crate::runtime_dispatch::guards::StateGuardOperandStorage;
+use crate::StateGuardOperandStorage;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};

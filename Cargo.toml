@@ -26,6 +26,7 @@ members = [
     "compiler/backend/omega-state-values",
     "compiler/backend/omega-state-schedule",
     "compiler/backend/omega-state-dispatch",
+    "compiler/backend/omega-state-guards",
     "compiler/backend/omega-runtime-text",
     "compiler/backend/omega-runtime-bodies",
     "compiler/backend/omega-runtime-storage",

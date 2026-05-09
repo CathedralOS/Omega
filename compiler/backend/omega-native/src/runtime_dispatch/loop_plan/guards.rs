@@ -1,5 +1,5 @@
 use super::context::RuntimeDispatchLoopContext;
-use crate::state_guards::{
+use omega_state_guards::{
     StateGuardLowering, StateGuardOperandKind, StateGuardOperandStorage, StateGuardOperator,
 };
 

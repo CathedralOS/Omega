@@ -3,5 +3,3 @@
 pub mod instructions;
 pub mod plan;
 pub mod runtime_dispatch;
-
-pub use runtime_dispatch::guards as state_guards;

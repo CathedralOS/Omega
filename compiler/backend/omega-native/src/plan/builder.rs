@@ -8,7 +8,6 @@ use crate::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
     runtime_dispatch_loop_inputs,
 };
-use crate::state_guards::build_state_guard_plan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
@@ -34,6 +33,7 @@ use omega_state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
 use omega_state_graph::build_runtime_flow_plan;
+use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;

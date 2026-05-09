@@ -1,7 +1,7 @@
 use super::inputs::dispatch_index_for_key;
 use crate::plan::NativePlan;
-use crate::state_guards::StateGuardPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
+use omega_state_guards::StateGuardPlan;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopContext {

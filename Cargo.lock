@@ -140,6 +140,7 @@ dependencies = [
  "omega-proof",
  "omega-runtime-text",
  "omega-state-graph",
+ "omega-state-guards",
  "omega-state-schedule",
  "omega-target",
  "omega-target-program",
@@ -200,6 +201,7 @@ dependencies = [
  "omega-runtime-text",
  "omega-state-calls",
  "omega-state-graph",
+ "omega-state-guards",
  "omega-state-schedule",
  "omega-state-storage",
  "omega-state-values",
@@ -342,6 +344,7 @@ dependencies = [
  "omega-state-calls",
  "omega-state-dispatch",
  "omega-state-graph",
+ "omega-state-guards",
  "omega-state-schedule",
  "omega-state-storage",
  "omega-state-values",
@@ -369,6 +372,7 @@ dependencies = [
  "omega-runtime-text",
  "omega-state-dispatch",
  "omega-state-graph",
+ "omega-state-guards",
  "omega-state-schedule",
  "omega-target-program",
  "omega-typed-program",
@@ -503,6 +507,19 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-state-guards"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-layout",
+ "omega-state-dispatch",
+ "omega-state-graph",
+ "omega-target-program",
  "omega-typed-program",
 ]
 

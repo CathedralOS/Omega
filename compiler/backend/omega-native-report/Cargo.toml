@@ -23,6 +23,7 @@ omega-runtime-storage = { path = "../omega-runtime-storage" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-dispatch = { path = "../omega-state-dispatch" }
+omega-state-guards = { path = "../omega-state-guards" }
 omega-state-schedule = { path = "../omega-state-schedule" }
 omega-target-program = { path = "../../representations/omega-target-program" }
 omega-typed-program = { path = "../../representations/omega-typed-program" }

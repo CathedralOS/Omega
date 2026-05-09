@@ -1,6 +1,6 @@
 use crate::plan::NativePlan;
 use crate::runtime_dispatch::branching::RuntimeLeafBranchExpansion;
-use crate::state_guards::StateGuardOperator;
+use omega_state_guards::StateGuardOperator;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 

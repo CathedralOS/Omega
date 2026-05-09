@@ -1616,7 +1616,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert_eq!(native_plan.state_guards.guards.len(), 2);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         native_state_name(&native_plan, guard.source) == "main.entry"
-            && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
+            && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
             && guard.operator == omega_target_program::StateGuardOperator::Equal
             && guard.lowering == omega_target_program::StateGuardLowering::CompareStaticValue
             && guard.expression.display_name() == "ready == true"
@@ -1627,7 +1627,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
         .iter()
         .find(|(_, guard)| {
             native_state_name(&native_plan, guard.source) == "main.entry"
-                && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
+                && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
@@ -1641,24 +1641,24 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert_eq!(guard_operands[0].expression.display_name(), "ready");
     assert_eq!(
         guard_operands[0].kind,
-        omega_native::state_guards::StateGuardOperandKind::Place
+        omega_state_guards::StateGuardOperandKind::Place
     );
     assert_eq!(
         guard_operands[0].storage,
-        omega_native::state_guards::StateGuardOperandStorage::MachineOwned
+        omega_state_guards::StateGuardOperandStorage::MachineOwned
     );
     assert_eq!(guard_operands[0].byte_offset, 0);
     assert_eq!(guard_operands[0].byte_size, 1);
     assert_eq!(guard_operands[1].expression.display_name(), "true");
     assert_eq!(
         guard_operands[1].kind,
-        omega_native::state_guards::StateGuardOperandKind::Literal
+        omega_state_guards::StateGuardOperandKind::Literal
     );
     assert!(guard_operands[1].has_resolved_value);
     assert_eq!(guard_operands[1].resolved_value, 1);
     assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
         native_state_name(&native_plan, guard.source) == "main.entry"
-            && guard.kind == omega_native::state_guards::StateGuardKind::Always
+            && guard.kind == omega_state_guards::StateGuardKind::Always
             && !guard.has_expression
             && guard.forms_cycle
     }));
@@ -1699,7 +1699,7 @@ fn resolves_enum_guard_operand_values() {
         .iter()
         .find(|(_, guard)| {
             native_state_name(&native_plan, guard.source) == "main.entry"
-                && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
+                && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
@@ -1713,7 +1713,7 @@ fn resolves_enum_guard_operand_values() {
     assert_eq!(guard_operands[1].expression.display_name(), "Choice::Look");
     assert_eq!(
         guard_operands[1].kind,
-        omega_native::state_guards::StateGuardOperandKind::StaticSymbol
+        omega_state_guards::StateGuardOperandKind::StaticSymbol
     );
     assert!(guard_operands[1].has_resolved_value);
     assert_eq!(guard_operands[1].resolved_value, 1);
@@ -1759,7 +1759,7 @@ fn resolves_nested_guard_operand_offsets() {
         .iter()
         .find(|(_, guard)| {
             native_state_name(&native_plan, guard.source) == "main.entry"
-                && guard.kind == omega_native::state_guards::StateGuardKind::RuntimeEquality
+                && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
@@ -1775,7 +1775,7 @@ fn resolves_nested_guard_operand_offsets() {
     );
     assert_eq!(
         guard_operands[0].storage,
-        omega_native::state_guards::StateGuardOperandStorage::MachineOwned
+        omega_state_guards::StateGuardOperandStorage::MachineOwned
     );
     assert_eq!(guard_operands[0].byte_offset, 4);
     assert_eq!(guard_operands[0].byte_size, 4);
@@ -1898,7 +1898,7 @@ fn plans_runtime_branching_state_call_edges() {
     );
     assert_eq!(
         edges[0].guard_kind,
-        omega_native::state_guards::StateGuardKind::RuntimeExpression
+        omega_state_guards::StateGuardKind::RuntimeExpression
     );
     assert!(matches!(
         edges[1].target,
@@ -1911,7 +1911,7 @@ fn plans_runtime_branching_state_call_edges() {
     );
     assert_eq!(
         edges[1].guard_kind,
-        omega_native::state_guards::StateGuardKind::Always
+        omega_state_guards::StateGuardKind::Always
     );
 }
 

@@ -1,5 +1,5 @@
 use super::{RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
-use crate::runtime_dispatch::guards::StateGuardKind;
+use omega_state_guards::StateGuardKind;
 
 pub(super) fn classify_branch_call_expansion(
     edges: &[RuntimeBranchingCallEdge],

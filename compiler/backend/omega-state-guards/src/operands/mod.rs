@@ -2,7 +2,7 @@ mod classify;
 mod layout;
 mod values;
 
-use crate::runtime_dispatch::guards::StateGuardOperand;
+use crate::StateGuardOperand;
 use classify::classify_guard_operand;
 use layout::resolve_guard_operand_layout;
 use omega_core::arena::{Arena, HandleSpan};
@@ -12,13 +12,13 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 use values::resolved_guard_operand_value;
 
-pub(in crate::runtime_dispatch::guards) struct GuardOperands {
+pub(crate) struct GuardOperands {
     pub left: StateGuardOperand,
     pub right: StateGuardOperand,
 }
 
 impl GuardOperands {
-    pub(in crate::runtime_dispatch::guards) fn insert_into(
+    pub(crate) fn insert_into(
         self,
         arena: &mut Arena<StateGuardOperand>,
     ) -> HandleSpan<StateGuardOperand> {
@@ -26,7 +26,7 @@ impl GuardOperands {
     }
 }
 
-pub(in crate::runtime_dispatch::guards) fn guard_operands(
+pub(crate) fn guard_operands(
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
