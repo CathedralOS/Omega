@@ -1,6 +1,6 @@
 use super::native_state_name;
 
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_calling_conventions::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };

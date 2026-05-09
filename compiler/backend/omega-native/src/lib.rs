@@ -4,7 +4,6 @@ pub mod emission;
 pub mod identity;
 pub mod instructions;
 pub mod plan;
-pub mod report;
 pub mod runtime_dispatch;
 pub mod runtime_storage;
 pub mod runtime_text;

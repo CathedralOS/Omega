@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_layout::{DataShape, FieldLayout};
 use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
 

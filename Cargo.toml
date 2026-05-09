@@ -29,6 +29,7 @@ members = [
     "compiler/backend/omega-instruction-selection",
     "compiler/backend/omega-machine-emission",
     "compiler/lowering/omega-target-to-machine",
+    "compiler/backend/omega-native-report",
     "compiler/backend/instruction_set_architectures/omega-isa-aarch64",
     "compiler/backend/images/omega-image",
     "compiler/backend/images/omega-image-emission",

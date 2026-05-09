@@ -132,6 +132,7 @@ dependencies = [
  "omega-machine-program",
  "omega-names",
  "omega-native",
+ "omega-native-report",
  "omega-object",
  "omega-parser",
  "omega-platform-interface",
@@ -316,6 +317,24 @@ dependencies = [
  "omega-target",
  "omega-target-program",
  "omega-target-to-machine",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-native-report"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-layout",
+ "omega-machine-program",
+ "omega-native",
+ "omega-object",
+ "omega-platform-interface",
+ "omega-state-graph",
+ "omega-target-program",
  "omega-typed-program",
 ]
 

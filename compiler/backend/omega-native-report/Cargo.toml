@@ -1,0 +1,23 @@
+[package]
+name = "omega-native-report"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_native_report"
+path = "src/lib.rs"
+
+[dependencies]
+omega-artifacts = { path = "../../orchestration/omega-artifacts" }
+omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-layout = { path = "../omega-layout" }
+omega-machine-program = { path = "../../representations/omega-machine-program" }
+omega-native = { path = "../omega-native" }
+omega-object = { path = "../object/omega-object" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-target-program = { path = "../../representations/omega-target-program" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }

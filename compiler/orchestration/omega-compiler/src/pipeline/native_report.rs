@@ -9,6 +9,6 @@ pub(crate) fn write_native_report(
     native_surface: &NativeSurfaceReport,
     native_plan: &NativePlan,
 ) -> Result<(), Diagnostic> {
-    let output = omega_native::report::native_report_text(native_surface, native_plan);
+    let output = omega_native_report::native_report_text(native_surface, native_plan);
     artifacts.write_text("09_native_plan.txt", &output)
 }

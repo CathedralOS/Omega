@@ -1,6 +1,6 @@
 use super::native_state_name;
 
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_object::storage_region_symbol_name;
 use omega_target_program::{

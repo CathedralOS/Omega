@@ -4,12 +4,12 @@ mod host;
 mod object;
 mod stats;
 
-use crate::plan::NativePlan;
-use crate::runtime_dispatch::branching::{
+use omega_native::plan::NativePlan;
+use omega_native::runtime_dispatch::branching::{
     RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
-use crate::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
+use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
 use omega_artifacts::NativeSurfaceReport;
 use omega_control_flow::StateKey;
 use omega_state_graph::RuntimeTransitionTarget;
