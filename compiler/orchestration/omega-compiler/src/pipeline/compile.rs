@@ -20,7 +20,7 @@ use omega_native::build_native_surface_report;
 use omega_native::control_flow::build_control_flow_plan_with_workers;
 use omega_native::emission::build_emission_plan;
 use omega_native::emitter::emit_native_output;
-use omega_native::executable_finalization::{ExecutableFinalizationStatus, finalize_native_output};
+use omega_native::executable_finalization::finalize_native_output;
 use omega_native::plan::build_native_plan_with_workers;
 use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
@@ -328,13 +328,9 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             Ok((native_output_path, emitted_output))
         })?;
     let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
-        let executable_finalization = finalize_native_output(
-            &native_plan,
-            &emitted_output,
-            &native_output_path,
-            artifacts.root(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        let executable_finalization =
+            finalize_native_output(&native_plan, &emitted_output, &native_output_path)
+                .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_executable_finalization_report(&executable_finalization)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -342,10 +338,6 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         Ok(executable_finalization)
     })?;
     let executable_path = executable_finalization.executable_path.clone();
-    let executable_action = match executable_finalization.status {
-        ExecutableFinalizationStatus::UsedExternalLinker => "linked",
-        ExecutableFinalizationStatus::AlreadyExecutable => "finalized",
-    };
     artifacts
         .write_timings(&phase_timings)
         .map_err(|diagnostic| vec![diagnostic])?;
@@ -354,7 +346,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         artifacts_dir: artifacts.root().to_path_buf(),
         executable_path: executable_path.clone(),
         summary: format!(
-            "emitted {}; {executable_action} {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
+            "emitted {}; finalized {}; artifacts {}; phases {}; planned {} host ABI binding(s), {} host call(s), {} data byte(s), {} selected instruction(s), {} instruction operand(s), {} machine code byte(s), {} encoded machine byte(s), {} relocation(s), {} emission blocker(s), entry {}.{} as `{}`",
             native_output_path.display(),
             executable_path.display(),
             artifacts.root().display(),

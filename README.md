@@ -93,14 +93,13 @@ Important artifact files:
 - `10_trust.txt`: trusted contracts and unchecked obligations.
 - `11_emission.txt`: whether native emission is currently possible.
 - `12_emitted_output.txt`: emitted native output information.
-- `13_finalization.txt`: executable finalization, including any temporary system linker bridge.
+- `13_finalization.txt`: executable finalization and permission stamping for directly emitted images.
 
 ## Current Native Status
 
 The native path currently supports a small but real subset:
 
-- macOS ARM64 object emission.
-- System linker invocation for runnable `omega-program` output.
+- macOS ARM64 direct executable image emission.
 - Linux ARM64 direct static ELF executable emission for tiny syscall-only programs.
 - Host calls for stdout, stdin read buffers, and process exit.
 - Unconditional state chains.
