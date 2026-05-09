@@ -105,8 +105,6 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                 source_key: operation.source_key,
                 statement_index: operation.statement_index,
                 target_key: state_call.target_key,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
                 argument_count: *argument_count,
                 expansion,
                 edges,

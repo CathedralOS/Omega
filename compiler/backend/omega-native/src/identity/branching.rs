@@ -12,10 +12,6 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     native_plan: &NativePlan,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, call) in native_plan.runtime_branching_calls.calls.iter() {
-        storage.count_program_name_identity(&call.target_machine);
-        storage.count_program_name_identity(&call.target_state);
-    }
     for (_, edge) in native_plan.runtime_branching_calls.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
@@ -53,8 +49,6 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     {
         storage.count_program_name_identity(&expansion.branch_machine);
         storage.count_program_name_identity(&expansion.branch_state);
-        storage.count_program_name_identity(&expansion.target_machine);
-        storage.count_program_name_identity(&expansion.target_state);
         count_guard_strings(&expansion.guard, storage);
         count_guard_strings(&expansion.resolved_guard, storage);
     }

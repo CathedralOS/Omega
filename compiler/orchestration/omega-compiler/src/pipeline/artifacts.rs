@@ -1473,13 +1473,13 @@ impl ArtifactWriter {
         } else {
             for (_, call) in native_plan.runtime_branching_calls.calls.iter() {
                 let source_name = native_state_name(native_plan, call.source_key);
+                let target_name = native_state_name(native_plan, call.target_key);
                 output.push_str(&format!(
-                    "- #{} {} statement {} -> {}.{} args {}\n",
+                    "- #{} {} statement {} -> {} args {}\n",
                     call.dispatch_index,
                     source_name,
                     call.statement_index,
-                    call.target_machine,
-                    call.target_state,
+                    target_name,
                     call.argument_count
                 ));
 
@@ -1650,16 +1650,16 @@ impl ArtifactWriter {
                 .iter()
             {
                 let source_name = native_state_name(native_plan, expansion.source_key);
+                let target_name = native_state_name(native_plan, expansion.target_key);
                 output.push_str(&format!(
-                    "- #{} {} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    "- #{} {} statement {} {}.{} edge {} -> {} {:?} {}\n",
                     expansion.dispatch_index,
                     source_name,
                     expansion.statement_index,
                     expansion.branch_machine,
                     expansion.branch_state,
                     expansion.edge_order,
-                    expansion.target_machine,
-                    expansion.target_state,
+                    target_name,
                     expansion.guard_kind,
                     transition_guard_name(&expansion.guard)
                 ));

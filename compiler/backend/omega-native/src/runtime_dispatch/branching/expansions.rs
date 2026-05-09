@@ -91,9 +91,7 @@ pub(super) fn append_straight_line_branch_expansions(
         }
 
         let RuntimeTransitionTarget::State {
-            key: target_key,
-            machine: target_machine,
-            state: target_state,
+            key: target_key, ..
         } = &edge.target
         else {
             continue;
@@ -119,12 +117,11 @@ pub(super) fn append_straight_line_branch_expansions(
                 statement_index,
                 branch_machine: branch_machine.clone(),
                 branch_state: branch_state.clone(),
+                target_key: *target_key,
                 edge_order: edge.order,
                 guard: edge.guard.clone(),
                 resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
                 guard_kind: edge.guard_kind,
-                target_machine: target_machine.clone(),
-                target_state: target_state.clone(),
                 bindings,
                 operations,
             });

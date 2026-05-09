@@ -1768,7 +1768,7 @@ fn plans_runtime_branching_state_call_edges() {
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| call.target_state == "choose")
+        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching helper call should be planned");
     let edges = native_plan
@@ -1845,7 +1845,7 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| call.target_state == "choose")
+        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching call should be planned");
 
@@ -1909,14 +1909,16 @@ fn plans_runtime_straight_line_branch_expansion() {
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| call.target_state == "choose")
+        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching call should be planned");
     let expansion = native_plan
         .runtime_branching_calls
         .straight_line_expansions
         .iter()
-        .find(|(_, expansion)| expansion.target_state == "fallback")
+        .find(|(_, expansion)| {
+            native_state_name(&native_plan, expansion.target_key) == "main.fallback"
+        })
         .map(|(_, expansion)| expansion)
         .expect("fallback straight-line expansion should be planned");
     let bindings = native_plan
