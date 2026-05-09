@@ -9,13 +9,13 @@ use crate::parser::AstFile;
 use crate::pipeline::CompileOptions;
 use crate::pipeline::artifact_inputs::{ast_artifact, source_load_artifact};
 use crate::pipeline::artifacts::ArtifactWriter;
-use crate::pipeline::native_report;
+use crate::pipeline::backend_report;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
 use omega_artifacts::{PhaseTiming, build_native_surface_report, finalize_emitted_image_output};
-use omega_backend_pipeline::build_native_plan_from_control_flow_with_workers;
-use omega_backend_plan::NativePlan;
+use omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers;
+use omega_backend_plan::BackendPlan;
 use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -32,30 +32,30 @@ use omega_typed_to_control_flow::build_control_flow_plan_with_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 
-fn emission_planning_input(native_plan: &NativePlan) -> EmissionPlanningInput<'_> {
+fn emission_planning_input(backend_plan: &BackendPlan) -> EmissionPlanningInput<'_> {
     EmissionPlanningInput {
-        target: native_plan.target,
-        entry_key: native_plan.entry_key,
-        host_abi: &native_plan.host_abi,
-        host_calls: &native_plan.host_calls,
-        state_calls: &native_plan.state_calls,
-        state_storage: &native_plan.state_storage,
-        state_values: &native_plan.state_values,
-        data: &native_plan.data,
-        instructions: &native_plan.instructions,
-        control_flow: &native_plan.control_flow,
-        runtime_flow: &native_plan.runtime_flow,
-        runtime_bodies: &native_plan.runtime_bodies,
-        runtime_branching_calls: &native_plan.runtime_branching_calls,
-        runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
-        runtime_storage: &native_plan.runtime_storage,
-        runtime_text: &native_plan.runtime_text,
-        state_guards: &native_plan.state_guards,
-        layouts: &native_plan.layouts,
-        machine_code: &native_plan.machine_code,
-        encoded_machine: &native_plan.encoded_machine,
-        object: &native_plan.object,
-        relocations: &native_plan.relocations,
+        target: backend_plan.target,
+        entry_key: backend_plan.entry_key,
+        host_abi: &backend_plan.host_abi,
+        host_calls: &backend_plan.host_calls,
+        state_calls: &backend_plan.state_calls,
+        state_storage: &backend_plan.state_storage,
+        state_values: &backend_plan.state_values,
+        data: &backend_plan.data,
+        instructions: &backend_plan.instructions,
+        control_flow: &backend_plan.control_flow,
+        runtime_flow: &backend_plan.runtime_flow,
+        runtime_bodies: &backend_plan.runtime_bodies,
+        runtime_branching_calls: &backend_plan.runtime_branching_calls,
+        runtime_dispatch_loop: &backend_plan.runtime_dispatch_loop,
+        runtime_storage: &backend_plan.runtime_storage,
+        runtime_text: &backend_plan.runtime_text,
+        state_guards: &backend_plan.state_guards,
+        layouts: &backend_plan.layouts,
+        machine_code: &backend_plan.machine_code,
+        encoded_machine: &backend_plan.encoded_machine,
+        object: &backend_plan.object,
+        relocations: &backend_plan.relocations,
     }
 }
 
@@ -177,10 +177,10 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
             .write_trust_report(&trust_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let native_plan = record_phase(&mut phase_timings, "native plan", || {
+    let backend_plan = record_phase(&mut phase_timings, "backend plan", || {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
-        let native_plan = build_native_plan_from_control_flow_with_workers(
+        let backend_plan = build_backend_plan_from_control_flow_with_workers(
             Arc::clone(&program),
             target,
             Arc::clone(&control_flow),
@@ -188,13 +188,13 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
-        native_report::write_native_report(&artifacts, &native_surface, &native_plan)
+        backend_report::write_backend_report(&artifacts, &native_surface, &backend_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
-        Ok(native_plan)
+        Ok(backend_plan)
     })?;
     record_phase(&mut phase_timings, "emission plan", || {
-        let emission_plan = build_emission_plan(&emission_planning_input(&native_plan));
+        let emission_plan = build_emission_plan(&emission_planning_input(&backend_plan));
         artifacts
             .write_emission_plan(&emission_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -318,10 +318,10 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             .write_trust_report(&trust_report)
             .map_err(|diagnostic| vec![diagnostic])
     })?;
-    let native_plan = record_phase(&mut phase_timings, "native plan", || {
+    let backend_plan = record_phase(&mut phase_timings, "backend plan", || {
         let target = NativeTarget::from_omega_target_name(options.target_name.as_deref())
             .map_err(|diagnostic| vec![diagnostic])?;
-        let native_plan = build_native_plan_from_control_flow_with_workers(
+        let backend_plan = build_backend_plan_from_control_flow_with_workers(
             Arc::clone(&program),
             target,
             Arc::clone(&control_flow),
@@ -329,13 +329,13 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let native_surface = build_native_surface_report(&program);
-        native_report::write_native_report(&artifacts, &native_surface, &native_plan)
+        backend_report::write_backend_report(&artifacts, &native_surface, &backend_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
 
-        Ok(native_plan)
+        Ok(backend_plan)
     })?;
     let emission_plan = record_phase(&mut phase_timings, "emission plan", || {
-        let emission_plan = build_emission_plan(&emission_planning_input(&native_plan));
+        let emission_plan = build_emission_plan(&emission_planning_input(&backend_plan));
         artifacts
             .write_emission_plan(&emission_plan)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -361,13 +361,13 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         record_phase(&mut phase_timings, "emit native output", || {
             let emitted_output = emit_checked_executable_image(
                 ExecutableImageInput {
-                    target: native_plan.target,
-                    object: &native_plan.object,
-                    relocations: &native_plan.relocations,
-                    text_bytes: native_plan.encoded_machine.bytes.storage_slice(),
-                    data_bytes: native_plan.data.bytes.storage_slice(),
+                    target: backend_plan.target,
+                    object: &backend_plan.object,
+                    relocations: &backend_plan.relocations,
+                    text_bytes: backend_plan.encoded_machine.bytes.storage_slice(),
+                    data_bytes: backend_plan.data.bytes.storage_slice(),
                 },
-                native_plan.machine_code.byte_count,
+                backend_plan.machine_code.byte_count,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
             let native_output_path = artifacts
@@ -376,9 +376,12 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             Ok((native_output_path, emitted_output))
         })?;
     let executable_finalization = record_phase(&mut phase_timings, "finalize executable", || {
-        let executable_finalization =
-            finalize_emitted_image_output(native_plan.target, &emitted_output, &native_output_path)
-                .map_err(|diagnostic| vec![diagnostic])?;
+        let executable_finalization = finalize_emitted_image_output(
+            backend_plan.target,
+            &emitted_output,
+            &native_output_path,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         artifacts
             .write_executable_finalization_report(&executable_finalization)
             .map_err(|diagnostic| vec![diagnostic])?;
@@ -399,18 +402,18 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
             executable_path.display(),
             artifacts.root().display(),
             format_phase_timings(&phase_timings),
-            native_plan.host_abi.bindings.len(),
-            native_plan.host_calls.calls.len(),
-            native_plan.data.bytes.len(),
-            native_plan.instructions.instructions.len(),
-            native_plan.instructions.operands.len(),
-            native_plan.machine_code.byte_count,
-            native_plan.encoded_machine.bytes.len(),
-            native_plan.relocations.records.len(),
+            backend_plan.host_abi.bindings.len(),
+            backend_plan.host_calls.calls.len(),
+            backend_plan.data.bytes.len(),
+            backend_plan.instructions.instructions.len(),
+            backend_plan.instructions.operands.len(),
+            backend_plan.machine_code.byte_count,
+            backend_plan.encoded_machine.bytes.len(),
+            backend_plan.relocations.records.len(),
             emission_plan.blockers.len(),
-            native_plan.entry_machine_name(),
-            native_plan.entry_state_name(),
-            native_plan.object.entry_symbol
+            backend_plan.entry_machine_name(),
+            backend_plan.entry_state_name(),
+            backend_plan.object.entry_symbol
         ),
         phase_timings,
     })

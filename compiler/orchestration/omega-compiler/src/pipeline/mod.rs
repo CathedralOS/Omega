@@ -1,7 +1,7 @@
 pub(crate) mod artifact_inputs;
 pub mod artifacts;
+pub(crate) mod backend_report;
 pub mod compile;
-pub(crate) mod native_report;
 pub mod options;
 pub mod trust;
 

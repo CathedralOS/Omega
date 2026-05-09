@@ -21,30 +21,30 @@ use runtime_sections::{
 };
 pub use storage::NativeStringStorage;
 
-pub fn count_native_string_storage(native_plan: &BackendReportInput<'_>) -> NativeStringStorage {
+pub fn count_native_string_storage(backend_plan: &BackendReportInput<'_>) -> NativeStringStorage {
     let mut storage = NativeStringStorage::default();
 
-    storage.count_identity(native_plan.entry_machine_name());
-    storage.count_identity(native_plan.entry_state_name());
+    storage.count_identity(backend_plan.entry_machine_name());
+    storage.count_identity(backend_plan.entry_state_name());
 
-    count_control_flow_strings(native_plan, &mut storage);
-    count_runtime_flow_strings(native_plan, &mut storage);
-    count_state_dispatch_strings(native_plan, &mut storage);
-    count_runtime_body_strings(native_plan, &mut storage);
-    count_runtime_branching_strings(native_plan, &mut storage);
-    count_state_guard_strings(native_plan, &mut storage);
-    count_runtime_dispatch_loop_strings(native_plan, &mut storage);
-    count_host_call_strings(native_plan, &mut storage);
-    count_state_call_strings(native_plan, &mut storage);
-    count_alias_flow_strings(native_plan, &mut storage);
-    count_state_storage_strings(native_plan, &mut storage);
-    count_state_value_strings(native_plan, &mut storage);
-    count_runtime_storage_strings(native_plan, &mut storage);
-    count_runtime_text_strings(native_plan, &mut storage);
-    count_layout_strings(native_plan, &mut storage);
-    count_instruction_strings(native_plan, &mut storage);
-    count_object_strings(native_plan, &mut storage);
-    count_phase_timing_strings(native_plan, &mut storage);
+    count_control_flow_strings(backend_plan, &mut storage);
+    count_runtime_flow_strings(backend_plan, &mut storage);
+    count_state_dispatch_strings(backend_plan, &mut storage);
+    count_runtime_body_strings(backend_plan, &mut storage);
+    count_runtime_branching_strings(backend_plan, &mut storage);
+    count_state_guard_strings(backend_plan, &mut storage);
+    count_runtime_dispatch_loop_strings(backend_plan, &mut storage);
+    count_host_call_strings(backend_plan, &mut storage);
+    count_state_call_strings(backend_plan, &mut storage);
+    count_alias_flow_strings(backend_plan, &mut storage);
+    count_state_storage_strings(backend_plan, &mut storage);
+    count_state_value_strings(backend_plan, &mut storage);
+    count_runtime_storage_strings(backend_plan, &mut storage);
+    count_runtime_text_strings(backend_plan, &mut storage);
+    count_layout_strings(backend_plan, &mut storage);
+    count_instruction_strings(backend_plan, &mut storage);
+    count_object_strings(backend_plan, &mut storage);
+    count_phase_timing_strings(backend_plan, &mut storage);
 
     storage
 }

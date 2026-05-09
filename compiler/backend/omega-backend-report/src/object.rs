@@ -4,20 +4,23 @@ use omega_object::{RelocationRecord, SectionPlan, SymbolPlan};
 
 pub(super) fn write_layout_object_sections(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
 ) {
     output.push_str("\n## Layouts\n");
     output.push_str(&format!(
         "data layouts: {}\n",
-        native_plan.layouts.data_layouts.len()
+        backend_plan.layouts.data_layouts.len()
     ));
     output.push_str(&format!(
         "machine layouts: {}\n",
-        native_plan.layouts.machine_layouts.len()
+        backend_plan.layouts.machine_layouts.len()
     ));
-    output.push_str(&format!("fields: {}\n\n", native_plan.layouts.fields.len()));
+    output.push_str(&format!(
+        "fields: {}\n\n",
+        backend_plan.layouts.fields.len()
+    ));
 
-    for (_, data_layout) in native_plan.layouts.data_layouts.iter() {
+    for (_, data_layout) in backend_plan.layouts.data_layouts.iter() {
         output.push_str(&format!(
             "- data {}: size {}, align {}\n",
             data_layout.name, data_layout.layout.size, data_layout.layout.alignment
@@ -33,30 +36,30 @@ pub(super) fn write_layout_object_sections(
                 output.push_str(&format!("  variants: {}\n", variants));
             }
             DataShape::Record { fields } => {
-                write_field_layouts(output, &native_plan.layouts.fields, *fields);
+                write_field_layouts(output, &backend_plan.layouts.fields, *fields);
             }
         }
     }
 
-    for (_, machine_layout) in native_plan.layouts.machine_layouts.iter() {
+    for (_, machine_layout) in backend_plan.layouts.machine_layouts.iter() {
         output.push_str(&format!(
             "- machine {}: size {}, align {}\n",
             machine_layout.name, machine_layout.layout.size, machine_layout.layout.alignment
         ));
-        write_field_layouts(output, &native_plan.layouts.fields, machine_layout.fields);
+        write_field_layouts(output, &backend_plan.layouts.fields, machine_layout.fields);
     }
 
     output.push_str("\n## Object\n");
     output.push_str(&format!(
         "sections: {}\n",
-        native_plan.object.sections.len()
+        backend_plan.object.sections.len()
     ));
-    for (_, section) in native_plan.object.sections.iter() {
+    for (_, section) in backend_plan.object.sections.iter() {
         write_section_plan(output, section);
     }
 
-    output.push_str(&format!("symbols: {}\n", native_plan.object.symbols.len()));
-    for (_, symbol) in native_plan.object.symbols.iter() {
+    output.push_str(&format!("symbols: {}\n", backend_plan.object.symbols.len()));
+    for (_, symbol) in backend_plan.object.symbols.iter() {
         write_symbol_plan(output, symbol);
     }
     output.push('\n');
@@ -64,12 +67,12 @@ pub(super) fn write_layout_object_sections(
     output.push_str("## Relocations\n");
     output.push_str(&format!(
         "records: {}\n",
-        native_plan.relocations.records.len()
+        backend_plan.relocations.records.len()
     ));
-    if native_plan.relocations.records.is_empty() {
+    if backend_plan.relocations.records.is_empty() {
         output.push_str("none\n");
     } else {
-        for (_, relocation) in native_plan.relocations.records.iter() {
+        for (_, relocation) in backend_plan.relocations.records.iter() {
             write_relocation_record(output, relocation);
         }
     }

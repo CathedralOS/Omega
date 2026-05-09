@@ -5,10 +5,10 @@ use crate::identity::targets::count_planned_target_strings;
 use omega_control_flow::OperationKind;
 
 pub(in crate::identity) fn count_control_flow_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, machine) in native_plan.control_flow.machines.iter() {
+    for (_, machine) in backend_plan.control_flow.machines.iter() {
         storage.count_program_name_identity(&machine.name);
         for contained in &machine.contains {
             storage.count_program_name_identity(&contained.name);
@@ -16,14 +16,14 @@ pub(in crate::identity) fn count_control_flow_strings(
         }
     }
 
-    for (_, state) in native_plan.control_flow.states.iter() {
+    for (_, state) in backend_plan.control_flow.states.iter() {
         storage.count_program_name_identity(&state.name);
         for parameter in &state.parameters {
             storage.count_program_name_identity(&parameter.name);
         }
     }
 
-    for (_, operation) in native_plan.control_flow.operations.iter() {
+    for (_, operation) in backend_plan.control_flow.operations.iter() {
         match &operation.kind {
             OperationKind::Assignment { target, value }
             | OperationKind::StaticAssignment { target, value } => {
@@ -46,7 +46,7 @@ pub(in crate::identity) fn count_control_flow_strings(
         }
     }
 
-    for (_, transition) in native_plan.control_flow.transitions.iter() {
+    for (_, transition) in backend_plan.control_flow.transitions.iter() {
         count_planned_target_strings(&transition.target, storage);
         if let Some(continuation) = &transition.continuation {
             count_planned_target_strings(continuation, storage);

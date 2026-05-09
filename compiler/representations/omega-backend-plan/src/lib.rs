@@ -21,7 +21,7 @@ use omega_target_program::InstructionPlan;
 use omega_target_program::NativeDataPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativePlan {
+pub struct BackendPlan {
     pub target: NativeTarget,
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
@@ -46,10 +46,10 @@ pub struct NativePlan {
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
     pub entry_key: StateKey,
-    pub phase_timings: Vec<NativePlanPhaseTiming>,
+    pub phase_timings: Vec<BackendPlanPhaseTiming>,
 }
 
-impl NativePlan {
+impl BackendPlan {
     pub fn entry_machine_name(&self) -> &str {
         self.control_flow
             .machine_by_symbol(self.entry_key.machine)
@@ -66,7 +66,7 @@ impl NativePlan {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativePlanPhaseTiming {
+pub struct BackendPlanPhaseTiming {
     pub phase: String,
     pub microseconds: u128,
     pub allocations: AllocationDelta,

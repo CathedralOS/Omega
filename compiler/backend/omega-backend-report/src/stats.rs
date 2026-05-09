@@ -5,9 +5,9 @@ use crate::identity::count_native_string_storage;
 
 pub(super) fn write_native_phase_timings(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
 ) {
-    let timings = native_plan.phase_timings;
+    let timings = backend_plan.phase_timings;
 
     output.push_str("## Native Subphases\n");
     if timings.is_empty() {
@@ -86,12 +86,12 @@ pub(super) fn write_native_phase_timings(
 
 pub(super) fn write_native_string_storage(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
 ) {
-    let storage = count_native_string_storage(native_plan);
+    let storage = count_native_string_storage(backend_plan);
 
     output.push_str("## Native String Storage\n");
-    output.push_str("This counts `String` fields still carried by native planning structures.\n");
+    output.push_str("This counts `String` fields still carried by backend planning structures.\n");
     output.push_str("Identity strings are compiler debt; payload and generated symbols are expected later-stage text.\n\n");
 
     let rows = [

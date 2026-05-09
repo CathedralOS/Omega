@@ -1,4 +1,4 @@
-use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
+use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
@@ -20,7 +20,7 @@ use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
 use omega_target_program::NativeDataPlan;
 
-pub(super) struct NativePlanSkeletonInput {
+pub(super) struct BackendPlanSkeletonInput {
     pub target: NativeTarget,
     pub host_abi: HostAbiPlan,
     pub host_calls: HostCallPlan,
@@ -30,11 +30,11 @@ pub(super) struct NativePlanSkeletonInput {
     pub state_guards: StateGuardPlan,
     pub layouts: LayoutPlan,
     pub entry_key: StateKey,
-    pub phase_timings: Vec<NativePlanPhaseTiming>,
+    pub phase_timings: Vec<BackendPlanPhaseTiming>,
 }
 
-pub(super) fn build_native_plan_skeleton(input: NativePlanSkeletonInput) -> NativePlan {
-    NativePlan {
+pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> BackendPlan {
+    BackendPlan {
         target: input.target,
         host_abi: input.host_abi,
         host_calls: input.host_calls,

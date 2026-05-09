@@ -2,10 +2,10 @@ use crate::BackendReportInput;
 use crate::identity::NativeStringStorage;
 
 pub(in crate::identity) fn count_layout_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, data_layout) in native_plan.layouts.data_layouts.iter() {
+    for (_, data_layout) in backend_plan.layouts.data_layouts.iter() {
         storage.count_program_name_identity(&data_layout.name);
         if let omega_layout::DataShape::Enum { variants } = &data_layout.shape {
             for variant in variants {
@@ -13,11 +13,11 @@ pub(in crate::identity) fn count_layout_strings(
             }
         }
     }
-    for (_, field) in native_plan.layouts.fields.iter() {
+    for (_, field) in backend_plan.layouts.fields.iter() {
         storage.count_program_name_identity(&field.name);
         storage.count_identity(&field.type_name);
     }
-    for (_, machine_layout) in native_plan.layouts.machine_layouts.iter() {
+    for (_, machine_layout) in backend_plan.layouts.machine_layouts.iter() {
         storage.count_program_name_identity(&machine_layout.name);
     }
 }

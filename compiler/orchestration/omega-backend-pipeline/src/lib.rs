@@ -11,15 +11,15 @@ mod entry;
 mod skeleton;
 mod timing;
 
-pub use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
+pub use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 
-pub fn build_native_plan_from_control_flow_with_workers(
+pub fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<Program>,
     target: NativeTarget,
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
-) -> Result<NativePlan, Diagnostic> {
-    builder::build_native_plan_from_control_flow_with_workers(
+) -> Result<BackendPlan, Diagnostic> {
+    builder::build_backend_plan_from_control_flow_with_workers(
         program,
         target,
         control_flow,

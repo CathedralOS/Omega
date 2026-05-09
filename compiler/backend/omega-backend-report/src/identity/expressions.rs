@@ -5,10 +5,10 @@ use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_expression_span_strings(
     span: omega_core::arena::HandleSpan<Expression>,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    if let Some(expressions) = native_plan
+    if let Some(expressions) = backend_plan
         .runtime_branching_calls
         .target_arguments
         .span(span)

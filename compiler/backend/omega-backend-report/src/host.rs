@@ -8,45 +8,45 @@ use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
 
-pub(super) fn write_host_sections(output: &mut String, native_plan: &BackendReportInput<'_>) {
+pub(super) fn write_host_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
     output.push_str("## Host ABI\n");
     output.push_str(&format!(
         "bindings: {}\n",
-        native_plan.host_abi.bindings.len()
+        backend_plan.host_abi.bindings.len()
     ));
-    for (_, binding) in native_plan.host_abi.bindings.iter() {
+    for (_, binding) in backend_plan.host_abi.bindings.iter() {
         write_host_binding(output, binding);
     }
     output.push_str(&format!(
         "platform lowerings: {}\n",
-        native_plan.host_abi.platform_call_lowerings.len()
+        backend_plan.host_abi.platform_call_lowerings.len()
     ));
-    for (_, lowering) in native_plan.host_abi.platform_call_lowerings.iter() {
-        write_platform_call_lowering(output, native_plan, lowering);
+    for (_, lowering) in backend_plan.host_abi.platform_call_lowerings.iter() {
+        write_platform_call_lowering(output, backend_plan, lowering);
     }
     output.push('\n');
 
     output.push_str("## Host Call Lowering\n");
-    output.push_str(&format!("calls: {}\n", native_plan.host_calls.calls.len()));
+    output.push_str(&format!("calls: {}\n", backend_plan.host_calls.calls.len()));
     output.push_str(&format!(
         "unsupported calls: {}\n",
-        native_plan.host_calls.unsupported_calls.len()
+        backend_plan.host_calls.unsupported_calls.len()
     ));
     output.push_str(&format!(
         "operations: {}\n",
-        native_plan.host_calls.operations.len()
+        backend_plan.host_calls.operations.len()
     ));
-    if native_plan.host_calls.calls.is_empty() {
+    if backend_plan.host_calls.calls.is_empty() {
         output.push_str("none\n");
     } else {
-        for (_, call) in native_plan.host_calls.calls.iter() {
-            write_host_call(output, native_plan, call);
+        for (_, call) in backend_plan.host_calls.calls.iter() {
+            write_host_call(output, backend_plan, call);
         }
     }
-    if !native_plan.host_calls.unsupported_calls.is_empty() {
+    if !backend_plan.host_calls.unsupported_calls.is_empty() {
         output.push_str("unsupported:\n");
-        for (_, unsupported_call) in native_plan.host_calls.unsupported_calls.iter() {
-            let source_name = native_state_name(native_plan, unsupported_call.source_key);
+        for (_, unsupported_call) in backend_plan.host_calls.unsupported_calls.iter() {
+            let source_name = native_state_name(backend_plan, unsupported_call.source_key);
             output.push_str(&format!(
                 "- {} statement {} `{}`: {}\n",
                 source_name,
@@ -89,10 +89,10 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
 
 fn write_platform_call_lowering(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     lowering: &PlatformCallLowering,
 ) {
-    let operations = native_plan
+    let operations = backend_plan
         .host_abi
         .host_operations
         .span(lowering.operations)
@@ -121,14 +121,14 @@ fn write_platform_call_lowering(
     output.push('\n');
 }
 
-fn write_host_call(output: &mut String, native_plan: &BackendReportInput<'_>, call: &HostCall) {
-    let source_name = native_state_name(native_plan, call.source_key);
+fn write_host_call(output: &mut String, backend_plan: &BackendReportInput<'_>, call: &HostCall) {
+    let source_name = native_state_name(backend_plan, call.source_key);
     output.push_str(&format!(
         "- {} statement {} `{}`\n",
         source_name, call.statement_index, call.platform_call
     ));
 
-    match native_plan.host_calls.arguments.span(call.arguments) {
+    match backend_plan.host_calls.arguments.span(call.arguments) {
         Some(arguments) if arguments.is_empty() => output.push_str("  arguments: none\n"),
         Some(arguments) => {
             output.push_str("  arguments:\n");
@@ -139,7 +139,7 @@ fn write_host_call(output: &mut String, native_plan: &BackendReportInput<'_>, ca
         None => output.push_str("  arguments: invalid span\n"),
     }
 
-    match native_plan.host_calls.operations.span(call.operations) {
+    match backend_plan.host_calls.operations.span(call.operations) {
         Some(operations) if operations.is_empty() => output.push_str("  operations: none\n"),
         Some(operations) => {
             output.push_str("  operations:\n");

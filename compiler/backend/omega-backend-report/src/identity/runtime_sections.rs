@@ -6,33 +6,33 @@ use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, edge) in native_plan.runtime_flow.edges.iter() {
+    for (_, edge) in backend_plan.runtime_flow.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
     }
 }
 
 pub(in crate::identity) fn count_state_dispatch_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, state) in native_plan.state_dispatch.states.iter() {
+    for (_, state) in backend_plan.state_dispatch.states.iter() {
         storage.count_generated_symbol(&state.label);
     }
-    for (_, edge) in native_plan.state_dispatch.edges.iter() {
+    for (_, edge) in backend_plan.state_dispatch.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
     }
 }
 
 pub(in crate::identity) fn count_runtime_body_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, operation) in native_plan.runtime_bodies.operations.iter() {
+    for (_, operation) in backend_plan.runtime_bodies.operations.iter() {
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::HostCall { platform_call } => {
                 storage.count_identity(platform_call);
@@ -53,29 +53,29 @@ pub(in crate::identity) fn count_runtime_body_strings(
 }
 
 pub(in crate::identity) fn count_state_guard_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, guard) in native_plan.state_guards.guards.iter() {
+    for (_, guard) in backend_plan.state_guards.guards.iter() {
         count_runtime_target_strings(&guard.target, storage);
         count_runtime_target_strings(&guard.continuation, storage);
         count_expression_strings(&guard.expression, storage);
     }
-    for (_, operand) in native_plan.state_guards.operands.iter() {
+    for (_, operand) in backend_plan.state_guards.operands.iter() {
         count_expression_strings(&operand.expression, storage);
     }
 }
 
 pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.current_state_slot);
-    storage.count_generated_symbol(&native_plan.runtime_dispatch_loop.next_state_slot);
-    for (_, dispatch_case) in native_plan.runtime_dispatch_loop.cases.iter() {
+    storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.current_state_slot);
+    storage.count_generated_symbol(&backend_plan.runtime_dispatch_loop.next_state_slot);
+    for (_, dispatch_case) in backend_plan.runtime_dispatch_loop.cases.iter() {
         storage.count_generated_symbol(&dispatch_case.label);
     }
-    for (_, edge) in native_plan.runtime_dispatch_loop.edges.iter() {
+    for (_, edge) in backend_plan.runtime_dispatch_loop.edges.iter() {
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
         if let TransitionGuard::When(expression) = &edge.guard {

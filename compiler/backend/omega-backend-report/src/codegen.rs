@@ -8,15 +8,15 @@ use omega_target_program::{
     SelectedInstruction, SelectedInstructionKind,
 };
 
-pub(super) fn write_codegen_sections(output: &mut String, native_plan: &BackendReportInput<'_>) {
+pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &BackendReportInput<'_>) {
     output.push_str("## Native Data\n");
-    output.push_str(&format!("objects: {}\n", native_plan.data.objects.len()));
-    output.push_str(&format!("bytes: {}\n", native_plan.data.bytes.len()));
-    if native_plan.data.objects.is_empty() {
+    output.push_str(&format!("objects: {}\n", backend_plan.data.objects.len()));
+    output.push_str(&format!("bytes: {}\n", backend_plan.data.bytes.len()));
+    if backend_plan.data.objects.is_empty() {
         output.push_str("none\n");
     } else {
-        for (_, data_object) in native_plan.data.objects.iter() {
-            write_native_data_object(output, native_plan, data_object);
+        for (_, data_object) in backend_plan.data.objects.iter() {
+            write_native_data_object(output, backend_plan, data_object);
         }
     }
     output.push('\n');
@@ -24,52 +24,55 @@ pub(super) fn write_codegen_sections(output: &mut String, native_plan: &BackendR
     output.push_str("## Instruction Selection\n");
     output.push_str(&format!(
         "functions: {}\n",
-        native_plan.instructions.functions.len()
+        backend_plan.instructions.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        native_plan.instructions.instructions.len()
+        backend_plan.instructions.instructions.len()
     ));
     output.push_str(&format!(
         "operands: {}\n",
-        native_plan.instructions.operands.len()
+        backend_plan.instructions.operands.len()
     ));
-    for (_, function) in native_plan.instructions.functions.iter() {
-        write_function_instruction_plan(output, native_plan, function);
+    for (_, function) in backend_plan.instructions.functions.iter() {
+        write_function_instruction_plan(output, backend_plan, function);
     }
     output.push('\n');
 
     output.push_str("## Machine Code Shape\n");
     output.push_str(&format!(
         "functions: {}\n",
-        native_plan.machine_code.functions.len()
+        backend_plan.machine_code.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        native_plan.machine_code.instructions.len()
+        backend_plan.machine_code.instructions.len()
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
-        native_plan.encoded_machine.bytes.len()
+        backend_plan.encoded_machine.bytes.len()
     ));
-    output.push_str(&format!("bytes: {}\n", native_plan.machine_code.byte_count));
-    for (_, function) in native_plan.machine_code.functions.iter() {
-        write_machine_function_code(output, native_plan, function);
+    output.push_str(&format!(
+        "bytes: {}\n",
+        backend_plan.machine_code.byte_count
+    ));
+    for (_, function) in backend_plan.machine_code.functions.iter() {
+        write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
 }
 
 fn write_native_data_object(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     data_object: &NativeDataObject,
 ) {
-    let byte_count = native_plan
+    let byte_count = backend_plan
         .data
         .bytes
         .span(data_object.bytes)
         .map_or(0, |bytes| bytes.len());
-    let source_name = native_state_name(native_plan, data_object.source_key);
+    let source_name = native_state_name(backend_plan, data_object.source_key);
 
     output.push_str(&format!(
         "- {} @{} bytes {} align {} from {} statement {}\n",
@@ -84,16 +87,16 @@ fn write_native_data_object(
 
 fn write_function_instruction_plan(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     function: &FunctionInstructionPlan,
 ) {
-    let source_name = native_state_name(native_plan, function.source_key);
+    let source_name = native_state_name(backend_plan, function.source_key);
     output.push_str(&format!(
         "- function {} from {}\n",
         function.symbol, source_name
     ));
 
-    match native_plan
+    match backend_plan
         .instructions
         .instructions
         .span(function.instructions)
@@ -102,7 +105,7 @@ fn write_function_instruction_plan(
         Some(instructions) => {
             output.push_str("  instructions:\n");
             for instruction in instructions {
-                write_selected_instruction(output, native_plan, instruction);
+                write_selected_instruction(output, backend_plan, instruction);
             }
         }
         None => output.push_str("  instructions: invalid span\n"),
@@ -111,18 +114,18 @@ fn write_function_instruction_plan(
 
 fn write_selected_instruction(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     instruction: &SelectedInstruction,
 ) {
     output.push_str(&format!(
         "    - statement {}: {}\n",
         instruction.source_statement,
-        selected_instruction_name(native_plan, instruction)
+        selected_instruction_name(backend_plan, instruction)
     ));
 }
 
 fn selected_instruction_name(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     instruction: &SelectedInstruction,
 ) -> String {
     let kind = &instruction.kind;
@@ -132,14 +135,14 @@ fn selected_instruction_name(
             entry_dispatch_index,
             terminal_dispatch_index,
         } => {
-            let current_state_slot = &native_plan.runtime_dispatch_loop.current_state_slot;
-            let next_state_slot = &native_plan.runtime_dispatch_loop.next_state_slot;
+            let current_state_slot = &backend_plan.runtime_dispatch_loop.current_state_slot;
+            let next_state_slot = &backend_plan.runtime_dispatch_loop.next_state_slot;
             format!(
                 "enter dispatch loop entry #{entry_dispatch_index} terminal #{terminal_dispatch_index} current `{current_state_slot}` next `{next_state_slot}`"
             )
         }
         SelectedInstructionKind::EnterDispatchCase { dispatch_index } => {
-            let label = native_plan
+            let label = backend_plan
                 .runtime_dispatch_loop
                 .cases
                 .iter()
@@ -165,7 +168,7 @@ fn selected_instruction_name(
             }
         }
         SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             format!("compare runtime text `{buffer_symbol}` with {literal:?}")
         }
         SelectedInstructionKind::CompareRuntimeTextStorage {
@@ -174,9 +177,9 @@ fn selected_instruction_name(
             source_offset,
             operator,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
-                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             format!(
                 "compare runtime text storage {source_symbol}@{source_offset} {operator:?} `{buffer_symbol}`"
             )
@@ -190,9 +193,9 @@ fn selected_instruction_name(
             operator,
         } => {
             let left_symbol =
-                storage_region_symbol_name(*left_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*left_region, backend_plan.entry_machine_name());
             let right_symbol =
-                storage_region_symbol_name(*right_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*right_region, backend_plan.entry_machine_name());
             format!(
                 "compare runtime storage {left_symbol}@{left_offset} {operator:?} {right_symbol}@{right_offset} bytes {byte_size}"
             )
@@ -204,13 +207,13 @@ fn selected_instruction_name(
             expected_value,
             operator,
         } => {
-            let symbol = storage_region_symbol_name(*region, native_plan.entry_machine_name());
+            let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
             format!(
                 "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
             )
         }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             format!("write runtime text `{buffer_symbol}` = {literal:?}")
         }
         SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
@@ -218,7 +221,7 @@ fn selected_instruction_name(
             byte_offset,
             literal,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             format!("write runtime text segment `{buffer_symbol}`@{byte_offset} = {literal:?}")
         }
         SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
@@ -230,11 +233,11 @@ fn selected_instruction_name(
             target_offset,
             length_delta,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
-                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "append runtime text suffix {source_symbol}@{source_offset} -> `{buffer_symbol}`@{buffer_offset}, descriptor {target_symbol}@{target_offset}, len +{length_delta}"
             )
@@ -244,9 +247,9 @@ fn selected_instruction_name(
             target_region,
             target_offset,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "materialize runtime text buffer `{buffer_symbol}` for {target_symbol}@{target_offset}"
             )
@@ -258,11 +261,11 @@ fn selected_instruction_name(
             target_region,
             target_offset,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let source_symbol =
-                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor {target_symbol}@{target_offset}"
             )
@@ -273,9 +276,9 @@ fn selected_instruction_name(
             target_offset,
             literal,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "append runtime text literal `{buffer_symbol}`, descriptor {target_symbol}@{target_offset} += {literal:?}"
             )
@@ -294,7 +297,7 @@ fn selected_instruction_name(
             data,
             byte_length,
         } => {
-            let data_symbol = native_plan.data.objects.get(*data).symbol.as_str();
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
             format!(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
             )
@@ -308,9 +311,9 @@ fn selected_instruction_name(
             syscall_number_register,
             supervisor_call,
         } => {
-            let buffer_symbol = native_plan.data.objects.get(*buffer).symbol.as_str();
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "read runtime text line syscall {syscall_number} via x{syscall_number_register}/svc #{supervisor_call} -> `{buffer_symbol}` cap {byte_capacity}, descriptor {target_symbol}@{target_offset}"
             )
@@ -323,9 +326,9 @@ fn selected_instruction_name(
             byte_count,
         } => {
             let source_symbol =
-                storage_region_symbol_name(*source_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
             let target_symbol =
-                storage_region_symbol_name(*target_region, native_plan.entry_machine_name());
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
@@ -337,7 +340,7 @@ fn selected_instruction_name(
         SelectedInstructionKind::LeaveDispatchCase => "leave dispatch case".to_owned(),
         SelectedInstructionKind::LeaveDispatchLoop => "leave dispatch loop".to_owned(),
         SelectedInstructionKind::BeginPlatformCall => {
-            let platform_call = native_plan
+            let platform_call = backend_plan
                 .host_calls
                 .calls
                 .iter()
@@ -356,7 +359,7 @@ fn selected_instruction_name(
         } => {
             format!(
                 "call host operation {capability}.{operation}({})",
-                selected_instruction_operands_name(native_plan, *operands)
+                selected_instruction_operands_name(backend_plan, *operands)
             )
         }
         SelectedInstructionKind::LeaveFunction => "leave function".to_owned(),
@@ -364,10 +367,10 @@ fn selected_instruction_name(
 }
 
 fn selected_instruction_operands_name(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     operands: omega_core::arena::HandleSpan<InstructionOperand>,
 ) -> String {
-    let Some(operands) = native_plan.instructions.operands.span(operands) else {
+    let Some(operands) = backend_plan.instructions.operands.span(operands) else {
         return "invalid operands".to_owned();
     };
 
@@ -375,7 +378,7 @@ fn selected_instruction_operands_name(
         .iter()
         .map(|operand| match &operand.kind {
             InstructionOperandKind::DataAddress { data } => {
-                let symbol = native_plan.data.objects.get(*data).symbol.as_str();
+                let symbol = backend_plan.data.objects.get(*data).symbol.as_str();
                 format!("addr {symbol}")
             }
             InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
@@ -393,16 +396,16 @@ fn selected_instruction_operands_name(
 
 fn write_machine_function_code(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     function: &MachineFunctionCode,
 ) {
-    let function_symbol = machine_function_symbol(native_plan, function);
+    let function_symbol = machine_function_symbol(backend_plan, function);
     output.push_str(&format!(
         "- function {} @{} bytes {}\n",
         function_symbol, function.offset, function.byte_count
     ));
 
-    match native_plan
+    match backend_plan
         .machine_code
         .instructions
         .span(function.instructions)
@@ -411,7 +414,7 @@ fn write_machine_function_code(
         Some(instructions) => {
             output.push_str("  instructions:\n");
             for instruction in instructions {
-                write_machine_instruction(output, native_plan, instruction);
+                write_machine_instruction(output, backend_plan, instruction);
             }
         }
         None => output.push_str("  instructions: invalid span\n"),
@@ -419,10 +422,10 @@ fn write_machine_function_code(
 }
 
 fn machine_function_symbol(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     function: &MachineFunctionCode,
 ) -> String {
-    native_plan
+    backend_plan
         .instructions
         .functions
         .get(function.source_function)
@@ -432,7 +435,7 @@ fn machine_function_symbol(
 
 fn write_machine_instruction(
     output: &mut String,
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     instruction: &MachineInstruction,
 ) {
     output.push_str(&format!(
@@ -441,16 +444,16 @@ fn write_machine_instruction(
         instruction.offset,
         instruction.byte_width,
         instruction.kind,
-        machine_instruction_bytes_name(native_plan, instruction)
+        machine_instruction_bytes_name(backend_plan, instruction)
     ));
 }
 
 fn machine_instruction_bytes_name(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     instruction: &MachineInstruction,
 ) -> String {
     let Some((_, encoded_instruction)) =
-        native_plan
+        backend_plan
             .encoded_machine
             .instructions
             .iter()
@@ -461,7 +464,7 @@ fn machine_instruction_bytes_name(
     else {
         return "invalid".to_owned();
     };
-    let Some(bytes) = native_plan
+    let Some(bytes) = backend_plan
         .encoded_machine
         .bytes
         .span(encoded_instruction.bytes)

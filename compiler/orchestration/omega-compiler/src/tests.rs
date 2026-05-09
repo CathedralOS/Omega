@@ -18,24 +18,24 @@ fn identifier_path(members: &[&str]) -> IdentifierPath {
 }
 
 fn native_state_name(
-    native_plan: &omega_backend_plan::NativePlan,
+    backend_plan: &omega_backend_plan::BackendPlan,
     key: omega_control_flow::StateKey,
 ) -> String {
-    native_plan
+    backend_plan
         .control_flow
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }
 
-fn build_native_plan(
+fn build_backend_plan(
     program: &omega_typed_program::Program,
     target: NativeTarget,
-) -> Result<omega_backend_plan::NativePlan, omega_core::diagnostics::Diagnostic> {
+) -> Result<omega_backend_plan::BackendPlan, omega_core::diagnostics::Diagnostic> {
     let workers = omega_core::parallel::WorkerPool::with_available_parallelism();
     let control_flow = omega_typed_to_control_flow::build_control_flow_plan(program)?;
 
-    omega_backend_pipeline::build_native_plan_from_control_flow_with_workers(
+    omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         std::sync::Arc::new(program.clone()),
         target,
         std::sync::Arc::new(control_flow),
@@ -44,31 +44,31 @@ fn build_native_plan(
 }
 
 fn build_emission_plan(
-    native_plan: &omega_backend_plan::NativePlan,
+    backend_plan: &omega_backend_plan::BackendPlan,
 ) -> omega_artifacts::EmissionPlan {
     omega_emission_planning::build_emission_plan(&omega_emission_planning::EmissionPlanningInput {
-        target: native_plan.target,
-        entry_key: native_plan.entry_key,
-        host_abi: &native_plan.host_abi,
-        host_calls: &native_plan.host_calls,
-        state_calls: &native_plan.state_calls,
-        state_storage: &native_plan.state_storage,
-        state_values: &native_plan.state_values,
-        data: &native_plan.data,
-        instructions: &native_plan.instructions,
-        control_flow: &native_plan.control_flow,
-        runtime_flow: &native_plan.runtime_flow,
-        runtime_bodies: &native_plan.runtime_bodies,
-        runtime_branching_calls: &native_plan.runtime_branching_calls,
-        runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
-        runtime_storage: &native_plan.runtime_storage,
-        runtime_text: &native_plan.runtime_text,
-        state_guards: &native_plan.state_guards,
-        layouts: &native_plan.layouts,
-        machine_code: &native_plan.machine_code,
-        encoded_machine: &native_plan.encoded_machine,
-        object: &native_plan.object,
-        relocations: &native_plan.relocations,
+        target: backend_plan.target,
+        entry_key: backend_plan.entry_key,
+        host_abi: &backend_plan.host_abi,
+        host_calls: &backend_plan.host_calls,
+        state_calls: &backend_plan.state_calls,
+        state_storage: &backend_plan.state_storage,
+        state_values: &backend_plan.state_values,
+        data: &backend_plan.data,
+        instructions: &backend_plan.instructions,
+        control_flow: &backend_plan.control_flow,
+        runtime_flow: &backend_plan.runtime_flow,
+        runtime_bodies: &backend_plan.runtime_bodies,
+        runtime_branching_calls: &backend_plan.runtime_branching_calls,
+        runtime_dispatch_loop: &backend_plan.runtime_dispatch_loop,
+        runtime_storage: &backend_plan.runtime_storage,
+        runtime_text: &backend_plan.runtime_text,
+        state_guards: &backend_plan.state_guards,
+        layouts: &backend_plan.layouts,
+        machine_code: &backend_plan.machine_code,
+        encoded_machine: &backend_plan.encoded_machine,
+        object: &backend_plan.object,
+        relocations: &backend_plan.relocations,
     })
 }
 
@@ -708,16 +708,16 @@ fn plans_native_layout_for_owned_data() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan =
-        build_native_plan(&program, NativeTarget::host()).expect("native planning should pass");
-    let main_layout = native_plan
+    let backend_plan =
+        build_backend_plan(&program, NativeTarget::host()).expect("backend planning should pass");
+    let main_layout = backend_plan
         .layouts
         .machine_layouts
         .iter()
         .find(|(_, layout)| layout.name == "main")
         .map(|(_, layout)| layout)
         .expect("main layout should exist");
-    let main_fields = native_plan
+    let main_fields = backend_plan
         .layouts
         .fields
         .span(main_layout.fields)
@@ -750,8 +750,8 @@ fn plans_native_layout_for_primitive_widths() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let target = NativeTarget::host();
-    let native_plan = build_native_plan(&program, target).expect("native planning should pass");
-    let counters_layout = native_plan
+    let backend_plan = build_backend_plan(&program, target).expect("backend planning should pass");
+    let counters_layout = backend_plan
         .layouts
         .data_layouts
         .iter()
@@ -761,7 +761,7 @@ fn plans_native_layout_for_primitive_widths() {
     let omega_layout::DataShape::Record { fields } = &counters_layout.shape else {
         panic!("expected record layout");
     };
-    let fields = native_plan
+    let fields = backend_plan
         .layouts
         .fields
         .span(*fields)
@@ -1244,23 +1244,23 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should preserve runtime loops");
-    let runtime_states = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should preserve runtime loops");
+    let runtime_states = backend_plan
         .runtime_flow
         .states
         .iter()
-        .map(|(_, state)| native_state_name(&native_plan, state.key))
+        .map(|(_, state)| native_state_name(&backend_plan, state.key))
         .collect::<Vec<_>>();
 
     assert_eq!(
         runtime_states,
         vec!["main.entry", "main.prompt", "main.invalid_command",]
     );
-    assert_eq!(native_plan.runtime_flow.edges.len(), 3);
-    assert_eq!(native_plan.runtime_flow.cycles.len(), 1);
+    assert_eq!(backend_plan.runtime_flow.edges.len(), 3);
+    assert_eq!(backend_plan.runtime_flow.cycles.len(), 1);
     assert!(
-        native_plan
+        backend_plan
             .runtime_flow
             .edges
             .iter()
@@ -1299,9 +1299,9 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should preserve runtime loops");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should preserve runtime loops");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
@@ -1346,9 +1346,9 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should emit unguarded dispatch loop bytes");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should emit unguarded dispatch loop bytes");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(
         !emission_plan
@@ -1358,12 +1358,12 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
         "unguarded dispatch loops should not report a runtime dispatch blocker"
     );
     assert!(
-        native_plan
+        backend_plan
             .machine_code
             .instructions
             .iter()
             .any(|(_, instruction)| {
-                let encoded_bytes = native_plan
+                let encoded_bytes = backend_plan
                     .encoded_machine
                     .instructions
                     .iter()
@@ -1380,12 +1380,12 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
             })
     );
     assert!(
-        native_plan
+        backend_plan
             .machine_code
             .instructions
             .iter()
             .any(|(_, instruction)| {
-                let encoded_bytes = native_plan
+                let encoded_bytes = backend_plan
                     .encoded_machine
                     .instructions
                     .iter()
@@ -1425,16 +1425,16 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build dispatch data");
-    let prompt = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build dispatch data");
+    let prompt = backend_plan
         .state_dispatch
         .states
         .iter()
-        .find(|(_, state)| native_state_name(&native_plan, state.key) == "main.prompt")
+        .find(|(_, state)| native_state_name(&backend_plan, state.key) == "main.prompt")
         .map(|(_, state)| state)
         .expect("prompt dispatch state should exist");
-    let prompt_edges = native_plan
+    let prompt_edges = backend_plan
         .state_dispatch
         .edges
         .span(prompt.edges)
@@ -1483,31 +1483,34 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build dispatch loop data");
-    let prompt_case = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build dispatch loop data");
+    let prompt_case = backend_plan
         .runtime_dispatch_loop
         .cases
         .iter()
         .find(|(_, dispatch_case)| {
-            native_plan
+            backend_plan
                 .control_flow
                 .state_by_key(dispatch_case.key)
                 .is_some_and(|state| state.name == "prompt")
         })
         .map(|(_, dispatch_case)| dispatch_case)
         .expect("prompt dispatch loop case should exist");
-    let prompt_edges = native_plan
+    let prompt_edges = backend_plan
         .runtime_dispatch_loop
         .edges
         .span(prompt_case.edges)
         .expect("prompt dispatch loop edges should resolve");
 
-    assert!(native_plan.runtime_dispatch_loop.needed);
-    assert_eq!(native_plan.runtime_dispatch_loop.entry_dispatch_index, 1);
-    assert_eq!(native_plan.runtime_dispatch_loop.terminal_dispatch_index, 0);
+    assert!(backend_plan.runtime_dispatch_loop.needed);
+    assert_eq!(backend_plan.runtime_dispatch_loop.entry_dispatch_index, 1);
     assert_eq!(
-        native_plan.runtime_dispatch_loop.current_state_slot,
+        backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
+        0
+    );
+    assert_eq!(
+        backend_plan.runtime_dispatch_loop.current_state_slot,
         "omega_current_state"
     );
     assert_eq!(prompt_edges.len(), 2);
@@ -1552,18 +1555,18 @@ fn selects_runtime_dispatch_loop_instructions() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should select dispatch loop instructions");
-    let prompt_dispatch_index = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should select dispatch loop instructions");
+    let prompt_dispatch_index = backend_plan
         .state_dispatch
         .states
         .iter()
-        .find(|(_, state)| native_state_name(&native_plan, state.key) == "main.prompt")
+        .find(|(_, state)| native_state_name(&backend_plan, state.key) == "main.prompt")
         .map(|(_, state)| state.dispatch_index)
         .expect("prompt dispatch state should exist");
 
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -1575,7 +1578,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             })
     );
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -1590,7 +1593,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             })
     );
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -1601,9 +1604,9 @@ fn selects_runtime_dispatch_loop_instructions() {
                 )
             })
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert_eq!(backend_plan.host_calls.calls.len(), 2);
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -1638,28 +1641,28 @@ fn plans_runtime_guards_for_dispatch_edges() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build guard data");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build guard data");
 
-    assert_eq!(native_plan.state_guards.guards.len(), 2);
-    assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
-        native_state_name(&native_plan, guard.source) == "main.entry"
+    assert_eq!(backend_plan.state_guards.guards.len(), 2);
+    assert!(backend_plan.state_guards.guards.iter().any(|(_, guard)| {
+        native_state_name(&backend_plan, guard.source) == "main.entry"
             && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
             && guard.operator == omega_target_program::StateGuardOperator::Equal
             && guard.lowering == omega_target_program::StateGuardLowering::CompareStaticValue
             && guard.expression.display_name() == "ready == true"
     }));
-    let equality_guard = native_plan
+    let equality_guard = backend_plan
         .state_guards
         .guards
         .iter()
         .find(|(_, guard)| {
-            native_state_name(&native_plan, guard.source) == "main.entry"
+            native_state_name(&backend_plan, guard.source) == "main.entry"
                 && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
-    let guard_operands = native_plan
+    let guard_operands = backend_plan
         .state_guards
         .operands
         .span(equality_guard.operands)
@@ -1684,8 +1687,8 @@ fn plans_runtime_guards_for_dispatch_edges() {
     );
     assert!(guard_operands[1].has_resolved_value);
     assert_eq!(guard_operands[1].resolved_value, 1);
-    assert!(native_plan.state_guards.guards.iter().any(|(_, guard)| {
-        native_state_name(&native_plan, guard.source) == "main.entry"
+    assert!(backend_plan.state_guards.guards.iter().any(|(_, guard)| {
+        native_state_name(&backend_plan, guard.source) == "main.entry"
             && guard.kind == omega_state_guards::StateGuardKind::Always
             && !guard.has_expression
             && guard.forms_cycle
@@ -1719,19 +1722,19 @@ fn resolves_enum_guard_operand_values() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should resolve enum guard operands");
-    let equality_guard = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should resolve enum guard operands");
+    let equality_guard = backend_plan
         .state_guards
         .guards
         .iter()
         .find(|(_, guard)| {
-            native_state_name(&native_plan, guard.source) == "main.entry"
+            native_state_name(&backend_plan, guard.source) == "main.entry"
                 && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
-    let guard_operands = native_plan
+    let guard_operands = backend_plan
         .state_guards
         .operands
         .span(equality_guard.operands)
@@ -1779,19 +1782,19 @@ fn resolves_nested_guard_operand_offsets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should resolve nested guard operand offsets");
-    let equality_guard = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should resolve nested guard operand offsets");
+    let equality_guard = backend_plan
         .state_guards
         .guards
         .iter()
         .find(|(_, guard)| {
-            native_state_name(&native_plan, guard.source) == "main.entry"
+            native_state_name(&backend_plan, guard.source) == "main.entry"
                 && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
         })
         .map(|(_, guard)| guard)
         .expect("runtime equality guard should be planned");
-    let guard_operands = native_plan
+    let guard_operands = backend_plan
         .state_guards
         .operands
         .span(equality_guard.operands)
@@ -1837,16 +1840,16 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build runtime bodies");
-    let entry_body = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build runtime bodies");
+    let entry_body = backend_plan
         .runtime_bodies
         .bodies
         .iter()
-        .find(|(_, body)| native_state_name(&native_plan, body.key) == "main.entry")
+        .find(|(_, body)| native_state_name(&backend_plan, body.key) == "main.entry")
         .map(|(_, body)| body)
         .expect("entry runtime body should exist");
-    let operations = native_plan
+    let operations = backend_plan
         .runtime_bodies
         .operations
         .span(entry_body.operations)
@@ -1855,7 +1858,7 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
         omega_runtime_bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { target_key, .. }
-            if native_state_name(&native_plan, target_key) == "main.hello"
+            if native_state_name(&backend_plan, target_key) == "main.hello"
     )));
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
@@ -1894,16 +1897,16 @@ fn plans_runtime_branching_state_call_edges() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build runtime branching calls");
-    let branching_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build runtime branching calls");
+    let branching_call = backend_plan
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
+        .find(|(_, call)| native_state_name(&backend_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching helper call should be planned");
-    let edges = native_plan
+    let edges = backend_plan
         .runtime_branching_calls
         .edges
         .span(branching_call.edges)
@@ -1913,12 +1916,15 @@ fn plans_runtime_branching_state_call_edges() {
         branching_call.expansion,
         omega_runtime_branching::RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
     );
-    assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 2);
+    assert_eq!(
+        backend_plan.runtime_branching_calls.leaf_expansions.len(),
+        2
+    );
     assert_eq!(edges.len(), 2);
     assert!(matches!(
         edges[0].target,
         omega_state_graph::RuntimeTransitionTarget::State { key }
-            if native_state_name(&native_plan, key) == "main.yes"
+            if native_state_name(&backend_plan, key) == "main.yes"
     ));
     assert_eq!(
         edges[0].lowering,
@@ -1931,7 +1937,7 @@ fn plans_runtime_branching_state_call_edges() {
     assert!(matches!(
         edges[1].target,
         omega_state_graph::RuntimeTransitionTarget::State { key }
-            if native_state_name(&native_plan, key) == "main.no"
+            if native_state_name(&backend_plan, key) == "main.no"
     ));
     assert_eq!(
         edges[1].lowering,
@@ -1970,14 +1976,14 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build runtime branch expansion");
-    let emission_plan = build_emission_plan(&native_plan);
-    let branching_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build runtime branch expansion");
+    let emission_plan = build_emission_plan(&backend_plan);
+    let branching_call = backend_plan
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
+        .find(|(_, call)| native_state_name(&backend_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching call should be planned");
 
@@ -1985,7 +1991,10 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
         branching_call.expansion,
         omega_runtime_branching::RuntimeBranchCallExpansion::GuardedLeaf
     );
-    assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 1);
+    assert_eq!(
+        backend_plan.runtime_branching_calls.leaf_expansions.len(),
+        1
+    );
     assert!(
         !emission_plan.blockers.iter().any(|(_, blocker)| {
             blocker.stage == "state calls"
@@ -2034,31 +2043,31 @@ fn plans_runtime_straight_line_branch_expansion() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build straight-line branch expansion");
-    let emission_plan = build_emission_plan(&native_plan);
-    let branching_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build straight-line branch expansion");
+    let emission_plan = build_emission_plan(&backend_plan);
+    let branching_call = backend_plan
         .runtime_branching_calls
         .calls
         .iter()
-        .find(|(_, call)| native_state_name(&native_plan, call.target_key) == "main.choose")
+        .find(|(_, call)| native_state_name(&backend_plan, call.target_key) == "main.choose")
         .map(|(_, call)| call)
         .expect("branching call should be planned");
-    let expansion = native_plan
+    let expansion = backend_plan
         .runtime_branching_calls
         .straight_line_expansions
         .iter()
         .find(|(_, expansion)| {
-            native_state_name(&native_plan, expansion.target_key) == "main.fallback"
+            native_state_name(&backend_plan, expansion.target_key) == "main.fallback"
         })
         .map(|(_, expansion)| expansion)
         .expect("fallback straight-line expansion should be planned");
-    let bindings = native_plan
+    let bindings = backend_plan
         .runtime_branching_calls
         .straight_line_bindings
         .span(expansion.bindings)
         .expect("straight-line branch bindings should resolve");
-    let operations = native_plan
+    let operations = backend_plan
         .runtime_branching_calls
         .straight_line_operations
         .span(expansion.operations)
@@ -2080,10 +2089,10 @@ fn plans_runtime_straight_line_branch_expansion() {
             target_key,
             lowering: omega_state_calls::StateCallLowering::InlineLeaf,
             ..
-        } if native_state_name(&native_plan, target_key) == "main.apply_default"
+        } if native_state_name(&backend_plan, target_key) == "main.apply_default"
     )));
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -2093,7 +2102,7 @@ fn plans_runtime_straight_line_branch_expansion() {
                     value: 2,
                     ..
                 }
-            ) && native_state_name(&native_plan, instruction.source_key)
+            ) && native_state_name(&backend_plan, instruction.source_key)
                 == "main.apply_default"),
         "straight-line branch target should emit its nested leaf mutation"
     );
@@ -2153,16 +2162,16 @@ fn plans_runtime_leaf_branch_argument_bindings() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build leaf branch bindings");
-    let expansion = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build leaf branch bindings");
+    let expansion = backend_plan
         .runtime_branching_calls
         .leaf_expansions
         .iter()
-        .find(|(_, expansion)| native_state_name(&native_plan, expansion.leaf_key) == "main.apply")
+        .find(|(_, expansion)| native_state_name(&backend_plan, expansion.leaf_key) == "main.apply")
         .map(|(_, expansion)| expansion)
         .expect("apply leaf expansion should be planned");
-    let bindings = native_plan
+    let bindings = backend_plan
         .runtime_branching_calls
         .leaf_bindings
         .span(expansion.bindings)
@@ -2220,9 +2229,9 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should select reachable loop-state calls");
-    let selected_host_operations = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should select reachable loop-state calls");
+    let selected_host_operations = backend_plan
         .instructions
         .instructions
         .iter()
@@ -2234,7 +2243,7 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
         })
         .count();
 
-    assert_eq!(native_plan.host_calls.calls.len(), 2);
+    assert_eq!(backend_plan.host_calls.calls.len(), 2);
     assert_eq!(selected_host_operations, 2);
 }
 
@@ -2273,9 +2282,9 @@ fn selects_host_calls_inside_required_state_call_targets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should select required helper host calls");
-    let selected_host_operations = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should select required helper host calls");
+    let selected_host_operations = backend_plan
         .instructions
         .instructions
         .iter()
@@ -2287,7 +2296,7 @@ fn selects_host_calls_inside_required_state_call_targets() {
         })
         .count();
 
-    assert_eq!(native_plan.host_calls.calls.len(), 1);
+    assert_eq!(backend_plan.host_calls.calls.len(), 1);
     assert_eq!(selected_host_operations, 1);
 }
 
@@ -2324,22 +2333,22 @@ fn plans_state_calls_separately_from_host_calls() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should separate state calls");
-    let state_calls = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should separate state calls");
+    let state_calls = backend_plan
         .state_calls
         .calls
         .iter()
         .map(|(_, state_call)| {
             (
-                native_state_name(&native_plan, state_call.source_key),
-                native_state_name(&native_plan, state_call.target_key),
+                native_state_name(&backend_plan, state_call.source_key),
+                native_state_name(&backend_plan, state_call.target_key),
                 state_call.argument_count,
                 state_call.required,
             )
         })
         .collect::<Vec<_>>();
-    let emission_plan = build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert_eq!(
         state_calls,
@@ -2348,16 +2357,16 @@ fn plans_state_calls_separately_from_host_calls() {
             ("main.entry".to_owned(), "Helper.write".to_owned(), 0, true,),
         ]
     );
-    let prepare_call = native_plan
+    let prepare_call = backend_plan
         .state_calls
         .calls
         .iter()
         .find(|(_, state_call)| {
-            native_state_name(&native_plan, state_call.target_key) == "main.prepare"
+            native_state_name(&backend_plan, state_call.target_key) == "main.prepare"
         })
         .map(|(_, state_call)| state_call)
         .expect("prepare state call should be planned");
-    let prepare_arguments = native_plan
+    let prepare_arguments = backend_plan
         .state_calls
         .arguments
         .span(prepare_call.arguments)
@@ -2373,7 +2382,7 @@ fn plans_state_calls_separately_from_host_calls() {
         prepare_call.lowering,
         omega_state_calls::StateCallLowering::InlineLeaf
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 1);
+    assert_eq!(backend_plan.host_calls.calls.len(), 1);
     assert!(
         !emission_plan
             .blockers
@@ -2414,14 +2423,14 @@ fn marks_state_calls_required_through_transition_targets() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should trace required calls through transitions");
-    let branch_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should trace required calls through transitions");
+    let branch_call = backend_plan
         .state_calls
         .calls
         .iter()
         .find(|(_, state_call)| {
-            native_state_name(&native_plan, state_call.source_key) == "main.branch"
+            native_state_name(&backend_plan, state_call.source_key) == "main.branch"
         })
         .map(|(_, state_call)| state_call)
         .expect("branch state call should be planned");
@@ -2455,16 +2464,16 @@ fn tracks_mutable_state_call_argument_bindings() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should collect mutable call argument binding");
-    let state_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should collect mutable call argument binding");
+    let state_call = backend_plan
         .state_calls
         .calls
         .iter()
         .next()
         .map(|(_, state_call)| state_call)
         .expect("state call should be planned");
-    let arguments = native_plan
+    let arguments = backend_plan
         .state_calls
         .arguments
         .span(state_call.arguments)
@@ -2476,7 +2485,7 @@ fn tracks_mutable_state_call_argument_bindings() {
         omega_state_calls::StateCallArgumentKind::MutableAlias
     );
     assert!(arguments[0].required);
-    let alias = native_plan
+    let alias = backend_plan
         .alias_flow
         .aliases
         .iter()
@@ -2597,15 +2606,15 @@ fn plans_native_object_shape() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan =
-        build_native_plan(&program, NativeTarget::host()).expect("native planning should pass");
+    let backend_plan =
+        build_backend_plan(&program, NativeTarget::host()).expect("backend planning should pass");
 
-    assert_eq!(native_plan.object.sections.len(), 3);
-    assert!(!native_plan.instructions.functions.is_empty());
-    assert!(!native_plan.instructions.instructions.is_empty());
-    assert!(native_plan.machine_code.byte_count > 0);
+    assert_eq!(backend_plan.object.sections.len(), 3);
+    assert!(!backend_plan.instructions.functions.is_empty());
+    assert!(!backend_plan.instructions.instructions.is_empty());
+    assert!(backend_plan.machine_code.byte_count > 0);
     assert!(
-        native_plan
+        backend_plan
             .object
             .symbols
             .iter()
@@ -2636,33 +2645,33 @@ fn selected_windows_target_plans_coff_and_kernel32_imports() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::windows_x64())
-        .expect("native planning should pass");
+    let backend_plan = build_backend_plan(&program, NativeTarget::windows_x64())
+        .expect("backend planning should pass");
 
-    assert_eq!(native_plan.target.object_format, ObjectFormat::Coff);
+    assert_eq!(backend_plan.target.object_format, ObjectFormat::Coff);
     assert!(
-        native_plan
+        backend_plan
             .object
             .symbols
             .iter()
             .any(|(_, symbol)| symbol.name == "WriteFile")
     );
     assert!(
-        native_plan
+        backend_plan
             .host_abi
             .bindings
             .iter()
             .any(|(_, binding)| binding.trust_policy == "omega::host::targets::windows")
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 2);
-    assert_eq!(native_plan.host_calls.operations.len(), 3);
-    assert_eq!(native_plan.host_calls.arguments.len(), 2);
-    assert_eq!(native_plan.data.objects.len(), 1);
-    assert_eq!(native_plan.data.bytes.len(), 7);
-    assert!(native_plan.instructions.instructions.len() >= 5);
-    assert_eq!(native_plan.instructions.operands.len(), 4);
-    assert!(native_plan.machine_code.byte_count > 0);
-    assert_eq!(native_plan.relocations.records.len(), 4);
+    assert_eq!(backend_plan.host_calls.calls.len(), 2);
+    assert_eq!(backend_plan.host_calls.operations.len(), 3);
+    assert_eq!(backend_plan.host_calls.arguments.len(), 2);
+    assert_eq!(backend_plan.data.objects.len(), 1);
+    assert_eq!(backend_plan.data.bytes.len(), 7);
+    assert!(backend_plan.instructions.instructions.len() >= 5);
+    assert_eq!(backend_plan.instructions.operands.len(), 4);
+    assert!(backend_plan.machine_code.byte_count > 0);
+    assert_eq!(backend_plan.relocations.records.len(), 4);
 }
 
 #[test]
@@ -2688,26 +2697,26 @@ fn selected_linux_target_plans_elf_and_syscalls() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::linux_x64())
-        .expect("native planning should pass");
+    let backend_plan = build_backend_plan(&program, NativeTarget::linux_x64())
+        .expect("backend planning should pass");
 
-    assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
-    assert_eq!(native_plan.object.symbols.len(), 3);
+    assert_eq!(backend_plan.target.object_format, ObjectFormat::Elf);
+    assert_eq!(backend_plan.object.symbols.len(), 3);
     assert!(
-        native_plan
+        backend_plan
             .host_abi
             .bindings
             .iter()
             .any(|(_, binding)| binding.operation == "exit_group")
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 2);
-    assert_eq!(native_plan.host_calls.operations.len(), 2);
-    assert_eq!(native_plan.data.objects.len(), 1);
-    assert_eq!(native_plan.data.bytes.len(), 7);
-    assert!(native_plan.instructions.instructions.len() >= 4);
-    assert_eq!(native_plan.instructions.operands.len(), 4);
-    assert!(native_plan.machine_code.byte_count > 0);
-    assert_eq!(native_plan.relocations.records.len(), 1);
+    assert_eq!(backend_plan.host_calls.calls.len(), 2);
+    assert_eq!(backend_plan.host_calls.operations.len(), 2);
+    assert_eq!(backend_plan.data.objects.len(), 1);
+    assert_eq!(backend_plan.data.bytes.len(), 7);
+    assert!(backend_plan.instructions.instructions.len() >= 4);
+    assert_eq!(backend_plan.instructions.operands.len(), 4);
+    assert!(backend_plan.machine_code.byte_count > 0);
+    assert_eq!(backend_plan.relocations.records.len(), 1);
 }
 
 #[test]
@@ -2733,18 +2742,18 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::linux_arm64())
-        .expect("native planning should pass");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::linux_arm64())
+        .expect("backend planning should pass");
+    let emission_plan = build_emission_plan(&backend_plan);
 
-    assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
+    assert_eq!(backend_plan.target.object_format, ObjectFormat::Elf);
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
-        native_plan.encoded_machine.bytes.len(),
-        native_plan.machine_code.byte_count
+        backend_plan.encoded_machine.bytes.len(),
+        backend_plan.machine_code.byte_count
     );
     assert!(
-        native_plan
+        backend_plan
             .host_abi
             .bindings
             .iter()
@@ -2754,7 +2763,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
             ))
     );
     assert!(
-        native_plan
+        backend_plan
             .host_abi
             .bindings
             .iter()
@@ -2788,10 +2797,10 @@ fn selected_macos_arm64_plans_relocation_byte_offsets() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should pass");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should pass");
 
-    let relocations = native_plan
+    let relocations = backend_plan
         .relocations
         .records
         .iter()
@@ -2847,10 +2856,10 @@ fn encodes_aarch64_immediates_that_need_movk() {
         .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should encode multi-instruction immediates");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should encode multi-instruction immediates");
 
-    assert_eq!(native_plan.machine_code.byte_count, 36);
+    assert_eq!(backend_plan.machine_code.byte_count, 36);
 }
 
 #[test]
@@ -2874,9 +2883,9 @@ fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should preserve unsupported call as blocker");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should preserve unsupported call as blocker");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| blocker
@@ -2911,7 +2920,7 @@ fn check_writes_phase_artifacts() {
         "06_validation.txt",
         "07_graph.txt",
         "08_proof.txt",
-        "09_native_plan.txt",
+        "09_backend_plan.txt",
         "10_trust.txt",
         "11_emission.txt",
     ] {
@@ -2952,11 +2961,11 @@ fn check_writes_phase_artifacts() {
 
     let emission = std::fs::read_to_string(output.artifacts_dir.join("11_emission.txt"))
         .expect("emission artifact should be readable");
-    let native_plan = std::fs::read_to_string(output.artifacts_dir.join("09_native_plan.txt"))
-        .expect("native plan artifact should be readable");
-    assert!(native_plan.contains("## Native String Storage"));
-    assert!(native_plan.contains("identity"));
-    assert!(native_plan.contains("## Runtime Text"));
+    let backend_plan = std::fs::read_to_string(output.artifacts_dir.join("09_backend_plan.txt"))
+        .expect("backend plan artifact should be readable");
+    assert!(backend_plan.contains("## Native String Storage"));
+    assert!(backend_plan.contains("identity"));
+    assert!(backend_plan.contains("## Runtime Text"));
     assert!(emission.contains("status: ready to emit"));
     assert!(emission.contains("data bytes:"));
     assert!(emission.contains("selected instructions:"));
@@ -3323,13 +3332,13 @@ fn ignores_host_calls_outside_entry_schedule() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should keep unreachable host call out of the schedule");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should keep unreachable host call out of the schedule");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(emission_plan.blockers.is_empty());
-    assert_eq!(native_plan.host_calls.calls.len(), 2);
-    assert_eq!(native_plan.instructions.instructions.len(), 4);
+    assert_eq!(backend_plan.host_calls.calls.len(), 2);
+    assert_eq!(backend_plan.instructions.instructions.len(), 4);
 }
 
 #[test]
@@ -3361,13 +3370,13 @@ fn emits_unconditional_entry_transition_chains() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should allow unconditional transition chain");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should allow unconditional transition chain");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(emission_plan.blockers.is_empty());
-    assert_eq!(native_plan.host_calls.calls.len(), 3);
-    assert_eq!(native_plan.instructions.instructions.len(), 8);
+    assert_eq!(backend_plan.host_calls.calls.len(), 3);
+    assert_eq!(backend_plan.instructions.instructions.len(), 8);
 }
 
 #[test]
@@ -3406,27 +3415,27 @@ fn emits_nested_machine_continuations_inline() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should allow nested continuation");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should allow nested continuation");
+    let emission_plan = build_emission_plan(&backend_plan);
     let schedule_context = omega_state_schedule::StateScheduleContext::new(
-        &native_plan.control_flow,
-        &native_plan.host_calls,
+        &backend_plan.control_flow,
+        &backend_plan.host_calls,
     );
     let schedule =
-        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, backend_plan.entry_key)
             .expect("entry schedule should include nested state");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
         schedule
             .iter()
-            .map(|state| native_state_name(&native_plan, state.key))
+            .map(|state| native_state_name(&backend_plan, state.key))
             .collect::<Vec<_>>(),
         vec!["main.entry", "Banner.entry", "main.shutdown"]
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 3);
-    assert_eq!(native_plan.instructions.instructions.len(), 8);
+    assert_eq!(backend_plan.host_calls.calls.len(), 3);
+    assert_eq!(backend_plan.instructions.instructions.len(), 8);
 }
 
 #[test]
@@ -3453,9 +3462,9 @@ fn reports_entry_assignments_as_native_mutation_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should preserve entry assignment as blocker");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should preserve entry assignment as blocker");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
@@ -3493,10 +3502,10 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should preserve dynamic text argument");
-    let emission_plan = build_emission_plan(&native_plan);
-    let runtime_text = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should preserve dynamic text argument");
+    let emission_plan = build_emission_plan(&backend_plan);
+    let runtime_text = backend_plan
         .runtime_text
         .uses
         .iter()
@@ -3549,16 +3558,16 @@ fn invalidates_static_text_after_mutable_host_output() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should invalidate static text after mutable output");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should invalidate static text after mutable output");
 
-    assert!(native_plan.runtime_text.uses.iter().any(|(_, text_use)| {
+    assert!(backend_plan.runtime_text.uses.iter().any(|(_, text_use)| {
         text_use.statement_index == 3
             && text_use.expression.display_name() == "line::text"
             && text_use.source == omega_runtime_text::RuntimeTextSource::StoredPlace
     }));
     assert!(
-        native_plan
+        backend_plan
             .host_calls
             .arguments
             .iter()
@@ -3568,8 +3577,8 @@ fn invalidates_static_text_after_mutable_host_output() {
                     if expression.display_name() == "line::text"
             ))
     );
-    assert!(native_plan.data.objects.iter().all(|(_, object)| {
-        !(native_state_name(&native_plan, object.source_key) == "main.entry"
+    assert!(backend_plan.data.objects.iter().all(|(_, object)| {
+        !(native_state_name(&backend_plan, object.source_key) == "main.entry"
             && object.source_statement == 3)
     }));
 }
@@ -3598,14 +3607,14 @@ fn plans_state_storage_and_mutations() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should collect state storage");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should collect state storage");
+    let emission_plan = build_emission_plan(&backend_plan);
 
-    assert_eq!(native_plan.state_storage.locals.len(), 1);
-    assert_eq!(native_plan.state_storage.mutations.len(), 2);
+    assert_eq!(backend_plan.state_storage.locals.len(), 1);
+    assert_eq!(backend_plan.state_storage.mutations.len(), 2);
     assert!(
-        native_plan
+        backend_plan
             .runtime_storage
             .frame_slots
             .iter()
@@ -3617,12 +3626,18 @@ fn plans_state_storage_and_mutations() {
                     && slot.alignment == 8
             })
     );
-    assert!(native_plan.runtime_storage.writes.iter().any(|(_, write)| {
-        write.target.display_name() == "scratch"
-            && write.lowering == omega_state_storage::StateMutationLowering::NeedsLocalWrite
-    }));
     assert!(
-        native_plan
+        backend_plan
+            .runtime_storage
+            .writes
+            .iter()
+            .any(|(_, write)| {
+                write.target.display_name() == "scratch"
+                    && write.lowering == omega_state_storage::StateMutationLowering::NeedsLocalWrite
+            })
+    );
+    assert!(
+        backend_plan
             .state_storage
             .mutations
             .iter()
@@ -3630,7 +3645,7 @@ fn plans_state_storage_and_mutations() {
                 == omega_state_storage::StateMutationKind::MachineOwned)
     );
     assert!(
-        native_plan
+        backend_plan
             .state_storage
             .mutations
             .iter()
@@ -3638,7 +3653,7 @@ fn plans_state_storage_and_mutations() {
                 == omega_state_storage::StateMutationLowering::AlreadyLowered)
     );
     assert!(
-        native_plan
+        backend_plan
             .state_storage
             .mutations
             .iter()
@@ -3685,16 +3700,16 @@ fn plans_required_state_value_uses() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should collect value uses");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should collect value uses");
 
-    assert!(native_plan.state_values.values.iter().any(|(_, value)| {
+    assert!(backend_plan.state_values.values.iter().any(|(_, value)| {
         value.required
             && value.kind == omega_state_values::StateValueKind::Binary
             && value.role == omega_state_values::StateValueRole::TransitionGuard
     }));
     assert!(
-        native_plan
+        backend_plan
             .runtime_text
             .writes
             .iter()
@@ -3703,13 +3718,13 @@ fn plans_required_state_value_uses() {
                     && text_write.kind == omega_runtime_text::RuntimeTextWriteKind::GeneratedString
             })
     );
-    let (_, builder) = native_plan
+    let (_, builder) = backend_plan
         .runtime_text
         .builders
         .iter()
         .find(|(_, builder)| builder.target.display_name() == "line::text")
         .expect("generated text write should have a string builder plan");
-    let segments = native_plan
+    let segments = backend_plan
         .runtime_text
         .builder_segments
         .span(builder.segments)
@@ -3758,12 +3773,12 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should build runtime text builder");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should build runtime text builder");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(
-        native_plan
+        backend_plan
             .runtime_text
             .builders
             .iter()
@@ -3808,17 +3823,17 @@ fn lowers_constant_integer_assignment_before_host_call() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should track constant integer assignment");
-    let emission_plan = build_emission_plan(&native_plan);
-    let exit_call = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should track constant integer assignment");
+    let emission_plan = build_emission_plan(&backend_plan);
+    let exit_call = backend_plan
         .host_calls
         .calls
         .iter()
         .find(|(_, call)| call.platform_call == "console.exit_process")
         .map(|(_, call)| call)
         .expect("exit call should be lowered");
-    let arguments = native_plan
+    let arguments = backend_plan
         .host_calls
         .arguments
         .span(exit_call.arguments)
@@ -3883,27 +3898,27 @@ fn selects_static_guarded_transition() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should select a static guarded transition");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should select a static guarded transition");
+    let emission_plan = build_emission_plan(&backend_plan);
     let schedule_context = omega_state_schedule::StateScheduleContext::new(
-        &native_plan.control_flow,
-        &native_plan.host_calls,
+        &backend_plan.control_flow,
+        &backend_plan.host_calls,
     );
     let schedule =
-        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, backend_plan.entry_key)
             .expect("entry schedule should select look branch");
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
         schedule
             .iter()
-            .map(|state| native_state_name(&native_plan, state.key))
+            .map(|state| native_state_name(&backend_plan, state.key))
             .collect::<Vec<_>>(),
         vec!["main.entry", "main.look"]
     );
-    assert_eq!(native_plan.host_calls.calls.len(), 6);
-    assert_eq!(native_plan.instructions.instructions.len(), 6);
+    assert_eq!(backend_plan.host_calls.calls.len(), 6);
+    assert_eq!(backend_plan.instructions.instructions.len(), 6);
 }
 
 #[test]
@@ -3951,18 +3966,18 @@ fn propagates_static_state_call_arguments() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should propagate static state arguments");
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should propagate static state arguments");
     let schedule_context = omega_state_schedule::StateScheduleContext::new(
-        &native_plan.control_flow,
-        &native_plan.host_calls,
+        &backend_plan.control_flow,
+        &backend_plan.host_calls,
     );
     let schedule =
-        omega_state_schedule::build_entry_state_schedule(&schedule_context, native_plan.entry_key)
+        omega_state_schedule::build_entry_state_schedule(&schedule_context, backend_plan.entry_key)
             .expect("entry schedule should evaluate helper-state guards");
     let scheduled_states = schedule
         .iter()
-        .map(|state| native_state_name(&native_plan, state.key))
+        .map(|state| native_state_name(&backend_plan, state.key))
         .collect::<Vec<_>>();
 
     assert_eq!(
@@ -4006,29 +4021,29 @@ fn lowers_mutable_output_host_call() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should lower mutable output host call");
-    let emission_plan = build_emission_plan(&native_plan);
-    let read_buffer = native_plan
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should lower mutable output host call");
+    let emission_plan = build_emission_plan(&backend_plan);
+    let read_buffer = backend_plan
         .data
         .objects
         .iter()
         .find(|(_, object)| object.source_statement == 1)
         .map(|(handle, object)| (handle, object))
         .expect("read_line should allocate a mutable output buffer");
-    let read_buffer_bytes = native_plan
+    let read_buffer_bytes = backend_plan
         .data
         .bytes
         .span(read_buffer.1.bytes)
         .expect("read buffer bytes should be present");
-    let runtime_text_buffer = native_plan
+    let runtime_text_buffer = backend_plan
         .runtime_text
         .buffers
         .iter()
         .find(|(_, buffer)| buffer.target.display_name() == "line")
         .map(|(_, buffer)| buffer)
         .expect("read_line should plan a runtime text buffer binding");
-    let runtime_text_slot = native_plan
+    let runtime_text_slot = backend_plan
         .runtime_text
         .slots
         .iter()
@@ -4037,9 +4052,9 @@ fn lowers_mutable_output_host_call() {
         .expect("read_line should plan a runtime text slot");
 
     assert!(emission_plan.blockers.is_empty());
-    assert_eq!(native_plan.host_calls.calls.len(), 4);
+    assert_eq!(backend_plan.host_calls.calls.len(), 4);
     assert!(
-        native_plan
+        backend_plan
             .instructions
             .instructions
             .iter()
@@ -4104,22 +4119,22 @@ fn lowers_static_record_array_field_text() {
     .expect("tokenization should succeed");
     let parsed = parse_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
-    let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
-        .expect("native planning should lower static record field text");
-    let emission_plan = build_emission_plan(&native_plan);
+    let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
+        .expect("backend planning should lower static record field text");
+    let emission_plan = build_emission_plan(&backend_plan);
 
     assert!(emission_plan.blockers.is_empty());
-    assert_eq!(native_plan.host_calls.calls.len(), 3);
-    assert_eq!(native_plan.data.objects.len(), 4);
-    assert!(native_plan.data.objects.iter().any(|(_, data_object)| {
-        native_plan
+    assert_eq!(backend_plan.host_calls.calls.len(), 3);
+    assert_eq!(backend_plan.data.objects.len(), 4);
+    assert!(backend_plan.data.objects.iter().any(|(_, data_object)| {
+        backend_plan
             .data
             .bytes
             .span(data_object.bytes)
             .is_some_and(|bytes| bytes == b"A1")
     }));
-    assert!(native_plan.data.objects.iter().any(|(_, data_object)| {
-        native_plan
+    assert!(backend_plan.data.objects.iter().any(|(_, data_object)| {
+        backend_plan
             .data
             .bytes
             .span(data_object.bytes)

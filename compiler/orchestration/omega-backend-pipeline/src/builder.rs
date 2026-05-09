@@ -1,7 +1,7 @@
 use super::entry::resolve_native_entry_point;
-use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
-use super::timing::record_native_phase;
-use omega_backend_plan::NativePlan;
+use super::skeleton::{BackendPlanSkeletonInput, build_backend_plan_skeleton};
+use super::timing::record_backend_phase;
+use omega_backend_plan::BackendPlan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
@@ -41,15 +41,15 @@ use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
 use std::sync::Arc;
 
-pub(super) fn build_native_plan_from_control_flow_with_workers(
+pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<Program>,
     target: NativeTarget,
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
-) -> Result<NativePlan, Diagnostic> {
+) -> Result<BackendPlan, Diagnostic> {
     let entry_point = resolve_native_entry_point(&program)?;
     let mut phase_timings = Vec::new();
-    let host_abi = record_native_phase(&mut phase_timings, "host abi", || {
+    let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
     });
     let host_call_program = Arc::clone(&program);
@@ -57,7 +57,7 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     let host_call_abi = Arc::new(host_abi.clone());
     let host_call_workers = workers.clone();
     let (layouts, host_calls) =
-        record_native_phase(&mut phase_timings, "layout/host calls", || {
+        record_backend_phase(&mut phase_timings, "layout/host calls", || {
             workers.join2(
                 move || build_layout_plan(&layout_program, target),
                 move || {
@@ -75,21 +75,21 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     let entry_key = control_flow
         .state_key_by_symbols(entry_point.machine_symbol, entry_point.state_symbol)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
-    let runtime_flow = record_native_phase(&mut phase_timings, "runtime flow", || {
+    let runtime_flow = record_backend_phase(&mut phase_timings, "runtime flow", || {
         build_runtime_flow_plan(&control_flow, entry_key)
     })?;
-    let state_dispatch = record_native_phase(&mut phase_timings, "state dispatch", || {
+    let state_dispatch = record_backend_phase(&mut phase_timings, "state dispatch", || {
         build_state_dispatch_plan_with_workers(
             Arc::new(StateDispatchContext::from_runtime_flow(&runtime_flow)),
             runtime_state_inputs(&runtime_flow),
             workers.clone(),
         )
     });
-    let state_guards = record_native_phase(&mut phase_timings, "state guards", || {
+    let state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(&state_dispatch, &control_flow, &layouts, entry_key.machine)
     });
 
-    let mut native_plan = build_native_plan_skeleton(NativePlanSkeletonInput {
+    let mut backend_plan = build_backend_plan_skeleton(BackendPlanSkeletonInput {
         target,
         host_abi,
         host_calls,
@@ -101,35 +101,35 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         entry_key,
         phase_timings,
     });
-    let mut phase_timings = std::mem::take(&mut native_plan.phase_timings);
-    native_plan.state_calls = record_native_phase(&mut phase_timings, "state calls", || {
+    let mut phase_timings = std::mem::take(&mut backend_plan.phase_timings);
+    backend_plan.state_calls = record_backend_phase(&mut phase_timings, "state calls", || {
         build_state_call_plan_with_workers(
             Arc::new(StateCallPlanningContext {
-                control_flow: native_plan.control_flow.clone(),
-                host_calls: native_plan.host_calls.clone(),
-                runtime_flow: native_plan.runtime_flow.clone(),
+                control_flow: backend_plan.control_flow.clone(),
+                host_calls: backend_plan.host_calls.clone(),
+                runtime_flow: backend_plan.runtime_flow.clone(),
             }),
             workers.clone(),
         )
     });
-    native_plan.alias_flow = record_native_phase(&mut phase_timings, "alias flow", || {
-        build_alias_flow_plan(&native_plan.state_calls)
+    backend_plan.alias_flow = record_backend_phase(&mut phase_timings, "alias flow", || {
+        build_alias_flow_plan(&backend_plan.state_calls)
     });
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
-        control_flow: native_plan.control_flow.clone(),
-        runtime_flow: native_plan.runtime_flow.clone(),
-        state_calls: native_plan.state_calls.clone(),
+        control_flow: backend_plan.control_flow.clone(),
+        runtime_flow: backend_plan.runtime_flow.clone(),
+        state_calls: backend_plan.state_calls.clone(),
     });
     let state_values_context = Arc::new(StateValuePlanningContext {
-        runtime_flow: native_plan.runtime_flow.clone(),
-        state_calls: native_plan.state_calls.clone(),
+        runtime_flow: backend_plan.runtime_flow.clone(),
+        state_calls: backend_plan.state_calls.clone(),
     });
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();
     let (state_storage, state_values) =
-        record_native_phase(&mut phase_timings, "state storage/values", || {
+        record_backend_phase(&mut phase_timings, "state storage/values", || {
             workers.join2(
                 move || {
                     build_state_storage_plan_with_workers(
@@ -147,44 +147,45 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
                 },
             )
         });
-    native_plan.state_storage = state_storage;
-    native_plan.state_values = state_values;
-    native_plan.runtime_bodies = record_native_phase(&mut phase_timings, "runtime bodies", || {
-        build_runtime_dispatch_body_plan_with_workers(
-            Arc::new(RuntimeDispatchBodyContext::new(
-                &native_plan.control_flow,
-                &native_plan.host_calls,
-                &native_plan.state_calls,
-                &native_plan.state_storage,
-            )),
-            native_plan
-                .state_dispatch
-                .states
-                .iter()
-                .map(|(_, dispatch_state)| dispatch_state.clone())
-                .collect(),
-            workers.clone(),
-        )
-    });
+    backend_plan.state_storage = state_storage;
+    backend_plan.state_values = state_values;
+    backend_plan.runtime_bodies =
+        record_backend_phase(&mut phase_timings, "runtime bodies", || {
+            build_runtime_dispatch_body_plan_with_workers(
+                Arc::new(RuntimeDispatchBodyContext::new(
+                    &backend_plan.control_flow,
+                    &backend_plan.host_calls,
+                    &backend_plan.state_calls,
+                    &backend_plan.state_storage,
+                )),
+                backend_plan
+                    .state_dispatch
+                    .states
+                    .iter()
+                    .map(|(_, dispatch_state)| dispatch_state.clone())
+                    .collect(),
+                workers.clone(),
+            )
+        });
     let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
-        !native_plan.runtime_flow.cycles.is_empty(),
-        &native_plan.state_dispatch,
-        native_plan.entry_key,
-        native_plan.state_guards.clone(),
-        native_plan.runtime_bodies.clone(),
+        !backend_plan.runtime_flow.cycles.is_empty(),
+        &backend_plan.state_dispatch,
+        backend_plan.entry_key,
+        backend_plan.state_guards.clone(),
+        backend_plan.runtime_bodies.clone(),
     ));
-    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan.state_dispatch);
+    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&backend_plan.state_dispatch);
     let runtime_loop_workers = workers.clone();
     let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
-        &native_plan.control_flow,
-        &native_plan.layouts,
-        &native_plan.state_storage,
-        native_plan.target,
+        &backend_plan.control_flow,
+        &backend_plan.layouts,
+        &backend_plan.state_storage,
+        backend_plan.target,
     ));
-    let runtime_storage_inputs = runtime_storage_body_inputs(&native_plan.runtime_bodies);
+    let runtime_storage_inputs = runtime_storage_body_inputs(&backend_plan.runtime_bodies);
     let runtime_storage_workers = workers.clone();
     let (runtime_dispatch_loop, runtime_storage) =
-        record_native_phase(&mut phase_timings, "runtime loop/storage", || {
+        record_backend_phase(&mut phase_timings, "runtime loop/storage", || {
             workers.join2(
                 move || {
                     build_runtime_dispatch_loop_plan_with_workers(
@@ -202,87 +203,87 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
                 },
             )
         });
-    native_plan.runtime_branching_calls =
-        record_native_phase(&mut phase_timings, "runtime branching", || {
+    backend_plan.runtime_branching_calls =
+        record_backend_phase(&mut phase_timings, "runtime branching", || {
             build_runtime_branching_call_plan(&RuntimeBranchingContext {
-                control_flow: native_plan.control_flow.clone(),
-                host_calls: native_plan.host_calls.clone(),
-                runtime_bodies: native_plan.runtime_bodies.clone(),
-                state_calls: native_plan.state_calls.clone(),
-                state_storage: native_plan.state_storage.clone(),
+                control_flow: backend_plan.control_flow.clone(),
+                host_calls: backend_plan.host_calls.clone(),
+                runtime_bodies: backend_plan.runtime_bodies.clone(),
+                state_calls: backend_plan.state_calls.clone(),
+                state_storage: backend_plan.state_storage.clone(),
             })
         });
-    native_plan.runtime_dispatch_loop = runtime_dispatch_loop;
-    native_plan.runtime_storage = runtime_storage;
-    native_plan.runtime_text = record_native_phase(&mut phase_timings, "runtime text", || {
-        build_runtime_text_plan(&native_plan.host_calls, &native_plan.state_storage)
+    backend_plan.runtime_dispatch_loop = runtime_dispatch_loop;
+    backend_plan.runtime_storage = runtime_storage;
+    backend_plan.runtime_text = record_backend_phase(&mut phase_timings, "runtime text", || {
+        build_runtime_text_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
-    native_plan.data = record_native_phase(&mut phase_timings, "native data", || {
-        build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage)
+    backend_plan.data = record_backend_phase(&mut phase_timings, "target data", || {
+        build_native_data_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
-    native_plan.instructions = record_native_phase(&mut phase_timings, "instructions", || {
+    backend_plan.instructions = record_backend_phase(&mut phase_timings, "instructions", || {
         build_instruction_plan(&InstructionSelectionInput {
-            target: native_plan.target,
-            entry_key: native_plan.entry_key,
-            entry_symbol: native_plan.object.entry_symbol.clone(),
-            host_abi: &native_plan.host_abi,
-            control_flow: &native_plan.control_flow,
-            host_calls: &native_plan.host_calls,
-            state_calls: &native_plan.state_calls,
-            state_storage: &native_plan.state_storage,
-            runtime_flow: &native_plan.runtime_flow,
-            runtime_bodies: &native_plan.runtime_bodies,
-            runtime_branching_calls: &native_plan.runtime_branching_calls,
-            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
-            runtime_storage: &native_plan.runtime_storage,
-            runtime_text: &native_plan.runtime_text,
-            layouts: &native_plan.layouts,
-            data: &native_plan.data,
+            target: backend_plan.target,
+            entry_key: backend_plan.entry_key,
+            entry_symbol: backend_plan.object.entry_symbol.clone(),
+            host_abi: &backend_plan.host_abi,
+            control_flow: &backend_plan.control_flow,
+            host_calls: &backend_plan.host_calls,
+            state_calls: &backend_plan.state_calls,
+            state_storage: &backend_plan.state_storage,
+            runtime_flow: &backend_plan.runtime_flow,
+            runtime_bodies: &backend_plan.runtime_bodies,
+            runtime_branching_calls: &backend_plan.runtime_branching_calls,
+            runtime_dispatch_loop: &backend_plan.runtime_dispatch_loop,
+            runtime_storage: &backend_plan.runtime_storage,
+            runtime_text: &backend_plan.runtime_text,
+            layouts: &backend_plan.layouts,
+            data: &backend_plan.data,
         })
     });
-    native_plan.machine_code = record_native_phase(&mut phase_timings, "machine code", || {
+    backend_plan.machine_code = record_backend_phase(&mut phase_timings, "machine code", || {
         build_machine_code_plan(TargetToMachineInput {
-            target: native_plan.target,
-            instructions: &native_plan.instructions,
-            host_abi: &native_plan.host_abi,
-            terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+            target: backend_plan.target,
+            instructions: &backend_plan.instructions,
+            host_abi: &backend_plan.host_abi,
+            terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
         })
     })?;
-    native_plan.encoded_machine =
-        record_native_phase(&mut phase_timings, "machine emission", || {
+    backend_plan.encoded_machine =
+        record_backend_phase(&mut phase_timings, "machine emission", || {
             emit_machine_bytes(MachineEmissionInput {
-                target: native_plan.target,
-                instructions: &native_plan.instructions,
-                machine_code: &native_plan.machine_code,
-                host_abi: &native_plan.host_abi,
-                terminal_dispatch_index: native_plan.runtime_dispatch_loop.terminal_dispatch_index,
+                target: backend_plan.target,
+                instructions: &backend_plan.instructions,
+                machine_code: &backend_plan.machine_code,
+                host_abi: &backend_plan.host_abi,
+                terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
             })
         })?;
-    native_plan.object = record_native_phase(&mut phase_timings, "object plan", || {
+    backend_plan.object = record_backend_phase(&mut phase_timings, "object plan", || {
         build_object_plan(ObjectPlanningInput {
-            target: native_plan.target,
-            host_abi: &native_plan.host_abi,
-            layouts: &native_plan.layouts,
-            entry_machine_symbol: native_plan.entry_key.machine,
-            entry_machine_name: native_plan.entry_machine_name(),
-            machine_code: &native_plan.machine_code,
-            data: &native_plan.data,
-            runtime_frame_size: runtime_frame_storage_size(&native_plan.runtime_storage),
-            runtime_frame_alignment: runtime_frame_storage_alignment(&native_plan.runtime_storage),
+            target: backend_plan.target,
+            host_abi: &backend_plan.host_abi,
+            layouts: &backend_plan.layouts,
+            entry_machine_symbol: backend_plan.entry_key.machine,
+            entry_machine_name: backend_plan.entry_machine_name(),
+            machine_code: &backend_plan.machine_code,
+            data: &backend_plan.data,
+            runtime_frame_size: runtime_frame_storage_size(&backend_plan.runtime_storage),
+            runtime_frame_alignment: runtime_frame_storage_alignment(&backend_plan.runtime_storage),
         })
     })?;
-    native_plan.relocations = record_native_phase(&mut phase_timings, "relocations", || {
+    backend_plan.relocations = record_backend_phase(&mut phase_timings, "relocations", || {
         build_relocation_plan(RelocationPlanningInput {
-            target: native_plan.target,
-            instructions: &native_plan.instructions,
-            machine_code: &native_plan.machine_code,
-            data: &native_plan.data,
-            object: &native_plan.object,
-            host_abi: &native_plan.host_abi,
-            entry_machine_name: native_plan.entry_machine_name(),
+            target: backend_plan.target,
+            instructions: &backend_plan.instructions,
+            machine_code: &backend_plan.machine_code,
+            data: &backend_plan.data,
+            object: &backend_plan.object,
+            host_abi: &backend_plan.host_abi,
+            entry_machine_name: backend_plan.entry_machine_name(),
         })
     })?;
-    native_plan.phase_timings = phase_timings;
+    backend_plan.phase_timings = phase_timings;
 
-    Ok(native_plan)
+    Ok(backend_plan)
 }

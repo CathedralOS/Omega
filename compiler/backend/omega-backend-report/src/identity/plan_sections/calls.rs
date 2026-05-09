@@ -4,21 +4,21 @@ use crate::identity::expressions::count_expression_strings;
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, call) in native_plan.host_calls.calls.iter() {
+    for (_, call) in backend_plan.host_calls.calls.iter() {
         storage.count_identity(&call.platform_call);
     }
-    for (_, unsupported) in native_plan.host_calls.unsupported_calls.iter() {
+    for (_, unsupported) in backend_plan.host_calls.unsupported_calls.iter() {
         storage.count_identity(&unsupported.platform_call);
         storage.count_report(&unsupported.reason);
     }
-    for (_, operation) in native_plan.host_calls.operations.iter() {
+    for (_, operation) in backend_plan.host_calls.operations.iter() {
         storage.count_identity(&operation.capability);
         storage.count_identity(&operation.operation);
     }
-    for (_, argument) in native_plan.host_calls.arguments.iter() {
+    for (_, argument) in backend_plan.host_calls.arguments.iter() {
         match &argument.kind {
             HostCallArgumentKind::Text(value) => storage.count_payload(&value),
             HostCallArgumentKind::Expression(expression) => {
@@ -30,23 +30,23 @@ pub(in crate::identity) fn count_host_call_strings(
 }
 
 pub(in crate::identity) fn count_state_call_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, call) in native_plan.state_calls.calls.iter() {
+    for (_, call) in backend_plan.state_calls.calls.iter() {
         storage.count_program_name_report(&call.receiver_display);
     }
-    for (_, argument) in native_plan.state_calls.arguments.iter() {
+    for (_, argument) in backend_plan.state_calls.arguments.iter() {
         storage.count_program_name_identity(&argument.parameter_name);
         count_expression_strings(&argument.expression, storage);
     }
 }
 
 pub(in crate::identity) fn count_alias_flow_strings(
-    native_plan: &BackendReportInput<'_>,
+    backend_plan: &BackendReportInput<'_>,
     storage: &mut NativeStringStorage,
 ) {
-    for (_, alias) in native_plan.alias_flow.aliases.iter() {
+    for (_, alias) in backend_plan.alias_flow.aliases.iter() {
         storage.count_program_name_identity(&alias.parameter_name);
         count_expression_strings(&alias.argument, storage);
     }
