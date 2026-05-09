@@ -119,6 +119,7 @@ dependencies = [
  "omega-names",
  "omega-native",
  "omega-parser",
+ "omega-platform-interface",
  "omega-proof",
  "omega-state-graph",
  "omega-target",
@@ -240,6 +241,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-program",
  "omega-object",
+ "omega-platform-interface",
  "omega-state-graph",
  "omega-target",
  "omega-target-program",
@@ -261,6 +263,16 @@ dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
  "omega-lexer",
+]
+
+[[package]]
+name = "omega-platform-interface"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-typed-program",
 ]
 
 [[package]]

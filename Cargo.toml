@@ -19,6 +19,7 @@ members = [
     "compiler/representations/omega-target-program",
     "compiler/representations/omega-machine-program",
     "compiler/backend/omega-target",
+    "compiler/backend/omega-platform-interface",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/instruction_set_architectures/omega-isa-aarch64",

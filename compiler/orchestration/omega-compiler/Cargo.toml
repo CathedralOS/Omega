@@ -20,6 +20,7 @@ omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-native = { path = "../../backend/omega-native" }
 omega-parser = { path = "../../frontend/omega-parser" }
+omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-proof = { path = "../../semantics/omega-proof" }
 omega-names = { path = "../../semantics/omega-names" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }

@@ -20,9 +20,6 @@ use omega_native::abi::{
 use omega_native::emission::EmissionPlan;
 use omega_native::emitter::EmittedNativeOutput;
 use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFinalizationStatus};
-use omega_native::host_calls::{
-    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
-};
 use omega_native::identity::count_native_string_storage;
 use omega_native::object::{SectionPlan, SymbolPlan};
 use omega_native::plan::NativePlan;
@@ -32,6 +29,9 @@ use omega_native::runtime_dispatch::branching::{
     RuntimeStraightLineBranchOperationKind,
 };
 use omega_native::state_schedule::{build_entry_state_schedule, scheduled_state_flow};
+use omega_platform_interface::{
+    HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
+};
 use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
 use omega_state_graph::RuntimeTransitionTarget;
