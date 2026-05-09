@@ -5,7 +5,7 @@ use crate::emitter::EmittedNativeOutput;
 use crate::emitter::NativeOutputKind;
 use crate::plan::NativePlan;
 use omega_core::diagnostics::Diagnostic;
-use omega_image::ExecutableImageOutput;
+use omega_image::{ExecutableImageOutput, FinalImage, FinalImageInput};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
 
 pub fn can_emit_target_output(target: NativeTarget) -> bool {
@@ -47,4 +47,14 @@ fn emitted_direct_executable_output(output: ExecutableImageOutput) -> EmittedNat
         final_image_imports: output.imports,
         final_image_relocations: output.relocations,
     }
+}
+
+fn build_final_image(native_plan: &NativePlan) -> FinalImage {
+    omega_image::build_final_image(FinalImageInput {
+        target: native_plan.target,
+        object: &native_plan.object,
+        relocations: &native_plan.relocations,
+        text_bytes: native_plan.machine_code.bytes.storage_slice(),
+        data_bytes: native_plan.data.bytes.storage_slice(),
+    })
 }

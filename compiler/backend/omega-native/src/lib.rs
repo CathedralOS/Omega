@@ -11,7 +11,6 @@ pub mod data;
 pub mod emission;
 pub mod emitter;
 pub mod executable_finalization;
-pub mod final_image;
 pub mod host_calls;
 pub mod identity;
 pub mod instructions;
