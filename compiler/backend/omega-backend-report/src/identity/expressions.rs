@@ -1,6 +1,9 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use omega_typed_program::expression::Expression;
+use omega_core::arena::HandleSpan;
+use omega_typed_program::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_expression_span_strings(
@@ -25,6 +28,53 @@ pub(in crate::identity) fn count_guard_strings(
 ) {
     if let TransitionGuard::When(expression) = guard {
         count_expression_strings(expression, storage);
+    }
+}
+
+pub(in crate::identity) fn count_control_flow_expression_span_strings(
+    table: &ExpressionTable,
+    span: HandleSpan<ExpressionHandle>,
+    storage: &mut BackendStringStorage,
+) {
+    for expression in table.expression_handles(span) {
+        count_control_flow_expression_strings(table, *expression, storage);
+    }
+}
+
+pub(in crate::identity) fn count_control_flow_expression_strings(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    storage: &mut BackendStringStorage,
+) {
+    match table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            count_control_flow_expression_span_strings(table, *values, storage);
+        }
+        ExpressionNode::Binary(binary) => {
+            count_control_flow_expression_strings(table, binary.left, storage);
+            count_control_flow_expression_strings(table, binary.right, storage);
+        }
+        ExpressionNode::Indexed(indexed) => {
+            count_control_flow_expression_strings(table, indexed.collection, storage);
+            count_control_flow_expression_strings(table, indexed.index, storage);
+        }
+        ExpressionNode::Mutable(expression) => {
+            count_control_flow_expression_strings(table, *expression, storage);
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            storage.count_program_name_identity(&struct_literal.type_name);
+            for field in table.struct_fields(struct_literal.fields) {
+                storage.count_program_name_identity(&field.name);
+                count_control_flow_expression_strings(table, field.value, storage);
+            }
+        }
+        ExpressionNode::Name(path) => {
+            for name in table.name_path_members(path.members) {
+                storage.count_program_name_identity(name);
+            }
+        }
+        ExpressionNode::String(value) => storage.count_payload(value),
+        ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {}
     }
 }
 

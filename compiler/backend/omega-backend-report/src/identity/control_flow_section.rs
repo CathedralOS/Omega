@@ -1,8 +1,10 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::count_expression_strings;
+use crate::identity::expressions::{
+    count_control_flow_expression_span_strings, count_control_flow_expression_strings,
+};
 use crate::identity::targets::count_planned_target_strings;
-use omega_control_flow::OperationKind;
+use omega_control_flow::OperationExpressionRefs;
 
 pub(in crate::identity) fn count_control_flow_strings(
     backend_plan: &BackendReportInput<'_>,
@@ -24,25 +26,34 @@ pub(in crate::identity) fn count_control_flow_strings(
     }
 
     for (_, operation) in backend_plan.control_flow.operations.iter() {
-        match &operation.kind {
-            OperationKind::Assignment { target, value }
-            | OperationKind::StaticAssignment { target, value } => {
-                count_expression_strings(&target, storage);
-                count_expression_strings(&value, storage);
+        match operation.expressions {
+            OperationExpressionRefs::Assignment { target, value } => {
+                count_control_flow_expression_strings(
+                    &backend_plan.control_flow.expressions,
+                    target,
+                    storage,
+                );
+                count_control_flow_expression_strings(
+                    &backend_plan.control_flow.expressions,
+                    value,
+                    storage,
+                );
             }
-            OperationKind::Call {
-                receiver: _,
-                target: _,
-                arguments,
-                ..
-            } => {
-                for argument in arguments {
-                    count_expression_strings(&argument, storage);
-                }
+            OperationExpressionRefs::Call { arguments } => {
+                count_control_flow_expression_span_strings(
+                    &backend_plan.control_flow.expressions,
+                    arguments,
+                    storage,
+                );
             }
-            OperationKind::ConstantIntegerAssignment
-            | OperationKind::Expression
-            | OperationKind::LocalData => {}
+            OperationExpressionRefs::Expression(expression) => {
+                count_control_flow_expression_strings(
+                    &backend_plan.control_flow.expressions,
+                    expression,
+                    storage,
+                );
+            }
+            OperationExpressionRefs::None => {}
         }
     }
 
@@ -50,6 +61,23 @@ pub(in crate::identity) fn count_control_flow_strings(
         count_planned_target_strings(&transition.target, storage);
         if let Some(continuation) = &transition.continuation {
             count_planned_target_strings(continuation, storage);
+        }
+        count_control_flow_expression_span_strings(
+            &backend_plan.control_flow.expressions,
+            transition.expressions.target_arguments,
+            storage,
+        );
+        count_control_flow_expression_span_strings(
+            &backend_plan.control_flow.expressions,
+            transition.expressions.continuation_arguments,
+            storage,
+        );
+        if let Some(guard) = transition.expressions.guard {
+            count_control_flow_expression_strings(
+                &backend_plan.control_flow.expressions,
+                guard,
+                storage,
+            );
         }
     }
 }
