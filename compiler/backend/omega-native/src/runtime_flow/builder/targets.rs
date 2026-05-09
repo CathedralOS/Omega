@@ -53,8 +53,11 @@ impl RuntimeFlowBuilder<'_> {
                         .span(target_machine.states)
                         .and_then(|states| {
                             states.iter().find(|candidate| {
-                                state_symbol.is_valid() && candidate.key.state == *state_symbol
-                                    || candidate.name == *state
+                                if state_symbol.is_valid() {
+                                    candidate.key.state == *state_symbol
+                                } else {
+                                    candidate.name == *state
+                                }
                             })
                         })
                 })

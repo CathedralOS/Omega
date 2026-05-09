@@ -59,32 +59,28 @@ pub(super) fn next_state(
             let saved_alias_count = aliases.len();
             let saved_visited_count = visited.len();
             let nested_machine_flow = machine_flow_by_symbol(native_plan, nested_machine_symbol)?;
-            let nested_state_key = state_symbol
-                .is_valid()
-                .then(|| {
-                    native_plan
-                        .control_flow
-                        .state_key_by_symbols(nested_machine_flow.symbol, *state_symbol)
-                })
-                .flatten()
-                .or_else(|| {
-                    native_plan
-                        .control_flow
-                        .states
-                        .span(nested_machine_flow.states)
-                        .and_then(|states| {
-                            states
-                                .iter()
-                                .find(|candidate| candidate.name == *nested_state)
-                                .map(|candidate| candidate.key)
-                        })
-                })
-                .ok_or_else(|| {
-                    format!(
-                        "{}.{} transitions into unknown nested state `{receiver}.{nested_state}`",
-                        machine.name, state.name
-                    )
-                })?;
+            let nested_state_key = if state_symbol.is_valid() {
+                native_plan
+                    .control_flow
+                    .state_key_by_symbols(nested_machine_flow.symbol, *state_symbol)
+            } else {
+                native_plan
+                    .control_flow
+                    .states
+                    .span(nested_machine_flow.states)
+                    .and_then(|states| {
+                        states
+                            .iter()
+                            .find(|candidate| candidate.name == *nested_state)
+                            .map(|candidate| candidate.key)
+                    })
+            }
+            .ok_or_else(|| {
+                format!(
+                    "{}.{} transitions into unknown nested state `{receiver}.{nested_state}`",
+                    machine.name, state.name
+                )
+            })?;
             let nested_state_flow = state_flow_by_key(native_plan, nested_state_key)?;
             bind_state_arguments_by_key(
                 native_plan,

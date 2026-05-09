@@ -112,25 +112,41 @@ fn runtime_transition_target(
     match target {
         PlannedTransitionTarget::State { key, .. } => RuntimeTransitionTarget::State { key: *key },
         PlannedTransitionTarget::Nested {
-            receiver, state, ..
+            receiver_symbol,
+            state_symbol,
+            receiver,
+            state,
+            ..
         } => machine
             .contains
             .iter()
-            .find(|contained| contained.name == *receiver)
+            .find(|contained| {
+                if receiver_symbol.is_valid() {
+                    contained.symbol == *receiver_symbol
+                } else {
+                    contained.name == *receiver
+                }
+            })
             .and_then(|contained| {
                 context
                     .control_flow
-                    .machines
-                    .iter()
-                    .find(|(_, machine)| machine.symbol == contained.type_symbol)
-                    .map(|(_, machine)| (contained, machine))
+                    .machine_by_symbol(contained.type_symbol)
+                    .map(|machine| (contained, machine))
             })
             .and_then(|(_, target_machine)| {
                 context
                     .control_flow
                     .states
                     .span(target_machine.states)
-                    .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+                    .and_then(|states| {
+                        states.iter().find(|candidate| {
+                            if state_symbol.is_valid() {
+                                candidate.key.state == *state_symbol
+                            } else {
+                                candidate.name == *state
+                            }
+                        })
+                    })
                     .map(|target_state| RuntimeTransitionTarget::State {
                         key: target_state.key,
                     })

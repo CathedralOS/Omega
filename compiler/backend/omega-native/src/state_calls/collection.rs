@@ -95,83 +95,70 @@ fn resolve_state_call_target(
     receiver: Option<&ProgramName>,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
-    if target_symbol.is_valid() {
-        if let Some(key) = control_flow.state_key_by_symbols(machine.symbol, target_symbol) {
-            return Some(ResolvedStateCall {
-                key,
-                resolution: StateCallResolution::Local,
-            });
-        }
-
-        if receiver_symbol.is_valid() {
-            if let Some(contained) = machine
-                .contains
-                .iter()
-                .find(|contained| contained.symbol == receiver_symbol)
-            {
-                if let Some(key) =
-                    control_flow.state_key_by_symbols(contained.type_symbol, target_symbol)
-                {
-                    return Some(ResolvedStateCall {
-                        key,
-                        resolution: StateCallResolution::ContainedMachine,
-                    });
-                }
-            }
-
-            if let Some(target_machine) = control_flow.machine_by_symbol(receiver_symbol) {
-                if let Some(key) =
-                    control_flow.state_key_by_symbols(target_machine.symbol, target_symbol)
-                {
-                    return Some(ResolvedStateCall {
-                        key,
-                        resolution: StateCallResolution::NamedMachine,
-                    });
-                }
-            }
-        }
-    }
-
-    let Some(receiver) = receiver else {
-        if let Some(key) =
-            state_key_by_machine_symbol_and_state_name(control_flow, machine.symbol, target_state)
-        {
-            return Some(ResolvedStateCall {
-                key,
-                resolution: StateCallResolution::Local,
-            });
-        }
-
-        return None;
-    };
-
-    if receiver == "self" {
-        let key =
-            state_key_by_machine_symbol_and_state_name(control_flow, machine.symbol, target_state)?;
-        return Some(ResolvedStateCall {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == "self") {
+        return resolve_state_key_in_machine(
+            control_flow,
+            machine.symbol,
+            target_symbol,
+            target_state,
+        )
+        .map(|key| ResolvedStateCall {
             key,
             resolution: StateCallResolution::Local,
         });
     }
+
+    if receiver_symbol.is_valid() {
+        if let Some(contained) = machine
+            .contains
+            .iter()
+            .find(|contained| contained.symbol == receiver_symbol)
+        {
+            return resolve_state_key_in_machine(
+                control_flow,
+                contained.type_symbol,
+                target_symbol,
+                target_state,
+            )
+            .map(|key| ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            });
+        }
+
+        if let Some(target_machine) = control_flow.machine_by_symbol(receiver_symbol) {
+            return resolve_state_key_in_machine(
+                control_flow,
+                target_machine.symbol,
+                target_symbol,
+                target_state,
+            )
+            .map(|key| ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::NamedMachine,
+            });
+        }
+
+        return None;
+    }
+
+    let receiver = receiver?;
 
     if let Some(contained) = machine
         .contains
         .iter()
         .find(|contained| contained.name == *receiver)
     {
-        return control_flow
-            .state_key_by_symbols(
-                contained.type_symbol,
-                state_symbol_by_machine_symbol_and_state_name(
-                    control_flow,
-                    contained.type_symbol,
-                    target_state,
-                )?,
-            )
-            .map(|key| ResolvedStateCall {
-                key,
-                resolution: StateCallResolution::ContainedMachine,
-            });
+        return resolve_state_key_in_machine(
+            control_flow,
+            contained.type_symbol,
+            target_symbol,
+            target_state,
+        )
+        .map(|key| ResolvedStateCall {
+            key,
+            resolution: StateCallResolution::ContainedMachine,
+        });
     }
 
     let target_machine = control_flow
@@ -179,9 +166,10 @@ fn resolve_state_call_target(
         .iter()
         .find(|(_, candidate)| candidate.name == *receiver)
         .map(|(_, candidate)| candidate)?;
-    let key = state_key_by_machine_symbol_and_state_name(
+    let key = resolve_state_key_in_machine(
         control_flow,
         target_machine.symbol,
+        target_symbol,
         target_state,
     )?;
 
@@ -189,6 +177,19 @@ fn resolve_state_call_target(
         key,
         resolution: StateCallResolution::NamedMachine,
     })
+}
+
+fn resolve_state_key_in_machine(
+    control_flow: &ControlFlowPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    state_name: &ProgramName,
+) -> Option<StateKey> {
+    if state_symbol.is_valid() {
+        control_flow.state_key_by_symbols(machine_symbol, state_symbol)
+    } else {
+        state_key_by_machine_symbol_and_state_name(control_flow, machine_symbol, state_name)
+    }
 }
 
 fn state_key_by_machine_symbol_and_state_name(

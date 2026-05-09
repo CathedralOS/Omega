@@ -370,8 +370,18 @@ fn attach_expression_symbols(program: &mut Program) {
     let symbols = &program.symbols;
 
     for machine in &mut program.machines {
+        let contained_types = machine
+            .contains
+            .iter()
+            .map(|contained| (contained.name.clone(), contained.type_symbol))
+            .collect::<Vec<_>>();
+
         for state in &mut machine.states {
-            let context = ExpressionResolveContext::from_symbols(machine.symbol, state.symbol);
+            let context = ExpressionResolveContext::from_symbols(
+                machine.symbol,
+                state.symbol,
+                &contained_types,
+            );
 
             for statement in &mut state.statements {
                 attach_statement_expression_symbols(symbols, context, statement);
@@ -475,15 +485,24 @@ fn attach_expression_symbol(
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-struct ExpressionResolveContext {
+#[derive(Debug, Clone, Copy)]
+struct ExpressionResolveContext<'context> {
     machine: SymbolHandle,
     state: SymbolHandle,
+    contained_types: &'context [(ProgramName, SymbolHandle)],
 }
 
-impl ExpressionResolveContext {
-    fn from_symbols(machine: SymbolHandle, state: SymbolHandle) -> Self {
-        Self { machine, state }
+impl<'context> ExpressionResolveContext<'context> {
+    fn from_symbols(
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        contained_types: &'context [(ProgramName, SymbolHandle)],
+    ) -> Self {
+        Self {
+            machine,
+            state,
+            contained_types,
+        }
     }
 
     fn resolve_identifier_head(self, symbols: &SymbolTable, path: &[ProgramName]) -> SymbolHandle {
@@ -522,6 +541,17 @@ impl ExpressionResolveContext {
                 .unwrap_or_else(SymbolHandle::invalid);
         }
 
+        if path.len() > 1
+            && let Some(type_symbol) = self.contained_type_symbol(first_member)
+        {
+            return symbols
+                .find_descendant_by_path(
+                    type_symbol,
+                    path.iter().skip(1).map(|member| member.as_str()),
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
         for root in [self.state, self.machine, symbols.root()] {
             if !root.is_valid() {
                 continue;
@@ -551,6 +581,14 @@ impl ExpressionResolveContext {
         target: &str,
     ) -> SymbolHandle {
         if let Some(receiver) = receiver {
+            if receiver != "self"
+                && let Some(type_symbol) = self.contained_type_symbol(receiver)
+            {
+                return symbols
+                    .find_child_by_name(type_symbol, target)
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
+
             return self.resolve_symbol(symbols, [receiver, target]);
         }
 
@@ -566,10 +604,23 @@ impl ExpressionResolveContext {
         let Some(first_member) = members.next() else {
             return SymbolHandle::invalid();
         };
+        let remaining_members = path.clone().into_iter().skip(1).collect::<Vec<_>>();
 
         if first_member == "self" && self.machine.is_valid() {
+            if remaining_members.is_empty() {
+                return self.machine;
+            }
+
             return symbols
-                .find_descendant_by_path(self.machine, members)
+                .find_descendant_by_path(self.machine, remaining_members.iter().copied())
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        if !remaining_members.is_empty()
+            && let Some(type_symbol) = self.contained_type_symbol(first_member)
+        {
+            return symbols
+                .find_descendant_by_path(type_symbol, remaining_members.iter().copied())
                 .unwrap_or_else(SymbolHandle::invalid);
         }
 
@@ -584,6 +635,14 @@ impl ExpressionResolveContext {
         }
 
         SymbolHandle::invalid()
+    }
+
+    fn contained_type_symbol(self, receiver: &str) -> Option<SymbolHandle> {
+        self.contained_types
+            .iter()
+            .find(|(name, _)| name == receiver)
+            .map(|(_, type_symbol)| *type_symbol)
+            .filter(|type_symbol| type_symbol.is_valid())
     }
 }
 

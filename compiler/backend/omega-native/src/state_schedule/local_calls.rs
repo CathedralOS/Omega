@@ -6,6 +6,7 @@ use crate::control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
+use omega_typed_program::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
     native_plan: &NativePlan,
@@ -54,7 +55,7 @@ pub(super) fn append_local_state_calls(
             machine,
             *receiver_symbol,
             *target_symbol,
-            receiver.as_deref(),
+            receiver.as_ref(),
             target,
         )
         .ok_or_else(|| {
@@ -91,75 +92,61 @@ fn resolve_state_call_key(
     machine: &MachineFlow,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<&str>,
-    target: &str,
+    receiver: Option<&ProgramName>,
+    target: &ProgramName,
 ) -> Option<StateKey> {
+    let target_machine =
+        resolve_state_call_machine_flow(native_plan, machine, receiver_symbol, receiver)?;
+
     if target_symbol.is_valid() {
-        if let Some(key) = native_plan
+        native_plan
             .control_flow
-            .state_key_by_symbols(machine.symbol, target_symbol)
-        {
-            return Some(key);
-        }
-
-        if receiver_symbol.is_valid() {
-            if let Some(contained) = machine
-                .contains
-                .iter()
-                .find(|contained| contained.symbol == receiver_symbol)
-            {
-                if let Some(key) = native_plan
-                    .control_flow
-                    .state_key_by_symbols(contained.type_symbol, target_symbol)
-                {
-                    return Some(key);
-                }
-            }
-
-            if let Some(target_machine) =
-                native_plan.control_flow.machine_by_symbol(receiver_symbol)
-            {
-                if let Some(key) = native_plan
-                    .control_flow
-                    .state_key_by_symbols(target_machine.symbol, target_symbol)
-                {
-                    return Some(key);
-                }
-            }
-        }
+            .state_key_by_symbols(target_machine.symbol, target_symbol)
+    } else {
+        native_plan
+            .control_flow
+            .states
+            .span(target_machine.states)?
+            .iter()
+            .find(|state| state.name == *target)
+            .map(|state| state.key)
     }
-
-    let target_machine = resolve_state_call_machine_flow(native_plan, machine, receiver)?;
-
-    native_plan
-        .control_flow
-        .states
-        .span(target_machine.states)?
-        .iter()
-        .find(|state| state.name == target)
-        .map(|state| state.key)
 }
 
 fn resolve_state_call_machine_flow<'plan>(
     native_plan: &'plan NativePlan,
     machine: &'plan MachineFlow,
-    receiver: Option<&str>,
+    receiver_symbol: SymbolHandle,
+    receiver: Option<&ProgramName>,
 ) -> Option<&'plan MachineFlow> {
-    let Some(receiver) = receiver else {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == "self") {
         return Some(machine);
-    };
+    }
 
+    if receiver_symbol.is_valid() {
+        if let Some(contained) = machine
+            .contains
+            .iter()
+            .find(|contained| contained.symbol == receiver_symbol)
+        {
+            return machine_flow_by_symbol(native_plan, contained.type_symbol).ok();
+        }
+
+        return native_plan.control_flow.machine_by_symbol(receiver_symbol);
+    }
+
+    let receiver = receiver?;
     machine
         .contains
         .iter()
-        .find(|contained| contained.name == receiver)
+        .find(|contained| contained.name == *receiver)
         .and_then(|contained| machine_flow_by_symbol(native_plan, contained.type_symbol).ok())
         .or_else(|| {
             native_plan
                 .control_flow
                 .machines
                 .iter()
-                .find(|(_, candidate)| candidate.name == receiver)
+                .find(|(_, candidate)| candidate.name == *receiver)
                 .map(|(_, candidate)| candidate)
         })
 }
