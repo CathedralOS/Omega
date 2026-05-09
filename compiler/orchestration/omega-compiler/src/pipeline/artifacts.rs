@@ -1759,10 +1759,7 @@ impl ArtifactWriter {
         let mut output = String::new();
 
         output.push_str("# Omega Emission Plan\n\n");
-        output.push_str(&format!(
-            "object format: {:?}\n",
-            emission_plan.object_format
-        ));
+        output.push_str(&format!("image format: {:?}\n", emission_plan.image_format));
         output.push_str(&format!("entry symbol: {}\n", emission_plan.entry_symbol));
         output.push_str(&format!("sections: {}\n", emission_plan.sections));
         output.push_str(&format!("symbols: {}\n", emission_plan.symbols));

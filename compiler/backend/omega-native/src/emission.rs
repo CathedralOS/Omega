@@ -96,7 +96,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 
     EmissionPlan {
-        object_format: native_plan.target.object_format,
+        image_format: native_plan.target.object_format,
         entry_symbol: native_plan.object.entry_symbol.clone(),
         sections: native_plan.object.sections.len(),
         symbols: native_plan.object.symbols.len(),

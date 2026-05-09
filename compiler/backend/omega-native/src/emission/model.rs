@@ -3,7 +3,7 @@ use omega_target::ObjectFormat;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmissionPlan {
-    pub object_format: ObjectFormat,
+    pub image_format: ObjectFormat,
     pub entry_symbol: String,
     pub sections: usize,
     pub symbols: usize,
