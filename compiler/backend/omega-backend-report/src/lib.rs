@@ -6,9 +6,9 @@ mod object;
 mod stats;
 
 use omega_artifacts::NativeSurfaceReport;
-use omega_backend_plan::{NativePlan, NativePlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
+use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
 use omega_object::{ObjectPlan, RelocationPlan};
@@ -35,17 +35,16 @@ use omega_target::NativeTarget;
 use omega_target_program::{InstructionPlan, NativeDataPlan};
 use omega_typed_program::statement::TransitionGuard;
 
-pub fn native_report_text(
-    native_surface: &NativeSurfaceReport,
-    native_plan: &NativePlan,
-) -> String {
-    native_report_text_from_input(native_surface, &BackendReportInput::from(native_plan))
+pub struct BackendReportPhaseTiming {
+    pub phase: String,
+    pub microseconds: u128,
+    pub allocations: AllocationDelta,
 }
 
 pub struct BackendReportInput<'plan> {
     pub target: NativeTarget,
     pub entry_key: StateKey,
-    pub phase_timings: &'plan [NativePlanPhaseTiming],
+    pub phase_timings: &'plan [BackendReportPhaseTiming],
     pub host_abi: &'plan HostAbiPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
@@ -86,39 +85,7 @@ impl<'plan> BackendReportInput<'plan> {
     }
 }
 
-impl<'plan> From<&'plan NativePlan> for BackendReportInput<'plan> {
-    fn from(native_plan: &'plan NativePlan) -> Self {
-        Self {
-            target: native_plan.target,
-            entry_key: native_plan.entry_key,
-            phase_timings: &native_plan.phase_timings,
-            host_abi: &native_plan.host_abi,
-            host_calls: &native_plan.host_calls,
-            state_calls: &native_plan.state_calls,
-            alias_flow: &native_plan.alias_flow,
-            state_storage: &native_plan.state_storage,
-            state_values: &native_plan.state_values,
-            data: &native_plan.data,
-            instructions: &native_plan.instructions,
-            control_flow: &native_plan.control_flow,
-            runtime_flow: &native_plan.runtime_flow,
-            state_dispatch: &native_plan.state_dispatch,
-            state_guards: &native_plan.state_guards,
-            runtime_bodies: &native_plan.runtime_bodies,
-            runtime_branching_calls: &native_plan.runtime_branching_calls,
-            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
-            runtime_storage: &native_plan.runtime_storage,
-            runtime_text: &native_plan.runtime_text,
-            layouts: &native_plan.layouts,
-            machine_code: &native_plan.machine_code,
-            encoded_machine: &native_plan.encoded_machine,
-            object: &native_plan.object,
-            relocations: &native_plan.relocations,
-        }
-    }
-}
-
-pub fn native_report_text_from_input(
+pub fn native_report_text(
     native_surface: &NativeSurfaceReport,
     native_plan: &BackendReportInput<'_>,
 ) -> String {
