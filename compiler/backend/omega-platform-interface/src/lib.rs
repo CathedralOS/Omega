@@ -1,4 +1,4 @@
-use omega_calling_conventions::PlatformCallData;
+use omega_calling_conventions::{HostOperationKey, PlatformCallData};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::Expression;
@@ -61,15 +61,13 @@ impl Default for HostCall {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredHostOperation {
-    pub capability: String,
-    pub operation: String,
+    pub operation_key: HostOperationKey,
 }
 
 impl Default for LoweredHostOperation {
     fn default() -> Self {
         Self {
-            capability: String::new(),
-            operation: String::new(),
+            operation_key: HostOperationKey::default(),
         }
     }
 }

@@ -4,7 +4,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     resolve_machine_owned_place, resolve_runtime_storage_place,
 };
-use omega_calling_conventions::{HostBindingMechanism, PlatformCallData};
+use omega_calling_conventions::{
+    HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
+};
 use omega_platform_interface::HostCall;
 use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
 
@@ -68,7 +70,10 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
 fn runtime_text_read_source(
     input: &InstructionSelectionInput<'_>,
 ) -> Option<RuntimeTextReadSource> {
-    match host_binding_mechanism(input, "Stdin", "read")? {
+    match host_binding_mechanism(
+        input,
+        HostOperationKey::new(HostCapability::Stdin, HostOperation::Read),
+    )? {
         HostBindingMechanism::Import { symbol, .. } => Some(RuntimeTextReadSource::Import {
             symbol: symbol.clone(),
         }),

@@ -1,3 +1,4 @@
+use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::NativeTarget;
 use omega_target_program::{FunctionInstructionPlan, StateGuardOperator};
@@ -169,8 +170,7 @@ pub enum MachineInstructionKind {
     },
     DispatchCaseLeave,
     HostCallSequence {
-        capability: String,
-        operation: String,
+        operation_key: HostOperationKey,
     },
     Return,
 }

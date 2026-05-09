@@ -1,6 +1,6 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
-use omega_calling_conventions::{HostAbiPlan, PlatformCallLowering};
+use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
 use omega_typed_program::Program;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
@@ -42,11 +42,8 @@ pub(crate) fn find_platform_call_lowering<'abi>(
         .map(|(_, lowering)| lowering)
 }
 
-pub(crate) fn host_operation(capability: &str, operation: &str) -> LoweredHostOperation {
-    LoweredHostOperation {
-        capability: capability.to_owned(),
-        operation: operation.to_owned(),
-    }
+pub(crate) fn host_operation(operation_key: HostOperationKey) -> LoweredHostOperation {
+    LoweredHostOperation { operation_key }
 }
 
 pub(crate) fn lower_host_call_arguments(

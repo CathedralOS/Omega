@@ -97,13 +97,11 @@ fn collect_call_host_lowering(
         .host_operations
         .span(lowering.operations)
         .map(|operations| {
-            plan.operations
-                .insert_many(operations.iter().map(|operation| {
-                    host_operation(
-                        operation.key.capability_name(),
-                        operation.key.operation_name(),
-                    )
-                }))
+            plan.operations.insert_many(
+                operations
+                    .iter()
+                    .map(|operation| host_operation(operation.key)),
+            )
         })
         .unwrap_or_else(HandleSpan::empty);
     let arguments = plan

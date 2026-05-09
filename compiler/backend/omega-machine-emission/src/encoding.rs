@@ -18,15 +18,14 @@ pub(super) fn encode_machine_instruction(
 ) -> Result<Vec<u8>, Diagnostic> {
     match kind {
         SelectedInstructionKind::HostOperation {
-            capability,
-            operation,
+            operation_key,
             operands,
         } => {
             let Some(operands) = input.instructions.operands.span(*operands) else {
                 return Ok(Vec::new());
             };
 
-            host::encode_host_operation(input, capability, operation, operands)
+            host::encode_host_operation(input, *operation_key, operands)
         }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,

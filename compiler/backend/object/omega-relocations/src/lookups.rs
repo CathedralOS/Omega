@@ -1,5 +1,5 @@
 use crate::RelocationPlanningInput;
-use omega_calling_conventions::HostBinding;
+use omega_calling_conventions::{HostBinding, HostOperationKey};
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_target_program::FunctionInstructionPlan;
@@ -48,12 +48,8 @@ pub(super) fn selected_instruction_text_offset(
 
 pub(super) fn find_host_binding<'plan>(
     input: RelocationPlanningInput<'plan>,
-    capability: &str,
-    operation: &str,
+    operation_key: HostOperationKey,
 ) -> Option<&'plan HostBinding> {
-    let operation_key =
-        omega_calling_conventions::HostOperationKey::from_names(capability, operation);
-
     input
         .host_abi
         .bindings

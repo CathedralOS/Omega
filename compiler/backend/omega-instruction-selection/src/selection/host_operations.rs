@@ -2,7 +2,9 @@ mod operands;
 mod runtime_text;
 
 use crate::InstructionSelectionInput;
-use omega_calling_conventions::PlatformCallData;
+use omega_calling_conventions::{
+    HostCapability, HostOperation, HostOperationKey, PlatformCallData,
+};
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
 use omega_target_program::TargetDataObject;
@@ -43,18 +45,13 @@ pub(super) fn select_host_call(
     };
 
     for operation in operations {
-        let operation_operands = select_host_operation_operands(
-            input,
-            host_call,
-            &operation.capability,
-            &operation.operation,
-        );
+        let operation_operands =
+            select_host_operation_operands(input, host_call, operation.operation_key);
         let operation_operands = operands.insert_many(operation_operands);
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
-                capability: operation.capability.clone(),
-                operation: operation.operation.clone(),
+                operation_key: operation.operation_key,
                 operands: operation_operands,
             },
             source_key: host_call.source_key,
@@ -75,8 +72,7 @@ pub(super) fn select_host_call(
         ]);
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
-                capability: "Stdout".to_owned(),
-                operation: "write".to_owned(),
+                operation_key: HostOperationKey::new(HostCapability::Stdout, HostOperation::Write),
                 operands: newline_operands,
             },
             source_key: host_call.source_key,

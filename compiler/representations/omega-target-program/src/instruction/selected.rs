@@ -1,5 +1,6 @@
 use crate::{InstructionOperand, TargetDataObjectHandle};
 use crate::{StateGuardLowering, StateGuardOperator};
+use omega_calling_conventions::HostOperationKey;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 
@@ -131,8 +132,7 @@ pub enum SelectedInstructionKind {
     LeaveDispatchLoop,
     BeginPlatformCall,
     HostOperation {
-        capability: String,
-        operation: String,
+        operation_key: HostOperationKey,
         operands: HandleSpan<InstructionOperand>,
     },
     LeaveFunction,

@@ -422,6 +422,7 @@ dependencies = [
 name = "omega-machine-program"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-core",
  "omega-target",
  "omega-target-program",
@@ -651,6 +652,7 @@ dependencies = [
 name = "omega-target-program"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
  "omega-target",

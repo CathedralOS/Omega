@@ -12,14 +12,13 @@ pub(super) fn collect_host_operation_relocation(
     instruction: &SelectedInstructionKind,
 ) {
     let SelectedInstructionKind::HostOperation {
-        capability,
-        operation,
+        operation_key,
         operands,
     } = instruction
     else {
         return;
     };
-    let Some(binding) = find_host_binding(context.input, capability, operation) else {
+    let Some(binding) = find_host_binding(context.input, *operation_key) else {
         return;
     };
     let HostBindingMechanism::Import { symbol, .. } = &binding.mechanism else {

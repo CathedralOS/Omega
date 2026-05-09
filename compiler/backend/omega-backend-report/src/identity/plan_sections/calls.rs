@@ -14,10 +14,6 @@ pub(in crate::identity) fn count_host_call_strings(
         storage.count_identity(&unsupported.platform_call);
         storage.count_report(&unsupported.reason);
     }
-    for (_, operation) in backend_plan.host_calls.operations.iter() {
-        storage.count_identity(&operation.capability);
-        storage.count_identity(&operation.operation);
-    }
     for (_, argument) in backend_plan.host_calls.arguments.iter() {
         match &argument.kind {
             HostCallArgumentKind::Text(value) => storage.count_payload(&value),

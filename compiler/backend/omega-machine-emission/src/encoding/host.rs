@@ -1,5 +1,5 @@
 use crate::MachineEmissionContext;
-use omega_calling_conventions::HostBindingMechanism;
+use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_target_program::InstructionOperand;
@@ -8,11 +8,10 @@ use crate::host_bindings::host_binding_mechanism;
 
 pub(super) fn encode_host_operation(
     input: MachineEmissionContext<'_>,
-    capability: &str,
-    operation: &str,
+    operation_key: HostOperationKey,
     operands: &[InstructionOperand],
 ) -> Result<Vec<u8>, Diagnostic> {
-    match host_binding_mechanism(input, capability, operation) {
+    match host_binding_mechanism(input, operation_key) {
         Some(HostBindingMechanism::Syscall {
             number,
             number_register,

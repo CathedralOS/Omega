@@ -176,6 +176,7 @@ fn write_host_call_argument(output: &mut String, argument: &HostCallArgument) {
 fn write_lowered_host_operation(output: &mut String, operation: &LoweredHostOperation) {
     output.push_str(&format!(
         "  - {}.{}\n",
-        operation.capability, operation.operation
+        operation.operation_key.capability_name(),
+        operation.operation_key.operation_name()
     ));
 }

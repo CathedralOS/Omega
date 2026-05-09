@@ -352,12 +352,13 @@ fn selected_instruction_name(
             format!("begin platform call `{platform_call}`")
         }
         SelectedInstructionKind::HostOperation {
-            capability,
-            operation,
+            operation_key,
             operands,
         } => {
             format!(
-                "call host operation {capability}.{operation}({})",
+                "call host operation {}.{}({})",
+                operation_key.capability_name(),
+                operation_key.operation_name(),
                 selected_instruction_operands_name(backend_plan, *operands)
             )
         }

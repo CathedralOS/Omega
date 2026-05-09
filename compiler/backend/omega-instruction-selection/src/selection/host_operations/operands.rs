@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
 use omega_target::ObjectFormat;
 
@@ -14,17 +15,20 @@ use omega_target_program::{
 pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
-    capability: &str,
-    operation: &str,
+    operation_key: HostOperationKey,
 ) -> Vec<InstructionOperand> {
-    match (input.target.object_format, capability, operation) {
-        (ObjectFormat::Coff, "Stdout", "get_std_handle") => {
+    match (
+        input.target.object_format,
+        operation_key.capability,
+        operation_key.operation,
+    ) {
+        (ObjectFormat::Coff, HostCapability::Stdout, HostOperation::GetStdHandle) => {
             vec![operand(InstructionOperandKind::ImmediateInteger(-11))]
         }
-        (ObjectFormat::Coff, "Stdin", "get_std_handle") => {
+        (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => {
             vec![operand(InstructionOperandKind::ImmediateInteger(-10))]
         }
-        (_, "Stdin", "read" | "read_file") => {
+        (_, HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
             let Some((data_object_handle, data_object)) = find_data_object(input, host_call) else {
                 return Vec::new();
             };
@@ -35,7 +39,7 @@ pub(super) fn select_host_operation_operands(
                 .map_or(0, |bytes| bytes.len());
 
             let mut operands = Vec::new();
-            if operation == "read" {
+            if operation_key.operation == HostOperation::Read {
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(0)));
             }
             operands.push(operand(InstructionOperandKind::DataAddress {
@@ -44,9 +48,9 @@ pub(super) fn select_host_operation_operands(
             operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
             operands
         }
-        (_, "Stdout", "write" | "write_file") => {
+        (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
             let mut operands = Vec::new();
-            if operation == "write" {
+            if operation_key.operation == HostOperation::Write {
                 operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
             }
 
@@ -86,7 +90,11 @@ pub(super) fn select_host_operation_operands(
 
             operands
         }
-        (_, "Process", "exit" | "exit_group" | "exit_process") => {
+        (
+            _,
+            HostCapability::Process,
+            HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
+        ) => {
             vec![operand(InstructionOperandKind::ImmediateInteger(
                 exit_code(host_call, input),
             ))]

@@ -3,11 +3,8 @@ use omega_calling_conventions::{HostBindingMechanism, HostOperationKey};
 
 pub(super) fn host_binding_mechanism<'plan>(
     input: MachineEmissionContext<'plan>,
-    capability: &str,
-    operation: &str,
+    operation_key: HostOperationKey,
 ) -> Option<&'plan HostBindingMechanism> {
-    let operation_key = HostOperationKey::from_names(capability, operation);
-
     input
         .host_abi
         .bindings

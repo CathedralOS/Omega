@@ -14,13 +14,12 @@ pub(super) fn machine_instruction_shape(
 ) -> (MachineInstructionKind, usize) {
     match kind {
         SelectedInstructionKind::HostOperation {
-            capability,
-            operation,
+            operation_key,
             operands,
         } => {
             let operands = input.instructions.operands.span(*operands).unwrap_or(&[]);
 
-            host::host_operation_shape(input, capability, operation, operands)
+            host::host_operation_shape(input, *operation_key, operands)
         }
         SelectedInstructionKind::EnterDispatchLoop {
             entry_dispatch_index,
