@@ -2,12 +2,12 @@ use super::NativePlan;
 use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
-use crate::instructions::build_instruction_plan;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPoolHandle;
 use omega_data_planning::build_native_data_plan;
+use omega_instruction_selection::{InstructionSelectionInput, build_instruction_plan};
 use omega_layout::build_layout_plan;
 use omega_machine_emission::{MachineEmissionInput, emit_machine_bytes};
 use omega_object_planning::{ObjectPlanningInput, build_object_plan};
@@ -221,7 +221,24 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         build_native_data_plan(&native_plan.host_calls, &native_plan.state_storage)
     });
     native_plan.instructions = record_native_phase(&mut phase_timings, "instructions", || {
-        build_instruction_plan(&native_plan)
+        build_instruction_plan(&InstructionSelectionInput {
+            target: native_plan.target,
+            entry_key: native_plan.entry_key,
+            entry_symbol: native_plan.object.entry_symbol.clone(),
+            host_abi: &native_plan.host_abi,
+            control_flow: &native_plan.control_flow,
+            host_calls: &native_plan.host_calls,
+            state_calls: &native_plan.state_calls,
+            state_storage: &native_plan.state_storage,
+            runtime_flow: &native_plan.runtime_flow,
+            runtime_bodies: &native_plan.runtime_bodies,
+            runtime_branching_calls: &native_plan.runtime_branching_calls,
+            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
+            runtime_storage: &native_plan.runtime_storage,
+            runtime_text: &native_plan.runtime_text,
+            layouts: &native_plan.layouts,
+            data: &native_plan.data,
+        })
     });
     native_plan.machine_code = record_native_phase(&mut phase_timings, "machine code", || {
         build_machine_code_plan(TargetToMachineInput {

@@ -267,10 +267,27 @@ dependencies = [
 name = "omega-instruction-selection"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
  "omega-core",
  "omega-isa-aarch64",
+ "omega-layout",
+ "omega-object",
+ "omega-platform-interface",
+ "omega-runtime-bodies",
+ "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
+ "omega-runtime-storage",
+ "omega-runtime-text",
+ "omega-state-calls",
+ "omega-state-graph",
+ "omega-state-guards",
+ "omega-state-schedule",
+ "omega-state-storage",
+ "omega-state-values",
  "omega-target",
  "omega-target-program",
+ "omega-typed-program",
 ]
 
 [[package]]

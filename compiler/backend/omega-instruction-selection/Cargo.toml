@@ -9,7 +9,24 @@ name = "omega_instruction_selection"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
+omega-layout = { path = "../omega-layout" }
+omega-object = { path = "../object/omega-object" }
+omega-platform-interface = { path = "../omega-platform-interface" }
+omega-runtime-bodies = { path = "../omega-runtime-bodies" }
+omega-runtime-branching = { path = "../omega-runtime-branching" }
+omega-runtime-dispatch-loop = { path = "../omega-runtime-dispatch-loop" }
+omega-runtime-storage = { path = "../omega-runtime-storage" }
+omega-runtime-text = { path = "../omega-runtime-text" }
+omega-state-calls = { path = "../omega-state-calls" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-guards = { path = "../omega-state-guards" }
+omega-state-schedule = { path = "../omega-state-schedule" }
+omega-state-storage = { path = "../omega-state-storage" }
+omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../omega-target" }
 omega-target-program = { path = "../../representations/omega-target-program" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }
