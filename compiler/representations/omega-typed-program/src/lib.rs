@@ -22,6 +22,7 @@ pub struct Program {
     pub platforms: Vec<platform::Platform>,
     pub type_constraints: Arena<types::TypeConstraint>,
     pub expression_table: expression::ExpressionTable,
+    pub statement_table: statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
     pub symbols: SymbolTable,
 }
@@ -30,6 +31,7 @@ impl Program {
     pub fn rebuild_tables(&mut self) {
         let tables = tables::TypedProgramTables::from_program(self);
         self.expression_table = tables.expressions;
+        self.statement_table = tables.statements;
         self.type_reference_table = tables.type_references;
     }
 }

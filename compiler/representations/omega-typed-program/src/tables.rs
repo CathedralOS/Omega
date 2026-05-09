@@ -5,13 +5,14 @@ use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
 use crate::signature::StateSignature;
 use crate::state::State;
-use crate::statement::{Statement, TransitionGuard, TransitionTarget};
+use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedProgramTables {
     pub expressions: ExpressionTable,
+    pub statements: StatementTable,
     pub type_references: TypeReferenceTable,
 }
 
@@ -111,42 +112,12 @@ impl TypedProgramTables {
         statement: &Statement,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        match statement {
-            Statement::Assignment(assignment) => {
-                self.insert_expression(&assignment.target);
-                self.insert_expression(&assignment.value);
-            }
-            Statement::Call(call) => {
-                for argument in &call.arguments {
-                    self.insert_expression(argument);
-                }
-            }
-            Statement::Expression(expression) => {
-                self.insert_expression(expression);
-            }
-            Statement::LocalData(local_data) => {
-                self.insert_type_reference(&local_data.type_reference, type_constraints);
-            }
-            Statement::Transition(transition) => {
-                self.insert_transition_target(&transition.target);
-
-                if let Some(continuation) = &transition.continuation {
-                    self.insert_transition_target(continuation);
-                }
-
-                if let TransitionGuard::When(expression) = &transition.guard {
-                    self.insert_expression(expression);
-                }
-            }
-        }
-    }
-
-    fn insert_transition_target(&mut self, target: &TransitionTarget) {
-        if let TransitionTarget::Named { arguments, .. } = target {
-            for argument in arguments {
-                self.insert_expression(argument);
-            }
-        }
+        self.statements.insert_tree(
+            statement,
+            &mut self.expressions,
+            &mut self.type_references,
+            type_constraints,
+        );
     }
 
     fn insert_type_reference(
@@ -217,5 +188,6 @@ mod tests {
 
         assert_eq!(program.type_reference_table.type_reference_count(), 1);
         assert_eq!(program.expression_table.expression_count(), 1);
+        assert_eq!(program.statement_table.statement_count(), 1);
     }
 }
