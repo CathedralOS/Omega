@@ -43,6 +43,35 @@ fn build_native_plan(
     )
 }
 
+fn build_emission_plan(
+    native_plan: &omega_backend_plan::NativePlan,
+) -> omega_artifacts::EmissionPlan {
+    omega_emission_planning::build_emission_plan(&omega_emission_planning::EmissionPlanningInput {
+        target: native_plan.target,
+        entry_key: native_plan.entry_key,
+        host_abi: &native_plan.host_abi,
+        host_calls: &native_plan.host_calls,
+        state_calls: &native_plan.state_calls,
+        state_storage: &native_plan.state_storage,
+        state_values: &native_plan.state_values,
+        data: &native_plan.data,
+        instructions: &native_plan.instructions,
+        control_flow: &native_plan.control_flow,
+        runtime_flow: &native_plan.runtime_flow,
+        runtime_bodies: &native_plan.runtime_bodies,
+        runtime_branching_calls: &native_plan.runtime_branching_calls,
+        runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
+        runtime_storage: &native_plan.runtime_storage,
+        runtime_text: &native_plan.runtime_text,
+        state_guards: &native_plan.state_guards,
+        layouts: &native_plan.layouts,
+        machine_code: &native_plan.machine_code,
+        encoded_machine: &native_plan.encoded_machine,
+        object: &native_plan.object,
+        relocations: &native_plan.relocations,
+    })
+}
+
 #[test]
 fn tokenizes_simple_source() {
     let tokens = Lexer::new("let answer = 42")
@@ -1272,7 +1301,7 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should preserve runtime loops");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
@@ -1319,7 +1348,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should emit unguarded dispatch loop bytes");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(
         !emission_plan
@@ -1943,7 +1972,7 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should build runtime branch expansion");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let branching_call = native_plan
         .runtime_branching_calls
         .calls
@@ -2007,7 +2036,7 @@ fn plans_runtime_straight_line_branch_expansion() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should build straight-line branch expansion");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let branching_call = native_plan
         .runtime_branching_calls
         .calls
@@ -2310,7 +2339,7 @@ fn plans_state_calls_separately_from_host_calls() {
             )
         })
         .collect::<Vec<_>>();
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert_eq!(
         state_calls,
@@ -2706,7 +2735,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::linux_arm64())
         .expect("native planning should pass");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert_eq!(native_plan.target.object_format, ObjectFormat::Elf);
     assert!(emission_plan.blockers.is_empty());
@@ -2847,7 +2876,7 @@ fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should preserve unsupported call as blocker");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| blocker
@@ -3296,7 +3325,7 @@ fn ignores_host_calls_outside_entry_schedule() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should keep unreachable host call out of the schedule");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 2);
@@ -3334,7 +3363,7 @@ fn emits_unconditional_entry_transition_chains() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should allow unconditional transition chain");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 3);
@@ -3379,7 +3408,7 @@ fn emits_nested_machine_continuations_inline() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should allow nested continuation");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let schedule_context = omega_state_schedule::StateScheduleContext::new(
         &native_plan.control_flow,
         &native_plan.host_calls,
@@ -3426,7 +3455,7 @@ fn reports_entry_assignments_as_native_mutation_blockers() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should preserve entry assignment as blocker");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(
         emission_plan.blockers.iter().any(|(_, blocker)| {
@@ -3466,7 +3495,7 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should preserve dynamic text argument");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let runtime_text = native_plan
         .runtime_text
         .uses
@@ -3571,7 +3600,7 @@ fn plans_state_storage_and_mutations() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should collect state storage");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert_eq!(native_plan.state_storage.locals.len(), 1);
     assert_eq!(native_plan.state_storage.mutations.len(), 2);
@@ -3731,7 +3760,7 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
     omega_validation::validate_program(&program).expect("validation should pass");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should build runtime text builder");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(
         native_plan
@@ -3781,7 +3810,7 @@ fn lowers_constant_integer_assignment_before_host_call() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should track constant integer assignment");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let exit_call = native_plan
         .host_calls
         .calls
@@ -3856,7 +3885,7 @@ fn selects_static_guarded_transition() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should select a static guarded transition");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let schedule_context = omega_state_schedule::StateScheduleContext::new(
         &native_plan.control_flow,
         &native_plan.host_calls,
@@ -3979,7 +4008,7 @@ fn lowers_mutable_output_host_call() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should lower mutable output host call");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
     let read_buffer = native_plan
         .data
         .objects
@@ -4077,7 +4106,7 @@ fn lowers_static_record_array_field_text() {
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let native_plan = build_native_plan(&program, NativeTarget::macos_arm64())
         .expect("native planning should lower static record field text");
-    let emission_plan = omega_emission_planning::build_emission_plan(&native_plan);
+    let emission_plan = build_emission_plan(&native_plan);
 
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(native_plan.host_calls.calls.len(), 3);

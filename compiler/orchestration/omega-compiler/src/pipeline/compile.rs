@@ -15,11 +15,12 @@ use crate::source::{FileId, SourceFile, SourceMap};
 use omega_abstract_syntax_to_typed::lower_program_with_symbol_table_and_workers;
 use omega_artifacts::{PhaseTiming, build_native_surface_report, finalize_emitted_image_output};
 use omega_backend_pipeline::build_native_plan_from_control_flow_with_workers;
+use omega_backend_plan::NativePlan;
 use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_effects::infer_effects;
-use omega_emission_planning::build_emission_plan;
+use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_graph::build_source_graph_report;
 use omega_image_emission::{ExecutableImageInput, emit_checked_executable_image};
 use omega_names::build_resolve_report;
@@ -30,6 +31,33 @@ use omega_target::NativeTarget;
 use omega_typed_to_control_flow::build_control_flow_plan_with_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
+
+fn emission_planning_input(native_plan: &NativePlan) -> EmissionPlanningInput<'_> {
+    EmissionPlanningInput {
+        target: native_plan.target,
+        entry_key: native_plan.entry_key,
+        host_abi: &native_plan.host_abi,
+        host_calls: &native_plan.host_calls,
+        state_calls: &native_plan.state_calls,
+        state_storage: &native_plan.state_storage,
+        state_values: &native_plan.state_values,
+        data: &native_plan.data,
+        instructions: &native_plan.instructions,
+        control_flow: &native_plan.control_flow,
+        runtime_flow: &native_plan.runtime_flow,
+        runtime_bodies: &native_plan.runtime_bodies,
+        runtime_branching_calls: &native_plan.runtime_branching_calls,
+        runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
+        runtime_storage: &native_plan.runtime_storage,
+        runtime_text: &native_plan.runtime_text,
+        state_guards: &native_plan.state_guards,
+        layouts: &native_plan.layouts,
+        machine_code: &native_plan.machine_code,
+        encoded_machine: &native_plan.encoded_machine,
+        object: &native_plan.object,
+        relocations: &native_plan.relocations,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOutput {
@@ -166,7 +194,7 @@ pub fn check(options: CompileOptions) -> Result<CheckOutput, Vec<Diagnostic>> {
         Ok(native_plan)
     })?;
     record_phase(&mut phase_timings, "emission plan", || {
-        let emission_plan = build_emission_plan(&native_plan);
+        let emission_plan = build_emission_plan(&emission_planning_input(&native_plan));
         artifacts
             .write_emission_plan(&emission_plan)
             .map_err(|diagnostic| vec![diagnostic])
@@ -307,7 +335,7 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
         Ok(native_plan)
     })?;
     let emission_plan = record_phase(&mut phase_timings, "emission plan", || {
-        let emission_plan = build_emission_plan(&native_plan);
+        let emission_plan = build_emission_plan(&emission_planning_input(&native_plan));
         artifacts
             .write_emission_plan(&emission_plan)
             .map_err(|diagnostic| vec![diagnostic])?;

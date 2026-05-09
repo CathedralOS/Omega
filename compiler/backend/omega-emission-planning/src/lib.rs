@@ -1,5 +1,4 @@
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
-use omega_backend_plan::NativePlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
@@ -70,40 +69,7 @@ pub struct EmissionPlanningInput<'plan> {
     pub relocations: &'plan RelocationPlan,
 }
 
-impl<'plan> From<&'plan NativePlan> for EmissionPlanningInput<'plan> {
-    fn from(native_plan: &'plan NativePlan) -> Self {
-        Self {
-            target: native_plan.target,
-            entry_key: native_plan.entry_key,
-            host_abi: &native_plan.host_abi,
-            host_calls: &native_plan.host_calls,
-            state_calls: &native_plan.state_calls,
-            state_storage: &native_plan.state_storage,
-            state_values: &native_plan.state_values,
-            data: &native_plan.data,
-            instructions: &native_plan.instructions,
-            control_flow: &native_plan.control_flow,
-            runtime_flow: &native_plan.runtime_flow,
-            runtime_bodies: &native_plan.runtime_bodies,
-            runtime_branching_calls: &native_plan.runtime_branching_calls,
-            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
-            runtime_storage: &native_plan.runtime_storage,
-            runtime_text: &native_plan.runtime_text,
-            state_guards: &native_plan.state_guards,
-            layouts: &native_plan.layouts,
-            machine_code: &native_plan.machine_code,
-            encoded_machine: &native_plan.encoded_machine,
-            object: &native_plan.object,
-            relocations: &native_plan.relocations,
-        }
-    }
-}
-
-pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
-    build_emission_plan_from_input(&EmissionPlanningInput::from(native_plan))
-}
-
-pub fn build_emission_plan_from_input(native_plan: &EmissionPlanningInput<'_>) -> EmissionPlan {
+pub fn build_emission_plan(native_plan: &EmissionPlanningInput<'_>) -> EmissionPlan {
     let mut blockers = Arena::new();
     let schedule_context =
         StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
