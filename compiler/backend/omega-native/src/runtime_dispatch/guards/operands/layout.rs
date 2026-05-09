@@ -14,23 +14,24 @@ pub(super) struct ResolvedOperandLayout {
 
 pub(super) fn resolve_guard_operand_layout(
     layouts: &LayoutPlan,
-    entry_machine: &str,
-    source_machine: &str,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
     expression: &Expression,
 ) -> Option<ResolvedOperandLayout> {
     let Expression::Name(path) = expression else {
         return None;
     };
-    let [root_name, suffix @ ..] = path.as_slice() else {
+    let [_root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
+    let root_symbol = path.head_symbol();
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts
         .iter()
-        .find(|(_, machine_layout)| machine_layout.name == source_machine)
+        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
         .map(|(_, machine_layout)| machine_layout)?;
-    let root_field = field_layout(layouts, machine_layout.fields, root_name)?;
+    let root_field = field_layout_by_symbol(layouts, machine_layout.fields, root_symbol)?;
 
     resolve_nested_field_layout(layouts, root_field, suffix).map(|(byte_offset, layout)| {
         ResolvedOperandLayout {
@@ -43,8 +44,8 @@ pub(super) fn resolve_guard_operand_layout(
 
 fn machine_storage_offset(
     layouts: &LayoutPlan,
-    entry_machine: &str,
-    source_machine: &str,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
 ) -> Option<usize> {
     if entry_machine == source_machine {
         return Some(0);
@@ -53,13 +54,13 @@ fn machine_storage_offset(
     let entry_layout = layouts
         .machine_layouts
         .iter()
-        .find(|(_, machine_layout)| machine_layout.name == entry_machine)
+        .find(|(_, machine_layout)| machine_layout.symbol == entry_machine)
         .map(|(_, machine_layout)| machine_layout)?;
     let fields = layouts.fields.span(entry_layout.fields)?;
 
     fields
         .iter()
-        .find(|field| field.type_name == source_machine)
+        .find(|field| field.type_symbol == source_machine)
         .map(|field| field.offset)
 }
 
@@ -163,4 +164,20 @@ fn field_layout<'plan>(
         .span(fields)?
         .iter()
         .find(|field| field.name == field_name)
+}
+
+fn field_layout_by_symbol(
+    layouts: &LayoutPlan,
+    fields: HandleSpan<FieldLayout>,
+    field_symbol: SymbolHandle,
+) -> Option<&FieldLayout> {
+    if !field_symbol.is_valid() {
+        return None;
+    }
+
+    layouts
+        .fields
+        .span(fields)?
+        .iter()
+        .find(|field| field.symbol == field_symbol)
 }

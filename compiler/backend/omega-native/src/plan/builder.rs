@@ -1,5 +1,5 @@
 use super::NativePlan;
-use super::entry::{ENTRY_MACHINE_NAME, resolve_native_entry_point};
+use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::abi::build_host_abi_plan;
@@ -88,12 +88,8 @@ pub(super) fn build_native_plan_with_workers(
             workers.clone(),
         )
     });
-    let entry_machine_name = control_flow
-        .machine_by_symbol(entry_key.machine)
-        .map(|machine| machine.name.as_str())
-        .unwrap_or(ENTRY_MACHINE_NAME);
     let state_guards = record_native_phase(&mut phase_timings, "state guards", || {
-        build_state_guard_plan(&state_dispatch, &control_flow, &layouts, entry_machine_name)
+        build_state_guard_plan(&state_dispatch, &control_flow, &layouts, entry_key.machine)
     });
 
     let mut native_plan = build_native_plan_skeleton(NativePlanSkeletonInput {

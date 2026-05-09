@@ -8,9 +8,9 @@ pub use model::{
     StateGuardOperandStorage, StateGuardOperator, StateGuardPlan,
 };
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_typed_program::expression::{BinaryOperator, Expression};
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 use operands::{GuardOperands, guard_operands};
 
@@ -18,7 +18,7 @@ pub fn build_state_guard_plan(
     state_dispatch: &StateDispatchPlan,
     control_flow: &ControlFlowPlan,
     layouts: &LayoutPlan,
-    entry_machine: &str,
+    entry_machine: SymbolHandle,
 ) -> StateGuardPlan {
     let mut plan = StateGuardPlan::default();
 
@@ -28,12 +28,6 @@ pub fn build_state_guard_plan(
         };
 
         for (statement_order, edge) in edges.iter().enumerate() {
-            let Some(source_machine) = control_flow
-                .machine_by_symbol(state.key.machine)
-                .map(|machine| machine.name.clone())
-            else {
-                continue;
-            };
             if control_flow.state_by_key(state.key).is_none() {
                 continue;
             }
@@ -42,7 +36,6 @@ pub fn build_state_guard_plan(
                 layouts,
                 entry_machine,
                 state.key,
-                &source_machine,
                 state.dispatch_index,
                 statement_order,
                 edge,
@@ -76,16 +69,14 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
 fn build_state_guard(
     operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
-    entry_machine: &str,
+    entry_machine: SymbolHandle,
     source: StateKey,
-    source_machine: &ProgramName,
     source_dispatch_index: u32,
     statement_order: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
     let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let guard_operands =
-        guard_operands(layouts, entry_machine, source_machine.as_str(), &edge.guard);
+    let guard_operands = guard_operands(layouts, entry_machine, source.machine, &edge.guard);
     let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
     let operands = guard_operands
         .map(|operands| operands.insert_into(operand_arena))

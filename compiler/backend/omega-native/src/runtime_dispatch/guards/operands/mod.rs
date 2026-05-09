@@ -6,6 +6,7 @@ use crate::runtime_dispatch::guards::StateGuardOperand;
 use classify::classify_guard_operand;
 use layout::resolve_guard_operand_layout;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
@@ -27,8 +28,8 @@ impl GuardOperands {
 
 pub(in crate::runtime_dispatch::guards) fn guard_operands(
     layouts: &LayoutPlan,
-    entry_machine: &str,
-    source_machine: &str,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
     guard: &TransitionGuard,
 ) -> Option<GuardOperands> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
@@ -43,15 +44,15 @@ pub(in crate::runtime_dispatch::guards) fn guard_operands(
 
 fn guard_operand(
     layouts: &LayoutPlan,
-    entry_machine: &str,
-    source_machine: &str,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
     expression: Expression,
 ) -> StateGuardOperand {
     let resolved_value = resolved_guard_operand_value(layouts, &expression);
     let operand_layout =
         resolve_guard_operand_layout(layouts, entry_machine, source_machine, &expression);
     StateGuardOperand {
-        kind: classify_guard_operand(&expression),
+        kind: classify_guard_operand(&expression, resolved_value.is_some()),
         storage: operand_layout
             .as_ref()
             .map(|layout| layout.storage)
