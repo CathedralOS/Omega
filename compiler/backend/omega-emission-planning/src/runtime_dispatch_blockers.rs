@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardLowering, StateGuardOperator};
@@ -6,7 +6,9 @@ use omega_state_schedule::ScheduledState;
 
 use super::{EmissionBlocker, blocker};
 
-pub(super) fn runtime_and_required_states(native_plan: &NativePlan) -> Vec<ScheduledState> {
+pub(super) fn runtime_and_required_states(
+    native_plan: &EmissionPlanningInput<'_>,
+) -> Vec<ScheduledState> {
     let mut states = Vec::new();
 
     for (_, state) in native_plan.runtime_flow.states.iter() {
@@ -37,7 +39,10 @@ fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control
     states.push(ScheduledState { key });
 }
 
-fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
+fn state_name(
+    native_plan: &EmissionPlanningInput<'_>,
+    key: omega_control_flow::StateKey,
+) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)
@@ -46,7 +51,7 @@ fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> St
 }
 
 pub(super) fn collect_runtime_dispatch_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, cycle) in native_plan.runtime_flow.cycles.iter() {
@@ -70,7 +75,9 @@ pub(super) fn collect_runtime_dispatch_blockers(
     }
 }
 
-pub(super) fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> EmissionBlocker {
+pub(super) fn runtime_dispatch_loop_blocker(
+    native_plan: &EmissionPlanningInput<'_>,
+) -> EmissionBlocker {
     if let Some(guard_lowering) = first_unsupported_dispatch_guard(native_plan) {
         return blocker(
             "runtime dispatch",
@@ -94,7 +101,7 @@ pub(super) fn runtime_dispatch_loop_blocker(native_plan: &NativePlan) -> Emissio
     )
 }
 
-pub(super) fn runtime_dispatch_loop_can_emit(native_plan: &NativePlan) -> bool {
+pub(super) fn runtime_dispatch_loop_can_emit(native_plan: &EmissionPlanningInput<'_>) -> bool {
     native_plan
         .runtime_dispatch_loop
         .edges
@@ -104,7 +111,9 @@ pub(super) fn runtime_dispatch_loop_can_emit(native_plan: &NativePlan) -> bool {
         })
 }
 
-fn first_unsupported_dispatch_guard(native_plan: &NativePlan) -> Option<StateGuardLowering> {
+fn first_unsupported_dispatch_guard(
+    native_plan: &EmissionPlanningInput<'_>,
+) -> Option<StateGuardLowering> {
     native_plan
         .runtime_dispatch_loop
         .edges

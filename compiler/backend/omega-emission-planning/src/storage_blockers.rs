@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
@@ -11,7 +11,7 @@ use super::runtime_text_blockers::{
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_storage_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     needs_runtime_dispatch: bool,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
@@ -61,7 +61,7 @@ pub(super) fn collect_state_storage_blockers(
 }
 
 fn collect_runtime_body_storage_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, slot) in native_plan.runtime_storage.frame_slots.iter() {
@@ -102,7 +102,7 @@ fn collect_runtime_body_storage_blockers(
 }
 
 fn runtime_storage_write_has_planned_text_write(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     write: &RuntimeStorageWrite,
 ) -> bool {
     runtime_text_write_for_statement(native_plan, write.source_key, write.statement_index)
@@ -112,7 +112,7 @@ fn runtime_storage_write_has_planned_text_write(
         })
 }
 
-fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+fn state_name(native_plan: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

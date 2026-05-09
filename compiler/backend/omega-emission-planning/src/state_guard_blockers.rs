@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardLowering;
@@ -6,7 +6,7 @@ use omega_state_guards::StateGuardLowering;
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_guard_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, guard) in native_plan.state_guards.guards.iter() {
@@ -47,7 +47,7 @@ pub(super) fn collect_state_guard_blockers(
 }
 
 fn runtime_transition_target_name(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     target: &RuntimeTransitionTarget,
 ) -> String {
     match target {

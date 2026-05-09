@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
 use omega_target_program::SelectedInstructionKind;
@@ -6,7 +6,7 @@ use omega_target_program::SelectedInstructionKind;
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_host_binding_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     if native_plan.target.object_format != ObjectFormat::MachO {
@@ -32,7 +32,10 @@ pub(super) fn collect_host_binding_blockers(
     }
 }
 
-fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
+fn state_name(
+    native_plan: &EmissionPlanningInput<'_>,
+    key: omega_control_flow::StateKey,
+) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

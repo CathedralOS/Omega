@@ -1,10 +1,28 @@
 use omega_artifacts::{EmissionBlocker, EmissionPlan, emission_blocker};
 use omega_backend_plan::NativePlan;
+use omega_calling_conventions::HostAbiPlan;
+use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_image_emission::can_emit_executable_image;
+use omega_layout::LayoutPlan;
+use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
+use omega_object::{ObjectPlan, RelocationPlan};
+use omega_platform_interface::HostCallPlan;
+use omega_runtime_bodies::RuntimeDispatchBodyPlan;
+use omega_runtime_branching::RuntimeBranchingCallPlan;
+use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
+use omega_runtime_storage::RuntimeStoragePlan;
+use omega_runtime_text::RuntimeTextPlan;
+use omega_state_calls::StateCallPlan;
+use omega_state_graph::RuntimeFlowPlan;
+use omega_state_guards::StateGuardPlan;
 use omega_state_schedule::{
     StateScheduleContext, build_entry_state_schedule, scheduled_state_contains_key,
 };
+use omega_state_storage::StateStoragePlan;
+use omega_state_values::StateValuePlan;
+use omega_target::NativeTarget;
+use omega_target_program::{InstructionPlan, NativeDataPlan};
 
 mod host_argument_blockers;
 mod host_binding_blockers;
@@ -27,7 +45,65 @@ use state_codegen_blockers::collect_state_codegen_blockers;
 use state_guard_blockers::collect_state_guard_blockers;
 use storage_blockers::collect_state_storage_blockers;
 
+pub struct EmissionPlanningInput<'plan> {
+    pub target: NativeTarget,
+    pub entry_key: StateKey,
+    pub host_abi: &'plan HostAbiPlan,
+    pub host_calls: &'plan HostCallPlan,
+    pub state_calls: &'plan StateCallPlan,
+    pub state_storage: &'plan StateStoragePlan,
+    pub state_values: &'plan StateValuePlan,
+    pub data: &'plan NativeDataPlan,
+    pub instructions: &'plan InstructionPlan,
+    pub control_flow: &'plan ControlFlowPlan,
+    pub runtime_flow: &'plan RuntimeFlowPlan,
+    pub runtime_bodies: &'plan RuntimeDispatchBodyPlan,
+    pub runtime_branching_calls: &'plan RuntimeBranchingCallPlan,
+    pub runtime_dispatch_loop: &'plan RuntimeDispatchLoopPlan,
+    pub runtime_storage: &'plan RuntimeStoragePlan,
+    pub runtime_text: &'plan RuntimeTextPlan,
+    pub state_guards: &'plan StateGuardPlan,
+    pub layouts: &'plan LayoutPlan,
+    pub machine_code: &'plan MachineCodePlan,
+    pub encoded_machine: &'plan EncodedMachinePlan,
+    pub object: &'plan ObjectPlan,
+    pub relocations: &'plan RelocationPlan,
+}
+
+impl<'plan> From<&'plan NativePlan> for EmissionPlanningInput<'plan> {
+    fn from(native_plan: &'plan NativePlan) -> Self {
+        Self {
+            target: native_plan.target,
+            entry_key: native_plan.entry_key,
+            host_abi: &native_plan.host_abi,
+            host_calls: &native_plan.host_calls,
+            state_calls: &native_plan.state_calls,
+            state_storage: &native_plan.state_storage,
+            state_values: &native_plan.state_values,
+            data: &native_plan.data,
+            instructions: &native_plan.instructions,
+            control_flow: &native_plan.control_flow,
+            runtime_flow: &native_plan.runtime_flow,
+            runtime_bodies: &native_plan.runtime_bodies,
+            runtime_branching_calls: &native_plan.runtime_branching_calls,
+            runtime_dispatch_loop: &native_plan.runtime_dispatch_loop,
+            runtime_storage: &native_plan.runtime_storage,
+            runtime_text: &native_plan.runtime_text,
+            state_guards: &native_plan.state_guards,
+            layouts: &native_plan.layouts,
+            machine_code: &native_plan.machine_code,
+            encoded_machine: &native_plan.encoded_machine,
+            object: &native_plan.object,
+            relocations: &native_plan.relocations,
+        }
+    }
+}
+
 pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
+    build_emission_plan_from_input(&EmissionPlanningInput::from(native_plan))
+}
+
+pub fn build_emission_plan_from_input(native_plan: &EmissionPlanningInput<'_>) -> EmissionPlan {
     let mut blockers = Arena::new();
     let schedule_context =
         StateScheduleContext::new(&native_plan.control_flow, &native_plan.host_calls);
@@ -121,7 +197,7 @@ pub fn build_emission_plan(native_plan: &NativePlan) -> EmissionPlan {
     }
 }
 
-fn can_emit_direct_image(native_plan: &NativePlan) -> bool {
+fn can_emit_direct_image(native_plan: &EmissionPlanningInput<'_>) -> bool {
     can_emit_executable_image(native_plan.target)
         && native_plan.encoded_machine.bytes.len() == native_plan.machine_code.byte_count
 }
@@ -130,7 +206,10 @@ fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
     emission_blocker(stage, reason)
 }
 
-fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
+fn state_name(
+    native_plan: &EmissionPlanningInput<'_>,
+    key: omega_control_flow::StateKey,
+) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

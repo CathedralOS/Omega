@@ -1,11 +1,11 @@
 use super::model::RuntimeBodyStateCallBlocker;
 use super::planned::runtime_branching_call_matches_grouped_blocker;
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_runtime_branching::RuntimeBranchCallExpansion;
 use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_expansion_reason(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> String {
     match grouped_blocker.lowering {
@@ -19,7 +19,7 @@ pub(super) fn runtime_body_state_call_expansion_reason(
 }
 
 fn runtime_branching_call_expansion_reason(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> String {
     let mut matching_calls = native_plan

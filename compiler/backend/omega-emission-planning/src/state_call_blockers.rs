@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::StateCallLowering;
@@ -11,7 +11,7 @@ mod runtime_body;
 use runtime_body::collect_runtime_body_state_call_blockers;
 
 pub(super) fn collect_state_call_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     state_schedule: &[ScheduledState],
     needs_runtime_dispatch: bool,
     blockers: &mut Arena<EmissionBlocker>,
@@ -97,7 +97,7 @@ pub(super) fn collect_state_call_blockers(
 }
 
 fn collect_unresolved_state_call_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, state_call) in native_plan.state_calls.calls.iter() {
@@ -116,7 +116,7 @@ fn collect_unresolved_state_call_blockers(
     }
 }
 
-fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+fn state_name(native_plan: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

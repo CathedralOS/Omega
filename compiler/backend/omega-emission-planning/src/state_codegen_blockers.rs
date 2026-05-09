@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_control_flow::{OperationKind, StateFlow, StateKey};
 use omega_core::arena::Arena;
 use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state_flow};
@@ -6,7 +6,7 @@ use omega_state_schedule::{ScheduledState, StateScheduleContext, scheduled_state
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_codegen_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     schedule_context: &StateScheduleContext,
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
@@ -99,7 +99,7 @@ pub(super) fn collect_state_codegen_blockers(
 }
 
 fn state_statement_has_local_storage(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
@@ -109,7 +109,7 @@ fn state_statement_has_local_storage(
 }
 
 fn state_statement_has_storage_mutation(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
@@ -123,7 +123,7 @@ fn state_statement_has_storage_mutation(
 }
 
 fn state_statement_has_state_call(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
@@ -133,7 +133,7 @@ fn state_statement_has_state_call(
 }
 
 fn machine_name_for_state<'plan>(
-    native_plan: &'plan NativePlan,
+    native_plan: &'plan EmissionPlanningInput<'plan>,
     state_flow: &StateFlow,
 ) -> Option<&'plan str> {
     native_plan
@@ -145,7 +145,7 @@ fn machine_name_for_state<'plan>(
 }
 
 fn state_statement_has_host_call(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {

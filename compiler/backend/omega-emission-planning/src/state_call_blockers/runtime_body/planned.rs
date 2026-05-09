@@ -1,10 +1,10 @@
 use super::model::RuntimeBodyStateCallBlocker;
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_runtime_branching::{RuntimeBranchCallExpansion, RuntimeBranchingCall};
 use omega_state_calls::StateCallLowering;
 
 pub(super) fn runtime_body_state_call_has_planned_expansion(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     grouped_blocker: &RuntimeBodyStateCallBlocker,
 ) -> bool {
     if grouped_blocker.lowering != StateCallLowering::InlineBranching {
@@ -38,7 +38,7 @@ pub(super) fn runtime_branching_call_matches_grouped_blocker(
 }
 
 fn runtime_branching_call_has_planned_expansion(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> bool {
     match call.expansion {
@@ -57,7 +57,7 @@ fn runtime_branching_call_has_planned_expansion(
 }
 
 fn runtime_branching_call_leaf_expansion_count(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> usize {
     native_plan
@@ -74,7 +74,7 @@ fn runtime_branching_call_leaf_expansion_count(
 }
 
 fn runtime_branching_call_straight_line_expansion_count(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> usize {
     native_plan

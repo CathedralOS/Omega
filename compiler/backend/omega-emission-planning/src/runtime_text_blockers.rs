@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
 use omega_runtime_text::places::expression_place_eq;
@@ -8,7 +8,7 @@ use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_value_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, value) in native_plan.state_values.values.iter() {
@@ -35,7 +35,10 @@ pub(super) fn collect_state_value_blockers(
     }
 }
 
-fn state_value_has_planned_text_builder(native_plan: &NativePlan, value: &StateValueUse) -> bool {
+fn state_value_has_planned_text_builder(
+    native_plan: &EmissionPlanningInput<'_>,
+    value: &StateValueUse,
+) -> bool {
     runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
         .is_some_and(|text_write| {
             text_write.kind == RuntimeTextWriteKind::GeneratedString
@@ -43,7 +46,10 @@ fn state_value_has_planned_text_builder(native_plan: &NativePlan, value: &StateV
         })
 }
 
-fn runtime_value_blocker_reason(native_plan: &NativePlan, value: &StateValueUse) -> String {
+fn runtime_value_blocker_reason(
+    native_plan: &EmissionPlanningInput<'_>,
+    value: &StateValueUse,
+) -> String {
     if let Some(text_write) =
         runtime_text_write_for_statement(native_plan, value.source_key, value.statement_index)
     {
@@ -69,7 +75,7 @@ fn runtime_value_blocker_reason(native_plan: &NativePlan, value: &StateValueUse)
 }
 
 pub(super) fn runtime_text_write_for_statement<'plan>(
-    native_plan: &'plan NativePlan,
+    native_plan: &'plan EmissionPlanningInput<'plan>,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan RuntimeTextWrite> {
@@ -84,7 +90,7 @@ pub(super) fn runtime_text_write_for_statement<'plan>(
 }
 
 fn runtime_text_builder_for_write<'plan>(
-    native_plan: &'plan NativePlan,
+    native_plan: &'plan EmissionPlanningInput<'plan>,
     text_write: &RuntimeTextWrite,
 ) -> Option<&'plan omega_runtime_text::RuntimeTextBuilder> {
     native_plan
@@ -108,7 +114,10 @@ fn runtime_text_write_lowering_name(text_write: &RuntimeTextWrite) -> &'static s
     }
 }
 
-fn state_value_is_static_assignment(native_plan: &NativePlan, value: &StateValueUse) -> bool {
+fn state_value_is_static_assignment(
+    native_plan: &EmissionPlanningInput<'_>,
+    value: &StateValueUse,
+) -> bool {
     if value.role != StateValueRole::AssignmentValue {
         return false;
     }
@@ -126,7 +135,7 @@ fn state_value_is_static_assignment(native_plan: &NativePlan, value: &StateValue
 }
 
 pub(super) fn runtime_text_write_is_planned(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     text_write: &RuntimeTextWrite,
 ) -> bool {
     match text_write.kind {
@@ -138,7 +147,7 @@ pub(super) fn runtime_text_write_is_planned(
     }
 }
 
-fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+fn state_name(native_plan: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)

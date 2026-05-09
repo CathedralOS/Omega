@@ -1,4 +1,4 @@
-use omega_backend_plan::NativePlan;
+use crate::EmissionPlanningInput;
 use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
@@ -9,7 +9,7 @@ use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_host_argument_blockers(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     state_schedule: &[ScheduledState],
     blockers: &mut Arena<EmissionBlocker>,
 ) {
@@ -70,7 +70,7 @@ pub(super) fn collect_host_argument_blockers(
 }
 
 fn runtime_text_use_for_host_call<'plan>(
-    native_plan: &'plan NativePlan,
+    native_plan: &'plan EmissionPlanningInput<'plan>,
     host_call: &HostCall,
 ) -> Option<&'plan RuntimeTextUse> {
     native_plan
@@ -85,14 +85,17 @@ fn runtime_text_use_for_host_call<'plan>(
         .map(|(_, text_use)| text_use)
 }
 
-fn runtime_text_use_has_input_buffer(native_plan: &NativePlan, text_use: &RuntimeTextUse) -> bool {
+fn runtime_text_use_has_input_buffer(
+    native_plan: &EmissionPlanningInput<'_>,
+    text_use: &RuntimeTextUse,
+) -> bool {
     native_plan.runtime_text.slots.iter().any(|(_, slot)| {
         expression_place_eq(&slot.place, &text_use.expression) && slot.has_input_buffer
     })
 }
 
 fn host_text_argument_blocker_reason(
-    native_plan: &NativePlan,
+    native_plan: &EmissionPlanningInput<'_>,
     text_use: &RuntimeTextUse,
 ) -> String {
     let lowering_need = match text_use.source {
@@ -111,7 +114,10 @@ fn host_text_argument_blocker_reason(
     )
 }
 
-fn state_name(native_plan: &NativePlan, key: omega_control_flow::StateKey) -> String {
+fn state_name(
+    native_plan: &EmissionPlanningInput<'_>,
+    key: omega_control_flow::StateKey,
+) -> String {
     native_plan
         .control_flow
         .state_names_by_key(key)
