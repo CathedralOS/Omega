@@ -24,6 +24,7 @@ pub enum Expression {
 pub struct ExpressionTable {
     expressions: Arena<ExpressionNode>,
     expression_handles: Arena<ExpressionHandle>,
+    name_path_members: Arena<ProgramName>,
     struct_fields: Arena<TableStructLiteralField>,
 }
 
@@ -32,6 +33,7 @@ impl ExpressionTable {
         Self {
             expressions: Arena::new(),
             expression_handles: Arena::new(),
+            name_path_members: Arena::new(),
             struct_fields: Arena::new(),
         }
     }
@@ -52,6 +54,27 @@ impl ExpressionTable {
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         self.struct_fields.insert_many(fields)
+    }
+
+    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for member in path.members() {
+            let handle = self.name_path_members.append(member.clone());
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("name path member span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
     }
 
     fn insert_expression_handle_span_from_trees<'expression>(
@@ -122,6 +145,10 @@ impl ExpressionTable {
         self.struct_fields.span_or_empty(span)
     }
 
+    pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
+        self.name_path_members.span_or_empty(span)
+    }
+
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }
@@ -160,7 +187,14 @@ impl ExpressionTable {
                 let inner_expression = self.insert_tree(inner_expression);
                 self.insert(ExpressionNode::Mutable(inner_expression))
             }
-            Expression::Name(path) => self.insert(ExpressionNode::Name(path.clone())),
+            Expression::Name(path) => {
+                let members = self.insert_name_path_members(path);
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: path.head_symbol(),
+                    symbol: path.symbol(),
+                }))
+            }
             Expression::StructLiteral(struct_literal) => {
                 let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
                 self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -192,7 +226,7 @@ pub enum ExpressionNode {
     Indexed(TableIndexedExpression),
     Integer(i64),
     Mutable(ExpressionHandle),
-    Name(NamePath),
+    Name(TableNamePath),
     StructLiteral(TableStructLiteral),
     String(String),
 }
@@ -214,6 +248,13 @@ pub struct TableBinaryExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableNamePath {
+    pub members: HandleSpan<ProgramName>,
+    pub head_symbol: SymbolHandle,
+    pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -458,7 +499,7 @@ impl ExpressionNode {
             }
             Self::Integer(value) => value.to_string(),
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
-            Self::Name(path) => display_name_path(path, "::"),
+            Self::Name(path) => display_name_path(table.name_path_members(path.members), "::"),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{value:?}"),
         }
