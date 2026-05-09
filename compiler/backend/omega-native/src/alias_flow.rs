@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCallArgumentKind;
 use omega_core::arena::Arena;
@@ -11,11 +12,9 @@ pub struct AliasFlowPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AliasBinding {
-    pub caller_machine: ProgramName,
-    pub caller_state: ProgramName,
+    pub caller_key: StateKey,
     pub statement_index: usize,
-    pub callee_machine: ProgramName,
-    pub callee_state: ProgramName,
+    pub callee_key: StateKey,
     pub parameter_name: ProgramName,
     pub argument: Expression,
     pub required: bool,
@@ -24,11 +23,9 @@ pub struct AliasBinding {
 impl Default for AliasBinding {
     fn default() -> Self {
         Self {
-            caller_machine: ProgramName::default(),
-            caller_state: ProgramName::default(),
+            caller_key: StateKey::default(),
             statement_index: 0,
-            callee_machine: ProgramName::default(),
-            callee_state: ProgramName::default(),
+            callee_key: StateKey::default(),
             parameter_name: ProgramName::default(),
             argument: Expression::Integer(0),
             required: false,
@@ -49,13 +46,10 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
                 continue;
             }
 
-            let (caller_machine, caller_state) = state_names(native_plan, state_call.source_key);
             plan.aliases.insert(AliasBinding {
-                caller_machine,
-                caller_state,
+                caller_key: state_call.source_key,
                 statement_index: state_call.statement_index,
-                callee_machine: state_call.target_machine.clone(),
-                callee_state: state_call.target_state.clone(),
+                callee_key: state_call.target_key,
                 parameter_name: argument.parameter_name.clone(),
                 argument: argument.expression.clone(),
                 required: state_call.required && argument.required,
@@ -64,15 +58,4 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
     }
 
     plan
-}
-
-fn state_names(
-    native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
-) -> (ProgramName, ProgramName) {
-    native_plan
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.clone(), state.clone()))
-        .unwrap_or_default()
 }

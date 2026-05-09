@@ -797,13 +797,13 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, alias) in native_plan.alias_flow.aliases.iter() {
+                let caller_name = native_state_name(native_plan, alias.caller_key);
+                let callee_name = native_state_name(native_plan, alias.callee_key);
                 output.push_str(&format!(
-                    "- {}.{} statement {} -> {}.{} `{}` aliases `{}` required {}\n",
-                    alias.caller_machine,
-                    alias.caller_state,
+                    "- {} statement {} -> {} `{}` aliases `{}` required {}\n",
+                    caller_name,
                     alias.statement_index,
-                    alias.callee_machine,
-                    alias.callee_state,
+                    callee_name,
                     alias.parameter_name,
                     alias.argument.display_name(),
                     alias.required

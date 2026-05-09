@@ -53,10 +53,6 @@ pub(in crate::identity) fn count_alias_flow_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, alias) in native_plan.alias_flow.aliases.iter() {
-        storage.count_program_name_identity(&alias.caller_machine);
-        storage.count_program_name_identity(&alias.caller_state);
-        storage.count_program_name_identity(&alias.callee_machine);
-        storage.count_program_name_identity(&alias.callee_state);
         storage.count_program_name_identity(&alias.parameter_name);
         count_expression_strings(&alias.argument, storage);
     }
