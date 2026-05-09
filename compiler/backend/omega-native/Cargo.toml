@@ -26,6 +26,7 @@ omega-relocations = { path = "../object/omega-relocations" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-storage = { path = "../omega-state-storage" }
+omega-state-values = { path = "../omega-state-values" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-target = { path = "../omega-target" }
 omega-target-to-machine = { path = "../../lowering/omega-target-to-machine" }

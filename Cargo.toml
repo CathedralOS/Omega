@@ -22,6 +22,7 @@ members = [
     "compiler/backend/omega-platform-interface",
     "compiler/backend/omega-state-calls",
     "compiler/backend/omega-state-storage",
+    "compiler/backend/omega-state-values",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/omega-instruction-selection",

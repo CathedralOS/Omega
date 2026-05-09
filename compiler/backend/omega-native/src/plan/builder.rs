@@ -18,12 +18,10 @@ use crate::runtime_storage::{
     runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
 };
 use crate::runtime_text::build_runtime_text_plan;
-use crate::state_analysis::StateAnalysisContext;
 use crate::state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
 use crate::state_guards::build_state_guard_plan;
-use crate::state_values::build_state_value_plan_with_workers;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
@@ -37,6 +35,7 @@ use omega_state_calls::{
     StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
 };
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
+use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
@@ -116,7 +115,6 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     native_plan.alias_flow = record_native_phase(&mut phase_timings, "alias flow", || {
         build_alias_flow_plan(&native_plan.state_calls)
     });
-    let state_analysis_context = Arc::new(StateAnalysisContext::from_native_plan(&native_plan));
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
@@ -124,7 +122,10 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         runtime_flow: native_plan.runtime_flow.clone(),
         state_calls: native_plan.state_calls.clone(),
     });
-    let state_values_context = Arc::clone(&state_analysis_context);
+    let state_values_context = Arc::new(StateValuePlanningContext {
+        runtime_flow: native_plan.runtime_flow.clone(),
+        state_calls: native_plan.state_calls.clone(),
+    });
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();
     let (state_storage, state_values) =

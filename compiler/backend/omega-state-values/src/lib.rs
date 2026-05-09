@@ -4,26 +4,49 @@ mod model;
 
 pub use model::{StateValueKind, StateValuePlan, StateValueRole, StateValueUse};
 
-use crate::plan::NativePlan;
-use crate::state_analysis::StateAnalysisContext;
 use collection::build_machine_state_value_plan;
+use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_state_calls::StateCallPlan;
+use omega_state_graph::RuntimeFlowPlan;
 use omega_typed_program::Program;
 use std::sync::Arc;
 
-pub fn build_state_value_plan(program: &Program, native_plan: &NativePlan) -> StateValuePlan {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateValuePlanningContext {
+    pub runtime_flow: RuntimeFlowPlan,
+    pub state_calls: StateCallPlan,
+}
+
+impl StateValuePlanningContext {
+    pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.key == state_key)
+            || self.state_calls.calls.iter().any(|(_, state_call)| {
+                state_call.required
+                    && (state_call.source_key == state_key || state_call.target_key == state_key)
+            })
+    }
+}
+
+pub fn build_state_value_plan(
+    program: &Program,
+    context: StateValuePlanningContext,
+) -> StateValuePlan {
     let workers = WorkerPool::with_available_parallelism();
 
     build_state_value_plan_with_workers(
         Arc::new(program.clone()),
-        Arc::new(StateAnalysisContext::from_native_plan(native_plan)),
+        Arc::new(context),
         workers.handle(),
     )
 }
 
 pub fn build_state_value_plan_with_workers(
     program: Arc<Program>,
-    context: Arc<StateAnalysisContext>,
+    context: Arc<StateValuePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateValuePlan {
     if program.machines.is_empty() {

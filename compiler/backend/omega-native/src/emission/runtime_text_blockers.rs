@@ -1,9 +1,9 @@
 use crate::plan::NativePlan;
 use crate::runtime_text::places::expression_place_eq;
 use crate::runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
-use crate::state_values::{StateValueKind, StateValueRole, StateValueUse};
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
+use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 
 use super::{EmissionBlocker, blocker};
 
