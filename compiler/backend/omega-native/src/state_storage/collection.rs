@@ -85,8 +85,7 @@ fn build_machine_state_storage_plan(
                     });
                 }
                 Statement::Assignment(assignment) => {
-                    let mutation_kind =
-                        mutation_kind(program, &machine.name, state, &assignment.target);
+                    let mutation_kind = mutation_kind(machine, state, &assignment.target);
                     plan.mutations.insert(StateMutation {
                         source_key,
                         statement_index,

@@ -1,8 +1,9 @@
 use super::{StateMutationKind, StateMutationLowering};
 use crate::control_flow::StateKey;
 use crate::state_analysis::StateAnalysisContext;
-use omega_typed_program::Program;
-use omega_typed_program::expression::Expression;
+use omega_core::symbols::SymbolHandle;
+use omega_typed_program::expression::{Expression, NamePath};
+use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Statement;
 
 pub(super) fn mutation_lowering(
@@ -24,26 +25,18 @@ pub(super) fn mutation_lowering(
 }
 
 pub(super) fn mutation_kind(
-    program: &Program,
-    machine_name: &str,
+    machine: &Machine,
     state: &omega_typed_program::state::State,
     target: &Expression,
 ) -> StateMutationKind {
-    let Some(root_name) = root_place_name(target) else {
-        return StateMutationKind::Unknown;
-    };
-    let Some(machine) = program
-        .machines
-        .iter()
-        .find(|machine| machine.name == machine_name)
-    else {
+    let Some(place) = place_symbols(target) else {
         return StateMutationKind::Unknown;
     };
 
     if machine
         .owned_data
         .iter()
-        .any(|owned_data| owned_data.name == root_name)
+        .any(|owned_data| owned_data.symbol == place.symbol)
     {
         return StateMutationKind::MachineOwned;
     }
@@ -51,13 +44,13 @@ pub(super) fn mutation_kind(
     if state
         .parameters
         .iter()
-        .any(|parameter| parameter.name == root_name)
+        .any(|parameter| parameter.symbol == place.head_symbol)
     {
         return StateMutationKind::ParameterOrAlias;
     }
 
     if state.statements.iter().any(|statement| {
-        matches!(statement, Statement::LocalData(local_data) if local_data.name == root_name)
+        matches!(statement, Statement::LocalData(local_data) if local_data.symbol == place.head_symbol)
     }) {
         return StateMutationKind::Local;
     }
@@ -65,11 +58,29 @@ pub(super) fn mutation_kind(
     StateMutationKind::Unknown
 }
 
-fn root_place_name(expression: &Expression) -> Option<&str> {
+#[derive(Debug, Clone, Copy)]
+struct PlaceSymbols {
+    head_symbol: SymbolHandle,
+    symbol: SymbolHandle,
+}
+
+fn place_symbols(expression: &Expression) -> Option<PlaceSymbols> {
     match expression {
-        Expression::Name(path) => path.first().map(|name| name.as_str()),
-        Expression::Indexed(indexed) => root_place_name(&indexed.collection),
-        Expression::Mutable(expression) => root_place_name(expression),
+        Expression::Name(path) => name_path_symbols(path),
+        Expression::Indexed(indexed) => place_symbols(&indexed.collection),
+        Expression::Mutable(expression) => place_symbols(expression),
         _ => None,
     }
+}
+
+fn name_path_symbols(path: &NamePath) -> Option<PlaceSymbols> {
+    let head_symbol = path.head_symbol();
+    if !head_symbol.is_valid() {
+        return None;
+    }
+
+    Some(PlaceSymbols {
+        head_symbol,
+        symbol: path.symbol(),
+    })
 }
