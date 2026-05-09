@@ -1,6 +1,6 @@
-use crate::runtime_flow::{RuntimeFlowPlan, RuntimeState};
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
+use omega_state_graph::{RuntimeFlowPlan, RuntimeState};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStateInput {

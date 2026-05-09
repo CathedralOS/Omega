@@ -1,9 +1,7 @@
 use crate::alias_flow::AliasFlowPlan;
-use crate::data::NativeDataPlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
 use crate::runtime_dispatch::branching::RuntimeBranchingCallPlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopPlan;
-use crate::runtime_flow::RuntimeFlowPlan;
 use crate::runtime_storage::RuntimeStoragePlan;
 use crate::runtime_text::RuntimeTextPlan;
 use crate::state_calls::StateCallPlan;
@@ -18,8 +16,10 @@ use omega_layout::LayoutPlan;
 use omega_machine_program::MachineCodePlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
+use omega_state_graph::RuntimeFlowPlan;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
+use omega_target_program::NativeDataPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePlan {

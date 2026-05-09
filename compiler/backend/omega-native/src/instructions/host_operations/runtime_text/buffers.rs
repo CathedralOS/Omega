@@ -1,8 +1,8 @@
-use crate::data::NativeDataObject;
 use crate::plan::NativePlan;
 use crate::runtime_text::RuntimeTextSource;
 use crate::runtime_text::places::expression_place_eq;
 use omega_platform_interface::HostCall;
+use omega_target_program::NativeDataObject;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 

@@ -2,9 +2,9 @@ mod cycles;
 mod lookups;
 mod targets;
 
-use super::model::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
 use omega_control_flow::{ControlFlowPlan, MachineFlow, TransitionFlow};
 use omega_core::diagnostics::Diagnostic;
+use omega_state_graph::{RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget};
 
 pub(super) struct RuntimeFlowBuilder<'plan> {
     control_flow: &'plan ControlFlowPlan,

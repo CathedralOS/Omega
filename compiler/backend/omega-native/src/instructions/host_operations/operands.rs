@@ -102,7 +102,7 @@ pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
 fn find_data_object<'plan>(
     native_plan: &'plan NativePlan,
     host_call: &HostCall,
-) -> Option<&'plan crate::data::NativeDataObject> {
+) -> Option<&'plan omega_target_program::NativeDataObject> {
     native_plan
         .data
         .objects

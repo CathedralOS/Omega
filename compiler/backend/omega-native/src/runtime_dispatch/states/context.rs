@@ -1,5 +1,5 @@
-use crate::runtime_flow::{RuntimeEdge, RuntimeFlowPlan};
 use omega_control_flow::StateKey;
+use omega_state_graph::{RuntimeEdge, RuntimeFlowPlan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchContext {

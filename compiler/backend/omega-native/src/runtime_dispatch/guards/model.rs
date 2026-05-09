@@ -1,6 +1,6 @@
-use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_state_graph::RuntimeTransitionTarget;
 use omega_target_program::{StateGuardLowering, StateGuardOperator};
 use omega_typed_program::expression::Expression;
 

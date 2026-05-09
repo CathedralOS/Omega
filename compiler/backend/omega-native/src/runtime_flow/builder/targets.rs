@@ -1,7 +1,7 @@
 use super::RuntimeFlowBuilder;
-use crate::runtime_flow::{RuntimeState, RuntimeTransitionTarget};
 use omega_control_flow::{MachineFlow, PlannedTransitionTarget};
 use omega_core::diagnostics::Diagnostic;
+use omega_state_graph::{RuntimeState, RuntimeTransitionTarget};
 
 impl RuntimeFlowBuilder<'_> {
     pub(super) fn visit_target(

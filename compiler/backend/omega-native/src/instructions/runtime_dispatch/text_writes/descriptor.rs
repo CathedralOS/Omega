@@ -1,7 +1,7 @@
-use crate::data::NativeDataObject;
 use crate::instructions::storage_places::resolve_machine_owned_place;
 use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
+use omega_target_program::NativeDataObject;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 use omega_typed_program::expression::Expression;
 

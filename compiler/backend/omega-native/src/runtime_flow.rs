@@ -1,13 +1,10 @@
 mod builder;
-mod model;
 
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::diagnostics::Diagnostic;
+use omega_state_graph::{RuntimeFlowPlan, RuntimeState};
 
 use builder::RuntimeFlowBuilder;
-pub use model::{
-    RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
-};
 
 pub fn build_runtime_flow_plan(
     control_flow: &ControlFlowPlan,

@@ -2,8 +2,8 @@ use super::context::RuntimeDispatchLoopContext;
 use super::guards::dispatch_guard_comparison;
 use super::inputs::RuntimeDispatchLoopCaseInput;
 use super::model::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use crate::runtime_flow::RuntimeTransitionTarget;
 use omega_control_flow::StateKey;
+use omega_state_graph::RuntimeTransitionTarget;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchLoopCase {

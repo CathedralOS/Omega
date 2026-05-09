@@ -1,7 +1,7 @@
-use crate::data::{NativeDataObject, NativeDataPlan};
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
+use omega_target_program::{NativeDataObject, NativeDataPlan};
 
 pub(super) fn collect_host_call_data(
     host_calls: &HostCallPlan,

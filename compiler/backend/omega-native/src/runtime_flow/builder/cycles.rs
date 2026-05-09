@@ -1,5 +1,5 @@
 use super::RuntimeFlowBuilder;
-use crate::runtime_flow::{RuntimeCycle, RuntimeState, RuntimeTransitionTarget};
+use omega_state_graph::{RuntimeCycle, RuntimeState, RuntimeTransitionTarget};
 
 impl RuntimeFlowBuilder<'_> {
     pub(super) fn target_is_active(&self, target: &RuntimeTransitionTarget) -> bool {
