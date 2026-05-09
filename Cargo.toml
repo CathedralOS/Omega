@@ -31,6 +31,7 @@ members = [
     "compiler/backend/omega-runtime-bodies",
     "compiler/backend/omega-runtime-storage",
     "compiler/backend/omega-runtime-branching",
+    "compiler/backend/omega-runtime-dispatch-loop",
     "compiler/backend/omega-calling-conventions",
     "compiler/backend/omega-layout",
     "compiler/backend/omega-instruction-selection",

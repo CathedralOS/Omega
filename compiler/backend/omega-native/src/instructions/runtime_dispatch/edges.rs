@@ -1,5 +1,5 @@
-use crate::runtime_dispatch::loop_plan::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_control_flow::StateKey;
+use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 

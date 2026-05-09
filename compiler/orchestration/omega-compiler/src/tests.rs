@@ -1483,8 +1483,7 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
     );
     assert_eq!(prompt_edges.len(), 2);
     assert!(prompt_edges.iter().any(|edge| {
-        edge.action
-            == omega_native::runtime_dispatch::loop_plan::RuntimeDispatchLoopAction::EnterState
+        edge.action == omega_runtime_dispatch_loop::RuntimeDispatchLoopAction::EnterState
             && edge.target_dispatch_index != 0
     }));
     assert!(prompt_edges.iter().any(|edge| {
@@ -1826,12 +1825,12 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
 
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
-        omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { target_key, .. }
+        omega_runtime_bodies::RuntimeDispatchBodyOperationKind::InlineLeafStateCall { target_key, .. }
             if native_state_name(&native_plan, target_key) == "main.hello"
     )));
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
-        omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind::HostCall { ref platform_call }
+        omega_runtime_bodies::RuntimeDispatchBodyOperationKind::HostCall { ref platform_call }
             if platform_call == "console.write_line"
     )));
 }
@@ -2050,7 +2049,7 @@ fn plans_runtime_straight_line_branch_expansion() {
         operation.kind,
         omega_runtime_branching::RuntimeStraightLineBranchOperationKind::StateCall {
             target_key,
-            lowering: omega_native::state_calls::StateCallLowering::InlineLeaf,
+            lowering: omega_state_calls::StateCallLowering::InlineLeaf,
             ..
         } if native_state_name(&native_plan, target_key) == "main.apply_default"
     )));
@@ -2339,11 +2338,11 @@ fn plans_state_calls_separately_from_host_calls() {
     assert_eq!(prepare_arguments[0].parameter_name, "value");
     assert_eq!(
         prepare_arguments[0].kind,
-        omega_native::state_calls::StateCallArgumentKind::Value
+        omega_state_calls::StateCallArgumentKind::Value
     );
     assert_eq!(
         prepare_call.lowering,
-        omega_native::state_calls::StateCallLowering::InlineLeaf
+        omega_state_calls::StateCallLowering::InlineLeaf
     );
     assert_eq!(native_plan.host_calls.calls.len(), 1);
     assert!(
@@ -2445,7 +2444,7 @@ fn tracks_mutable_state_call_argument_bindings() {
     assert_eq!(arguments[0].parameter_name, "out_line");
     assert_eq!(
         arguments[0].kind,
-        omega_native::state_calls::StateCallArgumentKind::MutableAlias
+        omega_state_calls::StateCallArgumentKind::MutableAlias
     );
     assert!(arguments[0].required);
     let alias = native_plan
@@ -3591,7 +3590,7 @@ fn plans_state_storage_and_mutations() {
     );
     assert!(native_plan.runtime_storage.writes.iter().any(|(_, write)| {
         write.target.display_name() == "scratch"
-            && write.lowering == omega_native::state_storage::StateMutationLowering::NeedsLocalWrite
+            && write.lowering == omega_state_storage::StateMutationLowering::NeedsLocalWrite
     }));
     assert!(
         native_plan
@@ -3599,7 +3598,7 @@ fn plans_state_storage_and_mutations() {
             .mutations
             .iter()
             .any(|(_, mutation)| mutation.mutation_kind
-                == omega_native::state_storage::StateMutationKind::MachineOwned)
+                == omega_state_storage::StateMutationKind::MachineOwned)
     );
     assert!(
         native_plan
@@ -3607,7 +3606,7 @@ fn plans_state_storage_and_mutations() {
             .mutations
             .iter()
             .any(|(_, mutation)| mutation.lowering
-                == omega_native::state_storage::StateMutationLowering::AlreadyLowered)
+                == omega_state_storage::StateMutationLowering::AlreadyLowered)
     );
     assert!(
         native_plan
@@ -3615,7 +3614,7 @@ fn plans_state_storage_and_mutations() {
             .mutations
             .iter()
             .any(|(_, mutation)| mutation.lowering
-                == omega_native::state_storage::StateMutationLowering::NeedsLocalWrite)
+                == omega_state_storage::StateMutationLowering::NeedsLocalWrite)
     );
     assert!(
         emission_plan
@@ -3662,8 +3661,8 @@ fn plans_required_state_value_uses() {
 
     assert!(native_plan.state_values.values.iter().any(|(_, value)| {
         value.required
-            && value.kind == omega_native::state_values::StateValueKind::Binary
-            && value.role == omega_native::state_values::StateValueRole::TransitionGuard
+            && value.kind == omega_state_values::StateValueKind::Binary
+            && value.role == omega_state_values::StateValueRole::TransitionGuard
     }));
     assert!(
         native_plan

@@ -138,11 +138,16 @@ dependencies = [
  "omega-parser",
  "omega-platform-interface",
  "omega-proof",
+ "omega-runtime-bodies",
  "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
  "omega-runtime-text",
+ "omega-state-calls",
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-schedule",
+ "omega-state-storage",
+ "omega-state-values",
  "omega-target",
  "omega-target-program",
  "omega-typed-program",
@@ -199,6 +204,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
@@ -342,6 +348,7 @@ dependencies = [
  "omega-relocations",
  "omega-runtime-bodies",
  "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
@@ -372,6 +379,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-dispatch",
@@ -471,6 +479,19 @@ dependencies = [
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-storage",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-runtime-dispatch-loop"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-runtime-bodies",
+ "omega-state-dispatch",
+ "omega-state-graph",
+ "omega-state-guards",
  "omega-typed-program",
 ]
 

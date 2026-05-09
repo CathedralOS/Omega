@@ -1,4 +1,3 @@
-use crate::plan::NativePlan;
 use omega_control_flow::StateKey;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 
@@ -10,17 +9,17 @@ pub struct RuntimeDispatchLoopCaseInput {
     pub(super) edges: Vec<DispatchEdge>,
 }
 
-pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDispatchLoopCaseInput> {
-    native_plan
-        .state_dispatch
+pub fn runtime_dispatch_loop_inputs(
+    state_dispatch: &StateDispatchPlan,
+) -> Vec<RuntimeDispatchLoopCaseInput> {
+    state_dispatch
         .states
         .iter()
         .map(|(_, state)| RuntimeDispatchLoopCaseInput {
             key: state.key,
             dispatch_index: state.dispatch_index,
             label: state.label.clone(),
-            edges: native_plan
-                .state_dispatch
+            edges: state_dispatch
                 .edges
                 .span(state.edges)
                 .unwrap_or(&[])
@@ -29,7 +28,7 @@ pub fn runtime_dispatch_loop_inputs(native_plan: &NativePlan) -> Vec<RuntimeDisp
         .collect()
 }
 
-pub(super) fn dispatch_index_for_key(state_dispatch: &StateDispatchPlan, key: StateKey) -> u32 {
+pub(crate) fn dispatch_index_for_key(state_dispatch: &StateDispatchPlan, key: StateKey) -> u32 {
     state_dispatch
         .states
         .iter()

@@ -3,10 +3,6 @@ use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::instructions::build_instruction_plan;
-use crate::runtime_dispatch::loop_plan::{
-    RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
-    runtime_dispatch_loop_inputs,
-};
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
 use omega_core::diagnostics::Diagnostic;
@@ -21,6 +17,10 @@ use omega_runtime_bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
 use omega_runtime_branching::{RuntimeBranchingContext, build_runtime_branching_call_plan};
+use omega_runtime_dispatch_loop::{
+    RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
+    runtime_dispatch_loop_inputs,
+};
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
     runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
@@ -166,8 +166,14 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
             workers.clone(),
         )
     });
-    let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_native_plan(&native_plan));
-    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan);
+    let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
+        !native_plan.runtime_flow.cycles.is_empty(),
+        &native_plan.state_dispatch,
+        native_plan.entry_key,
+        native_plan.state_guards.clone(),
+        native_plan.runtime_bodies.clone(),
+    ));
+    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&native_plan.state_dispatch);
     let runtime_loop_workers = workers.clone();
     let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
         &native_plan.control_flow,

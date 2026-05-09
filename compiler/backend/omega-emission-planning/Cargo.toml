@@ -18,6 +18,7 @@ omega-native = { path = "../omega-native" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-runtime-branching = { path = "../omega-runtime-branching" }
+omega-runtime-dispatch-loop = { path = "../omega-runtime-dispatch-loop" }
 omega-runtime-storage = { path = "../omega-runtime-storage" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-calls = { path = "../omega-state-calls" }

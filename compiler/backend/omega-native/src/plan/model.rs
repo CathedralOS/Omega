@@ -1,4 +1,3 @@
-use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopPlan;
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
@@ -8,6 +7,7 @@ use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_runtime_branching::RuntimeBranchingCallPlan;
+use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_calls::{AliasFlowPlan, StateCallPlan};

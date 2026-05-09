@@ -4,7 +4,6 @@ mod guards;
 mod inputs;
 mod model;
 
-use crate::plan::NativePlan;
 use collection::build_runtime_dispatch_loop_case;
 pub use context::RuntimeDispatchLoopContext;
 pub use inputs::{RuntimeDispatchLoopCaseInput, runtime_dispatch_loop_inputs};
@@ -16,14 +15,13 @@ use omega_core::arena::Arena;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use std::sync::Arc;
 
-pub fn build_runtime_dispatch_loop_plan(native_plan: &NativePlan) -> RuntimeDispatchLoopPlan {
+pub fn build_runtime_dispatch_loop_plan(
+    context: RuntimeDispatchLoopContext,
+    case_inputs: Vec<RuntimeDispatchLoopCaseInput>,
+) -> RuntimeDispatchLoopPlan {
     let workers = WorkerPool::with_available_parallelism();
 
-    build_runtime_dispatch_loop_plan_with_workers(
-        Arc::new(RuntimeDispatchLoopContext::from_native_plan(native_plan)),
-        runtime_dispatch_loop_inputs(native_plan),
-        workers.handle(),
-    )
+    build_runtime_dispatch_loop_plan_with_workers(Arc::new(context), case_inputs, workers.handle())
 }
 
 pub fn build_runtime_dispatch_loop_plan_with_workers(
