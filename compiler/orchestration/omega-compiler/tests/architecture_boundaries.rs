@@ -59,6 +59,23 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
 }
 
 #[test]
+fn representation_crates_do_not_depend_on_native_bridge() {
+    let repo_root = repo_root();
+    let representations_root = repo_root.join("compiler/representations");
+
+    for cargo_toml in cargo_tomls_under(&representations_root) {
+        let contents = fs::read_to_string(&cargo_toml)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+
+        assert!(
+            !contents.contains("omega-native"),
+            "{} must not depend on omega-native; native is a temporary backend bridge, not a representation owner",
+            cargo_toml.display()
+        );
+    }
+}
+
+#[test]
 fn lowering_crates_do_not_depend_on_backend_crates() {
     let repo_root = repo_root();
     let lowering_root = repo_root.join("compiler/lowering");
