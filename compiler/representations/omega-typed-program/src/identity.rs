@@ -140,9 +140,7 @@ fn count_statement(statement: &Statement, counts: &mut IdentityStorageCounts) {
 fn count_declaration_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.declaration_names += 1;
 
-    if name.is_source_backed() {
-        counts.source_declaration_names += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_declaration_names += 1;
     }
 }
@@ -250,9 +248,7 @@ fn count_type_constraint(constraint: &TypeConstraint, counts: &mut IdentityStora
 fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.type_names += 1;
 
-    if name.is_source_backed() {
-        counts.source_type_names += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_type_names += 1;
     }
 }
@@ -260,9 +256,7 @@ fn count_type_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
 fn count_expression_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.expression_path_members += 1;
 
-    if name.is_source_backed() {
-        counts.source_expression_path_members += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_expression_path_members += 1;
     }
 }
@@ -270,9 +264,7 @@ fn count_expression_path_member(name: &ProgramName, counts: &mut IdentityStorage
 fn count_transition_path_member(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.transition_path_members += 1;
 
-    if name.is_source_backed() {
-        counts.source_transition_path_members += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_transition_path_members += 1;
     }
 }
@@ -280,9 +272,7 @@ fn count_transition_path_member(name: &ProgramName, counts: &mut IdentityStorage
 fn count_call_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.call_names += 1;
 
-    if name.is_source_backed() {
-        counts.source_call_names += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_call_names += 1;
     }
 }
@@ -290,9 +280,7 @@ fn count_call_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
 fn count_struct_literal_name(name: &ProgramName, counts: &mut IdentityStorageCounts) {
     counts.struct_literal_names += 1;
 
-    if name.is_source_backed() {
-        counts.source_struct_literal_names += 1;
-    } else {
+    if !name.as_str().is_empty() {
         counts.generated_struct_literal_names += 1;
     }
 }

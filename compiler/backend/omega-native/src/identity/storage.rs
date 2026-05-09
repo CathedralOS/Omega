@@ -45,7 +45,7 @@ impl NativeStringStorage {
     }
 
     pub(in crate::identity) fn count_program_name_identity(&mut self, name: &ProgramName) {
-        if !name.is_source_backed() && !name.as_str().is_empty() {
+        if !name.as_str().is_empty() {
             self.count_identity(name.as_str());
         }
     }

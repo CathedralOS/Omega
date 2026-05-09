@@ -1,24 +1,20 @@
 use std::fmt;
 use std::ops::Deref;
-use std::sync::Arc;
-
-use omega_core::source::SourceSpan;
 
 /// Transitional spelling wrapper.
 ///
-/// Resolved semantic/native identity should move to symbol handles; this type
-/// exists while source-shaped names are still being lowered out of the pipeline.
+/// This is deliberately owned text. Source-backed identifiers must not survive
+/// past frontend lowering; resolved semantic/native identity should move to
+/// symbol handles instead of carrying this type further down the pipeline.
 #[derive(Clone, Default, Eq)]
 pub struct ProgramName {
     text: ProgramNameText,
-    source_span: SourceSpan,
 }
 
 #[derive(Clone, Default, PartialEq, Eq)]
 enum ProgramNameText {
     #[default]
     Missing,
-    Source(Arc<str>),
     Generated(String),
 }
 
@@ -26,29 +22,14 @@ impl ProgramName {
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
             text: ProgramNameText::Generated(text.into()),
-            source_span: SourceSpan::default(),
-        }
-    }
-
-    pub fn source(source: Arc<str>, source_span: SourceSpan) -> Self {
-        Self {
-            text: ProgramNameText::Source(source),
-            source_span,
         }
     }
 
     pub fn as_str(&self) -> &str {
         match &self.text {
             ProgramNameText::Missing => "",
-            ProgramNameText::Source(source) => source
-                .get(self.source_span.span.start..self.source_span.span.end)
-                .unwrap_or(""),
             ProgramNameText::Generated(text) => text.as_str(),
         }
-    }
-
-    pub fn is_source_backed(&self) -> bool {
-        matches!(self.text, ProgramNameText::Source(_))
     }
 }
 

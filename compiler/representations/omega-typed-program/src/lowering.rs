@@ -1169,11 +1169,7 @@ fn lower_statement(
 }
 
 fn lower_name(identifier: &ast::identifier::Identifier) -> ProgramName {
-    if let Some((source, source_span)) = identifier.shared_source() {
-        ProgramName::source(source, source_span)
-    } else {
-        ProgramName::generated(identifier.as_str())
-    }
+    ProgramName::generated(identifier.as_str())
 }
 
 fn lower_transition_guard(
