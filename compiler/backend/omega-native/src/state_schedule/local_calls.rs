@@ -1,11 +1,12 @@
 use super::append_state_chain;
-use super::lookups::{machine_flow, state_flow};
+use super::lookups::{
+    machine_flow_by_symbol, state_flow_by_key, state_flow_by_machine_symbol_and_name,
+};
 use super::model::ScheduledState;
 use super::static_values::{argument_binding_place_name, resolve_static_value, set_static_value};
-use crate::control_flow::{MachineFlow, OperationKind, StateFlow};
+use crate::control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
     native_plan: &NativePlan,
@@ -47,30 +48,30 @@ pub(super) fn append_local_state_calls(
             continue;
         }
 
-        let target_machine = resolve_state_call_machine(native_plan, machine, receiver.as_deref())
-            .ok_or_else(|| {
-                format!(
-                    "{}.{} statement {} calls unknown state receiver `{}`",
-                    machine.name,
-                    state.name,
-                    operation.statement_index,
-                    receiver.as_deref().unwrap_or("self")
-                )
-            })?;
+        let target_machine =
+            resolve_state_call_machine_flow(native_plan, machine, receiver.as_deref()).ok_or_else(
+                || {
+                    format!(
+                        "{}.{} statement {} calls unknown state receiver `{}`",
+                        machine.name,
+                        state.name,
+                        operation.statement_index,
+                        receiver.as_deref().unwrap_or("self")
+                    )
+                },
+            )?;
 
         let saved_alias_count = aliases.len();
         let saved_visited_count = visited.len();
-        bind_state_arguments(
+        let target_state_flow =
+            state_flow_by_machine_symbol_and_name(native_plan, target_machine.symbol, target)?;
+        bind_state_arguments_by_key(
             native_plan,
-            target_machine.as_str(),
-            target.as_str(),
+            target_state_flow.key,
             arguments,
             aliases,
             values,
         )?;
-
-        let target_machine_flow = machine_flow(native_plan, target_machine.as_str())?;
-        let target_state_flow = state_flow(native_plan, target_machine_flow, target)?;
         append_state_chain(
             native_plan,
             target_state_flow.key,
@@ -86,40 +87,38 @@ pub(super) fn append_local_state_calls(
     Ok(())
 }
 
-fn resolve_state_call_machine(
-    native_plan: &NativePlan,
-    machine: &MachineFlow,
+fn resolve_state_call_machine_flow<'plan>(
+    native_plan: &'plan NativePlan,
+    machine: &'plan MachineFlow,
     receiver: Option<&str>,
-) -> Option<ProgramName> {
+) -> Option<&'plan MachineFlow> {
     let Some(receiver) = receiver else {
-        return Some(machine.name.clone());
+        return Some(machine);
     };
 
     machine
         .contains
         .iter()
         .find(|contained| contained.name == receiver)
-        .map(|contained| contained.type_name.clone())
+        .and_then(|contained| machine_flow_by_symbol(native_plan, contained.type_symbol).ok())
         .or_else(|| {
             native_plan
                 .control_flow
                 .machines
                 .iter()
                 .find(|(_, candidate)| candidate.name == receiver)
-                .map(|(_, candidate)| candidate.name.clone())
+                .map(|(_, candidate)| candidate)
         })
 }
 
-pub(super) fn bind_state_arguments(
+pub(super) fn bind_state_arguments_by_key(
     native_plan: &NativePlan,
-    machine_name: &str,
-    state_name: &str,
+    state_key: StateKey,
     arguments: &[Expression],
     aliases: &mut Vec<(String, String)>,
     values: &mut Vec<(String, String)>,
 ) -> Result<(), String> {
-    let machine = machine_flow(native_plan, machine_name)?;
-    let state = state_flow(native_plan, machine, state_name)?;
+    let state = state_flow_by_key(native_plan, state_key)?;
 
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
         let canonical_argument = argument_binding_place_name(argument, aliases);

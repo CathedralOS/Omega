@@ -1,6 +1,8 @@
 use super::append_state_chain;
-use super::local_calls::bind_state_arguments;
-use super::lookups::{machine_flow, state_flow, validate_state_index};
+use super::local_calls::bind_state_arguments_by_key;
+use super::lookups::{
+    machine_flow_by_symbol, state_flow_by_machine_symbol_and_name, validate_state_index,
+};
 use super::model::ScheduledState;
 use crate::control_flow::{MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow};
 use crate::plan::NativePlan;
@@ -19,11 +21,11 @@ pub(super) fn next_state(
         PlannedTransitionTarget::State {
             index,
             key,
-            name,
+            name: _,
             arguments,
         } => {
             validate_state_index(native_plan, machine, *index, &machine.name, &state.name)?;
-            bind_state_arguments(native_plan, &machine.name, name, arguments, aliases, values)?;
+            bind_state_arguments_by_key(native_plan, *key, arguments, aliases, values)?;
             Ok(Some(ScheduledState { key: *key }))
         }
         PlannedTransitionTarget::Terminal => Ok(None),
@@ -40,7 +42,7 @@ pub(super) fn next_state(
                 .contains
                 .iter()
                 .find(|contained| contained.name == *receiver)
-                .map(|contained| contained.type_name.as_str())
+                .map(|contained| contained.type_symbol)
                 .ok_or_else(|| {
                     format!(
                         "{}.{} transitions into unknown nested machine `{receiver}`",
@@ -50,16 +52,19 @@ pub(super) fn next_state(
 
             let saved_alias_count = aliases.len();
             let saved_visited_count = visited.len();
-            bind_state_arguments(
+            let nested_machine_flow = machine_flow_by_symbol(native_plan, nested_machine_name)?;
+            let nested_state_flow = state_flow_by_machine_symbol_and_name(
                 native_plan,
-                nested_machine_name,
+                nested_machine_flow.symbol,
                 nested_state,
+            )?;
+            bind_state_arguments_by_key(
+                native_plan,
+                nested_state_flow.key,
                 arguments,
                 aliases,
                 values,
             )?;
-            let nested_machine_flow = machine_flow(native_plan, nested_machine_name)?;
-            let nested_state_flow = state_flow(native_plan, nested_machine_flow, nested_state)?;
             append_state_chain(
                 native_plan,
                 nested_state_flow.key,
@@ -75,18 +80,11 @@ pub(super) fn next_state(
                 Some(PlannedTransitionTarget::State {
                     index,
                     key,
-                    name,
+                    name: _,
                     arguments,
                 }) => {
                     validate_state_index(native_plan, machine, *index, &machine.name, &state.name)?;
-                    bind_state_arguments(
-                        native_plan,
-                        &machine.name,
-                        name,
-                        arguments,
-                        aliases,
-                        values,
-                    )?;
+                    bind_state_arguments_by_key(native_plan, *key, arguments, aliases, values)?;
                     Ok(Some(ScheduledState { key: *key }))
                 }
                 Some(PlannedTransitionTarget::Terminal) | None => Ok(None),
