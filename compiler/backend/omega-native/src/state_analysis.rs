@@ -22,20 +22,6 @@ impl StateAnalysisContext {
         }
     }
 
-    pub fn state_is_required(&self, machine_name: &str, state_name: &str) -> bool {
-        let state_key = self.state_key(machine_name, state_name);
-
-        self.runtime_flow
-            .states
-            .iter()
-            .any(|(_, state)| Some(state.key) == state_key)
-            || self.state_calls.calls.iter().any(|(_, state_call)| {
-                state_call.required
-                    && (Some(state_call.source_key) == state_key
-                        || Some(state_call.target_key) == state_key)
-            })
-    }
-
     pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states
@@ -45,19 +31,6 @@ impl StateAnalysisContext {
                 state_call.required
                     && (state_call.source_key == state_key || state_call.target_key == state_key)
             })
-    }
-
-    pub fn state_mutation_is_already_lowered(
-        &self,
-        machine_name: &str,
-        state_name: &str,
-        statement_index: usize,
-    ) -> bool {
-        let Some(state_key) = self.state_key(machine_name, state_name) else {
-            return false;
-        };
-
-        self.state_mutation_is_already_lowered_by_key(state_key, statement_index)
     }
 
     pub fn state_mutation_is_already_lowered_by_key(
@@ -96,33 +69,11 @@ impl StateAnalysisContext {
         })
     }
 
-    pub fn runtime_state_is_reachable(&self, machine_name: &str, state_name: &str) -> bool {
-        let state_key = self.state_key(machine_name, state_name);
-
-        self.runtime_flow
-            .states
-            .iter()
-            .any(|(_, state)| Some(state.key) == state_key)
-    }
-
     pub fn runtime_state_is_reachable_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states
             .iter()
             .any(|(_, state)| state.key == state_key)
-    }
-
-    pub fn state_statement_has_host_call(
-        &self,
-        machine_name: &str,
-        state_name: &str,
-        statement_index: usize,
-    ) -> bool {
-        let Some(source_key) = self.state_key(machine_name, state_name) else {
-            return false;
-        };
-
-        self.state_statement_has_host_call_by_key(source_key, statement_index)
     }
 
     pub fn state_statement_has_host_call_by_key(
@@ -133,10 +84,5 @@ impl StateAnalysisContext {
         self.host_calls.calls.iter().any(|(_, host_call)| {
             host_call.source_key == source_key && host_call.statement_index == statement_index
         })
-    }
-
-    pub fn state_key(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
-        self.control_flow
-            .state_key_by_names(machine_name, state_name)
     }
 }

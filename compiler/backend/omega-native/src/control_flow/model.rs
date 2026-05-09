@@ -13,20 +13,6 @@ pub struct ControlFlowPlan {
 }
 
 impl ControlFlowPlan {
-    pub fn state_key_by_names(&self, machine_name: &str, state_name: &str) -> Option<StateKey> {
-        let machine = self
-            .machines
-            .iter()
-            .find(|(_, machine)| machine.name == machine_name)
-            .map(|(_, machine)| machine)?;
-
-        self.states
-            .span(machine.states)?
-            .iter()
-            .find(|state| state.name == state_name)
-            .map(|state| state.key)
-    }
-
     pub fn state_key_by_symbols(
         &self,
         machine_symbol: SymbolHandle,
