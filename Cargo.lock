@@ -158,6 +158,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-backend-report"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-backend-plan",
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-core",
+ "omega-layout",
+ "omega-machine-program",
+ "omega-object",
+ "omega-platform-interface",
+ "omega-runtime-bodies",
+ "omega-runtime-branching",
+ "omega-runtime-dispatch-loop",
+ "omega-runtime-storage",
+ "omega-runtime-text",
+ "omega-state-dispatch",
+ "omega-state-graph",
+ "omega-state-guards",
+ "omega-state-schedule",
+ "omega-target-program",
+ "omega-typed-program",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -182,6 +208,7 @@ dependencies = [
  "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",
+ "omega-backend-report",
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
@@ -194,7 +221,6 @@ dependencies = [
  "omega-lexer",
  "omega-machine-program",
  "omega-names",
- "omega-native-report",
  "omega-object",
  "omega-parser",
  "omega-platform-interface",
@@ -402,32 +428,6 @@ version = "0.1.0"
 dependencies = [
  "omega-abstract-syntax-tree",
  "omega-core",
-]
-
-[[package]]
-name = "omega-native-report"
-version = "0.1.0"
-dependencies = [
- "omega-artifacts",
- "omega-backend-plan",
- "omega-calling-conventions",
- "omega-control-flow",
- "omega-core",
- "omega-layout",
- "omega-machine-program",
- "omega-object",
- "omega-platform-interface",
- "omega-runtime-bodies",
- "omega-runtime-branching",
- "omega-runtime-dispatch-loop",
- "omega-runtime-storage",
- "omega-runtime-text",
- "omega-state-dispatch",
- "omega-state-graph",
- "omega-state-guards",
- "omega-state-schedule",
- "omega-target-program",
- "omega-typed-program",
 ]
 
 [[package]]

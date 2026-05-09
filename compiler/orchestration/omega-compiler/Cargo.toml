@@ -25,7 +25,7 @@ omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
-omega-native-report = { path = "../../backend/omega-native-report" }
+omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-object = { path = "../../backend/object/omega-object" }
 omega-parser = { path = "../../frontend/omega-parser" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }

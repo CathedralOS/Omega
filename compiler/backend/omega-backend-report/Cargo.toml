@@ -1,11 +1,11 @@
 [package]
-name = "omega-native-report"
+name = "omega-backend-report"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_native_report"
+name = "omega_backend_report"
 path = "src/lib.rs"
 
 [dependencies]
