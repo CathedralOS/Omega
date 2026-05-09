@@ -33,8 +33,12 @@ fn collect_runtime_text_writes(native_plan: &NativePlan, plan: &mut RuntimeTextP
 
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
-            machine: mutation.machine.clone(),
-            state: mutation.state.clone(),
+            machine: native_plan
+                .control_flow
+                .state_machine_name_by_key_cloned(mutation.source_key),
+            state: native_plan
+                .control_flow
+                .state_name_by_key_cloned(mutation.source_key),
             statement_index: mutation.statement_index,
             target: mutation.target.clone(),
             value: mutation.value.clone(),

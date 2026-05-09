@@ -7,14 +7,10 @@ pub(in crate::identity) fn count_state_storage_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, local) in native_plan.state_storage.locals.iter() {
-        storage.count_program_name_identity(&local.machine);
-        storage.count_program_name_identity(&local.state);
         storage.count_program_name_identity(&local.name);
         storage.count_identity(&local.type_name);
     }
     for (_, mutation) in native_plan.state_storage.mutations.iter() {
-        storage.count_program_name_identity(&mutation.machine);
-        storage.count_program_name_identity(&mutation.state);
         count_expression_strings(&mutation.target, storage);
         count_expression_strings(&mutation.value, storage);
     }

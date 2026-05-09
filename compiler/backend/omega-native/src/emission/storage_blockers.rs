@@ -24,11 +24,12 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, local.source_key);
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "{}.{} statement {} local `{}`: {} needs stack/local storage lowering",
-                local.machine, local.state, local.statement_index, local.name, local.type_name
+                "{} statement {} local `{}`: {} needs stack/local storage lowering",
+                source_name, local.statement_index, local.name, local.type_name
             ),
         ));
     }
@@ -42,12 +43,12 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, mutation.source_key);
         blockers.insert(blocker(
             "state mutation",
             &format!(
-                "{}.{} statement {} {:?}/{:?} `{}` = `{}` needs mutation lowering",
-                mutation.machine,
-                mutation.state,
+                "{} statement {} {:?}/{:?} `{}` = `{}` needs mutation lowering",
+                source_name,
                 mutation.statement_index,
                 mutation.mutation_kind,
                 mutation.lowering,

@@ -818,14 +818,10 @@ impl ArtifactWriter {
             native_plan.state_storage.locals.len()
         ));
         for (_, local) in native_plan.state_storage.locals.iter() {
+            let source_name = native_state_name(native_plan, local.source_key);
             output.push_str(&format!(
-                "- {}.{} statement {} local `{}`: {} required {}\n",
-                local.machine,
-                local.state,
-                local.statement_index,
-                local.name,
-                local.type_name,
-                local.required
+                "- {} statement {} local `{}`: {} required {}\n",
+                source_name, local.statement_index, local.name, local.type_name, local.required
             ));
         }
         output.push_str(&format!(
@@ -833,10 +829,10 @@ impl ArtifactWriter {
             native_plan.state_storage.mutations.len()
         ));
         for (_, mutation) in native_plan.state_storage.mutations.iter() {
+            let source_name = native_state_name(native_plan, mutation.source_key);
             output.push_str(&format!(
-                "- {}.{} statement {} {:?}/{:?}: `{}` = `{}` required {}\n",
-                mutation.machine,
-                mutation.state,
+                "- {} statement {} {:?}/{:?}: `{}` = `{}` required {}\n",
+                source_name,
                 mutation.statement_index,
                 mutation.mutation_kind,
                 mutation.lowering,

@@ -74,8 +74,6 @@ fn build_machine_state_storage_plan(
                 Statement::LocalData(local_data) => {
                     plan.locals.insert(StateLocalStorage {
                         source_key,
-                        machine: machine.name.clone(),
-                        state: state.name.clone(),
                         statement_index,
                         name: local_data.name.clone(),
                         type_name: local_data.type_reference.display_name(),
@@ -87,8 +85,6 @@ fn build_machine_state_storage_plan(
                         mutation_kind(program, &machine.name, state, &assignment.target);
                     plan.mutations.insert(StateMutation {
                         source_key,
-                        machine: machine.name.clone(),
-                        state: state.name.clone(),
                         statement_index,
                         target: assignment.target.clone(),
                         value: assignment.value.clone(),

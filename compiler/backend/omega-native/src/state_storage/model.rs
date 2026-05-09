@@ -12,8 +12,6 @@ pub struct StateStoragePlan {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct StateLocalStorage {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub name: ProgramName,
     pub type_name: String,
@@ -23,8 +21,6 @@ pub struct StateLocalStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateMutation {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub target: Expression,
     pub value: Expression,
@@ -37,8 +33,6 @@ impl Default for StateMutation {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             target: Expression::Integer(0),
             value: Expression::Integer(0),
