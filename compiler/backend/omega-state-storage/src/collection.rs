@@ -1,7 +1,6 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
-use crate::plan::NativePlan;
-use crate::state_analysis::StateAnalysisContext;
-use crate::state_storage::mutation_kind::{mutation_kind, mutation_lowering};
+use crate::StateStoragePlanningContext;
+use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
@@ -11,19 +10,22 @@ use omega_typed_program::statement::Statement;
 use omega_typed_program::types::{PrimitiveType, TypeReference};
 use std::sync::Arc;
 
-pub fn build_state_storage_plan(program: &Program, native_plan: &NativePlan) -> StateStoragePlan {
+pub fn build_state_storage_plan(
+    program: &Program,
+    context: StateStoragePlanningContext,
+) -> StateStoragePlan {
     let workers = WorkerPool::with_available_parallelism();
 
     build_state_storage_plan_with_workers(
         Arc::new(program.clone()),
-        Arc::new(StateAnalysisContext::from_native_plan(native_plan)),
+        Arc::new(context),
         workers.handle(),
     )
 }
 
 pub fn build_state_storage_plan_with_workers(
     program: Arc<Program>,
-    context: Arc<StateAnalysisContext>,
+    context: Arc<StateStoragePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateStoragePlan {
     if program.machines.is_empty() {
@@ -57,7 +59,7 @@ pub fn build_state_storage_plan_with_workers(
 }
 
 fn build_machine_state_storage_plan(
-    context: &StateAnalysisContext,
+    context: &StateStoragePlanningContext,
     machine: &Machine,
 ) -> StateStoragePlan {
     let mut plan = StateStoragePlan::default();

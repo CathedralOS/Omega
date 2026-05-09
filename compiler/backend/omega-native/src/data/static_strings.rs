@@ -1,5 +1,5 @@
-use crate::state_storage::StateStoragePlan;
 use omega_control_flow::StateKey;
+use omega_state_storage::StateStoragePlan;
 use omega_target_program::{NativeDataObject, NativeDataPlan};
 use omega_typed_program::expression::Expression;
 

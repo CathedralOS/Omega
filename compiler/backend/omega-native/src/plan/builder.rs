@@ -23,7 +23,6 @@ use crate::state_dispatch::{
     StateDispatchContext, build_state_dispatch_plan_with_workers, runtime_state_inputs,
 };
 use crate::state_guards::build_state_guard_plan;
-use crate::state_storage::build_state_storage_plan_with_workers;
 use crate::state_values::build_state_value_plan_with_workers;
 use omega_calling_conventions::build_host_abi_plan;
 use omega_control_flow::ControlFlowPlan;
@@ -37,6 +36,7 @@ use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_state_calls::{
     StateCallPlanningContext, build_alias_flow_plan, build_state_call_plan_with_workers,
 };
+use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
 use omega_typed_program::Program;
@@ -119,7 +119,11 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
     let state_analysis_context = Arc::new(StateAnalysisContext::from_native_plan(&native_plan));
     let state_storage_program = Arc::clone(&program);
     let state_values_program = Arc::clone(&program);
-    let state_storage_context = Arc::clone(&state_analysis_context);
+    let state_storage_context = Arc::new(StateStoragePlanningContext {
+        control_flow: native_plan.control_flow.clone(),
+        runtime_flow: native_plan.runtime_flow.clone(),
+        state_calls: native_plan.state_calls.clone(),
+    });
     let state_values_context = Arc::clone(&state_analysis_context);
     let state_storage_workers = workers.clone();
     let state_values_workers = workers.clone();

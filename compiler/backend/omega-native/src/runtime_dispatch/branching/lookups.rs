@@ -22,7 +22,7 @@ pub(super) fn mutation_for_statement(
     native_plan: &NativePlan,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&crate::state_storage::StateMutation> {
+) -> Option<&omega_state_storage::StateMutation> {
     native_plan
         .state_storage
         .mutations

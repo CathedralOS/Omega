@@ -1,9 +1,9 @@
 use crate::plan::NativePlan;
 use crate::runtime_storage::RuntimeStorageWrite;
 use crate::runtime_text::places::expression_place_eq;
-use crate::state_storage::StateMutationLowering;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_state_storage::StateMutationLowering;
 
 use super::runtime_text_blockers::{
     runtime_text_write_for_statement, runtime_text_write_is_planned,

@@ -1,0 +1,16 @@
+[package]
+name = "omega-state-storage"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_state_storage"
+path = "src/lib.rs"
+
+[dependencies]
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-state-calls = { path = "../omega-state-calls" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-typed-program = { path = "../../representations/omega-typed-program" }

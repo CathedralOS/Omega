@@ -1,7 +1,7 @@
 use crate::plan::NativePlan;
-use crate::state_storage::StateStoragePlan;
 use omega_control_flow::ControlFlowPlan;
 use omega_layout::LayoutPlan;
+use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

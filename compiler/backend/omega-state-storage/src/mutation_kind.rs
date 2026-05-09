@@ -1,5 +1,5 @@
 use super::{StateMutationKind, StateMutationLowering};
-use crate::state_analysis::StateAnalysisContext;
+use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{Expression, NamePath};
@@ -7,7 +7,7 @@ use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Statement;
 
 pub(super) fn mutation_lowering(
-    context: &StateAnalysisContext,
+    context: &StateStoragePlanningContext,
     source_key: StateKey,
     statement_index: usize,
     mutation_kind: StateMutationKind,
