@@ -8,7 +8,8 @@ use omega_typed_program::expression::Expression;
 #[allow(clippy::too_many_arguments)]
 pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     native_plan: &NativePlan,
-    source_key: StateKey,
+    literal_source_key: StateKey,
+    target_source_key: StateKey,
     _source_machine: &str,
     statement_index: usize,
     resolved_target: &Expression,
@@ -18,7 +19,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
     let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
         native_plan.entry_key.machine,
-        source_key.machine,
+        target_source_key.machine,
         resolved_target,
     ) else {
         return;
@@ -27,7 +28,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
         return;
     }
     let Some(data_object) =
-        string_literal_data_object(native_plan, source_key, statement_index, value)
+        string_literal_data_object(native_plan, literal_source_key, statement_index, value)
     else {
         return;
     };
@@ -38,7 +39,7 @@ pub(in crate::instructions) fn select_runtime_string_descriptor_write(
             data_symbol: data_object.symbol.clone(),
             byte_length: value.len(),
         },
-        source_key,
+        source_key: literal_source_key,
         source_statement: statement_index,
     });
 }

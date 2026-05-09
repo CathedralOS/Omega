@@ -42,6 +42,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
         native_plan,
         dispatch_index,
         operation_key,
+        operation_key,
         operation_machine,
         operation_state,
         resolved_target,

@@ -4,8 +4,7 @@ use crate::runtime_dispatch::bodies::{
 };
 
 use super::super::bindings::{
-    RuntimeAliasBinding, resolve_runtime_alias_expression, set_runtime_alias,
-    strip_mutable_expression,
+    RuntimeAliasBinding, resolve_runtime_alias_binding, set_runtime_alias, strip_mutable_expression,
 };
 use super::super::lookups::state_call_for_statement;
 
@@ -38,17 +37,16 @@ pub(super) fn bind_runtime_operation_aliases(
             continue;
         }
 
-        let expression = strip_mutable_expression(resolve_runtime_alias_expression(
-            &argument.expression,
-            state_call.source_key,
-            aliases,
-        ));
+        let resolved_expression =
+            resolve_runtime_alias_binding(&argument.expression, state_call.source_key, aliases);
+        let expression = strip_mutable_expression(resolved_expression.expression);
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {
                 source_key: state_call.target_key,
                 parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
+                expression_source_key: resolved_expression.source_key,
                 expression,
             },
         );

@@ -8,7 +8,8 @@ use super::super::super::storage_places::resolve_runtime_storage_place;
 pub(in crate::instructions::runtime_dispatch) fn runtime_storage_copy(
     native_plan: &NativePlan,
     dispatch_index: u32,
-    source_key: StateKey,
+    target_source_key: StateKey,
+    value_source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     target: &Expression,
@@ -17,7 +18,7 @@ pub(in crate::instructions::runtime_dispatch) fn runtime_storage_copy(
     let target_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
-        source_key,
+        target_source_key,
         source_machine,
         source_state,
         target,
@@ -25,7 +26,7 @@ pub(in crate::instructions::runtime_dispatch) fn runtime_storage_copy(
     let source_place = resolve_runtime_storage_place(
         native_plan,
         dispatch_index,
-        source_key,
+        value_source_key,
         source_machine,
         source_state,
         value,

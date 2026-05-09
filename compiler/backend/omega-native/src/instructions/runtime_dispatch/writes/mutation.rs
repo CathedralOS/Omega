@@ -3,7 +3,7 @@ use crate::plan::NativePlan;
 use omega_typed_program::expression::Expression;
 
 use super::super::super::bindings::{
-    RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_expression,
+    RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
     strip_mutable_expression,
 };
 use super::super::super::model::{SelectedInstruction, SelectedInstructionKind};
@@ -30,16 +30,47 @@ pub(super) fn select_runtime_mutation_writes(
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let resolved_target = resolve_runtime_alias_expression(target, source_key, aliases);
+    let resolved_target = resolve_runtime_alias_binding(target, source_key, aliases);
+    select_runtime_resolved_target_mutation_writes(
+        native_plan,
+        dispatch_index,
+        source_key,
+        resolved_target.source_key,
+        source_machine,
+        source_state,
+        statement_index,
+        &resolved_target.expression,
+        value,
+        aliases,
+        static_values,
+        selected_instructions,
+    );
+}
 
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_target_mutation_writes(
+    native_plan: &NativePlan,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    statement_index: usize,
+    resolved_target: &Expression,
+    value: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    static_values: &mut RuntimeStaticValues,
+    selected_instructions: &mut Vec<SelectedInstruction>,
+) {
     if let Expression::StructLiteral(struct_literal) = value {
         for field in &struct_literal.fields {
             let field_target =
-                append_place_suffix(&resolved_target, std::slice::from_ref(&field.name));
-            select_runtime_mutation_writes(
+                append_place_suffix(resolved_target, std::slice::from_ref(&field.name));
+            select_runtime_resolved_target_mutation_writes(
                 native_plan,
                 dispatch_index,
-                source_key,
+                operation_source_key,
+                target_source_key,
                 source_machine,
                 source_state,
                 statement_index,
@@ -56,10 +87,11 @@ pub(super) fn select_runtime_mutation_writes(
     if let Expression::String(value) = value {
         select_runtime_string_descriptor_write(
             native_plan,
-            source_key,
+            operation_source_key,
+            target_source_key,
             source_machine,
             statement_index,
-            &resolved_target,
+            resolved_target,
             value,
             selected_instructions,
         );
@@ -69,36 +101,37 @@ pub(super) fn select_runtime_mutation_writes(
     if let Some(instructions) = runtime_text_builder_write(
         native_plan,
         dispatch_index,
-        source_key,
+        operation_source_key,
         source_machine,
         source_state,
         statement_index,
-        &resolved_target,
+        resolved_target,
         aliases,
     ) {
         for kind in instructions {
             selected_instructions.push(SelectedInstruction {
                 kind,
-                source_key,
+                source_key: operation_source_key,
                 source_statement: statement_index,
             });
         }
         return;
     }
 
-    let resolved_value = resolve_runtime_alias_expression(value, source_key, aliases);
+    let resolved_value = resolve_runtime_alias_binding(value, operation_source_key, aliases);
     if let Some(copy) = runtime_storage_copy(
         native_plan,
         dispatch_index,
-        source_key,
+        target_source_key,
+        resolved_value.source_key,
         source_machine,
         source_state,
-        &resolved_target,
-        &resolved_value,
+        resolved_target,
+        &resolved_value.expression,
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: copy,
-            source_key,
+            source_key: operation_source_key,
             source_statement: statement_index,
         });
         return;
@@ -106,7 +139,7 @@ pub(super) fn select_runtime_mutation_writes(
 
     let Some(value) = resolve_runtime_static_integer_value(
         native_plan,
-        source_key,
+        operation_source_key,
         value,
         aliases,
         static_values,
@@ -116,8 +149,8 @@ pub(super) fn select_runtime_mutation_writes(
     let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &native_plan.layouts,
         native_plan.entry_key.machine,
-        source_key.machine,
-        &resolved_target,
+        target_source_key.machine,
+        resolved_target,
     ) else {
         return;
     };
@@ -133,7 +166,7 @@ pub(super) fn select_runtime_mutation_writes(
             byte_size,
             value,
         },
-        source_key,
+        source_key: operation_source_key,
         source_statement: statement_index,
     });
 }

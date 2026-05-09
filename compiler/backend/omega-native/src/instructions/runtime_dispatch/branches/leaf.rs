@@ -173,6 +173,7 @@ fn runtime_leaf_storage_copy(
         native_plan,
         expansion.dispatch_index,
         expansion.source_key,
+        expansion.source_key,
         operation_machine,
         operation_state,
         target,
