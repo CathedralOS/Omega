@@ -1,6 +1,7 @@
 use crate::control_flow::StateKey;
 use crate::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -15,7 +16,9 @@ pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_symbol: SymbolHandle,
     pub type_name: String,
     pub byte_offset: usize,
     pub byte_size: usize,

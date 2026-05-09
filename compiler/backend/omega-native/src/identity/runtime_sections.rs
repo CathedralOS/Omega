@@ -40,7 +40,9 @@ pub(in crate::identity) fn count_runtime_body_strings(
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
             | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
             | RuntimeDispatchBodyOperationKind::StateCall { .. } => {}
-            RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
+            RuntimeDispatchBodyOperationKind::LocalStorage {
+                name, type_name, ..
+            } => {
                 storage.count_program_name_identity(name);
                 storage.count_identity(type_name);
             }

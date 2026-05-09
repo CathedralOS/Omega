@@ -63,8 +63,10 @@ pub(super) fn resolve_runtime_storage_place(
         })
         .map(|(_, slot)| slot)?;
     let root_field = FieldLayout {
+        symbol: slot.symbol,
         name: slot.name.clone(),
         offset: slot.byte_offset,
+        type_symbol: slot.type_symbol,
         type_name: slot.type_name.clone(),
         layout: TypeLayout {
             size: slot.byte_size,

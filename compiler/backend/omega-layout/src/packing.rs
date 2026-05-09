@@ -1,9 +1,12 @@
 use crate::{FieldLayout, TypeLayout};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug)]
 pub(super) struct PlannedField {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_symbol: SymbolHandle,
     pub type_name: String,
     pub layout: TypeLayout,
 }
@@ -17,8 +20,10 @@ pub(super) fn pack_fields(fields: Vec<PlannedField>) -> (Vec<FieldLayout>, TypeL
         offset = align_to(offset, field.layout.alignment);
         max_alignment = max_alignment.max(field.layout.alignment);
         packed_fields.push(FieldLayout {
+            symbol: field.symbol,
             name: field.name,
             offset,
+            type_symbol: field.type_symbol,
             type_name: field.type_name,
             layout: field.layout,
         });

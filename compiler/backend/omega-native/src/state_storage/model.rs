@@ -1,5 +1,6 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
@@ -13,7 +14,9 @@ pub struct StateStoragePlan {
 pub struct StateLocalStorage {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_symbol: SymbolHandle,
     pub type_name: String,
     pub required: bool,
 }

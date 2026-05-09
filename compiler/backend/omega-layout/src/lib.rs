@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::name::ProgramName;
 
 mod builder;
@@ -24,8 +25,10 @@ impl Default for TypeLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldLayout {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub offset: usize,
+    pub type_symbol: SymbolHandle,
     pub type_name: String,
     pub layout: TypeLayout,
 }
@@ -33,8 +36,10 @@ pub struct FieldLayout {
 impl Default for FieldLayout {
     fn default() -> Self {
         Self {
+            symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             offset: 0,
+            type_symbol: SymbolHandle::invalid(),
             type_name: String::new(),
             layout: TypeLayout::default(),
         }
@@ -57,6 +62,7 @@ impl Default for DataShape {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataLayout {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub shape: DataShape,
     pub layout: TypeLayout,
@@ -65,6 +71,7 @@ pub struct DataLayout {
 impl Default for DataLayout {
     fn default() -> Self {
         Self {
+            symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             shape: DataShape::default(),
             layout: TypeLayout::default(),
@@ -74,6 +81,7 @@ impl Default for DataLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineLayout {
+    pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub fields: HandleSpan<FieldLayout>,
     pub layout: TypeLayout,
@@ -82,6 +90,7 @@ pub struct MachineLayout {
 impl Default for MachineLayout {
     fn default() -> Self {
         Self {
+            symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             fields: HandleSpan::empty(),
             layout: TypeLayout::default(),

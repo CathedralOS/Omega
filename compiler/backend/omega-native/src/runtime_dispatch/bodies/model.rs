@@ -2,6 +2,7 @@ use crate::control_flow::StateKey;
 use crate::state_calls::StateCallLowering;
 use crate::state_storage::{StateMutationKind, StateMutationLowering};
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -64,7 +65,9 @@ pub enum RuntimeDispatchBodyOperationKind {
         lowering: StateCallLowering,
     },
     LocalStorage {
+        symbol: SymbolHandle,
         name: ProgramName,
+        type_symbol: SymbolHandle,
         type_name: String,
     },
     Mutation {

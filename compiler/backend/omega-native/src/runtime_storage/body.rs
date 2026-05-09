@@ -14,7 +14,12 @@ pub(super) fn build_runtime_storage_body_plan(
 
     for operation in &body_input.operations {
         match &operation.kind {
-            RuntimeDispatchBodyOperationKind::LocalStorage { name, type_name } => {
+            RuntimeDispatchBodyOperationKind::LocalStorage {
+                symbol,
+                name,
+                type_symbol,
+                type_name,
+            } => {
                 let layout = layout_for_type_name(context, type_name);
                 let byte_offset = align_to(next_frame_offset, layout.alignment);
                 next_frame_offset = byte_offset
@@ -25,7 +30,9 @@ pub(super) fn build_runtime_storage_body_plan(
                     dispatch_index: body_input.body.dispatch_index,
                     source_key: operation.source_key,
                     statement_index: operation.statement_index,
+                    symbol: *symbol,
                     name: name.clone(),
+                    type_symbol: *type_symbol,
                     type_name: type_name.clone(),
                     byte_offset,
                     byte_size: layout.size,

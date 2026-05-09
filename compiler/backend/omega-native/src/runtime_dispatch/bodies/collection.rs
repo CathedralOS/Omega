@@ -78,7 +78,9 @@ fn append_state_body_operations(
                 state_key,
                 operation.statement_index,
                 RuntimeDispatchBodyOperationKind::LocalStorage {
+                    symbol: local_storage.symbol,
                     name: local_storage.name.clone(),
+                    type_symbol: local_storage.type_symbol,
                     type_name: local_storage.type_name.clone(),
                 },
             ));

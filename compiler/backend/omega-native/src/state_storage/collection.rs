@@ -4,9 +4,11 @@ use crate::plan::NativePlan;
 use crate::state_analysis::StateAnalysisContext;
 use crate::state_storage::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::Statement;
+use omega_typed_program::types::{PrimitiveType, TypeReference};
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(program: &Program, native_plan: &NativePlan) -> StateStoragePlan {
@@ -75,7 +77,9 @@ fn build_machine_state_storage_plan(
                     plan.locals.insert(StateLocalStorage {
                         source_key,
                         statement_index,
+                        symbol: local_data.symbol,
                         name: local_data.name.clone(),
+                        type_symbol: type_reference_symbol(&program, &local_data.type_reference),
                         type_name: local_data.type_reference.display_name(),
                         required,
                     });
@@ -104,4 +108,33 @@ fn build_machine_state_storage_plan(
     }
 
     plan
+}
+
+fn type_reference_symbol(program: &Program, type_reference: &TypeReference) -> SymbolHandle {
+    match type_reference {
+        TypeReference::Constrained { base_type, .. } => type_reference_symbol(program, base_type),
+        TypeReference::FixedArray { element_type, .. } => {
+            type_reference_symbol(program, element_type)
+        }
+        TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+            if PrimitiveType::from_name(base_name).is_some() {
+                return SymbolHandle::invalid();
+            }
+
+            program
+                .data_definitions
+                .iter()
+                .find(|definition| definition.name == *base_name)
+                .map(|definition| definition.symbol)
+                .or_else(|| {
+                    program
+                        .machines
+                        .iter()
+                        .find(|machine| machine.name == *base_name)
+                        .map(|machine| machine.symbol)
+                })
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+        TypeReference::Unit => SymbolHandle::invalid(),
+    }
 }

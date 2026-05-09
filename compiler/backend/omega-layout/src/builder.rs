@@ -3,6 +3,7 @@ use crate::sizing::primitive_type_layout;
 use crate::{DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::symbols::SymbolHandle;
 use omega_target::NativeTarget;
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataMember, DataShapeKind};
@@ -16,11 +17,11 @@ pub fn build_layout_plan(
     let mut builder = LayoutBuilder::new(program, target);
 
     for data_definition in &program.data_definitions {
-        builder.layout_data_definition(&data_definition.name)?;
+        builder.layout_data_definition(data_definition.symbol)?;
     }
 
     for machine in &program.machines {
-        builder.layout_machine(&machine.name)?;
+        builder.layout_machine(machine.symbol)?;
     }
 
     Ok(builder.finish())
@@ -29,11 +30,11 @@ pub fn build_layout_plan(
 struct LayoutBuilder<'program> {
     data_definitions: &'program [DataDefinition],
     data_layouts: Arena<DataLayout>,
-    data_visiting: Vec<String>,
+    data_visiting: Vec<SymbolHandle>,
     fields: Arena<FieldLayout>,
     machine_definitions: &'program [Machine],
     machine_layouts: Arena<MachineLayout>,
-    machine_visiting: Vec<String>,
+    machine_visiting: Vec<SymbolHandle>,
     target: NativeTarget,
     type_constraints: &'program Arena<TypeConstraint>,
 }
@@ -61,25 +62,26 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
-    fn layout_data_definition(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
+    fn layout_data_definition(&mut self, symbol: SymbolHandle) -> Result<TypeLayout, Diagnostic> {
         if let Some(data_layout) = self
             .data_layouts
             .iter()
-            .find(|(_, data_layout)| data_layout.name == name)
+            .find(|(_, data_layout)| data_layout.symbol == symbol)
             .map(|(_, data_layout)| data_layout)
         {
             return Ok(data_layout.layout);
         }
 
-        if self.data_visiting.iter().any(|visiting| visiting == name) {
+        if self.data_visiting.contains(&symbol) {
             return Err(Diagnostic::error(format!(
-                "recursive data layout is not supported yet for `{name}`"
+                "recursive data layout is not supported yet for symbol {}",
+                symbol.arena_index()
             )));
         }
 
-        self.data_visiting.push(name.to_owned());
+        self.data_visiting.push(symbol);
 
-        let definition = self.data_definition(name)?;
+        let definition = self.data_definition_by_symbol(symbol)?;
         let data_layout = self.compute_data_layout(definition)?;
         let layout = data_layout.layout;
 
@@ -89,29 +91,26 @@ impl<'program> LayoutBuilder<'program> {
         Ok(layout)
     }
 
-    fn layout_machine(&mut self, name: &str) -> Result<TypeLayout, Diagnostic> {
+    fn layout_machine(&mut self, symbol: SymbolHandle) -> Result<TypeLayout, Diagnostic> {
         if let Some(machine_layout) = self
             .machine_layouts
             .iter()
-            .find(|(_, machine_layout)| machine_layout.name == name)
+            .find(|(_, machine_layout)| machine_layout.symbol == symbol)
             .map(|(_, machine_layout)| machine_layout)
         {
             return Ok(machine_layout.layout);
         }
 
-        if self
-            .machine_visiting
-            .iter()
-            .any(|visiting| visiting == name)
-        {
+        if self.machine_visiting.contains(&symbol) {
             return Err(Diagnostic::error(format!(
-                "recursive machine layout is not supported yet for `{name}`"
+                "recursive machine layout is not supported yet for symbol {}",
+                symbol.arena_index()
             )));
         }
 
-        self.machine_visiting.push(name.to_owned());
+        self.machine_visiting.push(symbol);
 
-        let machine = self.machine_definition(name)?;
+        let machine = self.machine_definition_by_symbol(symbol)?;
         let machine_layout = self.compute_machine_layout(machine)?;
         let layout = machine_layout.layout;
 
@@ -136,6 +135,7 @@ impl<'program> LayoutBuilder<'program> {
                 .collect();
 
             return Ok(DataLayout {
+                symbol: definition.symbol,
                 name: definition.name.clone(),
                 shape: DataShape::Enum { variants },
                 layout: TypeLayout {
@@ -155,7 +155,9 @@ impl<'program> LayoutBuilder<'program> {
             .map(|field| {
                 let layout = self.layout_type_reference(&field.type_reference)?;
                 Ok(PlannedField {
+                    symbol: field.symbol,
                     name: field.name.clone(),
+                    type_symbol: self.type_reference_symbol(&field.type_reference),
                     type_name: field
                         .type_reference
                         .display_name_with_constraints(self.type_constraints),
@@ -167,6 +169,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(DataLayout {
+            symbol: definition.symbol,
             name: definition.name.clone(),
             shape: DataShape::Record { fields },
             layout,
@@ -178,7 +181,9 @@ impl<'program> LayoutBuilder<'program> {
 
         for owned_data in &machine.owned_data {
             fields.push(PlannedField {
+                symbol: owned_data.symbol,
                 name: owned_data.name.clone(),
+                type_symbol: self.type_reference_symbol(&owned_data.type_reference),
                 type_name: owned_data
                     .type_reference
                     .display_name_with_constraints(self.type_constraints),
@@ -187,11 +192,16 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         for contained_object in &machine.contains {
-            if self.machine_definition(&contained_object.type_name).is_ok() {
+            if self
+                .machine_definition_by_symbol(contained_object.type_symbol)
+                .is_ok()
+            {
                 fields.push(PlannedField {
+                    symbol: contained_object.symbol,
                     name: contained_object.name.clone(),
+                    type_symbol: contained_object.type_symbol,
                     type_name: contained_object.type_name.to_string(),
-                    layout: self.layout_machine(&contained_object.type_name)?,
+                    layout: self.layout_machine(contained_object.type_symbol)?,
                 });
             }
         }
@@ -200,6 +210,7 @@ impl<'program> LayoutBuilder<'program> {
         let fields = self.fields.insert_many(fields);
 
         Ok(MachineLayout {
+            symbol: machine.symbol,
             name: machine.name.clone(),
             fields,
             layout,
@@ -239,7 +250,31 @@ impl<'program> LayoutBuilder<'program> {
             return Ok(primitive_type_layout(self.target, primitive_type));
         }
 
-        self.layout_data_definition(name)
+        let data_symbol = self.data_definition(name)?.symbol;
+        self.layout_data_definition(data_symbol)
+    }
+
+    fn type_reference_symbol(&self, type_reference: &TypeReference) -> SymbolHandle {
+        match type_reference {
+            TypeReference::Constrained { base_type, .. } => self.type_reference_symbol(base_type),
+            TypeReference::FixedArray { element_type, .. } => {
+                self.type_reference_symbol(element_type)
+            }
+            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+                if PrimitiveType::from_name(base_name).is_some() {
+                    SymbolHandle::invalid()
+                } else {
+                    self.data_definition(base_name)
+                        .map(|definition| definition.symbol)
+                        .or_else(|_| {
+                            self.machine_definition(base_name)
+                                .map(|machine| machine.symbol)
+                        })
+                        .unwrap_or_else(|_| SymbolHandle::invalid())
+                }
+            }
+            TypeReference::Unit => SymbolHandle::invalid(),
+        }
     }
 
     fn data_definition(&self, name: &str) -> Result<&'program DataDefinition, Diagnostic> {
@@ -249,10 +284,34 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| Diagnostic::error(format!("unknown data type `{name}`")))
     }
 
+    fn data_definition_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<&'program DataDefinition, Diagnostic> {
+        self.data_definitions
+            .iter()
+            .find(|definition| definition.symbol == symbol)
+            .ok_or_else(|| {
+                Diagnostic::error(format!("unknown data type symbol {}", symbol.arena_index()))
+            })
+    }
+
     fn machine_definition(&self, name: &str) -> Result<&'program Machine, Diagnostic> {
         self.machine_definitions
             .iter()
             .find(|machine| machine.name == name)
             .ok_or_else(|| Diagnostic::error(format!("unknown machine `{name}`")))
+    }
+
+    fn machine_definition_by_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Result<&'program Machine, Diagnostic> {
+        self.machine_definitions
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+            .ok_or_else(|| {
+                Diagnostic::error(format!("unknown machine symbol {}", symbol.arena_index()))
+            })
     }
 }
