@@ -1,4 +1,4 @@
-use super::aliases::{canonical_place_name, shallow_canonical_place_name};
+use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key};
 use super::evaluation::resolve_static_value;
 use crate::control_flow::{OperationKind, StateFlow};
 use crate::plan::NativePlan;
@@ -7,8 +7,8 @@ use omega_typed_program::expression::Expression;
 pub(in crate::state_schedule) fn apply_static_operations(
     native_plan: &NativePlan,
     state: &StateFlow,
-    aliases: &[(String, String)],
-    values: &mut Vec<(String, String)>,
+    aliases: &[(PlaceKey, PlaceKey)],
+    values: &mut Vec<(PlaceKey, String)>,
 ) {
     let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
         return;
@@ -26,8 +26,8 @@ pub(in crate::state_schedule) fn apply_static_operations(
 }
 
 pub(in crate::state_schedule) fn set_static_value(
-    values: &mut Vec<(String, String)>,
-    target: String,
+    values: &mut Vec<(PlaceKey, String)>,
+    target: PlaceKey,
     value: String,
 ) {
     if let Some((_, existing_value)) = values
@@ -43,18 +43,18 @@ pub(in crate::state_schedule) fn set_static_value(
 fn apply_static_assignment(
     target: &Expression,
     value: &Expression,
-    aliases: &[(String, String)],
-    values: &mut Vec<(String, String)>,
+    aliases: &[(PlaceKey, PlaceKey)],
+    values: &mut Vec<(PlaceKey, String)>,
 ) {
-    let Some(target_name) = shallow_canonical_place_name(target, aliases) else {
+    let Some(target_key) = shallow_canonical_place_key(target, aliases) else {
         return;
     };
 
     if let Expression::StructLiteral(struct_literal) = value {
         for field in &struct_literal.fields {
-            let field_target = format!("{target_name}::{}", field.name);
-            if let Some(source_name) = canonical_place_name(&field.value, aliases) {
-                copy_static_prefix(values, &source_name, &field_target);
+            let field_target = target_key.append_member(field.name.clone());
+            if let Some(source_key) = canonical_place_key(&field.value, aliases) {
+                copy_static_prefix(values, &source_key, &field_target);
             }
             if let Some(field_value) = resolve_static_value(&field.value, aliases, values) {
                 set_static_value(values, field_target, field_value);
@@ -63,25 +63,33 @@ fn apply_static_assignment(
         return;
     }
 
-    if let Some(source_name) = canonical_place_name(value, aliases) {
-        copy_static_prefix(values, &source_name, &target_name);
+    if let Some(source_key) = canonical_place_key(value, aliases) {
+        copy_static_prefix(values, &source_key, &target_key);
     }
 
     let Some(value) = resolve_static_value(value, aliases, values) else {
         return;
     };
 
-    set_static_value(values, target_name, value);
+    set_static_value(values, target_key, value);
 }
 
-fn copy_static_prefix(values: &mut Vec<(String, String)>, source_name: &str, target_name: &str) {
-    let source_prefix = format!("{source_name}::");
+fn copy_static_prefix(
+    values: &mut Vec<(PlaceKey, String)>,
+    source_key: &PlaceKey,
+    target_key: &PlaceKey,
+) {
     let copied_values = values
         .iter()
-        .filter_map(|(existing_name, value)| {
-            existing_name
-                .strip_prefix(&source_prefix)
-                .map(|suffix| (format!("{target_name}::{suffix}"), value.clone()))
+        .filter_map(|(existing_key, value)| {
+            if !existing_key.starts_with(source_key) {
+                return None;
+            }
+
+            Some((
+                existing_key.replace_prefix(source_key, target_key),
+                value.clone(),
+            ))
         })
         .collect::<Vec<_>>();
 

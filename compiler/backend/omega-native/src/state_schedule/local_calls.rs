@@ -1,7 +1,9 @@
 use super::append_state_chain;
 use super::lookups::{machine_flow_by_symbol, state_flow_by_key};
 use super::model::ScheduledState;
-use super::static_values::{argument_binding_place_name, resolve_static_value, set_static_value};
+use super::static_values::{
+    PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
+};
 use crate::control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
 use omega_core::symbols::SymbolHandle;
@@ -14,8 +16,8 @@ pub(super) fn append_local_state_calls(
     state: &StateFlow,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(String, String)>,
-    aliases: &mut Vec<(String, String)>,
+    values: &mut Vec<(PlaceKey, String)>,
+    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<(), String> {
     let Some(operations) = native_plan.control_flow.operations.span(state.operations) else {
         return Err(format!(
@@ -138,26 +140,30 @@ pub(super) fn bind_state_arguments_by_key(
     native_plan: &NativePlan,
     state_key: StateKey,
     arguments: &[Expression],
-    aliases: &mut Vec<(String, String)>,
-    values: &mut Vec<(String, String)>,
+    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
+    values: &mut Vec<(PlaceKey, String)>,
 ) -> Result<(), String> {
     let state = state_flow_by_key(native_plan, state_key)?;
 
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
-        let canonical_argument = argument_binding_place_name(argument, aliases);
+        let canonical_argument = argument_binding_place_key(argument, aliases);
         if let Some(canonical_argument) = canonical_argument {
-            set_alias(aliases, parameter.name.to_string(), canonical_argument);
+            let parameter_key =
+                PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
+            set_alias(aliases, parameter_key.clone(), canonical_argument);
         }
 
         if let Some(value) = resolve_static_value(argument, aliases, values) {
-            set_static_value(values, parameter.name.to_string(), value);
+            let parameter_key =
+                PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
+            set_static_value(values, parameter_key, value);
         }
     }
 
     Ok(())
 }
 
-fn set_alias(aliases: &mut Vec<(String, String)>, parameter: String, target: String) {
+fn set_alias(aliases: &mut Vec<(PlaceKey, PlaceKey)>, parameter: PlaceKey, target: PlaceKey) {
     if let Some((_, existing_target)) = aliases
         .iter_mut()
         .find(|(existing_parameter, _)| existing_parameter == &parameter)

@@ -2,6 +2,7 @@ use super::append_state_chain;
 use super::local_calls::bind_state_arguments_by_key;
 use super::lookups::{machine_flow_by_symbol, state_flow_by_key, validate_state_index};
 use super::model::ScheduledState;
+use super::static_values::PlaceKey;
 use crate::control_flow::{MachineFlow, PlannedTransitionTarget, StateFlow, TransitionFlow};
 use crate::plan::NativePlan;
 
@@ -12,8 +13,8 @@ pub(super) fn next_state(
     transition: &TransitionFlow,
     schedule: &mut Vec<ScheduledState>,
     visited: &mut Vec<ScheduledState>,
-    values: &mut Vec<(String, String)>,
-    aliases: &mut Vec<(String, String)>,
+    values: &mut Vec<(PlaceKey, String)>,
+    aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<Option<ScheduledState>, String> {
     match &transition.target {
         PlannedTransitionTarget::State {
