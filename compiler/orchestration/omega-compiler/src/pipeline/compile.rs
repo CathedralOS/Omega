@@ -470,6 +470,7 @@ pub(crate) struct LoadedProgram {
     pub(crate) items: Arc<Vec<Item>>,
     pub(crate) files: Vec<LoadedFile>,
     pub(crate) sources: Arc<SourceMap>,
+    pub(crate) syntax_tables: Arc<Vec<crate::ast::tables::AstTables>>,
 }
 
 #[derive(Debug)]
@@ -478,9 +479,7 @@ pub(crate) struct LoadedFile {
     pub(crate) path: PathBuf,
     pub(crate) first_item: usize,
     pub(crate) item_count: usize,
-    pub(crate) expression_count: usize,
-    pub(crate) type_reference_count: usize,
-    pub(crate) type_constraint_count: usize,
+    pub(crate) syntax_table_index: usize,
 }
 
 impl LoadedProgram {
@@ -509,6 +508,7 @@ fn load_program_sources(
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
     let mut source_files = Vec::new();
+    let mut syntax_tables = Vec::new();
     let mut selected_target_found = options.target_name.is_none();
 
     if let Some(build_path) = build_policy_path(&options.root_path) {
@@ -578,10 +578,9 @@ fn load_program_sources(
                 path: file.path.clone(),
                 first_item,
                 item_count,
-                expression_count: ast_file.tables.expressions.expression_count(),
-                type_reference_count: ast_file.tables.type_references.type_reference_count(),
-                type_constraint_count: ast_file.tables.type_references.constraint_count(),
+                syntax_table_index: syntax_tables.len(),
             });
+            syntax_tables.push(ast_file.tables);
             items.extend(ast_file.items);
             source_files.push(file);
         }
@@ -601,6 +600,7 @@ fn load_program_sources(
         items: Arc::new(items),
         files: loaded_files,
         sources: Arc::new(SourceMap::from_files(source_files)),
+        syntax_tables: Arc::new(syntax_tables),
     })
 }
 
