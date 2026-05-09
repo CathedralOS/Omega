@@ -19,10 +19,6 @@ pub(in crate::identity) fn count_runtime_branching_strings(
         count_expression_span_strings(edge.target_arguments, native_plan, storage);
     }
     for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
-        storage.count_program_name_identity(&expansion.branch_machine);
-        storage.count_program_name_identity(&expansion.branch_state);
-        storage.count_program_name_identity(&expansion.leaf_machine);
-        storage.count_program_name_identity(&expansion.leaf_state);
         count_guard_strings(&expansion.guard, storage);
         count_guard_strings(&expansion.resolved_guard, storage);
     }
@@ -47,8 +43,6 @@ pub(in crate::identity) fn count_runtime_branching_strings(
         .straight_line_expansions
         .iter()
     {
-        storage.count_program_name_identity(&expansion.branch_machine);
-        storage.count_program_name_identity(&expansion.branch_state);
         count_guard_strings(&expansion.guard, storage);
         count_guard_strings(&expansion.resolved_guard, storage);
     }
@@ -73,14 +67,7 @@ pub(in crate::identity) fn count_runtime_branching_strings(
                 count_expression_strings(target, storage);
                 count_expression_strings(value, storage);
             }
-            RuntimeStraightLineBranchOperationKind::StateCall {
-                target_machine,
-                target_state,
-                ..
-            } => {
-                storage.count_program_name_identity(target_machine);
-                storage.count_program_name_identity(target_state);
-            }
+            RuntimeStraightLineBranchOperationKind::StateCall { .. } => {}
             RuntimeStraightLineBranchOperationKind::LocalData
             | RuntimeStraightLineBranchOperationKind::Other => {}
         }

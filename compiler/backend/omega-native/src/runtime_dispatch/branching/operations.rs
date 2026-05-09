@@ -99,11 +99,8 @@ fn straight_line_operation_kind(
     }
 
     if let Some(state_call) = state_call_for_operation(native_plan, source_key, statement_index) {
-        let (target_machine, target_state) = state_names(native_plan, state_call.target_key);
         return RuntimeStraightLineBranchOperationKind::StateCall {
             target_key: state_call.target_key,
-            target_machine,
-            target_state,
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
         };
@@ -114,14 +111,4 @@ fn straight_line_operation_kind(
     }
 
     RuntimeStraightLineBranchOperationKind::Other
-}
-
-fn state_names(
-    native_plan: &NativePlan,
-    key: StateKey,
-) -> (
-    omega_typed_program::name::ProgramName,
-    omega_typed_program::name::ProgramName,
-) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
 }

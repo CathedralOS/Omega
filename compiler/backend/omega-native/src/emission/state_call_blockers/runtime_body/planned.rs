@@ -60,7 +60,6 @@ fn runtime_branching_call_leaf_expansion_count(
     native_plan: &NativePlan,
     call: &RuntimeBranchingCall,
 ) -> usize {
-    let (target_machine, target_state) = state_names(native_plan, call.target_key);
     native_plan
         .runtime_branching_calls
         .leaf_expansions
@@ -69,8 +68,7 @@ fn runtime_branching_call_leaf_expansion_count(
             expansion.dispatch_index == call.dispatch_index
                 && expansion.source_key == call.source_key
                 && expansion.statement_index == call.statement_index
-                && expansion.branch_machine == target_machine
-                && expansion.branch_state == target_state
+                && expansion.branch_key == call.target_key
         })
         .count()
 }
@@ -79,7 +77,6 @@ fn runtime_branching_call_straight_line_expansion_count(
     native_plan: &NativePlan,
     call: &RuntimeBranchingCall,
 ) -> usize {
-    let (target_machine, target_state) = state_names(native_plan, call.target_key);
     native_plan
         .runtime_branching_calls
         .straight_line_expansions
@@ -88,18 +85,7 @@ fn runtime_branching_call_straight_line_expansion_count(
             expansion.dispatch_index == call.dispatch_index
                 && expansion.source_key == call.source_key
                 && expansion.statement_index == call.statement_index
-                && expansion.branch_machine == target_machine
-                && expansion.branch_state == target_state
+                && expansion.branch_key == call.target_key
         })
         .count()
-}
-
-fn state_names(
-    native_plan: &NativePlan,
-    key: crate::control_flow::StateKey,
-) -> (
-    omega_typed_program::name::ProgramName,
-    omega_typed_program::name::ProgramName,
-) {
-    native_plan.control_flow.state_names_by_key_cloned(key)
 }

@@ -1945,10 +1945,10 @@ fn plans_runtime_straight_line_branch_expansion() {
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
         omega_native::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::StateCall {
-            ref target_state,
+            target_key,
             lowering: omega_native::state_calls::StateCallLowering::InlineLeaf,
             ..
-        } if target_state == "apply_default"
+        } if native_state_name(&native_plan, target_key) == "main.apply_default"
     )));
     assert!(
         native_plan
@@ -2027,7 +2027,7 @@ fn plans_runtime_leaf_branch_argument_bindings() {
         .runtime_branching_calls
         .leaf_expansions
         .iter()
-        .find(|(_, expansion)| expansion.leaf_state == "apply")
+        .find(|(_, expansion)| native_state_name(&native_plan, expansion.leaf_key) == "main.apply")
         .map(|(_, expansion)| expansion)
         .expect("apply leaf expansion should be planned");
     let bindings = native_plan

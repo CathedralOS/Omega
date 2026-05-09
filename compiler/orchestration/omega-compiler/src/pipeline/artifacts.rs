@@ -1550,16 +1550,16 @@ impl ArtifactWriter {
         } else {
             for (_, expansion) in native_plan.runtime_branching_calls.leaf_expansions.iter() {
                 let source_name = native_state_name(native_plan, expansion.source_key);
+                let branch_name = native_state_name(native_plan, expansion.branch_key);
+                let leaf_name = native_state_name(native_plan, expansion.leaf_key);
                 output.push_str(&format!(
-                    "- #{} {} statement {} {}.{} edge {} -> {}.{} {:?} {}\n",
+                    "- #{} {} statement {} {} edge {} -> {} {:?} {}\n",
                     expansion.dispatch_index,
                     source_name,
                     expansion.statement_index,
-                    expansion.branch_machine,
-                    expansion.branch_state,
+                    branch_name,
                     expansion.edge_order,
-                    expansion.leaf_machine,
-                    expansion.leaf_state,
+                    leaf_name,
                     expansion.guard_kind,
                     transition_guard_name(&expansion.guard)
                 ));
@@ -1650,14 +1650,14 @@ impl ArtifactWriter {
                 .iter()
             {
                 let source_name = native_state_name(native_plan, expansion.source_key);
+                let branch_name = native_state_name(native_plan, expansion.branch_key);
                 let target_name = native_state_name(native_plan, expansion.target_key);
                 output.push_str(&format!(
-                    "- #{} {} statement {} {}.{} edge {} -> {} {:?} {}\n",
+                    "- #{} {} statement {} {} edge {} -> {} {:?} {}\n",
                     expansion.dispatch_index,
                     source_name,
                     expansion.statement_index,
-                    expansion.branch_machine,
-                    expansion.branch_state,
+                    branch_name,
                     expansion.edge_order,
                     target_name,
                     expansion.guard_kind,
@@ -3417,20 +3417,15 @@ fn write_runtime_straight_line_branch_operation(
             ));
         }
         RuntimeStraightLineBranchOperationKind::StateCall {
-            target_machine,
-            target_state,
+            target_key,
             argument_count,
             lowering,
             ..
         } => {
+            let target_name = native_state_name(native_plan, *target_key);
             output.push_str(&format!(
-                "    - {} statement {} state call {}.{} args {} {:?}\n",
-                source_name,
-                operation.statement_index,
-                target_machine,
-                target_state,
-                argument_count,
-                lowering
+                "    - {} statement {} state call {} args {} {:?}\n",
+                source_name, operation.statement_index, target_name, argument_count, lowering
             ));
         }
         RuntimeStraightLineBranchOperationKind::LocalData => {

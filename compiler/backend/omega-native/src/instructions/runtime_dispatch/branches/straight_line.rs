@@ -93,8 +93,6 @@ fn select_runtime_straight_line_branch_writes(
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
                 target_key,
-                target_machine,
-                target_state,
                 lowering: crate::state_calls::StateCallLowering::InlineLeaf,
                 ..
             } => select_runtime_straight_line_leaf_state_call_writes(
@@ -103,8 +101,6 @@ fn select_runtime_straight_line_branch_writes(
                 operation,
                 bindings,
                 *target_key,
-                target_machine,
-                target_state,
                 selected_instructions,
             ),
             _ => {}
@@ -123,8 +119,6 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     operation: &RuntimeStraightLineBranchOperation,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
-    target_machine: &str,
-    target_state: &str,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
     let Some(state_call) =
@@ -155,6 +149,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     let Some(operations) = state_operations(native_plan, target_key) else {
         return;
     };
+    let (target_machine, target_state) = state_names(native_plan, target_key);
     for leaf_operation in operations {
         let Some(mutation) =
             state_mutation_for_statement(native_plan, target_key, leaf_operation.statement_index)
@@ -168,8 +163,8 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             expansion.dispatch_index,
             target_key,
             &source_machine_name(native_plan, expansion.source_key),
-            target_machine,
-            target_state,
+            &target_machine,
+            &target_state,
             leaf_operation.statement_index,
             &resolved_target,
             &resolved_value,

@@ -71,34 +71,26 @@ pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBra
                     | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
                     | RuntimeBranchCallExpansion::NeedsStraightLineTarget
             ) {
-                let (target_machine, target_state) = native_plan
-                    .control_flow
-                    .state_names_by_key_cloned(*target_key);
                 append_leaf_branch_expansions(
                     native_plan,
                     &mut plan,
                     operation.source_key,
+                    *target_key,
                     operation.statement_index,
                     body.dispatch_index,
-                    &target_machine,
-                    &target_state,
                     &branch_edges,
                     state_call,
                     &aliases,
                 );
             }
             if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
-                let (target_machine, target_state) = native_plan
-                    .control_flow
-                    .state_names_by_key_cloned(*target_key);
                 append_straight_line_branch_expansions(
                     native_plan,
                     &mut plan,
                     operation.source_key,
+                    *target_key,
                     operation.statement_index,
                     body.dispatch_index,
-                    &target_machine,
-                    &target_state,
                     &branch_edges,
                     state_call,
                     &aliases,

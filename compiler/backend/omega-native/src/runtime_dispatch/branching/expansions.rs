@@ -21,10 +21,9 @@ pub(super) fn append_leaf_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
     source_key: StateKey,
+    branch_key: StateKey,
     statement_index: usize,
     dispatch_index: u32,
-    branch_machine: &ProgramName,
-    branch_state: &ProgramName,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
@@ -34,12 +33,7 @@ pub(super) fn append_leaf_branch_expansions(
             continue;
         }
 
-        let RuntimeTransitionTarget::State {
-            key: leaf_key,
-            machine: leaf_machine,
-            state: leaf_state,
-        } = &edge.target
-        else {
+        let RuntimeTransitionTarget::State { key: leaf_key, .. } = &edge.target else {
             continue;
         };
 
@@ -58,14 +52,12 @@ pub(super) fn append_leaf_branch_expansions(
             dispatch_index,
             source_key,
             statement_index,
-            branch_machine: branch_machine.clone(),
-            branch_state: branch_state.clone(),
+            branch_key,
             edge_order: edge.order,
             guard: edge.guard.clone(),
             resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
             guard_kind: edge.guard_kind,
-            leaf_machine: leaf_machine.clone(),
-            leaf_state: leaf_state.clone(),
+            leaf_key: *leaf_key,
             bindings,
             operations,
         });
@@ -77,10 +69,9 @@ pub(super) fn append_straight_line_branch_expansions(
     native_plan: &NativePlan,
     plan: &mut RuntimeBranchingCallPlan,
     source_key: StateKey,
+    branch_key: StateKey,
     statement_index: usize,
     dispatch_index: u32,
-    branch_machine: &ProgramName,
-    branch_state: &ProgramName,
     edges: &[RuntimeBranchingCallEdge],
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
@@ -115,8 +106,7 @@ pub(super) fn append_straight_line_branch_expansions(
                 dispatch_index,
                 source_key,
                 statement_index,
-                branch_machine: branch_machine.clone(),
-                branch_state: branch_state.clone(),
+                branch_key,
                 target_key: *target_key,
                 edge_order: edge.order,
                 guard: edge.guard.clone(),
