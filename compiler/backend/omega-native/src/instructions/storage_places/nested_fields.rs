@@ -1,4 +1,5 @@
 use omega_core::arena::HandleSpan;
+use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 use omega_typed_program::name::ProgramName;
 
@@ -8,21 +9,19 @@ pub(in crate::instructions) fn resolve_nested_field_layout(
     suffix: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
+    let mut type_symbol = root_field.type_symbol;
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
     for field_name in suffix {
         let field_segment = parse_field_segment(field_name)?;
-        let data_layout = layouts
-            .data_layouts
-            .iter()
-            .find(|(_, data_layout)| data_layout.name == type_name)
-            .map(|(_, data_layout)| data_layout)?;
+        let data_layout = data_layout(layouts, type_symbol, type_name)?;
         let DataShape::Record { fields } = &data_layout.shape else {
             return None;
         };
         let field = field_layout(layouts, *fields, field_segment.name)?;
         byte_offset += field.offset;
+        type_symbol = field.type_symbol;
         type_name = &field.type_name;
         layout = field.layout;
 
@@ -36,12 +35,33 @@ pub(in crate::instructions) fn resolve_nested_field_layout(
                 alignment: layout.alignment,
             };
             byte_offset += element_layout.size * index;
+            type_symbol = field.type_symbol;
             type_name = array.element_type_name;
             layout = element_layout;
         }
     }
 
     Some((byte_offset, layout))
+}
+
+fn data_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    type_symbol: SymbolHandle,
+    type_name: &str,
+) -> Option<&'plan omega_layout::DataLayout> {
+    if type_symbol.is_valid() {
+        return layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.symbol == type_symbol)
+            .map(|(_, data_layout)| data_layout);
+    }
+
+    layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == type_name)
+        .map(|(_, data_layout)| data_layout)
 }
 
 pub(in crate::instructions) fn field_layout<'plan>(

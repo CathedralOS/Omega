@@ -1,8 +1,35 @@
 use super::RuntimeStorageContext;
+use omega_core::symbols::SymbolHandle;
 use omega_layout::TypeLayout;
 use omega_typed_program::types::PrimitiveType;
 
-pub(super) fn layout_for_type_name(context: &RuntimeStorageContext, type_name: &str) -> TypeLayout {
+pub(super) fn layout_for_type(
+    context: &RuntimeStorageContext,
+    type_symbol: SymbolHandle,
+    type_name: &str,
+) -> TypeLayout {
+    if type_symbol.is_valid() {
+        if let Some(data_layout) = context
+            .layouts
+            .data_layouts
+            .iter()
+            .find(|(_, data_layout)| data_layout.symbol == type_symbol)
+            .map(|(_, data_layout)| data_layout.layout)
+        {
+            return data_layout;
+        }
+
+        if let Some(machine_layout) = context
+            .layouts
+            .machine_layouts
+            .iter()
+            .find(|(_, machine_layout)| machine_layout.symbol == type_symbol)
+            .map(|(_, machine_layout)| machine_layout.layout)
+        {
+            return machine_layout;
+        }
+    }
+
     if let Some(data_layout) = context
         .layouts
         .data_layouts

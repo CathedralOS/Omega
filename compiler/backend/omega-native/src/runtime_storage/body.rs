@@ -3,7 +3,7 @@ use crate::control_flow::StateKey;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use crate::state_storage::{StateMutation, StateMutationLowering};
 
-use super::layout::{align_to, layout_for_type_name};
+use super::layout::{align_to, layout_for_type};
 
 pub(super) fn build_runtime_storage_body_plan(
     context: &RuntimeStorageContext,
@@ -20,7 +20,7 @@ pub(super) fn build_runtime_storage_body_plan(
                 type_symbol,
                 type_name,
             } => {
-                let layout = layout_for_type_name(context, type_name);
+                let layout = layout_for_type(context, *type_symbol, type_name);
                 let byte_offset = align_to(next_frame_offset, layout.alignment);
                 next_frame_offset = byte_offset
                     .checked_add(layout.size)
