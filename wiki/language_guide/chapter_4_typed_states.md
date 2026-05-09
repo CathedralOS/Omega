@@ -1,9 +1,9 @@
 # Chapter 4: Typed States
 
-A callable or plain state may accept explicit entry data and declare the value shape its graph eventually produces.
+A function or plain state may accept explicit entry data and declare the value shape its graph eventually produces.
 
 ```omega
-callable clamp(value: f32, min: f32, max: f32) -> f32 {
+fn clamp(value: f32, min: f32, max: f32) -> f32 {
     -> min when value < min
     -> max when value > max
 
@@ -11,10 +11,10 @@ callable clamp(value: f32, min: f32, max: f32) -> f32 {
 }
 ```
 
-Plain states may also be typed when they are part of a callable's internal transition graph:
+Plain states may also be typed when they are part of a function's internal transition graph:
 
 ```omega
-callable fight_rat(player: &mut Player) -> bool {
+fn fight_rat(player: &mut Player) -> bool {
     -> defeated() when player.health == 0
     -> survived()
 }
@@ -32,8 +32,8 @@ Working interpretation:
 
 - Parameters are local entry data.
 - `&mut` parameters are mutable borrows; borrow checking is the long-term model even if early compiler passes treat them as mutable aliases.
-- A callable return type is the value shape its active graph must eventually produce.
-- A plain state return type must be compatible with the callable activation that can reach it.
+- A function return type is the value shape its active graph must eventually produce.
+- A plain state return type must be compatible with the function activation that can reach it.
 - A body may end in terminal value transitions, plain state transitions, or a final expression.
 - A transition to another plain state is a typed goto, not a stack return.
 

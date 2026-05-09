@@ -3,7 +3,7 @@
 Omega should allow data types to carry proof-friendly refinements.
 
 ```omega
-callable clamp(
+fn clamp(
     value: i32,
     min: const i32,
     max: const i32
@@ -29,7 +29,7 @@ Working interpretation:
 The clamp graph produces an obvious proof shape:
 
 ```omega
-callable clamp(value: f32, min: f32, max: f32) -> f32 {
+fn clamp(value: f32, min: f32, max: f32) -> f32 {
     -> min when value < min
     -> max when value > max
 
@@ -39,8 +39,8 @@ callable clamp(value: f32, min: f32, max: f32) -> f32 {
 
 The ordered transitions create a proof partition:
 
-- If `value < min`, the callable completes with `min`.
-- If `value > max`, the callable completes with `max`.
+- If `value < min`, the function completes with `min`.
+- If `value > max`, the function completes with `max`.
 - Otherwise, `value` is only returned when `min <= value <= max`.
 
 The order matters. A later transition inherits the fact that earlier transitions did not fire.
@@ -50,7 +50,7 @@ The order matters. A later transition inherits the fact that earlier transitions
 Bounds may be generic over compile-time or proof-known values.
 
 ```omega
-callable clamp(
+fn clamp(
     value: i32,
     min: const i32,
     max: const i32
@@ -106,7 +106,7 @@ Working categories:
 This lets Omega write proof-facing APIs without pretending every value is already a machine value:
 
 ```omega
-callable clamp(value: Real, min: Real, max: Real) -> Real[range<min, max>];
+fn clamp(value: Real, min: Real, max: Real) -> Real[range<min, max>];
 ```
 
 A machine implementation may call or instantiate that shape only when it can prove the machine values satisfy the required embedding or approximation rule.
@@ -192,8 +192,8 @@ For now, bounded float syntax should describe correctness facts only. Optimizati
 Proof-level `Real` gives Omega a clean way to specify ideal numeric behavior without lying about `f32`.
 
 ```omega
-callable ideal_distance(a: Real, b: Real) -> Real;
-callable fast_distance(a: f32[finite], b: f32[finite]) -> f32[finite, approx<Real, eps=1e-5>];
+fn ideal_distance(a: Real, b: Real) -> Real;
+fn fast_distance(a: f32[finite], b: f32[finite]) -> f32[finite, approx<Real, eps=1e-5>];
 ```
 
 Working interpretation:

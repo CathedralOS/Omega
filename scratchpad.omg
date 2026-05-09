@@ -56,7 +56,7 @@ machine main {
 
     owns return_code: i32 = 0;
 
-    callable entry() -> i32 {
+    fn entry() -> i32 {
         console.write_line("Omega Scratch Dungeon");
         game.run();
         return_code = 0;
@@ -78,7 +78,7 @@ machine Game {
     owns player: Player;
     owns current_room: Room;
 
-    callable run() {
+    fn run() {
         setup_default_player(&mut player);
         world.load_start_room(&mut current_room);
         ui.show_title();
@@ -132,7 +132,7 @@ machine Game {
         ->
     }
 
-    callable setup_default_player(player: &mut Player) {
+    fn setup_default_player(player: &mut Player) {
         default_inventory: Inventory;
         starter_potion: Item = Item { id: 1, count: 2 };
 
@@ -150,13 +150,13 @@ machine Game {
 }
 
 machine World {
-    callable load_start_room(out_room: &mut Room) {
+    fn load_start_room(out_room: &mut Room) {
         out_room.id = 0;
         out_room.label = "Entry Hall";
         out_room.danger = 0;
     }
 
-    callable try_move(position: Vec2, direction: Direction) -> MoveResult {
+    fn try_move(position: Vec2, direction: Direction) -> MoveResult {
         next_position: Vec2 = position;
 
         -> move_north(next_position) when direction == Direction::North
@@ -198,7 +198,7 @@ machine World {
         }
     }
 
-    callable lookup_room(position: Vec2, out_room: &mut Room) {
+    fn lookup_room(position: Vec2, out_room: &mut Room) {
         -> write_rat_room(out_room) when position.x == 1 && position.y == 0
         -> write_empty_room(out_room)
     }
@@ -221,7 +221,7 @@ machine World {
 }
 
 machine CombatSystem {
-    callable fight_rat(player: &mut Player) -> bool {
+    fn fight_rat(player: &mut Player) -> bool {
         scratch_damage: i32 = damage_roll(7, 3);
 
         player.stats.health = saturating_sub(player.stats.health, scratch_damage);
@@ -230,14 +230,14 @@ machine CombatSystem {
         -> survived()
     }
 
-    callable damage_roll(base: i32, variance: i32) -> i32 {
+    fn damage_roll(base: i32, variance: i32) -> i32 {
         raw: i32 = base + variance;
         clamped: i32 = clamp(raw, 0, 100);
 
         -> clamped
     }
 
-    callable clamp(value: i32, min: i32, max: i32) -> i32 {
+    fn clamp(value: i32, min: i32, max: i32) -> i32 {
         -> clamp_low(min) when value < min
         -> clamp_high(max) when value > max
 
@@ -264,11 +264,11 @@ machine CombatSystem {
 machine Ui {
     contains console: Console;
 
-    callable show_title() {
+    fn show_title() {
         console.write_line("A very small dungeon, currently made of language questions.");
     }
 
-    callable ask_direction() -> Direction {
+    fn ask_direction() -> Direction {
         command_line: ConsoleLine;
 
         console.write("> ");
@@ -296,22 +296,22 @@ machine Ui {
         -> Direction::West
     }
 
-    callable describe_room(room: Room) {
+    fn describe_room(room: Room) {
         line: ConsoleLine;
 
         line.text = "You enter " + room.label;
         console.write_line(line.text);
     }
 
-    callable show_game_over() {
+    fn show_game_over() {
         console.write_line("You died.");
     }
 }
 
 foreign machine Console {
-    callable write(text: String);
-    callable write_line(text: String);
-    callable read_line(out_line: &mut ConsoleLine);
+    fn write(text: String);
+    fn write_line(text: String);
+    fn read_line(out_line: &mut ConsoleLine);
 }
 
 struct ConsoleLine {

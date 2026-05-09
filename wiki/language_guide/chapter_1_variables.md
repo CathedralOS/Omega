@@ -9,7 +9,7 @@ machine main {
     owns health: i32[range<1, 100>] = 100;
     owns mass: i32[range<1, 100>];
 
-    callable entry() {
+    fn entry() {
         -> running()
     }
 }

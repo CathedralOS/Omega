@@ -6,9 +6,9 @@ This page tracks design pressure that is not fully nailed down yet.
 
 - `const` parameters are compile-time values, proof constants, or both. Omega should use every fact it can soundly know.
 - `&mut self` is acceptable if it is the clearest spelling. The goal is not to be different for the sake of being different.
-- `callable` is the current scratch spelling for a frame boundary. Calling a callable creates a stack frame and continuation; transitioning to a plain `state` does not.
-- Plain states are graph nodes inside the active callable frame. They may take arguments and return-compatible values, but they are reached by `-> state_name(args)`, not by normal call syntax.
-- Terminal value transitions are useful: `-> value` completes the active callable frame with a value, while `-> state_name(args)` transitions to a plain state.
+- `fn` is the spelling for a frame boundary. Calling a function creates a stack frame and continuation; transitioning to a plain `state` does not.
+- Plain states are graph nodes inside the active function frame. They may take arguments and return-compatible values, but they are reached by `-> state_name(args)`, not by normal call syntax.
+- Terminal value transitions are useful: `-> value` completes the active function frame with a value, while `-> state_name(args)` transitions to a plain state.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
@@ -17,7 +17,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
-- The old `state entry` idea is being challenged by callables. Machines may still need runtime entry points, but callability and runtime startup should not be conflated.
+- The old `state entry` idea is being challenged by functions. Machines may still need runtime entry points, but function callability and runtime startup should not be conflated.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
 
 ## Still Open
@@ -37,5 +37,5 @@ This page tracks design pressure that is not fully nailed down yet.
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
 - How should foreign operation signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
-- Is `callable` the right spelling for frame-boundary states, or should this be `entry state`, `call state`, or another contextual form?
-- Should Omega eventually support explicit tail calls into callables, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?
+- If the paradigm shifts again, should `fn` remain the spelling for frame boundaries or should it collapse back into a state-only model?
+- Should Omega eventually support explicit tail calls into functions, and if so what spelling avoids confusing them with ordinary `-> state()` transitions?

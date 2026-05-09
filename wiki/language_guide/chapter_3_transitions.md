@@ -1,11 +1,11 @@
 # Chapter 3: Transitions
 
-Within one active callable frame, transitions are gotos.
+Within one active function frame, transitions are gotos.
 
 They do not push a stack frame, remember a return address, or resume the source state. The source state path ends, and the target state activates with explicit arguments.
 
 ```omega
-callable clamp(value: f32, min: f32, max: f32) -> f32 {
+fn clamp(value: f32, min: f32, max: f32) -> f32 {
     -> min when value < min
     -> max when value > max
 
@@ -38,10 +38,10 @@ This avoids the ambiguity where a bare name might be either a state label or a r
 
 ## Terminal Value Transitions
 
-A transition can complete the active callable frame directly.
+A transition can complete the active function frame directly.
 
 ```omega
-callable fib(n: i32) -> i32 {
+fn fib(n: i32) -> i32 {
     -> n when n <= 1
 
     left: i32 = fib(n - 1);
@@ -51,9 +51,9 @@ callable fib(n: i32) -> i32 {
 }
 ```
 
-`-> n` does not jump to a state. It returns the value from the current callable activation.
+`-> n` does not jump to a state. It returns the value from the current function activation.
 
-For no-value callables, a bare terminal arrow is enough:
+For no-value functions, a bare terminal arrow is enough:
 
 ```omega
 state finished {
@@ -61,14 +61,14 @@ state finished {
 }
 ```
 
-Terminal completion from a plain state returns from the currently active callable frame. The plain state is not the caller; it is part of the callable's internal graph.
+Terminal completion from a plain state returns from the currently active function frame. The plain state is not the caller; it is part of the function's internal graph.
 
-## Callables Versus States
+## Functions Versus States
 
-`callable` is the current working spelling for a frame boundary.
+`fn` is the current working spelling for a frame boundary.
 
 ```omega
-callable run() {
+fn run() {
     setup();
 
     -> loop()
@@ -83,11 +83,11 @@ state loop {
 
 Rules:
 
-- Calling a `callable` creates a stack frame and continuation.
+- Calling a `fn` creates a stack frame and continuation.
 - Transitioning to a plain `state` does not create a stack frame.
 - Plain states cannot be called with normal call syntax.
-- Transitions to callables are illegal for now.
-- If Omega later needs tail calls into callables, they should get their own spelling rather than overloading `->`.
+- Transitions to functions are illegal for now.
+- If Omega later needs tail calls into functions, they should get their own spelling rather than overloading `->`.
 
 This probably replaces the older idea of "static states" secretly creating stack semantics. The frame boundary should be visible in the source.
 
@@ -138,7 +138,7 @@ Each row behaves like:
 1. Evaluate the guard, if present.
 2. If the guard passes, evaluate that row's arguments or terminal value.
 3. Drop locals not moved into the transition.
-4. Jump or complete the active callable frame.
+4. Jump or complete the active function frame.
 
 This rule applies to final transition tables and mid-state transitions alike.
 

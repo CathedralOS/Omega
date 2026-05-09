@@ -5,7 +5,7 @@ Omega should be able to weaken an invariant temporarily, then prove that each tr
 ```omega
 owns health: i32[range<1, 100>] = 100;
 
-callable take_damage(amount: i32[range<1, 100>]) {
+fn take_damage(amount: i32[range<1, 100>]) {
     relax self.health {
         self.health -= amount;
 

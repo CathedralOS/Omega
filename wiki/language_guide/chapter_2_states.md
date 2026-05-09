@@ -1,6 +1,6 @@
 # Chapter 2: States
 
-A state is a graph node inside an active callable frame.
+A state is a graph node inside an active function frame.
 
 States execute straight-line work until a transition fires or the state completes. A state does not create a call frame by itself, and ordinary calls cannot target plain states.
 
@@ -24,14 +24,14 @@ The important rule:
 
 States are the explicit stateful parts of the program. They are where debugger UX, proof boundaries, and code generation should line up.
 
-Callable states add stack-frame boundaries to this model, but they do not erase the graph model.
+Functions add stack-frame boundaries to this model, but they do not erase the graph model.
 
-## Callable Frame Boundaries
+## Function Frame Boundaries
 
-`callable` is the current scratch spelling for a state-like body that may be called with normal call syntax.
+`fn` is the spelling for a body that may be called with normal call syntax.
 
 ```omega
-callable run() {
+fn run() {
     setup();
 
     -> loop()
@@ -46,13 +46,13 @@ state loop {
 
 Working interpretation:
 
-- Calling a `callable` creates a frame and a continuation.
+- Calling a `fn` creates a frame and a continuation.
 - Transitioning with `->` never creates a frame.
 - Plain `state`s can only be reached by transition.
-- Terminal completion from any plain state returns from the active callable frame.
-- A callable may transition into plain states that form its internal graph.
+- Terminal completion from any plain state returns from the active function frame.
+- A function may transition into plain states that form its internal graph.
 
-This means a machine can have many callable entry points. They are not necessarily public or runtime entry states; they are just call boundaries.
+This means a machine can have many function entry points. They are not necessarily public or runtime entry states; they are just call boundaries.
 
 ## Source States Versus Semantic States
 
