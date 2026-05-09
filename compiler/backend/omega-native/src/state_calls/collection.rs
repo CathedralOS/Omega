@@ -142,41 +142,9 @@ fn resolve_state_call_target(
         return None;
     }
 
-    let receiver = receiver?;
-
-    if let Some(contained) = machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == *receiver)
-    {
-        return resolve_state_key_in_machine(
-            control_flow,
-            contained.type_symbol,
-            target_symbol,
-            target_state,
-        )
-        .map(|key| ResolvedStateCall {
-            key,
-            resolution: StateCallResolution::ContainedMachine,
-        });
-    }
-
-    let target_machine = control_flow
-        .machines
-        .iter()
-        .find(|(_, candidate)| candidate.name == *receiver)
-        .map(|(_, candidate)| candidate)?;
-    let key = resolve_state_key_in_machine(
-        control_flow,
-        target_machine.symbol,
-        target_symbol,
-        target_state,
-    )?;
-
-    Some(ResolvedStateCall {
-        key,
-        resolution: StateCallResolution::NamedMachine,
-    })
+    let _ = receiver?;
+    let _ = target_state;
+    None
 }
 
 fn resolve_state_key_in_machine(
@@ -188,32 +156,7 @@ fn resolve_state_key_in_machine(
     if state_symbol.is_valid() {
         control_flow.state_key_by_symbols(machine_symbol, state_symbol)
     } else {
-        state_key_by_machine_symbol_and_state_name(control_flow, machine_symbol, state_name)
+        let _ = (control_flow, machine_symbol, state_name);
+        None
     }
-}
-
-fn state_key_by_machine_symbol_and_state_name(
-    control_flow: &ControlFlowPlan,
-    machine_symbol: SymbolHandle,
-    state_name: &ProgramName,
-) -> Option<StateKey> {
-    let state_symbol =
-        state_symbol_by_machine_symbol_and_state_name(control_flow, machine_symbol, state_name)?;
-
-    control_flow.state_key_by_symbols(machine_symbol, state_symbol)
-}
-
-fn state_symbol_by_machine_symbol_and_state_name(
-    control_flow: &ControlFlowPlan,
-    machine_symbol: SymbolHandle,
-    state_name: &ProgramName,
-) -> Option<SymbolHandle> {
-    let machine = control_flow.machine_by_symbol(machine_symbol)?;
-
-    control_flow
-        .states
-        .span(machine.states)?
-        .iter()
-        .find(|state| state.name == *state_name)
-        .map(|state| state.key.state)
 }

@@ -126,13 +126,7 @@ fn runtime_transition_target(
         } => machine
             .contains
             .iter()
-            .find(|contained| {
-                if receiver_symbol.is_valid() {
-                    contained.symbol == *receiver_symbol
-                } else {
-                    contained.name == *receiver
-                }
-            })
+            .find(|contained| receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
             .and_then(|contained| {
                 native_plan
                     .control_flow
@@ -145,11 +139,7 @@ fn runtime_transition_target(
                     .span(target_machine.states)
                     .and_then(|states| {
                         states.iter().find(|candidate| {
-                            if state_symbol.is_valid() {
-                                candidate.key.state == *state_symbol
-                            } else {
-                                candidate.name == *state
-                            }
+                            state_symbol.is_valid() && candidate.key.state == *state_symbol
                         })
                     })
             })
