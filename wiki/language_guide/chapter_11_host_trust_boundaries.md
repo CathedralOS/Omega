@@ -31,6 +31,14 @@ capability Stdout {
 }
 ```
 
+In proof vocabulary, a host capability state has a contract:
+
+- `requires` lists the facts the caller must provide.
+- `ensures` lists the guarantees the host operation contributes.
+- `trust` names the authority used when those guarantees cannot be proven from Omega source.
+
+Omega should still prove the requirements before the call. For example, it can prove a buffer is initialized, a slice length is valid, and an error result is handled. What it cannot prove from Omega code is that the OS implementation really obeys `ensures`. That is exactly what `trust host` means.
+
 The important split is:
 
 - `Proven`: Omega verified this from Omega code.

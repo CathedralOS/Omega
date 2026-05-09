@@ -4,7 +4,7 @@ Inline assembly is not an escape hatch from Omega's proof model.
 
 Omega may eventually allow assembly inside states, but assembly must participate in the same control-flow, ownership, aliasing, and invariant rules as ordinary Omega code. The right mental model is:
 
-- Assembly instructions emit contracts.
+- Parsed assembly instructions have contracts.
 - The compiler checks those contracts.
 - If the contracts cannot be satisfied, the program fails to compile.
 - Trust is explicit when the compiler cannot prove an assembly contract from Omega facts.
@@ -13,7 +13,18 @@ This keeps inline assembly useful for low-level work without letting it become a
 
 ## Contract-Emitting Assembly
 
-An assembly block should describe what it reads, writes, clobbers, requires, ensures, and how control can leave the block.
+An assembly block should be parsed as a restricted Omega assembly dialect, not treated as an opaque text blob.
+
+Known instructions can have compiler-defined contracts. For example, a structured load instruction can declare requirements about alignment, initialized memory, and read permission, then guarantee that a destination register is initialized. A structured store instruction can require writable memory and guarantee initialized destination bytes.
+
+Manual contracts are still useful, but they should fill gaps rather than be the only model. The ideal default is:
+
+- Parse the assembly.
+- Convert instructions into structured low-level operations.
+- Emit requirements, guarantees, clobbers, and control-flow exits from known instruction contracts.
+- Ask the user for explicit contracts only when the instruction or behavior is outside the known dialect.
+
+An assembly block should still be able to describe what it reads, writes, clobbers, requires, ensures, and how control can leave the block.
 
 Sketch:
 
@@ -92,6 +103,8 @@ ensures dst[0..16].initialized
 
 The exact syntax is not settled. The important rule is that assembly does not get to mutate reality without telling the compiler what reality changed.
 
+This is not fundamentally different from normal Omega code. Values carry facts; operations have contracts; contracts create obligations. Assembly is special only because it lives closer to the machine, so the contracts are lower-level and often more numerous.
+
 ## Trust Levels
 
 Inline assembly can produce facts at the same three trust levels used elsewhere:
@@ -114,9 +127,20 @@ This matches the broader trust model: "trust me" is allowed only when it is expl
 
 ## Syntax Direction
 
-Inline assembly likely needs both a compact form and a contract-heavy form.
+Inline assembly likely needs three forms.
 
-Compact sketch:
+Structured parsed assembly:
+
+```omega
+asm {
+    ldr x0, [src]
+    str x0, [dst]
+}
+```
+
+The compiler accepts this only if `ldr` and `str` are part of the known Omega assembly dialect for the target and their emitted contracts can be discharged.
+
+Compact control-flow assembly:
 
 ```omega
 asm {
@@ -124,7 +148,9 @@ asm {
 }
 ```
 
-Contract sketch:
+This can be accepted when `my_state` resolves to an Omega state transition and all transition obligations are satisfied.
+
+Contract-heavy assembly:
 
 ```omega
 asm where
@@ -146,6 +172,7 @@ The `where` spelling is provisional. It lines up with the idea that assembly blo
 - Assembly memory effects must be described in terms Omega can reason about.
 - Target-specific instructions may require target-feature contracts.
 - Assembly should be unavailable in safe/proven builds unless all obligations are discharged or explicitly trusted.
-- The compiler should prefer structured assembly contracts over parsing arbitrary textual assembly semantics.
+- The compiler should prefer parsed, restricted, contract-emitting assembly over arbitrary textual assembly.
+- Manual contracts are for unknown instructions, target intrinsics, or proof gaps, not a replacement for compiler-known instruction contracts.
 
 Omega can still emit machine bytes directly. Inline assembly is about letting users request specific low-level operations while preserving the compiler's ability to reason about the program.
