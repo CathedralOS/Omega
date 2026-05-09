@@ -186,6 +186,7 @@ Omega/
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-target-program/               # Target-aware operations before instruction selection, roughly LIR-shaped.
 |   |   |-- [CRATE] omega-machine-program/              # Machine functions, blocks, virtual/physical registers (MIR/LIR territory).
+|   |   |-- [CRATE] omega-backend-plan/                 # Temporary aggregate backend phase output used by reports/artifacts while phase surfaces settle.
 |   |   |-- [CRATE] omega-dataflow/                     # Shared data-flow framework.
 |   |   |-- [CRATE] omega-optimization/                 # Machine-independent optimization passes.
 |   |   `-- [CRATE] omega-specialization/               # Monomorphization/specialization and code unit planning.
@@ -253,6 +254,7 @@ Omega/
 |   |   |-- [CRATE] omega-queries/                      # Incremental/query engine and cache keys.
 |   |   |-- [CRATE] omega-artifacts/                    # Phase artifact data and text/binary dumping.
 |   |   |-- [CRATE] omega-session/                      # Compilation session, options, build graph, worker pools.
+|   |   |-- [CRATE] omega-backend-pipeline/             # Backend phase sequencing at the orchestration edge.
 |   |   `-- [CRATE] omega-compiler/                     # Top-level check/build API used by cli/lsp/tests.
 |   |
 |   `-- tool_support/
