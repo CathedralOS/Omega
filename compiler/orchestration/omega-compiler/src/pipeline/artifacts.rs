@@ -17,7 +17,6 @@ use omega_native::NativeSurfaceReport;
 use omega_native::abi::{
     HostBinding, HostBindingMechanism, PlatformCallData, PlatformCallLowering,
 };
-use omega_native::data::NativeDataObject;
 use omega_native::emission::EmissionPlan;
 use omega_native::emitter::EmittedNativeOutput;
 use omega_native::executable_finalization::{ExecutableFinalization, ExecutableFinalizationStatus};
@@ -37,8 +36,8 @@ use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_target_program::{
-    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
-    SelectedInstructionKind,
+    FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, NativeDataObject,
+    SelectedInstruction, SelectedInstructionKind,
 };
 use omega_typed_program::Program;
 use omega_typed_program::data::DataMember;

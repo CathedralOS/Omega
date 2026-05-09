@@ -1,5 +1,7 @@
+pub mod data;
 pub mod instruction;
 
+pub use data::{NativeDataObject, NativeDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, InstructionPlan,
