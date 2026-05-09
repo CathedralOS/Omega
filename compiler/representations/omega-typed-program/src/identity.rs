@@ -1,9 +1,11 @@
 use crate::Program;
 use crate::data::DataMember;
-use crate::expression::Expression;
+use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::ProgramName;
-use crate::statement::{Statement, TransitionGuard, TransitionTarget};
-use crate::types::{TypeConstraint, TypeReference};
+use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
+use crate::types::{
+    TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
@@ -91,8 +93,14 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
-            for statement in &state.statements {
-                count_statement(statement, &mut counts);
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                count_statement_node(
+                    &program.statement_table,
+                    &program.expression_table,
+                    &program.type_reference_table,
+                    statement,
+                    &mut counts,
+                );
             }
         }
     }
@@ -104,35 +112,88 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
     counts
 }
 
-fn count_statement(statement: &Statement, counts: &mut IdentityStorageCounts) {
+fn count_statement_node(
+    statements: &StatementTable,
+    expressions: &ExpressionTable,
+    type_references: &TypeReferenceTable,
+    statement: &StatementNode,
+    counts: &mut IdentityStorageCounts,
+) {
     match statement {
-        Statement::Assignment(assignment) => {
-            count_expression(&assignment.target, counts);
-            count_expression(&assignment.value, counts);
+        StatementNode::Assignment(assignment) => {
+            count_expression_handle(expressions, assignment.target, counts);
+            count_expression_handle(expressions, assignment.value, counts);
         }
-        Statement::Call(call) => {
+        StatementNode::Call(call) => {
             count_call_name(&call.target, counts);
             if let Some(receiver) = &call.receiver {
                 count_call_name(receiver, counts);
             }
-            for argument in &call.arguments {
-                count_expression(argument, counts);
+            for argument in statements.expression_handles(call.arguments) {
+                count_expression_handle(expressions, *argument, counts);
             }
         }
-        Statement::Expression(expression) => count_expression(expression, counts),
-        Statement::LocalData(local_data) => {
+        StatementNode::Expression(expression) => {
+            count_expression_handle(expressions, *expression, counts)
+        }
+        StatementNode::LocalData(local_data) => {
             count_declaration_name(&local_data.name, counts);
-            count_type_reference(&local_data.type_reference, counts);
+            count_type_reference_handle(type_references, local_data.type_reference, counts);
         }
-        Statement::Transition(transition) => {
-            count_transition_target(&transition.target, counts);
-            if let Some(continuation) = &transition.continuation {
-                count_transition_target(continuation, counts);
+        StatementNode::Transition(transition) => {
+            count_transition_target_node(
+                statements,
+                expressions,
+                statements.transition_target(transition.target),
+                counts,
+            );
+            if transition.continuation.is_valid() {
+                count_transition_target_node(
+                    statements,
+                    expressions,
+                    statements.transition_target(transition.continuation),
+                    counts,
+                );
             }
-            if let TransitionGuard::When(expression) = &transition.guard {
-                count_expression(expression, counts);
+            if let TransitionGuardNode::When(expression) = transition.guard {
+                count_expression_handle(expressions, expression, counts);
             }
         }
+    }
+}
+
+fn count_type_reference_handle(
+    table: &TypeReferenceTable,
+    type_reference: TypeReferenceHandle,
+    counts: &mut IdentityStorageCounts,
+) {
+    count_type_reference_node(table, table.type_reference(type_reference), counts);
+}
+
+fn count_type_reference_node(
+    table: &TypeReferenceTable,
+    type_reference: &TypeReferenceNode,
+    counts: &mut IdentityStorageCounts,
+) {
+    match type_reference {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            count_type_reference_handle(table, *base_type, counts);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            count_type_reference_handle(table, *element_type, counts);
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            count_type_name(base_name, counts);
+            for argument in table.type_reference_handles(*arguments) {
+                count_type_reference_handle(table, *argument, counts);
+            }
+        }
+        TypeReferenceNode::Named { name, .. } => count_type_name(name, counts),
+        TypeReferenceNode::Unit => {}
     }
 }
 
@@ -144,17 +205,72 @@ fn count_declaration_name(name: &ProgramName, counts: &mut IdentityStorageCounts
     }
 }
 
-fn count_transition_target(target: &TransitionTarget, counts: &mut IdentityStorageCounts) {
+fn count_transition_target_node(
+    statements: &StatementTable,
+    expressions: &ExpressionTable,
+    target: &TransitionTargetNode,
+    counts: &mut IdentityStorageCounts,
+) {
     match target {
-        TransitionTarget::Named { path, arguments } => {
-            for name in path {
+        TransitionTargetNode::Named { path, arguments } => {
+            for name in statements.name_path_members(path.members) {
                 count_transition_path_member(name, counts);
             }
-            for argument in arguments {
-                count_expression(argument, counts);
+            for argument in statements.expression_handles(*arguments) {
+                count_expression_handle(expressions, *argument, counts);
             }
         }
-        TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+    }
+}
+
+fn count_expression_handle(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    counts: &mut IdentityStorageCounts,
+) {
+    count_expression_node(table, table.expression(expression), counts);
+}
+
+fn count_expression_node(
+    table: &ExpressionTable,
+    expression: &ExpressionNode,
+    counts: &mut IdentityStorageCounts,
+) {
+    match expression {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in table.expression_handles(*values) {
+                count_expression_handle(table, *value, counts);
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            count_expression_handle(table, binary.left, counts);
+            count_expression_handle(table, binary.right, counts);
+        }
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {}
+        ExpressionNode::Float(value) => {
+            counts.float_literals += 1;
+            let _ = value;
+            counts.parsed_float_literals += 1;
+        }
+        ExpressionNode::Indexed(indexed) => {
+            count_expression_handle(table, indexed.collection, counts);
+            count_expression_handle(table, indexed.index, counts);
+        }
+        ExpressionNode::Mutable(expression) => count_expression_handle(table, *expression, counts),
+        ExpressionNode::Name(path) => {
+            for name in table.name_path_members(path.members) {
+                count_expression_path_member(name, counts);
+            }
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            count_struct_literal_name(&struct_literal.type_name, counts);
+            for field in table.struct_fields(struct_literal.fields) {
+                count_struct_literal_name(&field.name, counts);
+                count_expression_handle(table, field.value, counts);
+            }
+        }
+        ExpressionNode::String(_) => counts.string_literals += 1,
     }
 }
 

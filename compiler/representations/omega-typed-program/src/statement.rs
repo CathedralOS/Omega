@@ -86,6 +86,10 @@ impl StatementTable {
         self.statements.get(handle)
     }
 
+    pub fn statements(&self, span: HandleSpan<StatementNode>) -> &[StatementNode] {
+        self.statements.span_or_empty(span)
+    }
+
     pub fn expression_handles(
         &self,
         span: HandleSpan<crate::expression::ExpressionHandle>,
