@@ -37,21 +37,7 @@ use omega_core::parallel::WorkerPoolHandle;
 use omega_layout::build_layout_plan;
 use omega_target::NativeTarget;
 use omega_typed_program::Program;
-use omega_typed_to_control_flow::build_control_flow_plan_with_workers;
 use std::sync::Arc;
-
-pub(super) fn build_native_plan_with_workers(
-    program: Arc<Program>,
-    target: NativeTarget,
-    workers: WorkerPoolHandle,
-) -> Result<NativePlan, Diagnostic> {
-    let control_flow = Arc::new(build_control_flow_plan_with_workers(
-        Arc::clone(&program),
-        workers.clone(),
-    )?);
-
-    build_native_plan_from_control_flow_with_workers(program, target, control_flow, workers)
-}
 
 pub(super) fn build_native_plan_from_control_flow_with_workers(
     program: Arc<Program>,

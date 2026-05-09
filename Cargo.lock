@@ -228,7 +228,6 @@ dependencies = [
  "omega-object",
  "omega-target",
  "omega-typed-program",
- "omega-typed-to-control-flow",
 ]
 
 [[package]]

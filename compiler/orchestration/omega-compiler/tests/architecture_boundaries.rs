@@ -22,6 +22,23 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
 }
 
 #[test]
+fn backend_crates_do_not_depend_on_lowering_crates() {
+    let repo_root = repo_root();
+    let backend_root = repo_root.join("compiler/backend");
+
+    for cargo_toml in cargo_tomls_under(&backend_root) {
+        let contents = fs::read_to_string(&cargo_toml)
+            .unwrap_or_else(|error| panic!("failed to read {}: {error}", cargo_toml.display()));
+
+        assert!(
+            !contents.contains("../../lowering/"),
+            "{} must not depend on lowering crates; orchestration should pass lowered IR forward",
+            cargo_toml.display()
+        );
+    }
+}
+
+#[test]
 fn representation_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
     let representations_root = repo_root.join("compiler/representations");
