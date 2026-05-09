@@ -35,6 +35,8 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
 
         for operation in operations {
             let OperationKind::Call {
+                receiver_symbol,
+                target_symbol,
                 receiver,
                 target,
                 arguments,
@@ -50,6 +52,8 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
+                *receiver_symbol,
+                *target_symbol,
                 receiver.as_ref(),
                 target,
             );
@@ -86,9 +90,48 @@ struct ResolvedStateCall {
 fn resolve_state_call_target(
     control_flow: &ControlFlowPlan,
     machine: &MachineFlow,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
     receiver: Option<&ProgramName>,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
+    if target_symbol.is_valid() {
+        if let Some(key) = control_flow.state_key_by_symbols(machine.symbol, target_symbol) {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::Local,
+            });
+        }
+
+        if receiver_symbol.is_valid() {
+            if let Some(contained) = machine
+                .contains
+                .iter()
+                .find(|contained| contained.symbol == receiver_symbol)
+            {
+                if let Some(key) =
+                    control_flow.state_key_by_symbols(contained.type_symbol, target_symbol)
+                {
+                    return Some(ResolvedStateCall {
+                        key,
+                        resolution: StateCallResolution::ContainedMachine,
+                    });
+                }
+            }
+
+            if let Some(target_machine) = control_flow.machine_by_symbol(receiver_symbol) {
+                if let Some(key) =
+                    control_flow.state_key_by_symbols(target_machine.symbol, target_symbol)
+                {
+                    return Some(ResolvedStateCall {
+                        key,
+                        resolution: StateCallResolution::NamedMachine,
+                    });
+                }
+            }
+        }
+    }
+
     let Some(receiver) = receiver else {
         if let Some(key) =
             state_key_by_machine_symbol_and_state_name(control_flow, machine.symbol, target_state)

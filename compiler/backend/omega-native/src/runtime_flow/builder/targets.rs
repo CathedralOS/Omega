@@ -25,11 +25,21 @@ impl RuntimeFlowBuilder<'_> {
                 RuntimeTransitionTarget::State { key: *key }
             }
             PlannedTransitionTarget::Nested {
-                receiver, state, ..
+                receiver_symbol,
+                state_symbol,
+                receiver,
+                state,
+                ..
             } => machine
                 .contains
                 .iter()
-                .find(|contained| contained.name == *receiver)
+                .find(|contained| {
+                    if receiver_symbol.is_valid() {
+                        contained.symbol == *receiver_symbol
+                    } else {
+                        contained.name == *receiver
+                    }
+                })
                 .and_then(|contained| {
                     self.control_flow
                         .machines
@@ -41,7 +51,12 @@ impl RuntimeFlowBuilder<'_> {
                     self.control_flow
                         .states
                         .span(target_machine.states)
-                        .and_then(|states| states.iter().find(|candidate| candidate.name == *state))
+                        .and_then(|states| {
+                            states.iter().find(|candidate| {
+                                state_symbol.is_valid() && candidate.key.state == *state_symbol
+                                    || candidate.name == *state
+                            })
+                        })
                 })
                 .map(|state| RuntimeTransitionTarget::State { key: state.key })
                 .unwrap_or_else(|| RuntimeTransitionTarget::Unknown {

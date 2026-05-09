@@ -391,6 +391,15 @@ fn attach_statement_expression_symbols(
             attach_expression_symbol(symbols, context, &mut assignment.value);
         }
         Statement::Call(call) => {
+            call.receiver_symbol = context.resolve_call_receiver(
+                symbols,
+                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+            );
+            call.target_symbol = context.resolve_call_target(
+                symbols,
+                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+                call.target.as_str(),
+            );
             for argument in &mut call.arguments {
                 attach_expression_symbol(symbols, context, argument);
             }
@@ -521,6 +530,55 @@ impl ExpressionResolveContext {
             if let Some(symbol) =
                 symbols.find_descendant_by_path(root, path.iter().map(|member| member.as_str()))
             {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn resolve_call_receiver(self, symbols: &SymbolTable, receiver: Option<&str>) -> SymbolHandle {
+        match receiver {
+            Some("self") | None => self.machine,
+            Some(receiver) => self.resolve_symbol(symbols, [receiver]),
+        }
+    }
+
+    fn resolve_call_target(
+        self,
+        symbols: &SymbolTable,
+        receiver: Option<&str>,
+        target: &str,
+    ) -> SymbolHandle {
+        if let Some(receiver) = receiver {
+            return self.resolve_symbol(symbols, [receiver, target]);
+        }
+
+        self.resolve_symbol(symbols, [target])
+    }
+
+    fn resolve_symbol<'path>(
+        self,
+        symbols: &SymbolTable,
+        path: impl IntoIterator<Item = &'path str> + Clone,
+    ) -> SymbolHandle {
+        let mut members = path.clone().into_iter();
+        let Some(first_member) = members.next() else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return symbols
+                .find_descendant_by_path(self.machine, members)
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) = symbols.find_descendant_by_path(root, path.clone()) {
                 return symbol;
             }
         }
@@ -1474,6 +1532,8 @@ fn lower_statement(
             }))
         }
         ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
+            receiver_symbol: SymbolHandle::invalid(),
+            target_symbol: SymbolHandle::invalid(),
             receiver: call.receiver.as_ref().map(lower_name),
             target: lower_name(&call.target),
             arguments: call

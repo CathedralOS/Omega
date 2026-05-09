@@ -26,6 +26,8 @@ pub struct LocalData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
     pub receiver: Option<ProgramName>,
     pub target: ProgramName,
     pub arguments: Vec<Expression>,

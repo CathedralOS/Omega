@@ -20,6 +20,7 @@ pub(in crate::identity) fn count_planned_target_strings(
             receiver,
             state,
             arguments,
+            ..
         } => {
             storage.count_program_name_identity(receiver);
             storage.count_program_name_identity(state);

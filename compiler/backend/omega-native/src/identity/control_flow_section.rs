@@ -34,6 +34,7 @@ pub(in crate::identity) fn count_control_flow_strings(
                 receiver: _,
                 target: _,
                 arguments,
+                ..
             } => {
                 for argument in arguments {
                     count_expression_strings(argument, storage);

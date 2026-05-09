@@ -51,6 +51,8 @@ fn plan_transition_target(
         TransitionTarget::Named {
             path, arguments, ..
         } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
+            receiver_symbol: path.head_symbol(),
+            state_symbol: path.symbol(),
             receiver: path[0].clone(),
             state: path[1].clone(),
             arguments: arguments.clone(),

@@ -155,6 +155,8 @@ pub enum OperationKind {
         value: Expression,
     },
     Call {
+        receiver_symbol: SymbolHandle,
+        target_symbol: SymbolHandle,
         receiver: Option<ProgramName>,
         target: ProgramName,
         arguments: Vec<Expression>,
@@ -193,6 +195,8 @@ pub enum PlannedTransitionTarget {
         arguments: Vec<Expression>,
     },
     Nested {
+        receiver_symbol: SymbolHandle,
+        state_symbol: SymbolHandle,
         receiver: ProgramName,
         state: ProgramName,
         arguments: Vec<Expression>,

@@ -129,6 +129,8 @@ fn operation_kind(statement: &Statement) -> OperationKind {
             value: assignment.value.clone(),
         },
         Statement::Call(call) => OperationKind::Call {
+            receiver_symbol: call.receiver_symbol,
+            target_symbol: call.target_symbol,
             receiver: call.receiver.clone(),
             target: call.target.clone(),
             arguments: call.arguments.clone(),

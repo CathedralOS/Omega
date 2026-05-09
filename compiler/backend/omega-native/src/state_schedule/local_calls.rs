@@ -1,11 +1,10 @@
 use super::append_state_chain;
-use super::lookups::{
-    machine_flow_by_symbol, state_flow_by_key, state_flow_by_machine_symbol_and_name,
-};
+use super::lookups::{machine_flow_by_symbol, state_flow_by_key};
 use super::model::ScheduledState;
 use super::static_values::{argument_binding_place_name, resolve_static_value, set_static_value};
 use crate::control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
 use crate::plan::NativePlan;
+use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::Expression;
 
 pub(super) fn append_local_state_calls(
@@ -26,6 +25,8 @@ pub(super) fn append_local_state_calls(
 
     for operation in operations {
         let OperationKind::Call {
+            receiver_symbol,
+            target_symbol,
             receiver,
             target,
             arguments,
@@ -48,33 +49,31 @@ pub(super) fn append_local_state_calls(
             continue;
         }
 
-        let target_machine =
-            resolve_state_call_machine_flow(native_plan, machine, receiver.as_deref()).ok_or_else(
-                || {
-                    format!(
-                        "{}.{} statement {} calls unknown state receiver `{}`",
-                        machine.name,
-                        state.name,
-                        operation.statement_index,
-                        receiver.as_deref().unwrap_or("self")
-                    )
-                },
-            )?;
+        let target_state_key = resolve_state_call_key(
+            native_plan,
+            machine,
+            *receiver_symbol,
+            *target_symbol,
+            receiver.as_deref(),
+            target,
+        )
+        .ok_or_else(|| {
+            format!(
+                "{}.{} statement {} calls unknown state `{}` on receiver `{}`",
+                machine.name,
+                state.name,
+                operation.statement_index,
+                target,
+                receiver.as_deref().unwrap_or("self")
+            )
+        })?;
 
         let saved_alias_count = aliases.len();
         let saved_visited_count = visited.len();
-        let target_state_flow =
-            state_flow_by_machine_symbol_and_name(native_plan, target_machine.symbol, target)?;
-        bind_state_arguments_by_key(
-            native_plan,
-            target_state_flow.key,
-            arguments,
-            aliases,
-            values,
-        )?;
+        bind_state_arguments_by_key(native_plan, target_state_key, arguments, aliases, values)?;
         append_state_chain(
             native_plan,
-            target_state_flow.key,
+            target_state_key,
             schedule,
             visited,
             values,
@@ -85,6 +84,60 @@ pub(super) fn append_local_state_calls(
     }
 
     Ok(())
+}
+
+fn resolve_state_call_key(
+    native_plan: &NativePlan,
+    machine: &MachineFlow,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    receiver: Option<&str>,
+    target: &str,
+) -> Option<StateKey> {
+    if target_symbol.is_valid() {
+        if let Some(key) = native_plan
+            .control_flow
+            .state_key_by_symbols(machine.symbol, target_symbol)
+        {
+            return Some(key);
+        }
+
+        if receiver_symbol.is_valid() {
+            if let Some(contained) = machine
+                .contains
+                .iter()
+                .find(|contained| contained.symbol == receiver_symbol)
+            {
+                if let Some(key) = native_plan
+                    .control_flow
+                    .state_key_by_symbols(contained.type_symbol, target_symbol)
+                {
+                    return Some(key);
+                }
+            }
+
+            if let Some(target_machine) =
+                native_plan.control_flow.machine_by_symbol(receiver_symbol)
+            {
+                if let Some(key) = native_plan
+                    .control_flow
+                    .state_key_by_symbols(target_machine.symbol, target_symbol)
+                {
+                    return Some(key);
+                }
+            }
+        }
+    }
+
+    let target_machine = resolve_state_call_machine_flow(native_plan, machine, receiver)?;
+
+    native_plan
+        .control_flow
+        .states
+        .span(target_machine.states)?
+        .iter()
+        .find(|state| state.name == target)
+        .map(|state| state.key)
 }
 
 fn resolve_state_call_machine_flow<'plan>(

@@ -72,26 +72,6 @@ pub(super) fn state_flow_by_key(
         })
 }
 
-pub(super) fn state_flow_by_machine_symbol_and_name<'plan>(
-    native_plan: &'plan NativePlan,
-    machine_symbol: SymbolHandle,
-    state_name: &str,
-) -> Result<&'plan StateFlow, String> {
-    let machine = machine_flow_by_symbol(native_plan, machine_symbol)?;
-
-    native_plan
-        .control_flow
-        .states
-        .span(machine.states)
-        .and_then(|states| states.iter().find(|state| state.name == state_name))
-        .ok_or_else(|| {
-            format!(
-                "state {}.{} was not present in the control-flow plan",
-                machine.name, state_name
-            )
-        })
-}
-
 pub(super) fn validate_state_index(
     native_plan: &NativePlan,
     machine: &MachineFlow,

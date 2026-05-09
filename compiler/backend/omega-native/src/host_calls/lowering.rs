@@ -19,7 +19,13 @@ pub(in crate::host_calls) fn platform_call_receiver_type(
     let Some(receiver_type) = machine
         .contains
         .iter()
-        .find(|contained_object| contained_object.name == receiver)
+        .find(|contained_object| {
+            if call.receiver_symbol.is_valid() {
+                contained_object.symbol == call.receiver_symbol
+            } else {
+                contained_object.name == receiver
+            }
+        })
         .map(|contained_object| contained_object.type_name.as_str())
     else {
         return None;
