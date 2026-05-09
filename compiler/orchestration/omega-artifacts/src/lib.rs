@@ -71,6 +71,162 @@ impl ArtifactWriter {
 
         Ok(())
     }
+
+    pub fn write_sources(&self, source_artifact: &SourceLoadArtifact) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        let total_bytes = source_artifact
+            .files
+            .iter()
+            .map(|file| file.byte_count)
+            .sum::<usize>();
+        let total_lines = source_artifact
+            .files
+            .iter()
+            .map(|file| file.line_count)
+            .sum::<usize>();
+        let total_non_empty_lines = source_artifact
+            .files
+            .iter()
+            .map(|file| file.non_empty_line_count)
+            .sum::<usize>();
+
+        output.push_str("# Omega Source Load\n\n");
+        output.push_str("## Totals\n");
+        output.push_str(&format!("files: {}\n", source_artifact.files.len()));
+        output.push_str(&format!("items: {}\n", source_artifact.item_count));
+        output.push_str(&format!("bytes: {}\n", format_bytes(total_bytes as u64)));
+        output.push_str(&format!("lines: {}\n", total_lines));
+        output.push_str(&format!("non-empty lines: {}\n\n", total_non_empty_lines));
+
+        output.push_str("## Files\n");
+        output.push_str(&format!(
+            "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+            "id", "bytes", "lines", "code", "items", "item range", "path"
+        ));
+        output.push_str(&format!(
+            "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+            "--", "-----", "-----", "----", "-----", "----------", "----"
+        ));
+
+        for file in &source_artifact.files {
+            write_source_file_artifact(&mut output, file);
+        }
+
+        self.write_text("01_sources.txt", &output)
+    }
+
+    pub fn write_ast(&self, ast_artifact: &AstArtifact) -> Result<(), Diagnostic> {
+        let mut output = String::new();
+
+        output.push_str("# Omega AST\n\n");
+        output.push_str(&format!("files: {}\n", ast_artifact.file_count));
+        output.push_str(&format!("items: {}\n\n", ast_artifact.item_count));
+
+        output.push_str("## Identity Storage\n");
+        output.push_str(&format!(
+            "owned identifier strings: {}\n",
+            ast_artifact.identity.owned_identifier_strings
+        ));
+        output.push_str(&format!(
+            "identifiers: {}\n",
+            ast_artifact.identity.identifiers
+        ));
+        output.push_str(&format!(
+            "source identifiers: {}\n",
+            ast_artifact.identity.source_identifiers
+        ));
+        output.push_str(&format!(
+            "generated identifiers: {}\n",
+            ast_artifact.identity.generated_identifiers
+        ));
+        output.push_str(&format!(
+            "path members: {}\n",
+            ast_artifact.identity.path_members
+        ));
+        output.push_str(&format!(
+            "string literals: {}\n",
+            ast_artifact.identity.string_literals
+        ));
+        output.push_str(&format!(
+            "float literals: {}\n",
+            ast_artifact.identity.float_literals
+        ));
+        output.push_str(&format!(
+            "source float literals: {}\n",
+            ast_artifact.identity.source_float_literals
+        ));
+        output.push_str(&format!(
+            "generated float literals: {}\n\n",
+            ast_artifact.identity.generated_float_literals
+        ));
+
+        for file in &ast_artifact.files {
+            write_ast_file_artifact(&mut output, file);
+        }
+
+        self.write_text("02_ast.txt", &output)
+    }
+}
+
+fn write_source_file_artifact(output: &mut String, file: &SourceFileArtifact) {
+    let item_range = if file.item_count == 0 {
+        String::from("-")
+    } else {
+        format!("{}..{}", file.first_item, file.first_item + file.item_count)
+    };
+
+    output.push_str(&format!(
+        "{:<4} {:>8} {:>7} {:>7} {:>7} {:>11} {}\n",
+        file.id,
+        format_bytes(file.byte_count as u64),
+        file.line_count,
+        file.non_empty_line_count,
+        file.item_count,
+        item_range,
+        file.path.display()
+    ));
+}
+
+fn write_ast_file_artifact(output: &mut String, file: &AstFileArtifact) {
+    output.push_str(&format!("## {}\n", file.path.display()));
+
+    if !file.item_range_valid {
+        output.push_str("invalid item range\n\n");
+        return;
+    }
+
+    if file.item_summaries.is_empty() {
+        output.push_str("items: none\n\n");
+        return;
+    }
+
+    for (index, summary) in file.item_summaries.iter().enumerate() {
+        output.push_str(&format!(
+            "- item {}: {}\n",
+            file.first_item + index,
+            summary
+        ));
+    }
+
+    output.push('\n');
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+
+    let bytes = bytes as f64;
+    if bytes >= GIB {
+        format!("{:.2} GiB", bytes / GIB)
+    } else if bytes >= MIB {
+        format!("{:.2} MiB", bytes / MIB)
+    } else if bytes >= KIB {
+        format!("{:.2} KiB", bytes / KIB)
+    } else {
+        format!("{} B", bytes as u64)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
