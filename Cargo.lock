@@ -138,6 +138,7 @@ dependencies = [
  "omega-parser",
  "omega-platform-interface",
  "omega-proof",
+ "omega-runtime-branching",
  "omega-runtime-text",
  "omega-state-graph",
  "omega-state-guards",
@@ -197,6 +198,7 @@ dependencies = [
  "omega-native",
  "omega-platform-interface",
  "omega-runtime-bodies",
+ "omega-runtime-branching",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
@@ -339,6 +341,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-relocations",
  "omega-runtime-bodies",
+ "omega-runtime-branching",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-calls",
@@ -368,6 +371,7 @@ dependencies = [
  "omega-object",
  "omega-platform-interface",
  "omega-runtime-bodies",
+ "omega-runtime-branching",
  "omega-runtime-storage",
  "omega-runtime-text",
  "omega-state-dispatch",
@@ -451,6 +455,21 @@ dependencies = [
  "omega-platform-interface",
  "omega-state-calls",
  "omega-state-dispatch",
+ "omega-state-storage",
+ "omega-typed-program",
+]
+
+[[package]]
+name = "omega-runtime-branching"
+version = "0.1.0"
+dependencies = [
+ "omega-control-flow",
+ "omega-core",
+ "omega-platform-interface",
+ "omega-runtime-bodies",
+ "omega-state-calls",
+ "omega-state-graph",
+ "omega-state-guards",
  "omega-state-storage",
  "omega-typed-program",
 ]

@@ -26,6 +26,7 @@ omega-object-planning = { path = "../object/omega-object-planning" }
 omega-relocations = { path = "../object/omega-relocations" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
+omega-runtime-branching = { path = "../omega-runtime-branching" }
 omega-runtime-storage = { path = "../omega-runtime-storage" }
 omega-runtime-text = { path = "../omega-runtime-text" }
 omega-state-calls = { path = "../omega-state-calls" }

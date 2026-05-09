@@ -4,7 +4,7 @@ use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(in crate::runtime_dispatch::branching) struct RuntimeBranchAlias {
+pub(crate) struct RuntimeBranchAlias {
     pub(super) source_key: StateKey,
     pub(super) parameter_symbol: SymbolHandle,
     pub(super) parameter_name: ProgramName,
@@ -12,8 +12,8 @@ pub(in crate::runtime_dispatch::branching) struct RuntimeBranchAlias {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(in crate::runtime_dispatch::branching) struct BranchParameterBinding {
-    pub(in crate::runtime_dispatch::branching) parameter_symbol: SymbolHandle,
-    pub(in crate::runtime_dispatch::branching) parameter_name: ProgramName,
-    pub(in crate::runtime_dispatch::branching) expression: Expression,
+pub(crate) struct BranchParameterBinding {
+    pub(crate) parameter_symbol: SymbolHandle,
+    pub(crate) parameter_name: ProgramName,
+    pub(crate) expression: Expression,
 }

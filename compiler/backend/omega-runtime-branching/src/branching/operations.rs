@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_control_flow::{OperationKind, StateKey};
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
@@ -8,7 +8,7 @@ use super::{
 };
 
 pub(super) fn leaf_operations(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
 ) -> Vec<RuntimeLeafBranchOperation> {
     let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
@@ -29,7 +29,7 @@ pub(super) fn leaf_operations(
 }
 
 pub(super) fn straight_line_operations(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
 ) -> Vec<RuntimeStraightLineBranchOperation> {
     let Some(state) = native_plan.control_flow.state_by_key(source_key) else {
@@ -55,7 +55,7 @@ pub(super) fn straight_line_operations(
 }
 
 fn leaf_operation_kind(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
 ) -> RuntimeLeafBranchOperationKind {
@@ -78,7 +78,7 @@ fn leaf_operation_kind(
 }
 
 fn straight_line_operation_kind(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
     operation_kind: &OperationKind,

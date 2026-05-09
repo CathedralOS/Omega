@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
@@ -9,7 +9,7 @@ use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
 
 pub(super) fn build_branch_edges(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     state_key: StateKey,
     target_arguments: &mut Arena<Expression>,
 ) -> Vec<RuntimeBranchingCallEdge> {
@@ -65,7 +65,7 @@ fn transition_target_arguments(
 }
 
 fn branch_target_lowering(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     target: &RuntimeTransitionTarget,
 ) -> RuntimeBranchTargetLowering {
     let RuntimeTransitionTarget::State { key, .. } = target else {
@@ -110,7 +110,7 @@ fn branch_target_lowering(
 }
 
 fn runtime_transition_target(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     machine: &MachineFlow,
     current_state: StateKey,
     target: &PlannedTransitionTarget,

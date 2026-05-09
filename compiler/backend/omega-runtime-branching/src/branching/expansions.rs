@@ -10,7 +10,7 @@ use super::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
     RuntimeStraightLineBranchExpansion,
 };
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
@@ -18,7 +18,7 @@ use omega_typed_program::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     plan: &mut RuntimeBranchingCallPlan,
     source_key: StateKey,
     branch_key: StateKey,
@@ -66,7 +66,7 @@ pub(super) fn append_leaf_branch_expansions(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_straight_line_branch_expansions(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     plan: &mut RuntimeBranchingCallPlan,
     source_key: StateKey,
     branch_key: StateKey,
@@ -120,7 +120,7 @@ pub(super) fn append_straight_line_branch_expansions(
 
 fn leaf_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     leaf_key: StateKey,
     leaf_arguments: &'a [Expression],
 ) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
@@ -154,7 +154,7 @@ fn leaf_branch_bindings<'a>(
 
 fn straight_line_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     target_key: StateKey,
     target_arguments: &'a [Expression],
 ) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {

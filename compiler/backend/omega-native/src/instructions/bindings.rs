@@ -4,7 +4,7 @@ use omega_typed_program::expression::{Expression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
-use crate::runtime_dispatch::branching::{
+use omega_runtime_branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind,
 };

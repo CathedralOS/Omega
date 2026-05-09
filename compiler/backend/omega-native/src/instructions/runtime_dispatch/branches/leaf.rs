@@ -1,8 +1,6 @@
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::branching::{
-    RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind,
-};
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
+use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
 

@@ -3,7 +3,6 @@ use super::entry::resolve_native_entry_point;
 use super::skeleton::{NativePlanSkeletonInput, build_native_plan_skeleton};
 use super::timing::record_native_phase;
 use crate::instructions::build_instruction_plan;
-use crate::runtime_dispatch::branching::build_runtime_branching_call_plan;
 use crate::runtime_dispatch::loop_plan::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
     runtime_dispatch_loop_inputs,
@@ -21,6 +20,7 @@ use omega_relocations::{RelocationPlanningInput, build_relocation_plan};
 use omega_runtime_bodies::{
     RuntimeDispatchBodyContext, build_runtime_dispatch_body_plan_with_workers,
 };
+use omega_runtime_branching::{RuntimeBranchingContext, build_runtime_branching_call_plan};
 use omega_runtime_storage::{
     RuntimeStorageContext, build_runtime_storage_plan_with_workers,
     runtime_frame_storage_alignment, runtime_frame_storage_size, runtime_storage_body_inputs,
@@ -198,7 +198,13 @@ pub(super) fn build_native_plan_from_control_flow_with_workers(
         });
     native_plan.runtime_branching_calls =
         record_native_phase(&mut phase_timings, "runtime branching", || {
-            build_runtime_branching_call_plan(&native_plan)
+            build_runtime_branching_call_plan(&RuntimeBranchingContext {
+                control_flow: native_plan.control_flow.clone(),
+                host_calls: native_plan.host_calls.clone(),
+                runtime_bodies: native_plan.runtime_bodies.clone(),
+                state_calls: native_plan.state_calls.clone(),
+                state_storage: native_plan.state_storage.clone(),
+            })
         });
     native_plan.runtime_dispatch_loop = runtime_dispatch_loop;
     native_plan.runtime_storage = runtime_storage;

@@ -30,6 +30,7 @@ omega-parser = { path = "../../frontend/omega-parser" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-proof = { path = "../../semantics/omega-proof" }
 omega-names = { path = "../../semantics/omega-names" }
+omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
 omega-runtime-text = { path = "../../backend/omega-runtime-text" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../../backend/omega-state-guards" }

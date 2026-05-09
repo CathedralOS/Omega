@@ -4,7 +4,7 @@ use crate::identity::expressions::{
 };
 use crate::identity::targets::count_runtime_target_strings;
 use omega_native::plan::NativePlan;
-use omega_native::runtime_dispatch::branching::{
+use omega_runtime_branching::{
     RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchOperationKind,
 };
 

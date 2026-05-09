@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
@@ -23,7 +23,7 @@ pub(super) fn resolve_branch_guard(
 }
 
 pub(super) fn branch_parameter_bindings(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
 ) -> Vec<BranchParameterBinding> {
@@ -58,7 +58,7 @@ pub(super) fn branch_parameter_bindings(
 }
 
 pub(super) fn bind_runtime_branch_aliases(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     aliases: &mut Vec<RuntimeBranchAlias>,
     state_call: &StateCall,
 ) {

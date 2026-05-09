@@ -1883,7 +1883,7 @@ fn plans_runtime_branching_state_call_edges() {
 
     assert_eq!(
         branching_call.expansion,
-        omega_native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
+        omega_runtime_branching::RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
     );
     assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 2);
     assert_eq!(edges.len(), 2);
@@ -1894,7 +1894,7 @@ fn plans_runtime_branching_state_call_edges() {
     ));
     assert_eq!(
         edges[0].lowering,
-        omega_native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
+        omega_runtime_branching::RuntimeBranchTargetLowering::InlineLeaf
     );
     assert_eq!(
         edges[0].guard_kind,
@@ -1907,7 +1907,7 @@ fn plans_runtime_branching_state_call_edges() {
     ));
     assert_eq!(
         edges[1].lowering,
-        omega_native::runtime_dispatch::branching::RuntimeBranchTargetLowering::InlineLeaf
+        omega_runtime_branching::RuntimeBranchTargetLowering::InlineLeaf
     );
     assert_eq!(
         edges[1].guard_kind,
@@ -1955,7 +1955,7 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
 
     assert_eq!(
         branching_call.expansion,
-        omega_native::runtime_dispatch::branching::RuntimeBranchCallExpansion::GuardedLeaf
+        omega_runtime_branching::RuntimeBranchCallExpansion::GuardedLeaf
     );
     assert_eq!(native_plan.runtime_branching_calls.leaf_expansions.len(), 1);
     assert!(
@@ -2038,17 +2038,17 @@ fn plans_runtime_straight_line_branch_expansion() {
 
     assert_eq!(
         branching_call.expansion,
-        omega_native::runtime_dispatch::branching::RuntimeBranchCallExpansion::NeedsStraightLineTarget
+        omega_runtime_branching::RuntimeBranchCallExpansion::NeedsStraightLineTarget
     );
     assert!(bindings.iter().any(|binding| {
         binding.kind
-            == omega_native::runtime_dispatch::branching::RuntimeStraightLineBranchBindingKind::TargetParameter
+            == omega_runtime_branching::RuntimeStraightLineBranchBindingKind::TargetParameter
             && binding.parameter_name == "out_selected"
             && binding.expression.display_name() == "mut selected"
     }));
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
-        omega_native::runtime_dispatch::branching::RuntimeStraightLineBranchOperationKind::StateCall {
+        omega_runtime_branching::RuntimeStraightLineBranchOperationKind::StateCall {
             target_key,
             lowering: omega_native::state_calls::StateCallLowering::InlineLeaf,
             ..
@@ -2149,14 +2149,12 @@ fn plans_runtime_leaf_branch_argument_bindings() {
         "first::id == CellId::A1"
     );
     assert!(bindings.iter().any(|binding| {
-        binding.kind
-            == omega_native::runtime_dispatch::branching::RuntimeLeafBranchBindingKind::BranchParameter
+        binding.kind == omega_runtime_branching::RuntimeLeafBranchBindingKind::BranchParameter
             && binding.parameter_name == "cell"
             && binding.expression.display_name() == "first"
     }));
     assert!(bindings.iter().any(|binding| {
-        binding.kind
-            == omega_native::runtime_dispatch::branching::RuntimeLeafBranchBindingKind::LeafParameter
+        binding.kind == omega_runtime_branching::RuntimeLeafBranchBindingKind::LeafParameter
             && binding.parameter_name == "out_cell"
             && binding.expression.display_name() == "mut selected"
     }));

@@ -1,11 +1,11 @@
 use crate::plan::NativePlan;
-use crate::runtime_dispatch::branching::{
+use omega_control_flow::StateKey;
+use omega_runtime_bodies::RuntimeDispatchBodyOperation;
+use omega_runtime_branching::{
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
-use omega_control_flow::StateKey;
-use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::{

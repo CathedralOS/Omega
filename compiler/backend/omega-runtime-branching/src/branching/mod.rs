@@ -1,4 +1,4 @@
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_calls::StateCallLowering;
 
@@ -24,7 +24,9 @@ pub use model::{
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
 
-pub fn build_runtime_branching_call_plan(native_plan: &NativePlan) -> RuntimeBranchingCallPlan {
+pub fn build_runtime_branching_call_plan(
+    native_plan: &RuntimeBranchingContext,
+) -> RuntimeBranchingCallPlan {
     let mut plan = RuntimeBranchingCallPlan::default();
 
     for (_, body) in native_plan.runtime_bodies.bodies.iter() {

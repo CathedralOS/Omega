@@ -1,10 +1,10 @@
-use crate::plan::NativePlan;
+use crate::RuntimeBranchingContext;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
 
 pub(super) fn host_call_for_statement(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&HostCall> {
@@ -19,7 +19,7 @@ pub(super) fn host_call_for_statement(
 }
 
 pub(super) fn mutation_for_statement(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&omega_state_storage::StateMutation> {
@@ -34,7 +34,7 @@ pub(super) fn mutation_for_statement(
 }
 
 pub(super) fn state_call_for_operation(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&StateCall> {
@@ -49,7 +49,7 @@ pub(super) fn state_call_for_operation(
 }
 
 pub(super) fn state_parameters(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     state_key: StateKey,
 ) -> Vec<StateParameterFlow> {
     native_plan
@@ -60,7 +60,7 @@ pub(super) fn state_parameters(
 }
 
 pub(super) fn state_statement_has_host_call(
-    native_plan: &NativePlan,
+    native_plan: &RuntimeBranchingContext,
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {

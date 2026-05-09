@@ -1,10 +1,10 @@
-use crate::runtime_dispatch::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
+use crate::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{BinaryExpression, Expression, IndexedExpression, NamePath};
 use omega_typed_program::name::ProgramName;
 
-pub(in crate::runtime_dispatch::branching) fn resolve_branch_expression(
+pub(crate) fn resolve_branch_expression(
     expression: &Expression,
     branch_bindings: &[BranchParameterBinding],
 ) -> Expression {
