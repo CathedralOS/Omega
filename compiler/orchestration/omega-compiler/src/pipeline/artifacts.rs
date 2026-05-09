@@ -891,10 +891,10 @@ impl ArtifactWriter {
             native_plan.state_values.values.len()
         ));
         for (_, value) in native_plan.state_values.values.iter() {
+            let source_name = native_state_name(native_plan, value.source_key);
             output.push_str(&format!(
-                "- {}.{} statement {} {:?}/{:?}: `{}` required {}\n",
-                value.machine,
-                value.state,
+                "- {} statement {} {:?}/{:?}: `{}` required {}\n",
+                source_name,
                 value.statement_index,
                 value.role,
                 value.kind,

@@ -25,8 +25,6 @@ pub(in crate::identity) fn count_state_value_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, value) in native_plan.state_values.values.iter() {
-        storage.count_program_name_identity(&value.machine);
-        storage.count_program_name_identity(&value.state);
         count_expression_strings(&value.expression, storage);
     }
 }

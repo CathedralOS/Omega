@@ -57,10 +57,10 @@ fn runtime_value_blocker_reason(native_plan: &NativePlan, value: &StateValueUse)
         );
     }
 
+    let source_name = state_name(native_plan, value.source_key);
     format!(
-        "{}.{} statement {} {:?} binary expression `{}` needs runtime value lowering",
-        value.machine,
-        value.state,
+        "{} statement {} {:?} binary expression `{}` needs runtime value lowering",
+        source_name,
         value.statement_index,
         value.role,
         value.expression.display_name()
@@ -135,4 +135,12 @@ pub(super) fn runtime_text_write_is_planned(
         }
         RuntimeTextWriteKind::OtherExpression => false,
     }
+}
+
+fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

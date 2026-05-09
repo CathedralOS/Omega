@@ -1,7 +1,6 @@
 use crate::control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateValuePlan {
@@ -11,8 +10,6 @@ pub struct StateValuePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateValueUse {
     pub source_key: StateKey,
-    pub machine: ProgramName,
-    pub state: ProgramName,
     pub statement_index: usize,
     pub role: StateValueRole,
     pub kind: StateValueKind,
@@ -24,8 +21,6 @@ impl Default for StateValueUse {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            machine: ProgramName::default(),
-            state: ProgramName::default(),
             statement_index: 0,
             role: StateValueRole::AssignmentValue,
             kind: StateValueKind::Literal,

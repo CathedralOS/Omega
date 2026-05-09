@@ -4,7 +4,6 @@ use crate::control_flow::StateKey;
 use crate::state_analysis::StateAnalysisContext;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::machine::Machine;
-use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::{Statement, TransitionGuard, TransitionTarget};
 
 pub(super) fn build_machine_state_value_plan(
@@ -27,8 +26,6 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         source_key,
-                        &machine.name,
-                        &state.name,
                         statement_index,
                         StateValueRole::AssignmentTarget,
                         &assignment.target,
@@ -37,8 +34,6 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         source_key,
-                        &machine.name,
-                        &state.name,
                         statement_index,
                         StateValueRole::AssignmentValue,
                         &assignment.value,
@@ -50,8 +45,6 @@ pub(super) fn build_machine_state_value_plan(
                         push_value(
                             &mut plan,
                             source_key,
-                            &machine.name,
-                            &state.name,
                             statement_index,
                             StateValueRole::CallArgument,
                             argument,
@@ -64,8 +57,6 @@ pub(super) fn build_machine_state_value_plan(
                         push_value(
                             &mut plan,
                             source_key,
-                            &machine.name,
-                            &state.name,
                             statement_index,
                             StateValueRole::TransitionGuard,
                             expression,
@@ -76,8 +67,6 @@ pub(super) fn build_machine_state_value_plan(
                     collect_transition_arguments(
                         &mut plan,
                         source_key,
-                        &machine.name,
-                        &state.name,
                         statement_index,
                         &transition.target,
                         required,
@@ -87,8 +76,6 @@ pub(super) fn build_machine_state_value_plan(
                         collect_transition_arguments(
                             &mut plan,
                             source_key,
-                            &machine.name,
-                            &state.name,
                             statement_index,
                             continuation,
                             required,
@@ -99,8 +86,6 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         source_key,
-                        &machine.name,
-                        &state.name,
                         statement_index,
                         StateValueRole::AssignmentValue,
                         expression,
@@ -118,8 +103,6 @@ pub(super) fn build_machine_state_value_plan(
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
     source_key: StateKey,
-    machine: &ProgramName,
-    state: &ProgramName,
     statement_index: usize,
     target: &TransitionTarget,
     required: bool,
@@ -132,8 +115,6 @@ fn collect_transition_arguments(
         push_value(
             plan,
             source_key,
-            machine,
-            state,
             statement_index,
             StateValueRole::TransitionArgument,
             argument,
@@ -145,8 +126,6 @@ fn collect_transition_arguments(
 fn push_value(
     plan: &mut StateValuePlan,
     source_key: StateKey,
-    machine: &ProgramName,
-    state: &ProgramName,
     statement_index: usize,
     role: StateValueRole,
     expression: &Expression,
@@ -154,8 +133,6 @@ fn push_value(
 ) {
     plan.values.insert(StateValueUse {
         source_key,
-        machine: machine.clone(),
-        state: state.clone(),
         statement_index,
         role,
         kind: value_kind(expression),
