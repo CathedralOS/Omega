@@ -195,7 +195,8 @@ Omega/
 |   |   |-- [CRATE] omega-source-to-typed/              # Source program to typed program.
 |   |   |-- [CRATE] omega-typed-to-state-graph/         # Typed program to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/  # State graph to control-flow/data-flow graph.
-|   |   `-- [CRATE] omega-control-flow-to-target/       # Control flow to target-aware operations.
+|   |   |-- [CRATE] omega-control-flow-to-target/       # Control flow to target-aware operations.
+|   |   `-- [CRATE] omega-target-to-machine/            # Target program to symbolic machine program, before bytes.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
@@ -203,8 +204,9 @@ Omega/
 |   |   |-- [CRATE] omega-calling-conventions/          # ABI rules for registers, stack, parameter/return passing.
 |   |   |-- [CRATE] omega-layout/                       # Type layout, alignments, field offsets, calling-convention records.
 |   |   |-- [CRATE] omega-instruction-selection/        # Shared instruction selection framework.
-|   |   |-- [CRATE] omega-target-to-machine/            # Target instructions to machine program bytes using backend facts.
 |   |   |-- [CRATE] omega-regalloc/                     # Register allocation.
+|   |   |-- [CRATE] omega-machine-optimization/         # Machine-level liveness, scheduling, peepholes, branch relaxation.
+|   |   |-- [CRATE] omega-machine-emission/             # Final machine program to encoded bytes.
 |   |   |-- instruction_set_architectures/
 |   |   |   |-- [CRATE] omega-isa-aarch64/              # AArch64 instruction defs, encodings, lowering hooks.
 |   |   |   |-- [CRATE] omega-isa-x86_64/               # x86_64 instruction defs, encodings, lowering hooks.
@@ -318,7 +320,10 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 - `omega-graph` and `omega-proof` stay semantic/proof-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
 - `omega-typed-program`, `omega-state-graph`, `omega-control-flow`, `omega-target-program`, and `omega-machine-program` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, and LIR.
 - `representations/` owns the durable structs and arena data. `lowering/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
+- `omega-target-to-machine` is a lowering crate only if it produces a symbolic machine program. It may consume pure target/ISA/calling-convention facts, but it must not emit final bytes, own relocation records, or commit to final physical registers/stack offsets/branch displacements. If it starts doing those things, split that work into backend crates instead of letting the lowering layer become a printer.
 - `backend/instruction_set_architectures/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-instruction-selection`, not duplicated per architecture unless the target really demands it.
+- `omega-machine-program` is Omega's LLVM-like handoff layer: virtual registers, symbolic labels, abstract stack slots, unresolved calls, machine constraints, and proof obligations are still inspectable here. Register allocation, scheduling, branch relaxation, and peephole rewrites happen before byte emission.
+- `omega-machine-emission` is where final bytes are born. No earlier representation should carry encoded instruction bytes as its primary truth. Final branch offsets, final physical registers, final stack-frame offsets, and target-specific instruction encodings belong here or immediately before it in backend-only passes.
 - `omega-calling-conventions` owns ABI-level rules for how values cross state/function/platform boundaries: registers, stack slots, return locations, and callee/caller responsibilities.
 - `omega-platform-interface` owns ABI-facing OS/platform call surfaces, imports, loader-visible symbols, and host integration facts.
 - `backend/object/*` writes relocatable containers. `backend/linker/*` resolves symbols, applies relocations, strips dead sections, and builds final images. Do not blur object writing and linking together.
