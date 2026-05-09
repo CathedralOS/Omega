@@ -746,10 +746,10 @@ impl ArtifactWriter {
             output.push_str("none\n");
         } else {
             for (_, state_call) in native_plan.state_calls.calls.iter() {
+                let source_name = native_state_name(native_plan, state_call.source_key);
                 output.push_str(&format!(
-                    "- {}.{} statement {} `{}` -> {}.{} args {} {:?}/{:?} reachable {} required {}\n",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "- {} statement {} `{}` -> {}.{} args {} {:?}/{:?} reachable {} required {}\n",
+                    source_name,
                     state_call.statement_index,
                     state_call.receiver,
                     if state_call.target_machine.is_empty() {

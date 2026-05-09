@@ -49,9 +49,10 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
                 continue;
             }
 
+            let (caller_machine, caller_state) = state_names(native_plan, state_call.source_key);
             plan.aliases.insert(AliasBinding {
-                caller_machine: state_call.source_machine.clone(),
-                caller_state: state_call.source_state.clone(),
+                caller_machine,
+                caller_state,
                 statement_index: state_call.statement_index,
                 callee_machine: state_call.target_machine.clone(),
                 callee_state: state_call.target_state.clone(),
@@ -63,4 +64,15 @@ pub fn build_alias_flow_plan(native_plan: &NativePlan) -> AliasFlowPlan {
     }
 
     plan
+}
+
+fn state_names(
+    native_plan: &NativePlan,
+    key: crate::control_flow::StateKey,
+) -> (ProgramName, ProgramName) {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| (machine.clone(), state.clone()))
+        .unwrap_or_default()
 }

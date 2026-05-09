@@ -2200,8 +2200,7 @@ fn plans_state_calls_separately_from_host_calls() {
         .iter()
         .map(|(_, state_call)| {
             (
-                state_call.source_machine.as_str(),
-                state_call.source_state.as_str(),
+                native_state_name(&native_plan, state_call.source_key),
                 state_call.target_machine.as_str(),
                 state_call.target_state.as_str(),
                 state_call.argument_count,
@@ -2214,8 +2213,8 @@ fn plans_state_calls_separately_from_host_calls() {
     assert_eq!(
         state_calls,
         vec![
-            ("main", "entry", "main", "prepare", 1, true),
-            ("main", "entry", "Helper", "write", 0, true),
+            ("main.entry".to_owned(), "main", "prepare", 1, true),
+            ("main.entry".to_owned(), "Helper", "write", 0, true),
         ]
     );
     let prepare_call = native_plan
@@ -2289,7 +2288,7 @@ fn marks_state_calls_required_through_transition_targets() {
         .calls
         .iter()
         .find(|(_, state_call)| {
-            state_call.source_machine == "main" && state_call.source_state == "branch"
+            native_state_name(&native_plan, state_call.source_key) == "main.branch"
         })
         .map(|(_, state_call)| state_call)
         .expect("branch state call should be planned");

@@ -90,20 +90,10 @@ pub(super) fn runtime_reachable_states(native_plan: &NativePlan) -> Vec<Schedule
             continue;
         }
 
-        push_scheduled_state(
-            native_plan,
-            &mut states,
-            &state_call.source_machine,
-            &state_call.source_state,
-        );
+        push_scheduled_state_key(&mut states, state_call.source_key);
 
         if !state_call.target_machine.is_empty() {
-            push_scheduled_state(
-                native_plan,
-                &mut states,
-                &state_call.target_machine,
-                &state_call.target_state,
-            );
+            push_scheduled_state_key(&mut states, state_call.target_key);
         }
     }
 
@@ -120,6 +110,17 @@ fn push_scheduled_state(
         return;
     };
 
+    if states
+        .iter()
+        .any(|scheduled_state| scheduled_state.key == key)
+    {
+        return;
+    }
+
+    states.push(ScheduledState { key });
+}
+
+fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: crate::control_flow::StateKey) {
     if states
         .iter()
         .any(|scheduled_state| scheduled_state.key == key)

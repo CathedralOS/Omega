@@ -8,8 +8,6 @@ use super::StateCallResolution;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::state_calls) struct CollectedStateCall {
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub receiver: ProgramName,
     pub target_key: StateKey,
@@ -59,8 +57,6 @@ pub(in crate::state_calls) fn collect_machine_state_calls(
 
             calls.push(CollectedStateCall {
                 source_key: state.key,
-                source_machine: machine.name.clone(),
-                source_state: state.name.clone(),
                 statement_index: operation.statement_index,
                 receiver: receiver
                     .as_ref()

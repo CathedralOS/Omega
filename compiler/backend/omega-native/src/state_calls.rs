@@ -66,8 +66,6 @@ pub fn build_state_call_plan_with_workers(
 
         plan.calls.insert(StateCall {
             source_key: call.source_key,
-            source_machine: call.source_machine,
-            source_state: call.source_state,
             statement_index: call.statement_index,
             receiver: call.receiver,
             target_key: call.target_key,

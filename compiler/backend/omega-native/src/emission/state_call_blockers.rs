@@ -1,3 +1,4 @@
+use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::state_calls::StateCallLowering;
 use crate::state_schedule::{ScheduledState, scheduled_state_contains_key};
@@ -26,13 +27,13 @@ pub(super) fn collect_state_call_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, state_call.source_key);
         if state_call.target_machine.is_empty() {
             blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{}.{} statement {} calls unresolved state `{}` through `{}`",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "{} statement {} calls unresolved state `{}` through `{}`",
+                    source_name,
                     state_call.statement_index,
                     state_call.target_state,
                     state_call.receiver
@@ -57,9 +58,8 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineLeaf => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{}.{} statement {} calls leaf state {}.{} with {} argument(s); native emission needs leaf state-call inlining",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "{} statement {} calls leaf state {}.{} with {} argument(s); native emission needs leaf state-call inlining",
+                    source_name,
                     state_call.statement_index,
                     state_call.target_machine,
                     state_call.target_state,
@@ -69,9 +69,8 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineBranching => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{}.{} statement {} calls branching state {}.{} with {} argument(s); native emission needs guarded state-call expansion",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "{} statement {} calls branching state {}.{} with {} argument(s); native emission needs guarded state-call expansion",
+                    source_name,
                     state_call.statement_index,
                     state_call.target_machine,
                     state_call.target_state,
@@ -81,9 +80,8 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineExpansion => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{}.{} statement {} calls {}.{} with {} argument(s); native emission needs inline state-call expansion",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "{} statement {} calls {}.{} with {} argument(s); native emission needs inline state-call expansion",
+                    source_name,
                     state_call.statement_index,
                     state_call.target_machine,
                     state_call.target_state,
@@ -93,9 +91,8 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::Unresolved => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{}.{} statement {} calls unresolved state `{}` through `{}`",
-                    state_call.source_machine,
-                    state_call.source_state,
+                    "{} statement {} calls unresolved state `{}` through `{}`",
+                    source_name,
                     state_call.statement_index,
                     state_call.target_state,
                     state_call.receiver
@@ -114,16 +111,24 @@ fn collect_unresolved_state_call_blockers(
             continue;
         }
 
+        let source_name = state_name(native_plan, state_call.source_key);
         blockers.insert(blocker(
             "state calls",
             &format!(
-                "{}.{} statement {} calls unresolved state `{}` through `{}`",
-                state_call.source_machine,
-                state_call.source_state,
+                "{} statement {} calls unresolved state `{}` through `{}`",
+                source_name,
                 state_call.statement_index,
                 state_call.target_state,
                 state_call.receiver
             ),
         ));
     }
+}
+
+fn state_name(native_plan: &NativePlan, key: StateKey) -> String {
+    native_plan
+        .control_flow
+        .state_names_by_key(key)
+        .map(|(machine, state)| format!("{machine}.{state}"))
+        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

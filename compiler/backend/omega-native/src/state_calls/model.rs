@@ -12,8 +12,6 @@ pub struct StateCallPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCall {
     pub source_key: StateKey,
-    pub source_machine: ProgramName,
-    pub source_state: ProgramName,
     pub statement_index: usize,
     pub receiver: ProgramName,
     pub target_key: StateKey,
@@ -31,8 +29,6 @@ impl Default for StateCall {
     fn default() -> Self {
         Self {
             source_key: StateKey::default(),
-            source_machine: ProgramName::default(),
-            source_state: ProgramName::default(),
             statement_index: 0,
             receiver: ProgramName::default(),
             target_key: StateKey::default(),

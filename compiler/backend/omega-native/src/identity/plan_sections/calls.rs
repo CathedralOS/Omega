@@ -38,8 +38,6 @@ pub(in crate::identity) fn count_state_call_strings(
     storage: &mut NativeStringStorage,
 ) {
     for (_, call) in native_plan.state_calls.calls.iter() {
-        storage.count_program_name_identity(&call.source_machine);
-        storage.count_program_name_identity(&call.source_state);
         storage.count_program_name_identity(&call.receiver);
         storage.count_program_name_identity(&call.target_machine);
         storage.count_program_name_identity(&call.target_state);
