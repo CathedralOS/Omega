@@ -14,8 +14,9 @@ use crate::object::{machine_storage_symbol_name, runtime_frame_storage_symbol_na
 use crate::plan::NativePlan;
 use expressions::normalized_storage_expression;
 use nested_fields::resolve_nested_field_layout;
+use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, NamePath};
 
 pub(super) fn resolve_runtime_storage_place(
     native_plan: &NativePlan,
@@ -42,7 +43,7 @@ pub(super) fn resolve_runtime_storage_place(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
-    let [root_name, suffix @ ..] = path.as_slice() else {
+    let [_root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
     let slot = native_plan
@@ -52,14 +53,17 @@ pub(super) fn resolve_runtime_storage_place(
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
                 && slot.source_key == source_key
-                && slot.name == *root_name
+                && slot_matches_path(slot.symbol, path, slot.name.as_str())
         })
         .or_else(|| {
             native_plan
                 .runtime_storage
                 .frame_slots
                 .iter()
-                .find(|(_, slot)| slot.dispatch_index == dispatch_index && slot.name == *root_name)
+                .find(|(_, slot)| {
+                    slot.dispatch_index == dispatch_index
+                        && slot_matches_path(slot.symbol, path, slot.name.as_str())
+                })
         })
         .map(|(_, slot)| slot)?;
     let root_field = FieldLayout {
@@ -81,4 +85,13 @@ pub(super) fn resolve_runtime_storage_place(
         byte_offset,
         byte_count: layout.size,
     })
+}
+
+fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str) -> bool {
+    if slot_symbol.is_valid() && path.head_symbol().is_valid() {
+        return slot_symbol == path.head_symbol();
+    }
+
+    path.first()
+        .is_some_and(|root_name| root_name.as_str() == slot_name)
 }
