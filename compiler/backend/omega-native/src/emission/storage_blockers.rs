@@ -1,6 +1,7 @@
 use crate::control_flow::StateKey;
 use crate::plan::NativePlan;
 use crate::runtime_storage::RuntimeStorageWrite;
+use crate::runtime_text::places::expression_place_eq;
 use crate::state_storage::StateMutationLowering;
 use omega_core::arena::Arena;
 
@@ -106,7 +107,7 @@ fn runtime_storage_write_has_planned_text_write(
 ) -> bool {
     runtime_text_write_for_statement(native_plan, write.source_key, write.statement_index)
         .is_some_and(|text_write| {
-            text_write.target.display_name() == write.target.display_name()
+            expression_place_eq(&text_write.target, &write.target)
                 && runtime_text_write_is_planned(native_plan, text_write)
         })
 }

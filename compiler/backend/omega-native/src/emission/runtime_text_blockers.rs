@@ -1,5 +1,6 @@
 use crate::control_flow::{OperationKind, StateKey};
 use crate::plan::NativePlan;
+use crate::runtime_text::places::expression_place_eq;
 use crate::runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
 use crate::state_values::{StateValueKind, StateValueRole, StateValueUse};
 use omega_core::arena::Arena;
@@ -93,7 +94,7 @@ fn runtime_text_builder_for_write<'plan>(
         .find(|(_, builder)| {
             builder.source_key == text_write.source_key
                 && builder.statement_index == text_write.statement_index
-                && builder.target.display_name() == text_write.target.display_name()
+                && expression_place_eq(&builder.target, &text_write.target)
         })
         .map(|(_, builder)| builder)
 }
