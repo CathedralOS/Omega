@@ -5,7 +5,7 @@ A state is a graph node inside an active function frame.
 States execute straight-line work until a transition fires or the state completes. A state does not create a call frame by itself, and ordinary calls cannot target plain states.
 
 ```omega
-state running {
+state running() {
     tick();
 
     -> running()
@@ -37,7 +37,7 @@ fn run() {
     -> loop()
 }
 
-state loop {
+state loop() {
     tick();
 
     -> loop()
@@ -61,7 +61,7 @@ Omega may allow transitions to appear before the physical end of a source state.
 This is useful for early exits:
 
 ```omega
-state loading {
+state loading() {
     read_header();
 
     -> failed() when header.invalid
@@ -77,14 +77,14 @@ This does not introduce true branching inside a state. It is graph-authoring sug
 The compiler should decompose the source state into semantic sub-states:
 
 ```omega
-state loading_0 {
+state loading_0() {
     read_header();
 
     -> failed() when header.invalid
     -> loading_1()
 }
 
-state loading_1 {
+state loading_1() {
     read_body();
 
     -> loaded()
@@ -106,7 +106,7 @@ This is a smaller violation of the original design than true local branching. Th
 Because a transition ends the current path, stack locals must be accounted for before the jump.
 
 ```omega
-state combat_round {
+state combat_round() {
     survived: bool = combat.fight_rat(&mut player);
 
     -> game_over() when !survived

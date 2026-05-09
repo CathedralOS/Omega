@@ -2,6 +2,6 @@ invariant speed_range = [finite];
 invariant speed_range = [range<0.0f, 100.0f>];
 
 machine main {
-    state entry {
+    fn entry() {
     }
 }

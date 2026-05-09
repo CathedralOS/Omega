@@ -14,7 +14,7 @@ data CellLine {
 }
 
 platform Console {
-    state write_line(text: String);
+    fn write_line(text: String);
 }
 
 machine main {
@@ -25,13 +25,13 @@ machine main {
     owns first: Cell = Cell { id: CellId::A1, label: "A1" };
     owns second: Cell = Cell { id: CellId::A2, label: "A2" };
 
-    state entry {
+    fn entry() {
         scan(first, CellId::A2, mut selected);
         scan(second, CellId::A2, mut selected);
         line.text = selected.label;
         console.write_line(line.text);
 
-        -> self;
+        -> self();
     }
 
     state scan(cell: Cell, id: CellId, out_cell: &mut Cell) {

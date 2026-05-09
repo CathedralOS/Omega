@@ -83,7 +83,7 @@ fn helper() -> i32 {
     1
 }
 
-state bad {
+state bad() {
     -> helper() // illegal: helper is a function, not a plain transition state
 }
 ```

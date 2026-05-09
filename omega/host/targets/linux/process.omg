@@ -4,7 +4,7 @@ use omega::host::targets::linux::syscalls;
 capability LinuxProcess {
     syscalls: LinuxSyscalls
 
-    state exit(return_code: i32) -> Terminal where {
+    fn exit(return_code: i32) -> Terminal where {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
         trust omega_linux_process_adapter

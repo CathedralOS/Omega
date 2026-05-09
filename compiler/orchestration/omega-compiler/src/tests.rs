@@ -114,8 +114,8 @@ fn parses_platform_state_parameters() {
     let tokens = Lexer::new(
         r#"
             platform Console {
-                state read_line(mut out_line: ConsoleLine);
-                state exit_process(return_code: i32);
+                fn read_line(out_line: &mut ConsoleLine);
+                fn exit_process(return_code: i32);
             }
             "#,
     )
@@ -133,10 +133,42 @@ fn parses_platform_state_parameters() {
         TypeReference::named("ConsoleLine")
     );
     assert!(platform.states[0].parameters[0].is_mutable);
+    assert!(!platform.states[0].parameters[0].is_self);
     assert_eq!(
         platform.states[1].parameters[0].type_reference,
         TypeReference::named("i32")
     );
+}
+
+#[test]
+fn parses_fn_declarations_as_frame_boundaries() {
+    let tokens = Lexer::new(
+        r#"
+            machine Math {
+                fn clamp(value: i32, min: i32, max: i32) -> i32 {
+                    -> clamp_low(min) when value < min;
+                    value
+                }
+
+                state clamp_low(min: i32) -> i32 {
+                    min
+                }
+            }
+            "#,
+    )
+    .tokenize()
+    .expect("tokenization should succeed");
+    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let Item::Machine(machine) = &parsed.items[0] else {
+        panic!("expected a machine");
+    };
+
+    assert_eq!(machine.states[0].name, "clamp");
+    assert_eq!(
+        machine.states[0].return_type,
+        Some(TypeReference::named("i32"))
+    );
+    assert_eq!(machine.states[1].name, "clamp_low");
 }
 
 #[test]

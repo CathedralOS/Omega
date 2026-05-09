@@ -1,7 +1,7 @@
 use data::dungeon_types;
 
 machine DungeonGenerator {
-    state generate(seed: u32, out_level: &mut Level) {
+    fn generate(seed: u32, out_level: &mut Level) {
         out_level.start_cell = CellId::A1;
         out_level.room_count = 4;
         write_room_a1(mut out_level.rooms[0]);
@@ -10,7 +10,7 @@ machine DungeonGenerator {
         write_room_b2(mut out_level.rooms[3]);
     }
 
-    state write_room_a1(room: &mut Room) {
+    fn write_room_a1(room: &mut Room) {
         room.cell = CellId::A1;
         room.label = "A1";
         room.description = "A1: a cold stone entry with a faded map on the wall.";
@@ -21,7 +21,7 @@ machine DungeonGenerator {
         room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
-    state write_room_a2(room: &mut Room) {
+    fn write_room_a2(room: &mut Room) {
         room.cell = CellId::A2;
         room.label = "A2";
         room.description = "A2: a narrow chamber where dust falls from the ceiling.";
@@ -32,7 +32,7 @@ machine DungeonGenerator {
         room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
-    state write_room_b1(room: &mut Room) {
+    fn write_room_b1(room: &mut Room) {
         room.cell = CellId::B1;
         room.label = "B1";
         room.description = "B1: a torchlit room with claw marks near the western door.";
@@ -43,7 +43,7 @@ machine DungeonGenerator {
         room.exits[3] = Exit { command: "", destination: CellId::Empty };
     }
 
-    state write_room_b2(room: &mut Room) {
+    fn write_room_b2(room: &mut Room) {
         room.cell = CellId::B2;
         room.label = "B2";
         room.description = "B2: the final cell, quiet except for water below the floor.";

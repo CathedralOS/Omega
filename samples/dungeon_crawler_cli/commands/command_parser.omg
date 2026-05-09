@@ -2,7 +2,7 @@ use data::dungeon_types;
 use rooms::room_lookup;
 
 machine CommandParser {
-    state resolve_command(line: ConsoleLine, mut out_navigation: Navigation) {
+    fn resolve_command(line: ConsoleLine, out_navigation: &mut Navigation) {
         -> resolve_quit(mut out_navigation) when line.text == "quit";
         -> resolve_look(mut out_navigation) when line.text == "look";
         -> resolve_look(mut out_navigation) when line.text == "info";
@@ -11,37 +11,37 @@ machine CommandParser {
         ->
     }
 
-    state resolve_quit(mut out_navigation: Navigation) {
+    state resolve_quit(out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Quit;
     }
 
-    state resolve_look(mut out_navigation: Navigation) {
+    state resolve_look(out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Look;
     }
 
-    state resolve_exits(mut out_navigation: Navigation) {
+    state resolve_exits(out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Exits;
     }
 
-    state resolve_move(destination: CellId, mut out_navigation: Navigation) {
+    state resolve_move(destination: CellId, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Move;
         out_navigation.destination = destination;
     }
 
-    state resolve_exit(level: Level, cell: CellId, line: ConsoleLine, mut out_navigation: Navigation) {
+    fn resolve_exit(level: Level, cell: CellId, line: ConsoleLine, out_navigation: &mut Navigation) {
         let room: Room;
         RoomLookup.find_room(level, cell, mut room);
         find_exit(room, line.text, mut out_navigation);
     }
 
-    state find_exit(room: Room, command: String, mut out_navigation: Navigation) {
+    fn find_exit(room: Room, command: String, out_navigation: &mut Navigation) {
         scan_exit(room.exits[0], command, mut out_navigation);
         scan_exit(room.exits[1], command, mut out_navigation);
         scan_exit(room.exits[2], command, mut out_navigation);
         scan_exit(room.exits[3], command, mut out_navigation);
     }
 
-    state scan_exit(exit: Exit, command: String, mut out_navigation: Navigation) {
+    fn scan_exit(exit: Exit, command: String, out_navigation: &mut Navigation) {
         -> resolve_move(exit.destination, mut out_navigation) when exit.command == command;
         ->
     }

@@ -14,7 +14,7 @@ use platform::console;
 machine main {
     contains console: Console;
 
-    state entry {
+    fn entry() {
         console.write_line("Hello, Omega.");
         console.exit_process(0);
     }
@@ -26,15 +26,15 @@ machine main {
 Omega is exploring these core ideas:
 
 - State machines are first-class citizens, not library objects.
-- `machine main` with `state entry` is the process entry point.
+- `machine main` with `fn entry()` is the process entry point.
 - States prefer straight-line work. Branching belongs in ordered transition arrows.
-- Transitions live at the end of states as `-> target` edges.
+- Transitions live at the end of states as `-> target()` edges.
 - A bare arrow target is unconditional; `when` adds a guard.
-- `-> self` re-enters the current state.
+- `-> self()` re-enters the current state.
 - A trailing bare `->` marks explicit terminal/default completion when a transition table needs it.
-- Nested machine flow can be expressed as `-> child.entry -> continuation`.
-- Calls perform work, but do not imply hidden return-control semantics.
-- Data flow should prefer explicit owned data and `mut` parameters over ambient state.
+- Nested machine flow can be expressed as `-> child.entry() -> continuation()`.
+- Calls to `fn` create frame/return semantics; transitions to `state` stay graph handoffs.
+- Data flow should prefer explicit owned data and `&mut` parameters over ambient state.
 - Platform boundaries are explicit, trusted, and auditable.
 
 Longer term, Omega wants compile-time proof integration. TLA+ style transition checks are a design goal, not decoration. The compiler should eventually derive formal transition models from source, challenge invariants and liveness properties, and only then lower the program.

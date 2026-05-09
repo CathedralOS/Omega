@@ -5,7 +5,7 @@ use omega::host::targets::darwin::types;
 capability DarwinStdin {
     libsystem: DarwinLibSystem
 
-    state read_line(mut out_text: String) -> Result<(), IOError> where {
+    fn read_line(mut out_text: String) -> Result<(), IOError> where {
         requires out_text.writable
         ensures result.Ok => out_text.utf8
         ensures result.Err(e) => e is IOError

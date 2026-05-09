@@ -1,9 +1,9 @@
 machine main {
-    state entry {
+    fn entry() {
         write(mut 1);
     }
 
-    state write(out_value: &mut i32) {
+    fn write(out_value: &mut i32) {
         out_value = 2;
     }
 }

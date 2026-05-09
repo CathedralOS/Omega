@@ -3,10 +3,10 @@ data ConsoleLine {
 }
 
 platform Console {
-    state write(text: String);
-    state write_line(text: String);
-    state read_line(out_line: &mut ConsoleLine);
-    state exit_process(return_code: i32);
+    fn write(text: String);
+    fn write_line(text: String);
+    fn read_line(out_line: &mut ConsoleLine);
+    fn exit_process(return_code: i32);
 }
 
 machine main {
@@ -14,7 +14,7 @@ machine main {
 
     owns line: ConsoleLine;
 
-    state entry {
+    fn entry() {
         console.write("> ");
         console.read_line(mut line);
         console.write_line("read");

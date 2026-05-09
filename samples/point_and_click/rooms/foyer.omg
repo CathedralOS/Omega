@@ -4,7 +4,7 @@ machine FoyerRoom {
     owns chest_open: bool = false;
     owns door_unlocked: bool = false;
 
-    state tick(frame: FrameInput, mut inventory: Inventory, mut active_room: RoomId) {
+    fn tick(frame: FrameInput, inventory: &mut Inventory, active_room: &mut RoomId) {
         let clicked: ClickTarget;
         hit_test(frame.mouse_x, frame.mouse_y, mut clicked);
 
@@ -14,11 +14,11 @@ machine FoyerRoom {
         ->
     }
 
-    state collect_key(frame: FrameInput, clicked: ClickTarget, mut inventory: Inventory) {
+    state collect_key(frame: FrameInput, clicked: ClickTarget, inventory: &mut Inventory) {
         inventory.has_key = true;
     }
 
-    state unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, mut active_room: RoomId) {
+    state unlock_door(frame: FrameInput, clicked: ClickTarget, inventory: Inventory, active_room: &mut RoomId) {
         door_unlocked = true;
         active_room = RoomId::Cellar;
     }
@@ -27,7 +27,7 @@ machine FoyerRoom {
         chest_open = true;
     }
 
-    state write_view(mut out_view: RoomView) {
+    fn write_view(out_view: &mut RoomView) {
         out_view.room_name = "Foyer";
         out_view.hotspots = [
             Hotspot { target: ClickTarget::Door, x: 420, y: 80, width: 80, height: 180 },
@@ -37,7 +37,7 @@ machine FoyerRoom {
         out_view.hotspot_count = 3;
     }
 
-    state hit_test(x: i32, y: i32, mut out_target: ClickTarget) {
+    fn hit_test(x: i32, y: i32, out_target: &mut ClickTarget) {
         // Long term this likely lowers into a SIMD-friendly scan across
         // hotspot bounds owned by the room.
         out_target = ClickTarget::None;

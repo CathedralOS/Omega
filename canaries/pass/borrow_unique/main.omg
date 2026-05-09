@@ -2,7 +2,7 @@ machine main {
     owns left: i32 = 1;
     owns right: i32 = 2;
 
-    state entry {
+    fn entry() {
         copy(mut left, right);
     }
 

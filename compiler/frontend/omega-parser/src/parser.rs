@@ -141,7 +141,7 @@ impl Parser<'_, '_> {
         let mut members = Vec::new();
 
         while !self.consume("}") {
-            if self.consume("state") {
+            if self.consume_state_or_fn_keyword() {
                 members.push(CapabilityMember::State(self.parse_capability_state()?));
             } else {
                 let field_name = self.expect_identifier()?;
@@ -221,7 +221,7 @@ impl Parser<'_, '_> {
             });
         }
 
-        while !self.check("state") && !self.check("}") {
+        while !self.check_state_or_fn_keyword() && !self.check("}") {
             contracts.push(self.parse_capability_contract()?);
         }
 
@@ -281,7 +281,7 @@ impl Parser<'_, '_> {
             && !self.check("ensures")
             && !self.check("trust")
             && !self.check("trusted")
-            && !self.check("state")
+            && !self.check_state_or_fn_keyword()
             && !self.check("}")
         {
             self.index += 1;
@@ -352,7 +352,7 @@ impl Parser<'_, '_> {
         let mut states = Vec::new();
 
         while !self.consume("}") {
-            self.expect("state")?;
+            self.expect_state_or_fn_keyword()?;
             let signature = self.parse_state_signature()?;
             self.expect(";")?;
             states.push(signature);
@@ -540,7 +540,7 @@ impl Parser<'_, '_> {
                 contains.push(self.parse_contains()?);
             } else if self.consume("owns") {
                 owned_data.push(self.parse_owned_data()?);
-            } else if self.consume("state") {
+            } else if self.consume_state_or_fn_keyword() {
                 states.push(self.parse_state()?);
             } else if self.consume("invariant") {
                 self.expect_identifier()?;
@@ -662,6 +662,13 @@ impl Parser<'_, '_> {
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
         if self.consume("self") {
             if !self.check(".") {
+                if self.consume("(") {
+                    let arguments = self.parse_arguments_after_open_paren()?;
+                    if !arguments.is_empty() {
+                        return Err(self.error_here("self transition does not accept arguments"));
+                    }
+                }
+
                 return Ok(TransitionTarget::SelfTarget);
             }
 
@@ -1094,9 +1101,17 @@ impl Parser<'_, '_> {
         }
     }
 
+    fn consume_state_or_fn_keyword(&mut self) -> bool {
+        self.consume("state") || self.consume("fn")
+    }
+
     fn check(&self, lexeme: &str) -> bool {
         self.peek()
             .is_some_and(|token| token.lexeme.as_str() == lexeme)
+    }
+
+    fn check_state_or_fn_keyword(&self) -> bool {
+        self.check("state") || self.check("fn")
     }
 
     fn check_kind(&self, kind: TokenKind) -> bool {
@@ -1108,6 +1123,14 @@ impl Parser<'_, '_> {
             Ok(())
         } else {
             Err(self.error_here(format!("expected `{lexeme}`")))
+        }
+    }
+
+    fn expect_state_or_fn_keyword(&mut self) -> Result<(), ParseError> {
+        if self.consume_state_or_fn_keyword() {
+            Ok(())
+        } else {
+            Err(self.error_here("expected `state` or `fn`"))
         }
     }
 

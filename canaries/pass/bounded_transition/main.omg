@@ -1,14 +1,14 @@
 machine main {
     owns health: i32[range<1, 100>] = 100;
 
-    state entry {
+    fn entry() {
         -> wounded(health) when health < 50;
-        -> healthy;
+        -> healthy();
     }
 
     state wounded(value: i32[range<1, 50>]) {
     }
 
-    state healthy {
+    state healthy() {
     }
 }

@@ -12,13 +12,13 @@ machine main {
     owns is_terminated: bool = false;
     owns return_code: i32 = 0;
 
-    state entry {
+    fn entry() {
         platform.create_window(mut main_window, 1920, 1080, "Point and Click");
 
-        -> running;
+        -> running();
     }
 
-    state running {
+    state running() {
         platform.poll_frame(main_window, mut frame_input);
         game.run_iteration(frame_input);
         game.write_view(mut frame_view);
@@ -26,11 +26,11 @@ machine main {
         platform.draw_hud(frame_view.hud);
         platform.present_backbuffer(main_window);
 
-        -> shutdown when frame_input.close_requested;
-        -> self;
+        -> shutdown() when frame_input.close_requested;
+        -> self();
     }
 
-    state shutdown {
+    state shutdown() {
         is_terminated = true;
         return_code = 0;
         platform.destroy_window(main_window);

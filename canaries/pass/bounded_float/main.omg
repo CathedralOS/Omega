@@ -3,7 +3,7 @@ invariant speed_range = [finite, range<0.0f, 100000.0f>];
 machine main {
     owns speed: f32[speed_range] = 0.0f;
 
-    state entry {
+    fn entry() {
         clamp_speed(speed);
     }
 

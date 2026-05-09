@@ -20,7 +20,7 @@ This example has no helper states because simple early value completion is allow
 State transitions are call-shaped.
 
 ```omega
-state exploring {
+state exploring() {
     turn_result: MoveResult = world.try_move(player.position, ui.ask_direction());
 
     -> enter_combat() when turn_result.entered_combat
@@ -56,7 +56,7 @@ fn fib(n: i32) -> i32 {
 For no-value functions, a bare terminal arrow is enough:
 
 ```omega
-state finished {
+state finished() {
     ->
 }
 ```
@@ -74,7 +74,7 @@ fn run() {
     -> loop()
 }
 
-state loop {
+state loop() {
     tick();
 
     -> loop()
@@ -98,7 +98,7 @@ Transitions may appear before the physical end of a source state.
 They are still gotos. A guarded transition is an early tail jump:
 
 ```omega
-state combat_round {
+state combat_round() {
     survived: bool = combat.fight_rat(&mut player);
 
     -> game_over() when !survived
@@ -147,7 +147,7 @@ This rule applies to final transition tables and mid-state transitions alike.
 A transition ends the current path, so locals must not leak accidentally.
 
 ```omega
-state build_inventory {
+state build_inventory() {
     default_inventory: Inventory;
 
     -> done() when invalid

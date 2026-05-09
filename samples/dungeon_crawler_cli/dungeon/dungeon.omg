@@ -15,20 +15,20 @@ machine Dungeon {
     owns level: Level;
     owns navigation: Navigation;
 
-    state entry {
-        -> enter_room;
+    state entry() {
+        -> enter_room();
     }
 
-    state enter_room {
+    state enter_room() {
         formatter.write_current_cell(level, current_cell, mut command_line);
         console.write_line(command_line.text);
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        -> prompt;
+        -> prompt();
     }
 
-    state prompt {
+    state prompt() {
         console.write("> ");
         console.read_line(mut command_line);
         navigation.choice = NavigationChoice::Invalid;
@@ -37,48 +37,48 @@ machine Dungeon {
         parser.resolve_command(command_line, mut navigation);
         parser.resolve_exit(level, current_cell, command_line, mut navigation);
 
-        -> finished when navigation.choice == NavigationChoice::Quit;
-        -> look when navigation.choice == NavigationChoice::Look;
-        -> exits when navigation.choice == NavigationChoice::Exits;
-        -> move when navigation.choice == NavigationChoice::Move;
-        -> invalid_command;
+        -> finished() when navigation.choice == NavigationChoice::Quit;
+        -> look() when navigation.choice == NavigationChoice::Look;
+        -> exits() when navigation.choice == NavigationChoice::Exits;
+        -> move() when navigation.choice == NavigationChoice::Move;
+        -> invalid_command();
     }
 
-    state look {
+    state look() {
         formatter.write_room_info(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        -> prompt;
+        -> prompt();
     }
 
-    state exits {
+    state exits() {
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        -> prompt;
+        -> prompt();
     }
 
-    state move {
+    state move() {
         current_cell = navigation.destination;
 
-        -> enter_room;
+        -> enter_room();
     }
 
-    state invalid_command {
+    state invalid_command() {
         console.write_line("That path is not open.");
 
-        -> prompt;
+        -> prompt();
     }
 
-    state finished {
+    state finished() {
     }
 
-    state start() {
+    fn start() {
         generator.generate(1337, mut level);
         current_cell = level.start_cell;
     }
 
-    state exit(return_code: i32) {
+    fn exit(return_code: i32) {
         console.write_line("Goodbye.");
         console.exit_process(return_code);
     }

@@ -17,7 +17,7 @@ This page tracks design pressure that is not fully nailed down yet.
 - Omega's proof vocabulary should distinguish facts, requirements, guarantees, obligations, invariants, contracts, and trust. Values carry facts; operations have contracts; contracts create obligations; trust names the authority for accepting unproved guarantees.
 - Inline assembly should be parsed as target assembly under Omega's stricter accepted subset rather than bypassing the language. Assembly jumps are only valid if they satisfy Omega's state-transition rules, and assembly memory/register effects must be declared or inferred from known instruction contracts.
 - Semantic states remain branch-free. Source-level mid-state transitions may exist for early exits, but the compiler lowers them into generated branch-free sub-states or basic blocks with explicit edges and cleanup.
-- The old `state entry` idea is being challenged by functions. Machines may still need runtime entry points, but function callability and runtime startup should not be conflated.
+- `fn entry()` is the current runtime entry spelling. Machines may still need target-specific startup rules, but function callability and runtime startup should not be conflated.
 - Omega should avoid reserving keywords aggressively. Prefer contextual keywords when grammar position is enough, especially for words like `entry`, `where`, `trust`, `requires`, and `ensures`. Fully reserved words should be rare and justified by parser clarity, safety, or proof semantics.
 
 ## Still Open

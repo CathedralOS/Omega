@@ -7,8 +7,8 @@ data Line {
 }
 
 platform Console {
-    state write_line(text: String);
-    state exit_process(return_code: i32);
+    fn write_line(text: String);
+    fn exit_process(return_code: i32);
 }
 
 machine main {
@@ -17,7 +17,7 @@ machine main {
     owns room: Room;
     owns line: Line;
 
-    state entry {
+    fn entry() {
         room.label = "A1";
         line.text = "Room " + room.label;
         console.write_line(line.text);

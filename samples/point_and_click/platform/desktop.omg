@@ -1,11 +1,11 @@
 use data::game_types;
 
 platform DesktopPlatform {
-    state create_window(mut window: WindowHandle, width: u32, height: u32, title: String);
-    state poll_frame(window: WindowHandle, mut frame: FrameInput);
-    state draw_room(room: RoomView);
-    state draw_hud(hud: HudView);
-    state present_backbuffer(window: WindowHandle);
-    state destroy_window(window: WindowHandle);
-    state exit_process(return_code: i32);
+    fn create_window(window: &mut WindowHandle, width: u32, height: u32, title: String);
+    fn poll_frame(window: WindowHandle, frame: &mut FrameInput);
+    fn draw_room(room: RoomView);
+    fn draw_hud(hud: HudView);
+    fn present_backbuffer(window: WindowHandle);
+    fn destroy_window(window: WindowHandle);
+    fn exit_process(return_code: i32);
 }

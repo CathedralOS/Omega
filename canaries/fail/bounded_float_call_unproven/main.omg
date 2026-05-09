@@ -1,7 +1,7 @@
 machine main {
     owns speed: f32[finite, range<0.0f, 100000.0f>] = 0.0f;
 
-    state entry {
+    fn entry() {
         safe_speed(speed);
     }
 

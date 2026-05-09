@@ -4,6 +4,6 @@ invariant speed_range = [finite_speed, range<0.0f, 100.0f>];
 machine main {
     owns speed: f32[speed_range] = 0.0f;
 
-    state entry {
+    fn entry() {
     }
 }

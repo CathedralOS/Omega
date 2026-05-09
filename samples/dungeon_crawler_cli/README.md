@@ -4,7 +4,7 @@ This sample explores Omega as a console program rather than a windowed game.
 
 What it is trying to prove:
 
-- `state entry` can drive a terminal application
+- `fn entry()` can drive a terminal application
 - console input/output is isolated behind a platform machine
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
@@ -37,7 +37,7 @@ Sample layout:
 - `build.omg`: host policy for console input, output, and process exit
 - `main.omg`: process-level runner
 - `dungeon/`: generic dungeon flow, room movement, and command classification
-- `levels/`: hardcoded sample level data
+- `generation/`: small deterministic dungeon generation
 - `data/`: shared dungeon data
 - `platform/`: console boundary
 

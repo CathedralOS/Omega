@@ -1,11 +1,11 @@
 machine main {
     owns value: i32 = 1;
 
-    state entry {
+    fn entry() {
         write(value);
     }
 
-    state write(input_value: i32) {
+    fn write(input_value: i32) {
         copy(mut input_value);
     }
 

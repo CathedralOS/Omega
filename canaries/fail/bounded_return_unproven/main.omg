@@ -1,5 +1,5 @@
 machine main {
-    state entry {
+    fn entry() {
     }
 
     state answer() -> i32[range<1, 50>] {
