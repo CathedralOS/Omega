@@ -1,6 +1,6 @@
-use crate::architecture::aarch64;
-use crate::architecture::aarch64_call_operands;
+use crate::aarch64_call_operands;
 use omega_core::diagnostics::Diagnostic;
+use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
 use omega_target_program::InstructionOperand;
 

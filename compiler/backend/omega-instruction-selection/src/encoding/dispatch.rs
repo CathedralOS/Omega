@@ -1,5 +1,5 @@
-use crate::architecture::aarch64;
 use omega_core::diagnostics::Diagnostic;
+use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
 
 pub fn encode_dispatch_loop_enter(
