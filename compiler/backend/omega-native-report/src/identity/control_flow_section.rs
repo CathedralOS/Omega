@@ -1,7 +1,7 @@
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_planned_target_strings;
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_control_flow::OperationKind;
 
 pub(in crate::identity) fn count_control_flow_strings(
@@ -27,8 +27,8 @@ pub(in crate::identity) fn count_control_flow_strings(
         match &operation.kind {
             OperationKind::Assignment { target, value }
             | OperationKind::StaticAssignment { target, value } => {
-                count_expression_strings(target, storage);
-                count_expression_strings(value, storage);
+                count_expression_strings(&target, storage);
+                count_expression_strings(&value, storage);
             }
             OperationKind::Call {
                 receiver: _,
@@ -37,7 +37,7 @@ pub(in crate::identity) fn count_control_flow_strings(
                 ..
             } => {
                 for argument in arguments {
-                    count_expression_strings(argument, storage);
+                    count_expression_strings(&argument, storage);
                 }
             }
             OperationKind::ConstantIntegerAssignment

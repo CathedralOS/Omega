@@ -1,6 +1,5 @@
 //! Native backend implementation.
 
-pub mod identity;
 pub mod instructions;
 pub mod plan;
 pub mod runtime_dispatch;

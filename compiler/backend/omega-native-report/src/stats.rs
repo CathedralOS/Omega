@@ -1,6 +1,6 @@
 use super::format;
 
-use omega_native::identity::count_native_string_storage;
+use crate::identity::count_native_string_storage;
 use omega_native::plan::NativePlan;
 
 pub(super) fn write_native_phase_timings(output: &mut String, native_plan: &NativePlan) {

@@ -1,8 +1,8 @@
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
 use crate::identity::targets::count_runtime_target_strings;
-use crate::plan::NativePlan;
-use crate::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
+use omega_native::plan::NativePlan;
+use omega_native::runtime_dispatch::bodies::RuntimeDispatchBodyOperationKind;
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
@@ -79,7 +79,7 @@ pub(in crate::identity) fn count_runtime_dispatch_loop_strings(
         count_runtime_target_strings(&edge.target, storage);
         count_runtime_target_strings(&edge.continuation, storage);
         if let TransitionGuard::When(expression) = &edge.guard {
-            count_expression_strings(expression, storage);
+            count_expression_strings(&expression, storage);
         }
     }
 }

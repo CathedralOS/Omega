@@ -1,6 +1,6 @@
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 
 pub(in crate::identity) fn count_state_storage_strings(
     native_plan: &NativePlan,

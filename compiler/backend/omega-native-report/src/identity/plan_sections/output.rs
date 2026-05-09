@@ -1,5 +1,5 @@
 use crate::identity::NativeStringStorage;
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 
 pub(in crate::identity) fn count_instruction_strings(
     native_plan: &NativePlan,

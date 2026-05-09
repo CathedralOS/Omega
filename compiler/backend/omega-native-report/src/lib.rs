@@ -1,6 +1,7 @@
 mod codegen;
 mod format;
 mod host;
+mod identity;
 mod object;
 mod stats;
 

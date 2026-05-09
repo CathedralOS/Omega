@@ -6,9 +6,9 @@ mod runtime_sections;
 mod storage;
 mod targets;
 
-use crate::plan::NativePlan;
 use branching::count_runtime_branching_strings;
 use control_flow_section::count_control_flow_strings;
+use omega_native::plan::NativePlan;
 use plan_sections::{
     count_alias_flow_strings, count_host_call_strings, count_instruction_strings,
     count_layout_strings, count_object_strings, count_phase_timing_strings,

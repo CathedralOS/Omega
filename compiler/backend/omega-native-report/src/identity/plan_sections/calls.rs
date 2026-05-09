@@ -1,6 +1,6 @@
 use crate::identity::NativeStringStorage;
 use crate::identity::expressions::count_expression_strings;
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
@@ -20,9 +20,9 @@ pub(in crate::identity) fn count_host_call_strings(
     }
     for (_, argument) in native_plan.host_calls.arguments.iter() {
         match &argument.kind {
-            HostCallArgumentKind::Text(value) => storage.count_payload(value),
+            HostCallArgumentKind::Text(value) => storage.count_payload(&value),
             HostCallArgumentKind::Expression(expression) => {
-                count_expression_strings(expression, storage);
+                count_expression_strings(&expression, storage);
             }
             HostCallArgumentKind::Integer(_) => {}
         }

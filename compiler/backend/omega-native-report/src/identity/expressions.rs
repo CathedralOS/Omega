@@ -1,5 +1,5 @@
 use crate::identity::NativeStringStorage;
-use crate::plan::NativePlan;
+use omega_native::plan::NativePlan;
 use omega_typed_program::expression::Expression;
 use omega_typed_program::statement::TransitionGuard;
 
