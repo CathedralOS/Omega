@@ -4,7 +4,7 @@ Omega is an experimental systems programming language centered around explicit s
 
 The central bet is simple: state machines should not be a framework pattern hidden inside a branch-heavy language. They should be the shape of the program. Machines own data, states perform work, and transitions describe control-flow handoff.
 
-Current status: Omega is very early, but no longer purely theoretical. The compiler can parse/check all current samples, emit/link small native macOS ARM64 CLI programs, and writes phase artifacts for every compiler stage. The native path is still intentionally narrow; when a feature is not supported, the compiler should say so instead of pretending.
+Current status: Omega is very early, but no longer purely theoretical. The compiler can parse/check all current samples, emit small native macOS ARM64 CLI programs as direct executable images, and writes phase artifacts for every compiler stage. The native path is still intentionally narrow; when a feature is not supported, the compiler should say so instead of pretending.
 
 Tiny current program:
 
@@ -89,7 +89,7 @@ Important artifact files:
 - `06_validation.txt`: semantic validation summary.
 - `07_graph.txt`: source and lowered state graph.
 - `08_proof.txt`: proof surface and obligations.
-- `09_native_plan.txt`: native target, host ABI, calls, data, instructions, object shape.
+- `09_native_plan.txt`: native target, host ABI, calls, data, instructions, and image planning.
 - `10_trust.txt`: trusted contracts and unchecked obligations.
 - `11_emission.txt`: whether native emission is currently possible.
 - `12_emitted_output.txt`: emitted native output information.
@@ -107,7 +107,7 @@ The native path currently supports a small but real subset:
 - Constant integer assignment into host-call arguments.
 - Static guarded transition selection for compile-time-known enum-style values.
 - Static record/array/field text lowering for simple sample data.
-- Enough runtime dispatch, storage, text building, and host calls to emit/link the dungeon crawler sample on macOS ARM64.
+- Enough runtime dispatch, storage, text building, and host calls to emit the dungeon crawler sample as a direct macOS ARM64 executable image.
 
 Current known limitation:
 

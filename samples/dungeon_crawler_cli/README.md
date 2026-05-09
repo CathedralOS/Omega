@@ -14,7 +14,7 @@ What it is trying to prove:
 
 Current runtime note:
 
-- Native macOS ARM64 emission can build and link this sample.
+- Native macOS ARM64 emission can build this sample as a direct executable image.
 - Interactive terminal input can exercise the loop.
 - Piped multi-line input is not reliable yet because `read_line` currently uses
   raw host reads rather than compiler-owned line buffering.
