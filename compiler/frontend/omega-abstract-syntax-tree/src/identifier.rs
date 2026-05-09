@@ -76,12 +76,6 @@ impl From<&str> for Identifier {
     }
 }
 
-impl From<String> for Identifier {
-    fn from(text: String) -> Self {
-        Self::generated(text)
-    }
-}
-
 impl Deref for Identifier {
     type Target = str;
 
