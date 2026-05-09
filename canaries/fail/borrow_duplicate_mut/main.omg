@@ -5,7 +5,7 @@ machine main {
         swap(mut value, mut value);
     }
 
-    state swap(mut left: i32, mut right: i32) {
+    state swap(left: &mut i32, right: &mut i32) {
         left = right;
     }
 }

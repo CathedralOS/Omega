@@ -34,12 +34,12 @@ machine main {
         -> self;
     }
 
-    state scan(cell: Cell, id: CellId, mut out_cell: Cell) {
+    state scan(cell: Cell, id: CellId, out_cell: &mut Cell) {
         -> apply(cell, mut out_cell) when cell.id == id;
         ->
     }
 
-    state apply(cell: Cell, mut out_cell: Cell) {
+    state apply(cell: Cell, out_cell: &mut Cell) {
         out_cell = cell;
     }
 }

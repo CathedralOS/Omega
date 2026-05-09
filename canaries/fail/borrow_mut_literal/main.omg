@@ -3,7 +3,7 @@ machine main {
         write(mut 1);
     }
 
-    state write(mut out_value: i32) {
+    state write(out_value: &mut i32) {
         out_value = 2;
     }
 }

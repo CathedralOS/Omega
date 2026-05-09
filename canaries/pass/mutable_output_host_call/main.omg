@@ -5,7 +5,7 @@ data ConsoleLine {
 platform Console {
     state write(text: String);
     state write_line(text: String);
-    state read_line(mut out_line: ConsoleLine);
+    state read_line(out_line: &mut ConsoleLine);
     state exit_process(return_code: i32);
 }
 

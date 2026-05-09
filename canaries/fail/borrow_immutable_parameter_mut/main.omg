@@ -9,7 +9,7 @@ machine main {
         copy(mut input_value);
     }
 
-    state copy(mut out_value: i32) {
+    state copy(out_value: &mut i32) {
         out_value = 2;
     }
 }

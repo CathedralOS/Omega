@@ -6,7 +6,7 @@ machine main {
         copy(mut left, right);
     }
 
-    state copy(mut out_value: i32, input_value: i32) {
+    state copy(out_value: &mut i32, input_value: i32) {
         out_value = input_value;
     }
 }
