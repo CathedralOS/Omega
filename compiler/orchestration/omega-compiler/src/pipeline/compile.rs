@@ -478,6 +478,9 @@ pub(crate) struct LoadedFile {
     pub(crate) path: PathBuf,
     pub(crate) first_item: usize,
     pub(crate) item_count: usize,
+    pub(crate) expression_count: usize,
+    pub(crate) type_reference_count: usize,
+    pub(crate) type_constraint_count: usize,
 }
 
 impl LoadedProgram {
@@ -575,6 +578,9 @@ fn load_program_sources(
                 path: file.path.clone(),
                 first_item,
                 item_count,
+                expression_count: ast_file.tables.expressions.expression_count(),
+                type_reference_count: ast_file.tables.type_references.type_reference_count(),
+                type_constraint_count: ast_file.tables.type_references.constraint_count(),
             });
             items.extend(ast_file.items);
             source_files.push(file);

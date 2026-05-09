@@ -83,6 +83,9 @@ fn ast_file_artifact(loaded_program: &LoadedProgram, file: &LoadedFile) -> AstFi
     AstFileArtifact {
         path: file.path.clone(),
         first_item: file.first_item,
+        expression_count: file.expression_count,
+        type_reference_count: file.type_reference_count,
+        type_constraint_count: file.type_constraint_count,
         item_summaries: items.iter().map(ast_item_summary).collect(),
         item_range_valid: true,
     }
