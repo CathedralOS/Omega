@@ -17,13 +17,13 @@ machine Dungeon {
     state enter_room {
         write_current_cell(level, current_cell, mut command_line);
         console.write_line(command_line.text);
+        write_adjacent_rooms(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
 
         -> prompt;
     }
 
     state prompt {
-        write_adjacent_rooms(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
         console.write("> ");
         console.read_line(mut command_line);
         navigation.choice = NavigationChoice::Invalid;

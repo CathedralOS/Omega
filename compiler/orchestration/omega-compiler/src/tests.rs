@@ -3046,7 +3046,7 @@ fn compile_runs_dungeon_cli_script() {
 
     {
         use std::io::Write;
-        let stdin = child.stdin.as_mut().expect("dungeon stdin should be piped");
+        let mut stdin = child.stdin.take().expect("dungeon stdin should be piped");
         stdin
             .write_all(b"look\nnorth\nquit\n")
             .expect("dungeon script should write to stdin");
