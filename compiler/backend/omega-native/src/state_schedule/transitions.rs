@@ -42,11 +42,7 @@ pub(super) fn next_state(
                 .contains
                 .iter()
                 .find(|contained| {
-                    if receiver_symbol.is_valid() {
-                        contained.symbol == *receiver_symbol
-                    } else {
-                        contained.name == *receiver
-                    }
+                    receiver_symbol.is_valid() && contained.symbol == *receiver_symbol
                 })
                 .map(|contained| contained.type_symbol)
                 .ok_or_else(|| {
@@ -64,16 +60,8 @@ pub(super) fn next_state(
                     .control_flow
                     .state_key_by_symbols(nested_machine_flow.symbol, *state_symbol)
             } else {
-                native_plan
-                    .control_flow
-                    .states
-                    .span(nested_machine_flow.states)
-                    .and_then(|states| {
-                        states
-                            .iter()
-                            .find(|candidate| candidate.name == *nested_state)
-                            .map(|candidate| candidate.key)
-                    })
+                let _ = nested_state;
+                None
             }
             .ok_or_else(|| {
                 format!(

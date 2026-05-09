@@ -103,13 +103,8 @@ fn resolve_state_call_key(
             .control_flow
             .state_key_by_symbols(target_machine.symbol, target_symbol)
     } else {
-        native_plan
-            .control_flow
-            .states
-            .span(target_machine.states)?
-            .iter()
-            .find(|state| state.name == *target)
-            .map(|state| state.key)
+        let _ = target;
+        None
     }
 }
 
@@ -135,20 +130,8 @@ fn resolve_state_call_machine_flow<'plan>(
         return native_plan.control_flow.machine_by_symbol(receiver_symbol);
     }
 
-    let receiver = receiver?;
-    machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == *receiver)
-        .and_then(|contained| machine_flow_by_symbol(native_plan, contained.type_symbol).ok())
-        .or_else(|| {
-            native_plan
-                .control_flow
-                .machines
-                .iter()
-                .find(|(_, candidate)| candidate.name == *receiver)
-                .map(|(_, candidate)| candidate)
-        })
+    let _ = receiver?;
+    None
 }
 
 pub(super) fn bind_state_arguments_by_key(
