@@ -3,8 +3,6 @@ use crate::data::NativeDataPlan;
 use crate::host_calls::HostCallPlan;
 use crate::instructions::InstructionPlan;
 use crate::machine_code::MachineCodePlan;
-use crate::object::ObjectPlan;
-use crate::relocations::RelocationPlan;
 use crate::runtime_dispatch::bodies::RuntimeDispatchBodyPlan;
 use crate::runtime_dispatch::branching::RuntimeBranchingCallPlan;
 use crate::runtime_dispatch::loop_plan::RuntimeDispatchLoopPlan;
@@ -20,6 +18,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
+use omega_object::{ObjectPlan, RelocationPlan};
 use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

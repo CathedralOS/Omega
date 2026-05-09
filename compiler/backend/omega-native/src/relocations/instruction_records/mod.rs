@@ -8,11 +8,10 @@ use super::offsets::{
     string_descriptor_machine_address_offset,
 };
 use crate::instructions::{FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind};
-use crate::object::machine_storage_symbol_name;
 use crate::plan::NativePlan;
 use crate::state_guards::{StateGuardLowering, StateGuardOperator};
 use context::InstructionRelocationContext;
-use omega_object::RelocationPlan;
+use omega_object::{RelocationPlan, machine_storage_symbol_name};
 
 pub(super) fn collect_instruction_relocations(
     native_plan: &NativePlan,

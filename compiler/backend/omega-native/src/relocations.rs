@@ -2,7 +2,7 @@ use crate::instructions::FunctionInstructionPlan;
 use crate::plan::NativePlan;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-pub use omega_object::{RelocationKind, RelocationPlan, RelocationRecord};
+use omega_object::RelocationPlan;
 
 mod data_addresses;
 mod instruction_records;

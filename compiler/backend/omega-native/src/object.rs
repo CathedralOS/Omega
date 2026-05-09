@@ -4,7 +4,7 @@ use omega_calling_conventions::HostBindingMechanism;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_layout::MachineLayout;
-pub use omega_object::{
+use omega_object::{
     ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, entry_symbol_name,
     machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
 };
