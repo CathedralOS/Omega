@@ -35,4 +35,4 @@ This page tracks design pressure that is not fully nailed down yet.
 - Which assembly instructions belong in the first accepted subset for each target, and what exact contracts should each instruction emit?
 - When should manual assembly contracts be allowed to supplement known instruction contracts, and when should they be rejected as too opaque?
 - Which words must be globally reserved, and which should remain contextual keywords only?
-- How should host operation signatures describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?
+- How should foreign operation signatures and target bindings describe native operand lowering, so `Stdout.write` and `Process.exit` are not compiler-special string matches?

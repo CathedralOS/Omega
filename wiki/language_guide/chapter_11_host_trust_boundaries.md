@@ -1,87 +1,177 @@
-# Chapter 11: Host Trust Boundaries
+# Chapter 11: Foreign Boundaries And Trust
 
 Omega should not pretend the trusted root does not exist.
 
-The current direction is that project build policy is Omega source, usually in `build.omg`, rather than a sidecar config format. That file selects a target host provider, enables root capabilities, and explicitly names the trust policy accepted by the build.
+The core concept is not "host syscall." That framing is too Unix-shaped. Different targets cross the boundary in different ways:
+
+- Linux may call a raw syscall table.
+- Darwin usually reaches OS services through `libSystem`.
+- Windows normally imports user-mode APIs from system DLLs such as `Kernel32.dll` or `KernelBase.dll`.
+- Wasm may call imported host functions.
+- Embedded targets may call firmware vectors.
+- Console or custom platforms may call SDK-provided entry points.
+
+The shared language concept is a foreign boundary.
+
+## Foreign Machines
+
+A foreign machine declares an external contract surface. Its implementation is not Omega code.
 
 ```omega
-target cross_platform_cli {
-    host: StandardHost {
-        stdout = enabled
-        process = enabled
-        filesystem = disabled
-        threads = disabled
-        clock = disabled
-        random = disabled
-    }
-
-    trust host_contracts
+foreign machine windows::memoryapi {
+    state ReadProcessMemory(
+        process: HANDLE<[process, vm_read]>,
+        remote: RemotePtr<const u8, [readable_by<process>]>,
+        out: Slice<u8, [writable, initialized]>
+    ) -> Result<usize[range<0, out.length>], IOError>
+        trust result.Ok(n) => n <= out.length
 }
 ```
 
-Capabilities describe what host objects promise. Omega code can be proven relative to those contracts, but the host implementation itself is part of the trusted computing base.
+Working interpretation:
+
+- `foreign machine` means the implementation is outside Omega.
+- `windows::memoryapi` is a namespace path. Omega should use `::` for namespaces and reserve `.` for member/state access.
+- Parameter types carry caller obligations through invariant parameters.
+- Return types carry as much of the postcondition as possible.
+- `trust` states a guarantee accepted from the foreign implementation.
+
+This avoids duplicating normal type facts with `requires` clauses. If a parameter must be non-empty, writable, initialized, aligned, or rights-bearing, that should usually be expressed in the parameter type.
+
+## Invariant Parameters
+
+Foreign signatures should lean on invariant-parameterized types.
 
 ```omega
-capability Stdout {
-    state write_line(text: String) -> Result<(), IOError>
-        requires text.utf8
-        ensures result.Ok => stdout_observed(text + "\n") || host_buffered(text + "\n")
-        ensures result.Err(e) => e is IOError
-        trusted host
+Slice<u8, [non_empty, initialized]>
+HANDLE<[process, vm_read]>
+RemotePtr<const u8, [readable_by<process>]>
+```
+
+The invariant names are resolved in the namespace of the type or machine being instantiated. `Slice<u8, [initialized]>` and `HANDLE<[initialized]>` do not have to mean the same thing.
+
+A type can define which invariant parameters it accepts:
+
+```omega
+machine Slice<T, I>
+    where I subset {non_empty, initialized, writable}
+{
+    ptr: Ptr<T>;
+    len: usize;
+
+    invariant non_empty = len > 0;
+    invariant initialized = ptr.initialized<len>;
+    invariant writable = ptr.writable<len>;
 }
 ```
 
-In proof vocabulary, a host capability state has a contract:
+This sketch needs design work, but the direction is important:
 
-- `requires` lists the facts the caller must provide.
-- `ensures` lists the guarantees the host operation contributes.
-- `trust` names the authority used when those guarantees cannot be proven from Omega source.
+- Callers name exported invariants.
+- Invariant names are scoped to the type that defines them.
+- The type implementation maps public invariant names to private facts.
+- Callers should not need to know the private field layout to state proof requirements.
 
-Omega should still prove the requirements before the call. For example, it can prove a buffer is initialized, a slice length is valid, and an error result is handled. What it cannot prove from Omega code is that the OS implementation really obeys `ensures`. That is exactly what `trust host` means.
-
-The important split is:
-
-- `Proven`: Omega verified this from Omega code.
-- `Checked`: a runtime check enforces this before continuing.
-- `Trusted`: the target host/runtime claims this contract is true.
-
-Unchecked modes should be explicit and auditable:
+Short forms can be provided by overloads or aliases rather than magical defaults:
 
 ```omega
-target local_unchecked {
-    host: StandardHost {
-        stdout = enabled
-        process = enabled
-    }
+machine Slice<T> = Slice<T, []>;
+machine InitializedSlice<T> = Slice<T, [initialized]>;
+```
 
-    trust host_contracts
-    trust unchecked invariant_proofs
+## Trust
+
+Trust is the authority for accepting a guarantee that Omega cannot prove from Omega code.
+
+For a foreign call:
+
+- Omega proves the caller satisfies the parameter and state invariants.
+- The foreign implementation is trusted to satisfy the declared `trust` guarantees.
+- Omega may use those trusted guarantees as facts after the call.
+
+In proof vocabulary:
+
+- Input refinements and invariant parameters are caller requirements.
+- Return refinements and trusted clauses are callee guarantees.
+- The call creates obligations for the caller.
+- `trust` explains why unproved foreign guarantees are accepted.
+
+For ordinary Omega code, the compiler should know the contracts for assignments, arithmetic, borrows, transitions, and field access. For foreign machines, the contract must be declared or imported from an audited package.
+
+## Target Bindings
+
+A foreign machine is not the same thing as its target binding.
+
+The foreign machine describes the API and proof contract. The target binding says how that API maps to a platform mechanism.
+
+Sketch:
+
+```omega
+target windows_x64 {
+    bind windows::memoryapi::ReadProcessMemory
+        to dll "Kernel32.dll" symbol "ReadProcessMemory"
+
+    trust omega::windows_contracts
 }
 ```
 
-Compiler artifacts should list every trusted contract and unchecked policy. A build with proofs or contracts disabled should be stamped loudly rather than silently behaving like a normal safe build.
+Linux may bind the same kind of foreign surface to syscall numbers:
 
-For hello world, the trusted root is intentionally tiny:
+```omega
+target linux_x64 {
+    bind linux::syscalls::write
+        to syscall 1
 
-- `Stdout.write_line` maps to the target OS stdout mechanism.
-- `Process.exit` maps to the target OS process termination mechanism.
-- Omega proves the string literal is initialized and valid UTF-8 once those proof passes exist.
-- Omega trusts the host wrapper only because `build.omg` explicitly accepts `host_contracts`.
+    trust omega::linux_contracts
+}
+```
 
-## Standard Library vs Host Bindings
+Darwin may bind through `libSystem`:
+
+```omega
+target macos_arm64 {
+    bind darwin::libsystem::write
+        to dylib "libSystem.B.dylib" symbol "_write"
+
+    trust omega::darwin_contracts
+}
+```
+
+The compiler should not special-case every OS API. It should generically understand foreign machines, target bindings, calling conventions, imported symbols, syscalls, and trust policies.
+
+## Standard Library vs Foreign Bindings
 
 The standard library should mostly be portable Omega code. It can provide data structures, algorithms, string helpers, slices, formatting, numeric helpers, and high-level APIs. Those pieces should be proven like any other Omega code.
 
-Host bindings are the bottom edge where Omega touches the outside world. They are target-specific and trusted:
+Foreign bindings are the bottom edge where Omega touches the outside world. They are target-specific and trusted.
 
-- Windows should normally bind documented Win32 APIs such as `WriteFile`, `GetStdHandle`, and `ExitProcess`.
-- Linux can choose a raw syscall ABI for tiny targets.
-- Darwin should usually bind through `libSystem`.
+Most users should not author raw Windows, Linux, Darwin, or console SDK contracts for ordinary applications. They should import audited toolchain-provided surfaces:
 
-That means Windows may still involve system DLL imports. Those are not Omega runtime DLLs; they are the OS user-mode ABI boundary. A good Windows target can still mean:
+```omega
+use omega::foreign::windows::memoryapi;
+use omega::std::process;
+```
 
-- no Omega runtime DLL
-- no C runtime dependency
-- no transpiled C host layer
-- explicit imports from Windows system DLLs
-- audited trust policies for loader, ABI, and Win32 contracts
+Advanced users can author foreign machines for custom OSes, firmware, game consoles, or unusual hardware, but doing so explicitly expands the trusted computing base.
+
+## Build Artifacts
+
+Compiler artifacts should list trusted foreign machines, target bindings, and unchecked policies.
+
+Example shape:
+
+```text
+trusted foreign machines:
+  omega::foreign::windows::memoryapi
+  omega::foreign::windows::processthreadsapi
+
+target bindings:
+  windows::memoryapi::ReadProcessMemory -> Kernel32.dll!ReadProcessMemory
+
+trusted guarantees used:
+  ReadProcessMemory result.Ok(n) => n <= out.length
+```
+
+A build with proofs or contracts disabled should be stamped loudly rather than silently behaving like a normal safe build.
+
+The goal is not to eliminate trust. The goal is to make trust explicit, scoped, and auditable.
