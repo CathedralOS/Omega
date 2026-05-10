@@ -1,4 +1,5 @@
 use omega_control_flow::StateKey;
+use omega_core::arena::HandleSpan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -6,7 +7,7 @@ pub struct RuntimeDispatchLoopCaseInput {
     pub(super) key: StateKey,
     pub(super) dispatch_index: u32,
     pub(super) label: String,
-    pub(super) edges: Vec<DispatchEdge>,
+    pub(super) edges: HandleSpan<DispatchEdge>,
 }
 
 pub fn runtime_dispatch_loop_inputs(
@@ -19,11 +20,7 @@ pub fn runtime_dispatch_loop_inputs(
             key: state.key,
             dispatch_index: state.dispatch_index,
             label: state.label.clone(),
-            edges: state_dispatch
-                .edges
-                .span(state.edges)
-                .unwrap_or(&[])
-                .to_vec(),
+            edges: state.edges,
         })
         .collect()
 }

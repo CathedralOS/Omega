@@ -18,8 +18,16 @@ pub(super) fn build_runtime_dispatch_loop_case(
     context: &RuntimeDispatchLoopContext,
     case_input: &RuntimeDispatchLoopCaseInput,
 ) -> CollectedRuntimeDispatchLoopCase {
-    let edges = case_input
-        .edges
+    let Some(case_edges) = context.state_dispatch.edges.span(case_input.edges) else {
+        return CollectedRuntimeDispatchLoopCase {
+            key: case_input.key,
+            dispatch_index: case_input.dispatch_index,
+            label: case_input.label.clone(),
+            operation_count: runtime_body_operation_count(context, case_input.dispatch_index),
+            edges: Vec::new(),
+        };
+    };
+    let edges = case_edges
         .iter()
         .enumerate()
         .map(|(order, edge)| {

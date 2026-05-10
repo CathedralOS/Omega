@@ -8,6 +8,7 @@ use omega_state_guards::StateGuardPlan;
 pub struct RuntimeDispatchLoopContext {
     pub(super) needed: bool,
     pub(super) entry_dispatch_index: u32,
+    pub(super) state_dispatch: StateDispatchPlan,
     pub(super) state_guards: StateGuardPlan,
     pub(super) runtime_bodies: RuntimeDispatchBodyPlan,
 }
@@ -23,6 +24,7 @@ impl RuntimeDispatchLoopContext {
         Self {
             needed,
             entry_dispatch_index: dispatch_index_for_key(state_dispatch, entry_key),
+            state_dispatch: state_dispatch.clone(),
             state_guards,
             runtime_bodies,
         }
