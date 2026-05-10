@@ -608,8 +608,35 @@ impl Parser<'_, '_> {
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {
-        let _ = self.consume("for");
-        let name = self.expect_identifier()?;
+        let (name, entry_name, machine_return_type) = if self.consume("for") {
+            (self.expect_identifier()?, None, None)
+        } else {
+            let path = self.parse_path()?;
+            let machine_return_type = self.parse_optional_return_type()?;
+
+            if path.len() > 1 {
+                let target_name = Identifier::generated(
+                    path.as_slice()[..path.len() - 1]
+                        .iter()
+                        .map(|member| member.as_str())
+                        .collect::<Vec<_>>()
+                        .join("::"),
+                );
+                let entry_name = path
+                    .as_slice()
+                    .last()
+                    .cloned()
+                    .expect("machine path with multiple members should have a tail");
+                (target_name, Some(entry_name), machine_return_type)
+            } else {
+                let machine_name = path
+                    .as_slice()
+                    .first()
+                    .cloned()
+                    .expect("machine path should contain at least one member");
+                (machine_name, None, machine_return_type)
+            }
+        };
         self.expect("{")?;
 
         let mut contains = Vec::new();
@@ -639,6 +666,20 @@ impl Parser<'_, '_> {
                 }
             } else {
                 return Err(self.error_here("expected machine item"));
+            }
+        }
+
+        if let Some(entry_name) = entry_name {
+            if let Some(state) = states.iter_mut().find(|state| state.name == "entry") {
+                state.name = entry_name;
+            }
+        }
+
+        if let Some(return_type) = &machine_return_type {
+            for state in &mut states {
+                if state.return_type.is_none() {
+                    state.return_type = Some(return_type.clone());
+                }
             }
         }
 
@@ -1571,5 +1612,41 @@ mod tests {
         };
 
         assert_eq!(machine.states[0].statements.len(), 2);
+    }
+
+    #[test]
+    fn parses_machine_header_entry_surface_and_inherits_return_type() {
+        let tokens = Lexer::new(
+            r#"
+            machine Game::new -> u64 {
+                pub entry(seed: u64) {
+                    -> ready(seed);
+                }
+
+                state ready(seed: u64) {
+                    seed
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+
+        let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected machine item");
+        };
+
+        assert_eq!(machine.name, "Game");
+        assert_eq!(machine.states[0].name, "new");
+        assert_eq!(
+            machine.states[0].return_type,
+            Some(omega_abstract_syntax_tree::types::TypeReference::named("u64"))
+        );
+        assert_eq!(
+            machine.states[1].return_type,
+            Some(omega_abstract_syntax_tree::types::TypeReference::named("u64"))
+        );
     }
 }
