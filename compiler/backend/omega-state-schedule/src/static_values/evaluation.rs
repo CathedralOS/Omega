@@ -1,39 +1,43 @@
 use super::aliases::{PlaceKey, canonical_place_key};
 use omega_control_flow::TransitionFlow;
-use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_typed_program::statement::TransitionGuard;
 
 pub(crate) fn resolve_static_value(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
 ) -> Option<String> {
-    match expression {
-        Expression::Mutable(inner_expression) => {
-            resolve_static_value(inner_expression, aliases, values)
+    match table.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            resolve_static_value(table, *inner_expression, aliases, values)
         }
-        Expression::Name(_) | Expression::Indexed(_) => {
-            let key = canonical_place_key(expression, aliases)?;
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
+            let key = canonical_place_key(table, expression, aliases)?;
             values
                 .iter()
                 .find(|(target, _)| target == &key)
                 .map(|(_, value)| value.clone())
-                .or_else(|| static_symbol_name(expression))
+                .or_else(|| static_symbol_name(table, expression))
         }
-        Expression::Boolean(value) => Some(value.to_string()),
-        Expression::Integer(value) => Some(value.to_string()),
-        Expression::String(value) => Some(value.clone()),
+        ExpressionNode::Boolean(value) => Some(value.to_string()),
+        ExpressionNode::Integer(value) => Some(value.to_string()),
+        ExpressionNode::String(value) => Some(value.clone()),
         _ => None,
     }
 }
 
 pub(crate) fn select_transition<'plan>(
+    table: &ExpressionTable,
     transitions: &'plan [TransitionFlow],
     values: &[(PlaceKey, String)],
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<Result<&'plan TransitionFlow, ()>> {
     for transition in transitions {
-        match guard_matches(&transition.guard, aliases, values) {
+        match guard_matches(table, transition, aliases, values) {
             Some(true) => return Some(Ok(transition)),
             Some(false) => continue,
             None => return Some(Err(())),
@@ -44,48 +48,52 @@ pub(crate) fn select_transition<'plan>(
 }
 
 fn guard_matches(
-    guard: &TransitionGuard,
+    table: &ExpressionTable,
+    transition: &TransitionFlow,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
 ) -> Option<bool> {
-    match guard {
+    match transition.guard {
         TransitionGuard::Always => Some(true),
-        TransitionGuard::When(expression) => evaluate_boolean(expression, aliases, values),
+        TransitionGuard::When(_) => {
+            evaluate_boolean(table, transition.expressions.guard?, aliases, values)
+        }
     }
 }
 
 fn evaluate_boolean(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &[(PlaceKey, String)],
 ) -> Option<bool> {
-    let Expression::Binary(binary) = expression else {
+    let ExpressionNode::Binary(binary) = table.expression(expression) else {
         return None;
     };
 
     match binary.operator {
         BinaryOperator::Equal => Some(
-            resolve_static_value(&binary.left, aliases, values)?
-                == resolve_static_value(&binary.right, aliases, values)?,
+            resolve_static_value(table, binary.left, aliases, values)?
+                == resolve_static_value(table, binary.right, aliases, values)?,
         ),
         BinaryOperator::NotEqual => Some(
-            resolve_static_value(&binary.left, aliases, values)?
-                != resolve_static_value(&binary.right, aliases, values)?,
+            resolve_static_value(table, binary.left, aliases, values)?
+                != resolve_static_value(table, binary.right, aliases, values)?,
         ),
         _ => None,
     }
 }
 
-fn static_symbol_name(expression: &Expression) -> Option<String> {
-    let Expression::Name(path) = expression else {
+fn static_symbol_name(table: &ExpressionTable, expression: ExpressionHandle) -> Option<String> {
+    let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };
 
-    if path.symbol().is_valid() {
+    if path.symbol.is_valid() {
         Some(format!(
             "symbol:{}:{}",
-            path.symbol().arena_index(),
-            path.symbol().generation()
+            path.symbol.arena_index(),
+            path.symbol.generation()
         ))
     } else {
         None

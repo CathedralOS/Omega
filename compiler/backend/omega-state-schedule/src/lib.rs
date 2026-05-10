@@ -111,7 +111,12 @@ pub(crate) fn append_state_chain(
         match transitions {
             [] => return Ok(()),
             transitions => {
-                let transition = match select_static_transition(transitions, values, aliases) {
+                let transition = match select_static_transition(
+                    &context.control_flow.expressions,
+                    transitions,
+                    values,
+                    aliases,
+                ) {
                     Some(Ok(transition)) => transition,
                     Some(Err(())) => {
                         return Err(format!(

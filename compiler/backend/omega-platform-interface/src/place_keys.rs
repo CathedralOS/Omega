@@ -1,5 +1,7 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, NamePath};
+use omega_typed_program::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
+};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -19,6 +21,28 @@ impl PlaceKey {
                 key.members.push(ProgramName::generated(format!(
                     "[{}]",
                     indexed.index.display_name()
+                )));
+                key.symbol = SymbolHandle::invalid();
+                Some(key)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn from_expression_handle(
+        table: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<Self> {
+        match table.expression(expression) {
+            ExpressionNode::Mutable(inner_expression) => {
+                Self::from_expression_handle(table, *inner_expression)
+            }
+            ExpressionNode::Name(path) => Some(Self::from_table_name_path(table, path)),
+            ExpressionNode::Indexed(indexed) => {
+                let mut key = Self::from_expression_handle(table, indexed.collection)?;
+                key.members.push(ProgramName::generated(format!(
+                    "[{}]",
+                    table.display_name(indexed.index)
                 )));
                 key.symbol = SymbolHandle::invalid();
                 Some(key)
@@ -84,6 +108,14 @@ impl PlaceKey {
             head_symbol: path.head_symbol(),
             symbol: path.symbol(),
             members: path.members().to_vec(),
+        }
+    }
+
+    fn from_table_name_path(table: &ExpressionTable, path: &TableNamePath) -> Self {
+        Self {
+            head_symbol: path.head_symbol,
+            symbol: path.symbol,
+            members: table.name_path_members(path.members).to_vec(),
         }
     }
 }

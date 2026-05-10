@@ -1,8 +1,8 @@
 use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key};
 use super::evaluation::resolve_static_value;
 use crate::StateScheduleContext;
-use omega_control_flow::{OperationKind, StateFlow};
-use omega_typed_program::expression::Expression;
+use omega_control_flow::{OperationExpressionRefs, StateFlow};
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(crate) fn apply_static_operations(
     context: &StateScheduleContext,
@@ -15,12 +15,14 @@ pub(crate) fn apply_static_operations(
     };
 
     for operation in operations {
-        match &operation.kind {
-            OperationKind::Assignment { target, value }
-            | OperationKind::StaticAssignment { target, value } => {
-                apply_static_assignment(target, value, aliases, values);
-            }
-            _ => {}
+        if let OperationExpressionRefs::Assignment { target, value } = operation.expressions {
+            apply_static_assignment(
+                &context.control_flow.expressions,
+                target,
+                value,
+                aliases,
+                values,
+            );
         };
     }
 }
@@ -41,33 +43,34 @@ pub(crate) fn set_static_value(
 }
 
 fn apply_static_assignment(
-    target: &Expression,
-    value: &Expression,
+    table: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
     values: &mut Vec<(PlaceKey, String)>,
 ) {
-    let Some(target_key) = shallow_canonical_place_key(target, aliases) else {
+    let Some(target_key) = shallow_canonical_place_key(table, target, aliases) else {
         return;
     };
 
-    if let Expression::StructLiteral(struct_literal) = value {
-        for field in &struct_literal.fields {
+    if let ExpressionNode::StructLiteral(struct_literal) = table.expression(value) {
+        for field in table.struct_fields(struct_literal.fields) {
             let field_target = target_key.append_member(field.name.clone());
-            if let Some(source_key) = canonical_place_key(&field.value, aliases) {
+            if let Some(source_key) = canonical_place_key(table, field.value, aliases) {
                 copy_static_prefix(values, &source_key, &field_target);
             }
-            if let Some(field_value) = resolve_static_value(&field.value, aliases, values) {
+            if let Some(field_value) = resolve_static_value(table, field.value, aliases, values) {
                 set_static_value(values, field_target, field_value);
             }
         }
         return;
     }
 
-    if let Some(source_key) = canonical_place_key(value, aliases) {
+    if let Some(source_key) = canonical_place_key(table, value, aliases) {
         copy_static_prefix(values, &source_key, &target_key);
     }
 
-    let Some(value) = resolve_static_value(value, aliases, values) else {
+    let Some(value) = resolve_static_value(table, value, aliases, values) else {
         return;
     };
 

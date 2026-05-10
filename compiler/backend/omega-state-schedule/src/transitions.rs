@@ -21,10 +21,16 @@ pub(super) fn next_state(
             index,
             key,
             name: _,
-            arguments,
+            arguments: _,
         } => {
             validate_state_index(context, machine, *index, &machine.name, &state.name)?;
-            bind_state_arguments_by_key(context, *key, arguments, aliases, values)?;
+            bind_state_arguments_by_key(
+                context,
+                *key,
+                transition.expressions.target_arguments,
+                aliases,
+                values,
+            )?;
             Ok(Some(ScheduledState { key: *key }))
         }
         PlannedTransitionTarget::Terminal => Ok(None),
@@ -37,7 +43,7 @@ pub(super) fn next_state(
             state_symbol,
             receiver,
             state: nested_state,
-            arguments,
+            arguments: _,
         } => {
             let nested_machine_symbol = machine
                 .contains
@@ -74,7 +80,7 @@ pub(super) fn next_state(
             bind_state_arguments_by_key(
                 context,
                 nested_state_flow.key,
-                arguments,
+                transition.expressions.target_arguments,
                 aliases,
                 values,
             )?;
@@ -94,10 +100,16 @@ pub(super) fn next_state(
                     index,
                     key,
                     name: _,
-                    arguments,
+                    arguments: _,
                 }) => {
                     validate_state_index(context, machine, *index, &machine.name, &state.name)?;
-                    bind_state_arguments_by_key(context, *key, arguments, aliases, values)?;
+                    bind_state_arguments_by_key(
+                        context,
+                        *key,
+                        transition.expressions.continuation_arguments,
+                        aliases,
+                        values,
+                    )?;
                     Ok(Some(ScheduledState { key: *key }))
                 }
                 Some(PlannedTransitionTarget::Terminal) | None => Ok(None),

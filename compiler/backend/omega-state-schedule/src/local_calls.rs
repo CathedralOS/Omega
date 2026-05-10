@@ -5,9 +5,12 @@ use super::static_values::{
     PlaceKey, argument_binding_place_key, resolve_static_value, set_static_value,
 };
 use crate::StateScheduleContext;
-use omega_control_flow::{MachineFlow, OperationKind, StateFlow, StateKey};
+use omega_control_flow::{
+    MachineFlow, OperationExpressionRefs, OperationKind, StateFlow, StateKey,
+};
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
@@ -32,7 +35,7 @@ pub(super) fn append_local_state_calls(
             target_symbol,
             receiver,
             target,
-            arguments,
+            arguments: _,
         } = &operation.kind
         else {
             continue;
@@ -73,7 +76,11 @@ pub(super) fn append_local_state_calls(
 
         let saved_alias_count = aliases.len();
         let saved_visited_count = visited.len();
-        bind_state_arguments_by_key(context, target_state_key, arguments, aliases, values)?;
+        let argument_refs = match operation.expressions {
+            OperationExpressionRefs::Call { arguments } => arguments,
+            _ => HandleSpan::empty(),
+        };
+        bind_state_arguments_by_key(context, target_state_key, argument_refs, aliases, values)?;
         append_state_chain(
             context,
             target_state_key,
@@ -139,21 +146,31 @@ fn resolve_state_call_machine_flow<'plan>(
 pub(super) fn bind_state_arguments_by_key(
     context: &StateScheduleContext,
     state_key: StateKey,
-    arguments: &[Expression],
+    arguments: HandleSpan<ExpressionHandle>,
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
     values: &mut Vec<(PlaceKey, String)>,
 ) -> Result<(), String> {
     let state = state_flow_by_key(context, state_key)?;
+    let arguments = context
+        .control_flow
+        .expressions
+        .expression_handles(arguments);
 
     for (parameter, argument) in state.parameters.iter().zip(arguments) {
-        let canonical_argument = argument_binding_place_key(argument, aliases);
+        let canonical_argument =
+            argument_binding_place_key(&context.control_flow.expressions, *argument, aliases);
         if let Some(canonical_argument) = canonical_argument {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
             set_alias(aliases, parameter_key.clone(), canonical_argument);
         }
 
-        if let Some(value) = resolve_static_value(argument, aliases, values) {
+        if let Some(value) = resolve_static_value(
+            &context.control_flow.expressions,
+            *argument,
+            aliases,
+            values,
+        ) {
             let parameter_key =
                 PlaceKey::from_symbol_name(parameter.symbol, parameter.name.clone());
             set_static_value(values, parameter_key, value);

@@ -1,27 +1,31 @@
 pub(crate) use omega_platform_interface::PlaceKey;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(crate) fn argument_binding_place_key(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
-    match expression {
-        Expression::Mutable(inner_expression) => {
-            shallow_canonical_place_key(inner_expression, aliases)
+    match table.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            shallow_canonical_place_key(table, *inner_expression, aliases)
         }
-        _ => canonical_place_key(expression, aliases),
+        _ => canonical_place_key(table, expression, aliases),
     }
 }
 
 pub(crate) fn canonical_place_key(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
-    let key = match expression {
-        Expression::Mutable(inner_expression) => {
-            return canonical_place_key(inner_expression, aliases);
+    let key = match table.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            return canonical_place_key(table, *inner_expression, aliases);
         }
-        Expression::Name(_) | Expression::Indexed(_) => PlaceKey::from_expression(expression)?,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
+            PlaceKey::from_expression_handle(table, expression)?
+        }
         _ => return None,
     };
 
@@ -29,14 +33,17 @@ pub(crate) fn canonical_place_key(
 }
 
 pub(crate) fn shallow_canonical_place_key(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     aliases: &[(PlaceKey, PlaceKey)],
 ) -> Option<PlaceKey> {
-    let key = match expression {
-        Expression::Mutable(inner_expression) => {
-            return shallow_canonical_place_key(inner_expression, aliases);
+    let key = match table.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            return shallow_canonical_place_key(table, *inner_expression, aliases);
         }
-        Expression::Name(_) | Expression::Indexed(_) => PlaceKey::from_expression(expression)?,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
+            PlaceKey::from_expression_handle(table, expression)?
+        }
         _ => return None,
     };
 
