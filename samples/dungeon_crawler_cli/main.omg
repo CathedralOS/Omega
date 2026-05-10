@@ -7,7 +7,7 @@ machine main {
 
     owns return_code: i32 = 0;
 
-    fn entry() {
+    fn entry(&mut self) {
         self.title.show();
         self.dungeon.start();
 
@@ -16,7 +16,7 @@ machine main {
         }
     }
 
-    state running() {
+    state running(&mut self) {
         self.dungeon.entry();
 
         transition {
@@ -24,7 +24,7 @@ machine main {
         }
     }
 
-    state shutdown() {
+    state shutdown(&mut self) {
         self.return_code = 0;
         self.dungeon.exit(self.return_code);
     }

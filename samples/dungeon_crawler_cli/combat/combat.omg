@@ -12,7 +12,7 @@ machine CombatSystem {
     contains rewards: RewardTables;
     contains rng: Random;
 
-    fn fight(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+    fn fight(&mut self, player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
         round.player_damage = max(0, player.attack - event.enemy.defense + self.rng.range(random, 3));
         event.enemy.health = max(0, event.enemy.health - round.player_damage);
         round.enemy_defeated = event.enemy.health == 0;
@@ -23,7 +23,7 @@ machine CombatSystem {
         }
     }
 
-    state defeated_enemy(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+    state defeated_enemy(&mut self, player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
         let reward: Reward;
         self.rewards.roll_enemy_reward(event.enemy, random, mut reward);
         self.player_system.grant_reward(player, reward);
@@ -35,7 +35,7 @@ machine CombatSystem {
         round.player_defeated = false;
     }
 
-    state enemy_retaliates(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+    state enemy_retaliates(&mut self, player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
         round.enemy_damage = max(0, event.enemy.attack - player.defense + self.rng.range(random, 3));
         self.player_system.take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;

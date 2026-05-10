@@ -31,13 +31,13 @@ machine Dungeon {
     owns combat_round: CombatRound;
     owns mode: GameMode = GameMode::Title;
 
-    state entry() {
+    state entry(&mut self) {
         transition {
             _ -> enter_room()
         }
     }
 
-    state enter_room() {
+    state enter_room(&mut self) {
         self.mark_current_room_discovered();
 
         self.formatter.write_current_cell(self.level, self.current_cell, mut self.command_line);
@@ -54,7 +54,7 @@ machine Dungeon {
         }
     }
 
-    state prompt() {
+    state prompt(&mut self) {
         transition self.player.health == 0 {
             true -> game_over()
             false -> {}
@@ -81,7 +81,7 @@ machine Dungeon {
         }
     }
 
-    state look() {
+    state look(&mut self) {
         self.formatter.write_room_info(self.level, self.current_cell, mut self.command_line);
         self.console.write_line(self.command_line.text);
         self.formatter.write_room_event(self.level, self.current_cell, mut self.command_line);
@@ -92,7 +92,7 @@ machine Dungeon {
         }
     }
 
-    state exits() {
+    state exits(&mut self) {
         self.formatter.write_adjacent_rooms(self.level, self.current_cell, mut self.command_line);
         self.console.write_line(self.command_line.text);
 
@@ -101,7 +101,7 @@ machine Dungeon {
         }
     }
 
-    state inventory() {
+    state inventory(&mut self) {
         self.formatter.write_inventory(self.player, mut self.command_line);
         self.console.write_line(self.command_line.text);
 
@@ -110,7 +110,7 @@ machine Dungeon {
         }
     }
 
-    state character() {
+    state character(&mut self) {
         self.formatter.write_character(self.player, mut self.command_line);
         self.console.write_line(self.command_line.text);
 
@@ -119,7 +119,7 @@ machine Dungeon {
         }
     }
 
-    state use_event() {
+    state use_event(&mut self) {
         let room: Room;
         RoomLookup.find_room(self.level, self.current_cell, mut room);
         self.events.use_event(mut self.player, mut room, mut self.command_line);
@@ -130,7 +130,7 @@ machine Dungeon {
         }
     }
 
-    state fight() {
+    state fight(&mut self) {
         let room: Room;
         RoomLookup.find_room(self.level, self.current_cell, mut room);
         self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, mut self.command_line);
@@ -142,7 +142,7 @@ machine Dungeon {
         }
     }
 
-    state move() {
+    state move(&mut self) {
         self.current_cell = self.navigation.destination;
 
         transition {
@@ -150,7 +150,7 @@ machine Dungeon {
         }
     }
 
-    state invalid_command() {
+    state invalid_command(&mut self) {
         self.console.write_line("That path is not open.");
 
         transition {
@@ -158,7 +158,7 @@ machine Dungeon {
         }
     }
 
-    state game_over() {
+    state game_over(&mut self) {
         self.mode = GameMode::GameOver;
         self.console.write_line("Game over.");
 
@@ -167,10 +167,10 @@ machine Dungeon {
         }
     }
 
-    state finished() {
+    state finished(&mut self) {
     }
 
-    fn start() {
+    fn start(&mut self) {
         self.rng.seed(1337, mut self.random);
         self.player_system.create("Wanderer", mut self.player);
         self.generator.generate(1337, mut self.level);
@@ -178,12 +178,12 @@ machine Dungeon {
         self.mode = GameMode::Exploring;
     }
 
-    fn exit(return_code: i32) {
+    fn exit(&mut self, return_code: i32) {
         self.console.write_line("Goodbye.");
         self.console.exit_process(return_code);
     }
 
-    fn mark_current_room_discovered() {
+    fn mark_current_room_discovered(&mut self) {
         let room: Room;
         RoomLookup.find_room(self.level, self.current_cell, mut room);
         room.discovered = true;

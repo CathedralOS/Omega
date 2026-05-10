@@ -4,7 +4,7 @@ use rooms::rooms;
 machine DungeonGenerator {
     contains maze: MazeBuilder;
 
-    fn generate(seed: u64[wrapping], out_level: &mut Level) {
+    fn generate(&mut self, seed: u64[wrapping], out_level: &mut Level) {
         self.maze.build(seed, out_level);
     }
 }

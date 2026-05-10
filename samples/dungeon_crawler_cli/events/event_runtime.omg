@@ -16,7 +16,7 @@ machine EventRuntime {
     contains inventory: InventorySystem;
     contains player_system: PlayerSystem;
 
-    fn describe(room: Room, out_line: &mut ConsoleLine) {
+    fn describe(&mut self, room: Room, out_line: &mut ConsoleLine) {
         transition (room.event.kind, room.event.consumed) {
             (RoomEventKind::FountainOfLife, false) -> describe_fountain(out_line)
             (RoomEventKind::Treasure, false) -> describe_treasure(out_line)
@@ -26,27 +26,27 @@ machine EventRuntime {
         }
     }
 
-    state describe_fountain(out_line: &mut ConsoleLine) {
+    state describe_fountain(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "A fountain of life glows here. Type use to drink.";
     }
 
-    state describe_treasure(out_line: &mut ConsoleLine) {
+    state describe_treasure(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "A treasure cache rests against the wall. Type use to claim it.";
     }
 
-    state describe_gold(out_line: &mut ConsoleLine) {
+    state describe_gold(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "Loose gold glitters in the dust. Type use to collect it.";
     }
 
-    state describe_enemy(enemy: Enemy, out_line: &mut ConsoleLine) {
+    state describe_enemy(&mut self, enemy: Enemy, out_line: &mut ConsoleLine) {
         out_line.text = enemy.name + " blocks the way. Type fight.";
     }
 
-    state quiet_room(out_line: &mut ConsoleLine) {
+    state quiet_room(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "The room is quiet.";
     }
 
-    fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
+    fn use_event(&mut self, player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
         transition (room.event.kind, room.event.consumed) {
             (RoomEventKind::FountainOfLife, false) -> use_fountain(player, mut room.event, out_line)
             (RoomEventKind::Treasure, false) -> use_reward(player, mut room.event, out_line)
@@ -55,30 +55,30 @@ machine EventRuntime {
         }
     }
 
-    state use_fountain(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
+    state use_fountain(&mut self, player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
         self.player_system.heal(player, 12);
         event.consumed = true;
         out_line.text = "The fountain heals your wounds.";
     }
 
-    state use_reward(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
+    state use_reward(&mut self, player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
         self.player_system.grant_reward(player, event.reward);
         event.consumed = true;
         out_line.text = "You take the treasure.";
     }
 
-    state no_usable_event(out_line: &mut ConsoleLine) {
+    state no_usable_event(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "There is nothing here to use.";
     }
 
-    fn fight_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
+    fn fight_event(&mut self, player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
         transition (room.event.kind, room.event.consumed) {
             (RoomEventKind::Enemy, false) -> fight_enemy_event(player, room, random, round, out_line)
             _ -> no_enemy(out_line)
         }
     }
 
-    state fight_enemy_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
+    state fight_enemy_event(&mut self, player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
 
         self.combat.fight(player, mut room.event, random, round);
 
@@ -89,19 +89,19 @@ machine EventRuntime {
         }
     }
 
-    state no_enemy(out_line: &mut ConsoleLine) {
+    state no_enemy(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "There is no enemy here.";
     }
 
-    state player_died(out_line: &mut ConsoleLine) {
+    state player_died(&mut self, out_line: &mut ConsoleLine) {
         out_line.text = "You fall in the dark.";
     }
 
-    state enemy_died(reward: Reward, out_line: &mut ConsoleLine) {
+    state enemy_died(&mut self, reward: Reward, out_line: &mut ConsoleLine) {
         out_line.text = "The enemy collapses. You gain " + reward.gold.to_string() + " gold.";
     }
 
-    state exchange_blows(round: CombatRound, out_line: &mut ConsoleLine) {
+    state exchange_blows(&mut self, round: CombatRound, out_line: &mut ConsoleLine) {
         out_line.text = "You strike for " + round.player_damage.to_string() + ", then take " + round.enemy_damage.to_string() + ".";
     }
 }

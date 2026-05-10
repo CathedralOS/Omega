@@ -3,7 +3,7 @@ use platform::console;
 machine TitleScreen {
     contains console: ConsolePlatform;
 
-    fn show() {
+    fn show(&mut self) {
         self.console.write_line("Omega Dungeon");
         self.console.write_line("A tiny generated crawl for compiler stress.");
         self.console.write_line("Type look, exits, a direction, or quit.");

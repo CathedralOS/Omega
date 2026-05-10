@@ -9,7 +9,7 @@ machine main {
     owns health: i32[range<1, 100>] = 100;
     owns mass: i32[range<1, 100>];
 
-    fn entry() {
+    fn entry(&mut self) {
         self.health = 99;
 
         transition {
@@ -24,12 +24,14 @@ Working interpretation:
 - `owns` declares data owned by the current machine.
 - Owned data is stateful and proof-visible.
 - Owned data may carry invariants.
-- Owned data and contained machines are accessed through `self`.
+- Member functions and states take `self` explicitly when they need machine state.
+- Owned data and contained machines are accessed through that `self` parameter.
 - State parameters are entry data, not ambient hidden globals.
 - Mutation should be explicit through `&mut` parameters or owned machine data.
 
-The `self.` prefix is intentionally noisy for now. It lets a reader distinguish
-machine-owned state from locals and parameters at a glance.
+The `&mut self` parameter and `self.` prefix are intentionally noisy for now.
+They let a reader distinguish machine-owned state from locals and parameters at
+a glance.
 
 Bounded data is intentionally part of chapter one because proofs need something concrete to talk about. If a machine owns `health: i32[range<1, 100>]`, then every state that mutates `health` creates proof work.
 
