@@ -58,9 +58,28 @@ pub(in crate::identity) fn count_control_flow_expression_strings(
             count_control_flow_expression_strings(table, binary.left, storage);
             count_control_flow_expression_strings(table, binary.right, storage);
         }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                count_control_flow_expression_strings(table, call.receiver, storage);
+            }
+            for argument in table.expression_handles(call.arguments) {
+                count_control_flow_expression_strings(table, *argument, storage);
+            }
+            storage.count_program_name_identity(&call.target);
+        }
+        ExpressionNode::Cast(cast) => {
+            count_control_flow_expression_strings(table, cast.value, storage);
+            for name in table.name_path_members(cast.target_type) {
+                storage.count_program_name_identity(name);
+            }
+        }
         ExpressionNode::Indexed(indexed) => {
             count_control_flow_expression_strings(table, indexed.collection, storage);
             count_control_flow_expression_strings(table, indexed.index, storage);
+        }
+        ExpressionNode::Member(member) => {
+            count_control_flow_expression_strings(table, member.receiver, storage);
+            storage.count_program_name_identity(&member.member);
         }
         ExpressionNode::Mutable(expression) => {
             count_control_flow_expression_strings(table, *expression, storage);
@@ -96,9 +115,28 @@ pub(in crate::identity) fn count_expression_strings(
             count_expression_strings(&binary.left, storage);
             count_expression_strings(&binary.right, storage);
         }
+        Expression::Call(call) => {
+            if let Some(receiver) = &call.receiver {
+                count_expression_strings(receiver, storage);
+            }
+            for argument in &call.arguments {
+                count_expression_strings(argument, storage);
+            }
+            storage.count_program_name_identity(&call.target);
+        }
+        Expression::Cast(cast) => {
+            count_expression_strings(&cast.value, storage);
+            for name in &cast.target_type {
+                storage.count_program_name_identity(name);
+            }
+        }
         Expression::Indexed(indexed) => {
             count_expression_strings(&indexed.collection, storage);
             count_expression_strings(&indexed.index, storage);
+        }
+        Expression::Member(member) => {
+            count_expression_strings(&member.receiver, storage);
+            storage.count_program_name_identity(&member.member);
         }
         Expression::Mutable(expression) => count_expression_strings(expression, storage),
         Expression::StructLiteral(struct_literal) => {

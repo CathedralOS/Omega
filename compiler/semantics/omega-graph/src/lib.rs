@@ -98,6 +98,7 @@ fn transition_target_name(target: &TransitionTarget) -> String {
         TransitionTarget::Named { path, .. } => path.join("::"),
         TransitionTarget::SelfTarget => "self".to_owned(),
         TransitionTarget::Terminal => "terminal".to_owned(),
+        TransitionTarget::Value(expression) => format!("value {}", expression.display_name()),
     }
 }
 

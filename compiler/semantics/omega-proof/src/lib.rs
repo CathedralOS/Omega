@@ -170,6 +170,9 @@ fn collect_bounded_type_site(
         TypeReference::FixedArray { element_type, .. } => {
             collect_bounded_type_site(report, element_type, owner);
         }
+        TypeReference::Slice { element_type } => {
+            collect_bounded_type_site(report, element_type, owner);
+        }
         TypeReference::Generic { arguments, .. } => {
             for argument in arguments {
                 collect_bounded_type_site(report, argument, owner);
@@ -188,6 +191,9 @@ fn type_reference_name(type_reference: &TypeReference) -> String {
             length,
         } => {
             format!("[{}; {length}]", type_reference_name(element_type))
+        }
+        TypeReference::Slice { element_type } => {
+            format!("[{}]", type_reference_name(element_type))
         }
         TypeReference::Generic {
             base_name,

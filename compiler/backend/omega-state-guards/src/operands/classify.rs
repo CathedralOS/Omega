@@ -15,6 +15,9 @@ pub(super) fn classify_guard_operand(
         | ExpressionNode::String(_) => StateGuardOperandKind::Literal,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Member(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
     }

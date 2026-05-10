@@ -452,6 +452,9 @@ fn validate_type_reference(
         TypeReference::FixedArray { element_type, .. } => {
             validate_type_reference(program, element_type, symbols, diagnostics, owner);
         }
+        TypeReference::Slice { element_type } => {
+            validate_type_reference(program, element_type, symbols, diagnostics, owner);
+        }
         TypeReference::Generic {
             base_name,
             arguments,
@@ -904,6 +907,16 @@ fn collect_read_accesses<'expression>(
             collect_read_accesses(&binary.left, accesses);
             collect_read_accesses(&binary.right, accesses);
         }
+        Expression::Call(call) => {
+            if let Some(receiver) = &call.receiver {
+                collect_read_accesses(receiver, accesses);
+            }
+
+            for argument in &call.arguments {
+                collect_read_accesses(argument, accesses);
+            }
+        }
+        Expression::Cast(cast) => collect_read_accesses(&cast.value, accesses),
         Expression::Indexed(indexed) => {
             if let Some(root_name) = expression_root_name(&indexed.collection) {
                 accesses.push(ArgumentAccess {
@@ -914,6 +927,7 @@ fn collect_read_accesses<'expression>(
 
             collect_read_accesses(&indexed.index, accesses);
         }
+        Expression::Member(member) => collect_read_accesses(&member.receiver, accesses),
         Expression::Name(path) => {
             if let Some(root_name) = path.first() {
                 accesses.push(ArgumentAccess {
@@ -938,6 +952,7 @@ fn collect_read_accesses<'expression>(
 fn is_mutable_place(expression: &Expression) -> bool {
     match expression {
         Expression::Indexed(indexed) => is_mutable_place(&indexed.collection),
+        Expression::Member(member) => is_mutable_place(&member.receiver),
         Expression::Name(_) => true,
         _ => false,
     }
@@ -946,6 +961,7 @@ fn is_mutable_place(expression: &Expression) -> bool {
 fn expression_root_name(expression: &Expression) -> Option<&str> {
     match expression {
         Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
+        Expression::Member(member) => expression_root_name(&member.receiver),
         Expression::Name(path) => path.first().map(|name| name.as_str()),
         _ => None,
     }
@@ -960,12 +976,23 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
         TypeReference::Constrained { base_type, .. } => argument_matches_type(argument, base_type),
         TypeReference::FixedArray { .. } => matches!(
             argument,
-            Expression::ArrayLiteral(_) | Expression::Indexed(_) | Expression::Name(_)
+            Expression::ArrayLiteral(_)
+                | Expression::Call(_)
+                | Expression::Indexed(_)
+                | Expression::Member(_)
+                | Expression::Name(_)
+        ),
+        TypeReference::Slice { .. } => matches!(
+            argument,
+            Expression::Call(_) | Expression::Indexed(_) | Expression::Member(_) | Expression::Name(_)
         ),
         TypeReference::Generic { .. } => matches!(
             argument,
             Expression::Binary(_)
+                | Expression::Call(_)
+                | Expression::Cast(_)
                 | Expression::Indexed(_)
+                | Expression::Member(_)
                 | Expression::Name(_)
                 | Expression::StructLiteral(_)
         ),
@@ -984,7 +1011,10 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
                     || matches!(
                         argument,
                         Expression::Binary(_)
+                            | Expression::Call(_)
+                            | Expression::Cast(_)
                             | Expression::Indexed(_)
+                            | Expression::Member(_)
                             | Expression::Name(_)
                             | Expression::StructLiteral(_)
                     );
@@ -993,7 +1023,10 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
             matches!(
                 argument,
                 Expression::Binary(_)
+                    | Expression::Call(_)
+                    | Expression::Cast(_)
                     | Expression::Indexed(_)
+                    | Expression::Member(_)
                     | Expression::Name(_)
                     | Expression::StructLiteral(_)
             )
@@ -1023,9 +1056,12 @@ fn expression_type_name(argument: &Expression) -> &'static str {
         Expression::ArrayLiteral(_) => "array literal",
         Expression::Binary(_) => "binary expression",
         Expression::Boolean(_) => "bool",
+        Expression::Call(_) => "call expression",
+        Expression::Cast(_) => "cast expression",
         Expression::Float(_) => "float literal",
         Expression::Indexed(_) => "indexed value",
         Expression::Integer(_) => "integer literal",
+        Expression::Member(_) => "member access",
         Expression::Mutable(inner_expression) => expression_type_name(inner_expression),
         Expression::Name(_) => "named value",
         Expression::StructLiteral(_) => "struct literal",

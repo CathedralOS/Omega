@@ -68,7 +68,8 @@ fn table_transition_target_arguments(
             )
         }
         omega_typed_program::statement::TransitionTargetNode::SelfTarget
-        | omega_typed_program::statement::TransitionTargetNode::Terminal => {
+        | omega_typed_program::statement::TransitionTargetNode::Terminal
+        | omega_typed_program::statement::TransitionTargetNode::Value(_) => {
             omega_core::arena::HandleSpan::empty()
         }
     }
@@ -113,5 +114,8 @@ fn plan_transition_target(
         ))),
         TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
         TransitionTarget::Terminal => Ok(PlannedTransitionTarget::Terminal),
+        TransitionTarget::Value(_) => Err(Diagnostic::error(
+            "value transition targets are not lowered to control flow yet",
+        )),
     }
 }

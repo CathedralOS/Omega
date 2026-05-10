@@ -62,7 +62,15 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
                 | BinaryOperator::GreaterOrEqual
                 | BinaryOperator::Less
                 | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
-                BinaryOperator::Add | BinaryOperator::And | BinaryOperator::Or => {
+                BinaryOperator::Add
+                | BinaryOperator::And
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo
+                | BinaryOperator::Multiply
+                | BinaryOperator::Or
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::Subtract => {
                     StateGuardKind::RuntimeExpression
                 }
             },
@@ -87,7 +95,15 @@ pub fn classify_transition_guard_expression(
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::Less
             | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
-            BinaryOperator::Add | BinaryOperator::And | BinaryOperator::Or => {
+            BinaryOperator::Add
+            | BinaryOperator::And
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::Multiply
+            | BinaryOperator::Or
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::Subtract => {
                 StateGuardKind::RuntimeExpression
             }
         },
@@ -194,5 +210,11 @@ fn guard_operator(table: &ExpressionTable, expression: ExpressionHandle) -> Stat
         BinaryOperator::Add => StateGuardOperator::Add,
         BinaryOperator::And => StateGuardOperator::And,
         BinaryOperator::Or => StateGuardOperator::Or,
+        BinaryOperator::Divide
+        | BinaryOperator::Modulo
+        | BinaryOperator::Multiply
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::Subtract => StateGuardOperator::None,
     }
 }

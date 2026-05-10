@@ -239,6 +239,9 @@ fn collect_bounded_value_obligation(
         TypeReference::FixedArray { element_type, .. } => {
             collect_bounded_value_obligation(program, owner, element_type, proof_plan);
         }
+        TypeReference::Slice { element_type } => {
+            collect_bounded_value_obligation(program, owner, element_type, proof_plan);
+        }
         TypeReference::Generic { arguments, .. } => {
             for argument in arguments {
                 collect_bounded_value_obligation(program, owner.clone(), argument, proof_plan);
@@ -274,6 +277,9 @@ fn collect_bounded_initializer_obligation(
                 ));
         }
         TypeReference::FixedArray { element_type, .. } => {
+            collect_bounded_initializer_obligation(program, owner, element_type, value, proof_plan);
+        }
+        TypeReference::Slice { element_type } => {
             collect_bounded_initializer_obligation(program, owner, element_type, value, proof_plan);
         }
         TypeReference::Generic { arguments, .. } => {
@@ -659,6 +665,7 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
             .iter()
             .flat_map(|argument| collect_constraints(program, argument))
             .collect(),
+        TypeReference::Slice { element_type } => collect_constraints(program, element_type),
         TypeReference::Named { name: _, .. } => Vec::new(),
         TypeReference::Unit => Vec::new(),
     }

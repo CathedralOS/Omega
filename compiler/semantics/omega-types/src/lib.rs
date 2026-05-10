@@ -250,6 +250,9 @@ fn collect_type_reference(
         TypeReference::FixedArray { element_type, .. } => {
             collect_type_reference(report, element_type, kind, owner);
         }
+        TypeReference::Slice { element_type } => {
+            collect_type_reference(report, element_type, kind, owner);
+        }
         TypeReference::Generic {
             base_name,
             arguments,

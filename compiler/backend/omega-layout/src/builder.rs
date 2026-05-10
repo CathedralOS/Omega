@@ -239,6 +239,9 @@ impl<'program> LayoutBuilder<'program> {
                     alignment: element_layout.alignment,
                 })
             }
+            TypeReference::Slice { .. } => Err(Diagnostic::error(
+                "native layout for slice types is not implemented yet",
+            )),
             TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
                 "native layout for generic type `{base_name}` is not implemented yet"
             ))),
@@ -274,6 +277,7 @@ impl<'program> LayoutBuilder<'program> {
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_reference_symbol(element_type)
             }
+            TypeReference::Slice { .. } => SymbolHandle::invalid(),
             TypeReference::Generic {
                 base_symbol,
                 base_name,

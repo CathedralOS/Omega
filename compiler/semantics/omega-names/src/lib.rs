@@ -508,6 +508,9 @@ fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeRefer
         TypeReference::FixedArray { element_type, .. } => {
             collect_type_reference(report, element_type, owner);
         }
+        TypeReference::Slice { element_type } => {
+            collect_type_reference(report, element_type, owner);
+        }
         TypeReference::Generic {
             base_name,
             arguments,
@@ -580,9 +583,53 @@ fn collect_expression(
             collect_expression(report, &binary.left, owner, context);
             collect_expression(report, &binary.right, owner, context);
         }
+        Expression::Call(call) => {
+            if let Some(receiver) = &call.receiver {
+                if let Expression::Name(path) = receiver.as_ref() {
+                    let symbol = context.resolve_call_target(
+                        &report.symbols,
+                        Some(path.as_slice()),
+                        call.target.as_str(),
+                    );
+                    insert_reference_from_identifiers(
+                        report,
+                        path.iter().chain(std::iter::once(&call.target)),
+                        ResolvedReferenceKind::CallTarget,
+                        owner,
+                        symbol,
+                    );
+                } else {
+                    collect_expression(report, receiver, owner, context);
+                }
+            } else {
+                let symbol = context.resolve_call_target(&report.symbols, None, call.target.as_str());
+                insert_reference(
+                    report,
+                    &call.target,
+                    ResolvedReferenceKind::CallTarget,
+                    owner,
+                    symbol,
+                );
+            }
+
+            for argument in &call.arguments {
+                collect_expression(report, argument, owner, context);
+            }
+        }
+        Expression::Cast(cast) => {
+            collect_expression(report, &cast.value, owner, context);
+
+            for member in cast.target_type.iter() {
+                let symbol = resolve_global_name(report, member.as_str());
+                insert_reference(report, member, ResolvedReferenceKind::Type, owner, symbol);
+            }
+        }
         Expression::Indexed(indexed) => {
             collect_expression(report, &indexed.collection, owner, context);
             collect_expression(report, &indexed.index, owner, context);
+        }
+        Expression::Member(member) => {
+            collect_expression(report, &member.receiver, owner, context);
         }
         Expression::Mutable(inner_expression) => {
             collect_expression(report, inner_expression, owner, context)
@@ -992,6 +1039,7 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_children(element_type, depth + 1)
             }
+            TypeReference::Slice { element_type } => self.type_children(element_type, depth + 1),
             TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
                 self.named_type_children(base_name.as_str(), depth + 1)
             }

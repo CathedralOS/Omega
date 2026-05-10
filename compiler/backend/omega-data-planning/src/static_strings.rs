@@ -88,10 +88,41 @@ fn collect_static_string_expression_data(
                 data_plan,
             );
         }
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                collect_static_string_expression_data(
+                    expressions,
+                    call.receiver,
+                    source_key,
+                    source_statement,
+                    data_plan,
+                );
+            }
+
+            for argument in expressions.expression_handles(call.arguments) {
+                collect_static_string_expression_data(
+                    expressions,
+                    *argument,
+                    source_key,
+                    source_statement,
+                    data_plan,
+                );
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            collect_static_string_expression_data(
+                expressions,
+                cast.value,
+                source_key,
+                source_statement,
+                data_plan,
+            );
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Integer(_)
+        | ExpressionNode::Member(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::Name(_) => {}
     }

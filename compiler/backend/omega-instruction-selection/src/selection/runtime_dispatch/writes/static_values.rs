@@ -32,7 +32,7 @@ pub(super) fn resolve_runtime_static_integer_value(
                 .find(|(target, _)| target == &resolved_expression)
                 .map(|(_, value)| *value)
         }),
-        Expression::Indexed(_) | Expression::Mutable(_) => {
+        Expression::Indexed(_) | Expression::Member(_) | Expression::Mutable(_) => {
             let resolved_expression = resolve_runtime_alias_expression(
                 expression,
                 source_key,
@@ -48,6 +48,8 @@ pub(super) fn resolve_runtime_static_integer_value(
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::ArrayLiteral(_)
         | Expression::Binary(_)
+        | Expression::Call(_)
+        | Expression::Cast(_)
         | Expression::Float(_)
         | Expression::String(_)
         | Expression::StructLiteral(_) => None,

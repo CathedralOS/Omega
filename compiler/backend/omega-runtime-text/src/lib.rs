@@ -135,12 +135,14 @@ fn classify_runtime_text_builder_segment(
 ) -> RuntimeTextBuilderSegmentKind {
     match expressions.expression(expression) {
         ExpressionNode::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
             RuntimeTextBuilderSegmentKind::StoredPlace
         }
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
@@ -150,6 +152,13 @@ fn classify_runtime_text_builder_segment(
 
 fn is_text_place(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
     match table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            if member.member == "text" {
+                return true;
+            }
+
+            is_text_place(table, member.receiver)
+        }
         ExpressionNode::Name(path) => table
             .name_path_members(path.members)
             .last()
@@ -166,10 +175,14 @@ fn classify_runtime_text_write(
 ) -> RuntimeTextWriteKind {
     match table.expression(expression) {
         ExpressionNode::String(_) => RuntimeTextWriteKind::StaticText,
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => RuntimeTextWriteKind::StoredCopy,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => {
+            RuntimeTextWriteKind::StoredCopy
+        }
         ExpressionNode::Binary(_) => RuntimeTextWriteKind::GeneratedString,
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
+        | ExpressionNode::Call(_)
+        | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)

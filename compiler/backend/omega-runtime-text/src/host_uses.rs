@@ -78,11 +78,15 @@ fn first_host_argument<'plan>(
 
 fn classify_runtime_text_source(expression: &Expression) -> RuntimeTextSource {
     match expression {
-        Expression::Name(_) | Expression::Indexed(_) => RuntimeTextSource::StoredPlace,
+        Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
+            RuntimeTextSource::StoredPlace
+        }
         Expression::Binary(_) => RuntimeTextSource::GeneratedString,
         Expression::Mutable(_) => RuntimeTextSource::MutablePlace,
         Expression::ArrayLiteral(_)
         | Expression::Boolean(_)
+        | Expression::Call(_)
+        | Expression::Cast(_)
         | Expression::Float(_)
         | Expression::Integer(_)
         | Expression::StructLiteral(_)

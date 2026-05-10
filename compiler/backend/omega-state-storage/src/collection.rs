@@ -139,6 +139,7 @@ fn type_reference_symbol(program: &Program, type_reference: TypeReferenceHandle)
         TypeReferenceNode::FixedArray { element_type, .. } => {
             type_reference_symbol(program, *element_type)
         }
+        TypeReferenceNode::Slice { element_type } => type_reference_symbol(program, *element_type),
         TypeReferenceNode::Generic {
             base_symbol,
             base_name,
@@ -190,6 +191,9 @@ fn type_reference_display_name(program: &Program, type_reference: TypeReferenceH
             type_reference_display_name(program, *element_type),
             length
         ),
+        TypeReferenceNode::Slice { element_type } => {
+            format!("[{}]", type_reference_display_name(program, *element_type))
+        }
         TypeReferenceNode::Generic {
             base_name,
             arguments,

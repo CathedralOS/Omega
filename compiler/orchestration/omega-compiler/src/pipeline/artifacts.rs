@@ -846,6 +846,9 @@ fn proof_transition_target_name(
         }
         omega_typed_program::statement::TransitionTarget::SelfTarget => "self".to_owned(),
         omega_typed_program::statement::TransitionTarget::Terminal => "terminal".to_owned(),
+        omega_typed_program::statement::TransitionTarget::Value(expression) => {
+            format!("value {}", expression.display_name())
+        }
     }
 }
 
