@@ -128,6 +128,40 @@ impl ExpressionTable {
         }
     }
 
+    pub fn copy_expression_handles_from(
+        &mut self,
+        source: &ExpressionTable,
+        expressions: HandleSpan<ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
+        self.copy_expression_handles_from_slice(source, source.expression_handles(expressions))
+    }
+
+    pub fn copy_expression_handles_from_slice(
+        &mut self,
+        source: &ExpressionTable,
+        expressions: &[ExpressionHandle],
+    ) -> HandleSpan<ExpressionHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for expression in expressions {
+            let expression = self.copy_from(source, *expression);
+            let handle = self.expression_handles.append(expression);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("expression handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
     fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;

@@ -275,10 +275,7 @@ fn copy_expression_span(
     source: &ControlFlowPlan,
     expressions: HandleSpan<ExpressionHandle>,
 ) -> HandleSpan<ExpressionHandle> {
-    let expressions = source.expressions.expression_handles(expressions).to_vec();
-    let copied = expressions
-        .iter()
-        .map(|expression| copy_expression(target, source, *expression))
-        .collect::<Vec<_>>();
-    target.expressions.insert_expression_handles(copied)
+    target
+        .expressions
+        .copy_expression_handles_from(&source.expressions, expressions)
 }

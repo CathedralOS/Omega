@@ -206,17 +206,10 @@ pub(super) fn copy_statement_expression_span(
     statement_table: &omega_typed_program::statement::StatementTable,
     expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
 ) -> omega_core::arena::HandleSpan<ExpressionHandle> {
-    let copied = statement_table
-        .expression_handles(expressions)
-        .iter()
-        .map(|expression| {
-            control_flow
-                .expressions
-                .copy_from(source_expressions, *expression)
-        })
-        .collect::<Vec<_>>();
-
-    control_flow.expressions.insert_expression_handles(copied)
+    control_flow.expressions.copy_expression_handles_from_slice(
+        source_expressions,
+        statement_table.expression_handles(expressions),
+    )
 }
 
 fn is_static_assignment(assignment: &Assignment) -> bool {
