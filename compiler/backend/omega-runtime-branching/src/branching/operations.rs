@@ -1,5 +1,6 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::{OperationKind, StateKey};
+use omega_typed_program::expression::ExpressionTable;
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
 use super::{
@@ -9,6 +10,7 @@ use super::{
 
 pub(super) fn leaf_operations(
     context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
     source_key: StateKey,
 ) -> Vec<RuntimeLeafBranchOperation> {
     let Some(state) = context.control_flow.state_by_key(source_key) else {
@@ -23,13 +25,14 @@ pub(super) fn leaf_operations(
         .map(|operation| RuntimeLeafBranchOperation {
             source_key,
             statement_index: operation.statement_index,
-            kind: leaf_operation_kind(context, source_key, operation.statement_index),
+            kind: leaf_operation_kind(context, expressions, source_key, operation.statement_index),
         })
         .collect()
 }
 
 pub(super) fn straight_line_operations(
     context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
     source_key: StateKey,
 ) -> Vec<RuntimeStraightLineBranchOperation> {
     let Some(state) = context.control_flow.state_by_key(source_key) else {
@@ -46,6 +49,7 @@ pub(super) fn straight_line_operations(
             statement_index: operation.statement_index,
             kind: straight_line_operation_kind(
                 context,
+                expressions,
                 source_key,
                 operation.statement_index,
                 &operation.kind,
@@ -56,6 +60,7 @@ pub(super) fn straight_line_operations(
 
 fn leaf_operation_kind(
     context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
     source_key: StateKey,
     statement_index: usize,
 ) -> RuntimeLeafBranchOperationKind {
@@ -69,8 +74,8 @@ fn leaf_operation_kind(
         return RuntimeLeafBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
-            target: context.state_storage.expressions.to_tree(mutation.target),
-            value: context.state_storage.expressions.to_tree(mutation.value),
+            target: expressions.copy_from(&context.state_storage.expressions, mutation.target),
+            value: expressions.copy_from(&context.state_storage.expressions, mutation.value),
         };
     }
 
@@ -79,6 +84,7 @@ fn leaf_operation_kind(
 
 fn straight_line_operation_kind(
     context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
     source_key: StateKey,
     statement_index: usize,
     operation_kind: &OperationKind,
@@ -93,8 +99,8 @@ fn straight_line_operation_kind(
         return RuntimeStraightLineBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
-            target: context.state_storage.expressions.to_tree(mutation.target),
-            value: context.state_storage.expressions.to_tree(mutation.value),
+            target: expressions.copy_from(&context.state_storage.expressions, mutation.target),
+            value: expressions.copy_from(&context.state_storage.expressions, mutation.value),
         };
     }
 

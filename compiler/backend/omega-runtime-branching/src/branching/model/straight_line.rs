@@ -4,7 +4,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_state_calls::StateCallLowering;
 use omega_state_guards::StateGuardKind;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionHandle};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
@@ -92,8 +92,8 @@ pub enum RuntimeStraightLineBranchOperationKind {
     Mutation {
         mutation_kind: StateMutationKind,
         lowering: StateMutationLowering,
-        target: Expression,
-        value: Expression,
+        target: ExpressionHandle,
+        value: ExpressionHandle,
     },
     StateCall {
         target_key: StateKey,

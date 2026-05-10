@@ -51,9 +51,11 @@ pub(super) fn append_leaf_branch_expansions(
         )
         .collect::<Vec<_>>();
         let bindings = plan.leaf_bindings.insert_many(bindings);
-        let operations = plan
-            .leaf_operations
-            .insert_many(leaf_operations(context, *leaf_key));
+        let operations = plan.leaf_operations.insert_many(leaf_operations(
+            context,
+            &mut plan.expressions,
+            *leaf_key,
+        ));
 
         plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
@@ -111,7 +113,11 @@ pub(super) fn append_straight_line_branch_expansions(
         let bindings = plan.straight_line_bindings.insert_many(bindings);
         let operations = plan
             .straight_line_operations
-            .insert_many(straight_line_operations(context, *target_key));
+            .insert_many(straight_line_operations(
+                context,
+                &mut plan.expressions,
+                *target_key,
+            ));
 
         plan.straight_line_expansions
             .insert(RuntimeStraightLineBranchExpansion {

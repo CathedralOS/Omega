@@ -77,8 +77,10 @@ fn select_runtime_leaf_branch_mutation_writes(
         let RuntimeLeafBranchOperationKind::Mutation { target, value, .. } = &operation.kind else {
             continue;
         };
-        let resolved_target = resolve_leaf_binding_expression(target, bindings);
-        let resolved_value = resolve_leaf_binding_expression(value, bindings);
+        let target = input.runtime_branching_calls.expressions.to_tree(*target);
+        let value = input.runtime_branching_calls.expressions.to_tree(*value);
+        let resolved_target = resolve_leaf_binding_expression(&target, bindings);
+        let resolved_value = resolve_leaf_binding_expression(&value, bindings);
 
         if let Some((byte_offset, byte_size, value)) =
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)

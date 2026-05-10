@@ -70,8 +70,10 @@ fn select_runtime_straight_line_branch_writes(
     for operation in operations {
         match &operation.kind {
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
-                let resolved_target = resolve_straight_line_binding_expression(target, bindings);
-                let resolved_value = resolve_straight_line_binding_expression(value, bindings);
+                let target = input.runtime_branching_calls.expressions.to_tree(*target);
+                let value = input.runtime_branching_calls.expressions.to_tree(*value);
+                let resolved_target = resolve_straight_line_binding_expression(&target, bindings);
+                let resolved_value = resolve_straight_line_binding_expression(&value, bindings);
                 let (operation_machine, operation_state) = state_names(input, operation.source_key);
                 select_runtime_resolved_mutation_write(
                     input,

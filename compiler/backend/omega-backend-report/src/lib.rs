@@ -1116,8 +1116,14 @@ fn write_runtime_leaf_branch_operation(
                 operation.statement_index,
                 mutation_kind,
                 lowering,
-                target.display_name(),
-                value.display_name()
+                backend_plan
+                    .runtime_branching_calls
+                    .expressions
+                    .display_name(*target),
+                backend_plan
+                    .runtime_branching_calls
+                    .expressions
+                    .display_name(*value)
             ));
         }
         RuntimeLeafBranchOperationKind::Other => {
@@ -1154,8 +1160,14 @@ fn write_runtime_straight_line_branch_operation(
                 operation.statement_index,
                 mutation_kind,
                 lowering,
-                target.display_name(),
-                value.display_name()
+                backend_plan
+                    .runtime_branching_calls
+                    .expressions
+                    .display_name(*target),
+                backend_plan
+                    .runtime_branching_calls
+                    .expressions
+                    .display_name(*value)
             ));
         }
         RuntimeStraightLineBranchOperationKind::StateCall {

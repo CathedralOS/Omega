@@ -1,7 +1,8 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
 use crate::identity::expressions::{
-    count_expression_span_strings, count_expression_strings, count_guard_strings,
+    count_control_flow_expression_strings, count_expression_span_strings, count_expression_strings,
+    count_guard_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_branching::{
@@ -32,8 +33,16 @@ pub(in crate::identity) fn count_runtime_branching_strings(
                 storage.count_identity(platform_call)
             }
             RuntimeLeafBranchOperationKind::Mutation { target, value, .. } => {
-                count_expression_strings(target, storage);
-                count_expression_strings(value, storage);
+                count_control_flow_expression_strings(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    *target,
+                    storage,
+                );
+                count_control_flow_expression_strings(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    *value,
+                    storage,
+                );
             }
             RuntimeLeafBranchOperationKind::Other => {}
         }
@@ -64,8 +73,16 @@ pub(in crate::identity) fn count_runtime_branching_strings(
                 storage.count_identity(platform_call)
             }
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
-                count_expression_strings(target, storage);
-                count_expression_strings(value, storage);
+                count_control_flow_expression_strings(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    *target,
+                    storage,
+                );
+                count_control_flow_expression_strings(
+                    &backend_plan.runtime_branching_calls.expressions,
+                    *value,
+                    storage,
+                );
             }
             RuntimeStraightLineBranchOperationKind::StateCall { .. } => {}
             RuntimeStraightLineBranchOperationKind::LocalData
