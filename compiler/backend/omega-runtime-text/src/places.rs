@@ -19,17 +19,34 @@ pub fn expression_place_eq_in_table(
     left: ExpressionHandle,
     right: ExpressionHandle,
 ) -> bool {
-    match (table.expression(left), table.expression(right)) {
+    expression_place_eq_across_tables(table, left, table, right)
+}
+
+pub fn expression_place_eq_across_tables(
+    left_table: &ExpressionTable,
+    left: ExpressionHandle,
+    right_table: &ExpressionTable,
+    right: ExpressionHandle,
+) -> bool {
+    match (left_table.expression(left), right_table.expression(right)) {
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            table_name_path_eq(table, left, right)
+            table_name_path_eq(left_table, left, right_table, right)
         }
         (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
-            expression_place_eq_in_table(table, left.collection, right.collection)
-                && expression_eq_in_table(table, left.index, right.index)
+            expression_place_eq_across_tables(
+                left_table,
+                left.collection,
+                right_table,
+                right.collection,
+            ) && expression_eq_across_tables(left_table, left.index, right_table, right.index)
         }
-        (ExpressionNode::Mutable(left), _) => expression_place_eq_in_table(table, *left, right),
-        (_, ExpressionNode::Mutable(right)) => expression_place_eq_in_table(table, left, *right),
-        _ => expression_eq_in_table(table, left, right),
+        (ExpressionNode::Mutable(left), _) => {
+            expression_place_eq_across_tables(left_table, *left, right_table, right)
+        }
+        (_, ExpressionNode::Mutable(right)) => {
+            expression_place_eq_across_tables(left_table, left, right_table, *right)
+        }
+        _ => expression_eq_across_tables(left_table, left, right_table, right),
     }
 }
 
@@ -53,12 +70,13 @@ fn name_path_eq(left: &NamePath, right: &NamePath) -> bool {
 }
 
 fn table_name_path_eq(
-    table: &ExpressionTable,
+    left_table: &ExpressionTable,
     left: &TableNamePath,
+    right_table: &ExpressionTable,
     right: &TableNamePath,
 ) -> bool {
-    let left_members = table.name_path_members(left.members);
-    let right_members = table.name_path_members(right.members);
+    let left_members = left_table.name_path_members(left.members);
+    let right_members = right_table.name_path_members(right.members);
     if left_members.len() != right_members.len() {
         return false;
     }
@@ -78,46 +96,42 @@ fn table_name_path_eq(
         .all(|(left, right)| left == right)
 }
 
-fn expression_eq_in_table(
-    table: &ExpressionTable,
+fn expression_eq_across_tables(
+    left_table: &ExpressionTable,
     left: ExpressionHandle,
+    right_table: &ExpressionTable,
     right: ExpressionHandle,
 ) -> bool {
-    if left == right {
-        return true;
-    }
-
-    match (table.expression(left), table.expression(right)) {
+    match (left_table.expression(left), right_table.expression(right)) {
         (ExpressionNode::ArrayLiteral(left), ExpressionNode::ArrayLiteral(right)) => {
-            let left = table.expression_handles(*left);
-            let right = table.expression_handles(*right);
+            let left = left_table.expression_handles(*left);
+            let right = right_table.expression_handles(*right);
             left.len() == right.len()
-                && left
-                    .iter()
-                    .zip(right.iter())
-                    .all(|(left, right)| expression_eq_in_table(table, *left, *right))
+                && left.iter().zip(right.iter()).all(|(left, right)| {
+                    expression_eq_across_tables(left_table, *left, right_table, *right)
+                })
         }
         (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
             left.operator == right.operator
-                && expression_eq_in_table(table, left.left, right.left)
-                && expression_eq_in_table(table, left.right, right.right)
+                && expression_eq_across_tables(left_table, left.left, right_table, right.left)
+                && expression_eq_across_tables(left_table, left.right, right_table, right.right)
         }
         (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
-            expression_eq_in_table(table, left.collection, right.collection)
-                && expression_eq_in_table(table, left.index, right.index)
+            expression_eq_across_tables(left_table, left.collection, right_table, right.collection)
+                && expression_eq_across_tables(left_table, left.index, right_table, right.index)
         }
         (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
         (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
-            expression_eq_in_table(table, *left, *right)
+            expression_eq_across_tables(left_table, *left, right_table, *right)
         }
         (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-            table_name_path_eq(table, left, right)
+            table_name_path_eq(left_table, left, right_table, right)
         }
         (ExpressionNode::StructLiteral(left), ExpressionNode::StructLiteral(right)) => {
-            let left_fields = table.struct_fields(left.fields);
-            let right_fields = table.struct_fields(right.fields);
+            let left_fields = left_table.struct_fields(left.fields);
+            let right_fields = right_table.struct_fields(right.fields);
             left.type_name == right.type_name
                 && left_fields.len() == right_fields.len()
                 && left_fields
@@ -125,7 +139,12 @@ fn expression_eq_in_table(
                     .zip(right_fields.iter())
                     .all(|(left, right)| {
                         left.name == right.name
-                            && expression_eq_in_table(table, left.value, right.value)
+                            && expression_eq_across_tables(
+                                left_table,
+                                left.value,
+                                right_table,
+                                right.value,
+                            )
                     })
         }
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,

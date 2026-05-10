@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
-use omega_runtime_text::places::expression_place_eq;
+use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 
@@ -110,9 +110,10 @@ fn runtime_text_builder_for_write<'plan>(
         .find(|(_, builder)| {
             builder.source_key == text_write.source_key
                 && builder.statement_index == text_write.statement_index
-                && expression_place_eq(
-                    &input.runtime_text.expressions.to_tree(builder.target),
-                    &input.runtime_text.expressions.to_tree(text_write.target),
+                && expression_place_eq_in_table(
+                    &input.runtime_text.expressions,
+                    builder.target,
+                    text_write.target,
                 )
         })
         .map(|(_, builder)| builder)

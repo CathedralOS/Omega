@@ -2,7 +2,7 @@ use crate::EmissionPlanningInput;
 use omega_calling_conventions::PlatformCallData;
 use omega_core::arena::Arena;
 use omega_platform_interface::{HostCall, HostCallArgumentKind};
-use omega_runtime_text::places::expression_place_eq;
+use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 
@@ -90,9 +90,10 @@ fn runtime_text_use_has_input_buffer(
     text_use: &RuntimeTextUse,
 ) -> bool {
     input.runtime_text.slots.iter().any(|(_, slot)| {
-        expression_place_eq(
-            &input.runtime_text.expressions.to_tree(slot.place),
-            &input.runtime_text.expressions.to_tree(text_use.expression),
+        expression_place_eq_in_table(
+            &input.runtime_text.expressions,
+            slot.place,
+            text_use.expression,
         ) && slot.has_input_buffer
     })
 }

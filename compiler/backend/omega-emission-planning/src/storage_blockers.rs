@@ -2,7 +2,7 @@ use crate::EmissionPlanningInput;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
-use omega_runtime_text::places::expression_place_eq;
+use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
 
 use super::runtime_text_blockers::{
@@ -110,9 +110,11 @@ fn runtime_storage_write_has_planned_text_write(
 ) -> bool {
     runtime_text_write_for_statement(input, write.source_key, write.statement_index).is_some_and(
         |text_write| {
-            expression_place_eq(
-                &input.runtime_text.expressions.to_tree(text_write.target),
-                &input.runtime_storage.expressions.to_tree(write.target),
+            expression_place_eq_across_tables(
+                &input.runtime_text.expressions,
+                text_write.target,
+                &input.runtime_storage.expressions,
+                write.target,
             ) && runtime_text_write_is_planned(input, text_write)
         },
     )
