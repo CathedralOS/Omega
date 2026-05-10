@@ -7,7 +7,7 @@ use omega_typed_program::name::ProgramName;
 use super::super::super::bindings::resolve_leaf_binding_expression;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::guards::select_runtime_leaf_branch_guard;
-use super::super::text_writes::runtime_text_builder_write_with_resolver;
+use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
@@ -105,7 +105,7 @@ fn select_runtime_leaf_branch_mutation_writes(
         }
 
         let (operation_machine, operation_state) = state_names(input, operation.source_key);
-        if let Some(instructions) = runtime_text_builder_write_with_resolver(
+        if runtime_text_builder_write_with_resolver_emit(
             input,
             expansion.dispatch_index,
             operation.source_key,
@@ -120,14 +120,14 @@ fn select_runtime_leaf_branch_mutation_writes(
                     bindings,
                 )
             },
-        ) {
-            for kind in instructions {
+            &mut |kind| {
                 selected_instructions.push(SelectedInstruction {
                     kind,
                     source_key: operation.source_key,
                     source_statement: operation.statement_index,
                 });
-            }
+            },
+        ) {
             continue;
         }
 

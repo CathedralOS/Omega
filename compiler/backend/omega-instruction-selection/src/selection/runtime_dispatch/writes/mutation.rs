@@ -8,7 +8,7 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::resolve_machine_owned_place;
 use super::super::text_writes::{
-    runtime_text_builder_write, select_runtime_string_descriptor_write,
+    runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
 };
 use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
@@ -103,7 +103,7 @@ fn select_runtime_resolved_target_mutation_writes(
         return;
     }
 
-    if let Some(instructions) = runtime_text_builder_write(
+    if runtime_text_builder_write_emit(
         input,
         dispatch_index,
         operation_source_key,
@@ -113,14 +113,14 @@ fn select_runtime_resolved_target_mutation_writes(
         resolved_target,
         aliases,
         alias_expressions,
-    ) {
-        for kind in instructions {
+        &mut |kind| {
             selected_instructions.push(SelectedInstruction {
                 kind,
                 source_key: operation_source_key,
                 source_statement: statement_index,
             });
-        }
+        },
+    ) {
         return;
     }
 

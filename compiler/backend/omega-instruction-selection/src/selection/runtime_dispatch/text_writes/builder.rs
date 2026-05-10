@@ -10,7 +10,7 @@ use omega_target_program::{RuntimeStorageRegion, SelectedInstructionKind, Target
 use omega_typed_program::expression::{Expression, ExpressionTable};
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection) fn runtime_text_builder_write(
+pub(in crate::selection) fn runtime_text_builder_write_emit(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -20,8 +20,9 @@ pub(in crate::selection) fn runtime_text_builder_write(
     resolved_target: &Expression,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
-) -> Option<Vec<SelectedInstructionKind>> {
-    runtime_text_builder_write_with_resolver(
+    emit: &mut dyn FnMut(SelectedInstructionKind),
+) -> bool {
+    runtime_text_builder_write_with_resolver_emit(
         input,
         dispatch_index,
         source_key,
@@ -32,11 +33,12 @@ pub(in crate::selection) fn runtime_text_builder_write(
         &|expression| {
             resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions)
         },
+        emit,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
+pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
@@ -45,28 +47,39 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
     statement_index: usize,
     resolved_target: &Expression,
     resolve_expression: &dyn Fn(&Expression) -> Expression,
-) -> Option<Vec<SelectedInstructionKind>> {
-    let builder = input
+    emit: &mut dyn FnMut(SelectedInstructionKind),
+) -> bool {
+    let Some(builder) = input
         .runtime_text
         .builders
         .iter()
         .find(|(_, builder)| {
             builder.source_key == source_key && builder.statement_index == statement_index
         })
-        .map(|(_, builder)| builder)?;
-    let segments = input.runtime_text.builder_segments.span(builder.segments)?;
+        .map(|(_, builder)| builder)
+    else {
+        return false;
+    };
+    let Some(segments) = input.runtime_text.builder_segments.span(builder.segments) else {
+        return false;
+    };
     let resolved_target = strip_mutable_expression(resolved_target.clone());
-    let (buffer, _) = runtime_text_input_buffer_data_for_text_place(input, &resolved_target)?;
-    let target_place = resolve_runtime_storage_place(
+    let Some((buffer, _)) = runtime_text_input_buffer_data_for_text_place(input, &resolved_target)
+    else {
+        return false;
+    };
+    let Some(target_place) = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &resolved_target,
-    )?;
+    ) else {
+        return false;
+    };
     if target_place.byte_count != input.target.pointer_size * 2 {
-        return None;
+        return false;
     }
 
     if let [prefix, suffix] = segments
@@ -85,62 +98,68 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
             prefix,
             suffix,
             resolve_expression,
+            emit,
         );
     }
 
-    let mut instructions = Vec::new();
+    let mut emitted = false;
     for segment in segments {
         match segment.kind {
             RuntimeTextBuilderSegmentKind::StoredPlace => {
                 let segment_expression = input.runtime_text.expressions.to_tree(segment.expression);
                 let source = resolve_expression(&segment_expression);
-                let source_place = resolve_runtime_storage_place(
+                let Some(source_place) = resolve_runtime_storage_place(
                     input,
                     dispatch_index,
                     source_key,
                     source_machine,
                     source_state,
                     &source,
-                )?;
+                ) else {
+                    return false;
+                };
                 if source_place.byte_count != input.target.pointer_size * 2 {
-                    return None;
+                    return false;
                 }
                 if source_place.region == target_place.region
                     && source_place.byte_offset == target_place.byte_offset
                 {
-                    instructions.push(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                    emit(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
                         buffer,
                         target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
+                    emitted = true;
                     continue;
                 }
-                instructions.push(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
+                emit(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
                     buffer,
                     source_region: source_place.region,
                     source_offset: source_place.byte_offset,
                     target_region: target_place.region,
                     target_offset: target_place.byte_offset,
                 });
+                emitted = true;
             }
             RuntimeTextBuilderSegmentKind::StaticText => {
                 let Expression::String(literal) =
                     input.runtime_text.expressions.to_tree(segment.expression)
                 else {
-                    return None;
+                    return false;
                 };
-                instructions.push(SelectedInstructionKind::AppendRuntimeTextLiteral {
+                emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
                     buffer,
                     target_region: target_place.region,
                     target_offset: target_place.byte_offset,
                     literal,
                 });
+                emitted = true;
             }
-            RuntimeTextBuilderSegmentKind::OtherExpression => return None,
+            RuntimeTextBuilderSegmentKind::OtherExpression => return false,
         }
     }
 
-    (!instructions.is_empty()).then_some(instructions)
+    emitted
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -156,39 +175,41 @@ fn prefixed_stored_place_write(
     prefix: &omega_runtime_text::RuntimeTextBuilderSegment,
     suffix: &omega_runtime_text::RuntimeTextBuilderSegment,
     resolve_expression: &dyn Fn(&Expression) -> Expression,
-) -> Option<Vec<SelectedInstructionKind>> {
+    emit: &mut dyn FnMut(SelectedInstructionKind),
+) -> bool {
     let Expression::String(prefix) = input.runtime_text.expressions.to_tree(prefix.expression)
     else {
-        return None;
+        return false;
     };
     let suffix_expression = input.runtime_text.expressions.to_tree(suffix.expression);
     let source = resolve_expression(&suffix_expression);
-    let source_place = resolve_runtime_storage_place(
+    let Some(source_place) = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &source,
-    )?;
+    ) else {
+        return false;
+    };
     if source_place.byte_count != input.target.pointer_size * 2 {
-        return None;
+        return false;
     }
 
-    Some(vec![
-        SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
-            buffer,
-            byte_offset: 0,
-            literal: prefix.clone(),
-        },
-        SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
-            buffer,
-            buffer_offset: prefix.len(),
-            source_region: source_place.region,
-            source_offset: source_place.byte_offset,
-            target_region,
-            target_offset,
-            length_delta: prefix.len(),
-        },
-    ])
+    emit(SelectedInstructionKind::WriteRuntimeTextLiteralSegment {
+        buffer,
+        byte_offset: 0,
+        literal: prefix.clone(),
+    });
+    emit(SelectedInstructionKind::AppendRuntimeTextStoredSuffix {
+        buffer,
+        buffer_offset: prefix.len(),
+        source_region: source_place.region,
+        source_offset: source_place.byte_offset,
+        target_region,
+        target_offset,
+        length_delta: prefix.len(),
+    });
+    true
 }
