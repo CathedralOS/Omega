@@ -3541,7 +3541,13 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
         .runtime_text
         .uses
         .iter()
-        .find(|(_, text_use)| text_use.expression.display_name() == "line::text")
+        .find(|(_, text_use)| {
+            backend_plan
+                .runtime_text
+                .expressions
+                .display_name(text_use.expression)
+                == "line::text"
+        })
         .map(|(_, text_use)| text_use)
         .expect("dynamic text argument should be planned");
 
@@ -3595,7 +3601,11 @@ fn invalidates_static_text_after_mutable_host_output() {
 
     assert!(backend_plan.runtime_text.uses.iter().any(|(_, text_use)| {
         text_use.statement_index == 3
-            && text_use.expression.display_name() == "line::text"
+            && backend_plan
+                .runtime_text
+                .expressions
+                .display_name(text_use.expression)
+                == "line::text"
             && text_use.source == omega_runtime_text::RuntimeTextSource::StoredPlace
     }));
     assert!(
@@ -3750,7 +3760,11 @@ fn plans_required_state_value_uses() {
             .writes
             .iter()
             .any(|(_, text_write)| {
-                text_write.target.display_name() == "line::text"
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_write.target)
+                    == "line::text"
                     && text_write.kind == omega_runtime_text::RuntimeTextWriteKind::GeneratedString
             })
     );
@@ -3758,7 +3772,13 @@ fn plans_required_state_value_uses() {
         .runtime_text
         .builders
         .iter()
-        .find(|(_, builder)| builder.target.display_name() == "line::text")
+        .find(|(_, builder)| {
+            backend_plan
+                .runtime_text
+                .expressions
+                .display_name(builder.target)
+                == "line::text"
+        })
         .expect("generated text write should have a string builder plan");
     let segments = backend_plan
         .runtime_text
@@ -3767,12 +3787,24 @@ fn plans_required_state_value_uses() {
         .expect("builder segments should resolve");
 
     assert_eq!(segments.len(), 2);
-    assert_eq!(segments[0].expression.display_name(), "\"Room \"");
+    assert_eq!(
+        backend_plan
+            .runtime_text
+            .expressions
+            .display_name(segments[0].expression),
+        "\"Room \""
+    );
     assert_eq!(
         segments[0].kind,
         omega_runtime_text::RuntimeTextBuilderSegmentKind::StaticText
     );
-    assert_eq!(segments[1].expression.display_name(), "\"A1\"");
+    assert_eq!(
+        backend_plan
+            .runtime_text
+            .expressions
+            .display_name(segments[1].expression),
+        "\"A1\""
+    );
     assert_eq!(
         segments[1].kind,
         omega_runtime_text::RuntimeTextBuilderSegmentKind::StaticText
@@ -3818,7 +3850,13 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
             .runtime_text
             .builders
             .iter()
-            .any(|(_, builder)| builder.target.display_name() == "line::text")
+            .any(|(_, builder)| {
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(builder.target)
+                    == "line::text"
+            })
     );
     assert!(
         !emission_plan
@@ -4076,14 +4114,26 @@ fn lowers_mutable_output_host_call() {
         .runtime_text
         .buffers
         .iter()
-        .find(|(_, buffer)| buffer.target.display_name() == "line")
+        .find(|(_, buffer)| {
+            backend_plan
+                .runtime_text
+                .expressions
+                .display_name(buffer.target)
+                == "line"
+        })
         .map(|(_, buffer)| buffer)
         .expect("read_line should plan a runtime text buffer binding");
     let runtime_text_slot = backend_plan
         .runtime_text
         .slots
         .iter()
-        .find(|(_, slot)| slot.place.display_name() == "line::text")
+        .find(|(_, slot)| {
+            backend_plan
+                .runtime_text
+                .expressions
+                .display_name(slot.place)
+                == "line::text"
+        })
         .map(|(_, slot)| slot)
         .expect("read_line should plan a runtime text slot");
 

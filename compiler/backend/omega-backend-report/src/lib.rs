@@ -324,7 +324,10 @@ pub fn backend_report_text(
                 "- {} statement {} `{}` {:?} newline {}\n",
                 source_name,
                 text_use.statement_index,
-                text_use.expression.display_name(),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_use.expression),
                 text_use.source,
                 text_use.append_newline
             ));
@@ -339,7 +342,10 @@ pub fn backend_report_text(
                 "- buffer {} statement {} `{}` bytes {}\n",
                 source_name,
                 text_buffer.statement_index,
-                text_buffer.target.display_name(),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_buffer.target),
                 text_buffer.byte_capacity
             ));
         }
@@ -350,7 +356,10 @@ pub fn backend_report_text(
         for (_, text_slot) in backend_plan.runtime_text.slots.iter() {
             output.push_str(&format!(
                 "- slot `{}` bytes {} input_buffer {}\n",
-                text_slot.place.display_name(),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_slot.place),
                 text_slot.byte_capacity,
                 text_slot.has_input_buffer
             ));
@@ -365,8 +374,14 @@ pub fn backend_report_text(
                 "- write {} statement {} `{}` = `{}` {:?}\n",
                 source_name,
                 text_write.statement_index,
-                text_write.target.display_name(),
-                text_write.value.display_name(),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_write.target),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_write.value),
                 text_write.kind
             ));
         }
@@ -380,7 +395,10 @@ pub fn backend_report_text(
                 "- builder {} statement {} `{}` segments {}\n",
                 source_name,
                 text_builder.statement_index,
-                text_builder.target.display_name(),
+                backend_plan
+                    .runtime_text
+                    .expressions
+                    .display_name(text_builder.target),
                 text_builder.segments.count()
             ));
             if let Some(segments) = backend_plan
@@ -391,7 +409,10 @@ pub fn backend_report_text(
                 for segment in segments {
                     output.push_str(&format!(
                         "  - segment `{}` {:?}\n",
-                        segment.expression.display_name(),
+                        backend_plan
+                            .runtime_text
+                            .expressions
+                            .display_name(segment.expression),
                         segment.kind
                     ));
                 }

@@ -77,10 +77,11 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         if text_write.kind != RuntimeTextWriteKind::StaticText {
             continue;
         }
-        let Expression::String(value) = &text_write.value else {
+        let Expression::String(value) = input.runtime_text.expressions.to_tree(text_write.value)
+        else {
             continue;
         };
-        latest_static_text = Some(value.clone());
+        latest_static_text = Some(value);
     }
 
     let mut literal = latest_static_text?;

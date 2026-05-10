@@ -111,7 +111,7 @@ fn runtime_storage_write_has_planned_text_write(
     runtime_text_write_for_statement(input, write.source_key, write.statement_index).is_some_and(
         |text_write| {
             expression_place_eq(
-                &text_write.target,
+                &input.runtime_text.expressions.to_tree(text_write.target),
                 &input.runtime_storage.expressions.to_tree(write.target),
             ) && runtime_text_write_is_planned(input, text_write)
         },

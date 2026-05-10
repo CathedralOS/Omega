@@ -90,7 +90,10 @@ fn runtime_text_use_has_input_buffer(
     text_use: &RuntimeTextUse,
 ) -> bool {
     input.runtime_text.slots.iter().any(|(_, slot)| {
-        expression_place_eq(&slot.place, &text_use.expression) && slot.has_input_buffer
+        expression_place_eq(
+            &input.runtime_text.expressions.to_tree(slot.place),
+            &input.runtime_text.expressions.to_tree(text_use.expression),
+        ) && slot.has_input_buffer
     })
 }
 
@@ -110,7 +113,10 @@ fn host_text_argument_blocker_reason(
         "{} statement {} text argument `{}` needs {lowering_need}",
         source_name,
         text_use.statement_index,
-        text_use.expression.display_name()
+        input
+            .runtime_text
+            .expressions
+            .display_name(text_use.expression)
     )
 }
 

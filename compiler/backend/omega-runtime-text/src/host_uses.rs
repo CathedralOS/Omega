@@ -31,11 +31,12 @@ fn collect_runtime_text_use(
     };
 
     if let HostCallArgumentKind::Expression(expression) = &first_argument.kind {
+        let expression_handle = plan.expressions.insert_tree(expression);
         plan.uses.insert(RuntimeTextUse {
             source_key: host_call.source_key,
             statement_index: host_call.statement_index,
             platform_call: host_call.platform_call.clone(),
-            expression: expression.clone(),
+            expression: expression_handle,
             source: classify_runtime_text_source(expression),
             append_newline,
         });
@@ -60,7 +61,7 @@ fn collect_runtime_text_buffer(
         source_key: host_call.source_key,
         statement_index: host_call.statement_index,
         platform_call: host_call.platform_call.clone(),
-        target: (**target).clone(),
+        target: plan.expressions.insert_tree(target),
         byte_capacity,
     });
 }

@@ -59,8 +59,14 @@ fn runtime_value_blocker_reason(
             "{} statement {} text write `{}` = `{}` needs {}",
             source_name,
             text_write.statement_index,
-            text_write.target.display_name(),
-            text_write.value.display_name(),
+            input
+                .runtime_text
+                .expressions
+                .display_name(text_write.target),
+            input
+                .runtime_text
+                .expressions
+                .display_name(text_write.value),
             runtime_text_write_lowering_name(text_write)
         );
     }
@@ -104,7 +110,10 @@ fn runtime_text_builder_for_write<'plan>(
         .find(|(_, builder)| {
             builder.source_key == text_write.source_key
                 && builder.statement_index == text_write.statement_index
-                && expression_place_eq(&builder.target, &text_write.target)
+                && expression_place_eq(
+                    &input.runtime_text.expressions.to_tree(builder.target),
+                    &input.runtime_text.expressions.to_tree(text_write.target),
+                )
         })
         .map(|(_, builder)| builder)
 }

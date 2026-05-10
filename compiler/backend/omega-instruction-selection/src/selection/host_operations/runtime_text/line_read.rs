@@ -39,7 +39,8 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
                 && data_object.source_statement == buffer.statement_index
         })
         .map(|(data, data_object)| (data, data_object))?;
-    let text_place = text_expression_for_buffer_target(&buffer.target)?;
+    let text_place =
+        text_expression_for_buffer_target(&input.runtime_text.expressions.to_tree(buffer.target))?;
     let source_machine = input
         .control_flow
         .state_machine_name_by_key_cloned(host_call.source_key);

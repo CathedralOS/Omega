@@ -11,7 +11,9 @@ pub use model::{
 };
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
-use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
+};
 use slots::build_runtime_text_slots;
 
 pub fn build_runtime_text_plan(
@@ -25,7 +27,7 @@ pub fn build_runtime_text_plan(
     }
     collect_runtime_text_writes(state_storage, &mut plan);
     collect_runtime_text_builders(&mut plan);
-    plan.slots = build_runtime_text_slots(&plan);
+    plan.slots = build_runtime_text_slots(&mut plan);
 
     plan
 }
@@ -36,12 +38,17 @@ fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut Runt
         if !is_text_place(&target) {
             continue;
         }
-        let value = state_storage.expressions.to_tree(mutation.value);
+        let target = plan
+            .expressions
+            .copy_from(&state_storage.expressions, mutation.target);
+        let value = plan
+            .expressions
+            .copy_from(&state_storage.expressions, mutation.value);
 
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
             statement_index: mutation.statement_index,
-            kind: classify_runtime_text_write(&value),
+            kind: classify_runtime_text_write(&plan.expressions.to_tree(value)),
             target,
             value,
         });
@@ -61,7 +68,7 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
         }
 
         let mut segments = Vec::new();
-        collect_builder_segments(&write.value, &mut segments);
+        collect_builder_segments(plan, write.value, &mut segments);
         let segment_span = plan.builder_segments.insert_many(segments);
         plan.builders.insert(RuntimeTextBuilder {
             source_key: write.source_key,
@@ -73,34 +80,40 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
 }
 
 fn collect_builder_segments(
-    expression: &Expression,
+    plan: &RuntimeTextPlan,
+    expression: ExpressionHandle,
     segments: &mut Vec<RuntimeTextBuilderSegment>,
 ) {
-    if let Expression::Binary(binary) = expression
+    if let ExpressionNode::Binary(binary) = plan.expressions.expression(expression)
         && binary.operator == BinaryOperator::Add
     {
-        collect_builder_segments(&binary.left, segments);
-        collect_builder_segments(&binary.right, segments);
+        collect_builder_segments(plan, binary.left, segments);
+        collect_builder_segments(plan, binary.right, segments);
         return;
     }
 
     segments.push(RuntimeTextBuilderSegment {
-        expression: expression.clone(),
-        kind: classify_runtime_text_builder_segment(expression),
+        expression,
+        kind: classify_runtime_text_builder_segment(plan, expression),
     });
 }
 
-fn classify_runtime_text_builder_segment(expression: &Expression) -> RuntimeTextBuilderSegmentKind {
-    match expression {
-        Expression::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
-        Expression::Name(_) | Expression::Indexed(_) => RuntimeTextBuilderSegmentKind::StoredPlace,
-        Expression::ArrayLiteral(_)
-        | Expression::Binary(_)
-        | Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::Mutable(_)
-        | Expression::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
+fn classify_runtime_text_builder_segment(
+    plan: &RuntimeTextPlan,
+    expression: ExpressionHandle,
+) -> RuntimeTextBuilderSegmentKind {
+    match plan.expressions.expression(expression) {
+        ExpressionNode::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
+            RuntimeTextBuilderSegmentKind::StoredPlace
+        }
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
     }
 }
 

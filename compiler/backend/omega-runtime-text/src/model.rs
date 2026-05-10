@@ -1,9 +1,10 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeTextPlan {
+    pub expressions: ExpressionTable,
     pub uses: Arena<RuntimeTextUse>,
     pub buffers: Arena<RuntimeTextBuffer>,
     pub slots: Arena<RuntimeTextSlot>,
@@ -17,7 +18,7 @@ pub struct RuntimeTextUse {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub platform_call: String,
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub source: RuntimeTextSource,
     pub append_newline: bool,
 }
@@ -27,13 +28,13 @@ pub struct RuntimeTextBuffer {
     pub source_key: StateKey,
     pub statement_index: usize,
     pub platform_call: String,
-    pub target: Expression,
+    pub target: ExpressionHandle,
     pub byte_capacity: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextSlot {
-    pub place: Expression,
+    pub place: ExpressionHandle,
     pub byte_capacity: usize,
     pub has_input_buffer: bool,
 }
@@ -42,8 +43,8 @@ pub struct RuntimeTextSlot {
 pub struct RuntimeTextWrite {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub target: Expression,
-    pub value: Expression,
+    pub target: ExpressionHandle,
+    pub value: ExpressionHandle,
     pub kind: RuntimeTextWriteKind,
 }
 
@@ -51,13 +52,13 @@ pub struct RuntimeTextWrite {
 pub struct RuntimeTextBuilder {
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub target: Expression,
+    pub target: ExpressionHandle,
     pub segments: HandleSpan<RuntimeTextBuilderSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeTextBuilderSegment {
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub kind: RuntimeTextBuilderSegmentKind,
 }
 
@@ -66,8 +67,8 @@ impl Default for RuntimeTextWrite {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            target: Expression::String(String::new()),
-            value: Expression::String(String::new()),
+            target: ExpressionHandle::invalid(),
+            value: ExpressionHandle::invalid(),
             kind: RuntimeTextWriteKind::OtherExpression,
         }
     }
@@ -78,7 +79,7 @@ impl Default for RuntimeTextBuilder {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
-            target: Expression::String(String::new()),
+            target: ExpressionHandle::invalid(),
             segments: HandleSpan::empty(),
         }
     }
@@ -87,7 +88,7 @@ impl Default for RuntimeTextBuilder {
 impl Default for RuntimeTextBuilderSegment {
     fn default() -> Self {
         Self {
-            expression: Expression::String(String::new()),
+            expression: ExpressionHandle::invalid(),
             kind: RuntimeTextBuilderSegmentKind::OtherExpression,
         }
     }
@@ -113,7 +114,7 @@ pub enum RuntimeTextBuilderSegmentKind {
 impl Default for RuntimeTextSlot {
     fn default() -> Self {
         Self {
-            place: Expression::String(String::new()),
+            place: ExpressionHandle::invalid(),
             byte_capacity: 0,
             has_input_buffer: false,
         }
@@ -126,7 +127,7 @@ impl Default for RuntimeTextBuffer {
             source_key: StateKey::default(),
             statement_index: 0,
             platform_call: String::new(),
-            target: Expression::String(String::new()),
+            target: ExpressionHandle::invalid(),
             byte_capacity: 0,
         }
     }
@@ -138,7 +139,7 @@ impl Default for RuntimeTextUse {
             source_key: StateKey::default(),
             statement_index: 0,
             platform_call: String::new(),
-            expression: Expression::String(String::new()),
+            expression: ExpressionHandle::invalid(),
             source: RuntimeTextSource::OtherExpression,
             append_newline: false,
         }

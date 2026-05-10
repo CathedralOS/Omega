@@ -27,7 +27,10 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .slots
         .iter()
         .find(|(_, slot)| {
-            expression_place_eq(&slot.place, &text_use.expression) && slot.has_input_buffer
+            expression_place_eq(
+                &input.runtime_text.expressions.to_tree(slot.place),
+                &input.runtime_text.expressions.to_tree(text_use.expression),
+            ) && slot.has_input_buffer
         })
         .map(|(_, slot)| slot)?;
 
@@ -36,8 +39,13 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .buffers
         .iter()
         .find(|(_, buffer)| {
-            text_place_for_buffer_target(&buffer.target)
-                .is_some_and(|place| expression_place_eq(&place, &text_slot.place))
+            text_place_for_buffer_target(&input.runtime_text.expressions.to_tree(buffer.target))
+                .is_some_and(|place| {
+                    expression_place_eq(
+                        &place,
+                        &input.runtime_text.expressions.to_tree(text_slot.place),
+                    )
+                })
         })
         .map(|(_, buffer)| buffer)?;
 
@@ -59,7 +67,7 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
     text_place: &Expression,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        text_place_for_buffer_target(&buffer.target)
+        text_place_for_buffer_target(&input.runtime_text.expressions.to_tree(buffer.target))
             .is_some_and(|place| expression_place_eq(&place, text_place))
             .then_some(buffer)
     })?;

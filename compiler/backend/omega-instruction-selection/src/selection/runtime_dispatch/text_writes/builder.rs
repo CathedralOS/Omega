@@ -89,7 +89,8 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
     for segment in segments {
         match segment.kind {
             RuntimeTextBuilderSegmentKind::StoredPlace => {
-                let source = resolve_expression(&segment.expression);
+                let segment_expression = input.runtime_text.expressions.to_tree(segment.expression);
+                let source = resolve_expression(&segment_expression);
                 let source_place = resolve_runtime_storage_place(
                     input,
                     dispatch_index,
@@ -120,14 +121,16 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver(
                 });
             }
             RuntimeTextBuilderSegmentKind::StaticText => {
-                let Expression::String(literal) = &segment.expression else {
+                let Expression::String(literal) =
+                    input.runtime_text.expressions.to_tree(segment.expression)
+                else {
                     return None;
                 };
                 instructions.push(SelectedInstructionKind::AppendRuntimeTextLiteral {
                     buffer,
                     target_region: target_place.region,
                     target_offset: target_place.byte_offset,
-                    literal: literal.clone(),
+                    literal,
                 });
             }
             RuntimeTextBuilderSegmentKind::OtherExpression => return None,
@@ -151,10 +154,12 @@ fn prefixed_stored_place_write(
     suffix: &omega_runtime_text::RuntimeTextBuilderSegment,
     resolve_expression: &dyn Fn(&Expression) -> Expression,
 ) -> Option<Vec<SelectedInstructionKind>> {
-    let Expression::String(prefix) = &prefix.expression else {
+    let Expression::String(prefix) = input.runtime_text.expressions.to_tree(prefix.expression)
+    else {
         return None;
     };
-    let source = resolve_expression(&suffix.expression);
+    let suffix_expression = input.runtime_text.expressions.to_tree(suffix.expression);
+    let source = resolve_expression(&suffix_expression);
     let source_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
