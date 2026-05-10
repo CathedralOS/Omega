@@ -1,9 +1,10 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateValuePlan {
+    pub expressions: ExpressionTable,
     pub values: Arena<StateValueUse>,
 }
 
@@ -13,7 +14,7 @@ pub struct StateValueUse {
     pub statement_index: usize,
     pub role: StateValueRole,
     pub kind: StateValueKind,
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub required: bool,
 }
 
@@ -24,7 +25,7 @@ impl Default for StateValueUse {
             statement_index: 0,
             role: StateValueRole::AssignmentValue,
             kind: StateValueKind::Literal,
-            expression: Expression::Integer(0),
+            expression: ExpressionHandle::invalid(),
             required: false,
         }
     }

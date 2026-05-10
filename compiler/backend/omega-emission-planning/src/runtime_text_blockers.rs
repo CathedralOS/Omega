@@ -71,7 +71,10 @@ fn runtime_value_blocker_reason(
         source_name,
         value.statement_index,
         value.role,
-        value.expression.display_name()
+        input
+            .state_values
+            .expressions
+            .display_name(value.expression)
     )
 }
 

@@ -1,16 +1,16 @@
 use super::StateValueKind;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
-pub(super) fn value_kind(expression: &Expression) -> StateValueKind {
-    match expression {
-        Expression::ArrayLiteral(_) => StateValueKind::Array,
-        Expression::Binary(_) => StateValueKind::Binary,
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => StateValueKind::Literal,
-        Expression::Indexed(_) | Expression::Name(_) => StateValueKind::Place,
-        Expression::Mutable(_) => StateValueKind::MutablePlace,
-        Expression::StructLiteral(_) => StateValueKind::Struct,
+pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) -> StateValueKind {
+    match table.expression(expression) {
+        ExpressionNode::ArrayLiteral(_) => StateValueKind::Array,
+        ExpressionNode::Binary(_) => StateValueKind::Binary,
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => StateValueKind::Literal,
+        ExpressionNode::Indexed(_) | ExpressionNode::Name(_) => StateValueKind::Place,
+        ExpressionNode::Mutable(_) => StateValueKind::MutablePlace,
+        ExpressionNode::StructLiteral(_) => StateValueKind::Struct,
     }
 }

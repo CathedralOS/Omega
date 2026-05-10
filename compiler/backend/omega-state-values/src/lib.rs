@@ -60,14 +60,23 @@ pub fn build_state_value_plan_with_workers(
             .get(index)
             .expect("state-value worker index should be in range");
 
-        build_machine_state_value_plan(&context, machine)
+        build_machine_state_value_plan(&program, &context, machine)
     });
 
     let mut plan = StateValuePlan::default();
 
     for machine_plan in machine_plans {
-        plan.values
-            .insert_many(machine_plan.values.iter().map(|(_, value)| value.clone()));
+        let values = machine_plan
+            .values
+            .iter()
+            .map(|(_, value)| StateValueUse {
+                expression: plan
+                    .expressions
+                    .copy_from(&machine_plan.expressions, value.expression),
+                ..value.clone()
+            })
+            .collect::<Vec<_>>();
+        plan.values.insert_many(values);
     }
 
     plan

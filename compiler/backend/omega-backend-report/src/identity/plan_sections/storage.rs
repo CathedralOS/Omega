@@ -1,6 +1,8 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::count_expression_strings;
+use crate::identity::expressions::{
+    count_control_flow_expression_strings, count_expression_strings,
+};
 
 pub(in crate::identity) fn count_state_storage_strings(
     backend_plan: &BackendReportInput<'_>,
@@ -21,7 +23,11 @@ pub(in crate::identity) fn count_state_value_strings(
     storage: &mut BackendStringStorage,
 ) {
     for (_, value) in backend_plan.state_values.values.iter() {
-        count_expression_strings(&value.expression, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.state_values.expressions,
+            value.expression,
+            storage,
+        );
     }
 }
 

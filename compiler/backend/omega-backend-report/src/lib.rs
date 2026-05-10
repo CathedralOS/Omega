@@ -272,7 +272,10 @@ pub fn backend_report_text(
             value.statement_index,
             value.role,
             value.kind,
-            value.expression.display_name(),
+            backend_plan
+                .state_values
+                .expressions
+                .display_name(value.expression),
             value.required
         ));
     }

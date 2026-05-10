@@ -2,11 +2,13 @@ use super::classify::value_kind;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_control_flow::StateKey;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::Program;
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::{Statement, TransitionGuard, TransitionTarget};
+use omega_typed_program::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(super) fn build_machine_state_value_plan(
+    program: &Program,
     context: &StateValuePlanningContext,
     machine: &Machine,
 ) -> StateValuePlan {
@@ -19,43 +21,48 @@ pub(super) fn build_machine_state_value_plan(
             segment_index: 0,
         };
         let required = context.state_is_required_by_key(source_key);
+        let statements = program.statement_table.statements(state.statement_nodes);
 
-        for (statement_index, statement) in state.statements.iter().enumerate() {
+        for (statement_index, statement) in statements.iter().enumerate() {
             match statement {
-                Statement::Assignment(assignment) => {
+                StatementNode::Assignment(assignment) => {
                     push_value(
                         &mut plan,
+                        program,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentTarget,
-                        &assignment.target,
+                        assignment.target,
                         required,
                     );
                     push_value(
                         &mut plan,
+                        program,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentValue,
-                        &assignment.value,
+                        assignment.value,
                         required,
                     );
                 }
-                Statement::Call(call) => {
-                    for argument in &call.arguments {
+                StatementNode::Call(call) => {
+                    for argument in program.statement_table.expression_handles(call.arguments) {
                         push_value(
                             &mut plan,
+                            program,
                             source_key,
                             statement_index,
                             StateValueRole::CallArgument,
-                            argument,
+                            *argument,
                             required,
                         );
                     }
                 }
-                Statement::Transition(transition) => {
-                    if let TransitionGuard::When(expression) = &transition.guard {
+                StatementNode::Transition(transition) => {
+                    if let TransitionGuardNode::When(expression) = transition.guard {
                         push_value(
                             &mut plan,
+                            program,
                             source_key,
                             statement_index,
                             StateValueRole::TransitionGuard,
@@ -66,33 +73,36 @@ pub(super) fn build_machine_state_value_plan(
 
                     collect_transition_arguments(
                         &mut plan,
+                        program,
                         source_key,
                         statement_index,
-                        &transition.target,
+                        transition.target,
                         required,
                     );
 
-                    if let Some(continuation) = &transition.continuation {
+                    if transition.continuation.is_valid() {
                         collect_transition_arguments(
                             &mut plan,
+                            program,
                             source_key,
                             statement_index,
-                            continuation,
+                            transition.continuation,
                             required,
                         );
                     }
                 }
-                Statement::Expression(expression) => {
+                StatementNode::Expression(expression) => {
                     push_value(
                         &mut plan,
+                        program,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentValue,
-                        expression,
+                        *expression,
                         required,
                     );
                 }
-                Statement::LocalData(_) => {}
+                StatementNode::LocalData(_) => {}
             }
         }
     }
@@ -102,22 +112,26 @@ pub(super) fn build_machine_state_value_plan(
 
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
+    program: &Program,
     source_key: StateKey,
     statement_index: usize,
-    target: &TransitionTarget,
+    target: omega_typed_program::statement::TransitionTargetHandle,
     required: bool,
 ) {
-    let TransitionTarget::Named { arguments, .. } = target else {
+    let TransitionTargetNode::Named { arguments, .. } =
+        program.statement_table.transition_target(target)
+    else {
         return;
     };
 
-    for argument in arguments {
+    for argument in program.statement_table.expression_handles(*arguments) {
         push_value(
             plan,
+            program,
             source_key,
             statement_index,
             StateValueRole::TransitionArgument,
-            argument,
+            *argument,
             required,
         );
     }
@@ -125,18 +139,22 @@ fn collect_transition_arguments(
 
 fn push_value(
     plan: &mut StateValuePlan,
+    program: &Program,
     source_key: StateKey,
     statement_index: usize,
     role: StateValueRole,
-    expression: &Expression,
+    expression: ExpressionHandle,
     required: bool,
 ) {
+    let expression = plan
+        .expressions
+        .copy_from(&program.expression_table, expression);
     plan.values.insert(StateValueUse {
         source_key,
         statement_index,
         role,
-        kind: value_kind(expression),
-        expression: expression.clone(),
+        kind: value_kind(&plan.expressions, expression),
+        expression,
         required,
     });
 }
