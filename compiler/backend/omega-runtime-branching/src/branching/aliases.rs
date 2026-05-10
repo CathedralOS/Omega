@@ -6,8 +6,8 @@ use omega_typed_program::statement::TransitionGuard;
 mod expressions;
 mod model;
 
-pub(super) use expressions::resolve_branch_expression;
 use expressions::resolve_runtime_branch_alias_expression_handle;
+pub(super) use expressions::{resolve_branch_expression, resolve_branch_expression_handle};
 pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
 
 pub(super) fn resolve_branch_guard(

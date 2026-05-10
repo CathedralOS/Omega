@@ -1,6 +1,6 @@
 use super::aliases::{
     BranchParameterBinding, RuntimeBranchAlias, branch_parameter_bindings,
-    resolve_branch_expression, resolve_branch_guard,
+    resolve_branch_expression_handle, resolve_branch_guard,
 };
 use super::lookups::state_parameters;
 use super::operations::{leaf_operations, straight_line_operations};
@@ -175,13 +175,12 @@ fn leaf_argument_bindings<'a>(
         .enumerate()
         .filter_map(move |(parameter_index, parameter)| {
             let expression = leaf_arguments.get(parameter_index)?;
-            let expression = expression_table.to_tree(*expression);
             let expression =
-                resolve_branch_expression(&expression, branch_bindings, expression_table);
+                resolve_branch_expression_handle(*expression, branch_bindings, expression_table);
             Some(RuntimeLeafBranchBinding {
                 parameter_symbol: parameter.symbol,
                 parameter_name: parameter.name.clone(),
-                expression: expression_table.insert_tree(&expression),
+                expression,
                 kind: RuntimeLeafBranchBindingKind::LeafParameter,
             })
         })
@@ -227,13 +226,12 @@ fn straight_line_argument_bindings<'a>(
         .enumerate()
         .filter_map(move |(parameter_index, parameter)| {
             let expression = target_arguments.get(parameter_index)?;
-            let expression = expression_table.to_tree(*expression);
             let expression =
-                resolve_branch_expression(&expression, branch_bindings, expression_table);
+                resolve_branch_expression_handle(*expression, branch_bindings, expression_table);
             Some(RuntimeStraightLineBranchBinding {
                 parameter_symbol: parameter.symbol,
                 parameter_name: parameter.name.clone(),
-                expression: expression_table.insert_tree(&expression),
+                expression,
                 kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
             })
         })
