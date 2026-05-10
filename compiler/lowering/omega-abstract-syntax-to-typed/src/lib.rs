@@ -745,23 +745,22 @@ impl<'context> ExpressionResolveContext<'context> {
         let Some(first_member) = members.next() else {
             return SymbolHandle::invalid();
         };
-        let remaining_members = path.clone().into_iter().skip(1).collect::<Vec<_>>();
+        let has_remaining_members = path.clone().into_iter().nth(1).is_some();
 
         if first_member == "self" && self.machine.is_valid() {
-            if remaining_members.is_empty() {
+            if !has_remaining_members {
                 return self.machine;
             }
 
             return symbols
-                .find_descendant_by_path(self.machine, remaining_members.iter().copied())
+                .find_descendant_by_path(self.machine, path.clone().into_iter().skip(1))
                 .unwrap_or_else(SymbolHandle::invalid);
         }
 
-        if !remaining_members.is_empty()
-            && let Some(type_symbol) = self.contained_type_symbol(first_member)
+        if has_remaining_members && let Some(type_symbol) = self.contained_type_symbol(first_member)
         {
             return symbols
-                .find_descendant_by_path(type_symbol, remaining_members.iter().copied())
+                .find_descendant_by_path(type_symbol, path.clone().into_iter().skip(1))
                 .unwrap_or_else(SymbolHandle::invalid);
         }
 
