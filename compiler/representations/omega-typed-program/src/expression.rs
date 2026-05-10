@@ -38,6 +38,13 @@ impl ExpressionTable {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.expressions.reset_retain_capacity();
+        self.expression_handles.reset_retain_capacity();
+        self.name_path_members.reset_retain_capacity();
+        self.struct_fields.reset_retain_capacity();
+    }
+
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         self.expressions.insert(expression)
     }

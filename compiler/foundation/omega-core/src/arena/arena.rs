@@ -242,6 +242,14 @@ impl<T: Default> Arena<T> {
         self.active_count = 0;
     }
 
+    pub fn reset_retain_capacity(&mut self) {
+        self.items.truncate(1);
+        self.generations.truncate(1);
+        self.occupied.truncate(1);
+        self.free_indices.clear();
+        self.active_count = 0;
+    }
+
     pub fn storage_slice(&self) -> &[T] {
         &self.items[1..]
     }

@@ -38,6 +38,10 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         source_statement: 0,
     });
 
+    let mut runtime_aliases = Vec::new();
+    let mut runtime_alias_expressions = ExpressionTable::new();
+    let mut runtime_static_values = Vec::new();
+
     for (_, dispatch_case) in input.runtime_dispatch_loop.cases.iter() {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::EnterDispatchCase {
@@ -58,9 +62,9 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 .operations
                 .span(runtime_body.operations)
         {
-            let mut runtime_aliases = Vec::new();
-            let mut runtime_alias_expressions = ExpressionTable::new();
-            let mut runtime_static_values = Vec::new();
+            runtime_aliases.clear();
+            runtime_alias_expressions.clear();
+            runtime_static_values.clear();
 
             for operation in operations {
                 bind_runtime_operation_aliases(
