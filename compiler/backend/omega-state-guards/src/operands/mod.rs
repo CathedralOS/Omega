@@ -8,8 +8,7 @@ use layout::resolve_guard_operand_layout;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
-use omega_typed_program::expression::Expression;
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use values::resolved_guard_operand_value;
 
 pub(crate) struct GuardOperands {
@@ -27,32 +26,56 @@ impl GuardOperands {
 }
 
 pub(crate) fn guard_operands(
+    source_expressions: &ExpressionTable,
+    guard_expressions: &mut ExpressionTable,
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
-    guard: &TransitionGuard,
+    guard: Option<ExpressionHandle>,
 ) -> Option<GuardOperands> {
-    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+    let ExpressionNode::Binary(binary) = source_expressions.expression(guard?) else {
         return None;
     };
 
     Some(GuardOperands {
-        left: guard_operand(layouts, entry_machine, source_machine, binary.left.clone()),
-        right: guard_operand(layouts, entry_machine, source_machine, binary.right.clone()),
+        left: guard_operand(
+            source_expressions,
+            guard_expressions,
+            layouts,
+            entry_machine,
+            source_machine,
+            binary.left,
+        ),
+        right: guard_operand(
+            source_expressions,
+            guard_expressions,
+            layouts,
+            entry_machine,
+            source_machine,
+            binary.right,
+        ),
     })
 }
 
 fn guard_operand(
+    source_expressions: &ExpressionTable,
+    guard_expressions: &mut ExpressionTable,
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
-    expression: Expression,
+    expression: ExpressionHandle,
 ) -> StateGuardOperand {
-    let resolved_value = resolved_guard_operand_value(layouts, &expression);
-    let operand_layout =
-        resolve_guard_operand_layout(layouts, entry_machine, source_machine, &expression);
+    let resolved_value = resolved_guard_operand_value(layouts, source_expressions, expression);
+    let operand_layout = resolve_guard_operand_layout(
+        layouts,
+        entry_machine,
+        source_machine,
+        source_expressions,
+        expression,
+    );
     StateGuardOperand {
-        kind: classify_guard_operand(&expression, resolved_value.is_some()),
+        expression: guard_expressions.copy_from(source_expressions, expression),
+        kind: classify_guard_operand(source_expressions, expression, resolved_value.is_some()),
         storage: operand_layout
             .as_ref()
             .map(|layout| layout.storage)
@@ -65,7 +88,6 @@ fn guard_operand(
             .as_ref()
             .map(|layout| layout.layout.size)
             .unwrap_or(0),
-        expression,
         resolved_value: resolved_value.unwrap_or(0),
         has_resolved_value: resolved_value.is_some(),
     }

@@ -1,6 +1,8 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::count_expression_strings;
+use crate::identity::expressions::{
+    count_control_flow_expression_strings, count_expression_strings,
+};
 use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_typed_program::statement::TransitionGuard;
@@ -59,10 +61,20 @@ pub(in crate::identity) fn count_state_guard_strings(
     for (_, guard) in backend_plan.state_guards.guards.iter() {
         count_runtime_target_strings(&guard.target, storage);
         count_runtime_target_strings(&guard.continuation, storage);
-        count_expression_strings(&guard.expression, storage);
+        if guard.has_expression {
+            count_control_flow_expression_strings(
+                &backend_plan.state_guards.expressions,
+                guard.expression,
+                storage,
+            );
+        }
     }
     for (_, operand) in backend_plan.state_guards.operands.iter() {
-        count_expression_strings(&operand.expression, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.state_guards.expressions,
+            operand.expression,
+            storage,
+        );
     }
 }
 

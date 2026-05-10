@@ -11,7 +11,9 @@ use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 pub use omega_target_program::{StateGuardLowering, StateGuardOperator};
-use omega_typed_program::expression::{BinaryOperator, Expression};
+use omega_typed_program::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_typed_program::statement::TransitionGuard;
 use operands::{GuardOperands, guard_operands};
 
@@ -33,6 +35,8 @@ pub fn build_state_guard_plan(
                 continue;
             }
             plan.guards.insert(build_state_guard(
+                &control_flow.expressions,
+                &mut plan.expressions,
                 &mut plan.operands,
                 layouts,
                 entry_machine,
@@ -67,7 +71,33 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
     }
 }
 
+pub fn classify_transition_guard_expression(
+    table: &ExpressionTable,
+    guard: Option<ExpressionHandle>,
+) -> StateGuardKind {
+    let Some(guard) = guard else {
+        return StateGuardKind::Always;
+    };
+
+    match table.expression(guard) {
+        ExpressionNode::Binary(binary) => match binary.operator {
+            BinaryOperator::Equal => StateGuardKind::RuntimeEquality,
+            BinaryOperator::NotEqual => StateGuardKind::RuntimeInequality,
+            BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual => StateGuardKind::RuntimeOrdering,
+            BinaryOperator::Add | BinaryOperator::And | BinaryOperator::Or => {
+                StateGuardKind::RuntimeExpression
+            }
+        },
+        _ => StateGuardKind::RuntimeExpression,
+    }
+}
+
 fn build_state_guard(
+    source_expressions: &ExpressionTable,
+    guard_expressions: &mut ExpressionTable,
     operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
@@ -76,8 +106,23 @@ fn build_state_guard(
     statement_order: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
-    let (kind, operator, expression, has_expression) = guard_data(&edge.guard);
-    let guard_operands = guard_operands(layouts, entry_machine, source.machine, &edge.guard);
+    let source_guard = edge.expressions.guard;
+    let kind = classify_transition_guard_expression(source_expressions, source_guard);
+    let operator = source_guard
+        .map(|guard| guard_operator(source_expressions, guard))
+        .unwrap_or(StateGuardOperator::None);
+    let expression = source_guard
+        .map(|guard| guard_expressions.copy_from(source_expressions, guard))
+        .unwrap_or_else(ExpressionHandle::invalid);
+    let has_expression = source_guard.is_some();
+    let guard_operands = guard_operands(
+        source_expressions,
+        guard_expressions,
+        layouts,
+        entry_machine,
+        source.machine,
+        source_guard,
+    );
     let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
     let operands = guard_operands
         .map(|operands| operands.insert_into(operand_arena))
@@ -134,25 +179,8 @@ fn guard_lowering(
     StateGuardLowering::NeedsRuntimeExpression
 }
 
-fn guard_data(guard: &TransitionGuard) -> (StateGuardKind, StateGuardOperator, Expression, bool) {
-    match guard {
-        TransitionGuard::Always => (
-            StateGuardKind::Always,
-            StateGuardOperator::None,
-            Expression::Boolean(true),
-            false,
-        ),
-        TransitionGuard::When(expression) => (
-            classify_transition_guard(guard),
-            guard_operator(expression),
-            expression.clone(),
-            true,
-        ),
-    }
-}
-
-fn guard_operator(expression: &Expression) -> StateGuardOperator {
-    let Expression::Binary(binary) = expression else {
+fn guard_operator(table: &ExpressionTable, expression: ExpressionHandle) -> StateGuardOperator {
+    let ExpressionNode::Binary(binary) = table.expression(expression) else {
         return StateGuardOperator::None;
     };
 

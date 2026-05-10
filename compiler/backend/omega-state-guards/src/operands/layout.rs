@@ -2,7 +2,7 @@ use crate::StateGuardOperandStorage;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,15 +16,16 @@ pub(super) fn resolve_guard_operand_layout(
     layouts: &LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
 ) -> Option<ResolvedOperandLayout> {
-    let Expression::Name(path) = expression else {
+    let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };
-    let [_root_name, suffix @ ..] = path.as_slice() else {
+    let [_root_name, suffix @ ..] = table.name_path_members(path.members) else {
         return None;
     };
-    let root_symbol = path.head_symbol();
+    let root_symbol = path.head_symbol;
     let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
     let machine_layout = layouts
         .machine_layouts

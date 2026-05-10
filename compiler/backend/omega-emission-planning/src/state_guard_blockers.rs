@@ -40,7 +40,10 @@ pub(super) fn collect_state_guard_blockers(
                 runtime_transition_target_name(input, &guard.target),
                 guard.kind,
                 guard.lowering,
-                guard.expression.display_name()
+                input
+                    .state_guards
+                    .expressions
+                    .display_name(guard.expression)
             ),
         ));
     }

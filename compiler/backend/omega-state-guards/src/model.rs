@@ -2,10 +2,11 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_target_program::{StateGuardLowering, StateGuardOperator};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGuardPlan {
+    pub expressions: ExpressionTable,
     pub guards: Arena<StateGuard>,
     pub operands: Arena<StateGuardOperand>,
 }
@@ -22,7 +23,7 @@ pub struct StateGuard {
     pub kind: StateGuardKind,
     pub operator: StateGuardOperator,
     pub lowering: StateGuardLowering,
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub operands: HandleSpan<StateGuardOperand>,
     pub has_expression: bool,
     pub forms_cycle: bool,
@@ -41,7 +42,7 @@ impl Default for StateGuard {
             kind: StateGuardKind::Always,
             operator: StateGuardOperator::None,
             lowering: StateGuardLowering::NoOp,
-            expression: Expression::Boolean(true),
+            expression: ExpressionHandle::invalid(),
             operands: HandleSpan::empty(),
             has_expression: false,
             forms_cycle: false,
@@ -61,7 +62,7 @@ pub enum StateGuardKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateGuardOperand {
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub kind: StateGuardOperandKind,
     pub storage: StateGuardOperandStorage,
     pub byte_offset: usize,
@@ -73,7 +74,7 @@ pub struct StateGuardOperand {
 impl Default for StateGuardOperand {
     fn default() -> Self {
         Self {
-            expression: Expression::Boolean(true),
+            expression: ExpressionHandle::invalid(),
             kind: StateGuardOperandKind::OtherExpression,
             storage: StateGuardOperandStorage::Unknown,
             byte_offset: 0,

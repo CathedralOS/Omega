@@ -1,24 +1,25 @@
 use omega_layout::{DataShape, LayoutPlan};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn resolved_guard_operand_value(
     layouts: &LayoutPlan,
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
 ) -> Option<i64> {
-    match expression {
-        Expression::Boolean(value) => return Some(i64::from(*value)),
-        Expression::Integer(value) => return Some(*value),
+    match table.expression(expression) {
+        ExpressionNode::Boolean(value) => return Some(i64::from(*value)),
+        ExpressionNode::Integer(value) => return Some(*value),
         _ => {}
     }
 
-    let Expression::Name(path) = expression else {
+    let ExpressionNode::Name(path) = table.expression(expression) else {
         return None;
     };
-    let [_, _] = path.as_slice() else {
+    let [_, _] = table.name_path_members(path.members) else {
         return None;
     };
-    let type_symbol = path.head_symbol();
-    let variant_symbol = path.symbol();
+    let type_symbol = path.head_symbol;
+    let variant_symbol = path.symbol;
     if !type_symbol.is_valid() || !variant_symbol.is_valid() {
         return None;
     }

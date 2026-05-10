@@ -616,7 +616,13 @@ pub fn backend_report_text(
             ));
 
             if guard.has_expression {
-                output.push_str(&format!(" `{}`", guard.expression.display_name()));
+                output.push_str(&format!(
+                    " `{}`",
+                    backend_plan
+                        .state_guards
+                        .expressions
+                        .display_name(guard.expression)
+                ));
             }
 
             if guard.continuation != RuntimeTransitionTarget::None {
@@ -638,7 +644,10 @@ pub fn backend_report_text(
                 for operand in operands {
                     output.push_str(&format!(
                         "  - operand `{}` {:?} {:?} offset {} bytes {}\n",
-                        operand.expression.display_name(),
+                        backend_plan
+                            .state_guards
+                            .expressions
+                            .display_name(operand.expression),
                         operand.kind,
                         operand.storage,
                         operand.byte_offset,

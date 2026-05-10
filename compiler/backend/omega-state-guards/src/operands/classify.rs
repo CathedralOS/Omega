@@ -1,20 +1,21 @@
 use crate::StateGuardOperandKind;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn classify_guard_operand(
-    expression: &Expression,
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
     has_resolved_value: bool,
 ) -> StateGuardOperandKind {
-    match expression {
-        Expression::Name(_) if has_resolved_value => StateGuardOperandKind::StaticSymbol,
-        Expression::Name(_) | Expression::Indexed(_) => StateGuardOperandKind::Place,
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => StateGuardOperandKind::Literal,
-        Expression::ArrayLiteral(_)
-        | Expression::Binary(_)
-        | Expression::Mutable(_)
-        | Expression::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
+    match table.expression(expression) {
+        ExpressionNode::Name(_) if has_resolved_value => StateGuardOperandKind::StaticSymbol,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => StateGuardOperandKind::Place,
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => StateGuardOperandKind::Literal,
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Binary(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
     }
 }

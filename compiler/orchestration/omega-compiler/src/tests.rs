@@ -1651,7 +1651,11 @@ fn plans_runtime_guards_for_dispatch_edges() {
             && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
             && guard.operator == omega_target_program::StateGuardOperator::Equal
             && guard.lowering == omega_target_program::StateGuardLowering::CompareStaticValue
-            && guard.expression.display_name() == "ready == true"
+            && backend_plan
+                .state_guards
+                .expressions
+                .display_name(guard.expression)
+                == "ready == true"
     }));
     let equality_guard = backend_plan
         .state_guards
@@ -1670,7 +1674,13 @@ fn plans_runtime_guards_for_dispatch_edges() {
         .expect("runtime guard operands should resolve");
 
     assert_eq!(guard_operands.len(), 2);
-    assert_eq!(guard_operands[0].expression.display_name(), "ready");
+    assert_eq!(
+        backend_plan
+            .state_guards
+            .expressions
+            .display_name(guard_operands[0].expression),
+        "ready"
+    );
     assert_eq!(
         guard_operands[0].kind,
         omega_state_guards::StateGuardOperandKind::Place
@@ -1681,7 +1691,13 @@ fn plans_runtime_guards_for_dispatch_edges() {
     );
     assert_eq!(guard_operands[0].byte_offset, 0);
     assert_eq!(guard_operands[0].byte_size, 1);
-    assert_eq!(guard_operands[1].expression.display_name(), "true");
+    assert_eq!(
+        backend_plan
+            .state_guards
+            .expressions
+            .display_name(guard_operands[1].expression),
+        "true"
+    );
     assert_eq!(
         guard_operands[1].kind,
         omega_state_guards::StateGuardOperandKind::Literal
@@ -1742,7 +1758,13 @@ fn resolves_enum_guard_operand_values() {
         .expect("runtime guard operands should resolve");
 
     assert_eq!(guard_operands.len(), 2);
-    assert_eq!(guard_operands[1].expression.display_name(), "Choice::Look");
+    assert_eq!(
+        backend_plan
+            .state_guards
+            .expressions
+            .display_name(guard_operands[1].expression),
+        "Choice::Look"
+    );
     assert_eq!(
         guard_operands[1].kind,
         omega_state_guards::StateGuardOperandKind::StaticSymbol
@@ -1802,7 +1824,10 @@ fn resolves_nested_guard_operand_offsets() {
         .expect("runtime guard operands should resolve");
 
     assert_eq!(
-        guard_operands[0].expression.display_name(),
+        backend_plan
+            .state_guards
+            .expressions
+            .display_name(guard_operands[0].expression),
         "navigation::destination"
     );
     assert_eq!(
