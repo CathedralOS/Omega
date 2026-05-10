@@ -12,7 +12,7 @@ data RoomEvents {
 }
 
 machine for RoomEvents {
-    fn roll_event(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+    pub fn roll_event(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
         let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
 
         transition self.event_action(roll) {

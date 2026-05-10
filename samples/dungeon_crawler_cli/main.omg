@@ -6,7 +6,7 @@ data main {
 }
 
 machine for main {
-    fn entry(&mut self) {
+    pub fn entry(&mut self) {
         self.game.start();
 
         transition {

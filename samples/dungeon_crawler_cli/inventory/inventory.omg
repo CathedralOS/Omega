@@ -5,7 +5,7 @@ data InventorySystem {
 }
 
 machine for InventorySystem {
-    fn clear(&mut self, inventory: &mut Inventory) {
+    pub fn clear(&mut self, inventory: &mut Inventory) {
         inventory.items.clear();
         inventory.gold = 0;
     }
@@ -23,7 +23,7 @@ machine for InventorySystem {
         }
     }
 
-    fn add_reward(&mut self, inventory: &mut Inventory, reward: Reward) {
+    pub fn add_reward(&mut self, inventory: &mut Inventory, reward: Reward) {
         transition reward.kind {
             RewardKind::None -> {}
             RewardKind::Gold -> add_gold(inventory, reward.gold)

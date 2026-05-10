@@ -5,7 +5,7 @@ data RoomLookup {
 }
 
 machine for RoomLookup {
-    fn find_room(&mut self, level: Level, cell: CellId, out_room: &mut Room) {
+    pub fn find_room(&mut self, level: Level, cell: CellId, out_room: &mut Room) {
         let rooms: &[Room] = level.rooms.as_slice();
 
         transition level.room_count > 0 {
@@ -14,7 +14,7 @@ machine for RoomLookup {
         }
     }
 
-    fn find_room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Room {
+    pub fn find_room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Room {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
         -> self.find_room_mut_at(rooms, level.room_count, cell, 0);

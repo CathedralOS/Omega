@@ -8,87 +8,70 @@ data CommandParser {
 }
 
 machine for CommandParser {
-    fn resolve_command(&mut self, line: ConsoleLine, out_navigation: &mut Navigation) {
-        transition line.text {
-            "quit" -> resolve_quit(out_navigation)
-            "look" -> resolve_look(out_navigation)
-            "info" -> resolve_look(out_navigation)
-            "exits" -> resolve_exits(out_navigation)
-            "help" -> resolve_exits(out_navigation)
-            "inventory" -> resolve_inventory(out_navigation)
-            "inv" -> resolve_inventory(out_navigation)
-            "character" -> resolve_character(out_navigation)
-            "stats" -> resolve_character(out_navigation)
-            "use" -> resolve_use(out_navigation)
-            "fight" -> resolve_fight(out_navigation)
-            _ -> {}
+    pub fn resolve_navigation(&mut self, level: Level, cell: CellId, line: &ConsoleLine) -> Navigation {
+        let choice: NavigationChoice = self.resolve_command(line);
+
+        match choice {
+            NavigationChoice::Invalid -> self.resolve_exit(level, cell, line)
+            _ -> self.navigation(choice, CellId::Empty)
         }
     }
 
-    state resolve_quit(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Quit;
+    fn resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
+        match line.text {
+            "quit" -> NavigationChoice::Quit
+            "look" -> NavigationChoice::Look
+            "info" -> NavigationChoice::Look
+            "exits" -> NavigationChoice::Exits
+            "help" -> NavigationChoice::Exits
+            "inventory" -> NavigationChoice::Inventory
+            "inv" -> NavigationChoice::Inventory
+            "character" -> NavigationChoice::Character
+            "stats" -> NavigationChoice::Character
+            "use" -> NavigationChoice::UseFountain
+            "fight" -> NavigationChoice::Fight
+            _ -> NavigationChoice::Invalid
+        }
     }
 
-    state resolve_look(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Look;
-    }
-
-    state resolve_exits(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Exits;
-    }
-
-    state resolve_inventory(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Inventory;
-    }
-
-    state resolve_character(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Character;
-    }
-
-    state resolve_use(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::UseFountain;
-    }
-
-    state resolve_fight(&mut self, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Fight;
-    }
-
-    state resolve_move(&mut self, destination: CellId, out_navigation: &mut Navigation) {
-        out_navigation.choice = NavigationChoice::Move;
-        out_navigation.destination = destination;
-    }
-
-    fn resolve_exit(&mut self, level: Level, cell: CellId, line: ConsoleLine, out_navigation: &mut Navigation) {
+    fn resolve_exit(&mut self, level: Level, cell: CellId, line: &ConsoleLine) -> Navigation {
         let room: Room;
         self.lookup.find_room(level, cell, &mut room);
-        self.find_exit(room, line.text, out_navigation);
+        -> self.find_exit(room, &line.text);
     }
 
-    fn find_exit(&mut self, room: Room, command: String, out_navigation: &mut Navigation) {
+    fn find_exit(&mut self, room: Room, command: &String) -> Navigation {
         let exits: &[Exit] = room.exits.as_slice();
 
-        transition room.exit_count > 0 {
-            true -> find_exit_at(exits, room.exit_count, command, out_navigation, 0)
-            false -> {}
+        match room.exit_count > 0 {
+            true -> self.find_exit_at(exits, room.exit_count, command, 0)
+            false -> self.invalid_navigation()
         }
     }
 
-    state find_exit_at(
+    fn find_exit_at(
         &mut self,
         exits: &[Exit],
         exit_count: usize[positive],
-        command: String,
-        out_navigation: &mut Navigation,
+        command: &String,
         index: IndexOf<exits>,
-    ) {
+    ) -> Navigation {
         let found: bool = exits[index].command == command;
         let next_index: usize = index + 1;
         let has_next: bool = next_index < exit_count;
 
-        transition (found, has_next) {
-            (true, _) -> resolve_move(exits[index].destination, out_navigation)
-            (false, true) -> find_exit_at(exits, exit_count, command, out_navigation, next_index)
-            (false, false) -> {}
+        match (found, has_next) {
+            (true, _) -> self.navigation(NavigationChoice::Move, exits[index].destination)
+            (false, true) -> self.find_exit_at(exits, exit_count, command, next_index)
+            (false, false) -> self.invalid_navigation()
         }
+    }
+
+    fn invalid_navigation(&mut self) -> Navigation {
+        -> self.navigation(NavigationChoice::Invalid, CellId::Empty);
+    }
+
+    fn navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
+        -> Navigation { choice: choice, destination: destination };
     }
 }

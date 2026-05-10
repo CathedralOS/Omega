@@ -10,7 +10,7 @@ data MazeBuilder {
 }
 
 machine for MazeBuilder {
-    fn build(&mut self, seed: u64[wrapping], level: &mut Level) {
+    pub fn build(&mut self, seed: u64[wrapping], level: &mut Level) {
         let random: RandomState;
         self.rng.seed(seed, &mut random);
 

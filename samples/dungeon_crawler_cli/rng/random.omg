@@ -4,31 +4,31 @@ data Random {
 }
 
 machine for Random {
-    fn seed(&mut self, value: u64[wrapping], state: &mut RandomState) {
+    pub fn seed(&mut self, value: u64[wrapping], state: &mut RandomState) {
         state.seed = value;
         state.calls = 0;
     }
 
-    fn next_u32(&mut self, state: &mut RandomState) -> u32[wrapping] {
+    pub fn next_u32(&mut self, state: &mut RandomState) -> u32[wrapping] {
         state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
         state.calls = state.calls + 1;
 
         -> ((state.seed >> 32) as u32);
     }
 
-    fn range(&mut self, state: &mut RandomState, exclusive_max: u32[exact, positive]) -> u32[exact, range<0, exclusive_max>] {
+    pub fn range(&mut self, state: &mut RandomState, exclusive_max: u32[exact, positive]) -> u32[exact, range<0, exclusive_max>] {
         let raw: u32[wrapping] = self.next_u32(state);
 
         -> raw % exclusive_max;
     }
 
-    fn chance(&mut self, state: &mut RandomState, numerator: u32[exact], denominator: u32[exact, positive]) -> bool {
+    pub fn chance(&mut self, state: &mut RandomState, numerator: u32[exact], denominator: u32[exact, positive]) -> bool {
         let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
 
         -> roll < numerator;
     }
 
-    fn unit_real(&mut self, state: &mut RandomState) -> Real[finite, range<0.0, 1.0>] {
+    pub fn unit_real(&mut self, state: &mut RandomState) -> Real[finite, range<0.0, 1.0>] {
         let raw: u32[wrapping] = self.next_u32(state);
 
         -> Real::from(raw) / Real::from(u32::MAX);

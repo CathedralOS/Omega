@@ -9,19 +9,19 @@ data RewardTables {
 }
 
 machine for RewardTables {
-    fn roll_room_treasure(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, reward: &mut Reward) {
+    pub fn roll_room_treasure(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, reward: &mut Reward) {
         reward.kind = RewardKind::GoldAndItem;
         reward.gold = 20 + depth * 8 + self.rng.range(random, 15);
         reward.item = self.roll_item(depth, random);
     }
 
-    fn roll_gold_cache(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, reward: &mut Reward) {
+    pub fn roll_gold_cache(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, reward: &mut Reward) {
         reward.kind = RewardKind::Gold;
         reward.gold = 8 + depth * 5 + self.rng.range(random, 12);
         reward.item = ItemKind::RustedDagger;
     }
 
-    fn roll_enemy_reward(&mut self, enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
+    pub fn roll_enemy_reward(&mut self, enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
         transition self.rng.chance(random, 1, 4) {
             true -> enemy_item(enemy, random, reward)
             false -> enemy_gold(enemy, random, reward)

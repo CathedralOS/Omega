@@ -15,11 +15,11 @@ data Game {
 }
 
 machine for Game {
-    fn start(&mut self) {
+    pub fn start(&mut self) {
         self.dungeon.start();
     }
 
-    fn entry(&mut self) {
+    pub fn entry(&mut self) {
         self.view.render_title(&mut self.console);
 
         transition {
@@ -47,10 +47,11 @@ machine for Game {
         self.view.render_prompt(&mut self.console);
         self.console.read_line(&mut self.input);
 
-        self.dungeon.navigation.choice = NavigationChoice::Invalid;
-        self.dungeon.navigation.destination = CellId::Empty;
-        self.parser.resolve_command(self.input, &mut self.dungeon.navigation);
-        self.parser.resolve_exit(self.dungeon.level, self.dungeon.current_cell, self.input, &mut self.dungeon.navigation);
+        self.dungeon.navigation = self.parser.resolve_navigation(
+            self.dungeon.level,
+            self.dungeon.current_cell,
+            &self.input,
+        );
 
         transition self.dungeon.navigation.choice {
             NavigationChoice::Quit -> finished()
@@ -144,7 +145,7 @@ machine for Game {
     state finished(&mut self) {
     }
 
-    fn exit(&mut self, return_code: i32) {
+    pub fn exit(&mut self, return_code: i32) {
         self.view.render_goodbye(&mut self.console);
         self.console.exit_process(return_code);
     }

@@ -7,7 +7,7 @@ data PlayerSystem {
 }
 
 machine for PlayerSystem {
-    fn create(&mut self, name: String, player: &mut Player) {
+    pub fn create(&mut self, name: String, player: &mut Player) {
         player.name = name;
         player.level = 1;
         player.xp = 0;
@@ -18,21 +18,21 @@ machine for PlayerSystem {
         self.inventory.clear(&mut player.inventory);
     }
 
-    fn heal(&mut self, player: &mut Player, amount: i32[exact, positive]) {
+    pub fn heal(&mut self, player: &mut Player, amount: i32[exact, positive]) {
         player.health = min(player.max_health, player.health + amount);
     }
 
-    fn take_damage(&mut self, player: &mut Player, amount: i32[exact, non_negative]) {
+    pub fn take_damage(&mut self, player: &mut Player, amount: i32[exact, non_negative]) {
         let prevented: i32[exact, non_negative] = min(amount, player.defense);
         let actual: i32[exact, non_negative] = amount - prevented;
         player.health = max(0, player.health - actual);
     }
 
-    fn grant_reward(&mut self, player: &mut Player, reward: Reward) {
+    pub fn grant_reward(&mut self, player: &mut Player, reward: Reward) {
         self.inventory.add_reward(&mut player.inventory, reward);
     }
 
-    fn grant_xp(&mut self, player: &mut Player, amount: u32[exact, non_negative]) {
+    pub fn grant_xp(&mut self, player: &mut Player, amount: u32[exact, non_negative]) {
         player.xp = player.xp + amount;
 
         transition player.xp >= self.xp_required(player.level) {
