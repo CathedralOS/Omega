@@ -50,6 +50,22 @@ pub fn expression_place_eq_across_tables(
     }
 }
 
+pub fn expression_name_with_suffix_eq_in_table(
+    table: &ExpressionTable,
+    base: ExpressionHandle,
+    place: ExpressionHandle,
+    suffix: &str,
+) -> bool {
+    let ExpressionNode::Name(base_path) = table.expression(base) else {
+        return false;
+    };
+    let ExpressionNode::Name(place_path) = table.expression(place) else {
+        return false;
+    };
+
+    table_name_path_with_suffix_eq(table, base_path, place_path, suffix)
+}
+
 fn name_path_eq(left: &NamePath, right: &NamePath) -> bool {
     if left.len() != right.len() {
         return false;
@@ -94,6 +110,34 @@ fn table_name_path_eq(
         .iter()
         .zip(right_members.iter())
         .all(|(left, right)| left == right)
+}
+
+fn table_name_path_with_suffix_eq(
+    table: &ExpressionTable,
+    base: &TableNamePath,
+    place: &TableNamePath,
+    suffix: &str,
+) -> bool {
+    let base_members = table.name_path_members(base.members);
+    let place_members = table.name_path_members(place.members);
+    if place_members.len() != base_members.len().saturating_add(1) {
+        return false;
+    }
+
+    if base.head_symbol.is_valid()
+        && place.head_symbol.is_valid()
+        && base.head_symbol != place.head_symbol
+    {
+        return false;
+    }
+
+    base_members
+        .iter()
+        .zip(place_members.iter())
+        .all(|(left, right)| left == right)
+        && place_members
+            .last()
+            .is_some_and(|member| member.as_str() == suffix)
 }
 
 fn expression_eq_across_tables(

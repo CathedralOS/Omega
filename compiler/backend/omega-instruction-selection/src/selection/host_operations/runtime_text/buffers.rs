@@ -1,7 +1,9 @@
 use crate::InstructionSelectionInput;
 use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
-use omega_runtime_text::places::expression_place_eq;
+use omega_runtime_text::places::{
+    expression_name_with_suffix_eq_in_table, expression_place_eq, expression_place_eq_in_table,
+};
 use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
 use omega_typed_program::name::ProgramName;
@@ -27,9 +29,10 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .slots
         .iter()
         .find(|(_, slot)| {
-            expression_place_eq(
-                &input.runtime_text.expressions.to_tree(slot.place),
-                &input.runtime_text.expressions.to_tree(text_use.expression),
+            expression_place_eq_in_table(
+                &input.runtime_text.expressions,
+                slot.place,
+                text_use.expression,
             ) && slot.has_input_buffer
         })
         .map(|(_, slot)| slot)?;
@@ -39,13 +42,12 @@ pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data
         .buffers
         .iter()
         .find(|(_, buffer)| {
-            text_place_for_buffer_target(&input.runtime_text.expressions.to_tree(buffer.target))
-                .is_some_and(|place| {
-                    expression_place_eq(
-                        &place,
-                        &input.runtime_text.expressions.to_tree(text_slot.place),
-                    )
-                })
+            expression_name_with_suffix_eq_in_table(
+                &input.runtime_text.expressions,
+                buffer.target,
+                text_slot.place,
+                "text",
+            )
         })
         .map(|(_, buffer)| buffer)?;
 
