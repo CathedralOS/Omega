@@ -51,12 +51,12 @@ pub(super) fn state_call_for_operation(
 pub(super) fn state_parameters(
     context: &RuntimeBranchingContext,
     state_key: StateKey,
-) -> Vec<StateParameterFlow> {
+) -> &[StateParameterFlow] {
     context
         .control_flow
         .state_by_key(state_key)
-        .map(|state| state.parameters.to_vec())
-        .unwrap_or_default()
+        .map(|state| state.parameters.as_slice())
+        .unwrap_or(&[])
 }
 
 pub(super) fn state_statement_has_host_call(

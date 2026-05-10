@@ -161,7 +161,7 @@ fn leaf_branch_bindings<'a>(
         let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
         bindings.push(RuntimeLeafBranchBinding {
             parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name,
+            parameter_name: parameter.name.clone(),
             expression: expression_table.insert_tree(&expression),
             kind: RuntimeLeafBranchBindingKind::LeafParameter,
         });
@@ -197,7 +197,7 @@ fn straight_line_branch_bindings<'a>(
         let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
         bindings.push(RuntimeStraightLineBranchBinding {
             parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name,
+            parameter_name: parameter.name.clone(),
             expression: expression_table.insert_tree(&expression),
             kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
         });

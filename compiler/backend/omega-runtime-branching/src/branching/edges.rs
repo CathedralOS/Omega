@@ -59,15 +59,14 @@ fn transition_target_arguments(
     expressions: &mut ExpressionTable,
     arena: &mut Arena<ExpressionHandle>,
 ) -> HandleSpan<ExpressionHandle> {
-    let copied = context
-        .control_flow
-        .expressions
-        .expression_handles(arguments)
-        .iter()
-        .map(|argument| expressions.copy_from(&context.control_flow.expressions, *argument))
-        .collect::<Vec<_>>();
-
-    arena.insert_many(copied)
+    arena.insert_many(
+        context
+            .control_flow
+            .expressions
+            .expression_handles(arguments)
+            .iter()
+            .map(|argument| expressions.copy_from(&context.control_flow.expressions, *argument)),
+    )
 }
 
 fn branch_target_lowering(
