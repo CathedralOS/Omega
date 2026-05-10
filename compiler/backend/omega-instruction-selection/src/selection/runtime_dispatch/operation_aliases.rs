@@ -3,7 +3,8 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 use omega_typed_program::expression::ExpressionTable;
 
 use super::super::bindings::{
-    RuntimeAliasBinding, resolve_runtime_alias_binding, set_runtime_alias, strip_mutable_expression,
+    RuntimeAliasBinding, resolve_runtime_alias_binding_handle, set_runtime_alias,
+    strip_mutable_expression_handle,
 };
 use super::super::lookups::state_call_for_statement;
 
@@ -33,15 +34,16 @@ pub(super) fn bind_runtime_operation_aliases(
     };
 
     for argument in arguments {
-        let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
-        let resolved_expression = resolve_runtime_alias_binding(
-            &argument_expression,
+        let argument_expression =
+            alias_expressions.copy_from(&input.state_calls.expressions, argument.expression);
+        let resolved_expression = resolve_runtime_alias_binding_handle(
+            argument_expression,
             state_call.source_key,
             aliases,
             alias_expressions,
         );
-        let expression = strip_mutable_expression(resolved_expression.expression);
-        let expression = alias_expressions.insert_tree(&expression);
+        let expression =
+            strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {

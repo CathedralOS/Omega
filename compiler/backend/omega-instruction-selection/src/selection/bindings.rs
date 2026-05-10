@@ -1,6 +1,9 @@
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_typed_program::expression::{
+    Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    TableIndexedExpression, TableNamePath,
+};
 use omega_typed_program::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
@@ -24,6 +27,12 @@ pub(super) struct RuntimeResolvedExpression {
     pub(super) expression: Expression,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimeResolvedExpressionHandle {
+    pub(super) source_key: StateKey,
+    pub(super) expression: ExpressionHandle,
+}
+
 pub(super) fn set_runtime_alias(
     aliases: &mut Vec<RuntimeAliasBinding>,
     alias: RuntimeAliasBinding,
@@ -41,6 +50,16 @@ pub(super) fn set_runtime_alias(
 pub(super) fn strip_mutable_expression(expression: Expression) -> Expression {
     match expression {
         Expression::Mutable(target) => *target,
+        _ => expression,
+    }
+}
+
+pub(super) fn strip_mutable_expression_handle(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> ExpressionHandle {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => *target,
         _ => expression,
     }
 }
@@ -112,6 +131,67 @@ pub(super) fn resolve_runtime_alias_binding(
     }
 }
 
+pub(super) fn resolve_runtime_alias_binding_handle(
+    expression: ExpressionHandle,
+    source_key: StateKey,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &mut ExpressionTable,
+) -> RuntimeResolvedExpressionHandle {
+    match alias_expressions.expression(expression).clone() {
+        ExpressionNode::Mutable(target) => {
+            let resolved = resolve_runtime_alias_binding_handle(
+                target,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            RuntimeResolvedExpressionHandle {
+                source_key: resolved.source_key,
+                expression: alias_expressions.insert(ExpressionNode::Mutable(resolved.expression)),
+            }
+        }
+        ExpressionNode::Indexed(TableIndexedExpression { collection, index }) => {
+            let collection = resolve_runtime_alias_binding_handle(
+                collection,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            let index =
+                resolve_runtime_alias_binding_handle(index, source_key, aliases, alias_expressions);
+            RuntimeResolvedExpressionHandle {
+                source_key: collection.source_key,
+                expression: alias_expressions.insert(ExpressionNode::Indexed(
+                    TableIndexedExpression {
+                        collection: collection.expression,
+                        index: index.expression,
+                    },
+                )),
+            }
+        }
+        ExpressionNode::Name(path) if path.members.count() > 0 => aliases
+            .iter()
+            .rev()
+            .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
+            .map(|alias| RuntimeResolvedExpressionHandle {
+                source_key: alias.expression_source_key,
+                expression: alias_expressions.insert_copy_with_member_suffix(
+                    alias.expression,
+                    path.members,
+                    1,
+                ),
+            })
+            .unwrap_or(RuntimeResolvedExpressionHandle {
+                source_key,
+                expression,
+            }),
+        _ => RuntimeResolvedExpressionHandle {
+            source_key,
+            expression,
+        },
+    }
+}
+
 pub(super) fn resolve_leaf_binding_expression(
     table: &ExpressionTable,
     expression: &Expression,
@@ -176,6 +256,12 @@ pub(super) fn resolve_straight_line_binding_expression(
 
 fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
     symbol_matches_path(alias.parameter_symbol, path)
+}
+
+fn alias_matches_table_path(alias: &RuntimeAliasBinding, path: &TableNamePath) -> bool {
+    alias.parameter_symbol.is_valid()
+        && path.head_symbol.is_valid()
+        && alias.parameter_symbol == path.head_symbol
 }
 
 fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {
