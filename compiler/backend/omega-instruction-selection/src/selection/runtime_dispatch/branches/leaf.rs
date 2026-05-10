@@ -37,12 +37,6 @@ fn select_runtime_leaf_branch_expansion(
     expansion: &RuntimeLeafBranchExpansion,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let mut mutation_writes = Vec::new();
-    select_runtime_leaf_branch_mutation_writes(input, expansion, &mut mutation_writes);
-    if mutation_writes.is_empty() {
-        return;
-    }
-
     if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion) {
         selected_instructions.push(SelectedInstruction {
             kind: guard,
@@ -52,7 +46,12 @@ fn select_runtime_leaf_branch_expansion(
     } else {
         return;
     }
-    selected_instructions.extend(mutation_writes);
+
+    let write_start = selected_instructions.len();
+    select_runtime_leaf_branch_mutation_writes(input, expansion, selected_instructions);
+    if selected_instructions.len() == write_start {
+        selected_instructions.pop();
+    }
 }
 
 fn select_runtime_leaf_branch_mutation_writes(
