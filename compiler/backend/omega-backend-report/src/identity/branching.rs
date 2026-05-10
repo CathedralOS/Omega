@@ -1,8 +1,7 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
 use crate::identity::expressions::{
-    count_control_flow_expression_strings, count_expression_span_strings, count_expression_strings,
-    count_guard_strings,
+    count_control_flow_expression_strings, count_expression_span_strings, count_guard_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
 use omega_runtime_branching::{
@@ -25,7 +24,11 @@ pub(in crate::identity) fn count_runtime_branching_strings(
     }
     for (_, binding) in backend_plan.runtime_branching_calls.leaf_bindings.iter() {
         storage.count_program_name_identity(&binding.parameter_name);
-        count_expression_strings(&binding.expression, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.runtime_branching_calls.expressions,
+            binding.expression,
+            storage,
+        );
     }
     for (_, operation) in backend_plan.runtime_branching_calls.leaf_operations.iter() {
         match &operation.kind {
@@ -61,7 +64,11 @@ pub(in crate::identity) fn count_runtime_branching_strings(
         .iter()
     {
         storage.count_program_name_identity(&binding.parameter_name);
-        count_expression_strings(&binding.expression, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.runtime_branching_calls.expressions,
+            binding.expression,
+            storage,
+        );
     }
     for (_, operation) in backend_plan
         .runtime_branching_calls

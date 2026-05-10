@@ -961,7 +961,10 @@ pub fn backend_report_text(
                             "    - {:?} `{}` = `{}`\n",
                             binding.kind,
                             binding.parameter_name,
-                            binding.expression.display_name()
+                            backend_plan
+                                .runtime_branching_calls
+                                .expressions
+                                .display_name(binding.expression)
                         ));
                     }
                 }
@@ -1057,7 +1060,10 @@ pub fn backend_report_text(
                             "    - {:?} `{}` = `{}`\n",
                             binding.kind,
                             binding.parameter_name,
-                            binding.expression.display_name()
+                            backend_plan
+                                .runtime_branching_calls
+                                .expressions
+                                .display_name(binding.expression)
                         ));
                     }
                 }

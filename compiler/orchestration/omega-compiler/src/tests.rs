@@ -2107,7 +2107,11 @@ fn plans_runtime_straight_line_branch_expansion() {
         binding.kind
             == omega_runtime_branching::RuntimeStraightLineBranchBindingKind::TargetParameter
             && binding.parameter_name == "out_selected"
-            && binding.expression.display_name() == "mut selected"
+            && backend_plan
+                .runtime_branching_calls
+                .expressions
+                .display_name(binding.expression)
+                == "mut selected"
     }));
     assert!(operations.iter().any(|operation| matches!(
         operation.kind,
@@ -2214,12 +2218,20 @@ fn plans_runtime_leaf_branch_argument_bindings() {
     assert!(bindings.iter().any(|binding| {
         binding.kind == omega_runtime_branching::RuntimeLeafBranchBindingKind::BranchParameter
             && binding.parameter_name == "cell"
-            && binding.expression.display_name() == "first"
+            && backend_plan
+                .runtime_branching_calls
+                .expressions
+                .display_name(binding.expression)
+                == "first"
     }));
     assert!(bindings.iter().any(|binding| {
         binding.kind == omega_runtime_branching::RuntimeLeafBranchBindingKind::LeafParameter
             && binding.parameter_name == "out_cell"
-            && binding.expression.display_name() == "mut selected"
+            && backend_plan
+                .runtime_branching_calls
+                .expressions
+                .display_name(binding.expression)
+                == "mut selected"
     }));
 }
 

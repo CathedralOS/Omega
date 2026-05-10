@@ -46,10 +46,9 @@ pub(super) fn append_leaf_branch_expansions(
             &branch_bindings,
             context,
             *leaf_key,
-            &plan.expressions,
+            &mut plan.expressions,
             &leaf_arguments,
-        )
-        .collect::<Vec<_>>();
+        );
         let bindings = plan.leaf_bindings.insert_many(bindings);
         let operations = plan.leaf_operations.insert_many(leaf_operations(
             context,
@@ -106,10 +105,9 @@ pub(super) fn append_straight_line_branch_expansions(
             &branch_bindings,
             context,
             *target_key,
-            &plan.expressions,
+            &mut plan.expressions,
             &target_arguments,
-        )
-        .collect::<Vec<_>>();
+        );
         let bindings = plan.straight_line_bindings.insert_many(bindings);
         let operations = plan
             .straight_line_operations
@@ -140,68 +138,70 @@ fn leaf_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
     context: &RuntimeBranchingContext,
     leaf_key: StateKey,
-    expression_table: &'a ExpressionTable,
+    expression_table: &mut ExpressionTable,
     leaf_arguments: &'a [ExpressionHandle],
-) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
-    let branch_parameter_bindings =
-        branch_bindings
-            .iter()
-            .map(|binding| RuntimeLeafBranchBinding {
-                parameter_symbol: binding.parameter_symbol,
-                parameter_name: binding.parameter_name.clone(),
-                expression: binding.expression.clone(),
-                kind: RuntimeLeafBranchBindingKind::BranchParameter,
-            });
+) -> Vec<RuntimeLeafBranchBinding> {
+    let mut bindings = Vec::new();
+
+    for binding in branch_bindings {
+        bindings.push(RuntimeLeafBranchBinding {
+            parameter_symbol: binding.parameter_symbol,
+            parameter_name: binding.parameter_name.clone(),
+            expression: expression_table.insert_tree(&binding.expression),
+            kind: RuntimeLeafBranchBindingKind::BranchParameter,
+        });
+    }
 
     let leaf_parameters = state_parameters(context, leaf_key);
-    let leaf_parameter_bindings =
-        leaf_parameters
-            .into_iter()
-            .enumerate()
-            .filter_map(move |(parameter_index, parameter)| {
-                let expression = leaf_arguments.get(parameter_index)?;
-                let expression = expression_table.to_tree(*expression);
-                Some(RuntimeLeafBranchBinding {
-                    parameter_symbol: parameter.symbol,
-                    parameter_name: parameter.name,
-                    expression: resolve_branch_expression(&expression, branch_bindings),
-                    kind: RuntimeLeafBranchBindingKind::LeafParameter,
-                })
-            });
+    for (parameter_index, parameter) in leaf_parameters.into_iter().enumerate() {
+        let Some(expression) = leaf_arguments.get(parameter_index) else {
+            continue;
+        };
+        let expression = expression_table.to_tree(*expression);
+        let expression = resolve_branch_expression(&expression, branch_bindings);
+        bindings.push(RuntimeLeafBranchBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name,
+            expression: expression_table.insert_tree(&expression),
+            kind: RuntimeLeafBranchBindingKind::LeafParameter,
+        });
+    }
 
-    branch_parameter_bindings.chain(leaf_parameter_bindings)
+    bindings
 }
 
 fn straight_line_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
     context: &RuntimeBranchingContext,
     target_key: StateKey,
-    expression_table: &'a ExpressionTable,
+    expression_table: &mut ExpressionTable,
     target_arguments: &'a [ExpressionHandle],
-) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
-    let branch_parameter_bindings =
-        branch_bindings
-            .iter()
-            .map(|binding| RuntimeStraightLineBranchBinding {
-                parameter_symbol: binding.parameter_symbol,
-                parameter_name: binding.parameter_name.clone(),
-                expression: binding.expression.clone(),
-                kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
-            });
+) -> Vec<RuntimeStraightLineBranchBinding> {
+    let mut bindings = Vec::new();
+
+    for binding in branch_bindings {
+        bindings.push(RuntimeStraightLineBranchBinding {
+            parameter_symbol: binding.parameter_symbol,
+            parameter_name: binding.parameter_name.clone(),
+            expression: expression_table.insert_tree(&binding.expression),
+            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+        });
+    }
 
     let target_parameters = state_parameters(context, target_key);
-    let target_parameter_bindings = target_parameters.into_iter().enumerate().filter_map(
-        move |(parameter_index, parameter)| {
-            let expression = target_arguments.get(parameter_index)?;
-            let expression = expression_table.to_tree(*expression);
-            Some(RuntimeStraightLineBranchBinding {
-                parameter_symbol: parameter.symbol,
-                parameter_name: parameter.name,
-                expression: resolve_branch_expression(&expression, branch_bindings),
-                kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
-            })
-        },
-    );
+    for (parameter_index, parameter) in target_parameters.into_iter().enumerate() {
+        let Some(expression) = target_arguments.get(parameter_index) else {
+            continue;
+        };
+        let expression = expression_table.to_tree(*expression);
+        let expression = resolve_branch_expression(&expression, branch_bindings);
+        bindings.push(RuntimeStraightLineBranchBinding {
+            parameter_symbol: parameter.symbol,
+            parameter_name: parameter.name,
+            expression: expression_table.insert_tree(&expression),
+            kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
+        });
+    }
 
-    branch_parameter_bindings.chain(target_parameter_bindings)
+    bindings
 }

@@ -1,6 +1,6 @@
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, NamePath};
+use omega_typed_program::expression::{Expression, ExpressionTable, NamePath};
 use omega_typed_program::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
@@ -100,12 +100,13 @@ pub(super) fn resolve_runtime_alias_binding(
 }
 
 pub(super) fn resolve_leaf_binding_expression(
+    table: &ExpressionTable,
     expression: &Expression,
     bindings: &[RuntimeLeafBranchBinding],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
-            let resolved_target = resolve_leaf_binding_expression(target, bindings);
+            let resolved_target = resolve_leaf_binding_expression(table, target, bindings);
             if matches!(resolved_target, Expression::Mutable(_)) {
                 resolved_target
             } else {
@@ -123,19 +124,20 @@ pub(super) fn resolve_leaf_binding_expression(
                     .iter()
                     .find(|binding| leaf_binding_matches_path(binding, path))
             })
-            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
+            .map(|binding| append_place_suffix(&table.to_tree(binding.expression), &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
     }
 }
 
 pub(super) fn resolve_straight_line_binding_expression(
+    table: &ExpressionTable,
     expression: &Expression,
     bindings: &[RuntimeStraightLineBranchBinding],
 ) -> Expression {
     match expression {
         Expression::Mutable(target) => {
-            let resolved_target = resolve_straight_line_binding_expression(target, bindings);
+            let resolved_target = resolve_straight_line_binding_expression(table, target, bindings);
             if matches!(resolved_target, Expression::Mutable(_)) {
                 resolved_target
             } else {
@@ -153,7 +155,7 @@ pub(super) fn resolve_straight_line_binding_expression(
                     .iter()
                     .find(|binding| straight_line_binding_matches_path(binding, path))
             })
-            .map(|binding| append_place_suffix(&binding.expression, &path[1..]))
+            .map(|binding| append_place_suffix(&table.to_tree(binding.expression), &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
     }

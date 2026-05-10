@@ -4,7 +4,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_state_calls::StateCallLowering;
 use omega_state_guards::StateGuardKind;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_typed_program::expression::{Expression, ExpressionHandle};
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
@@ -45,7 +45,7 @@ impl Default for RuntimeStraightLineBranchExpansion {
 pub struct RuntimeStraightLineBranchBinding {
     pub parameter_symbol: SymbolHandle,
     pub parameter_name: ProgramName,
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub kind: RuntimeStraightLineBranchBindingKind,
 }
 
@@ -54,7 +54,7 @@ impl Default for RuntimeStraightLineBranchBinding {
         Self {
             parameter_symbol: SymbolHandle::invalid(),
             parameter_name: ProgramName::default(),
-            expression: Expression::Integer(0),
+            expression: ExpressionHandle::invalid(),
             kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
         }
     }

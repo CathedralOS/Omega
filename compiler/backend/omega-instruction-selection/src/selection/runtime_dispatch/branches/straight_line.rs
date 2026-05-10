@@ -6,6 +6,7 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
     RuntimeStraightLineBranchOperationKind,
 };
+use omega_typed_program::expression::ExpressionTable;
 use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::{
@@ -72,8 +73,16 @@ fn select_runtime_straight_line_branch_writes(
             RuntimeStraightLineBranchOperationKind::Mutation { target, value, .. } => {
                 let target = input.runtime_branching_calls.expressions.to_tree(*target);
                 let value = input.runtime_branching_calls.expressions.to_tree(*value);
-                let resolved_target = resolve_straight_line_binding_expression(&target, bindings);
-                let resolved_value = resolve_straight_line_binding_expression(&value, bindings);
+                let resolved_target = resolve_straight_line_binding_expression(
+                    &input.runtime_branching_calls.expressions,
+                    &target,
+                    bindings,
+                );
+                let resolved_value = resolve_straight_line_binding_expression(
+                    &input.runtime_branching_calls.expressions,
+                    &value,
+                    bindings,
+                );
                 let (operation_machine, operation_state) = state_names(input, operation.source_key);
                 select_runtime_resolved_mutation_write(
                     input,
@@ -127,19 +136,22 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         return;
     };
     let leaf_parameters = state_parameters(input, target_key);
+    let mut leaf_binding_expressions = ExpressionTable::new();
     let leaf_bindings = leaf_parameters
         .iter()
         .enumerate()
         .filter_map(|(parameter_index, parameter)| {
             let argument = arguments.get(parameter_index)?;
             let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
+            let expression = resolve_straight_line_binding_expression(
+                &input.runtime_branching_calls.expressions,
+                &argument_expression,
+                straight_line_bindings,
+            );
             Some(RuntimeLeafBranchBinding {
                 parameter_symbol: parameter.symbol,
                 parameter_name: parameter.name.clone(),
-                expression: resolve_straight_line_binding_expression(
-                    &argument_expression,
-                    straight_line_bindings,
-                ),
+                expression: leaf_binding_expressions.insert_tree(&expression),
                 kind: RuntimeLeafBranchBindingKind::LeafParameter,
             })
         })
@@ -157,8 +169,16 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         };
         let mutation_target = input.state_storage.expressions.to_tree(mutation.target);
         let mutation_value = input.state_storage.expressions.to_tree(mutation.value);
-        let resolved_target = resolve_leaf_binding_expression(&mutation_target, &leaf_bindings);
-        let resolved_value = resolve_leaf_binding_expression(&mutation_value, &leaf_bindings);
+        let resolved_target = resolve_leaf_binding_expression(
+            &leaf_binding_expressions,
+            &mutation_target,
+            &leaf_bindings,
+        );
+        let resolved_value = resolve_leaf_binding_expression(
+            &leaf_binding_expressions,
+            &mutation_value,
+            &leaf_bindings,
+        );
         select_runtime_resolved_mutation_write(
             input,
             expansion.dispatch_index,

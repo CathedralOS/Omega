@@ -79,8 +79,16 @@ fn select_runtime_leaf_branch_mutation_writes(
         };
         let target = input.runtime_branching_calls.expressions.to_tree(*target);
         let value = input.runtime_branching_calls.expressions.to_tree(*value);
-        let resolved_target = resolve_leaf_binding_expression(&target, bindings);
-        let resolved_value = resolve_leaf_binding_expression(&value, bindings);
+        let resolved_target = resolve_leaf_binding_expression(
+            &input.runtime_branching_calls.expressions,
+            &target,
+            bindings,
+        );
+        let resolved_value = resolve_leaf_binding_expression(
+            &input.runtime_branching_calls.expressions,
+            &value,
+            bindings,
+        );
 
         if let Some((byte_offset, byte_size, value)) =
             runtime_leaf_machine_integer_write(input, expansion, &resolved_target, &resolved_value)
@@ -106,7 +114,13 @@ fn select_runtime_leaf_branch_mutation_writes(
             &operation_state,
             operation.statement_index,
             &resolved_target,
-            &|expression| resolve_leaf_binding_expression(expression, bindings),
+            &|expression| {
+                resolve_leaf_binding_expression(
+                    &input.runtime_branching_calls.expressions,
+                    expression,
+                    bindings,
+                )
+            },
         ) {
             for kind in instructions {
                 selected_instructions.push(SelectedInstruction {
