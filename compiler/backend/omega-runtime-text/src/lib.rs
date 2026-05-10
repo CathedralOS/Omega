@@ -9,6 +9,7 @@ pub use model::{
     RuntimeTextBuilderSegmentKind, RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource,
     RuntimeTextUse, RuntimeTextWrite, RuntimeTextWriteKind,
 };
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_typed_program::expression::{
@@ -55,21 +56,21 @@ fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut Runt
 }
 
 fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
-    let writes = plan
-        .writes
-        .iter()
-        .map(|(_, write)| write.clone())
-        .collect::<Vec<_>>();
+    let RuntimeTextPlan {
+        expressions,
+        writes,
+        builders,
+        builder_segments,
+        ..
+    } = plan;
 
-    for write in writes {
+    for (_, write) in writes.iter() {
         if write.kind != RuntimeTextWriteKind::GeneratedString {
             continue;
         }
 
-        let mut segments = Vec::new();
-        collect_builder_segments(plan, write.value, &mut segments);
-        let segment_span = plan.builder_segments.insert_many(segments);
-        plan.builders.insert(RuntimeTextBuilder {
+        let segment_span = collect_builder_segments(expressions, builder_segments, write.value);
+        builders.insert(RuntimeTextBuilder {
             source_key: write.source_key,
             statement_index: write.statement_index,
             target: write.target,
@@ -79,29 +80,60 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
 }
 
 fn collect_builder_segments(
-    plan: &RuntimeTextPlan,
+    expressions: &ExpressionTable,
+    builder_segments: &mut Arena<RuntimeTextBuilderSegment>,
     expression: ExpressionHandle,
-    segments: &mut Vec<RuntimeTextBuilderSegment>,
+) -> HandleSpan<RuntimeTextBuilderSegment> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    append_builder_segments(
+        expressions,
+        builder_segments,
+        expression,
+        &mut start,
+        &mut count,
+    );
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    }
+}
+
+fn append_builder_segments(
+    expressions: &ExpressionTable,
+    builder_segments: &mut Arena<RuntimeTextBuilderSegment>,
+    expression: ExpressionHandle,
+    start: &mut Handle<RuntimeTextBuilderSegment>,
+    count: &mut u32,
 ) {
-    if let ExpressionNode::Binary(binary) = plan.expressions.expression(expression)
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression)
         && binary.operator == BinaryOperator::Add
     {
-        collect_builder_segments(plan, binary.left, segments);
-        collect_builder_segments(plan, binary.right, segments);
+        append_builder_segments(expressions, builder_segments, binary.left, start, count);
+        append_builder_segments(expressions, builder_segments, binary.right, start, count);
         return;
     }
 
-    segments.push(RuntimeTextBuilderSegment {
+    let handle = builder_segments.append(RuntimeTextBuilderSegment {
         expression,
-        kind: classify_runtime_text_builder_segment(plan, expression),
+        kind: classify_runtime_text_builder_segment(expressions, expression),
     });
+    if *count == 0 {
+        *start = handle;
+    }
+    *count = count
+        .checked_add(1)
+        .expect("runtime text builder segment span count overflow");
 }
 
 fn classify_runtime_text_builder_segment(
-    plan: &RuntimeTextPlan,
+    expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> RuntimeTextBuilderSegmentKind {
-    match plan.expressions.expression(expression) {
+    match expressions.expression(expression) {
         ExpressionNode::String(_) => RuntimeTextBuilderSegmentKind::StaticText,
         ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => {
             RuntimeTextBuilderSegmentKind::StoredPlace
