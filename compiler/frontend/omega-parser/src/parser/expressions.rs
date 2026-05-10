@@ -26,7 +26,7 @@ impl Parser<'_, '_> {
             path.push(self.expect_identifier()?);
         }
 
-        if self.check("{") && path.len() == 1 {
+        if self.brace_starts_struct_literal() && path.len() == 1 {
             let expression = self.parse_struct_literal(
                 path.into_iter()
                     .next()
@@ -356,7 +356,7 @@ impl Parser<'_, '_> {
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_identifier()?);
                     }
-                    if self.check("{") && path.len() == 1 {
+                    if self.brace_starts_struct_literal() && path.len() == 1 {
                         self.parse_struct_literal(
                             path.into_iter()
                                 .next()

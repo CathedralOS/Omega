@@ -194,6 +194,26 @@ impl Parser<'_, '_> {
         }
     }
 
+    fn brace_starts_struct_literal(&self) -> bool {
+        if !self.check("{") {
+            return false;
+        }
+
+        let Some(next) = self.tokens.get(self.index + 1) else {
+            return false;
+        };
+
+        if next.lexeme.as_str() == "}" {
+            return true;
+        }
+
+        next.kind == TokenKind::Identifier
+            && self
+                .tokens
+                .get(self.index + 2)
+                .is_some_and(|token| token.lexeme.as_str() == ":")
+    }
+
     fn expect(&mut self, lexeme: &str) -> Result<(), ParseError> {
         if self.consume(lexeme) {
             Ok(())
@@ -473,5 +493,40 @@ mod tests {
             machine.states[1].return_type,
             Some(omega_abstract_syntax_tree::types::TypeReference::named("u64"))
         );
+    }
+
+    #[test]
+    fn parses_boolean_transition_block_with_recursive_call_target() {
+        let tokens = Lexer::new(
+            r#"
+            machine for RoomFormatter {
+                state append_exit(
+                    &mut self,
+                    exits: &[Exit],
+                    exit_count: usize[positive],
+                    out_line: &mut ConsoleLine,
+                    index: IndexOf<exits>
+                ) {
+                    let next_index: usize = index + 1;
+
+                    transition next_index < exit_count {
+                        true -> append_exit(exits, exit_count, out_line, next_index)
+                        false -> {}
+                    }
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+
+        let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected machine item");
+        };
+
+        assert_eq!(machine.states.len(), 1);
+        assert_eq!(machine.states[0].statements.len(), 3);
     }
 }
