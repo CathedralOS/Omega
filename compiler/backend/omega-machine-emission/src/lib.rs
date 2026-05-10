@@ -68,7 +68,6 @@ fn emit_function_bytes(
         return Ok(());
     };
 
-    let machine_instructions = machine_instructions.to_vec();
     let emission_context = MachineEmissionContext {
         target,
         instructions,
