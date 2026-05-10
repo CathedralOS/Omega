@@ -260,6 +260,19 @@ impl Parser<'_, '_> {
     }
 
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
+        if self.check_kind(TokenKind::Integer)
+            || self.check_kind(TokenKind::Float)
+            || self.check_kind(TokenKind::String)
+            || self.check("[")
+            || self.check("(")
+            || self.check("&")
+            || self.check("mut")
+            || self.check("true")
+            || self.check("false")
+        {
+            return Ok(TransitionTarget::Value(self.parse_expression()?));
+        }
+
         if self.consume("self") {
             if !self.check(".") {
                 if self.consume("(") {

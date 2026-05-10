@@ -219,6 +219,7 @@ fn count_transition_target(target: &TransitionTarget, counts: &mut AstIdentitySt
                 count_expression(argument, counts);
             }
         }
+        TransitionTarget::Value(expression) => count_expression(expression, counts),
         TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
     }
 }

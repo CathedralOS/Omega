@@ -226,6 +226,9 @@ fn count_transition_target_node(
                 count_expression_handle(expressions, *argument, counts);
             }
         }
+        TransitionTargetNode::Value(expression) => {
+            count_expression_handle(expressions, *expression, counts);
+        }
         TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
     }
 }

@@ -1957,6 +1957,9 @@ fn lower_transition_target(
                     .collect::<Result<Vec<_>, Diagnostic>>()?,
             })
         }
+        ast::statement::TransitionTarget::Value(expression) => {
+            Ok(TransitionTarget::Value(lower_expression(expression)?))
+        }
         ast::statement::TransitionTarget::SelfTarget => Ok(TransitionTarget::SelfTarget),
         ast::statement::TransitionTarget::Terminal => Ok(TransitionTarget::Terminal),
     }

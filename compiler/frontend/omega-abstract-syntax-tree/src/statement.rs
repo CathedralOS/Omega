@@ -52,6 +52,7 @@ pub enum TransitionTarget {
         path: IdentifierPath,
         arguments: Vec<crate::expression::Expression>,
     },
+    Value(crate::expression::Expression),
     SelfTarget,
     Terminal,
 }
@@ -228,6 +229,9 @@ impl StatementTable {
                 path: self.insert_identifier_path_members(path),
                 arguments: self.insert_expression_handle_span_from_trees(arguments, expressions),
             },
+            TransitionTarget::Value(expression) => {
+                TransitionTargetNode::Value(expressions.insert_tree(expression))
+            }
             TransitionTarget::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
@@ -326,6 +330,7 @@ pub enum TransitionTargetNode {
         path: HandleSpan<Identifier>,
         arguments: HandleSpan<crate::expression::ExpressionHandle>,
     },
+    Value(crate::expression::ExpressionHandle),
     SelfTarget,
     Terminal,
 }
