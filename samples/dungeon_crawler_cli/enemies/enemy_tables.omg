@@ -17,7 +17,13 @@ machine EnemyTables {
     }
 
     fn tier_for_depth(depth: u32[exact, non_negative]) -> EnemyTier {
-        match (depth <= 1, depth <= 2, depth <= 4, depth <= 6, depth <= 8) {
+        let is_bat_depth: bool = depth <= 1;
+        let is_spider_depth: bool = depth <= 2;
+        let is_skeleton_depth: bool = depth <= 4;
+        let is_cultist_depth: bool = depth <= 6;
+        let is_hellhound_depth: bool = depth <= 8;
+
+        match (is_bat_depth, is_spider_depth, is_skeleton_depth, is_cultist_depth, is_hellhound_depth) {
             (true, _, _, _, _) -> EnemyTier::Bat
             (false, true, _, _, _) -> EnemyTier::Spider
             (false, false, true, _, _) -> EnemyTier::Skeleton

@@ -22,7 +22,11 @@ machine RoomEvents {
     }
 
     fn event_action(roll: u32[exact, range<0, 100>]) -> RoomEventAction {
-        match (roll < 20, roll < 30, roll < 60) {
+        let is_quiet: bool = roll < 20;
+        let is_fountain: bool = roll < 30;
+        let is_reward: bool = roll < 60;
+
+        match (is_quiet, is_fountain, is_reward) {
             (true, _, _) -> RoomEventAction::Quiet
             (false, true, _) -> RoomEventAction::Fountain
             (false, false, true) -> RoomEventAction::Reward

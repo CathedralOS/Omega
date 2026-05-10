@@ -42,7 +42,10 @@ machine InventorySystem {
     }
 
     fn find_item_at(inventory: &Inventory, kind: ItemKind, index: usize) -> Option<usize> {
-        match (inventory.items[index].kind == kind, index + 1 < inventory.items.len()) {
+        let found: bool = inventory.items[index].kind == kind;
+        let has_next: bool = index + 1 < inventory.items.len();
+
+        match (found, has_next) {
             (true, _) -> index
             (false, true) -> find_item_at(inventory, kind, index + 1)
             (false, false) -> None

@@ -14,7 +14,10 @@ machine RoomLookup {
     }
 
     state find_room_at(level: Level, cell: CellId, out_room: &mut Room, index: usize) {
-        transition (level.rooms[index].cell == cell, index + 1 < level.room_count) {
+        let found: bool = level.rooms[index].cell == cell;
+        let has_next: bool = index + 1 < level.room_count;
+
+        transition (found, has_next) {
             (true, _) -> apply_room(level.rooms[index], out_room)
             (false, true) -> find_room_at(level, cell, out_room, index + 1)
             (false, false) -> {}
@@ -22,7 +25,10 @@ machine RoomLookup {
     }
 
     fn find_room_mut_at(level: &mut Level, cell: CellId, index: usize) -> &mut Room {
-        match (level.rooms[index].cell == cell, index + 1 < level.room_count) {
+        let found: bool = level.rooms[index].cell == cell;
+        let has_next: bool = index + 1 < level.room_count;
+
+        match (found, has_next) {
             (true, _) -> &mut level.rooms[index]
             (false, true) -> find_room_mut_at(level, cell, index + 1)
             (false, false) -> &mut level.rooms[0]
