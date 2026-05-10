@@ -133,11 +133,11 @@ pub fn build_state_call_plan_with_workers(
         let arguments = build_call_arguments(
             &context,
             &mut plan.expressions,
+            &mut plan.arguments,
             call.target_key,
             call.required,
             call.raw_arguments,
         );
-        let arguments = plan.arguments.insert_many(arguments);
 
         plan.calls.insert(StateCall {
             source_key: call.source_key,
