@@ -7,7 +7,6 @@ use omega_runtime_text::places::{
 };
 use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
@@ -83,15 +82,4 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
         data_object.source_key == buffer.source_key
             && data_object.source_statement == buffer.statement_index
     })
-}
-
-pub(super) fn text_expression_for_buffer_target(target: &Expression) -> Option<Expression> {
-    match target {
-        Expression::Name(path) => {
-            let mut text_path = path.clone();
-            text_path.push(ProgramName::generated("text"));
-            Some(Expression::Name(text_path))
-        }
-        _ => None,
-    }
 }
