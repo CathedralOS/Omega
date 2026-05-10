@@ -11,6 +11,7 @@ pub enum Expression {
     ArrayLiteral(Vec<Expression>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
+    Call(Box<CallExpression>),
     Float(FloatLiteral),
     Indexed(Box<IndexedExpression>),
     Integer(i64),
@@ -102,6 +103,21 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
+            ExpressionNode::Call(call) => {
+                let receiver = call
+                    .receiver
+                    .is_valid()
+                    .then(|| self.copy_from(source, call.receiver))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let arguments =
+                    self.copy_expression_handles_from(source, call.arguments);
+                self.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    arguments,
+                }))
+            }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(*value)),
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from(source, indexed.collection);
@@ -479,6 +495,20 @@ impl ExpressionTable {
                 }))
             }
             Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
+            Expression::Call(call) => {
+                let receiver = call
+                    .receiver
+                    .as_ref()
+                    .map(|receiver| self.insert_tree(receiver))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
+                self.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target.clone(),
+                    arguments,
+                }))
+            }
             Expression::Float(value) => self.insert(ExpressionNode::Float(*value)),
             Expression::Indexed(indexed) => {
                 let collection = self.insert_tree(&indexed.collection);
@@ -526,6 +556,19 @@ impl ExpressionTable {
                 right: self.to_tree(binary.right),
             })),
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
+            ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
+                receiver: call
+                    .receiver
+                    .is_valid()
+                    .then(|| Box::new(self.to_tree(call.receiver))),
+                target_symbol: call.target_symbol,
+                target: call.target.clone(),
+                arguments: self
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| self.to_tree(*argument))
+                    .collect(),
+            })),
             ExpressionNode::Float(value) => Expression::Float(*value),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
                 collection: self.to_tree(indexed.collection),
@@ -634,6 +677,7 @@ pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Binary(TableBinaryExpression),
     Boolean(bool),
+    Call(TableCallExpression),
     Float(FloatLiteral),
     Indexed(TableIndexedExpression),
     Integer(i64),
@@ -660,6 +704,22 @@ pub struct TableBinaryExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallExpression {
+    pub receiver: Option<Box<Expression>>,
+    pub target_symbol: SymbolHandle,
+    pub target: ProgramName,
+    pub arguments: Vec<Expression>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableCallExpression {
+    pub receiver: ExpressionHandle,
+    pub target_symbol: SymbolHandle,
+    pub target: ProgramName,
+    pub arguments: HandleSpan<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -839,13 +899,16 @@ pub struct BinaryExpression {
 pub enum BinaryOperator {
     Add,
     And,
+    Divide,
     Equal,
     Greater,
     GreaterOrEqual,
     Less,
     LessOrEqual,
+    Multiply,
     NotEqual,
     Or,
+    Subtract,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -874,6 +937,7 @@ impl Expression {
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),
+            Expression::Call(call) => call.display_name(),
             Expression::Float(value) => value.to_string(),
             Expression::Indexed(indexed) => {
                 format!(
@@ -901,6 +965,7 @@ impl ExpressionNode {
             }
             Self::Binary(binary) => binary.display_name(table),
             Self::Boolean(value) => value.to_string(),
+            Self::Call(call) => call.display_name(table),
             Self::Float(value) => value.to_string(),
             Self::Indexed(indexed) => {
                 format!(
@@ -956,18 +1021,59 @@ impl TableBinaryExpression {
     }
 }
 
+impl CallExpression {
+    pub fn display_name(&self) -> String {
+        let arguments = self
+            .arguments
+            .iter()
+            .map(Expression::display_name)
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if let Some(receiver) = &self.receiver {
+            format!("{}.{}({arguments})", receiver.display_name(), self.target)
+        } else {
+            format!("{}({arguments})", self.target)
+        }
+    }
+}
+
+impl TableCallExpression {
+    pub fn display_name(&self, table: &ExpressionTable) -> String {
+        let arguments = table
+            .expression_handles(self.arguments)
+            .iter()
+            .map(|argument| table.display_name(*argument))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if self.receiver.is_valid() {
+            format!(
+                "{}.{}({arguments})",
+                table.display_name(self.receiver),
+                self.target
+            )
+        } else {
+            format!("{}({arguments})", self.target)
+        }
+    }
+}
+
 impl BinaryOperator {
     pub fn display_name(self) -> &'static str {
         match self {
             Self::Add => "+",
             Self::And => "&&",
+            Self::Divide => "/",
             Self::Equal => "==",
             Self::Greater => ">",
             Self::GreaterOrEqual => ">=",
             Self::Less => "<",
             Self::LessOrEqual => "<=",
+            Self::Multiply => "*",
             Self::NotEqual => "!=",
             Self::Or => "||",
+            Self::Subtract => "-",
         }
     }
 }

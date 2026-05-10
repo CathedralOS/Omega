@@ -231,6 +231,15 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
             count_expression(&binary.left, counts);
             count_expression(&binary.right, counts);
         }
+        Expression::Call(call) => {
+            if let Some(receiver) = &call.receiver {
+                count_expression(receiver, counts);
+            }
+            count_identifier(&call.target, counts);
+            for argument in &call.arguments {
+                count_expression(argument, counts);
+            }
+        }
         Expression::Boolean(_) | Expression::Integer(_) => {}
         Expression::Float(value) => {
             counts.float_literals += 1;

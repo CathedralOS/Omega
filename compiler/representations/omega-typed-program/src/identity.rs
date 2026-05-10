@@ -247,6 +247,15 @@ fn count_expression_node(
             count_expression_handle(table, binary.left, counts);
             count_expression_handle(table, binary.right, counts);
         }
+        ExpressionNode::Call(call) => {
+            count_call_name(&call.target, counts);
+            if call.receiver.is_valid() {
+                count_expression_handle(table, call.receiver, counts);
+            }
+            for argument in table.expression_handles(call.arguments) {
+                count_expression_handle(table, *argument, counts);
+            }
+        }
         ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) => {}
         ExpressionNode::Float(value) => {
             counts.float_literals += 1;
@@ -284,6 +293,15 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
         Expression::Binary(binary) => {
             count_expression(&binary.left, counts);
             count_expression(&binary.right, counts);
+        }
+        Expression::Call(call) => {
+            count_call_name(&call.target, counts);
+            if let Some(receiver) = &call.receiver {
+                count_expression(receiver, counts);
+            }
+            for argument in &call.arguments {
+                count_expression(argument, counts);
+            }
         }
         Expression::Boolean(_) | Expression::Integer(_) => {}
         Expression::Float(value) => {

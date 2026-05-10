@@ -1,6 +1,6 @@
 use crate::parse_error::ParseError;
 use omega_abstract_syntax_tree::expression::{
-    BinaryExpression, BinaryOperator, Expression, IndexedExpression, StructLiteral,
+    BinaryExpression, BinaryOperator, CallExpression, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
 };
 use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
@@ -750,6 +750,8 @@ impl Parser<'_, '_> {
                 statements.push(self.parse_transition()?);
             } else if self.consume("transition") {
                 statements.extend(self.parse_transition_block()?);
+            } else if self.consume("match") {
+                statements.extend(self.parse_transition_block()?);
             } else {
                 statements.push(self.parse_statement()?);
             }
@@ -1073,11 +1075,82 @@ impl Parser<'_, '_> {
     }
 
     fn parse_add_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_multiply_expression()?;
+
+        loop {
+            let operator = if self.consume("+") {
+                BinaryOperator::Add
+            } else if self.consume("-") {
+                BinaryOperator::Subtract
+            } else {
+                break;
+            };
+            let right = self.parse_multiply_expression()?;
+            expression = binary_expression(expression, operator, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_multiply_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_postfix_expression()?;
+
+        loop {
+            let operator = if self.consume("*") {
+                BinaryOperator::Multiply
+            } else if self.consume("/") {
+                BinaryOperator::Divide
+            } else {
+                break;
+            };
+            let right = self.parse_postfix_expression()?;
+            expression = binary_expression(expression, operator, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_postfix_expression(&mut self) -> Result<Expression, ParseError> {
         let mut expression = self.parse_primary_expression()?;
 
-        while self.consume("+") {
-            let right = self.parse_primary_expression()?;
-            expression = binary_expression(expression, BinaryOperator::Add, right);
+        loop {
+            if self.consume("[") {
+                let index = self.parse_expression()?;
+                self.expect("]")?;
+                expression = Expression::Indexed(Box::new(IndexedExpression {
+                    collection: expression,
+                    index,
+                }));
+                continue;
+            }
+
+            if self.consume("(") {
+                let arguments = self.parse_arguments_after_open_paren()?;
+                expression = expression_to_call(expression, arguments)?;
+                continue;
+            }
+
+            if self.consume(".") || self.consume("::") {
+                let member = self.expect_identifier()?;
+
+                if self.consume("(") {
+                    let arguments = self.parse_arguments_after_open_paren()?;
+                    expression = Expression::Call(Box::new(CallExpression {
+                        receiver: Some(Box::new(expression)),
+                        target: member,
+                        arguments,
+                    }));
+                } else if let Expression::Name(mut path) = expression {
+                    path.push(member);
+                    expression = Expression::Name(path);
+                } else {
+                    return Err(self.error_here("expected call after member access"));
+                }
+
+                continue;
+            }
+
+            break;
         }
 
         Ok(expression)
@@ -1100,6 +1173,12 @@ impl Parser<'_, '_> {
 
         if self.consume("[") {
             return self.parse_array_literal();
+        }
+
+        if self.consume("(") {
+            let expression = self.parse_expression()?;
+            self.expect(")")?;
+            return Ok(expression);
         }
 
         let file_id = self.file_id;
@@ -1131,7 +1210,6 @@ impl Parser<'_, '_> {
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_identifier()?);
                     }
-
                     if self.check("{") && path.len() == 1 {
                         self.parse_struct_literal(
                             path.into_iter()
@@ -1139,7 +1217,7 @@ impl Parser<'_, '_> {
                                 .expect("struct literal type path should have one member"),
                         )
                     } else {
-                        self.parse_reference_tail(Expression::Name(path.into()))
+                        Ok(Expression::Name(path.into()))
                     }
                 }
                 TokenKind::String => Ok(Expression::String(SourceText::generated(
@@ -1479,6 +1557,31 @@ fn split_call_path(mut path: Vec<Identifier>) -> (Option<IdentifierPath>, Identi
         .expect("call path should contain at least one member");
     let receiver = (!path.is_empty()).then(|| IdentifierPath::new(path));
     (receiver, target)
+}
+
+fn expression_to_call(
+    expression: Expression,
+    arguments: Vec<Expression>,
+) -> Result<Expression, ParseError> {
+    match expression {
+        Expression::Name(path) => {
+            let mut members = path.as_slice().to_vec();
+            let target = members
+                .pop()
+                .expect("call path should contain at least one member");
+            let receiver = (!members.is_empty())
+                .then(|| Box::new(Expression::Name(IdentifierPath::new(members))));
+            Ok(Expression::Call(Box::new(CallExpression {
+                receiver,
+                target,
+                arguments,
+            })))
+        }
+        other => Err(ParseError::new(format!(
+            "cannot call non-name expression `{}`",
+            other.display_name()
+        ))),
+    }
 }
 
 fn identifier_from_token(

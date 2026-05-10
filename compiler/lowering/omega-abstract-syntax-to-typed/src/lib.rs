@@ -9,8 +9,8 @@ use omega_core::symbols::{
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataField, DataMember, DataVariant};
 use omega_typed_program::expression::{
-    BinaryExpression, BinaryOperator, Expression, FloatLiteral, IndexedExpression, NamePath,
-    StructLiteral, StructLiteralField,
+    BinaryExpression, BinaryOperator, CallExpression, Expression, FloatLiteral,
+    IndexedExpression, NamePath, StructLiteral, StructLiteralField,
 };
 use omega_typed_program::invariant::InvariantDefinition;
 use omega_typed_program::machine::{ContainedObject, Machine, OwnedData};
@@ -601,6 +601,14 @@ fn attach_expression_symbol(
         Expression::Binary(binary) => {
             attach_expression_symbol(symbols, context, &mut binary.left);
             attach_expression_symbol(symbols, context, &mut binary.right);
+        }
+        Expression::Call(call) => {
+            if let Some(receiver) = &mut call.receiver {
+                attach_expression_symbol(symbols, context, receiver);
+            }
+            for argument in &mut call.arguments {
+                attach_expression_symbol(symbols, context, argument);
+            }
         }
         Expression::Indexed(indexed) => {
             attach_expression_symbol(symbols, context, &mut indexed.collection);
@@ -1823,6 +1831,23 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             })))
         }
         ast::expression::Expression::Boolean(value) => Ok(Expression::Boolean(*value)),
+        ast::expression::Expression::Call(call) => Ok(Expression::Call(Box::new(
+            CallExpression {
+                receiver: call
+                    .receiver
+                    .as_ref()
+                    .map(|receiver| lower_expression(receiver))
+                    .transpose()?
+                    .map(Box::new),
+                target_symbol: SymbolHandle::invalid(),
+                target: lower_name(&call.target),
+                arguments: call
+                    .arguments
+                    .iter()
+                    .map(lower_expression)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+        ))),
         ast::expression::Expression::Indexed(indexed) => {
             Ok(Expression::Indexed(Box::new(IndexedExpression {
                 collection: lower_expression(&indexed.collection)?,
@@ -1868,13 +1893,16 @@ fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOpe
     match operator {
         ast::expression::BinaryOperator::Add => BinaryOperator::Add,
         ast::expression::BinaryOperator::And => BinaryOperator::And,
+        ast::expression::BinaryOperator::Divide => BinaryOperator::Divide,
         ast::expression::BinaryOperator::Equal => BinaryOperator::Equal,
         ast::expression::BinaryOperator::Greater => BinaryOperator::Greater,
         ast::expression::BinaryOperator::GreaterOrEqual => BinaryOperator::GreaterOrEqual,
         ast::expression::BinaryOperator::Less => BinaryOperator::Less,
         ast::expression::BinaryOperator::LessOrEqual => BinaryOperator::LessOrEqual,
+        ast::expression::BinaryOperator::Multiply => BinaryOperator::Multiply,
         ast::expression::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
         ast::expression::BinaryOperator::Or => BinaryOperator::Or,
+        ast::expression::BinaryOperator::Subtract => BinaryOperator::Subtract,
     }
 }
 
