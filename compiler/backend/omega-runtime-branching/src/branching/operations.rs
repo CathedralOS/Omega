@@ -1,5 +1,6 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::{OperationKind, StateKey};
+use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::expression::ExpressionTable;
 
 use super::lookups::{host_call_for_statement, mutation_for_statement, state_call_for_operation};
@@ -11,40 +12,47 @@ use super::{
 pub(super) fn leaf_operations(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,
+    output_operations: &mut Arena<RuntimeLeafBranchOperation>,
     source_key: StateKey,
-) -> Vec<RuntimeLeafBranchOperation> {
+) -> HandleSpan<RuntimeLeafBranchOperation> {
     let Some(state) = context.control_flow.state_by_key(source_key) else {
-        return Vec::new();
+        return HandleSpan::empty();
     };
     let Some(operations) = context.control_flow.operations.span(state.operations) else {
-        return Vec::new();
+        return HandleSpan::empty();
     };
 
-    operations
-        .iter()
-        .map(|operation| RuntimeLeafBranchOperation {
-            source_key,
-            statement_index: operation.statement_index,
-            kind: leaf_operation_kind(context, expressions, source_key, operation.statement_index),
-        })
-        .collect()
+    output_operations.insert_many(
+        operations
+            .iter()
+            .map(|operation| RuntimeLeafBranchOperation {
+                source_key,
+                statement_index: operation.statement_index,
+                kind: leaf_operation_kind(
+                    context,
+                    expressions,
+                    source_key,
+                    operation.statement_index,
+                ),
+            }),
+    )
 }
 
 pub(super) fn straight_line_operations(
     context: &RuntimeBranchingContext,
     expressions: &mut ExpressionTable,
+    output_operations: &mut Arena<RuntimeStraightLineBranchOperation>,
     source_key: StateKey,
-) -> Vec<RuntimeStraightLineBranchOperation> {
+) -> HandleSpan<RuntimeStraightLineBranchOperation> {
     let Some(state) = context.control_flow.state_by_key(source_key) else {
-        return Vec::new();
+        return HandleSpan::empty();
     };
     let Some(operations) = context.control_flow.operations.span(state.operations) else {
-        return Vec::new();
+        return HandleSpan::empty();
     };
 
-    operations
-        .iter()
-        .map(|operation| RuntimeStraightLineBranchOperation {
+    output_operations.insert_many(operations.iter().map(|operation| {
+        RuntimeStraightLineBranchOperation {
             source_key,
             statement_index: operation.statement_index,
             kind: straight_line_operation_kind(
@@ -54,8 +62,8 @@ pub(super) fn straight_line_operations(
                 operation.statement_index,
                 &operation.kind,
             ),
-        })
-        .collect()
+        }
+    }))
 }
 
 fn leaf_operation_kind(

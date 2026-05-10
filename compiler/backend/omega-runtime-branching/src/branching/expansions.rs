@@ -12,6 +12,7 @@ use super::{
 };
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
@@ -45,14 +46,15 @@ pub(super) fn append_leaf_branch_expansions(
             context,
             *leaf_key,
             &mut plan.expressions,
+            &mut plan.leaf_bindings,
             leaf_arguments,
         );
-        let bindings = plan.leaf_bindings.insert_many(bindings);
-        let operations = plan.leaf_operations.insert_many(leaf_operations(
+        let operations = leaf_operations(
             context,
             &mut plan.expressions,
+            &mut plan.leaf_operations,
             *leaf_key,
-        ));
+        );
 
         plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
@@ -102,16 +104,15 @@ pub(super) fn append_straight_line_branch_expansions(
             context,
             *target_key,
             &mut plan.expressions,
+            &mut plan.straight_line_bindings,
             target_arguments,
         );
-        let bindings = plan.straight_line_bindings.insert_many(bindings);
-        let operations = plan
-            .straight_line_operations
-            .insert_many(straight_line_operations(
-                context,
-                &mut plan.expressions,
-                *target_key,
-            ));
+        let operations = straight_line_operations(
+            context,
+            &mut plan.expressions,
+            &mut plan.straight_line_operations,
+            *target_key,
+        );
 
         plan.straight_line_expansions
             .insert(RuntimeStraightLineBranchExpansion {
@@ -136,72 +137,104 @@ pub(super) fn append_straight_line_branch_expansions(
 
 fn leaf_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
-    context: &RuntimeBranchingContext,
+    context: &'a RuntimeBranchingContext,
     leaf_key: StateKey,
-    expression_table: &mut ExpressionTable,
+    expression_table: &'a mut ExpressionTable,
+    output_bindings: &mut Arena<RuntimeLeafBranchBinding>,
     leaf_arguments: &'a [ExpressionHandle],
-) -> Vec<RuntimeLeafBranchBinding> {
-    let mut bindings = Vec::new();
+) -> HandleSpan<RuntimeLeafBranchBinding> {
+    output_bindings.insert_many(
+        branch_bindings
+            .iter()
+            .map(|binding| RuntimeLeafBranchBinding {
+                parameter_symbol: binding.parameter_symbol,
+                parameter_name: binding.parameter_name.clone(),
+                expression: binding.expression,
+                kind: RuntimeLeafBranchBindingKind::BranchParameter,
+            })
+            .chain(leaf_argument_bindings(
+                branch_bindings,
+                context,
+                leaf_key,
+                expression_table,
+                leaf_arguments,
+            )),
+    )
+}
 
-    for binding in branch_bindings {
-        bindings.push(RuntimeLeafBranchBinding {
-            parameter_symbol: binding.parameter_symbol,
-            parameter_name: binding.parameter_name.clone(),
-            expression: binding.expression,
-            kind: RuntimeLeafBranchBindingKind::BranchParameter,
-        });
-    }
-
+fn leaf_argument_bindings<'a>(
+    branch_bindings: &'a [BranchParameterBinding],
+    context: &'a RuntimeBranchingContext,
+    leaf_key: StateKey,
+    expression_table: &'a mut ExpressionTable,
+    leaf_arguments: &'a [ExpressionHandle],
+) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
     let leaf_parameters = state_parameters(context, leaf_key);
-    for (parameter_index, parameter) in leaf_parameters.into_iter().enumerate() {
-        let Some(expression) = leaf_arguments.get(parameter_index) else {
-            continue;
-        };
-        let expression = expression_table.to_tree(*expression);
-        let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
-        bindings.push(RuntimeLeafBranchBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.clone(),
-            expression: expression_table.insert_tree(&expression),
-            kind: RuntimeLeafBranchBindingKind::LeafParameter,
-        });
-    }
-
-    bindings
+    leaf_parameters
+        .iter()
+        .enumerate()
+        .filter_map(move |(parameter_index, parameter)| {
+            let expression = leaf_arguments.get(parameter_index)?;
+            let expression = expression_table.to_tree(*expression);
+            let expression =
+                resolve_branch_expression(&expression, branch_bindings, expression_table);
+            Some(RuntimeLeafBranchBinding {
+                parameter_symbol: parameter.symbol,
+                parameter_name: parameter.name.clone(),
+                expression: expression_table.insert_tree(&expression),
+                kind: RuntimeLeafBranchBindingKind::LeafParameter,
+            })
+        })
 }
 
 fn straight_line_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
-    context: &RuntimeBranchingContext,
+    context: &'a RuntimeBranchingContext,
     target_key: StateKey,
-    expression_table: &mut ExpressionTable,
+    expression_table: &'a mut ExpressionTable,
+    output_bindings: &mut Arena<RuntimeStraightLineBranchBinding>,
     target_arguments: &'a [ExpressionHandle],
-) -> Vec<RuntimeStraightLineBranchBinding> {
-    let mut bindings = Vec::new();
+) -> HandleSpan<RuntimeStraightLineBranchBinding> {
+    output_bindings.insert_many(
+        branch_bindings
+            .iter()
+            .map(|binding| RuntimeStraightLineBranchBinding {
+                parameter_symbol: binding.parameter_symbol,
+                parameter_name: binding.parameter_name.clone(),
+                expression: binding.expression,
+                kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
+            })
+            .chain(straight_line_argument_bindings(
+                branch_bindings,
+                context,
+                target_key,
+                expression_table,
+                target_arguments,
+            )),
+    )
+}
 
-    for binding in branch_bindings {
-        bindings.push(RuntimeStraightLineBranchBinding {
-            parameter_symbol: binding.parameter_symbol,
-            parameter_name: binding.parameter_name.clone(),
-            expression: binding.expression,
-            kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
-        });
-    }
-
+fn straight_line_argument_bindings<'a>(
+    branch_bindings: &'a [BranchParameterBinding],
+    context: &'a RuntimeBranchingContext,
+    target_key: StateKey,
+    expression_table: &'a mut ExpressionTable,
+    target_arguments: &'a [ExpressionHandle],
+) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
     let target_parameters = state_parameters(context, target_key);
-    for (parameter_index, parameter) in target_parameters.into_iter().enumerate() {
-        let Some(expression) = target_arguments.get(parameter_index) else {
-            continue;
-        };
-        let expression = expression_table.to_tree(*expression);
-        let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
-        bindings.push(RuntimeStraightLineBranchBinding {
-            parameter_symbol: parameter.symbol,
-            parameter_name: parameter.name.clone(),
-            expression: expression_table.insert_tree(&expression),
-            kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
-        });
-    }
-
-    bindings
+    target_parameters
+        .iter()
+        .enumerate()
+        .filter_map(move |(parameter_index, parameter)| {
+            let expression = target_arguments.get(parameter_index)?;
+            let expression = expression_table.to_tree(*expression);
+            let expression =
+                resolve_branch_expression(&expression, branch_bindings, expression_table);
+            Some(RuntimeStraightLineBranchBinding {
+                parameter_symbol: parameter.symbol,
+                parameter_name: parameter.name.clone(),
+                expression: expression_table.insert_tree(&expression),
+                kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
+            })
+        })
 }
