@@ -35,17 +35,17 @@ machine InventorySystem {
     }
 
     fn find_item(inventory: &Inventory, kind: ItemKind) -> Option<usize> {
-        match {
-            inventory.items.len() > 0 -> find_item_at(inventory, kind, 0)
-            _ -> None
+        match inventory.items.len() > 0 {
+            true -> find_item_at(inventory, kind, 0)
+            false -> None
         }
     }
 
     fn find_item_at(inventory: &Inventory, kind: ItemKind, index: usize) -> Option<usize> {
-        match {
-            inventory.items[index].kind == kind -> index
-            index + 1 < inventory.items.len() -> find_item_at(inventory, kind, index + 1)
-            _ -> None
+        match (inventory.items[index].kind == kind, index + 1 < inventory.items.len()) {
+            (true, _) -> index
+            (false, true) -> find_item_at(inventory, kind, index + 1)
+            (false, false) -> None
         }
     }
 

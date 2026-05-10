@@ -17,12 +17,12 @@ machine EnemyTables {
     }
 
     fn tier_for_depth(depth: u32[exact, non_negative]) -> EnemyTier {
-        match {
-            depth <= 1 -> EnemyTier::Bat
-            depth <= 2 -> EnemyTier::Spider
-            depth <= 4 -> EnemyTier::Skeleton
-            depth <= 6 -> EnemyTier::Cultist
-            depth <= 8 -> EnemyTier::Hellhound
+        match (depth <= 1, depth <= 2, depth <= 4, depth <= 6, depth <= 8) {
+            (true, _, _, _, _) -> EnemyTier::Bat
+            (false, true, _, _, _) -> EnemyTier::Spider
+            (false, false, true, _, _) -> EnemyTier::Skeleton
+            (false, false, false, true, _) -> EnemyTier::Cultist
+            (false, false, false, false, true) -> EnemyTier::Hellhound
             _ -> EnemyTier::PitFiend
         }
     }

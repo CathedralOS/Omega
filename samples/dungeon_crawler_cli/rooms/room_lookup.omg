@@ -22,10 +22,10 @@ machine RoomLookup {
     }
 
     fn find_room_mut_at(level: &mut Level, cell: CellId, index: usize) -> &mut Room {
-        match {
-            level.rooms[index].cell == cell -> &mut level.rooms[index]
-            index + 1 < level.room_count -> find_room_mut_at(level, cell, index + 1)
-            _ -> &mut level.rooms[0]
+        match (level.rooms[index].cell == cell, index + 1 < level.room_count) {
+            (true, _) -> &mut level.rooms[index]
+            (false, true) -> find_room_mut_at(level, cell, index + 1)
+            (false, false) -> &mut level.rooms[0]
         }
     }
 

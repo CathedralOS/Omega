@@ -22,10 +22,10 @@ machine RoomEvents {
     }
 
     fn event_action(roll: u32[exact, range<0, 100>]) -> RoomEventAction {
-        match {
-            roll < 20 -> RoomEventAction::Quiet
-            roll < 30 -> RoomEventAction::Fountain
-            roll < 60 -> RoomEventAction::Reward
+        match (roll < 20, roll < 30, roll < 60) {
+            (true, _, _) -> RoomEventAction::Quiet
+            (false, true, _) -> RoomEventAction::Fountain
+            (false, false, true) -> RoomEventAction::Reward
             _ -> RoomEventAction::Enemy
         }
     }
