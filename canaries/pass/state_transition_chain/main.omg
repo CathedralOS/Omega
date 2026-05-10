@@ -6,7 +6,7 @@ platform Console {
 machine main {
     contains console: Console;
 
-    fn entry() {
+    pub entry() {
         console.write_line("first");
 
         -> second();

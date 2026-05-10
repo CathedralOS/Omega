@@ -14,7 +14,7 @@ machine main {
 
     owns line: ConsoleLine;
 
-    fn entry() {
+    pub entry() {
         line.text = "ready";
         console.write_line(line.text);
         console.write("> ");

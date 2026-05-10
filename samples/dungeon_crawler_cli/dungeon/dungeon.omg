@@ -26,8 +26,8 @@ data Dungeon {
     mode: GameMode = GameMode::Title;
 }
 
-machine for Dungeon {
-    pub entry enter_room(&mut self) {
+machine Dungeon::enter_room {
+    pub entry(&mut self) {
         self.mark_current_room_discovered();
     }
 
@@ -38,8 +38,8 @@ machine for Dungeon {
     }
 }
 
-machine for Dungeon {
-    pub entry use_event(
+machine Dungeon::use_event {
+    pub entry(
         &mut self,
         line: &mut ConsoleLine
     ) {
@@ -49,8 +49,8 @@ machine for Dungeon {
     }
 }
 
-machine for Dungeon {
-    pub entry fight(
+machine Dungeon::fight {
+    pub entry(
         &mut self,
         line: &mut ConsoleLine
     ) {
@@ -60,20 +60,20 @@ machine for Dungeon {
     }
 }
 
-machine for Dungeon {
-    pub entry move(&mut self) {
+machine Dungeon::move {
+    pub entry(&mut self) {
         self.current_cell = self.navigation.destination;
     }
 }
 
-machine for Dungeon {
-    pub entry game_over(&mut self) {
+machine Dungeon::game_over {
+    pub entry(&mut self) {
         self.mode = GameMode::GameOver;
     }
 }
 
-machine for Dungeon {
-    pub entry new(seed: u64[wrapping]) -> Dungeon {
+machine Dungeon::new -> Dungeon {
+    pub entry(seed: u64[wrapping]) {
         let dungeon: Dungeon;
 
         dungeon.rng.seed(seed, &mut dungeon.random);

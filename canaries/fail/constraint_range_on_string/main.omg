@@ -5,6 +5,6 @@ data Label {
 machine main {
     owns label: String[range<1, 10>];
 
-    fn entry() {
+    pub entry() {
     }
 }

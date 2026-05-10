@@ -7,8 +7,8 @@ data GameView {
     formatter: RoomFormatter;
 }
 
-machine for GameView {
-    pub entry render_title(
+machine GameView::render_title {
+    pub entry(
         &mut self,
         console: &mut ConsolePlatform
     ) {
@@ -18,8 +18,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_room(
+machine GameView::render_room {
+    pub entry(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -36,8 +36,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_look(
+machine GameView::render_look {
+    pub entry(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -50,8 +50,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_exits(
+machine GameView::render_exits {
+    pub entry(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -62,8 +62,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_inventory(
+machine GameView::render_inventory {
+    pub entry(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -74,8 +74,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_character(
+machine GameView::render_character {
+    pub entry(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -86,8 +86,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_prompt(
+machine GameView::render_prompt {
+    pub entry(
         &mut self,
         console: &mut ConsolePlatform
     ) {
@@ -95,8 +95,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_line(
+machine GameView::render_line {
+    pub entry(
         &mut self,
         line: ConsoleLine,
         console: &mut ConsolePlatform
@@ -105,8 +105,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_invalid_command(
+machine GameView::render_invalid_command {
+    pub entry(
         &mut self,
         console: &mut ConsolePlatform
     ) {
@@ -114,8 +114,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_game_over(
+machine GameView::render_game_over {
+    pub entry(
         &mut self,
         console: &mut ConsolePlatform
     ) {
@@ -123,8 +123,8 @@ machine for GameView {
     }
 }
 
-machine for GameView {
-    pub entry render_goodbye(
+machine GameView::render_goodbye {
+    pub entry(
         &mut self,
         console: &mut ConsolePlatform
     ) {

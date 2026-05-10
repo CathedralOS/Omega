@@ -14,7 +14,7 @@ machine main {
 
     owns line: ConsoleLine;
 
-    fn entry() {
+    pub entry() {
         console.write("> ");
         console.read_line(mut line);
         console.write_line("read");

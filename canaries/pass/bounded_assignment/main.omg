@@ -1,7 +1,7 @@
 machine main {
     owns health: i32[range<1, 100>] = 100;
 
-    fn entry() {
+    pub entry() {
         health = 25;
     }
 }

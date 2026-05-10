@@ -13,8 +13,8 @@ data CombatSystem {
     rng: Random;
 }
 
-machine for CombatSystem {
-    pub entry fight(
+machine CombatSystem::fight {
+    pub entry(
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,

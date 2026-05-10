@@ -6,8 +6,8 @@ data EnemyTables {
     rng: Random;
 }
 
-machine for EnemyTables {
-    pub entry roll_enemy(
+machine EnemyTables::roll_enemy {
+    pub entry(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,

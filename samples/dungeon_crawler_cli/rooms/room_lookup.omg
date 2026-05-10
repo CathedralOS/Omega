@@ -4,8 +4,8 @@ use rooms::rooms;
 data RoomLookup {
 }
 
-machine for RoomLookup {
-    pub entry find_room(
+machine RoomLookup::find_room {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
@@ -47,12 +47,12 @@ machine for RoomLookup {
     }
 }
 
-machine for RoomLookup {
-    pub entry find_room_mut(
+machine RoomLookup::find_room_mut -> &mut Room {
+    pub entry(
         &mut self,
         level: &mut Level,
         cell: CellId
-    ) -> &mut Room {
+    ) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
         -> self.find_room_mut_at(rooms, level.room_count, cell, 0);

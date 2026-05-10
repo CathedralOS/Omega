@@ -9,8 +9,8 @@ data MazeBuilder {
     rng: Random;
 }
 
-machine for MazeBuilder {
-    pub entry build(
+machine MazeBuilder::build {
+    pub entry(
         &mut self,
         seed: u64[wrapping],
         level: &mut Level

@@ -6,8 +6,8 @@ data PlayerSystem {
     inventory: InventorySystem;
 }
 
-machine for PlayerSystem {
-    pub entry create(
+machine PlayerSystem::create {
+    pub entry(
         &mut self,
         name: String,
         player: &mut Player
@@ -23,8 +23,8 @@ machine for PlayerSystem {
     }
 }
 
-machine for PlayerSystem {
-    pub entry heal(
+machine PlayerSystem::heal {
+    pub entry(
         &mut self,
         player: &mut Player,
         amount: i32[exact, positive]
@@ -33,8 +33,8 @@ machine for PlayerSystem {
     }
 }
 
-machine for PlayerSystem {
-    pub entry take_damage(
+machine PlayerSystem::take_damage {
+    pub entry(
         &mut self,
         player: &mut Player,
         amount: i32[exact, non_negative]
@@ -45,8 +45,8 @@ machine for PlayerSystem {
     }
 }
 
-machine for PlayerSystem {
-    pub entry grant_reward(
+machine PlayerSystem::grant_reward {
+    pub entry(
         &mut self,
         player: &mut Player,
         reward: Reward
@@ -55,8 +55,8 @@ machine for PlayerSystem {
     }
 }
 
-machine for PlayerSystem {
-    pub entry grant_xp(
+machine PlayerSystem::grant_xp {
+    pub entry(
         &mut self,
         player: &mut Player,
         amount: u32[exact, non_negative]

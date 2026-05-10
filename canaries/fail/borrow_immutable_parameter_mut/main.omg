@@ -1,7 +1,7 @@
 machine main {
     owns value: i32 = 1;
 
-    fn entry() {
+    pub entry() {
         write(value);
     }
 

@@ -7,13 +7,13 @@ data CommandParser {
     lookup: RoomLookup;
 }
 
-machine for CommandParser {
-    pub entry resolve_navigation(
+machine CommandParser::resolve_navigation -> Navigation {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
         line: &ConsoleLine
-    ) -> Navigation {
+    ) {
         let choice: NavigationChoice = self.resolve_command(line);
 
         match choice {

@@ -14,6 +14,6 @@ trust omega_test_host_write {
 }
 
 machine main {
-    fn entry() {
+    pub entry() {
     }
 }

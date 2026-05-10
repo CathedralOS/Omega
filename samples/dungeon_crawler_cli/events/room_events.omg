@@ -11,8 +11,8 @@ data RoomEvents {
     rng: Random;
 }
 
-machine for RoomEvents {
-    pub entry roll_event(
+machine RoomEvents::roll_event {
+    pub entry(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,

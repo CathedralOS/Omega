@@ -8,8 +8,8 @@ data RewardTables {
     rng: Random;
 }
 
-machine for RewardTables {
-    pub entry roll_room_treasure(
+machine RewardTables::roll_room_treasure {
+    pub entry(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,
@@ -44,8 +44,8 @@ machine for RewardTables {
     }
 }
 
-machine for RewardTables {
-    pub entry roll_gold_cache(
+machine RewardTables::roll_gold_cache {
+    pub entry(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,
@@ -57,8 +57,8 @@ machine for RewardTables {
     }
 }
 
-machine for RewardTables {
-    pub entry roll_enemy_reward(
+machine RewardTables::roll_enemy_reward {
+    pub entry(
         &mut self,
         enemy: Enemy,
         random: &mut RandomState,

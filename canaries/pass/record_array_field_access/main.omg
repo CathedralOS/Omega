@@ -27,7 +27,7 @@ machine main {
     owns room: Room;
     owns selected_exit: Exit;
 
-    fn entry() {
+    pub entry() {
         room.cell = CellId::A1;
         room.label = "A1";
         room.description = "A1: a stone entry.";

@@ -17,8 +17,8 @@ data EventRuntime {
     player_system: PlayerSystem;
 }
 
-machine for EventRuntime {
-    pub entry describe(
+machine EventRuntime::describe {
+    pub entry(
         &mut self,
         room: Room,
         out_line: &mut ConsoleLine
@@ -69,8 +69,8 @@ machine for EventRuntime {
     }
 }
 
-machine for EventRuntime {
-    pub entry use_event(
+machine EventRuntime::use_event {
+    pub entry(
         &mut self,
         player: &mut Player,
         room: &mut Room,
@@ -114,8 +114,8 @@ machine for EventRuntime {
     }
 }
 
-machine for EventRuntime {
-    pub entry fight_event(
+machine EventRuntime::fight_event {
+    pub entry(
         &mut self,
         player: &mut Player,
         room: &mut Room,

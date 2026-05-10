@@ -1,9 +1,8 @@
 use omega::language::std::console;
-
 machine main {
     contains console: Console;
 
-    fn entry() {
+    pub entry() {
         console.write_line("Hello, Omega.");
         console.exit_process(0);
     }

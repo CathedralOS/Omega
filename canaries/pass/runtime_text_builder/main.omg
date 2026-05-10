@@ -17,7 +17,7 @@ machine main {
     owns room: Room;
     owns line: Line;
 
-    fn entry() {
+    pub entry() {
         room.label = "A1";
         line.text = "Room " + room.label;
         console.write_line(line.text);

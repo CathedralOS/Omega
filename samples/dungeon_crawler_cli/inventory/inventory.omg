@@ -4,8 +4,8 @@ use rewards::rewards;
 data InventorySystem {
 }
 
-machine for InventorySystem {
-    pub entry clear(
+machine InventorySystem::clear {
+    pub entry(
         &mut self,
         inventory: &mut Inventory
     ) {
@@ -14,8 +14,8 @@ machine for InventorySystem {
     }
 }
 
-machine for InventorySystem {
-    pub entry add_reward(
+machine InventorySystem::add_reward {
+    pub entry(
         &mut self,
         inventory: &mut Inventory,
         reward: Reward

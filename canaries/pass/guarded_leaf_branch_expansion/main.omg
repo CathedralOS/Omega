@@ -25,7 +25,7 @@ machine main {
     owns first: Cell = Cell { id: CellId::A1, label: "A1" };
     owns second: Cell = Cell { id: CellId::A2, label: "A2" };
 
-    fn entry() {
+    pub entry() {
         scan(first, CellId::A2, mut selected);
         scan(second, CellId::A2, mut selected);
         line.text = selected.label;

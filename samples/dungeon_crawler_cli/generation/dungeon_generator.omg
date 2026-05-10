@@ -5,8 +5,8 @@ data DungeonGenerator {
     maze: MazeBuilder;
 }
 
-machine for DungeonGenerator {
-    pub entry generate(
+machine DungeonGenerator::generate {
+    pub entry(
         &mut self,
         seed: u64[wrapping],
         out_level: &mut Level

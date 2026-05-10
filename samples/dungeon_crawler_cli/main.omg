@@ -4,14 +4,14 @@ data main {
     game: Game;
 }
 
-machine for main {
-    pub entry(&mut self) -> i32 {
+machine main -> i32 {
+    pub entry(&mut self) {
         transition {
             _ -> running()
         }
     }
 
-    state running(&mut self) -> i32 {
+    state running(&mut self) {
         self.game.run_game_loop();
 
         transition {
@@ -19,7 +19,7 @@ machine for main {
         }
     }
 
-    state shutdown(&mut self) -> i32 {
+    state shutdown(&mut self) {
         0
     }
 }

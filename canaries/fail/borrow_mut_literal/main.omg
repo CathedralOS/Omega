@@ -1,5 +1,5 @@
 machine main {
-    fn entry() {
+    pub entry() {
         write(mut 1);
     }
 

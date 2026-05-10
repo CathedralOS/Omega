@@ -3,7 +3,7 @@ platform Console {
     fn exit_process(return_code: i32);
 }
 
-machine for main {
+machine main {
     contains console: Console;
 
     pub entry(&mut self) {

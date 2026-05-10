@@ -6,7 +6,7 @@ platform Console {
 machine Banner {
     contains console: Console;
 
-    fn entry() {
+    pub entry() {
         console.write_line("nested");
     }
 }
@@ -15,7 +15,7 @@ machine main {
     contains banner: Banner;
     contains console: Console;
 
-    fn entry() {
+    pub entry() {
         -> banner.entry() -> shutdown();
     }
 

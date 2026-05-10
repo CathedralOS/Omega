@@ -10,8 +10,8 @@ data RoomFormatter {
     lookup: RoomLookup;
 }
 
-machine for RoomFormatter {
-    pub entry write_current_cell(
+machine RoomFormatter::write_current_cell {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
@@ -23,8 +23,8 @@ machine for RoomFormatter {
     }
 }
 
-machine for RoomFormatter {
-    pub entry write_room_info(
+machine RoomFormatter::write_room_info {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
@@ -36,8 +36,8 @@ machine for RoomFormatter {
     }
 }
 
-machine for RoomFormatter {
-    pub entry write_room_event(
+machine RoomFormatter::write_room_event {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
@@ -49,8 +49,8 @@ machine for RoomFormatter {
     }
 }
 
-machine for RoomFormatter {
-    pub entry write_adjacent_rooms(
+machine RoomFormatter::write_adjacent_rooms {
+    pub entry(
         &mut self,
         level: Level,
         cell: CellId,
@@ -92,8 +92,8 @@ machine for RoomFormatter {
     }
 }
 
-machine for RoomFormatter {
-    pub entry write_inventory(
+machine RoomFormatter::write_inventory {
+    pub entry(
         &mut self,
         player: Player,
         out_line: &mut ConsoleLine
@@ -102,8 +102,8 @@ machine for RoomFormatter {
     }
 }
 
-machine for RoomFormatter {
-    pub entry write_character(
+machine RoomFormatter::write_character {
+    pub entry(
         &mut self,
         player: Player,
         out_line: &mut ConsoleLine

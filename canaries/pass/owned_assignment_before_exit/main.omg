@@ -8,7 +8,7 @@ machine main {
 
     owns return_code: i32 = 1;
 
-    fn entry() {
+    pub entry() {
         console.write_line("assign");
         return_code = 0;
         console.exit_process(return_code);

@@ -1,8 +1,8 @@
-machine main {
-    fn entry() {
+machine main -> i32[range<1, 50>] {
+    pub entry() {
     }
 
-    state answer() -> i32[range<1, 50>] {
+    state answer() {
         25
     }
 }
