@@ -51,6 +51,15 @@ fn select_entry_instructions(
     instructions: &mut Arena<SelectedInstruction>,
 ) -> omega_core::arena::HandleSpan<SelectedInstruction> {
     let mut selected_instructions = SelectedInstructionSink::new(instructions);
+
+    selected_instructions.push(entry_instruction(input));
+
+    if input.runtime_dispatch_loop.needed {
+        select_runtime_dispatch_loop_instructions(input, operands, &mut selected_instructions);
+        selected_instructions.push(exit_instruction(input));
+        return selected_instructions.finish();
+    }
+
     let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
     let state_schedule_result = build_entry_state_schedule(&schedule_context, input.entry_key);
     let can_inline_state_calls = state_schedule_result.is_ok()
@@ -61,11 +70,7 @@ fn select_entry_instructions(
             .any(|(_, call)| call.required);
     let state_schedule = state_schedule_result.unwrap_or_else(|_| runtime_reachable_states(input));
 
-    selected_instructions.push(entry_instruction(input));
-
-    if input.runtime_dispatch_loop.needed {
-        select_runtime_dispatch_loop_instructions(input, operands, &mut selected_instructions);
-    } else if can_inline_state_calls {
+    if can_inline_state_calls {
         select_state_body_instructions(
             input,
             input.entry_key,
