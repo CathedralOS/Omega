@@ -81,14 +81,7 @@ pub fn runtime_storage_body_inputs(
     runtime_bodies
         .bodies
         .iter()
-        .map(|(_, body)| RuntimeStorageBodyInput {
-            body: body.clone(),
-            operations: runtime_bodies
-                .operations
-                .span(body.operations)
-                .unwrap_or(&[])
-                .to_vec(),
-        })
+        .map(|(_, body)| RuntimeStorageBodyInput { body: body.clone() })
         .collect()
 }
 

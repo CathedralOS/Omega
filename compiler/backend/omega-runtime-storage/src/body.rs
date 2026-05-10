@@ -11,8 +11,15 @@ pub(super) fn build_runtime_storage_body_plan(
 ) -> RuntimeStoragePlan {
     let mut plan = RuntimeStoragePlan::default();
     let mut next_frame_offset = 0usize;
+    let Some(operations) = context
+        .runtime_bodies
+        .operations
+        .paged_span(body_input.body.operations)
+    else {
+        return plan;
+    };
 
-    for operation in &body_input.operations {
+    for operation in operations.iter() {
         match &operation.kind {
             RuntimeDispatchBodyOperationKind::LocalStorage {
                 symbol,

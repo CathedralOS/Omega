@@ -179,6 +179,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
         &backend_plan.control_flow,
         &backend_plan.layouts,
+        &backend_plan.runtime_bodies,
         &backend_plan.state_storage,
         backend_plan.target,
     ));

@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
-use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperation};
+use omega_runtime_bodies::RuntimeDispatchBody;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
@@ -55,5 +55,4 @@ impl Default for RuntimeStorageWrite {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStorageBodyInput {
     pub body: RuntimeDispatchBody,
-    pub operations: Vec<RuntimeDispatchBodyOperation>,
 }
