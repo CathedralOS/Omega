@@ -2,9 +2,11 @@ use inventory::inventory;
 use player::player_state;
 use rewards::rewards;
 
-machine PlayerSystem {
-    contains inventory: InventorySystem;
+data PlayerSystem {
+    inventory: InventorySystem;
+}
 
+machine for PlayerSystem {
     fn create(&mut self, name: String, player: &mut Player) {
         player.name = name;
         player.level = 1;

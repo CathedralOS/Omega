@@ -1,8 +1,10 @@
 use platform::console;
 
-machine TitleScreen {
-    contains console: ConsolePlatform;
+data TitleScreen {
+    console: ConsolePlatform;
+}
 
+machine for TitleScreen {
     fn show(&mut self) {
         self.console.write_line("Omega Dungeon");
         self.console.write_line("A tiny generated crawl for compiler stress.");

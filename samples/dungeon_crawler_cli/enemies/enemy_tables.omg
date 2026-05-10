@@ -2,9 +2,11 @@ use enemies::enemies;
 use rng::random;
 use rng::random_state;
 
-machine EnemyTables {
-    contains rng: Random;
+data EnemyTables {
+    rng: Random;
+}
 
+machine for EnemyTables {
     fn roll_enemy(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, enemy: &mut Enemy) {
         transition self.tier_for_depth(depth) {
             EnemyTier::Bat -> bat(random, enemy)

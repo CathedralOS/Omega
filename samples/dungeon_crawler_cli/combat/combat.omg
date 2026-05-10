@@ -7,11 +7,13 @@ use rewards::rewards;
 use rng::random;
 use rng::random_state;
 
-machine CombatSystem {
-    contains player_system: PlayerSystem;
-    contains rewards: RewardTables;
-    contains rng: Random;
+data CombatSystem {
+    player_system: PlayerSystem;
+    rewards: RewardTables;
+    rng: Random;
+}
 
+machine for CombatSystem {
     fn fight(&mut self, player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
         round.player_damage = max(0, player.attack - event.enemy.defense + self.rng.range(random, 3));
         event.enemy.health = max(0, event.enemy.health - round.player_damage);

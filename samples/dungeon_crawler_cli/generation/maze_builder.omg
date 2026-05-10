@@ -4,10 +4,12 @@ use rng::random_state;
 use rooms::map;
 use rooms::rooms;
 
-machine MazeBuilder {
-    contains events: RoomEvents;
-    contains rng: Random;
+data MazeBuilder {
+    events: RoomEvents;
+    rng: Random;
+}
 
+machine for MazeBuilder {
     fn build(&mut self, seed: u64[wrapping], level: &mut Level) {
         let random: RandomState;
         self.rng.seed(seed, mut random);

@@ -4,9 +4,11 @@ use rewards::rewards;
 use rng::random;
 use rng::random_state;
 
-machine RewardTables {
-    contains rng: Random;
+data RewardTables {
+    rng: Random;
+}
 
+machine for RewardTables {
     fn roll_room_treasure(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, reward: &mut Reward) {
         reward.kind = RewardKind::GoldAndItem;
         reward.gold = 20 + depth * 8 + self.rng.range(random, 15);

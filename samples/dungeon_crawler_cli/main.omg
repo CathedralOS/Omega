@@ -1,12 +1,13 @@
 use dungeon::dungeon;
 use screens::title_screen;
 
-machine main {
-    contains dungeon: Dungeon;
-    contains title: TitleScreen;
+data main {
+    dungeon: Dungeon;
+    title: TitleScreen;
+    return_code: i32 = 0;
+}
 
-    owns return_code: i32 = 0;
-
+machine for main {
     fn entry(&mut self) {
         self.title.show();
         self.dungeon.start();

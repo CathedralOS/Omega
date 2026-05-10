@@ -13,24 +13,27 @@ use rooms::room_formatter;
 use rooms::room_lookup;
 use rooms::rooms;
 
-machine Dungeon {
-    contains console: ConsolePlatform;
-    contains generator: DungeonGenerator;
-    contains parser: CommandParser;
-    contains formatter: RoomFormatter;
-    contains events: EventRuntime;
-    contains player_system: PlayerSystem;
-    contains rng: Random;
+data Dungeon {
+    console: ConsolePlatform;
+    generator: DungeonGenerator;
+    parser: CommandParser;
+    formatter: RoomFormatter;
+    events: EventRuntime;
+    player_system: PlayerSystem;
+    lookup: RoomLookup;
+    rng: Random;
 
-    owns command_line: ConsoleLine;
-    owns current_cell: CellId = CellId::Empty;
-    owns level: Level;
-    owns navigation: Navigation;
-    owns player: Player;
-    owns random: RandomState;
-    owns combat_round: CombatRound;
-    owns mode: GameMode = GameMode::Title;
+    command_line: ConsoleLine;
+    current_cell: CellId = CellId::Empty;
+    level: Level;
+    navigation: Navigation;
+    player: Player;
+    random: RandomState;
+    combat_round: CombatRound;
+    mode: GameMode = GameMode::Title;
+}
 
+machine for Dungeon {
     state entry(&mut self) {
         transition {
             _ -> enter_room()
@@ -121,7 +124,7 @@ machine Dungeon {
 
     state use_event(&mut self) {
         let room: Room;
-        RoomLookup.find_room(self.level, self.current_cell, mut room);
+        self.lookup.find_room(self.level, self.current_cell, mut room);
         self.events.use_event(mut self.player, mut room, mut self.command_line);
         self.console.write_line(self.command_line.text);
 
@@ -132,7 +135,7 @@ machine Dungeon {
 
     state fight(&mut self) {
         let room: Room;
-        RoomLookup.find_room(self.level, self.current_cell, mut room);
+        self.lookup.find_room(self.level, self.current_cell, mut room);
         self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, mut self.command_line);
         self.console.write_line(self.command_line.text);
 
@@ -185,7 +188,7 @@ machine Dungeon {
 
     fn mark_current_room_discovered(&mut self) {
         let room: Room;
-        RoomLookup.find_room(self.level, self.current_cell, mut room);
+        self.lookup.find_room(self.level, self.current_cell, mut room);
         room.discovered = true;
     }
 }

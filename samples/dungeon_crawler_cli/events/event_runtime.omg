@@ -11,11 +11,13 @@ use rng::random;
 use rng::random_state;
 use rooms::rooms;
 
-machine EventRuntime {
-    contains combat: CombatSystem;
-    contains inventory: InventorySystem;
-    contains player_system: PlayerSystem;
+data EventRuntime {
+    combat: CombatSystem;
+    inventory: InventorySystem;
+    player_system: PlayerSystem;
+}
 
+machine for EventRuntime {
     fn describe(&mut self, room: Room, out_line: &mut ConsoleLine) {
         transition (room.event.kind, room.event.consumed) {
             (RoomEventKind::FountainOfLife, false) -> describe_fountain(out_line)

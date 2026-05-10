@@ -3,8 +3,12 @@ use rooms::room_lookup;
 use rooms::map;
 use rooms::rooms;
 
-machine CommandParser {
-    fn resolve_command(line: ConsoleLine, out_navigation: &mut Navigation) {
+data CommandParser {
+    lookup: RoomLookup;
+}
+
+machine for CommandParser {
+    fn resolve_command(&mut self, line: ConsoleLine, out_navigation: &mut Navigation) {
         transition line.text {
             "quit" -> resolve_quit(out_navigation)
             "look" -> resolve_look(out_navigation)
@@ -21,46 +25,46 @@ machine CommandParser {
         }
     }
 
-    state resolve_quit(out_navigation: &mut Navigation) {
+    state resolve_quit(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Quit;
     }
 
-    state resolve_look(out_navigation: &mut Navigation) {
+    state resolve_look(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Look;
     }
 
-    state resolve_exits(out_navigation: &mut Navigation) {
+    state resolve_exits(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Exits;
     }
 
-    state resolve_inventory(out_navigation: &mut Navigation) {
+    state resolve_inventory(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Inventory;
     }
 
-    state resolve_character(out_navigation: &mut Navigation) {
+    state resolve_character(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Character;
     }
 
-    state resolve_use(out_navigation: &mut Navigation) {
+    state resolve_use(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::UseFountain;
     }
 
-    state resolve_fight(out_navigation: &mut Navigation) {
+    state resolve_fight(&mut self, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Fight;
     }
 
-    state resolve_move(destination: CellId, out_navigation: &mut Navigation) {
+    state resolve_move(&mut self, destination: CellId, out_navigation: &mut Navigation) {
         out_navigation.choice = NavigationChoice::Move;
         out_navigation.destination = destination;
     }
 
-    fn resolve_exit(level: Level, cell: CellId, line: ConsoleLine, out_navigation: &mut Navigation) {
+    fn resolve_exit(&mut self, level: Level, cell: CellId, line: ConsoleLine, out_navigation: &mut Navigation) {
         let room: Room;
-        RoomLookup.find_room(level, cell, mut room);
-        find_exit(room, line.text, out_navigation);
+        self.lookup.find_room(level, cell, mut room);
+        self.find_exit(room, line.text, out_navigation);
     }
 
-    fn find_exit(room: Room, command: String, out_navigation: &mut Navigation) {
+    fn find_exit(&mut self, room: Room, command: String, out_navigation: &mut Navigation) {
         let exits: &[Exit] = room.exits.as_slice();
 
         transition room.exit_count > 0 {
@@ -70,6 +74,7 @@ machine CommandParser {
     }
 
     state find_exit_at(
+        &mut self,
         exits: &[Exit],
         exit_count: usize[positive],
         command: String,
