@@ -1,12 +1,9 @@
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::lexer::Lexer;
-use crate::parser::{SyntaxFile, SyntaxKind, parse_syntax_file_with_id};
+use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::import_queue::ImportQueue;
-use crate::pipeline::options::CompileOptions;
 use crate::pipeline::source_file::SourceFile;
-use crate::source::{SourceMap, SourceSpan};
+use crate::source::SourceMap;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 
@@ -30,156 +27,148 @@ pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>
     Compiler::new(options).compile()
 }
 
-struct Compiler {
+pub struct Compiler {
     options: CompileOptions,
-    workers: WorkerPool,
-    root_dir: PathBuf,
     imports: ImportQueue,
-    sources: SourceMap,
+    source_loader: SourceLoader,
+    workers: WorkerPool,
     files: Vec<SourceFile>,
+    sources: SourceMap,
 }
 
 impl Compiler {
-    fn new(options: CompileOptions) -> Self {
-        let root_dir = options
-            .root_path
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
+    pub fn new(options: CompileOptions) -> Self {
         let mut imports = ImportQueue::default();
-        imports.push(options.root_path.clone());
+        imports.seed(options.root_path.clone());
 
         Self {
             options,
-            workers: WorkerPool::with_available_parallelism(),
-            root_dir,
             imports,
-            sources: SourceMap::default(),
+            source_loader: SourceLoader,
+            workers: WorkerPool::with_available_parallelism(),
             files: Vec::new(),
+            sources: SourceMap::default(),
         }
     }
 
-    fn check(mut self) -> Result<CheckOutput, Vec<Diagnostic>> {
+    pub fn check(mut self) -> Result<CheckOutput, Vec<Diagnostic>> {
         self.compile_frontend()?;
-        Ok(CheckOutput {
-            files: self.files,
-            sources: Arc::new(self.sources),
-        })
+        Ok(self.finish_check())
     }
 
-    fn compile(mut self) -> Result<CompileOutput, Vec<Diagnostic>> {
+    pub fn compile(mut self) -> Result<CompileOutput, Vec<Diagnostic>> {
         self.compile_frontend()?;
-        Ok(CompileOutput {
-            files: self.files,
-            sources: Arc::new(self.sources),
-        })
+
+        let syntax = self.assemble_syntax()?;
+        let resolved = self.resolve(syntax)?;
+        let typed = self.typecheck(resolved)?;
+        let validated = self.validate(typed)?;
+        let planned = self.plan_backend(validated)?;
+        let emitted = self.emit(planned)?;
+
+        Ok(self.finish_compile(emitted))
     }
 
-    fn compile_frontend(&mut self) -> Result<(), Vec<Diagnostic>> {
-        while let Some(frontier) = self.imports.pop_all() {
-            let loaded = self
-                .load_sources(frontier)?
-                .into_iter()
-                .map(|(path, source)| self.lex_and_parse(path, source))
-                .collect::<Result<Vec<_>, _>>()?;
+    pub fn compile_frontend(&mut self) -> Result<(), Vec<Diagnostic>> {
+        while self.imports.has_pending() {
+            let frontier = self.imports.take_frontier();
+            let sources = self.source_loader.load(frontier)?;
+            let lexed = self.lex_sources(sources)?;
+            let parsed = self.parse_sources(lexed)?;
+            let imports = self.discover_imports(&parsed)?;
 
-            loaded
-                .iter()
-                .flat_map(|file| self.discover_imports(file.syntax()))
-                .try_for_each(|path| self.imports.push(self.normalize_path(&path)?));
-
-            self.files.extend(loaded);
+            self.imports.enqueue(imports)?;
+            self.extend_sources(parsed)?;
         }
 
         Ok(())
     }
 
-    fn load_sources(&self, paths: Vec<PathBuf>) -> Result<Vec<(PathBuf, String)>, Vec<Diagnostic>> {
-        let paths = Arc::new(paths);
-        let loaded = self.workers.map_ordered(paths.len(), move |index| {
-            let path = paths[index].clone();
-            let source = std::fs::read_to_string(&path);
-            (path, source)
-        });
-
-        loaded
-            .into_iter()
-            .map(|(path, source)| {
-                source.map(|text| (path.clone(), text)).map_err(|error| {
-                    vec![Diagnostic::error(format!("failed to read {}: {error}", path.display()))]
-                })
-            })
-            .collect()
+    fn lex_sources(&mut self, sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
+        let _ = &self.workers;
+        let _ = &self.options;
+        let _ = sources;
+        todo!("lex source batch into token streams")
     }
 
-    fn lex_and_parse(&mut self, path: PathBuf, source: String) -> Result<SourceFile, Vec<Diagnostic>> {
-        let source_file = self.sources.add(path.clone(), source);
-        let file_id = source_file.id;
-        let leaked: &'static str = Box::leak(source_file.source.to_string().into_boxed_str());
-        let tokens = Lexer::new(leaked).tokenize().map_err(|error| {
-            vec![Diagnostic::error(self.format_span(file_id, path.as_path(), error.span, &error.message))]
-        })?;
-        let syntax = parse_syntax_file_with_id(file_id, &tokens).map_err(|error| {
-            vec![Diagnostic::error(match error.span {
-                Some(span) => self.format_span(file_id, path.as_path(), span, &error.message),
-                None => format!("{}: {}", path.display(), error.message),
-            })]
-        })?;
-
-        Ok(SourceFile {
-            file_id,
-            path,
-            tokens,
-            syntax,
-        })
+    fn parse_sources(&mut self, lexed: LexedSources) -> Result<ParsedSources, Vec<Diagnostic>> {
+        let _ = lexed;
+        todo!("parse token streams into per-file syntax")
     }
 
-    fn discover_imports<'a>(&'a self, syntax: &'a SyntaxFile) -> impl Iterator<Item = PathBuf> + 'a {
-        let root = syntax.syntax.nodes.get(syntax.root);
-        syntax
-            .syntax
-            .node_handles
-            .span_or_empty(root.children)
-            .iter()
-            .filter(move |handle| matches!(syntax.syntax.nodes.get(**handle).kind, SyntaxKind::UseItem))
-            .map(move |handle| self.join_import_path(syntax, *handle))
+    fn discover_imports(
+        &self,
+        parsed: &ParsedSources,
+    ) -> Result<Vec<std::path::PathBuf>, Vec<Diagnostic>> {
+        let _ = parsed;
+        todo!("discover imports from parsed per-file syntax")
     }
 
-    fn join_import_path(&self, syntax: &SyntaxFile, handle: omega_parser::SyntaxNodeHandle) -> PathBuf {
-        let node = syntax.syntax.nodes.get(handle);
-        let mut path = self.root_dir.clone();
-        for token in syntax.syntax.tokens.span_or_empty(node.tokens).iter().skip(1) {
-            match token.lexeme.as_str() {
-                "::" | ";" => {}
-                segment => path.push(segment),
-            }
+    fn extend_sources(&mut self, parsed: ParsedSources) -> Result<(), Vec<Diagnostic>> {
+        let _ = parsed;
+        todo!("append parsed files into compiler-owned source storage")
+    }
+
+    fn assemble_syntax(&mut self) -> Result<AssembledSyntax, Vec<Diagnostic>> {
+        todo!("assemble all parsed source files into a whole-program syntax product")
+    }
+
+    fn resolve(&mut self, syntax: AssembledSyntax) -> Result<ResolvedProgram, Vec<Diagnostic>> {
+        let _ = syntax;
+        todo!("resolve symbols over assembled whole-program syntax")
+    }
+
+    fn typecheck(&mut self, resolved: ResolvedProgram) -> Result<TypedProgram, Vec<Diagnostic>> {
+        let _ = resolved;
+        todo!("typecheck resolved program")
+    }
+
+    fn validate(&mut self, typed: TypedProgram) -> Result<ValidatedProgram, Vec<Diagnostic>> {
+        let _ = typed;
+        todo!("validate typed program")
+    }
+
+    fn plan_backend(
+        &mut self,
+        validated: ValidatedProgram,
+    ) -> Result<BackendPlan, Vec<Diagnostic>> {
+        let _ = validated;
+        todo!("plan backend from validated program")
+    }
+
+    fn emit(&mut self, plan: BackendPlan) -> Result<EmittedProgram, Vec<Diagnostic>> {
+        let _ = plan;
+        todo!("emit backend plan")
+    }
+
+    fn finish_check(self) -> CheckOutput {
+        CheckOutput {
+            files: self.files,
+            sources: Arc::new(self.sources),
         }
-        path.set_extension("omg");
-        path
     }
 
-    fn normalize_path(&self, path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
-        path.canonicalize().map_err(|error| {
-            vec![Diagnostic::error(format!("failed to resolve {}: {error}", path.display()))]
-        })
+    fn finish_compile(self, _emitted: EmittedProgram) -> CompileOutput {
+        CompileOutput {
+            files: self.files,
+            sources: Arc::new(self.sources),
+        }
     }
+}
 
-    fn format_span(&self, file_id: crate::source::FileId, path: &Path, span: omega_core::Span, message: &str) -> String {
-        let file = self
-            .sources
-            .get(file_id)
-            .expect("source file should exist for reported span");
-        let span = SourceSpan::new(file.id, span);
-        let start = file.position_at(span.span.start);
-        let end = file.position_at(span.span.end);
-        format!(
-            "{}:{}:{}-{}:{}: {}",
-            path.display(),
-            start.line,
-            start.column,
-            end.line,
-            end.column,
-            message
-        )
+struct SourceLoader;
+struct LoadedSources;
+struct LexedSources;
+struct ParsedSources;
+struct AssembledSyntax;
+struct ResolvedProgram;
+struct TypedProgram;
+struct ValidatedProgram;
+struct BackendPlan;
+struct EmittedProgram;
+
+impl SourceLoader {
+    fn load(&self, _frontier: Vec<std::path::PathBuf>) -> Result<LoadedSources, Vec<Diagnostic>> {
+        todo!("load frontier source files from disk")
     }
 }

@@ -8,13 +8,33 @@ pub struct ImportQueue {
 }
 
 impl ImportQueue {
-    pub fn push(&mut self, path: PathBuf) {
+    pub fn seed(&mut self, path: PathBuf) {
+        self.push(path);
+    }
+
+    pub fn enqueue(&mut self, paths: Vec<PathBuf>) -> Result<(), Vec<omega_core::diagnostics::Diagnostic>> {
+        for path in paths {
+            self.push(path);
+        }
+
+        Ok(())
+    }
+
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    pub fn take_frontier(&mut self) -> Vec<PathBuf> {
+        self.pop_all().unwrap_or_default()
+    }
+
+    fn push(&mut self, path: PathBuf) {
         if self.seen.insert(path.clone()) {
             self.pending.push_back(path);
         }
     }
 
-    pub fn pop_all(&mut self) -> Option<Vec<PathBuf>> {
+    fn pop_all(&mut self) -> Option<Vec<PathBuf>> {
         (!self.pending.is_empty()).then(|| self.pending.drain(..).collect())
     }
 }
