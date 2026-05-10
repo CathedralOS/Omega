@@ -35,7 +35,6 @@ pub(super) fn append_local_state_calls(
             target_symbol,
             receiver,
             target,
-            arguments: _,
         } = &operation.kind
         else {
             continue;

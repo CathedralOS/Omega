@@ -42,7 +42,6 @@ pub(crate) fn collect_machine_state_calls(
                 target_symbol,
                 receiver,
                 target,
-                arguments: _,
             } = &operation.kind
             else {
                 continue;

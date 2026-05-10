@@ -1,6 +1,6 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable};
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
@@ -152,24 +152,17 @@ pub struct Operation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OperationKind {
-    Assignment {
-        target: Expression,
-        value: Expression,
-    },
+    Assignment,
     Call {
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
         receiver: Option<ProgramName>,
         target: ProgramName,
-        arguments: Vec<Expression>,
     },
     ConstantIntegerAssignment,
     Expression,
     LocalData,
-    StaticAssignment {
-        target: Expression,
-        value: Expression,
-    },
+    StaticAssignment,
 }
 
 impl Default for Operation {
@@ -217,14 +210,12 @@ pub enum PlannedTransitionTarget {
         index: usize,
         key: StateKey,
         name: ProgramName,
-        arguments: Vec<Expression>,
     },
     Nested {
         receiver_symbol: SymbolHandle,
         state_symbol: SymbolHandle,
         receiver: ProgramName,
         state: ProgramName,
-        arguments: Vec<Expression>,
     },
     SelfTarget,
     Terminal,

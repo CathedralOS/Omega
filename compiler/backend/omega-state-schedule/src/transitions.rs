@@ -21,7 +21,6 @@ pub(super) fn next_state(
             index,
             key,
             name: _,
-            arguments: _,
         } => {
             validate_state_index(context, machine, *index, &machine.name, &state.name)?;
             bind_state_arguments_by_key(
@@ -43,7 +42,6 @@ pub(super) fn next_state(
             state_symbol,
             receiver,
             state: nested_state,
-            arguments: _,
         } => {
             let nested_machine_symbol = machine
                 .contains
@@ -100,7 +98,6 @@ pub(super) fn next_state(
                     index,
                     key,
                     name: _,
-                    arguments: _,
                 }) => {
                     validate_state_index(context, machine, *index, &machine.name, &state.name)?;
                     bind_state_arguments_by_key(

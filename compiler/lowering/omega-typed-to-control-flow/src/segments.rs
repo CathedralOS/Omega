@@ -150,24 +150,17 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stat
 fn operation_kind(statement: &Statement) -> OperationKind {
     match statement {
         Statement::Assignment(assignment) if is_static_assignment(assignment) => {
-            OperationKind::StaticAssignment {
-                target: assignment.target.clone(),
-                value: assignment.value.clone(),
-            }
+            OperationKind::StaticAssignment
         }
         Statement::Assignment(assignment) if is_constant_integer_assignment(assignment) => {
             OperationKind::ConstantIntegerAssignment
         }
-        Statement::Assignment(assignment) => OperationKind::Assignment {
-            target: assignment.target.clone(),
-            value: assignment.value.clone(),
-        },
+        Statement::Assignment(_) => OperationKind::Assignment,
         Statement::Call(call) => OperationKind::Call {
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
             receiver: call.receiver.clone(),
             target: call.target.clone(),
-            arguments: call.arguments.clone(),
         },
         Statement::Expression(_) => OperationKind::Expression,
         Statement::LocalData(_) => OperationKind::LocalData,

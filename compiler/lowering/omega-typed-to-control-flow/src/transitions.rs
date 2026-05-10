@@ -97,17 +97,15 @@ fn plan_transition_target(
                 index: *index,
                 key: *key,
                 name,
-                arguments: arguments.clone(),
             })
         }
         TransitionTarget::Named {
-            path, arguments, ..
+            path, arguments: _, ..
         } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
             receiver_symbol: path.head_symbol(),
             state_symbol: path.symbol(),
             receiver: path[0].clone(),
             state: path[1].clone(),
-            arguments: arguments.clone(),
         }),
         TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
             "unsupported transition target `{}`",

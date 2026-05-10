@@ -157,7 +157,6 @@ fn build_machine_flow(
                         index: next_index,
                         key: next_key,
                         name: next_segment_name.clone(),
-                        arguments: Vec::new(),
                     },
                     continuation: None,
                     guard: TransitionGuard::Always,

@@ -1,5 +1,4 @@
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::count_expression_strings;
 use omega_control_flow::PlannedTransitionTarget;
 use omega_state_graph::RuntimeTransitionTarget;
 
@@ -8,25 +7,14 @@ pub(in crate::identity) fn count_planned_target_strings(
     storage: &mut BackendStringStorage,
 ) {
     match target {
-        PlannedTransitionTarget::State {
-            name, arguments, ..
-        } => {
+        PlannedTransitionTarget::State { name, .. } => {
             storage.count_program_name_identity(name);
-            for argument in arguments {
-                count_expression_strings(argument, storage);
-            }
         }
         PlannedTransitionTarget::Nested {
-            receiver,
-            state,
-            arguments,
-            ..
+            receiver, state, ..
         } => {
             storage.count_program_name_identity(receiver);
             storage.count_program_name_identity(state);
-            for argument in arguments {
-                count_expression_strings(argument, storage);
-            }
         }
         PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {}
     }
