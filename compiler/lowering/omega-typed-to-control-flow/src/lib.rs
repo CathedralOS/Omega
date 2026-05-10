@@ -173,69 +173,7 @@ fn build_machine_flow(
         .map(|(index, segment)| (segment.key, index))
         .collect::<Vec<_>>();
 
-    let states = segments
-        .iter()
-        .flat_map(|state_segments| state_segments.iter())
-        .enumerate()
-        .map(|(index, segment)| {
-            let mut transitions = segment
-                .transitions
-                .iter()
-                .map(|transition| {
-                    plan_transition(&state_indexes, transition, program, control_flow)
-                })
-                .collect::<Result<Vec<_>, Diagnostic>>()?;
-
-            if let Some(next_segment_name) = &segment.next_segment_name
-                && !segment_has_unconditional_transition(segment)
-            {
-                let next_segment_key = StateKey {
-                    segment_index: segment.key.segment_index + 1,
-                    ..segment.key
-                };
-                let next_index = state_indexes
-                    .iter()
-                    .find(|(key, _)| *key == next_segment_key)
-                    .map(|(_, index)| *index)
-                    .ok_or_else(|| {
-                        Diagnostic::error(format!(
-                            "internal control-flow segment `{next_segment_name}` was not indexed"
-                        ))
-                    })?;
-                let next_key = state_indexes
-                    .iter()
-                    .find(|(key, _)| *key == next_segment_key)
-                    .map(|(key, _)| *key)
-                    .unwrap_or_default();
-
-                transitions.push(TransitionFlow {
-                    target: PlannedTransitionTarget::State {
-                        index: next_index,
-                        key: next_key,
-                        name: next_segment_name.clone(),
-                    },
-                    continuation: None,
-                    guard: TransitionGuard::Always,
-                    expressions: TransitionExpressionRefs::default(),
-                });
-            }
-
-            let operations = control_flow
-                .operations
-                .insert_many(segment.operations.iter().cloned());
-            let transitions = control_flow.transitions.insert_many(transitions);
-
-            Ok(StateFlow {
-                key: segment.key,
-                name: segment.name.clone(),
-                index,
-                parameters: segment.parameters.clone(),
-                operations,
-                transitions,
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    let states = control_flow.states.insert_many(states);
+    let states = append_machine_states(control_flow, program, &segments, &state_indexes)?;
 
     Ok(MachineFlow {
         symbol: machine_symbol,
@@ -252,6 +190,118 @@ fn build_machine_flow(
             .collect(),
         states,
     })
+}
+
+fn append_machine_states(
+    control_flow: &mut ControlFlowPlan,
+    program: &Program,
+    segments: &[Vec<crate::segments::StateSegment<'_>>],
+    state_indexes: &[(StateKey, usize)],
+) -> Result<HandleSpan<StateFlow>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for (index, segment) in segments
+        .iter()
+        .flat_map(|state_segments| state_segments.iter())
+        .enumerate()
+    {
+        let operations = control_flow
+            .operations
+            .insert_many(segment.operations.iter().cloned());
+        let transitions =
+            append_segment_transitions(control_flow, program, segment, state_indexes)?;
+        let handle = control_flow.states.append(StateFlow {
+            key: segment.key,
+            name: segment.name.clone(),
+            index,
+            parameters: segment.parameters.clone(),
+            operations,
+            transitions,
+        });
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("control-flow state span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
+    }
+}
+
+fn append_segment_transitions(
+    control_flow: &mut ControlFlowPlan,
+    program: &Program,
+    segment: &crate::segments::StateSegment<'_>,
+    state_indexes: &[(StateKey, usize)],
+) -> Result<HandleSpan<TransitionFlow>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for transition in &segment.transitions {
+        let transition = plan_transition(state_indexes, transition, program, control_flow)?;
+        append_transition(control_flow, transition, &mut start, &mut count);
+    }
+
+    if let Some(next_segment_name) = &segment.next_segment_name
+        && !segment_has_unconditional_transition(segment)
+    {
+        let next_segment_key = StateKey {
+            segment_index: segment.key.segment_index + 1,
+            ..segment.key
+        };
+        let (next_key, next_index) = state_indexes
+            .iter()
+            .find(|(key, _)| *key == next_segment_key)
+            .copied()
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "internal control-flow segment `{next_segment_name}` was not indexed"
+                ))
+            })?;
+
+        append_transition(
+            control_flow,
+            TransitionFlow {
+                target: PlannedTransitionTarget::State {
+                    index: next_index,
+                    key: next_key,
+                    name: next_segment_name.clone(),
+                },
+                continuation: None,
+                guard: TransitionGuard::Always,
+                expressions: TransitionExpressionRefs::default(),
+            },
+            &mut start,
+            &mut count,
+        );
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
+    }
+}
+
+fn append_transition(
+    control_flow: &mut ControlFlowPlan,
+    transition: TransitionFlow,
+    start: &mut Handle<TransitionFlow>,
+    count: &mut u32,
+) {
+    let handle = control_flow.transitions.append(transition);
+    if *count == 0 {
+        *start = handle;
+    }
+    *count = count
+        .checked_add(1)
+        .expect("control-flow transition span count overflow");
 }
 
 fn remap_operation(
