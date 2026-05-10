@@ -207,11 +207,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.runtime_branching_calls =
         record_backend_phase(&mut phase_timings, "runtime branching", || {
             build_runtime_branching_call_plan(&RuntimeBranchingContext {
-                control_flow: backend_plan.control_flow.clone(),
-                host_calls: backend_plan.host_calls.clone(),
-                runtime_bodies: backend_plan.runtime_bodies.clone(),
-                state_calls: backend_plan.state_calls.clone(),
-                state_storage: backend_plan.state_storage.clone(),
+                control_flow: &backend_plan.control_flow,
+                host_calls: &backend_plan.host_calls,
+                runtime_bodies: &backend_plan.runtime_bodies,
+                state_calls: &backend_plan.state_calls,
+                state_storage: &backend_plan.state_storage,
             })
         });
     backend_plan.runtime_dispatch_loop = runtime_dispatch_loop;

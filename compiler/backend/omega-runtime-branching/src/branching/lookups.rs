@@ -3,11 +3,11 @@ use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
 
-pub(super) fn host_call_for_statement(
-    context: &RuntimeBranchingContext,
+pub(super) fn host_call_for_statement<'plan>(
+    context: &RuntimeBranchingContext<'plan>,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&HostCall> {
+) -> Option<&'plan HostCall> {
     context
         .host_calls
         .calls
@@ -18,11 +18,11 @@ pub(super) fn host_call_for_statement(
         .map(|(_, host_call)| host_call)
 }
 
-pub(super) fn mutation_for_statement(
-    context: &RuntimeBranchingContext,
+pub(super) fn mutation_for_statement<'plan>(
+    context: &RuntimeBranchingContext<'plan>,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&omega_state_storage::StateMutation> {
+) -> Option<&'plan omega_state_storage::StateMutation> {
     context
         .state_storage
         .mutations
@@ -33,11 +33,11 @@ pub(super) fn mutation_for_statement(
         .map(|(_, mutation)| mutation)
 }
 
-pub(super) fn state_call_for_operation(
-    context: &RuntimeBranchingContext,
+pub(super) fn state_call_for_operation<'plan>(
+    context: &RuntimeBranchingContext<'plan>,
     source_key: StateKey,
     statement_index: usize,
-) -> Option<&StateCall> {
+) -> Option<&'plan StateCall> {
     context
         .state_calls
         .calls
@@ -48,10 +48,10 @@ pub(super) fn state_call_for_operation(
         .map(|(_, state_call)| state_call)
 }
 
-pub(super) fn state_parameters(
-    context: &RuntimeBranchingContext,
+pub(super) fn state_parameters<'plan>(
+    context: &RuntimeBranchingContext<'plan>,
     state_key: StateKey,
-) -> &[StateParameterFlow] {
+) -> &'plan [StateParameterFlow] {
     context
         .control_flow
         .state_by_key(state_key)
