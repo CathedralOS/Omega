@@ -34,7 +34,7 @@ data Dungeon {
 }
 
 machine for Dungeon {
-    state entry(&mut self) {
+    fn entry(&mut self) {
         transition {
             _ -> enter_room()
         }
