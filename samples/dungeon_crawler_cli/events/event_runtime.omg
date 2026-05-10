@@ -17,11 +17,13 @@ machine EventRuntime {
     contains player_system: PlayerSystem;
 
     fn describe(room: Room, out_line: &mut ConsoleLine) {
-        -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && !room.event.consumed;
-        -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && !room.event.consumed;
-        -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && !room.event.consumed;
-        -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && !room.event.consumed;
-        out_line.text = "The room is quiet.";
+        match room.event.kind {
+            RoomEventKind::FountainOfLife when !room.event.consumed -> describe_fountain(out_line)
+            RoomEventKind::Treasure when !room.event.consumed -> describe_treasure(out_line)
+            RoomEventKind::GoldCache when !room.event.consumed -> describe_gold(out_line)
+            RoomEventKind::Enemy when !room.event.consumed -> describe_enemy(room.event.enemy, out_line)
+            _ -> quiet_room(out_line)
+        }
     }
 
     state describe_fountain(out_line: &mut ConsoleLine) {
@@ -40,12 +42,17 @@ machine EventRuntime {
         out_line.text = enemy.name + " blocks the way. Type fight.";
     }
 
-    fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
-        -> use_fountain(player, mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && !room.event.consumed;
-        -> use_reward(player, mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && !room.event.consumed;
-        -> use_reward(player, mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && !room.event.consumed;
+    state quiet_room(out_line: &mut ConsoleLine) {
+        out_line.text = "The room is quiet.";
+    }
 
-        out_line.text = "There is nothing here to use.";
+    fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
+        match room.event.kind {
+            RoomEventKind::FountainOfLife when !room.event.consumed -> use_fountain(player, mut room.event, out_line)
+            RoomEventKind::Treasure when !room.event.consumed -> use_reward(player, mut room.event, out_line)
+            RoomEventKind::GoldCache when !room.event.consumed -> use_reward(player, mut room.event, out_line)
+            _ -> no_usable_event(out_line)
+        }
     }
 
     state use_fountain(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
@@ -60,15 +67,23 @@ machine EventRuntime {
         out_line.text = "You take the treasure.";
     }
 
+    state no_usable_event(out_line: &mut ConsoleLine) {
+        out_line.text = "There is nothing here to use.";
+    }
+
     fn fight_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
-        -> no_enemy(out_line) when room.event.kind != RoomEventKind::Enemy || room.event.consumed;
+        match {
+            room.event.kind != RoomEventKind::Enemy || room.event.consumed -> no_enemy(out_line)
+            _ -> {}
+        }
 
         combat.fight(player, mut room.event, random, round);
 
-        -> player_died(out_line) when round.player_defeated;
-        -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
-
-        out_line.text = "You strike for " + round.player_damage.to_string() + ", then take " + round.enemy_damage.to_string() + ".";
+        match {
+            round.player_defeated -> player_died(out_line)
+            round.enemy_defeated -> enemy_died(room.event.reward, out_line)
+            _ -> exchange_blows(round, out_line)
+        }
     }
 
     state no_enemy(out_line: &mut ConsoleLine) {
@@ -81,5 +96,9 @@ machine EventRuntime {
 
     state enemy_died(reward: Reward, out_line: &mut ConsoleLine) {
         out_line.text = "The enemy collapses. You gain " + reward.gold.to_string() + " gold.";
+    }
+
+    state exchange_blows(round: CombatRound, out_line: &mut ConsoleLine) {
+        out_line.text = "You strike for " + round.player_damage.to_string() + ", then take " + round.enemy_damage.to_string() + ".";
     }
 }

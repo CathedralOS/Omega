@@ -11,11 +11,15 @@ machine main {
         title.show();
         dungeon.start();
 
-        -> running();
+        match {
+            _ -> running()
+        }
     }
 
     state running() {
-        -> dungeon.entry() -> shutdown();
+        match {
+            _ -> dungeon.entry() -> shutdown()
+        }
     }
 
     state shutdown() {

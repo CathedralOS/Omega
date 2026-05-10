@@ -20,11 +20,10 @@ machine RewardTables {
     }
 
     fn roll_enemy_reward(enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
-        -> enemy_item(enemy, random, reward) when rng.chance(random, 1, 4);
-
-        reward.kind = RewardKind::Gold;
-        reward.gold = 2 + enemy.depth * 2 + rng.range(random, 6);
-        reward.item = ItemKind::RustedDagger;
+        match {
+            rng.chance(random, 1, 4) -> enemy_item(enemy, random, reward)
+            _ -> enemy_gold(enemy, random, reward)
+        }
     }
 
     state enemy_item(enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
@@ -33,14 +32,22 @@ machine RewardTables {
         reward.item = roll_item(enemy.depth, random);
     }
 
+    state enemy_gold(enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
+        reward.kind = RewardKind::Gold;
+        reward.gold = 2 + enemy.depth * 2 + rng.range(random, 6);
+        reward.item = ItemKind::RustedDagger;
+    }
+
     fn roll_item(depth: u32[exact, non_negative], random: &mut RandomState) -> ItemKind {
         let roll: u32[exact, range<0, 100>] = rng.range(random, 100);
 
-        -> ItemKind::RustedDagger when depth <= 2 && roll < 50;
-        -> ItemKind::CrackedBuckler when depth <= 3 && roll < 75;
-        -> ItemKind::HealingCharm when roll < 85;
-        -> ItemKind::EmberBlade when depth >= 5 && roll < 96;
-        -> ItemKind::DeepKey when depth >= 8;
-        -> ItemKind::RustedDagger;
+        match {
+            depth <= 2 && roll < 50 -> ItemKind::RustedDagger
+            depth <= 3 && roll < 75 -> ItemKind::CrackedBuckler
+            roll < 85 -> ItemKind::HealingCharm
+            depth >= 5 && roll < 96 -> ItemKind::EmberBlade
+            depth >= 8 -> ItemKind::DeepKey
+            _ -> ItemKind::RustedDagger
+        }
     }
 }

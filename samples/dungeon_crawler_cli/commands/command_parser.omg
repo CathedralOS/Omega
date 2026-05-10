@@ -5,18 +5,20 @@ use rooms::room_lookup;
 
 machine CommandParser {
     fn resolve_command(line: ConsoleLine, out_navigation: &mut Navigation) {
-        -> resolve_quit(out_navigation) when line.text == "quit";
-        -> resolve_look(out_navigation) when line.text == "look";
-        -> resolve_look(out_navigation) when line.text == "info";
-        -> resolve_exits(out_navigation) when line.text == "exits";
-        -> resolve_exits(out_navigation) when line.text == "help";
-        -> resolve_inventory(out_navigation) when line.text == "inventory";
-        -> resolve_inventory(out_navigation) when line.text == "inv";
-        -> resolve_character(out_navigation) when line.text == "character";
-        -> resolve_character(out_navigation) when line.text == "stats";
-        -> resolve_use(out_navigation) when line.text == "use";
-        -> resolve_fight(out_navigation) when line.text == "fight";
-        ->
+        match line.text {
+            "quit" -> resolve_quit(out_navigation)
+            "look" -> resolve_look(out_navigation)
+            "info" -> resolve_look(out_navigation)
+            "exits" -> resolve_exits(out_navigation)
+            "help" -> resolve_exits(out_navigation)
+            "inventory" -> resolve_inventory(out_navigation)
+            "inv" -> resolve_inventory(out_navigation)
+            "character" -> resolve_character(out_navigation)
+            "stats" -> resolve_character(out_navigation)
+            "use" -> resolve_use(out_navigation)
+            "fight" -> resolve_fight(out_navigation)
+            _ -> {}
+        }
     }
 
     state resolve_quit(out_navigation: &mut Navigation) {
@@ -62,7 +64,10 @@ machine CommandParser {
         let index: usize = 0;
 
         loop index < room.exit_count {
-            -> resolve_move(room.exits[index].destination, out_navigation) when room.exits[index].command == command;
+            match {
+                room.exits[index].command == command -> resolve_move(room.exits[index].destination, out_navigation)
+                _ -> {}
+            }
             index = index + 1;
         }
     }

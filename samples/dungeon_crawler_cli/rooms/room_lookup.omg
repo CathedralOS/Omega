@@ -6,7 +6,10 @@ machine RoomLookup {
         let index: usize = 0;
 
         loop index < level.room_count {
-            -> apply_room(level.rooms[index], out_room) when level.rooms[index].cell == cell;
+            match {
+                level.rooms[index].cell == cell -> apply_room(level.rooms[index], out_room)
+                _ -> {}
+            }
             index = index + 1;
         }
     }
@@ -15,7 +18,10 @@ machine RoomLookup {
         let index: usize = 0;
 
         loop index < level.room_count {
-            -> &mut level.rooms[index] when level.rooms[index].cell == cell;
+            match {
+                level.rooms[index].cell == cell -> &mut level.rooms[index]
+                _ -> {}
+            }
             index = index + 1;
         }
 

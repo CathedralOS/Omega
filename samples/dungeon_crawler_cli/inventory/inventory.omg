@@ -14,16 +14,19 @@ machine InventorySystem {
     fn add_item(inventory: &mut Inventory, kind: ItemKind) {
         let existing_index: Option<usize> = find_item(inventory, kind);
 
-        -> increment_item(mut inventory.items[existing_index.unwrap()], 1) when existing_index.is_some();
-
-        inventory.items.push(InventoryItem { kind: kind, count: 1 });
+        match {
+            existing_index.is_some() -> increment_item(mut inventory.items[existing_index.unwrap()], 1)
+            _ -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
+        }
     }
 
     fn add_reward(inventory: &mut Inventory, reward: Reward) {
-        -> add_gold(inventory, reward.gold) when reward.kind == RewardKind::Gold;
-        -> add_item(inventory, reward.item) when reward.kind == RewardKind::Item;
-        -> add_gold_and_item(inventory, reward) when reward.kind == RewardKind::GoldAndItem;
-        ->
+        match reward.kind {
+            RewardKind::None -> {}
+            RewardKind::Gold -> add_gold(inventory, reward.gold)
+            RewardKind::Item -> add_item(inventory, reward.item)
+            RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
+        }
     }
 
     state add_gold_and_item(inventory: &mut Inventory, reward: Reward) {
@@ -35,7 +38,10 @@ machine InventorySystem {
         let index: usize = 0;
 
         loop index < inventory.items.len() {
-            -> index when inventory.items[index].kind == kind;
+            match {
+                inventory.items[index].kind == kind -> index
+                _ -> {}
+            }
             index = index + 1;
         }
 

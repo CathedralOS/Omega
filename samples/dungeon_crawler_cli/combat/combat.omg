@@ -17,7 +17,10 @@ machine CombatSystem {
         event.enemy.health = max(0, event.enemy.health - round.player_damage);
         round.enemy_defeated = event.enemy.health == 0;
 
-        -> defeated_enemy(player, event, random, round) when round.enemy_defeated;
+        match {
+            round.enemy_defeated -> defeated_enemy(player, event, random, round)
+            _ -> {}
+        }
 
         round.enemy_damage = max(0, event.enemy.attack - player.defense + rng.range(random, 3));
         player_system.take_damage(player, round.enemy_damage);
