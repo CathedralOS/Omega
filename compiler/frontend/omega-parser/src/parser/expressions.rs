@@ -165,7 +165,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_comparison_expression(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.parse_add_expression()?;
+        let mut expression = self.parse_shift_expression()?;
 
         loop {
             let operator = if self.consume("<=") {
@@ -176,6 +176,24 @@ impl Parser<'_, '_> {
                 BinaryOperator::Less
             } else if self.consume(">") {
                 BinaryOperator::Greater
+            } else {
+                break;
+            };
+            let right = self.parse_shift_expression()?;
+            expression = binary_expression(expression, operator, right);
+        }
+
+        Ok(expression)
+    }
+
+    fn parse_shift_expression(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.parse_add_expression()?;
+
+        loop {
+            let operator = if self.consume("<<") {
+                BinaryOperator::ShiftLeft
+            } else if self.consume(">>") {
+                BinaryOperator::ShiftRight
             } else {
                 break;
             };
@@ -212,6 +230,8 @@ impl Parser<'_, '_> {
                 BinaryOperator::Multiply
             } else if self.consume("/") {
                 BinaryOperator::Divide
+            } else if self.consume("%") {
+                BinaryOperator::Modulo
             } else {
                 break;
             };
@@ -267,6 +287,17 @@ impl Parser<'_, '_> {
                     };
                 }
 
+                continue;
+            }
+
+            if self.consume("as") {
+                let target_type = self.parse_path()?;
+                expression = Expression::Cast(Box::new(
+                    omega_abstract_syntax_tree::expression::CastExpression {
+                        value: expression,
+                        target_type,
+                    },
+                ));
                 continue;
             }
 

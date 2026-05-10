@@ -235,6 +235,10 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
             count_expression(&binary.left, counts);
             count_expression(&binary.right, counts);
         }
+        Expression::Cast(cast) => {
+            count_expression(&cast.value, counts);
+            count_identifier_path(&cast.target_type, counts);
+        }
         Expression::Call(call) => {
             if let Some(receiver) = &call.receiver {
                 count_expression(receiver, counts);

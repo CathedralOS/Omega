@@ -300,6 +300,48 @@ fn binary_expression(left: Expression, operator: BinaryOperator, right: Expressi
     }))
 }
 
+fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
+    match expression {
+        Expression::Name(path) => {
+            if path.len() == 1 && path.first().is_some_and(|name| name.as_str() == "self") {
+                TransitionTarget::SelfTarget
+            } else {
+                TransitionTarget::Named {
+                    path,
+                    arguments: Vec::new(),
+                }
+            }
+        }
+        Expression::Call(call) => {
+            let CallExpression {
+                receiver,
+                target,
+                arguments,
+            } = *call;
+
+            if let Some(receiver) = receiver {
+                match *receiver {
+                    Expression::Name(mut path) => {
+                        path.push(target);
+                        TransitionTarget::Named { path, arguments }
+                    }
+                    other => TransitionTarget::Value(Expression::Call(Box::new(CallExpression {
+                        receiver: Some(Box::new(other)),
+                        target,
+                        arguments,
+                    }))),
+                }
+            } else {
+                TransitionTarget::Named {
+                    path: IdentifierPath::from(vec![target]),
+                    arguments,
+                }
+            }
+        }
+        other => TransitionTarget::Value(other),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_file;

@@ -260,64 +260,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
-        if self.check_kind(TokenKind::Integer)
-            || self.check_kind(TokenKind::Float)
-            || self.check_kind(TokenKind::String)
-            || self.check("[")
-            || self.check("(")
-            || self.check("&")
-            || self.check("mut")
-            || self.check("true")
-            || self.check("false")
-        {
-            return Ok(TransitionTarget::Value(self.parse_expression()?));
-        }
-
-        if self.consume("self") {
-            if !self.check(".") {
-                if self.consume("(") {
-                    let arguments = self.parse_arguments_after_open_paren()?;
-                    if !arguments.is_empty() {
-                        return Err(self.error_here("self transition does not accept arguments"));
-                    }
-                }
-
-                return Ok(TransitionTarget::SelfTarget);
-            }
-
-            let mut path = vec![Identifier::generated("self")];
-
-            while self.consume(".") || self.consume("::") {
-                path.push(self.expect_identifier()?);
-            }
-
-            let arguments = if self.consume("(") {
-                self.parse_arguments_after_open_paren()?
-            } else {
-                Vec::new()
-            };
-
-            return Ok(TransitionTarget::Named {
-                path: path.into(),
-                arguments,
-            });
-        }
-
-        let mut path = vec![self.expect_identifier()?];
-
-        while self.consume(".") || self.consume("::") {
-            path.push(self.expect_identifier()?);
-        }
-
-        let arguments = if self.consume("(") {
-            self.parse_arguments_after_open_paren()?
-        } else {
-            Vec::new()
-        };
-
-        Ok(TransitionTarget::Named {
-            path: path.into(),
-            arguments,
-        })
+        let expression = self.parse_expression()?;
+        Ok(expression_to_transition_target(expression))
     }
 }

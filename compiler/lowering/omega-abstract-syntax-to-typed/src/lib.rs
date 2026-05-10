@@ -9,7 +9,7 @@ use omega_core::symbols::{
 use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataField, DataMember, DataVariant};
 use omega_typed_program::expression::{
-    BinaryExpression, BinaryOperator, CallExpression, Expression, FloatLiteral,
+    BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, FloatLiteral,
     IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField,
 };
 use omega_typed_program::invariant::InvariantDefinition;
@@ -608,6 +608,9 @@ fn attach_expression_symbol(
         Expression::Binary(binary) => {
             attach_expression_symbol(symbols, context, &mut binary.left);
             attach_expression_symbol(symbols, context, &mut binary.right);
+        }
+        Expression::Cast(cast) => {
+            attach_expression_symbol(symbols, context, &mut cast.value);
         }
         Expression::Call(call) => {
             if let Some(receiver) = &mut call.receiver {
@@ -1862,6 +1865,10 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             })))
         }
         ast::expression::Expression::Boolean(value) => Ok(Expression::Boolean(*value)),
+        ast::expression::Expression::Cast(cast) => Ok(Expression::Cast(Box::new(CastExpression {
+            value: lower_expression(&cast.value)?,
+            target_type: lower_name_path(&cast.target_type),
+        }))),
         ast::expression::Expression::Call(call) => Ok(Expression::Call(Box::new(
             CallExpression {
                 receiver: call
@@ -1937,9 +1944,12 @@ fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOpe
         ast::expression::BinaryOperator::GreaterOrEqual => BinaryOperator::GreaterOrEqual,
         ast::expression::BinaryOperator::Less => BinaryOperator::Less,
         ast::expression::BinaryOperator::LessOrEqual => BinaryOperator::LessOrEqual,
+        ast::expression::BinaryOperator::Modulo => BinaryOperator::Modulo,
         ast::expression::BinaryOperator::Multiply => BinaryOperator::Multiply,
         ast::expression::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
         ast::expression::BinaryOperator::Or => BinaryOperator::Or,
+        ast::expression::BinaryOperator::ShiftLeft => BinaryOperator::ShiftLeft,
+        ast::expression::BinaryOperator::ShiftRight => BinaryOperator::ShiftRight,
         ast::expression::BinaryOperator::Subtract => BinaryOperator::Subtract,
     }
 }

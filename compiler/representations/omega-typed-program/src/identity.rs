@@ -256,6 +256,12 @@ fn count_expression_node(
             count_expression_handle(table, binary.left, counts);
             count_expression_handle(table, binary.right, counts);
         }
+        ExpressionNode::Cast(cast) => {
+            count_expression_handle(table, cast.value, counts);
+            for name in table.name_path_members(cast.target_type) {
+                count_expression_path_member(name, counts);
+            }
+        }
         ExpressionNode::Call(call) => {
             count_call_name(&call.target, counts);
             if call.receiver.is_valid() {
@@ -306,6 +312,12 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
         Expression::Binary(binary) => {
             count_expression(&binary.left, counts);
             count_expression(&binary.right, counts);
+        }
+        Expression::Cast(cast) => {
+            count_expression(&cast.value, counts);
+            for name in cast.target_type.members() {
+                count_expression_path_member(name, counts);
+            }
         }
         Expression::Call(call) => {
             count_call_name(&call.target, counts);

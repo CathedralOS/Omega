@@ -9,6 +9,7 @@ pub enum Expression {
     ArrayLiteral(Vec<Expression>),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
+    Cast(Box<CastExpression>),
     Call(Box<CallExpression>),
     Float(SourceText),
     Indexed(Box<IndexedExpression>),
@@ -173,6 +174,11 @@ impl ExpressionTable {
                 }))
             }
             Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
+            Expression::Cast(cast) => {
+                let value = self.insert_tree(&cast.value);
+                let target_type = self.insert_identifier_path_members(&cast.target_type);
+                self.insert(ExpressionNode::Cast(TableCastExpression { value, target_type }))
+            }
             Expression::Call(call) => {
                 let receiver = call
                     .receiver
@@ -238,6 +244,7 @@ pub enum ExpressionNode {
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Binary(TableBinaryExpression),
     Boolean(bool),
+    Cast(TableCastExpression),
     Call(TableCallExpression),
     Float(SourceText),
     Indexed(TableIndexedExpression),
@@ -260,6 +267,12 @@ pub struct TableBinaryExpression {
     pub left: ExpressionHandle,
     pub operator: BinaryOperator,
     pub right: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableCastExpression {
+    pub value: ExpressionHandle,
+    pub target_type: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -341,10 +354,19 @@ pub enum BinaryOperator {
     GreaterOrEqual,
     Less,
     LessOrEqual,
+    Modulo,
     Multiply,
     NotEqual,
     Or,
+    ShiftLeft,
+    ShiftRight,
     Subtract,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CastExpression {
+    pub value: Expression,
+    pub target_type: IdentifierPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -373,6 +395,7 @@ impl Expression {
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),
+            Expression::Cast(cast) => cast.display_name(),
             Expression::Call(call) => call.display_name(),
             Expression::Float(value) => value.to_string(),
             Expression::Indexed(indexed) => {
@@ -404,6 +427,7 @@ impl ExpressionNode {
             }
             Self::Binary(binary) => binary.display_name(table),
             Self::Boolean(value) => value.to_string(),
+            Self::Cast(cast) => cast.display_name(table),
             Self::Call(call) => call.display_name(table),
             Self::Float(value) => value.to_string(),
             Self::Indexed(indexed) => {
@@ -491,6 +515,22 @@ impl TableBinaryExpression {
     }
 }
 
+impl CastExpression {
+    pub fn display_name(&self) -> String {
+        format!("{} as {}", self.value.display_name(), self.target_type.join("::"))
+    }
+}
+
+impl TableCastExpression {
+    pub fn display_name(&self, table: &ExpressionTable) -> String {
+        let target_type = display_identifier_path(
+            table.identifier_path_members(self.target_type),
+            "::",
+        );
+        format!("{} as {}", table.display_name(self.value), target_type)
+    }
+}
+
 impl CallExpression {
     pub fn display_name(&self) -> String {
         let arguments = self
@@ -540,9 +580,12 @@ impl BinaryOperator {
             Self::GreaterOrEqual => ">=",
             Self::Less => "<",
             Self::LessOrEqual => "<=",
+            Self::Modulo => "%",
             Self::Multiply => "*",
             Self::NotEqual => "!=",
             Self::Or => "||",
+            Self::ShiftLeft => "<<",
+            Self::ShiftRight => ">>",
             Self::Subtract => "-",
         }
     }
