@@ -1,0 +1,20 @@
+platform Console {
+    fn write_line(text: String);
+    fn exit_process(return_code: i32);
+}
+
+machine for main {
+    contains console: Console;
+
+    pub entry(&mut self) {
+        self.console.write_line("entry");
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        self.console.exit_process(0);
+    }
+}
