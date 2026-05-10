@@ -2,7 +2,8 @@ use crate::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{
-    BinaryExpression, Expression, ExpressionTable, IndexedExpression, NamePath,
+    BinaryExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+    TableIndexedExpression, TableNamePath,
 };
 
 pub(crate) fn resolve_branch_expression(
@@ -36,47 +37,56 @@ pub(crate) fn resolve_branch_expression(
     }
 }
 
-pub(super) fn resolve_runtime_branch_alias_expression(
-    expression: &Expression,
+pub(super) fn resolve_runtime_branch_alias_expression_handle(
+    expression: ExpressionHandle,
     source_key: StateKey,
     aliases: &[RuntimeBranchAlias],
-    expression_table: &ExpressionTable,
-) -> Expression {
-    match expression {
-        Expression::Mutable(target) => {
-            let resolved_target = resolve_runtime_branch_alias_expression(
+    expression_table: &mut ExpressionTable,
+) -> ExpressionHandle {
+    match expression_table.expression(expression).clone() {
+        ExpressionNode::Mutable(target) => {
+            let resolved_target = resolve_runtime_branch_alias_expression_handle(
                 target,
                 source_key,
                 aliases,
                 expression_table,
             );
-            if matches!(resolved_target, Expression::Mutable(_)) {
+            if matches!(
+                expression_table.expression(resolved_target),
+                ExpressionNode::Mutable(_)
+            ) {
                 resolved_target
             } else {
-                Expression::Mutable(Box::new(resolved_target))
+                expression_table.insert(ExpressionNode::Mutable(resolved_target))
             }
         }
-        Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
-            collection: resolve_runtime_branch_alias_expression(
-                &indexed.collection,
+        ExpressionNode::Indexed(TableIndexedExpression { collection, index }) => {
+            let collection = resolve_runtime_branch_alias_expression_handle(
+                collection,
                 source_key,
                 aliases,
                 expression_table,
-            ),
-            index: resolve_runtime_branch_alias_expression(
-                &indexed.index,
+            );
+            let index = resolve_runtime_branch_alias_expression_handle(
+                index,
                 source_key,
                 aliases,
                 expression_table,
-            ),
-        })),
-        Expression::Name(path) if !path.is_empty() => aliases
+            );
+            expression_table.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                collection,
+                index,
+            }))
+        }
+        ExpressionNode::Name(path) if path.members.count() > 0 => aliases
             .iter()
             .rev()
-            .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
-            .map(|alias| expression_table.to_tree_with_place_suffix(alias.expression, &path[1..]))
-            .unwrap_or_else(|| expression.clone()),
-        _ => expression.clone(),
+            .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
+            .map(|alias| {
+                expression_table.insert_copy_with_member_suffix(alias.expression, path.members, 1)
+            })
+            .unwrap_or(expression),
+        _ => expression,
     }
 }
 
@@ -84,8 +94,10 @@ fn branch_binding_matches_path(binding: &BranchParameterBinding, path: &NamePath
     symbol_matches_path(binding.parameter_symbol, path)
 }
 
-fn alias_matches_path(alias: &RuntimeBranchAlias, path: &NamePath) -> bool {
-    symbol_matches_path(alias.parameter_symbol, path)
+fn alias_matches_table_path(alias: &RuntimeBranchAlias, path: &TableNamePath) -> bool {
+    alias.parameter_symbol.is_valid()
+        && path.head_symbol.is_valid()
+        && alias.parameter_symbol == path.head_symbol
 }
 
 fn symbol_matches_path(symbol: SymbolHandle, path: &NamePath) -> bool {

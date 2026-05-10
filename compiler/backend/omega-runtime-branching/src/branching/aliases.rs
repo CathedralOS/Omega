@@ -7,7 +7,7 @@ mod expressions;
 mod model;
 
 pub(super) use expressions::resolve_branch_expression;
-use expressions::resolve_runtime_branch_alias_expression;
+use expressions::resolve_runtime_branch_alias_expression_handle;
 pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
 
 pub(super) fn resolve_branch_guard(
@@ -50,8 +50,8 @@ pub(super) fn branch_parameter_bindings(
                     } else {
                         argument_expression
                     };
-                    let expression = resolve_runtime_branch_alias_expression(
-                        &expression_table.to_tree(expression),
+                    let expression = resolve_runtime_branch_alias_expression_handle(
+                        expression,
                         state_call.source_key,
                         aliases,
                         expression_table,
@@ -59,7 +59,7 @@ pub(super) fn branch_parameter_bindings(
                     BranchParameterBinding {
                         parameter_symbol: argument.parameter_symbol,
                         parameter_name: argument.parameter_name.clone(),
-                        expression: expression_table.insert_tree(&expression),
+                        expression,
                     }
                 })
                 .collect()
@@ -89,8 +89,8 @@ pub(super) fn bind_runtime_branch_aliases(
         } else {
             argument_expression
         };
-        let expression = resolve_runtime_branch_alias_expression(
-            &expression_table.to_tree(expression),
+        let expression = resolve_runtime_branch_alias_expression_handle(
+            expression,
             state_call.source_key,
             aliases,
             expression_table,
@@ -101,7 +101,7 @@ pub(super) fn bind_runtime_branch_aliases(
                 source_key: state_call.target_key,
                 parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
-                expression: expression_table.insert_tree(&expression),
+                expression,
             },
         );
     }

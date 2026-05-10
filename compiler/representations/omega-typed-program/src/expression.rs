@@ -349,6 +349,105 @@ impl ExpressionTable {
         HandleSpan::from_parts(start, count)
     }
 
+    pub fn copy_name_path_members_with_member_suffix(
+        &mut self,
+        members: HandleSpan<ProgramName>,
+        suffix_members: HandleSpan<ProgramName>,
+        suffix_start_offset: u32,
+    ) -> HandleSpan<ProgramName> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for offset in 0..members.count() {
+            let member = self
+                .name_path_members
+                .get(Handle::from_parts(
+                    members
+                        .start()
+                        .arena_index()
+                        .checked_add(offset)
+                        .expect("name path member index overflow"),
+                    members.start().generation(),
+                ))
+                .clone();
+            let handle = self.name_path_members.append(member);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("name path member span count overflow");
+        }
+
+        for offset in suffix_start_offset..suffix_members.count() {
+            let member = self
+                .name_path_members
+                .get(Handle::from_parts(
+                    suffix_members
+                        .start()
+                        .arena_index()
+                        .checked_add(offset)
+                        .expect("name path member index overflow"),
+                    suffix_members.start().generation(),
+                ))
+                .clone();
+            let handle = self.name_path_members.append(member);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("name path member span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    pub fn insert_copy_with_member_suffix(
+        &mut self,
+        expression: ExpressionHandle,
+        suffix_members: HandleSpan<ProgramName>,
+        suffix_start_offset: u32,
+    ) -> ExpressionHandle {
+        if suffix_start_offset >= suffix_members.count() {
+            return expression;
+        }
+
+        match self.expression(expression).clone() {
+            ExpressionNode::Name(path) => {
+                let members = self.copy_name_path_members_with_member_suffix(
+                    path.members,
+                    suffix_members,
+                    suffix_start_offset,
+                );
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: path.head_symbol,
+                    symbol: SymbolHandle::invalid(),
+                }))
+            }
+            ExpressionNode::Mutable(target) => {
+                let target = self.insert_copy_with_member_suffix(
+                    target,
+                    suffix_members,
+                    suffix_start_offset,
+                );
+                self.insert(ExpressionNode::Mutable(target))
+            }
+            _ => {
+                let suffix = self.name_path_members(suffix_members)
+                    [usize::try_from(suffix_start_offset).expect("suffix offset overflow")..]
+                    .to_vec();
+                let expression = self.to_tree_with_place_suffix(expression, &suffix);
+                self.insert_tree(&expression)
+            }
+        }
+    }
+
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }
