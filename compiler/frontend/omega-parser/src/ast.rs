@@ -29,3 +29,38 @@ pub fn parse_ast_file_with_source(
 ) -> Result<AstFile, ParseError> {
     parse_ast_file_with_id(file_id, tokens)
 }
+
+pub(crate) fn build_ast_file(file_id: FileId, mut items: Vec<Item>) -> AstFile {
+    merge_machine_items(&mut items);
+    let tables = AstTables::from_items(&items);
+
+    AstFile {
+        file_id,
+        items,
+        tables,
+    }
+}
+
+fn merge_machine_items(items: &mut Vec<Item>) {
+    let mut merged = Vec::with_capacity(items.len());
+
+    for item in items.drain(..) {
+        match item {
+            Item::Machine(machine) => {
+                if let Some(Item::Machine(existing)) = merged
+                    .iter_mut()
+                    .find(|existing_item| matches!(existing_item, Item::Machine(existing) if existing.name == machine.name))
+                {
+                    existing.contains.extend(machine.contains);
+                    existing.owned_data.extend(machine.owned_data);
+                    existing.states.extend(machine.states);
+                } else {
+                    merged.push(Item::Machine(machine));
+                }
+            }
+            other => merged.push(other),
+        }
+    }
+
+    *items = merged;
+}

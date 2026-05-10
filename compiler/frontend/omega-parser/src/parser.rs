@@ -22,7 +22,6 @@ use omega_abstract_syntax_tree::item::{
 use omega_abstract_syntax_tree::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
-use omega_abstract_syntax_tree::tables::AstTables;
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::source::{FileId, SourceText};
 use omega_lexer::{Token, TokenKind};
@@ -66,12 +65,14 @@ pub(crate) fn parse_ast_file_impl(
     file_id: FileId,
     tokens: &[Token<'_>],
 ) -> Result<AstFile, ParseError> {
-    Parser {
+    let items = Parser {
         file_id,
         tokens,
         index: 0,
     }
-    .parse_file()
+    .parse_items()?;
+
+    Ok(crate::ast::build_ast_file(file_id, items))
 }
 
 struct Parser<'tokens, 'source> {

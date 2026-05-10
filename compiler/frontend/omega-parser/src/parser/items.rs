@@ -1,7 +1,7 @@
 use super::*;
 
 impl Parser<'_, '_> {
-    pub(super) fn parse_file(&mut self) -> Result<AstFile, ParseError> {
+    pub(super) fn parse_items(&mut self) -> Result<Vec<Item>, ParseError> {
         let mut items = Vec::new();
 
         while !self.is_at_end() {
@@ -30,15 +30,7 @@ impl Parser<'_, '_> {
             }
         }
 
-        merge_machine_items(&mut items);
-
-        let tables = AstTables::from_items(&items);
-
-        Ok(AstFile {
-            file_id: self.file_id,
-            items,
-            tables,
-        })
+        Ok(items)
     }
 
     fn parse_use(&mut self) -> Result<UseItem, ParseError> {
@@ -553,27 +545,4 @@ impl Parser<'_, '_> {
     fn parse_range_bound_expression(&mut self) -> Result<Expression, ParseError> {
         self.parse_add_expression()
     }
-}
-
-fn merge_machine_items(items: &mut Vec<Item>) {
-    let mut merged = Vec::with_capacity(items.len());
-
-    for item in items.drain(..) {
-        match item {
-            Item::Machine(machine) => {
-                if let Some(Item::Machine(existing)) = merged.iter_mut().find(|existing_item| {
-                    matches!(existing_item, Item::Machine(existing) if existing.name == machine.name)
-                }) {
-                    existing.contains.extend(machine.contains);
-                    existing.owned_data.extend(machine.owned_data);
-                    existing.states.extend(machine.states);
-                } else {
-                    merged.push(Item::Machine(machine));
-                }
-            }
-            other => merged.push(other),
-        }
-    }
-
-    *items = merged;
 }
