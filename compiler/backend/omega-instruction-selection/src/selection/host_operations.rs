@@ -46,8 +46,7 @@ pub(super) fn select_host_call(
 
     for operation in operations {
         let operation_operands =
-            select_host_operation_operands(input, host_call, operation.operation_key);
-        let operation_operands = operands.insert_many(operation_operands);
+            select_host_operation_operands(input, host_call, operation.operation_key, operands);
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
@@ -63,7 +62,7 @@ pub(super) fn select_host_call(
         && runtime_machine_string_descriptor_offset(input, host_call).is_some()
         && let Some(newline) = newline_data_object(input)
     {
-        let newline_operands = operands.insert_many(vec![
+        let newline_operands = operands.insert_many([
             operand(InstructionOperandKind::ImmediateInteger(1)),
             operand(InstructionOperandKind::DataAddress {
                 data: data_object_handle(input, newline),

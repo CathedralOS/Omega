@@ -7,7 +7,7 @@ use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_machine_string_descriptor_offset,
     runtime_text_literal_for_host_call,
 };
-use omega_core::arena::Handle;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target_program::{
     InstructionOperand, InstructionOperandKind, TargetDataObject, TargetDataObjectHandle,
 };
@@ -16,21 +16,22 @@ pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     operation_key: HostOperationKey,
-) -> Vec<InstructionOperand> {
+    operands: &mut Arena<InstructionOperand>,
+) -> HandleSpan<InstructionOperand> {
     match (
         input.target.object_format,
         operation_key.capability,
         operation_key.operation,
     ) {
         (ObjectFormat::Coff, HostCapability::Stdout, HostOperation::GetStdHandle) => {
-            vec![operand(InstructionOperandKind::ImmediateInteger(-11))]
+            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(-11))])
         }
         (ObjectFormat::Coff, HostCapability::Stdin, HostOperation::GetStdHandle) => {
-            vec![operand(InstructionOperandKind::ImmediateInteger(-10))]
+            operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(-10))])
         }
         (_, HostCapability::Stdin, HostOperation::Read | HostOperation::ReadFile) => {
             let Some((data_object_handle, data_object)) = find_data_object(input, host_call) else {
-                return Vec::new();
+                return HandleSpan::empty();
             };
             let byte_count = input
                 .data
@@ -38,73 +39,95 @@ pub(super) fn select_host_operation_operands(
                 .span(data_object.bytes)
                 .map_or(0, |bytes| bytes.len());
 
-            let mut operands = Vec::new();
             if operation_key.operation == HostOperation::Read {
-                operands.push(operand(InstructionOperandKind::ImmediateInteger(0)));
-            }
-            operands.push(operand(InstructionOperandKind::DataAddress {
-                data: data_object_handle,
-            }));
-            operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
-            operands
-        }
-        (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
-            let mut operands = Vec::new();
-            if operation_key.operation == HostOperation::Write {
-                operands.push(operand(InstructionOperandKind::ImmediateInteger(1)));
+                return operands.insert_many([
+                    operand(InstructionOperandKind::ImmediateInteger(0)),
+                    operand(InstructionOperandKind::DataAddress {
+                        data: data_object_handle,
+                    }),
+                    operand(InstructionOperandKind::ByteLength(byte_count)),
+                ]);
             }
 
+            operands.insert_many([
+                operand(InstructionOperandKind::DataAddress {
+                    data: data_object_handle,
+                }),
+                operand(InstructionOperandKind::ByteLength(byte_count)),
+            ])
+        }
+        (_, HostCapability::Stdout, HostOperation::Write | HostOperation::WriteFile) => {
             if let Some((data_object_handle, data_object)) = find_data_object(input, host_call) {
                 let byte_count = input
                     .data
                     .bytes
                     .span(data_object.bytes)
                     .map_or(0, |bytes| bytes.len());
-                operands.push(operand(InstructionOperandKind::DataAddress {
-                    data: data_object_handle,
-                }));
-                operands.push(operand(InstructionOperandKind::ByteLength(byte_count)));
-                return operands;
+                return stdout_operands(
+                    operands,
+                    operation_key.operation,
+                    InstructionOperandKind::DataAddress {
+                        data: data_object_handle,
+                    },
+                    InstructionOperandKind::ByteLength(byte_count),
+                );
             }
 
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
                 && runtime_machine_string_descriptor_offset(input, host_call).is_none()
             {
-                operands.push(operand(InstructionOperandKind::DataAddress {
-                    data: data_object_handle(input, data_object),
-                }));
-                operands.push(operand(InstructionOperandKind::ByteLength(literal.len())));
-                return operands;
+                return stdout_operands(
+                    operands,
+                    operation_key.operation,
+                    InstructionOperandKind::DataAddress {
+                        data: data_object_handle(input, data_object),
+                    },
+                    InstructionOperandKind::ByteLength(literal.len()),
+                );
             }
 
             if let Some(byte_offset) = runtime_machine_string_descriptor_offset(input, host_call) {
-                operands.push(operand(
+                return stdout_operands(
+                    operands,
+                    operation_key.operation,
                     InstructionOperandKind::RuntimeMachineStringPointer { byte_offset },
-                ));
-                operands.push(operand(
                     InstructionOperandKind::RuntimeMachineStringLength { byte_offset },
-                ));
-                return operands;
+                );
             }
 
-            operands
+            HandleSpan::empty()
         }
         (
             _,
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
-        ) => {
-            vec![operand(InstructionOperandKind::ImmediateInteger(
-                exit_code(host_call, input),
-            ))]
-        }
-        _ => Vec::new(),
+        ) => operands.insert_many([operand(InstructionOperandKind::ImmediateInteger(
+            exit_code(host_call, input),
+        ))]),
+        _ => HandleSpan::empty(),
     }
 }
 
 pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
     InstructionOperand { kind }
+}
+
+fn stdout_operands(
+    operands: &mut Arena<InstructionOperand>,
+    operation: HostOperation,
+    first: InstructionOperandKind,
+    second: InstructionOperandKind,
+) -> HandleSpan<InstructionOperand> {
+    if operation == HostOperation::Write {
+        return operands.insert_many([
+            operand(InstructionOperandKind::ImmediateInteger(1)),
+            operand(first),
+            operand(second),
+        ]);
+    }
+
+    operands.insert_many([operand(first), operand(second)])
 }
 
 fn find_data_object<'plan>(
