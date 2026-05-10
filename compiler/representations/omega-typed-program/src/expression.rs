@@ -275,6 +275,46 @@ impl ExpressionTable {
         self.name_path_members.span_or_empty(span)
     }
 
+    pub fn copy_name_path_members_with_suffix(
+        &mut self,
+        members: HandleSpan<ProgramName>,
+        suffix: ProgramName,
+    ) -> HandleSpan<ProgramName> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for offset in 0..members.count() {
+            let member = self
+                .name_path_members
+                .get(Handle::from_parts(
+                    members
+                        .start()
+                        .arena_index()
+                        .checked_add(offset)
+                        .expect("name path member index overflow"),
+                    members.start().generation(),
+                ))
+                .clone();
+            let handle = self.name_path_members.append(member);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("name path member span count overflow");
+        }
+
+        let handle = self.name_path_members.append(suffix);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("name path member span count overflow");
+
+        HandleSpan::from_parts(start, count)
+    }
+
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }

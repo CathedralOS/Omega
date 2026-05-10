@@ -1,8 +1,9 @@
 use omega_core::arena::Arena;
-use omega_typed_program::expression::{Expression, ExpressionHandle};
+use omega_core::symbols::SymbolHandle;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use omega_typed_program::name::ProgramName;
 
-use super::places::expression_place_eq;
+use super::places::expression_place_eq_in_table;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};
 
 pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<RuntimeTextSlot> {
@@ -61,10 +62,9 @@ fn push_or_update_text_slot(
     byte_capacity: usize,
     has_input_buffer: bool,
 ) {
-    let place_tree = plan.expressions.to_tree(place);
     if let Some(existing_slot) = slots
         .iter_mut()
-        .find(|slot| expression_place_eq(&plan.expressions.to_tree(slot.place), &place_tree))
+        .find(|slot| expression_place_eq_in_table(&plan.expressions, slot.place, place))
     {
         existing_slot.byte_capacity = existing_slot.byte_capacity.max(byte_capacity);
         existing_slot.has_input_buffer |= has_input_buffer;
@@ -79,7 +79,6 @@ fn push_or_update_text_slot(
 }
 
 fn text_slot_capacity_for_use(plan: &mut RuntimeTextPlan, expression: ExpressionHandle) -> usize {
-    let expression = plan.expressions.to_tree(expression);
     let buffers = plan
         .buffers
         .iter()
@@ -90,7 +89,7 @@ fn text_slot_capacity_for_use(plan: &mut RuntimeTextPlan, expression: Expression
         .filter_map(|buffer| {
             text_place_for_buffer_target(plan, buffer.target)
                 .is_some_and(|place| {
-                    expression_place_eq(&plan.expressions.to_tree(place), &expression)
+                    expression_place_eq_in_table(&plan.expressions, place, expression)
                 })
                 .then_some(buffer.byte_capacity)
         })
@@ -99,7 +98,6 @@ fn text_slot_capacity_for_use(plan: &mut RuntimeTextPlan, expression: Expression
 }
 
 fn text_place_has_input_buffer(plan: &mut RuntimeTextPlan, expression: ExpressionHandle) -> bool {
-    let expression = plan.expressions.to_tree(expression);
     let buffers = plan
         .buffers
         .iter()
@@ -107,7 +105,7 @@ fn text_place_has_input_buffer(plan: &mut RuntimeTextPlan, expression: Expressio
         .collect::<Vec<_>>();
     buffers.iter().any(|buffer| {
         text_place_for_buffer_target(plan, buffer.target)
-            .is_some_and(|place| expression_place_eq(&plan.expressions.to_tree(place), &expression))
+            .is_some_and(|place| expression_place_eq_in_table(&plan.expressions, place, expression))
     })
 }
 
@@ -115,11 +113,16 @@ fn text_place_for_buffer_target(
     plan: &mut RuntimeTextPlan,
     target: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    match plan.expressions.to_tree(target) {
-        Expression::Name(path) => {
-            let mut text_path = path;
-            text_path.push(ProgramName::generated("text"));
-            Some(plan.expressions.insert_tree(&Expression::Name(text_path)))
+    match *plan.expressions.expression(target) {
+        ExpressionNode::Name(path) => {
+            let members = plan
+                .expressions
+                .copy_name_path_members_with_suffix(path.members, ProgramName::generated("text"));
+            Some(plan.expressions.insert(ExpressionNode::Name(TableNamePath {
+                members,
+                head_symbol: path.head_symbol,
+                symbol: SymbolHandle::invalid(),
+            })))
         }
         _ => None,
     }

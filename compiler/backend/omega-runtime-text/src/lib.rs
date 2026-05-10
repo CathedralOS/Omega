@@ -12,7 +12,7 @@ pub use model::{
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_typed_program::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode,
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use slots::build_runtime_text_slots;
 
@@ -34,8 +34,7 @@ pub fn build_runtime_text_plan(
 
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
-        let target = state_storage.expressions.to_tree(mutation.target);
-        if !is_text_place(&target) {
+        if !is_text_place(&state_storage.expressions, mutation.target) {
             continue;
         }
         let target = plan
@@ -48,7 +47,7 @@ fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut Runt
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
             statement_index: mutation.statement_index,
-            kind: classify_runtime_text_write(&plan.expressions.to_tree(value)),
+            kind: classify_runtime_text_write(&plan.expressions, value),
             target,
             value,
         });
@@ -117,25 +116,31 @@ fn classify_runtime_text_builder_segment(
     }
 }
 
-fn is_text_place(expression: &Expression) -> bool {
-    match expression {
-        Expression::Name(path) => path.last().is_some_and(|segment| segment == "text"),
-        Expression::Indexed(indexed) => is_text_place(&indexed.collection),
-        Expression::Mutable(expression) => is_text_place(expression),
+fn is_text_place(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::Name(path) => table
+            .name_path_members(path.members)
+            .last()
+            .is_some_and(|segment| segment == "text"),
+        ExpressionNode::Indexed(indexed) => is_text_place(table, indexed.collection),
+        ExpressionNode::Mutable(expression) => is_text_place(table, *expression),
         _ => false,
     }
 }
 
-fn classify_runtime_text_write(expression: &Expression) -> RuntimeTextWriteKind {
-    match expression {
-        Expression::String(_) => RuntimeTextWriteKind::StaticText,
-        Expression::Name(_) | Expression::Indexed(_) => RuntimeTextWriteKind::StoredCopy,
-        Expression::Binary(_) => RuntimeTextWriteKind::GeneratedString,
-        Expression::ArrayLiteral(_)
-        | Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::Mutable(_)
-        | Expression::StructLiteral(_) => RuntimeTextWriteKind::OtherExpression,
+fn classify_runtime_text_write(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> RuntimeTextWriteKind {
+    match table.expression(expression) {
+        ExpressionNode::String(_) => RuntimeTextWriteKind::StaticText,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => RuntimeTextWriteKind::StoredCopy,
+        ExpressionNode::Binary(_) => RuntimeTextWriteKind::GeneratedString,
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::StructLiteral(_) => RuntimeTextWriteKind::OtherExpression,
     }
 }
