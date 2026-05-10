@@ -35,20 +35,40 @@ machine InventorySystem {
     }
 
     fn find_item(inventory: &Inventory, kind: ItemKind) -> Option<usize> {
-        match inventory.items.len() > 0 {
-            true -> find_item_at(inventory, kind, 0)
+        let item_count: usize = inventory.items.len();
+
+        match item_count > 0 {
+            true -> find_item_at(inventory, kind, item_count, 0)
             false -> None
         }
     }
 
-    fn find_item_at(inventory: &Inventory, kind: ItemKind, index: usize) -> Option<usize> {
+    fn find_item_at(
+        inventory: &Inventory,
+        kind: ItemKind,
+        item_count: usize[positive],
+        index: usize[range<0, item_count>],
+    ) -> Option<usize> {
         let found: bool = inventory.items[index].kind == kind;
-        let has_next: bool = index + 1 < inventory.items.len();
+        let next_index: usize = index + 1;
 
-        match (found, has_next) {
-            (true, _) -> index
-            (false, true) -> find_item_at(inventory, kind, index + 1)
-            (false, false) -> None
+        match found {
+            true -> index
+            false -> find_item_after(inventory, kind, next_index, item_count)
+        }
+    }
+
+    fn find_item_after(
+        inventory: &Inventory,
+        kind: ItemKind,
+        item_count: usize[positive],
+        next_index: usize,
+    ) -> Option<usize> {
+        let has_next: bool = next_index < item_count;
+
+        match has_next {
+            true -> find_item_at(inventory, kind, item_count, next_index)
+            false -> None
         }
     }
 
