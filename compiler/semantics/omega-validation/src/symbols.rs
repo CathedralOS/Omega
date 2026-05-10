@@ -1,9 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_program::Program;
+use omega_typed_program::data::DataMember;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::platform::Platform;
 use omega_typed_program::state::State;
+use omega_typed_program::types::TypeReference;
 
 #[derive(Debug)]
 pub struct ProgramSymbols<'program> {
@@ -77,16 +79,6 @@ impl<'program> ProgramSymbols<'program> {
                 )));
             }
 
-            if symbols
-                .data_definition_symbol(machine.name.as_str())
-                .is_valid()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "`{}` is declared as both data and a machine",
-                    machine.name
-                )));
-            }
-
             symbols.machines.push(MachineSymbol {
                 name: machine.name.as_str(),
                 machine,
@@ -131,6 +123,9 @@ impl<'program> ProgramSymbols<'program> {
 
     pub fn has_type(&self, name: &str) -> bool {
         self.type_symbol(name).is_valid()
+            || self.machine_symbol(name).is_valid()
+            || self.platform_symbol(name).is_valid()
+            || is_builtin_shape_type(name)
     }
 
     fn type_symbol(&self, name: &str) -> SymbolHandle {
@@ -184,6 +179,10 @@ impl<'program> ProgramSymbols<'program> {
     }
 }
 
+fn is_builtin_shape_type(name: &str) -> bool {
+    matches!(name, "IndexOf" | "Option" | "Real" | "Uint" | "Vec")
+}
+
 #[derive(Debug)]
 pub struct MachineSymbols<'program> {
     contained_objects: Vec<ContainedObjectSymbol<'program>>,
@@ -225,6 +224,44 @@ impl<'program> MachineSymbols<'program> {
             owned_data_symbols: Vec::new(),
             states: Vec::new(),
         };
+
+        if let Some(data_definition) = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name == machine.name)
+        {
+            for member in &data_definition.members {
+                let DataMember::Field(field) = member else {
+                    continue;
+                };
+
+                if symbols.has_member(field.name.as_str()) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` has duplicate member `{}`",
+                        machine.name, field.name
+                    )));
+                    continue;
+                }
+
+                let symbol = child_symbol(program, machine_symbol, field.name.as_str());
+                symbols.member_symbols.push(MemberSymbol {
+                    name: field.name.as_str(),
+                    symbol,
+                });
+                symbols.owned_data_symbols.push(MemberSymbol {
+                    name: field.name.as_str(),
+                    symbol,
+                });
+
+                if let Some(type_name) = callable_receiver_type_name(&field.type_reference) {
+                    symbols.contained_objects.push(ContainedObjectSymbol {
+                        name: field.name.as_str(),
+                        type_name,
+                        symbol,
+                    });
+                }
+            }
+        }
 
         for contained_object in &machine.contains {
             if symbols.has_member(contained_object.name.as_str()) {
@@ -359,6 +396,16 @@ impl<'program> MachineSymbols<'program> {
     }
 }
 
+fn callable_receiver_type_name(type_reference: &TypeReference) -> Option<&str> {
+    match type_reference {
+        TypeReference::Constrained { base_type, .. } => callable_receiver_type_name(base_type),
+        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } => None,
+        TypeReference::Generic { .. } => None,
+        TypeReference::Named { name, .. } => Some(name.as_str()),
+        TypeReference::Unit => None,
+    }
+}
+
 fn top_level_symbol(program: &Program, name: &str) -> SymbolHandle {
     child_symbol(program, program.symbols.root(), name)
 }
@@ -389,8 +436,15 @@ fn child_symbol(program: &Program, parent: SymbolHandle, name: &str) -> SymbolHa
         return SymbolHandle::invalid();
     }
 
-    program
-        .symbols
-        .find_child_by_name(parent, name)
-        .unwrap_or_else(SymbolHandle::invalid)
+    let Some(children) = program.symbols.child_handles(parent) else {
+        return SymbolHandle::invalid();
+    };
+
+    for child in children {
+        if program.symbols.name(child) == name {
+            return child;
+        }
+    }
+
+    SymbolHandle::invalid()
 }

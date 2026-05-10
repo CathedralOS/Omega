@@ -589,9 +589,41 @@ fn attach_transition_target_expression_symbols(
     let symbol = context.resolve_identifier_path(symbols, path.members());
     *path = path.clone().with_symbols(head_symbol, symbol);
 
-    for argument in arguments {
+    for argument in arguments.iter_mut() {
         attach_expression_symbol(symbols, context, argument);
     }
+
+    if !transition_target_is_state_like(symbols, path) {
+        let expression = if arguments.is_empty() {
+            Expression::Name(path.clone())
+        } else {
+            let mut members = path.as_slice().to_vec();
+            let target = members
+                .pop()
+                .expect("named transition target should contain at least one member");
+            let receiver = (!members.is_empty()).then(|| {
+                Box::new(Expression::Name(NamePath::resolved(
+                    members,
+                    path.head_symbol(),
+                    SymbolHandle::invalid(),
+                )))
+            });
+
+            Expression::Call(Box::new(CallExpression {
+                receiver,
+                target_symbol: path.symbol(),
+                target,
+                arguments: arguments.clone(),
+            }))
+        };
+
+        *target = TransitionTarget::Value(expression);
+    }
+}
+
+fn transition_target_is_state_like(symbols: &SymbolTable, path: &NamePath) -> bool {
+    let symbol = path.symbol();
+    symbol.is_valid() && symbols.get(symbol).kind == SymbolKind::State
 }
 
 fn attach_expression_symbol(
@@ -825,10 +857,18 @@ fn find_child_symbol(
     kind: SymbolKind,
     name: &str,
 ) -> SymbolHandle {
-    symbols
-        .find_child_by_name(parent, name)
-        .filter(|symbol| symbols.get(*symbol).kind == kind)
-        .unwrap_or_else(SymbolHandle::invalid)
+    let Some(children) = symbols.child_handles(parent) else {
+        return SymbolHandle::invalid();
+    };
+
+    for child in children {
+        let symbol = symbols.get(child);
+        if symbol.kind == kind && symbols.name(child) == name {
+            return child;
+        }
+    }
+
+    SymbolHandle::invalid()
 }
 
 #[derive(Debug, Clone, Copy)]

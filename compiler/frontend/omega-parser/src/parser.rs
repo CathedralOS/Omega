@@ -324,14 +324,19 @@ fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
     match expression {
         Expression::Name(path) => {
             if path.len() == 1 && path.first().is_some_and(|name| name.as_str() == "self") {
-                TransitionTarget::SelfTarget
-            } else {
-                TransitionTarget::Named {
-                    path,
-                    arguments: Vec::new(),
-                }
+                return TransitionTarget::SelfTarget;
+            }
+
+            if path_is_value_like(&path) {
+                return TransitionTarget::Value(Expression::Name(path));
+            }
+
+            TransitionTarget::Named {
+                path,
+                arguments: Vec::new(),
             }
         }
+        Expression::Member(member) => TransitionTarget::Value(Expression::Member(member)),
         Expression::Call(call) => {
             let CallExpression {
                 receiver,
@@ -339,10 +344,27 @@ fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
                 arguments,
             } = *call;
 
+            if receiver.is_none() && target.as_str() == "self" && arguments.is_empty() {
+                return TransitionTarget::SelfTarget;
+            }
+
             if let Some(receiver) = receiver {
                 match *receiver {
                     Expression::Name(mut path) => {
-                        path.push(target);
+                        path.push(target.clone());
+
+                        if path_is_value_like(&path) {
+                            return TransitionTarget::Value(Expression::Call(Box::new(
+                                CallExpression {
+                                    receiver: Some(Box::new(Expression::Name(IdentifierPath::new(
+                                        path.as_slice()[..path.len() - 1].to_vec(),
+                                    )))),
+                                    target,
+                                    arguments,
+                                },
+                            )));
+                        }
+
                         TransitionTarget::Named { path, arguments }
                     }
                     other => TransitionTarget::Value(Expression::Call(Box::new(CallExpression {
@@ -352,6 +374,14 @@ fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
                     }))),
                 }
             } else {
+                if identifier_is_value_like(&target) {
+                    return TransitionTarget::Value(Expression::Call(Box::new(CallExpression {
+                        receiver: None,
+                        target,
+                        arguments,
+                    })));
+                }
+
                 TransitionTarget::Named {
                     path: IdentifierPath::from(vec![target]),
                     arguments,
@@ -360,6 +390,18 @@ fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
         }
         other => TransitionTarget::Value(other),
     }
+}
+
+fn path_is_value_like(path: &IdentifierPath) -> bool {
+    path.first().is_some_and(identifier_is_value_like)
+}
+
+fn identifier_is_value_like(identifier: &Identifier) -> bool {
+    identifier
+        .as_str()
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_ascii_uppercase())
 }
 
 #[cfg(test)]
