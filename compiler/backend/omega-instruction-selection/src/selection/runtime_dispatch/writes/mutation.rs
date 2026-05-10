@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionTable};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
@@ -27,10 +27,12 @@ pub(super) fn select_runtime_mutation_writes(
     target: &Expression,
     value: &Expression,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
-    let resolved_target = resolve_runtime_alias_binding(target, source_key, aliases);
+    let resolved_target =
+        resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
     select_runtime_resolved_target_mutation_writes(
         input,
         dispatch_index,
@@ -42,6 +44,7 @@ pub(super) fn select_runtime_mutation_writes(
         &resolved_target.expression,
         value,
         aliases,
+        alias_expressions,
         static_values,
         selected_instructions,
     );
@@ -59,6 +62,7 @@ fn select_runtime_resolved_target_mutation_writes(
     resolved_target: &Expression,
     value: &Expression,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
@@ -77,6 +81,7 @@ fn select_runtime_resolved_target_mutation_writes(
                 &field_target,
                 &field.value,
                 aliases,
+                alias_expressions,
                 static_values,
                 selected_instructions,
             );
@@ -107,6 +112,7 @@ fn select_runtime_resolved_target_mutation_writes(
         statement_index,
         resolved_target,
         aliases,
+        alias_expressions,
     ) {
         for kind in instructions {
             selected_instructions.push(SelectedInstruction {
@@ -118,7 +124,8 @@ fn select_runtime_resolved_target_mutation_writes(
         return;
     }
 
-    let resolved_value = resolve_runtime_alias_binding(value, operation_source_key, aliases);
+    let resolved_value =
+        resolve_runtime_alias_binding(value, operation_source_key, aliases, alias_expressions);
     if let Some(copy) = runtime_storage_copy(
         input,
         dispatch_index,
@@ -142,6 +149,7 @@ fn select_runtime_resolved_target_mutation_writes(
         operation_source_key,
         value,
         aliases,
+        alias_expressions,
         static_values,
     ) else {
         return;

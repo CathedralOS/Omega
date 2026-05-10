@@ -7,7 +7,7 @@ use crate::selection::storage_places::resolve_runtime_storage_place;
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_target_program::{RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionTable};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn runtime_text_builder_write(
@@ -19,6 +19,7 @@ pub(in crate::selection) fn runtime_text_builder_write(
     statement_index: usize,
     resolved_target: &Expression,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
 ) -> Option<Vec<SelectedInstructionKind>> {
     runtime_text_builder_write_with_resolver(
         input,
@@ -28,7 +29,9 @@ pub(in crate::selection) fn runtime_text_builder_write(
         source_state,
         statement_index,
         resolved_target,
-        &|expression| resolve_runtime_alias_expression(expression, source_key, aliases),
+        &|expression| {
+            resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions)
+        },
     )
 }
 

@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
+use omega_typed_program::expression::ExpressionTable;
 
 mod branches;
 mod edges;
@@ -57,16 +58,23 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 .span(runtime_body.operations)
         {
             let mut runtime_aliases = Vec::new();
+            let mut runtime_alias_expressions = ExpressionTable::new();
             let mut runtime_static_values = Vec::new();
 
             for operation in operations {
-                bind_runtime_operation_aliases(input, operation, &mut runtime_aliases);
+                bind_runtime_operation_aliases(
+                    input,
+                    operation,
+                    &mut runtime_aliases,
+                    &mut runtime_alias_expressions,
+                );
 
                 select_runtime_storage_write_for_operation(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
                     &runtime_aliases,
+                    &runtime_alias_expressions,
                     &mut runtime_static_values,
                     selected_instructions,
                 );

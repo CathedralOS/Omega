@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use omega_typed_program::expression::ExpressionTable;
 
 use super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_binding, set_runtime_alias, strip_mutable_expression,
@@ -10,6 +11,7 @@ pub(super) fn bind_runtime_operation_aliases(
     input: &InstructionSelectionInput<'_>,
     operation: &RuntimeDispatchBodyOperation,
     aliases: &mut Vec<RuntimeAliasBinding>,
+    alias_expressions: &mut ExpressionTable,
 ) {
     match &operation.kind {
         RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
@@ -32,9 +34,14 @@ pub(super) fn bind_runtime_operation_aliases(
 
     for argument in arguments {
         let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
-        let resolved_expression =
-            resolve_runtime_alias_binding(&argument_expression, state_call.source_key, aliases);
+        let resolved_expression = resolve_runtime_alias_binding(
+            &argument_expression,
+            state_call.source_key,
+            aliases,
+            alias_expressions,
+        );
         let expression = strip_mutable_expression(resolved_expression.expression);
+        let expression = alias_expressions.insert_tree(&expression);
         set_runtime_alias(
             aliases,
             RuntimeAliasBinding {

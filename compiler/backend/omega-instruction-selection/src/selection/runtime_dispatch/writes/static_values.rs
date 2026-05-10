@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionTable};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
@@ -14,13 +14,18 @@ pub(super) fn resolve_runtime_static_integer_value(
     source_key: StateKey,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     static_values: &[(Expression, i64)],
 ) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
         Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
-            let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_key, aliases);
+            let resolved_expression = resolve_runtime_alias_expression(
+                expression,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()
@@ -28,8 +33,12 @@ pub(super) fn resolve_runtime_static_integer_value(
                 .map(|(_, value)| *value)
         }),
         Expression::Indexed(_) | Expression::Mutable(_) => {
-            let resolved_expression =
-                resolve_runtime_alias_expression(expression, source_key, aliases);
+            let resolved_expression = resolve_runtime_alias_expression(
+                expression,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
             let resolved_expression = strip_mutable_expression(resolved_expression);
             static_values
                 .iter()

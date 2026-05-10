@@ -7,6 +7,7 @@ use super::super::lookups::state_mutation_for_statement;
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_program::SelectedInstruction;
+use omega_typed_program::expression::ExpressionTable;
 use omega_typed_program::name::ProgramName;
 use static_values::RuntimeStaticValues;
 
@@ -17,6 +18,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut Vec<SelectedInstruction>,
 ) {
@@ -42,6 +44,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
         &target,
         &value,
         aliases,
+        alias_expressions,
         static_values,
         selected_instructions,
     );

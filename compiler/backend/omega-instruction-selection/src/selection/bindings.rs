@@ -1,6 +1,6 @@
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, ExpressionTable, NamePath};
+use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_typed_program::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
@@ -15,7 +15,7 @@ pub(super) struct RuntimeAliasBinding {
     pub(super) parameter_symbol: SymbolHandle,
     pub(super) parameter_name: ProgramName,
     pub(super) expression_source_key: StateKey,
-    pub(super) expression: Expression,
+    pub(super) expression: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -49,27 +49,39 @@ pub(super) fn resolve_runtime_alias_expression(
     expression: &Expression,
     source_key: StateKey,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
 ) -> Expression {
-    resolve_runtime_alias_binding(expression, source_key, aliases).expression
+    resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions).expression
 }
 
 pub(super) fn resolve_runtime_alias_binding(
     expression: &Expression,
     source_key: StateKey,
     aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
 ) -> RuntimeResolvedExpression {
     match expression {
         Expression::Mutable(target) => {
-            let resolved = resolve_runtime_alias_binding(target, source_key, aliases);
+            let resolved =
+                resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
             RuntimeResolvedExpression {
                 source_key: resolved.source_key,
                 expression: Expression::Mutable(Box::new(resolved.expression)),
             }
         }
         Expression::Indexed(indexed) => {
-            let collection =
-                resolve_runtime_alias_binding(&indexed.collection, source_key, aliases);
-            let index = resolve_runtime_alias_binding(&indexed.index, source_key, aliases);
+            let collection = resolve_runtime_alias_binding(
+                &indexed.collection,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            let index = resolve_runtime_alias_binding(
+                &indexed.index,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
             RuntimeResolvedExpression {
                 source_key: collection.source_key,
                 expression: Expression::Indexed(Box::new(
@@ -86,7 +98,10 @@ pub(super) fn resolve_runtime_alias_binding(
             .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
             .map(|alias| RuntimeResolvedExpression {
                 source_key: alias.expression_source_key,
-                expression: append_place_suffix(&alias.expression, &path[1..]),
+                expression: append_place_suffix(
+                    &alias_expressions.to_tree(alias.expression),
+                    &path[1..],
+                ),
             })
             .unwrap_or_else(|| RuntimeResolvedExpression {
                 source_key,
