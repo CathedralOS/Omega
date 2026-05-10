@@ -425,7 +425,8 @@ fn identifier_is_value_like(identifier: &Identifier) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_file, parse_syntax_file};
+    use super::parse_syntax_file;
+    use crate::ast::parse_ast_file;
     use omega_lexer::Lexer;
 
     #[test]
@@ -450,7 +451,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
 
         assert_eq!(parsed.items.len(), 2);
 
@@ -478,7 +479,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
 
         let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -511,7 +512,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
 
         let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -538,7 +539,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
 
         let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -581,7 +582,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_file(&tokens).expect("parse should succeed");
+        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
 
         let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");

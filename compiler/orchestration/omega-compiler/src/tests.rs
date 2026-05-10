@@ -3,7 +3,7 @@ use crate::ast::identifier::{Identifier, IdentifierPath};
 use crate::ast::item::Item;
 use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
-use crate::parser::parser::parse_file;
+use crate::parser::ast::parse_ast_file;
 use omega_abstract_syntax_to_typed::lower_program;
 use omega_calling_conventions::HostOperation;
 use omega_lexer::Lexer;
@@ -97,7 +97,7 @@ fn parse_errors_carry_token_spans() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let error = parse_file(&tokens).expect_err("parse should fail");
+    let error = parse_ast_file(&tokens).expect_err("parse should fail");
 
     assert_eq!(error.message, "expected `:`");
     assert!(error.span.is_some());
@@ -130,7 +130,7 @@ fn parses_nested_transition_continuation() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -166,7 +166,7 @@ fn parses_platform_state_parameters() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Platform(platform) = &parsed.items[0] else {
         panic!("expected a platform");
     };
@@ -203,7 +203,7 @@ fn parses_fn_declarations_as_frame_boundaries() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -233,7 +233,7 @@ fn parses_data_variants_and_fields() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Data(cell_id) = &parsed.items[0] else {
         panic!("expected data definition");
     };
@@ -266,7 +266,7 @@ fn rejects_wrong_platform_argument_count() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -295,7 +295,7 @@ fn rejects_duplicate_local_data_in_state_body() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -327,7 +327,7 @@ fn rejects_duplicate_platform_states_and_parameters() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -358,7 +358,7 @@ fn rejects_unknown_contained_type() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -392,7 +392,7 @@ fn rejects_duplicate_machine_local_names() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -432,7 +432,7 @@ fn rejects_duplicate_machine_members_across_contains_and_owns() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -461,7 +461,7 @@ fn rejects_duplicate_data_members() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -490,7 +490,7 @@ fn rejects_mixed_data_shapes() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -517,7 +517,7 @@ fn rejects_empty_data_definition() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -548,7 +548,7 @@ fn rejects_machine_type_as_owned_data() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let diagnostics =
         omega_validation::validate_program(&program).expect_err("validation should fail");
@@ -576,7 +576,7 @@ fn parses_named_and_mutable_call_arguments() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -609,7 +609,7 @@ fn parses_assignment_statement() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -643,7 +643,7 @@ fn parses_local_call_without_receiver() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -671,7 +671,7 @@ fn parses_owned_machine_data() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -706,7 +706,7 @@ fn plans_native_layout_for_owned_data() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan =
@@ -747,7 +747,7 @@ fn plans_native_layout_for_primitive_widths() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let target = NativeTarget::host();
@@ -787,7 +787,7 @@ fn parses_state_body_statements() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -809,7 +809,7 @@ fn parses_terminal_completion_arrow() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -835,7 +835,7 @@ fn parses_typed_state_final_expression_and_self_parameter() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -866,7 +866,7 @@ fn parses_mutable_borrow_parameter_syntax() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -898,7 +898,7 @@ fn parses_transition_arguments_and_guarded_terminal_completion() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -935,7 +935,7 @@ fn parses_const_parameters_and_bounded_types() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Machine(machine) = &parsed.items[0] else {
         panic!("expected a machine");
     };
@@ -994,7 +994,7 @@ fn parses_targets_capabilities_and_generic_types() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::Target(target) = &parsed.items[0] else {
         panic!("expected a target");
     };
@@ -1063,7 +1063,7 @@ fn parses_top_level_trust_definitions() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let Item::TrustDefinition(trust_definition) = &parsed.items[0] else {
         panic!("expected a trust definition");
     };
@@ -1096,7 +1096,7 @@ fn builds_trust_report_from_targets_and_capabilities() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let trust_report = crate::pipeline::trust::build_trust_report(&parsed.items, None);
 
     assert_eq!(trust_report.targets.len(), 1);
@@ -1141,7 +1141,7 @@ fn expands_invariant_aliases_during_lowering() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let invariant_constraints = program
         .type_constraints
@@ -1196,7 +1196,7 @@ fn plans_state_control_flow() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
@@ -1242,7 +1242,7 @@ fn plans_runtime_state_flow_without_rejecting_cycles() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1297,7 +1297,7 @@ fn reports_runtime_dispatch_blockers_for_state_cycles() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1344,7 +1344,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1423,7 +1423,7 @@ fn plans_runtime_dispatch_indices_for_state_cycles() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1481,7 +1481,7 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1553,7 +1553,7 @@ fn selects_runtime_dispatch_loop_instructions() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1639,7 +1639,7 @@ fn plans_runtime_guards_for_dispatch_edges() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1736,7 +1736,7 @@ fn resolves_enum_guard_operand_values() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1802,7 +1802,7 @@ fn resolves_nested_guard_operand_offsets() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1863,7 +1863,7 @@ fn plans_runtime_bodies_with_leaf_state_call_expansion() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1920,7 +1920,7 @@ fn plans_runtime_branching_state_call_edges() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -1999,7 +1999,7 @@ fn skips_state_call_blocker_for_planned_guarded_leaf_expansion() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2066,7 +2066,7 @@ fn plans_runtime_straight_line_branch_expansion() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2189,7 +2189,7 @@ fn plans_runtime_leaf_branch_argument_bindings() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2264,7 +2264,7 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2317,7 +2317,7 @@ fn selects_host_calls_inside_required_state_call_targets() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2368,7 +2368,7 @@ fn plans_state_calls_separately_from_host_calls() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2458,7 +2458,7 @@ fn marks_state_calls_required_through_transition_targets() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2499,7 +2499,7 @@ fn tracks_mutable_state_call_argument_bindings() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -2565,7 +2565,7 @@ fn plans_mid_state_transition_as_generated_segments() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
@@ -2609,7 +2609,7 @@ fn builds_proof_obligations_for_bounds_and_guards() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let proof_plan = omega_proof::obligations::build_proof_plan(&program);
@@ -2647,7 +2647,7 @@ fn plans_native_object_shape() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan =
@@ -2687,7 +2687,7 @@ fn selected_windows_target_plans_coff_and_kernel32_imports() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::windows_x64())
         .expect("backend planning should pass");
@@ -2739,7 +2739,7 @@ fn selected_linux_target_plans_elf_and_syscalls() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::linux_x64())
         .expect("backend planning should pass");
@@ -2784,7 +2784,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::linux_arm64())
         .expect("backend planning should pass");
@@ -2839,7 +2839,7 @@ fn selected_macos_arm64_plans_relocation_byte_offsets() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should pass");
@@ -2898,7 +2898,7 @@ fn encodes_aarch64_immediates_that_need_movk() {
     let tokens = Lexer::new(&source)
         .tokenize()
         .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should encode multi-instruction immediates");
@@ -2925,7 +2925,7 @@ fn reports_platform_calls_without_native_lowering_as_emission_blockers() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should preserve unsupported call as blocker");
@@ -3374,7 +3374,7 @@ fn ignores_host_calls_outside_entry_schedule() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should keep unreachable host call out of the schedule");
@@ -3412,7 +3412,7 @@ fn emits_unconditional_entry_transition_chains() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should allow unconditional transition chain");
@@ -3457,7 +3457,7 @@ fn emits_nested_machine_continuations_inline() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should allow nested continuation");
@@ -3504,7 +3504,7 @@ fn reports_entry_assignments_as_native_mutation_blockers() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should preserve entry assignment as blocker");
@@ -3544,7 +3544,7 @@ fn reports_dynamic_text_arguments_as_native_blockers() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should preserve dynamic text argument");
@@ -3606,7 +3606,7 @@ fn invalidates_static_text_after_mutable_host_output() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should invalidate static text after mutable output");
@@ -3658,7 +3658,7 @@ fn plans_state_storage_and_mutations() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -3755,7 +3755,7 @@ fn plans_required_state_value_uses() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -3850,7 +3850,7 @@ fn skips_state_value_blocker_for_planned_runtime_text_builder() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
@@ -3907,7 +3907,7 @@ fn lowers_constant_integer_assignment_before_host_call() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should track constant integer assignment");
@@ -3982,7 +3982,7 @@ fn selects_static_guarded_transition() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should select a static guarded transition");
@@ -4050,7 +4050,7 @@ fn propagates_static_state_call_arguments() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should propagate static state arguments");
@@ -4105,7 +4105,7 @@ fn lowers_mutable_output_host_call() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should lower mutable output host call");
@@ -4215,7 +4215,7 @@ fn lowers_static_record_array_field_text() {
     )
     .tokenize()
     .expect("tokenization should succeed");
-    let parsed = parse_file(&tokens).expect("parse should succeed");
+    let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should lower static record field text");

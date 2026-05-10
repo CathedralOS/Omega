@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use omega_lexer::Lexer;
-use omega_parser::parse_file;
+use omega_parser::parse_ast_file;
 
 #[test]
 fn parses_every_sample_and_canary_file() {
@@ -32,7 +32,7 @@ fn parses_every_sample_and_canary_file() {
             .tokenize()
             .unwrap_or_else(|error| panic!("failed to tokenize {}: {error:?}", path.display()));
 
-        parse_file(&tokens)
+        parse_ast_file(&tokens)
             .unwrap_or_else(|error| panic!("failed to parse {}: {error:?}", path.display()));
     }
 }
