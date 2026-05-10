@@ -1,5 +1,5 @@
-use data::rooms;
 use generation::maze_builder;
+use rooms::rooms;
 
 machine DungeonGenerator {
     contains maze: MazeBuilder;

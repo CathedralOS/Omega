@@ -1,8 +1,8 @@
-use data::enemies;
-use data::items;
-use data::random_state;
-use data::rewards;
+use enemies::enemies;
+use inventory::items;
+use rewards::rewards;
 use rng::random;
+use rng::random_state;
 
 machine RewardTables {
     contains rng: Random;

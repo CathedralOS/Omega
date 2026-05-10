@@ -1,5 +1,5 @@
-use data::map;
-use data::rooms;
+use rooms::map;
+use rooms::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {

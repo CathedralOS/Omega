@@ -1,7 +1,7 @@
-use data::console;
-use data::map;
-use data::rooms;
+use platform::console_types;
 use rooms::room_lookup;
+use rooms::map;
+use rooms::rooms;
 
 machine CommandParser {
     fn resolve_command(line: ConsoleLine, out_navigation: &mut Navigation) {

@@ -1,5 +1,5 @@
-use data::enemies;
-use data::rewards;
+use enemies::enemies;
+use rewards::rewards;
 
 enum RoomEventKind {
     Nothing,

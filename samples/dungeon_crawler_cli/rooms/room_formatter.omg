@@ -1,9 +1,9 @@
-use data::console;
-use data::map;
-use data::player_state;
-use data::rooms;
 use events::event_runtime;
+use platform::console_types;
+use player::player_state;
+use rooms::map;
 use rooms::room_lookup;
+use rooms::rooms;
 
 machine RoomFormatter {
     contains events: EventRuntime;

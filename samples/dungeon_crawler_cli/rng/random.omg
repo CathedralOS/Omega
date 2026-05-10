@@ -1,4 +1,4 @@
-use data::random_state;
+use rng::random_state;
 
 machine Random {
     fn seed(value: u64[wrapping], state: &mut RandomState) {

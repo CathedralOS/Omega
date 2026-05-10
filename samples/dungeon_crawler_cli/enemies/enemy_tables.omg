@@ -1,6 +1,6 @@
-use data::enemies;
-use data::random_state;
+use enemies::enemies;
 use rng::random;
+use rng::random_state;
 
 machine EnemyTables {
     contains rng: Random;

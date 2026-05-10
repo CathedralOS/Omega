@@ -1,6 +1,6 @@
-use data::player_state;
-use data::rewards;
 use inventory::inventory;
+use player::player_state;
+use rewards::rewards;
 
 machine PlayerSystem {
     contains inventory: InventorySystem;

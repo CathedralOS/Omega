@@ -1,5 +1,5 @@
-use data::events;
-use data::map;
+use events::events;
+use rooms::map;
 
 data Exit {
     command: String;

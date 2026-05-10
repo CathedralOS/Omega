@@ -1,15 +1,15 @@
-use data::combat_round;
-use data::console;
-use data::enemies;
-use data::events;
-use data::player_state;
-use data::random_state;
-use data::rewards;
-use data::rooms;
 use combat::combat;
+use combat::combat_round;
+use enemies::enemies;
+use events::events;
 use inventory::inventory;
+use platform::console_types;
 use player::player;
+use player::player_state;
+use rewards::rewards;
 use rng::random;
+use rng::random_state;
+use rooms::rooms;
 
 machine EventRuntime {
     contains combat: CombatSystem;

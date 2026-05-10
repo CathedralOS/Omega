@@ -1,9 +1,9 @@
-use data::events;
-use data::random_state;
-use data::rewards;
+use events::events;
 use enemies::enemy_tables;
 use rewards::reward_tables;
+use rewards::rewards;
 use rng::random;
+use rng::random_state;
 
 machine RoomEvents {
     contains enemies: EnemyTables;

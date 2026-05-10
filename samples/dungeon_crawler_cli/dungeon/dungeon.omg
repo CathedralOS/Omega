@@ -1,17 +1,17 @@
 use commands::command_parser;
-use data::combat_round;
-use data::console;
-use data::map;
-use data::player_state;
-use data::random_state;
-use data::rooms;
 use events::event_runtime;
 use generation::dungeon_generator;
+use combat::combat_round;
 use platform::console;
+use platform::console_types;
 use player::player;
+use player::player_state;
 use rng::random;
+use rng::random_state;
+use rooms::map;
 use rooms::room_formatter;
 use rooms::room_lookup;
+use rooms::rooms;
 
 machine Dungeon {
     contains console: ConsolePlatform;
