@@ -37,7 +37,8 @@ pub(super) fn append_leaf_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(context, state_call, aliases);
+        let branch_bindings =
+            branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
         let leaf_arguments = plan
             .target_arguments
             .span_or_empty(edge.target_arguments)
@@ -63,7 +64,7 @@ pub(super) fn append_leaf_branch_expansions(
             branch_key,
             edge_order: edge.order,
             guard: edge.guard.clone(),
-            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
+            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, &plan.expressions),
             guard_kind: edge.guard_kind,
             leaf_key: *leaf_key,
             bindings,
@@ -96,7 +97,8 @@ pub(super) fn append_straight_line_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(context, state_call, aliases);
+        let branch_bindings =
+            branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
         let target_arguments = plan
             .target_arguments
             .span_or_empty(edge.target_arguments)
@@ -126,7 +128,11 @@ pub(super) fn append_straight_line_branch_expansions(
                 target_key: *target_key,
                 edge_order: edge.order,
                 guard: edge.guard.clone(),
-                resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings),
+                resolved_guard: resolve_branch_guard(
+                    &edge.guard,
+                    &branch_bindings,
+                    &plan.expressions,
+                ),
                 guard_kind: edge.guard_kind,
                 bindings,
                 operations,
@@ -147,7 +153,7 @@ fn leaf_branch_bindings<'a>(
         bindings.push(RuntimeLeafBranchBinding {
             parameter_symbol: binding.parameter_symbol,
             parameter_name: binding.parameter_name.clone(),
-            expression: expression_table.insert_tree(&binding.expression),
+            expression: binding.expression,
             kind: RuntimeLeafBranchBindingKind::BranchParameter,
         });
     }
@@ -158,7 +164,7 @@ fn leaf_branch_bindings<'a>(
             continue;
         };
         let expression = expression_table.to_tree(*expression);
-        let expression = resolve_branch_expression(&expression, branch_bindings);
+        let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
         bindings.push(RuntimeLeafBranchBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name,
@@ -183,7 +189,7 @@ fn straight_line_branch_bindings<'a>(
         bindings.push(RuntimeStraightLineBranchBinding {
             parameter_symbol: binding.parameter_symbol,
             parameter_name: binding.parameter_name.clone(),
-            expression: expression_table.insert_tree(&binding.expression),
+            expression: binding.expression,
             kind: RuntimeStraightLineBranchBindingKind::BranchParameter,
         });
     }
@@ -194,7 +200,7 @@ fn straight_line_branch_bindings<'a>(
             continue;
         };
         let expression = expression_table.to_tree(*expression);
-        let expression = resolve_branch_expression(&expression, branch_bindings);
+        let expression = resolve_branch_expression(&expression, branch_bindings, expression_table);
         bindings.push(RuntimeStraightLineBranchBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name,

@@ -1,6 +1,6 @@
 use crate::RuntimeBranchingContext;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionNode, ExpressionTable};
 use omega_typed_program::statement::TransitionGuard;
 
 mod expressions;
@@ -13,12 +13,15 @@ pub(super) use model::{BranchParameterBinding, RuntimeBranchAlias};
 pub(super) fn resolve_branch_guard(
     guard: &TransitionGuard,
     branch_bindings: &[BranchParameterBinding],
+    expression_table: &ExpressionTable,
 ) -> TransitionGuard {
     match guard {
         TransitionGuard::Always => TransitionGuard::Always,
-        TransitionGuard::When(expression) => {
-            TransitionGuard::When(resolve_branch_expression(expression, branch_bindings))
-        }
+        TransitionGuard::When(expression) => TransitionGuard::When(resolve_branch_expression(
+            expression,
+            branch_bindings,
+            expression_table,
+        )),
     }
 }
 
@@ -26,6 +29,7 @@ pub(super) fn branch_parameter_bindings(
     context: &RuntimeBranchingContext,
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
+    expression_table: &mut ExpressionTable,
 ) -> Vec<BranchParameterBinding> {
     context
         .state_calls
@@ -35,23 +39,27 @@ pub(super) fn branch_parameter_bindings(
             arguments
                 .iter()
                 .map(|argument| {
-                    let argument_expression =
-                        context.state_calls.expressions.to_tree(argument.expression);
+                    let argument_expression = expression_table
+                        .copy_from(&context.state_calls.expressions, argument.expression);
                     let expression = if argument.kind == StateCallArgumentKind::MutableAlias
-                        && !matches!(argument_expression, Expression::Mutable(_))
-                    {
-                        Expression::Mutable(Box::new(argument_expression))
+                        && !matches!(
+                            expression_table.expression(argument_expression),
+                            ExpressionNode::Mutable(_)
+                        ) {
+                        expression_table.insert(ExpressionNode::Mutable(argument_expression))
                     } else {
                         argument_expression
                     };
+                    let expression = resolve_runtime_branch_alias_expression(
+                        &expression_table.to_tree(expression),
+                        state_call.source_key,
+                        aliases,
+                        expression_table,
+                    );
                     BranchParameterBinding {
                         parameter_symbol: argument.parameter_symbol,
                         parameter_name: argument.parameter_name.clone(),
-                        expression: resolve_runtime_branch_alias_expression(
-                            &expression,
-                            state_call.source_key,
-                            aliases,
-                        ),
+                        expression: expression_table.insert_tree(&expression),
                     }
                 })
                 .collect()
@@ -61,6 +69,7 @@ pub(super) fn branch_parameter_bindings(
 
 pub(super) fn bind_runtime_branch_aliases(
     context: &RuntimeBranchingContext,
+    expression_table: &mut ExpressionTable,
     aliases: &mut Vec<RuntimeBranchAlias>,
     state_call: &StateCall,
 ) {
@@ -69,25 +78,30 @@ pub(super) fn bind_runtime_branch_aliases(
     };
 
     for argument in arguments {
-        let argument_expression = context.state_calls.expressions.to_tree(argument.expression);
+        let argument_expression =
+            expression_table.copy_from(&context.state_calls.expressions, argument.expression);
         let expression = if argument.kind == StateCallArgumentKind::MutableAlias
-            && !matches!(argument_expression, Expression::Mutable(_))
-        {
-            Expression::Mutable(Box::new(argument_expression))
+            && !matches!(
+                expression_table.expression(argument_expression),
+                ExpressionNode::Mutable(_)
+            ) {
+            expression_table.insert(ExpressionNode::Mutable(argument_expression))
         } else {
             argument_expression
         };
+        let expression = resolve_runtime_branch_alias_expression(
+            &expression_table.to_tree(expression),
+            state_call.source_key,
+            aliases,
+            expression_table,
+        );
         set_runtime_branch_alias(
             aliases,
             RuntimeBranchAlias {
                 source_key: state_call.target_key,
                 parameter_symbol: argument.parameter_symbol,
                 parameter_name: argument.parameter_name.clone(),
-                expression: resolve_runtime_branch_alias_expression(
-                    &expression,
-                    state_call.source_key,
-                    aliases,
-                ),
+                expression: expression_table.insert_tree(&expression),
             },
         );
     }

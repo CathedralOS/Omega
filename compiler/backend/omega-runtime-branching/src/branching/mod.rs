@@ -50,7 +50,12 @@ pub fn build_runtime_branching_call_plan(
             } = &operation.kind
             else {
                 if let Some(state_call) = state_call {
-                    bind_runtime_branch_aliases(context, &mut aliases, state_call);
+                    bind_runtime_branch_aliases(
+                        context,
+                        &mut plan.expressions,
+                        &mut aliases,
+                        state_call,
+                    );
                 }
                 continue;
             };
@@ -106,7 +111,7 @@ pub fn build_runtime_branching_call_plan(
                 expansion,
                 edges,
             });
-            bind_runtime_branch_aliases(context, &mut aliases, state_call);
+            bind_runtime_branch_aliases(context, &mut plan.expressions, &mut aliases, state_call);
         }
     }
 
