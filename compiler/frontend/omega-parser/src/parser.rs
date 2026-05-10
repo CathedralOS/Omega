@@ -702,6 +702,8 @@ impl Parser<'_, '_> {
         while !self.consume("}") {
             if self.consume("->") {
                 statements.push(self.parse_transition()?);
+            } else if self.consume("transition") {
+                statements.extend(self.parse_transition_block()?);
             } else {
                 statements.push(self.parse_statement()?);
             }
@@ -752,6 +754,67 @@ impl Parser<'_, '_> {
             continuation,
             guard,
         }))
+    }
+
+    fn parse_transition_block(&mut self) -> Result<Vec<Statement>, ParseError> {
+        let subject = if self.consume("{") {
+            None
+        } else {
+            let subject = self.parse_transition_subject_expression()?;
+            self.expect("{")?;
+            Some(subject)
+        };
+
+        let mut statements = Vec::new();
+
+        while !self.consume("}") {
+            let guard = if self.consume("_") {
+                TransitionGuard::Always
+            } else {
+                let pattern = self.parse_expression()?;
+
+                if let Some(subject) = &subject {
+                    TransitionGuard::When(binary_expression(
+                        subject.clone(),
+                        BinaryOperator::Equal,
+                        pattern,
+                    ))
+                } else {
+                    TransitionGuard::When(pattern)
+                }
+            };
+
+            self.expect("->")?;
+
+            let target = if self.consume("{") {
+                self.expect("}")?;
+                TransitionTarget::Terminal
+            } else {
+                self.parse_transition_target()?
+            };
+
+            statements.push(Statement::Transition(Transition {
+                target,
+                continuation: None,
+                guard,
+            }));
+        }
+
+        Ok(statements)
+    }
+
+    fn parse_transition_subject_expression(&mut self) -> Result<Expression, ParseError> {
+        if self.transition_subject_is_bare_name() {
+            let mut path = vec![self.expect_identifier()?];
+
+            while self.consume(".") || self.consume("::") {
+                path.push(self.expect_identifier()?);
+            }
+
+            return Ok(Expression::Name(path.into()));
+        }
+
+        self.parse_expression()
     }
 
     fn parse_transition_target(&mut self) -> Result<TransitionTarget, ParseError> {
@@ -1219,6 +1282,41 @@ impl Parser<'_, '_> {
         self.peek().is_some_and(|token| token.kind == kind)
     }
 
+    fn transition_subject_is_bare_name(&self) -> bool {
+        let mut cursor = self.index;
+        let Some(token) = self.tokens.get(cursor) else {
+            return false;
+        };
+
+        if token.kind != TokenKind::Identifier {
+            return false;
+        }
+
+        cursor += 1;
+
+        loop {
+            let Some(separator) = self.tokens.get(cursor) else {
+                return false;
+            };
+
+            if separator.lexeme.as_str() != "." && separator.lexeme.as_str() != "::" {
+                return separator.lexeme.as_str() == "{";
+            }
+
+            cursor += 1;
+
+            let Some(member) = self.tokens.get(cursor) else {
+                return false;
+            };
+
+            if member.kind != TokenKind::Identifier {
+                return false;
+            }
+
+            cursor += 1;
+        }
+    }
+
     fn expect(&mut self, lexeme: &str) -> Result<(), ParseError> {
         if self.consume(lexeme) {
             Ok(())
@@ -1430,5 +1528,37 @@ mod tests {
 
         assert_eq!(machine.states.len(), 1);
         assert_eq!(machine.states[0].name, "entry");
+    }
+
+    #[test]
+    fn parses_transition_blocks_as_ordered_transitions() {
+        let tokens = Lexer::new(
+            r#"
+            machine for Game {
+                pub entry run(&mut self) {
+                    transition ready {
+                        true -> done()
+                        false -> wait()
+                    }
+                }
+
+                state done(&mut self) {
+                }
+
+                state wait(&mut self) {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+
+        let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected machine item");
+        };
+
+        assert_eq!(machine.states[0].statements.len(), 2);
     }
 }
