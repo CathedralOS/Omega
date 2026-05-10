@@ -80,6 +80,7 @@ fn build_dispatch_state(
             continuation_dispatch_index: target_dispatch_index(context, &edge.continuation),
             continuation: edge.continuation.clone(),
             guard: edge.guard.clone(),
+            expressions: edge.expressions,
             forms_cycle: edge.forms_cycle,
         })
         .chain(terminal_continuation_edges(context, runtime_state))
@@ -137,6 +138,7 @@ fn terminal_continuation_edges(
             continuation_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
+            expressions: Default::default(),
             forms_cycle: false,
         });
     }

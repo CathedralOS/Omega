@@ -1,4 +1,4 @@
-use omega_control_flow::StateKey;
+use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_typed_program::statement::TransitionGuard;
 
@@ -25,6 +25,7 @@ pub struct RuntimeEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
+    pub expressions: TransitionExpressionRefs,
     pub forms_cycle: bool,
 }
 
@@ -35,6 +36,7 @@ impl Default for RuntimeEdge {
             target: RuntimeTransitionTarget::Terminal,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,
+            expressions: TransitionExpressionRefs::default(),
             forms_cycle: false,
         }
     }

@@ -1,4 +1,4 @@
-use omega_control_flow::StateKey;
+use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_typed_program::statement::TransitionGuard;
@@ -35,6 +35,7 @@ pub struct DispatchEdge {
     pub continuation: RuntimeTransitionTarget,
     pub continuation_dispatch_index: u32,
     pub guard: TransitionGuard,
+    pub expressions: TransitionExpressionRefs,
     pub forms_cycle: bool,
 }
 
@@ -46,6 +47,7 @@ impl Default for DispatchEdge {
             continuation: RuntimeTransitionTarget::None,
             continuation_dispatch_index: 0,
             guard: TransitionGuard::Always,
+            expressions: TransitionExpressionRefs::default(),
             forms_cycle: false,
         }
     }

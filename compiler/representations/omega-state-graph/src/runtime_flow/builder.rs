@@ -93,6 +93,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             target: target.clone(),
             continuation: continuation.clone(),
             guard: transition.guard.clone(),
+            expressions: transition.expressions,
             forms_cycle,
         });
 
