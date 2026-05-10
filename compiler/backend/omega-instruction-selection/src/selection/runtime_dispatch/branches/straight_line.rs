@@ -2,15 +2,14 @@ use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
-    RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeStraightLineBranchBinding,
-    RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
-    RuntimeStraightLineBranchOperationKind,
+    RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
+    RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
-use omega_typed_program::expression::ExpressionTable;
+use omega_typed_program::expression::{Expression, NamePath};
 use omega_typed_program::name::ProgramName;
 
 use super::super::super::bindings::{
-    resolve_leaf_binding_expression, resolve_straight_line_binding_expression,
+    append_place_suffix, resolve_straight_line_binding_expression,
 };
 use super::super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
@@ -136,26 +135,6 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         return;
     };
     let leaf_parameters = state_parameters(input, target_key);
-    let mut leaf_binding_expressions = ExpressionTable::new();
-    let leaf_bindings = leaf_parameters
-        .iter()
-        .enumerate()
-        .filter_map(|(parameter_index, parameter)| {
-            let argument = arguments.get(parameter_index)?;
-            let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
-            let expression = resolve_straight_line_binding_expression(
-                &input.runtime_branching_calls.expressions,
-                &argument_expression,
-                straight_line_bindings,
-            );
-            Some(RuntimeLeafBranchBinding {
-                parameter_symbol: parameter.symbol,
-                parameter_name: parameter.name.clone(),
-                expression: leaf_binding_expressions.insert_tree(&expression),
-                kind: RuntimeLeafBranchBindingKind::LeafParameter,
-            })
-        })
-        .collect::<Vec<_>>();
 
     let Some(operations) = state_operations(input, target_key) else {
         return;
@@ -169,15 +148,19 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         };
         let mutation_target = input.state_storage.expressions.to_tree(mutation.target);
         let mutation_value = input.state_storage.expressions.to_tree(mutation.value);
-        let resolved_target = resolve_leaf_binding_expression(
-            &leaf_binding_expressions,
+        let resolved_target = resolve_leaf_call_expression(
+            input,
             &mutation_target,
-            &leaf_bindings,
+            leaf_parameters,
+            arguments,
+            straight_line_bindings,
         );
-        let resolved_value = resolve_leaf_binding_expression(
-            &leaf_binding_expressions,
+        let resolved_value = resolve_leaf_call_expression(
+            input,
             &mutation_value,
-            &leaf_bindings,
+            leaf_parameters,
+            arguments,
+            straight_line_bindings,
         );
         select_runtime_resolved_mutation_write(
             input,
@@ -192,6 +175,63 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             selected_instructions,
         );
     }
+}
+
+fn resolve_leaf_call_expression(
+    input: &InstructionSelectionInput<'_>,
+    expression: &Expression,
+    leaf_parameters: &[omega_control_flow::StateParameterFlow],
+    arguments: &[omega_state_calls::StateCallArgument],
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target = resolve_leaf_call_expression(
+                input,
+                target,
+                leaf_parameters,
+                arguments,
+                straight_line_bindings,
+            );
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Name(path) if !path.is_empty() => resolve_leaf_call_name(
+            input,
+            path,
+            leaf_parameters,
+            arguments,
+            straight_line_bindings,
+        )
+        .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
+}
+
+fn resolve_leaf_call_name(
+    input: &InstructionSelectionInput<'_>,
+    path: &NamePath,
+    leaf_parameters: &[omega_control_flow::StateParameterFlow],
+    arguments: &[omega_state_calls::StateCallArgument],
+    straight_line_bindings: &[RuntimeStraightLineBranchBinding],
+) -> Option<Expression> {
+    let parameter_index = leaf_parameters.iter().position(|parameter| {
+        parameter.symbol.is_valid()
+            && path.head_symbol().is_valid()
+            && parameter.symbol == path.head_symbol()
+    })?;
+    let argument = arguments.get(parameter_index)?;
+    let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
+    let resolved_argument = resolve_straight_line_binding_expression(
+        &input.runtime_branching_calls.expressions,
+        &argument_expression,
+        straight_line_bindings,
+    );
+
+    Some(append_place_suffix(&resolved_argument, &path[1..]))
 }
 
 fn source_machine_name(input: &InstructionSelectionInput<'_>, key: StateKey) -> ProgramName {
