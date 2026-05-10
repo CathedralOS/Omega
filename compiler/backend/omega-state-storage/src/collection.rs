@@ -8,6 +8,7 @@ use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;
 use omega_typed_program::statement::StatementNode;
 use omega_typed_program::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use std::fmt::Write;
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(
@@ -194,14 +195,27 @@ fn type_reference_display_name(program: &Program, type_reference: TypeReferenceH
             arguments,
             ..
         } => {
-            let arguments = program
+            let mut display = String::new();
+            display.push_str(base_name.as_str());
+            display.push('<');
+            for (index, argument) in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
-                .map(|argument| type_reference_display_name(program, *argument))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{base_name}<{arguments}>")
+                .enumerate()
+            {
+                if index > 0 {
+                    display.push_str(", ");
+                }
+                write!(
+                    display,
+                    "{}",
+                    type_reference_display_name(program, *argument)
+                )
+                .expect("writing type display into string should not fail");
+            }
+            display.push('>');
+            display
         }
         TypeReferenceNode::Named { name, .. } => name.to_string(),
         TypeReferenceNode::Unit => "()".to_owned(),
