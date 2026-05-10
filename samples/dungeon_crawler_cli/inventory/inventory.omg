@@ -5,16 +5,27 @@ data InventorySystem {
 }
 
 machine for InventorySystem {
-    pub fn clear(&mut self, inventory: &mut Inventory) {
+    pub fn clear(
+        &mut self,
+        inventory: &mut Inventory
+    ) {
         inventory.items.clear();
         inventory.gold = 0;
     }
 
-    fn add_gold(&mut self, inventory: &mut Inventory, amount: u32[exact, non_negative]) {
+    fn add_gold(
+        &mut self,
+        inventory: &mut Inventory,
+        amount: u32[exact, non_negative]
+    ) {
         inventory.gold = inventory.gold + amount;
     }
 
-    fn add_item(&mut self, inventory: &mut Inventory, kind: ItemKind) {
+    fn add_item(
+        &mut self,
+        inventory: &mut Inventory,
+        kind: ItemKind
+    ) {
         let existing_index: Option<usize> = self.find_item(inventory, kind);
 
         transition existing_index.is_some() {
@@ -23,7 +34,11 @@ machine for InventorySystem {
         }
     }
 
-    pub fn add_reward(&mut self, inventory: &mut Inventory, reward: Reward) {
+    pub fn add_reward(
+        &mut self,
+        inventory: &mut Inventory,
+        reward: Reward
+    ) {
         transition reward.kind {
             RewardKind::None -> {}
             RewardKind::Gold -> add_gold(inventory, reward.gold)
@@ -32,12 +47,20 @@ machine for InventorySystem {
         }
     }
 
-    state add_gold_and_item(&mut self, inventory: &mut Inventory, reward: Reward) {
+    state add_gold_and_item(
+        &mut self,
+        inventory: &mut Inventory,
+        reward: Reward
+    ) {
         self.add_gold(inventory, reward.gold);
         self.add_item(inventory, reward.item);
     }
 
-    fn find_item(&mut self, inventory: &Inventory, kind: ItemKind) -> Option<usize> {
+    fn find_item(
+        &mut self,
+        inventory: &Inventory,
+        kind: ItemKind
+    ) -> Option<usize> {
         let items: &[InventoryItem] = inventory.items.as_slice();
 
         match items.len > 0 {
@@ -50,7 +73,7 @@ machine for InventorySystem {
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
-        index: IndexOf<items>,
+        index: IndexOf<items>
     ) -> Option<usize> {
         let found: bool = items[index].kind == kind;
         let next_index: usize = index + 1;
@@ -65,7 +88,7 @@ machine for InventorySystem {
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
-        next_index: usize,
+        next_index: usize
     ) -> Option<usize> {
         let has_next: bool = next_index < items.len;
 
@@ -75,7 +98,11 @@ machine for InventorySystem {
         }
     }
 
-    fn increment_item(&mut self, item: &mut InventoryItem, amount: u32[exact, positive]) {
+    fn increment_item(
+        &mut self,
+        item: &mut InventoryItem,
+        amount: u32[exact, positive]
+    ) {
         item.count = item.count + amount;
     }
 }

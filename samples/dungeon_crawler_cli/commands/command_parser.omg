@@ -8,7 +8,12 @@ data CommandParser {
 }
 
 machine for CommandParser {
-    pub fn resolve_navigation(&mut self, level: Level, cell: CellId, line: &ConsoleLine) -> Navigation {
+    pub fn resolve_navigation(
+        &mut self,
+        level: Level,
+        cell: CellId,
+        line: &ConsoleLine
+    ) -> Navigation {
         let choice: NavigationChoice = self.resolve_command(line);
 
         match choice {
@@ -17,7 +22,10 @@ machine for CommandParser {
         }
     }
 
-    fn resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
+    fn resolve_command(
+        &mut self,
+        line: &ConsoleLine
+    ) -> NavigationChoice {
         match line.text {
             "quit" -> NavigationChoice::Quit
             "look" -> NavigationChoice::Look
@@ -34,13 +42,22 @@ machine for CommandParser {
         }
     }
 
-    fn resolve_exit(&mut self, level: Level, cell: CellId, line: &ConsoleLine) -> Navigation {
+    fn resolve_exit(
+        &mut self,
+        level: Level,
+        cell: CellId,
+        line: &ConsoleLine
+    ) -> Navigation {
         let room: Room;
         self.lookup.find_room(level, cell, &mut room);
         -> self.find_exit(room, &line.text);
     }
 
-    fn find_exit(&mut self, room: Room, command: &String) -> Navigation {
+    fn find_exit(
+        &mut self,
+        room: Room,
+        command: &String
+    ) -> Navigation {
         let exits: &[Exit] = room.exits.as_slice();
 
         match room.exit_count > 0 {
@@ -54,7 +71,7 @@ machine for CommandParser {
         exits: &[Exit],
         exit_count: usize[positive],
         command: &String,
-        index: IndexOf<exits>,
+        index: IndexOf<exits>
     ) -> Navigation {
         let found: bool = exits[index].command == command;
         let next_index: usize = index + 1;
@@ -71,7 +88,11 @@ machine for CommandParser {
         -> self.navigation(NavigationChoice::Invalid, CellId::Empty);
     }
 
-    fn navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
+    fn navigation(
+        &mut self,
+        choice: NavigationChoice,
+        destination: CellId
+    ) -> Navigation {
         -> Navigation { choice: choice, destination: destination };
     }
 }

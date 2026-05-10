@@ -7,7 +7,12 @@ data EnemyTables {
 }
 
 machine for EnemyTables {
-    pub fn roll_enemy(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, enemy: &mut Enemy) {
+    pub fn roll_enemy(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         transition self.tier_for_depth(depth) {
             EnemyTier::Bat -> bat(random, enemy)
             EnemyTier::Spider -> spider(random, enemy)
@@ -18,7 +23,10 @@ machine for EnemyTables {
         }
     }
 
-    fn tier_for_depth(&mut self, depth: u32[exact, non_negative]) -> EnemyTier {
+    fn tier_for_depth(
+        &mut self,
+        depth: u32[exact, non_negative]
+    ) -> EnemyTier {
         let is_bat_depth: bool = depth <= 1;
         let is_spider_depth: bool = depth <= 2;
         let is_skeleton_depth: bool = depth <= 4;
@@ -35,7 +43,11 @@ machine for EnemyTables {
         }
     }
 
-    state bat(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state bat(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::Bat;
         enemy.name = "Cave Bat";
         enemy.depth = 0;
@@ -46,7 +58,11 @@ machine for EnemyTables {
         enemy.xp_reward = 3;
     }
 
-    state spider(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state spider(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::Spider;
         enemy.name = "Gloom Spider";
         enemy.depth = 2;
@@ -57,7 +73,11 @@ machine for EnemyTables {
         enemy.xp_reward = 6;
     }
 
-    state skeleton(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state skeleton(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::Skeleton;
         enemy.name = "Restless Skeleton";
         enemy.depth = 4;
@@ -68,7 +88,11 @@ machine for EnemyTables {
         enemy.xp_reward = 12;
     }
 
-    state cultist(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state cultist(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::Cultist;
         enemy.name = "Ashen Cultist";
         enemy.depth = 6;
@@ -79,7 +103,11 @@ machine for EnemyTables {
         enemy.xp_reward = 20;
     }
 
-    state hellhound(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state hellhound(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::Hellhound;
         enemy.name = "Hellhound";
         enemy.depth = 8;
@@ -90,7 +118,11 @@ machine for EnemyTables {
         enemy.xp_reward = 36;
     }
 
-    state pit_fiend(&mut self, random: &mut RandomState, enemy: &mut Enemy) {
+    state pit_fiend(
+        &mut self,
+        random: &mut RandomState,
+        enemy: &mut Enemy
+    ) {
         enemy.kind = EnemyKind::PitFiend;
         enemy.name = "Pit Fiend";
         enemy.depth = 10;

@@ -8,13 +8,21 @@ data GameView {
 }
 
 machine for GameView {
-    pub fn render_title(&mut self, console: &mut ConsolePlatform) {
+    pub fn render_title(
+        &mut self,
+        console: &mut ConsolePlatform
+    ) {
         console.write_line("Omega Dungeon");
         console.write_line("A tiny generated crawl for compiler stress.");
         console.write_line("Type look, exits, a direction, or quit.");
     }
 
-    pub fn render_room(&mut self, dungeon: Dungeon, console: &mut ConsolePlatform, line: &mut ConsoleLine) {
+    pub fn render_room(
+        &mut self,
+        dungeon: Dungeon,
+        console: &mut ConsolePlatform,
+        line: &mut ConsoleLine
+    ) {
         self.formatter.write_current_cell(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
         self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
@@ -25,45 +33,81 @@ machine for GameView {
         console.write_line(line.text);
     }
 
-    pub fn render_look(&mut self, dungeon: Dungeon, console: &mut ConsolePlatform, line: &mut ConsoleLine) {
+    pub fn render_look(
+        &mut self,
+        dungeon: Dungeon,
+        console: &mut ConsolePlatform,
+        line: &mut ConsoleLine
+    ) {
         self.formatter.write_room_info(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
         self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
     }
 
-    pub fn render_exits(&mut self, dungeon: Dungeon, console: &mut ConsolePlatform, line: &mut ConsoleLine) {
+    pub fn render_exits(
+        &mut self,
+        dungeon: Dungeon,
+        console: &mut ConsolePlatform,
+        line: &mut ConsoleLine
+    ) {
         self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
     }
 
-    pub fn render_inventory(&mut self, dungeon: Dungeon, console: &mut ConsolePlatform, line: &mut ConsoleLine) {
+    pub fn render_inventory(
+        &mut self,
+        dungeon: Dungeon,
+        console: &mut ConsolePlatform,
+        line: &mut ConsoleLine
+    ) {
         self.formatter.write_inventory(dungeon.player, line);
         console.write_line(line.text);
     }
 
-    pub fn render_character(&mut self, dungeon: Dungeon, console: &mut ConsolePlatform, line: &mut ConsoleLine) {
+    pub fn render_character(
+        &mut self,
+        dungeon: Dungeon,
+        console: &mut ConsolePlatform,
+        line: &mut ConsoleLine
+    ) {
         self.formatter.write_character(dungeon.player, line);
         console.write_line(line.text);
     }
 
-    pub fn render_prompt(&mut self, console: &mut ConsolePlatform) {
+    pub fn render_prompt(
+        &mut self,
+        console: &mut ConsolePlatform
+    ) {
         console.write("> ");
     }
 
-    pub fn render_line(&mut self, line: ConsoleLine, console: &mut ConsolePlatform) {
+    pub fn render_line(
+        &mut self,
+        line: ConsoleLine,
+        console: &mut ConsolePlatform
+    ) {
         console.write_line(line.text);
     }
 
-    pub fn render_invalid_command(&mut self, console: &mut ConsolePlatform) {
+    pub fn render_invalid_command(
+        &mut self,
+        console: &mut ConsolePlatform
+    ) {
         console.write_line("That path is not open.");
     }
 
-    pub fn render_game_over(&mut self, console: &mut ConsolePlatform) {
+    pub fn render_game_over(
+        &mut self,
+        console: &mut ConsolePlatform
+    ) {
         console.write_line("Game over.");
     }
 
-    pub fn render_goodbye(&mut self, console: &mut ConsolePlatform) {
+    pub fn render_goodbye(
+        &mut self,
+        console: &mut ConsolePlatform
+    ) {
         console.write_line("Goodbye.");
     }
 }

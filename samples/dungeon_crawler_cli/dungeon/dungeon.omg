@@ -31,13 +31,19 @@ machine for Dungeon {
         self.mark_current_room_discovered();
     }
 
-    pub fn use_event(&mut self, line: &mut ConsoleLine) {
+    pub fn use_event(
+        &mut self,
+        line: &mut ConsoleLine
+    ) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, &mut room);
         self.events.use_event(&mut self.player, &mut room, line);
     }
 
-    pub fn fight(&mut self, line: &mut ConsoleLine) {
+    pub fn fight(
+        &mut self,
+        line: &mut ConsoleLine
+    ) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, &mut room);
         self.events.fight_event(&mut self.player, &mut room, &mut self.random, &mut self.combat_round, line);

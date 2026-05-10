@@ -5,7 +5,12 @@ data RoomLookup {
 }
 
 machine for RoomLookup {
-    pub fn find_room(&mut self, level: Level, cell: CellId, out_room: &mut Room) {
+    pub fn find_room(
+        &mut self,
+        level: Level,
+        cell: CellId,
+        out_room: &mut Room
+    ) {
         let rooms: &[Room] = level.rooms.as_slice();
 
         transition level.room_count > 0 {
@@ -14,7 +19,11 @@ machine for RoomLookup {
         }
     }
 
-    pub fn find_room_mut(&mut self, level: &mut Level, cell: CellId) -> &mut Room {
+    pub fn find_room_mut(
+        &mut self,
+        level: &mut Level,
+        cell: CellId
+    ) -> &mut Room {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
         -> self.find_room_mut_at(rooms, level.room_count, cell, 0);
@@ -26,7 +35,7 @@ machine for RoomLookup {
         room_count: usize[positive],
         cell: CellId,
         out_room: &mut Room,
-        index: IndexOf<rooms>,
+        index: IndexOf<rooms>
     ) {
         let found: bool = rooms[index].cell == cell;
         let next_index: usize = index + 1;
@@ -44,7 +53,7 @@ machine for RoomLookup {
         rooms: &mut [Room],
         room_count: usize[positive],
         cell: CellId,
-        index: IndexOf<rooms>,
+        index: IndexOf<rooms>
     ) -> &mut Room {
         let found: bool = rooms[index].cell == cell;
         let next_index: usize = index + 1;
@@ -57,7 +66,11 @@ machine for RoomLookup {
         }
     }
 
-    state apply_room(&mut self, room: Room, out_room: &mut Room) {
+    state apply_room(
+        &mut self,
+        room: Room,
+        out_room: &mut Room
+    ) {
         out_room = room;
     }
 }

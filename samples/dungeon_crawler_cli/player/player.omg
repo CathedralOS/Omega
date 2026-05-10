@@ -7,7 +7,11 @@ data PlayerSystem {
 }
 
 machine for PlayerSystem {
-    pub fn create(&mut self, name: String, player: &mut Player) {
+    pub fn create(
+        &mut self,
+        name: String,
+        player: &mut Player
+    ) {
         player.name = name;
         player.level = 1;
         player.xp = 0;
@@ -18,21 +22,37 @@ machine for PlayerSystem {
         self.inventory.clear(&mut player.inventory);
     }
 
-    pub fn heal(&mut self, player: &mut Player, amount: i32[exact, positive]) {
+    pub fn heal(
+        &mut self,
+        player: &mut Player,
+        amount: i32[exact, positive]
+    ) {
         player.health = min(player.max_health, player.health + amount);
     }
 
-    pub fn take_damage(&mut self, player: &mut Player, amount: i32[exact, non_negative]) {
+    pub fn take_damage(
+        &mut self,
+        player: &mut Player,
+        amount: i32[exact, non_negative]
+    ) {
         let prevented: i32[exact, non_negative] = min(amount, player.defense);
         let actual: i32[exact, non_negative] = amount - prevented;
         player.health = max(0, player.health - actual);
     }
 
-    pub fn grant_reward(&mut self, player: &mut Player, reward: Reward) {
+    pub fn grant_reward(
+        &mut self,
+        player: &mut Player,
+        reward: Reward
+    ) {
         self.inventory.add_reward(&mut player.inventory, reward);
     }
 
-    pub fn grant_xp(&mut self, player: &mut Player, amount: u32[exact, non_negative]) {
+    pub fn grant_xp(
+        &mut self,
+        player: &mut Player,
+        amount: u32[exact, non_negative]
+    ) {
         player.xp = player.xp + amount;
 
         transition player.xp >= self.xp_required(player.level) {
@@ -41,7 +61,10 @@ machine for PlayerSystem {
         }
     }
 
-    state level_up(&mut self, player: &mut Player) {
+    state level_up(
+        &mut self,
+        player: &mut Player
+    ) {
         player.xp = player.xp - self.xp_required(player.level);
         player.level = player.level + 1;
         player.max_health = player.max_health + 5;
@@ -54,7 +77,10 @@ machine for PlayerSystem {
         }
     }
 
-    fn xp_required(&mut self, level: u32[exact, positive]) -> u32[exact, positive] {
+    fn xp_required(
+        &mut self,
+        level: u32[exact, positive]
+    ) -> u32[exact, positive] {
         -> 10 + level * 5;
     }
 }

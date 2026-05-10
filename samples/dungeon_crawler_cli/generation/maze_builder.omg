@@ -10,7 +10,11 @@ data MazeBuilder {
 }
 
 machine for MazeBuilder {
-    pub fn build(&mut self, seed: u64[wrapping], level: &mut Level) {
+    pub fn build(
+        &mut self,
+        seed: u64[wrapping],
+        level: &mut Level
+    ) {
         let random: RandomState;
         self.rng.seed(seed, &mut random);
 
@@ -22,7 +26,14 @@ machine for MazeBuilder {
         self.branch(level, &mut random, CellId::R00, 0, 0);
     }
 
-    fn branch(&mut self, level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
+    fn branch(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState,
+        from: CellId,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) {
         let next_depth: u32[exact, non_negative] = depth + 1;
 
         transition (
@@ -37,7 +48,14 @@ machine for MazeBuilder {
         }
     }
 
-    state carve_north(&mut self, level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
+    state carve_north(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState,
+        from: CellId,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) {
         let target: CellId = self.next_unused_cell(level);
         self.carve_room(level, random, target, depth, branch_id);
         self.connect(level, from, target, Direction::North);
@@ -48,7 +66,14 @@ machine for MazeBuilder {
         }
     }
 
-    state carve_east(&mut self, level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
+    state carve_east(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState,
+        from: CellId,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) {
         let target: CellId = self.next_unused_cell(level);
         self.carve_room(level, random, target, depth, branch_id);
         self.connect(level, from, target, Direction::East);
@@ -59,7 +84,14 @@ machine for MazeBuilder {
         }
     }
 
-    state carve_west(&mut self, level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
+    state carve_west(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState,
+        from: CellId,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) {
         let target: CellId = self.next_unused_cell(level);
         self.carve_room(level, random, target, depth, branch_id);
         self.connect(level, from, target, Direction::West);
@@ -70,13 +102,24 @@ machine for MazeBuilder {
         }
     }
 
-    fn should_carve(&mut self, random: &mut RandomState, depth: u32[exact, non_negative]) -> bool {
+    fn should_carve(
+        &mut self,
+        random: &mut RandomState,
+        depth: u32[exact, non_negative]
+    ) -> bool {
         let chance: u32[exact, range<0, 100>] = max(15, 80 - depth * 6);
 
         -> self.rng.chance(random, chance, 100);
     }
 
-    fn carve_room(&mut self, level: &mut Level, random: &mut RandomState, cell: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
+    fn carve_room(
+        &mut self,
+        level: &mut Level,
+        random: &mut RandomState,
+        cell: CellId,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
         let index: IndexOf<rooms> = self.cell_index(cell);
         rooms[index].cell = cell;
@@ -91,7 +134,13 @@ machine for MazeBuilder {
         level.deepest_depth = max(level.deepest_depth, depth);
     }
 
-    fn connect(&mut self, level: &mut Level, from: CellId, to: CellId, direction: Direction) {
+    fn connect(
+        &mut self,
+        level: &mut Level,
+        from: CellId,
+        to: CellId,
+        direction: Direction
+    ) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
         let from_index: IndexOf<rooms> = self.cell_index(from);
         let to_index: IndexOf<rooms> = self.cell_index(to);
@@ -100,14 +149,23 @@ machine for MazeBuilder {
         self.append_exit(&mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
     }
 
-    fn append_exit(&mut self, room: &mut Room, command: String, direction: Direction, destination: CellId) {
+    fn append_exit(
+        &mut self,
+        room: &mut Room,
+        command: String,
+        direction: Direction,
+        destination: CellId
+    ) {
         let exits: &mut [Exit] = room.exits.as_mut_slice();
         let index: IndexOf<exits> = room.exit_count;
         exits[index] = Exit { command: command, direction: direction, destination: destination };
         room.exit_count = room.exit_count + 1;
     }
 
-    fn next_unused_cell(&mut self, level: Level) -> CellId {
+    fn next_unused_cell(
+        &mut self,
+        level: Level
+    ) -> CellId {
         match level.room_count {
             1 -> CellId::R01
             2 -> CellId::R02
@@ -127,7 +185,10 @@ machine for MazeBuilder {
         }
     }
 
-    fn cell_index(&mut self, cell: CellId) -> usize {
+    fn cell_index(
+        &mut self,
+        cell: CellId
+    ) -> usize {
         match cell {
             CellId::R00 -> 0
             CellId::R01 -> 1
@@ -148,18 +209,28 @@ machine for MazeBuilder {
         }
     }
 
-    fn room_label(&mut self, cell: CellId) -> String {
+    fn room_label(
+        &mut self,
+        cell: CellId
+    ) -> String {
         match cell {
             CellId::R00 -> "Gate"
             _ -> "Branch Room"
         }
     }
 
-    fn room_description(&mut self, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) -> String {
+    fn room_description(
+        &mut self,
+        depth: u32[exact, non_negative],
+        branch_id: u32[exact, non_negative]
+    ) -> String {
         -> "A cracked limestone room at depth " + depth.to_string() + ", branch " + branch_id.to_string() + ".";
     }
 
-    fn direction_command(&mut self, direction: Direction) -> String {
+    fn direction_command(
+        &mut self,
+        direction: Direction
+    ) -> String {
         match direction {
             Direction::North -> "north"
             Direction::South -> "south"
@@ -168,7 +239,10 @@ machine for MazeBuilder {
         }
     }
 
-    fn opposite(&mut self, direction: Direction) -> Direction {
+    fn opposite(
+        &mut self,
+        direction: Direction
+    ) -> Direction {
         match direction {
             Direction::North -> Direction::South
             Direction::South -> Direction::North

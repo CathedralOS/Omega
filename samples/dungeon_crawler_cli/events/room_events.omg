@@ -12,7 +12,12 @@ data RoomEvents {
 }
 
 machine for RoomEvents {
-    pub fn roll_event(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+    pub fn roll_event(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        event: &mut RoomEvent
+    ) {
         let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
 
         transition self.event_action(roll) {
@@ -23,7 +28,10 @@ machine for RoomEvents {
         }
     }
 
-    fn event_action(&mut self, roll: u32[exact, range<0, 100>]) -> RoomEventAction {
+    fn event_action(
+        &mut self,
+        roll: u32[exact, range<0, 100>]
+    ) -> RoomEventAction {
         let is_quiet: bool = roll < 20;
         let is_fountain: bool = roll < 30;
         let is_reward: bool = roll < 60;
@@ -36,38 +44,65 @@ machine for RoomEvents {
         }
     }
 
-    state reward_event(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent, roll: u32[exact, range<0, 100>]) {
+    state reward_event(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        event: &mut RoomEvent,
+        roll: u32[exact, range<0, 100>]
+    ) {
         transition roll < 45 {
             true -> treasure(depth, random, event)
             false -> gold_cache(depth, random, event)
         }
     }
 
-    state no_event(&mut self, event: &mut RoomEvent) {
+    state no_event(
+        &mut self,
+        event: &mut RoomEvent
+    ) {
         event.kind = RoomEventKind::Nothing;
         event.consumed = true;
         event.reward.kind = RewardKind::None;
     }
 
-    state fountain(&mut self, event: &mut RoomEvent) {
+    state fountain(
+        &mut self,
+        event: &mut RoomEvent
+    ) {
         event.kind = RoomEventKind::FountainOfLife;
         event.consumed = false;
         event.reward.kind = RewardKind::None;
     }
 
-    state treasure(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+    state treasure(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        event: &mut RoomEvent
+    ) {
         event.kind = RoomEventKind::Treasure;
         event.consumed = false;
         self.rewards.roll_room_treasure(depth, random, &mut event.reward);
     }
 
-    state gold_cache(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+    state gold_cache(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        event: &mut RoomEvent
+    ) {
         event.kind = RoomEventKind::GoldCache;
         event.consumed = false;
         self.rewards.roll_gold_cache(depth, random, &mut event.reward);
     }
 
-    state enemy(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+    state enemy(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState,
+        event: &mut RoomEvent
+    ) {
         event.kind = RoomEventKind::Enemy;
         event.consumed = false;
         self.enemies.roll_enemy(depth, random, &mut event.enemy);

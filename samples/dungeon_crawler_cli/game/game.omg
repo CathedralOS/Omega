@@ -145,7 +145,10 @@ machine for Game {
     state finished(&mut self) {
     }
 
-    pub fn exit(&mut self, return_code: i32) {
+    pub fn exit(
+        &mut self,
+        return_code: i32
+    ) {
         self.view.render_goodbye(&mut self.console);
         self.console.exit_process(return_code);
     }
