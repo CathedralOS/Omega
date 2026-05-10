@@ -1,4 +1,13 @@
 use crate::identifier::{Identifier, IdentifierPath};
+use omega_core::arena::{Arena, Handle, HandleSpan};
+
+pub type StateParameterHandle = Handle<StateParameterNode>;
+pub type StateSignatureHandle = Handle<StateSignatureNode>;
+pub type StateHandle = Handle<StateNode>;
+pub type ContainsHandle = Handle<ContainsNode>;
+pub type OwnedDataHandle = Handle<OwnedDataNode>;
+pub type MachineHandle = Handle<MachineNode>;
+pub type PlatformHandle = Handle<PlatformNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Item {
@@ -202,4 +211,421 @@ pub struct StateParameter {
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ItemTable {
+    state_parameters: Arena<StateParameterNode>,
+    state_signatures: Arena<StateSignatureNode>,
+    states: Arena<StateNode>,
+    state_parameter_handles: Arena<StateParameterHandle>,
+    state_signature_handles: Arena<StateSignatureHandle>,
+    statement_handles: Arena<crate::statement::StatementHandle>,
+    contains: Arena<ContainsNode>,
+    owned_data: Arena<OwnedDataNode>,
+    machines: Arena<MachineNode>,
+    platforms: Arena<PlatformNode>,
+}
+
+impl ItemTable {
+    pub fn new() -> Self {
+        Self {
+            state_parameters: Arena::new(),
+            state_signatures: Arena::new(),
+            states: Arena::new(),
+            state_parameter_handles: Arena::new(),
+            state_signature_handles: Arena::new(),
+            statement_handles: Arena::new(),
+            contains: Arena::new(),
+            owned_data: Arena::new(),
+            machines: Arena::new(),
+            platforms: Arena::new(),
+        }
+    }
+
+    pub fn state_parameter(&self, handle: StateParameterHandle) -> &StateParameterNode {
+        self.state_parameters.get(handle)
+    }
+
+    pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignatureNode {
+        self.state_signatures.get(handle)
+    }
+
+    pub fn state(&self, handle: StateHandle) -> &StateNode {
+        self.states.get(handle)
+    }
+
+    pub fn machine(&self, handle: MachineHandle) -> &MachineNode {
+        self.machines.get(handle)
+    }
+
+    pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
+        self.platforms.get(handle)
+    }
+
+    pub fn state_parameters(
+        &self,
+        span: HandleSpan<StateParameterHandle>,
+    ) -> &[StateParameterHandle] {
+        self.state_parameter_handles.span_or_empty(span)
+    }
+
+    pub fn state_signatures(
+        &self,
+        span: HandleSpan<StateSignatureHandle>,
+    ) -> &[StateSignatureHandle] {
+        self.state_signature_handles.span_or_empty(span)
+    }
+
+    pub fn statements(
+        &self,
+        span: HandleSpan<crate::statement::StatementHandle>,
+    ) -> &[crate::statement::StatementHandle] {
+        self.statement_handles.span_or_empty(span)
+    }
+
+    pub fn contains_nodes(&self, span: HandleSpan<ContainsNode>) -> &[ContainsNode] {
+        self.contains.span_or_empty(span)
+    }
+
+    pub fn owned_data_nodes(&self, span: HandleSpan<OwnedDataNode>) -> &[OwnedDataNode] {
+        self.owned_data.span_or_empty(span)
+    }
+
+    pub fn state_parameter_count(&self) -> usize {
+        self.state_parameters.len()
+    }
+
+    pub fn state_signature_count(&self) -> usize {
+        self.state_signatures.len()
+    }
+
+    pub fn state_count(&self) -> usize {
+        self.states.len()
+    }
+
+    pub fn machine_count(&self) -> usize {
+        self.machines.len()
+    }
+
+    pub fn platform_count(&self) -> usize {
+        self.platforms.len()
+    }
+
+    pub fn contains_count(&self) -> usize {
+        self.contains.len()
+    }
+
+    pub fn owned_data_count(&self) -> usize {
+        self.owned_data.len()
+    }
+
+    pub fn insert_state_signature_tree(
+        &mut self,
+        signature: &StateSignature,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> StateSignatureHandle {
+        let parameters =
+            self.insert_state_parameter_span_from_trees(&signature.parameters, type_references, expressions);
+        let return_type = signature
+            .return_type
+            .as_ref()
+            .map(|return_type| type_references.insert_tree(return_type, expressions))
+            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
+        self.state_signatures.append(StateSignatureNode {
+            name: signature.name.clone(),
+            parameters,
+            return_type,
+        })
+    }
+
+    pub fn insert_state_tree(
+        &mut self,
+        state: &State,
+        statements: &mut crate::statement::StatementTable,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> StateHandle {
+        let parameters =
+            self.insert_state_parameter_span_from_trees(&state.parameters, type_references, expressions);
+        let return_type = state
+            .return_type
+            .as_ref()
+            .map(|return_type| type_references.insert_tree(return_type, expressions))
+            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
+        let statements = self.insert_statement_handle_span_from_trees(
+            &state.statements,
+            statements,
+            type_references,
+            expressions,
+        );
+        self.states.append(StateNode {
+            name: state.name.clone(),
+            parameters,
+            return_type,
+            statements,
+        })
+    }
+
+    pub fn insert_machine_tree(
+        &mut self,
+        machine: &Machine,
+        statements: &mut crate::statement::StatementTable,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> MachineHandle {
+        let contains = self.insert_contains_span_from_trees(&machine.contains);
+        let owned_data = self.insert_owned_data_span_from_trees(
+            &machine.owned_data,
+            type_references,
+            expressions,
+        );
+        let states = self.insert_state_span_from_trees(
+            &machine.states,
+            statements,
+            type_references,
+            expressions,
+        );
+        self.machines.append(MachineNode {
+            name: machine.name.clone(),
+            contains,
+            owned_data,
+            states,
+        })
+    }
+
+    pub fn insert_platform_tree(
+        &mut self,
+        platform: &Platform,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> PlatformHandle {
+        let states =
+            self.insert_state_signature_span_from_trees(&platform.states, type_references, expressions);
+        self.platforms.append(PlatformNode {
+            name: platform.name.clone(),
+            states,
+        })
+    }
+
+    fn insert_state_parameter_span_from_trees(
+        &mut self,
+        parameters: &[StateParameter],
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> HandleSpan<StateParameterHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for parameter in parameters {
+            let type_reference = type_references.insert_tree(&parameter.type_reference, expressions);
+            let handle = self.state_parameters.append(StateParameterNode {
+                name: parameter.name.clone(),
+                type_reference,
+                is_const: parameter.is_const,
+                is_mutable: parameter.is_mutable,
+                is_self: parameter.is_self,
+            });
+            let handle = self.state_parameter_handles.append(handle);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("state parameter handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_state_signature_span_from_trees(
+        &mut self,
+        signatures: &[StateSignature],
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> HandleSpan<StateSignatureHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for signature in signatures {
+            let handle = self.insert_state_signature_tree(signature, type_references, expressions);
+            let handle = self.state_signature_handles.append(handle);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("state signature handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_statement_handle_span_from_trees(
+        &mut self,
+        statements: &[crate::statement::Statement],
+        statement_table: &mut crate::statement::StatementTable,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> HandleSpan<crate::statement::StatementHandle> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for statement in statements {
+            let handle = statement_table.insert_tree(statement, expressions, type_references);
+            let handle = self.statement_handles.append(handle);
+            if count == 0 {
+                start = handle;
+            }
+            count = count
+                .checked_add(1)
+                .expect("statement handle span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_state_span_from_trees(
+        &mut self,
+        states: &[State],
+        statement_table: &mut crate::statement::StatementTable,
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> HandleSpan<StateNode> {
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for state in states {
+            let parameters = self.insert_state_parameter_span_from_trees(
+                &state.parameters,
+                type_references,
+                expressions,
+            );
+            let return_type = state
+                .return_type
+                .as_ref()
+                .map(|return_type| type_references.insert_tree(return_type, expressions))
+                .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
+            let statements = self.insert_statement_handle_span_from_trees(
+                &state.statements,
+                statement_table,
+                type_references,
+                expressions,
+            );
+            let handle = self.states.append(StateNode {
+                name: state.name.clone(),
+                parameters,
+                return_type,
+                statements,
+            });
+            if count == 0 {
+                start = handle;
+            }
+            count = count.checked_add(1).expect("state span count overflow");
+        }
+
+        if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        }
+    }
+
+    fn insert_contains_span_from_trees(&mut self, contains: &[Contains]) -> HandleSpan<ContainsNode> {
+        self.contains.insert_many(contains.iter().map(|contained| ContainsNode {
+            name: contained.name.clone(),
+            type_name: contained.type_name.clone(),
+        }))
+    }
+
+    fn insert_owned_data_span_from_trees(
+        &mut self,
+        owned_data: &[OwnedData],
+        type_references: &mut crate::types::TypeReferenceTable,
+        expressions: &mut crate::expression::ExpressionTable,
+    ) -> HandleSpan<OwnedDataNode> {
+        self.owned_data.insert_many(owned_data.iter().map(|owned| {
+            let type_reference = type_references.insert_tree(&owned.type_reference, expressions);
+            let initial_value = owned
+                .initial_value
+                .as_ref()
+                .map(|value| expressions.insert_tree(value))
+                .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
+            OwnedDataNode {
+                name: owned.name.clone(),
+                type_reference,
+                initial_value,
+            }
+        }))
+    }
+}
+
+impl Default for ItemTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateParameterNode {
+    pub name: Identifier,
+    pub type_reference: crate::types::TypeReferenceHandle,
+    pub is_const: bool,
+    pub is_mutable: bool,
+    pub is_self: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateSignatureNode {
+    pub name: Identifier,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub return_type: crate::types::TypeReferenceHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateNode {
+    pub name: Identifier,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub return_type: crate::types::TypeReferenceHandle,
+    pub statements: HandleSpan<crate::statement::StatementHandle>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ContainsNode {
+    pub name: Identifier,
+    pub type_name: Identifier,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OwnedDataNode {
+    pub name: Identifier,
+    pub type_reference: crate::types::TypeReferenceHandle,
+    pub initial_value: crate::expression::ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MachineNode {
+    pub name: Identifier,
+    pub contains: HandleSpan<ContainsNode>,
+    pub owned_data: HandleSpan<OwnedDataNode>,
+    pub states: HandleSpan<StateNode>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlatformNode {
+    pub name: Identifier,
+    pub states: HandleSpan<StateSignatureHandle>,
 }

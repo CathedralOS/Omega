@@ -1,12 +1,11 @@
 use crate::expression::{Expression, ExpressionTable};
-use crate::item::{
-    CapabilityMember, DataMember, Item, Machine, OwnedData, Platform, State, StateSignature,
-};
-use crate::statement::{Statement, StatementTable};
+use crate::item::{CapabilityMember, DataMember, Item, ItemTable, Machine, Platform};
+use crate::statement::StatementTable;
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AstTables {
+    pub items: ItemTable,
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
     pub type_references: TypeReferenceTable,
@@ -32,7 +31,11 @@ impl AstTables {
                             self.insert_type_reference(&field.type_reference);
                         }
                         CapabilityMember::State(state) => {
-                            self.insert_state_signature(&state.signature);
+                            self.items.insert_state_signature_tree(
+                                &state.signature,
+                                &mut self.type_references,
+                                &mut self.expressions,
+                            );
                         }
                     }
                 }
@@ -55,7 +58,11 @@ impl AstTables {
             }
             Item::Library(library) => {
                 for function in &library.functions {
-                    self.insert_state_signature(&function.signature);
+                    self.items.insert_state_signature_tree(
+                        &function.signature,
+                        &mut self.type_references,
+                        &mut self.expressions,
+                    );
                 }
             }
             Item::Machine(machine) => self.insert_machine(machine),
@@ -65,56 +72,20 @@ impl AstTables {
     }
 
     fn insert_machine(&mut self, machine: &Machine) {
-        for owned_data in &machine.owned_data {
-            self.insert_owned_data(owned_data);
-        }
-
-        for state in &machine.states {
-            self.insert_state(state);
-        }
-    }
-
-    fn insert_owned_data(&mut self, owned_data: &OwnedData) {
-        self.insert_type_reference(&owned_data.type_reference);
-
-        if let Some(initial_value) = &owned_data.initial_value {
-            self.insert_expression(initial_value);
-        }
+        self.items.insert_machine_tree(
+            machine,
+            &mut self.statements,
+            &mut self.type_references,
+            &mut self.expressions,
+        );
     }
 
     fn insert_platform(&mut self, platform: &Platform) {
-        for state in &platform.states {
-            self.insert_state_signature(state);
-        }
-    }
-
-    fn insert_state(&mut self, state: &State) {
-        for parameter in &state.parameters {
-            self.insert_type_reference(&parameter.type_reference);
-        }
-
-        if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type);
-        }
-
-        for statement in &state.statements {
-            self.insert_statement(statement);
-        }
-    }
-
-    fn insert_state_signature(&mut self, signature: &StateSignature) {
-        for parameter in &signature.parameters {
-            self.insert_type_reference(&parameter.type_reference);
-        }
-
-        if let Some(return_type) = &signature.return_type {
-            self.insert_type_reference(return_type);
-        }
-    }
-
-    fn insert_statement(&mut self, statement: &Statement) {
-        self.statements
-            .insert_tree(statement, &mut self.expressions, &mut self.type_references);
+        self.items.insert_platform_tree(
+            platform,
+            &mut self.type_references,
+            &mut self.expressions,
+        );
     }
 
     fn insert_type_reference(&mut self, type_reference: &TypeReference) {
@@ -169,5 +140,7 @@ mod tests {
         assert_eq!(tables.type_references.type_reference_count(), 1);
         assert_eq!(tables.expressions.expression_count(), 1);
         assert_eq!(tables.statements.statement_count(), 1);
+        assert_eq!(tables.items.machine_count(), 1);
+        assert_eq!(tables.items.state_count(), 1);
     }
 }
