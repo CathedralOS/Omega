@@ -17,14 +17,10 @@ machine CombatSystem {
         event.enemy.health = max(0, event.enemy.health - round.player_damage);
         round.enemy_defeated = event.enemy.health == 0;
 
-        match {
+        transition {
             round.enemy_defeated -> defeated_enemy(player, event, random, round)
-            _ -> {}
+            _ -> enemy_retaliates(player, event, random, round)
         }
-
-        round.enemy_damage = max(0, event.enemy.attack - player.defense + rng.range(random, 3));
-        player_system.take_damage(player, round.enemy_damage);
-        round.player_defeated = player.health == 0;
     }
 
     state defeated_enemy(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
@@ -37,5 +33,11 @@ machine CombatSystem {
         event.consumed = true;
         round.enemy_damage = 0;
         round.player_defeated = false;
+    }
+
+    state enemy_retaliates(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+        round.enemy_damage = max(0, event.enemy.attack - player.defense + rng.range(random, 3));
+        player_system.take_damage(player, round.enemy_damage);
+        round.player_defeated = player.health == 0;
     }
 }

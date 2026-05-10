@@ -3,7 +3,7 @@ use rooms::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {
-        match {
+        transition {
             level.room_count > 0 -> find_room_at(level, cell, out_room, 0)
             _ -> {}
         }
@@ -14,7 +14,7 @@ machine RoomLookup {
     }
 
     state find_room_at(level: Level, cell: CellId, out_room: &mut Room, index: usize) {
-        match {
+        transition {
             level.rooms[index].cell == cell -> apply_room(level.rooms[index], out_room)
             index + 1 < level.room_count -> find_room_at(level, cell, out_room, index + 1)
             _ -> {}

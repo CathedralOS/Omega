@@ -17,7 +17,7 @@ machine EventRuntime {
     contains player_system: PlayerSystem;
 
     fn describe(room: Room, out_line: &mut ConsoleLine) {
-        match room.event.kind {
+        transition room.event.kind {
             RoomEventKind::FountainOfLife when !room.event.consumed -> describe_fountain(out_line)
             RoomEventKind::Treasure when !room.event.consumed -> describe_treasure(out_line)
             RoomEventKind::GoldCache when !room.event.consumed -> describe_gold(out_line)
@@ -47,7 +47,7 @@ machine EventRuntime {
     }
 
     fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
-        match room.event.kind {
+        transition room.event.kind {
             RoomEventKind::FountainOfLife when !room.event.consumed -> use_fountain(player, mut room.event, out_line)
             RoomEventKind::Treasure when !room.event.consumed -> use_reward(player, mut room.event, out_line)
             RoomEventKind::GoldCache when !room.event.consumed -> use_reward(player, mut room.event, out_line)
@@ -72,14 +72,17 @@ machine EventRuntime {
     }
 
     fn fight_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
-        match {
+        transition {
             room.event.kind != RoomEventKind::Enemy || room.event.consumed -> no_enemy(out_line)
-            _ -> {}
+            _ -> fight_enemy_event(player, room, random, round, out_line)
         }
+    }
+
+    state fight_enemy_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
 
         combat.fight(player, mut room.event, random, round);
 
-        match {
+        transition {
             round.player_defeated -> player_died(out_line)
             round.enemy_defeated -> enemy_died(room.event.reward, out_line)
             _ -> exchange_blows(round, out_line)

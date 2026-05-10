@@ -6,7 +6,7 @@ machine EnemyTables {
     contains rng: Random;
 
     fn roll_enemy(depth: u32[exact, non_negative], random: &mut RandomState, enemy: &mut Enemy) {
-        match {
+        transition {
             depth <= 1 -> bat(random, enemy)
             depth <= 2 -> spider(random, enemy)
             depth <= 4 -> skeleton(random, enemy)

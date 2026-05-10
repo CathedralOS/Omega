@@ -5,7 +5,7 @@ use rooms::rooms;
 
 machine CommandParser {
     fn resolve_command(line: ConsoleLine, out_navigation: &mut Navigation) {
-        match line.text {
+        transition line.text {
             "quit" -> resolve_quit(out_navigation)
             "look" -> resolve_look(out_navigation)
             "info" -> resolve_look(out_navigation)
@@ -61,14 +61,14 @@ machine CommandParser {
     }
 
     fn find_exit(room: Room, command: String, out_navigation: &mut Navigation) {
-        match {
+        transition {
             room.exit_count > 0 -> find_exit_at(room, command, out_navigation, 0)
             _ -> {}
         }
     }
 
     state find_exit_at(room: Room, command: String, out_navigation: &mut Navigation, index: usize) {
-        match {
+        transition {
             room.exits[index].command == command -> resolve_move(room.exits[index].destination, out_navigation)
             index + 1 < room.exit_count -> find_exit_at(room, command, out_navigation, index + 1)
             _ -> {}

@@ -14,14 +14,14 @@ machine InventorySystem {
     fn add_item(inventory: &mut Inventory, kind: ItemKind) {
         let existing_index: Option<usize> = find_item(inventory, kind);
 
-        match {
+        transition {
             existing_index.is_some() -> increment_item(mut inventory.items[existing_index.unwrap()], 1)
             _ -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
         }
     }
 
     fn add_reward(inventory: &mut Inventory, reward: Reward) {
-        match reward.kind {
+        transition reward.kind {
             RewardKind::None -> {}
             RewardKind::Gold -> add_gold(inventory, reward.gold)
             RewardKind::Item -> add_item(inventory, reward.item)

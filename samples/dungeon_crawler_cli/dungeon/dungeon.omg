@@ -32,7 +32,7 @@ machine Dungeon {
     owns mode: GameMode = GameMode::Title;
 
     state entry() {
-        match {
+        transition {
             _ -> enter_room()
         }
     }
@@ -49,13 +49,13 @@ machine Dungeon {
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
 
     state prompt() {
-        match {
+        transition {
             player.health == 0 -> game_over()
             _ -> {}
         }
@@ -68,7 +68,7 @@ machine Dungeon {
         parser.resolve_command(command_line, mut navigation);
         parser.resolve_exit(level, current_cell, command_line, mut navigation);
 
-        match navigation.choice {
+        transition navigation.choice {
             NavigationChoice::Quit -> finished()
             NavigationChoice::Look -> look()
             NavigationChoice::Exits -> exits()
@@ -87,7 +87,7 @@ machine Dungeon {
         formatter.write_room_event(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -96,7 +96,7 @@ machine Dungeon {
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -105,7 +105,7 @@ machine Dungeon {
         formatter.write_inventory(player, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -114,7 +114,7 @@ machine Dungeon {
         formatter.write_character(player, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -125,7 +125,7 @@ machine Dungeon {
         events.use_event(mut player, mut room, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -136,7 +136,7 @@ machine Dungeon {
         events.fight_event(mut player, mut room, mut random, mut combat_round, mut command_line);
         console.write_line(command_line.text);
 
-        match {
+        transition {
             combat_round.player_defeated -> game_over()
             _ -> prompt()
         }
@@ -145,7 +145,7 @@ machine Dungeon {
     state move() {
         current_cell = navigation.destination;
 
-        match {
+        transition {
             _ -> enter_room()
         }
     }
@@ -153,7 +153,7 @@ machine Dungeon {
     state invalid_command() {
         console.write_line("That path is not open.");
 
-        match {
+        transition {
             _ -> prompt()
         }
     }
@@ -162,7 +162,7 @@ machine Dungeon {
         mode = GameMode::GameOver;
         console.write_line("Game over.");
 
-        match {
+        transition {
             _ -> finished()
         }
     }
