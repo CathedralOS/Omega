@@ -14,7 +14,7 @@ data CombatSystem {
 }
 
 machine for CombatSystem {
-    pub fn fight(
+    pub entry fight(
         &mut self,
         player: &mut Player,
         event: &mut RoomEvent,

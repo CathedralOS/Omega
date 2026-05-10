@@ -18,7 +18,7 @@ data EventRuntime {
 }
 
 machine for EventRuntime {
-    pub fn describe(
+    pub entry describe(
         &mut self,
         room: Room,
         out_line: &mut ConsoleLine
@@ -67,8 +67,10 @@ machine for EventRuntime {
     ) {
         out_line.text = "The room is quiet.";
     }
+}
 
-    pub fn use_event(
+machine for EventRuntime {
+    pub entry use_event(
         &mut self,
         player: &mut Player,
         room: &mut Room,
@@ -110,8 +112,10 @@ machine for EventRuntime {
     ) {
         out_line.text = "There is nothing here to use.";
     }
+}
 
-    pub fn fight_event(
+machine for EventRuntime {
+    pub entry fight_event(
         &mut self,
         player: &mut Player,
         room: &mut Room,
@@ -133,7 +137,6 @@ machine for EventRuntime {
         round: &mut CombatRound,
         out_line: &mut ConsoleLine
     ) {
-
         self.combat.fight(player, &mut room.event, random, round);
 
         transition (round.player_defeated, round.enemy_defeated) {

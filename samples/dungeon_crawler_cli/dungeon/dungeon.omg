@@ -27,11 +27,19 @@ data Dungeon {
 }
 
 machine for Dungeon {
-    pub fn enter_room(&mut self) {
+    pub entry enter_room(&mut self) {
         self.mark_current_room_discovered();
     }
 
-    pub fn use_event(
+    fn mark_current_room_discovered(&mut self) {
+        let room: Room;
+        self.lookup.find_room(self.level, self.current_cell, &mut room);
+        room.discovered = true;
+    }
+}
+
+machine for Dungeon {
+    pub entry use_event(
         &mut self,
         line: &mut ConsoleLine
     ) {
@@ -39,8 +47,10 @@ machine for Dungeon {
         self.lookup.find_room(self.level, self.current_cell, &mut room);
         self.events.use_event(&mut self.player, &mut room, line);
     }
+}
 
-    pub fn fight(
+machine for Dungeon {
+    pub entry fight(
         &mut self,
         line: &mut ConsoleLine
     ) {
@@ -48,26 +58,30 @@ machine for Dungeon {
         self.lookup.find_room(self.level, self.current_cell, &mut room);
         self.events.fight_event(&mut self.player, &mut room, &mut self.random, &mut self.combat_round, line);
     }
+}
 
-    pub fn move(&mut self) {
+machine for Dungeon {
+    pub entry move(&mut self) {
         self.current_cell = self.navigation.destination;
     }
+}
 
-    pub fn game_over(&mut self) {
+machine for Dungeon {
+    pub entry game_over(&mut self) {
         self.mode = GameMode::GameOver;
     }
+}
 
-    pub fn start(&mut self) {
-        self.rng.seed(1337, &mut self.random);
-        self.player_system.create("Wanderer", &mut self.player);
-        self.generator.generate(1337, &mut self.level);
-        self.current_cell = self.level.start_cell;
-        self.mode = GameMode::Exploring;
-    }
+machine for Dungeon {
+    pub entry new(seed: u64[wrapping]) -> Dungeon {
+        let dungeon: Dungeon;
 
-    fn mark_current_room_discovered(&mut self) {
-        let room: Room;
-        self.lookup.find_room(self.level, self.current_cell, &mut room);
-        room.discovered = true;
+        dungeon.rng.seed(seed, &mut dungeon.random);
+        dungeon.player_system.create("Wanderer", &mut dungeon.player);
+        dungeon.generator.generate(seed, &mut dungeon.level);
+        dungeon.current_cell = dungeon.level.start_cell;
+        dungeon.mode = GameMode::Exploring;
+
+        -> dungeon;
     }
 }

@@ -4,7 +4,7 @@ data Random {
 }
 
 machine for Random {
-    pub fn seed(
+    pub entry seed(
         &mut self,
         value: u64[wrapping],
         state: &mut RandomState
@@ -13,7 +13,10 @@ machine for Random {
         state.calls = 0;
     }
 
-    pub fn next_u32(
+}
+
+machine for Random {
+    pub entry next_u32(
         &mut self,
         state: &mut RandomState
     ) -> u32[wrapping] {
@@ -23,7 +26,10 @@ machine for Random {
         -> ((state.seed >> 32) as u32);
     }
 
-    pub fn range(
+}
+
+machine for Random {
+    pub entry range(
         &mut self,
         state: &mut RandomState,
         exclusive_max: u32[exact, positive]
@@ -33,7 +39,10 @@ machine for Random {
         -> raw % exclusive_max;
     }
 
-    pub fn chance(
+}
+
+machine for Random {
+    pub entry chance(
         &mut self,
         state: &mut RandomState,
         numerator: u32[exact],
@@ -44,7 +53,10 @@ machine for Random {
         -> roll < numerator;
     }
 
-    pub fn unit_real(
+}
+
+machine for Random {
+    pub entry unit_real(
         &mut self,
         state: &mut RandomState
     ) -> Real[finite, range<0.0, 1.0>] {

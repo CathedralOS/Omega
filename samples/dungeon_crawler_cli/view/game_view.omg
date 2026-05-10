@@ -8,7 +8,7 @@ data GameView {
 }
 
 machine for GameView {
-    pub fn render_title(
+    pub entry render_title(
         &mut self,
         console: &mut ConsolePlatform
     ) {
@@ -16,8 +16,10 @@ machine for GameView {
         console.write_line("A tiny generated crawl for compiler stress.");
         console.write_line("Type look, exits, a direction, or quit.");
     }
+}
 
-    pub fn render_room(
+machine for GameView {
+    pub entry render_room(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -32,8 +34,10 @@ machine for GameView {
         self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
     }
+}
 
-    pub fn render_look(
+machine for GameView {
+    pub entry render_look(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -44,8 +48,10 @@ machine for GameView {
         self.formatter.write_room_event(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
     }
+}
 
-    pub fn render_exits(
+machine for GameView {
+    pub entry render_exits(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -54,8 +60,10 @@ machine for GameView {
         self.formatter.write_adjacent_rooms(dungeon.level, dungeon.current_cell, line);
         console.write_line(line.text);
     }
+}
 
-    pub fn render_inventory(
+machine for GameView {
+    pub entry render_inventory(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -64,8 +72,10 @@ machine for GameView {
         self.formatter.write_inventory(dungeon.player, line);
         console.write_line(line.text);
     }
+}
 
-    pub fn render_character(
+machine for GameView {
+    pub entry render_character(
         &mut self,
         dungeon: Dungeon,
         console: &mut ConsolePlatform,
@@ -74,37 +84,47 @@ machine for GameView {
         self.formatter.write_character(dungeon.player, line);
         console.write_line(line.text);
     }
+}
 
-    pub fn render_prompt(
+machine for GameView {
+    pub entry render_prompt(
         &mut self,
         console: &mut ConsolePlatform
     ) {
         console.write("> ");
     }
+}
 
-    pub fn render_line(
+machine for GameView {
+    pub entry render_line(
         &mut self,
         line: ConsoleLine,
         console: &mut ConsolePlatform
     ) {
         console.write_line(line.text);
     }
+}
 
-    pub fn render_invalid_command(
+machine for GameView {
+    pub entry render_invalid_command(
         &mut self,
         console: &mut ConsolePlatform
     ) {
         console.write_line("That path is not open.");
     }
+}
 
-    pub fn render_game_over(
+machine for GameView {
+    pub entry render_game_over(
         &mut self,
         console: &mut ConsolePlatform
     ) {
         console.write_line("Game over.");
     }
+}
 
-    pub fn render_goodbye(
+machine for GameView {
+    pub entry render_goodbye(
         &mut self,
         console: &mut ConsolePlatform
     ) {

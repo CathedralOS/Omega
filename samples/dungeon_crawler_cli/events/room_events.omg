@@ -12,7 +12,7 @@ data RoomEvents {
 }
 
 machine for RoomEvents {
-    pub fn roll_event(
+    pub entry roll_event(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,

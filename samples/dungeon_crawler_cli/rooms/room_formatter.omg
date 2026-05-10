@@ -11,7 +11,7 @@ data RoomFormatter {
 }
 
 machine for RoomFormatter {
-    pub fn write_current_cell(
+    pub entry write_current_cell(
         &mut self,
         level: Level,
         cell: CellId,
@@ -21,8 +21,10 @@ machine for RoomFormatter {
         self.lookup.find_room(level, cell, &mut room);
         out_line.text = "Room " + room.label + " depth " + room.depth.to_string();
     }
+}
 
-    pub fn write_room_info(
+machine for RoomFormatter {
+    pub entry write_room_info(
         &mut self,
         level: Level,
         cell: CellId,
@@ -32,8 +34,10 @@ machine for RoomFormatter {
         self.lookup.find_room(level, cell, &mut room);
         out_line.text = room.description;
     }
+}
 
-    pub fn write_room_event(
+machine for RoomFormatter {
+    pub entry write_room_event(
         &mut self,
         level: Level,
         cell: CellId,
@@ -43,8 +47,10 @@ machine for RoomFormatter {
         self.lookup.find_room(level, cell, &mut room);
         self.events.describe(room, out_line);
     }
+}
 
-    pub fn write_adjacent_rooms(
+machine for RoomFormatter {
+    pub entry write_adjacent_rooms(
         &mut self,
         level: Level,
         cell: CellId,
@@ -53,22 +59,6 @@ machine for RoomFormatter {
         let room: Room;
         self.lookup.find_room(level, cell, &mut room);
         self.format_exits(room, out_line);
-    }
-
-    pub fn write_inventory(
-        &mut self,
-        player: Player,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.items.len().to_string();
-    }
-
-    pub fn write_character(
-        &mut self,
-        player: Player,
-        out_line: &mut ConsoleLine
-    ) {
-        out_line.text = player.name + " level " + player.level.to_string() + " hp " + player.health.to_string() + "/" + player.max_health.to_string() + " xp " + player.xp.to_string();
     }
 
     fn format_exits(
@@ -99,5 +89,25 @@ machine for RoomFormatter {
             true -> append_exit(exits, exit_count, out_line, next_index)
             false -> {}
         }
+    }
+}
+
+machine for RoomFormatter {
+    pub entry write_inventory(
+        &mut self,
+        player: Player,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.items.len().to_string();
+    }
+}
+
+machine for RoomFormatter {
+    pub entry write_character(
+        &mut self,
+        player: Player,
+        out_line: &mut ConsoleLine
+    ) {
+        out_line.text = player.name + " level " + player.level.to_string() + " hp " + player.health.to_string() + "/" + player.max_health.to_string() + " xp " + player.xp.to_string();
     }
 }

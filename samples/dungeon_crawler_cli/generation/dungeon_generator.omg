@@ -6,7 +6,7 @@ data DungeonGenerator {
 }
 
 machine for DungeonGenerator {
-    pub fn generate(
+    pub entry generate(
         &mut self,
         seed: u64[wrapping],
         out_level: &mut Level

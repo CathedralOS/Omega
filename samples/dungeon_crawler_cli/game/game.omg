@@ -15,11 +15,17 @@ data Game {
 }
 
 machine for Game {
-    pub fn start(&mut self) {
-        self.dungeon.start();
-    }
+    pub entry new() -> Game {
+        let game: Game;
 
-    pub fn entry(&mut self) {
+        game.dungeon = Dungeon::new(1337);
+
+        -> game;
+    }
+}
+
+machine for Game {
+    pub entry run_game_loop(&mut self) {
         self.view.render_title(&mut self.console);
 
         transition {
@@ -143,13 +149,5 @@ machine for Game {
     }
 
     state finished(&mut self) {
-    }
-
-    pub fn exit(
-        &mut self,
-        return_code: i32
-    ) {
-        self.view.render_goodbye(&mut self.console);
-        self.console.exit_process(return_code);
     }
 }

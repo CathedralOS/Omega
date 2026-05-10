@@ -5,12 +5,27 @@ data InventorySystem {
 }
 
 machine for InventorySystem {
-    pub fn clear(
+    pub entry clear(
         &mut self,
         inventory: &mut Inventory
     ) {
         inventory.items.clear();
         inventory.gold = 0;
+    }
+}
+
+machine for InventorySystem {
+    pub entry add_reward(
+        &mut self,
+        inventory: &mut Inventory,
+        reward: Reward
+    ) {
+        transition reward.kind {
+            RewardKind::None -> {}
+            RewardKind::Gold -> add_gold(inventory, reward.gold)
+            RewardKind::Item -> add_item(inventory, reward.item)
+            RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
+        }
     }
 
     fn add_gold(
@@ -31,19 +46,6 @@ machine for InventorySystem {
         transition existing_index.is_some() {
             true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
             false -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
-        }
-    }
-
-    pub fn add_reward(
-        &mut self,
-        inventory: &mut Inventory,
-        reward: Reward
-    ) {
-        transition reward.kind {
-            RewardKind::None -> {}
-            RewardKind::Gold -> add_gold(inventory, reward.gold)
-            RewardKind::Item -> add_item(inventory, reward.item)
-            RewardKind::GoldAndItem -> add_gold_and_item(inventory, reward)
         }
     }
 

@@ -7,7 +7,7 @@ data EnemyTables {
 }
 
 machine for EnemyTables {
-    pub fn roll_enemy(
+    pub entry roll_enemy(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,

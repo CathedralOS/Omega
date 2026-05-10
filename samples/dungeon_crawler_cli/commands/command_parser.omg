@@ -8,7 +8,7 @@ data CommandParser {
 }
 
 machine for CommandParser {
-    pub fn resolve_navigation(
+    pub entry resolve_navigation(
         &mut self,
         level: Level,
         cell: CellId,

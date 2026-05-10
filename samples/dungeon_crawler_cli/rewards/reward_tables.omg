@@ -9,7 +9,7 @@ data RewardTables {
 }
 
 machine for RewardTables {
-    pub fn roll_room_treasure(
+    pub entry roll_room_treasure(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,
@@ -20,7 +20,32 @@ machine for RewardTables {
         reward.item = self.roll_item(depth, random);
     }
 
-    pub fn roll_gold_cache(
+    fn roll_item(
+        &mut self,
+        depth: u32[exact, non_negative],
+        random: &mut RandomState
+    ) -> ItemKind {
+        let roll: u32[exact, range<0, 100>] = self.rng.range(random, 100);
+
+        let is_early_dagger: bool = depth <= 2 && roll < 50;
+        let is_early_buckler: bool = depth <= 3 && roll < 75;
+        let is_healing_charm: bool = roll < 85;
+        let is_ember_blade: bool = depth >= 5 && roll < 96;
+        let is_deep_key: bool = depth >= 8;
+
+        match (is_early_dagger, is_early_buckler, is_healing_charm, is_ember_blade, is_deep_key) {
+            (true, _, _, _, _) -> ItemKind::RustedDagger
+            (false, true, _, _, _) -> ItemKind::CrackedBuckler
+            (false, false, true, _, _) -> ItemKind::HealingCharm
+            (false, false, false, true, _) -> ItemKind::EmberBlade
+            (false, false, false, false, true) -> ItemKind::DeepKey
+            _ -> ItemKind::RustedDagger
+        }
+    }
+}
+
+machine for RewardTables {
+    pub entry roll_gold_cache(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState,
@@ -30,8 +55,10 @@ machine for RewardTables {
         reward.gold = 8 + depth * 5 + self.rng.range(random, 12);
         reward.item = ItemKind::RustedDagger;
     }
+}
 
-    pub fn roll_enemy_reward(
+machine for RewardTables {
+    pub entry roll_enemy_reward(
         &mut self,
         enemy: Enemy,
         random: &mut RandomState,

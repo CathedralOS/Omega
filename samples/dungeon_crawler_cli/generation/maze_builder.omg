@@ -10,7 +10,7 @@ data MazeBuilder {
 }
 
 machine for MazeBuilder {
-    pub fn build(
+    pub entry build(
         &mut self,
         seed: u64[wrapping],
         level: &mut Level

@@ -1,29 +1,25 @@
 use game::game;
 
 data main {
-    game: Game;
-    return_code: i32 = 0;
+    game: Game = Game::new();
 }
 
 machine for main {
-    pub fn entry(&mut self) {
-        self.game.start();
-
+    pub entry(&mut self) -> i32 {
         transition {
             _ -> running()
         }
     }
 
-    state running(&mut self) {
-        self.game.entry();
+    state running(&mut self) -> i32 {
+        self.game.run_game_loop();
 
         transition {
             _ -> shutdown()
         }
     }
 
-    state shutdown(&mut self) {
-        self.return_code = 0;
-        self.game.exit(self.return_code);
+    state shutdown(&mut self) -> i32 {
+        0
     }
 }
