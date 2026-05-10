@@ -13,6 +13,7 @@ use super::host_operations::{
     runtime_machine_string_descriptor_offset, runtime_text_literal_write_for_host_call,
     select_host_call,
 };
+use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
 use branches::{
     select_runtime_leaf_branch_expansions_for_operation,
@@ -26,7 +27,7 @@ use writes::select_runtime_storage_write_for_operation;
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EnterDispatchLoop {

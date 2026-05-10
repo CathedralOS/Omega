@@ -6,11 +6,13 @@ use omega_state_schedule::{
 
 mod bindings;
 mod host_operations;
+mod instruction_sink;
 mod lookups;
 mod runtime_dispatch;
 mod state_bodies;
 mod storage_places;
 
+use instruction_sink::SelectedInstructionSink;
 use omega_target_program::{
     FunctionInstructionPlan, InstructionOperand, InstructionPlan, SelectedInstruction,
     SelectedInstructionKind,
@@ -28,10 +30,11 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
         operands: Arena::new(),
     };
 
-    let entry_instructions = select_entry_instructions(input, &mut instruction_plan.operands);
-    let instructions = instruction_plan
-        .instructions
-        .insert_many(entry_instructions);
+    let instructions = select_entry_instructions(
+        input,
+        &mut instruction_plan.operands,
+        &mut instruction_plan.instructions,
+    );
 
     instruction_plan.functions.insert(FunctionInstructionPlan {
         symbol: input.entry_symbol.clone(),
@@ -45,8 +48,9 @@ pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> Instruct
 fn select_entry_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
-) -> Vec<SelectedInstruction> {
-    let mut selected_instructions = Vec::new();
+    instructions: &mut Arena<SelectedInstruction>,
+) -> omega_core::arena::HandleSpan<SelectedInstruction> {
+    let mut selected_instructions = SelectedInstructionSink::new(instructions);
     let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
     let state_schedule_result = build_entry_state_schedule(&schedule_context, input.entry_key);
     let can_inline_state_calls = state_schedule_result.is_ok()
@@ -83,7 +87,7 @@ fn select_entry_instructions(
     }
 
     selected_instructions.push(exit_instruction(input));
-    selected_instructions
+    selected_instructions.finish()
 }
 
 fn entry_instruction(input: &InstructionSelectionInput<'_>) -> SelectedInstruction {

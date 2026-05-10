@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::resolve_machine_owned_place;
 use omega_control_flow::StateKey;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
@@ -14,7 +15,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     statement_index: usize,
     resolved_target: &Expression,
     value: &str,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &input.layouts,

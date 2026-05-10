@@ -1,12 +1,13 @@
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn select_runtime_dispatch_edge(
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::EvaluateDispatchGuard {

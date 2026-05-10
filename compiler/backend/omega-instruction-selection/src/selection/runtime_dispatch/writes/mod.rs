@@ -5,6 +5,7 @@ mod storage_copy;
 use super::super::bindings::RuntimeAliasBinding;
 use super::super::lookups::state_mutation_for_statement;
 use crate::InstructionSelectionInput;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_program::SelectedInstruction;
 use omega_typed_program::expression::ExpressionTable;
@@ -20,7 +21,7 @@ pub(super) fn select_runtime_storage_write_for_operation(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let RuntimeDispatchBodyOperationKind::Mutation { .. } = &operation.kind else {
         return;

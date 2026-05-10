@@ -9,13 +9,14 @@ use super::super::super::storage_places::{resolve_machine_owned_place, static_in
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, expansion) in
         input
@@ -35,7 +36,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansi
 fn select_runtime_leaf_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Some(guard) = select_runtime_leaf_branch_guard(input, expansion) {
         selected_instructions.push(SelectedInstruction {
@@ -57,7 +58,7 @@ fn select_runtime_leaf_branch_expansion(
 fn select_runtime_leaf_branch_mutation_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(operations) = input
         .runtime_branching_calls

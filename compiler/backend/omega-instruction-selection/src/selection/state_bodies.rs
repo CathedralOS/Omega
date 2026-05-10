@@ -4,14 +4,15 @@ use omega_core::arena::Arena;
 use omega_state_schedule::ScheduledState;
 
 use super::host_operations::select_host_call;
+use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::{host_call_for_statement, state_call_for_statement};
-use omega_target_program::{InstructionOperand, SelectedInstruction};
+use omega_target_program::InstructionOperand;
 
 pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,
     state_key: StateKey,
     operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
     visiting: &mut Vec<StateKey>,
 ) {
     if visiting.contains(&state_key) {
@@ -66,7 +67,7 @@ pub(super) fn select_state_host_calls(
     input: &InstructionSelectionInput<'_>,
     state_key: StateKey,
     operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, host_call) in input.host_calls.calls.iter() {
         if host_call.source_key != state_key {

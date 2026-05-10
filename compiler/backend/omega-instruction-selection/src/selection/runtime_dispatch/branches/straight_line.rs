@@ -15,13 +15,13 @@ use super::super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
 };
 use super::mutation::select_runtime_resolved_mutation_write;
-use omega_target_program::SelectedInstruction;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation: &RuntimeDispatchBodyOperation,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     for (_, expansion) in input
         .runtime_branching_calls
@@ -40,7 +40,7 @@ pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branc
 fn select_runtime_straight_line_branch_expansion(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     if expansion.resolved_guard != omega_typed_program::statement::TransitionGuard::Always {
         return;
@@ -52,7 +52,7 @@ fn select_runtime_straight_line_branch_expansion(
 fn select_runtime_straight_line_branch_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(operations) = input
         .runtime_branching_calls
@@ -124,7 +124,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     operation: &RuntimeStraightLineBranchOperation,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(state_call) =
         state_call_for_statement(input, operation.source_key, operation.statement_index)

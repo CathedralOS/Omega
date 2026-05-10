@@ -9,6 +9,7 @@ use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
 use omega_target_program::TargetDataObject;
 
+use super::instruction_sink::SelectedInstructionSink;
 use omega_target_program::{
     InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
@@ -23,7 +24,7 @@ pub(super) fn select_host_call(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     operands: &mut Arena<InstructionOperand>,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::BeginPlatformCall,

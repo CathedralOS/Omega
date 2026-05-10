@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_control_flow::StateKey;
 use omega_typed_program::expression::{Expression, ExpressionTable};
 
@@ -29,7 +30,7 @@ pub(super) fn select_runtime_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     let resolved_target =
         resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
@@ -64,7 +65,7 @@ fn select_runtime_resolved_target_mutation_writes(
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
     static_values: &mut RuntimeStaticValues,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::StructLiteral(struct_literal) = value {
         for field in &struct_literal.fields {

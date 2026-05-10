@@ -4,6 +4,7 @@ use omega_typed_program::expression::Expression;
 
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::writes::runtime_storage_copy;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
@@ -17,7 +18,7 @@ pub(super) fn select_runtime_resolved_mutation_write(
     statement_index: usize,
     resolved_target: &Expression,
     resolved_value: &Expression,
-    selected_instructions: &mut Vec<SelectedInstruction>,
+    selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
         &input.layouts,

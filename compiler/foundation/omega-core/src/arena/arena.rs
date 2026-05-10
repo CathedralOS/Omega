@@ -83,6 +83,24 @@ impl<T: Default> Arena<T> {
         Handle::from_arena_index(arena_index)
     }
 
+    pub fn pop_last_appended(&mut self, handle: Handle<T>) -> Option<T> {
+        let index = usize::try_from(handle.arena_index()).ok()?;
+        if index == 0 || index.checked_add(1)? != self.items.len() {
+            return None;
+        }
+        if self.generations.get(index).copied()? != handle.generation()
+            || !self.occupied.get(index).copied()?
+        {
+            return None;
+        }
+
+        self.generations.pop();
+        self.occupied.pop();
+        self.active_count = self.active_count.checked_sub(1)?;
+
+        self.items.pop()
+    }
+
     pub fn insert_many(&mut self, items: impl IntoIterator<Item = T>) -> HandleSpan<T> {
         // Spans promise contiguous storage, so bulk insert appends instead of
         // consuming arbitrary free-list slots.
