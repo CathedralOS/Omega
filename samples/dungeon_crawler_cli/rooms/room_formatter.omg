@@ -1,4 +1,7 @@
-use data::dungeon_types;
+use data::console;
+use data::map;
+use data::player_state;
+use data::rooms;
 use events::event_runtime;
 use rooms::room_lookup;
 

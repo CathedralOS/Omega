@@ -1,4 +1,6 @@
-use data::dungeon_types;
+use data::events;
+use data::random_state;
+use data::rewards;
 use enemies::enemy_tables;
 use rewards::reward_tables;
 use rng::random;

@@ -1,4 +1,3 @@
-use data::dungeon_types;
 use dungeon::dungeon;
 use screens::title_screen;
 

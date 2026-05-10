@@ -1,0 +1,12 @@
+use data::items;
+
+data Player {
+    name: String;
+    level: u32[exact, positive];
+    xp: u32[exact, non_negative];
+    max_health: i32[exact, positive];
+    health: i32[exact, range<0, max_health>];
+    attack: i32[exact, positive];
+    defense: i32[exact, non_negative];
+    inventory: Inventory;
+}

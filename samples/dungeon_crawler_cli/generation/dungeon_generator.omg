@@ -1,4 +1,4 @@
-use data::dungeon_types;
+use data::rooms;
 use generation::maze_builder;
 
 machine DungeonGenerator {

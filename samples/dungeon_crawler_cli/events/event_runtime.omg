@@ -1,4 +1,11 @@
-use data::dungeon_types;
+use data::combat_round;
+use data::console;
+use data::enemies;
+use data::events;
+use data::player_state;
+use data::random_state;
+use data::rewards;
+use data::rooms;
 use combat::combat;
 use inventory::inventory;
 use player::player;

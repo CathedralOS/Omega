@@ -1,4 +1,8 @@
-use data::dungeon_types;
+use data::combat_round;
+use data::events;
+use data::player_state;
+use data::random_state;
+use data::rewards;
 use player::player;
 use rewards::reward_tables;
 use rng::random;

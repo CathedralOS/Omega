@@ -1,0 +1,17 @@
+enum ItemKind {
+    RustedDagger,
+    CrackedBuckler,
+    HealingCharm,
+    EmberBlade,
+    DeepKey,
+}
+
+data InventoryItem {
+    kind: ItemKind;
+    count: u32[exact, positive];
+}
+
+data Inventory {
+    items: Vec<InventoryItem>;
+    gold: u32[exact, non_negative];
+}

@@ -1,0 +1,17 @@
+use data::enemies;
+use data::rewards;
+
+enum RoomEventKind {
+    Nothing,
+    FountainOfLife,
+    Treasure,
+    GoldCache,
+    Enemy,
+}
+
+data RoomEvent {
+    kind: RoomEventKind;
+    enemy: Enemy;
+    reward: Reward;
+    consumed: bool;
+}

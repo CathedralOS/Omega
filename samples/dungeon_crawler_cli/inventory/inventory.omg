@@ -1,4 +1,5 @@
-use data::dungeon_types;
+use data::items;
+use data::rewards;
 
 machine InventorySystem {
     fn clear(inventory: &mut Inventory) {

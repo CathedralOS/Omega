@@ -1,4 +1,5 @@
-use data::dungeon_types;
+use data::map;
+use data::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {

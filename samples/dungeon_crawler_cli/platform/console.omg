@@ -1,4 +1,4 @@
-use data::dungeon_types;
+use data::console;
 
 platform ConsolePlatform {
     fn write(text: String);

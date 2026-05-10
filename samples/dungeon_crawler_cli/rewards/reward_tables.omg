@@ -1,4 +1,7 @@
-use data::dungeon_types;
+use data::enemies;
+use data::items;
+use data::random_state;
+use data::rewards;
 use rng::random;
 
 machine RewardTables {

@@ -1,0 +1,27 @@
+use data::events;
+use data::map;
+
+data Exit {
+    command: String;
+    direction: Direction;
+    destination: CellId;
+}
+
+data Room {
+    cell: CellId;
+    depth: u32[exact, non_negative];
+    branch: u32[exact, non_negative];
+    label: String;
+    description: String;
+    exits: [Exit; 4];
+    exit_count: u32[exact, range<0, 4>];
+    event: RoomEvent;
+    discovered: bool;
+}
+
+data Level {
+    rooms: [Room; 16];
+    room_count: u32[exact, range<1, 16>];
+    start_cell: CellId;
+    deepest_depth: u32[exact, non_negative];
+}

@@ -1,0 +1,14 @@
+use data::items;
+
+enum RewardKind {
+    None,
+    Gold,
+    Item,
+    GoldAndItem,
+}
+
+data Reward {
+    kind: RewardKind;
+    gold: u32[exact, non_negative];
+    item: ItemKind;
+}

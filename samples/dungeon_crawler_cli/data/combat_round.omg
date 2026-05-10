@@ -1,0 +1,6 @@
+data CombatRound {
+    player_damage: i32[exact, non_negative];
+    enemy_damage: i32[exact, non_negative];
+    enemy_defeated: bool;
+    player_defeated: bool;
+}

@@ -1,4 +1,4 @@
-use data::dungeon_types;
+use data::random_state;
 
 machine Random {
     fn seed(value: u64[wrapping], state: &mut RandomState) {

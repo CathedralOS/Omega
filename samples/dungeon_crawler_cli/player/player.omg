@@ -1,4 +1,5 @@
-use data::dungeon_types;
+use data::player_state;
+use data::rewards;
 use inventory::inventory;
 
 machine PlayerSystem {
