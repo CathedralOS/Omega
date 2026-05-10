@@ -39,13 +39,12 @@ pub(crate) fn mark_required_state_calls(
             changed |= push_required_state(&mut required_states, call.target_key);
         }
 
-        let states_snapshot = required_states.clone();
-        for state_key in states_snapshot {
-            for target in transition_targets_from(context, state_key) {
-                if let RuntimeTransitionTarget::State { key, .. } = target {
+        for state_key in required_states.clone() {
+            for_each_transition_target_from(context, state_key, |target| {
+                if let RuntimeTransitionTarget::State { key, .. } = *target {
                     changed |= push_required_state(&mut required_states, key);
                 }
-            }
+            });
         }
     }
 
@@ -56,10 +55,11 @@ pub(crate) fn mark_required_state_calls(
     }
 }
 
-fn transition_targets_from(
+fn for_each_transition_target_from(
     context: &StateCallPlanningContext,
     state_key: StateKey,
-) -> Vec<RuntimeTransitionTarget> {
+    mut visit: impl FnMut(&RuntimeTransitionTarget),
+) {
     let Some(machine) = context
         .control_flow
         .machines
@@ -67,7 +67,7 @@ fn transition_targets_from(
         .find(|(_, machine)| machine.symbol == state_key.machine)
         .map(|(_, machine)| machine)
     else {
-        return Vec::new();
+        return;
     };
     let Some(state) = context
         .control_flow
@@ -75,32 +75,20 @@ fn transition_targets_from(
         .span(machine.states)
         .and_then(|states| states.iter().find(|state| state.key == state_key))
     else {
-        return Vec::new();
+        return;
     };
     let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
-        return Vec::new();
+        return;
     };
 
-    transitions
-        .iter()
-        .flat_map(|transition| {
-            let mut targets = vec![runtime_transition_target(
-                context,
-                machine,
-                state.key,
-                &transition.target,
-            )];
-            if let Some(continuation) = &transition.continuation {
-                targets.push(runtime_transition_target(
-                    context,
-                    machine,
-                    state.key,
-                    continuation,
-                ));
-            }
-            targets
-        })
-        .collect()
+    for transition in transitions {
+        let target = runtime_transition_target(context, machine, state.key, &transition.target);
+        visit(&target);
+        if let Some(continuation) = &transition.continuation {
+            let continuation = runtime_transition_target(context, machine, state.key, continuation);
+            visit(&continuation);
+        }
+    }
 }
 
 fn runtime_transition_target(
