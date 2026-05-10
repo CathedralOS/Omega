@@ -32,14 +32,7 @@ pub fn emit_machine_bytes(
         byte_count: input.machine_code.byte_count,
     };
 
-    let function_spans = input
-        .machine_code
-        .functions
-        .iter()
-        .map(|(_, function)| function.instructions)
-        .collect::<Vec<_>>();
-
-    for instructions in function_spans {
+    for (_, function) in input.machine_code.functions.iter() {
         emit_function_bytes(
             input.target,
             input.instructions,
@@ -47,7 +40,7 @@ pub fn emit_machine_bytes(
             input.terminal_dispatch_index,
             input.machine_code,
             &mut encoded_plan,
-            instructions,
+            function.instructions,
         )?;
     }
 
