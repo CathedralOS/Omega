@@ -40,7 +40,7 @@ pub(super) fn collect_newline_data(host_calls: &HostCallPlan, data_plan: &mut Ta
     }
 
     let offset = data_plan.bytes.len();
-    let byte_span = data_plan.bytes.insert_many(vec![b'\n']);
+    let byte_span = data_plan.bytes.insert_many(std::iter::once(b'\n'));
 
     data_plan.objects.insert(TargetDataObject {
         symbol: "omega_newline".to_owned(),
@@ -70,13 +70,13 @@ fn collect_text_argument_data(
         return;
     };
 
-    let mut bytes = text.as_bytes().to_vec();
-    if append_newline {
-        bytes.push(b'\n');
-    }
-
     let offset = data_plan.bytes.len();
-    let byte_span = data_plan.bytes.insert_many(bytes);
+    let byte_span = data_plan.bytes.insert_many(
+        text.as_bytes()
+            .iter()
+            .copied()
+            .chain(append_newline.then_some(b'\n')),
+    );
     let symbol_index = data_plan.objects.len() + 1;
 
     data_plan.objects.insert(TargetDataObject {
@@ -95,7 +95,9 @@ fn collect_mutable_output_buffer(
     byte_capacity: usize,
 ) {
     let offset = data_plan.bytes.len();
-    let byte_span = data_plan.bytes.insert_many(vec![0; byte_capacity]);
+    let byte_span = data_plan
+        .bytes
+        .insert_many(std::iter::repeat(0).take(byte_capacity));
     let symbol_index = data_plan.objects.len() + 1;
 
     data_plan.objects.insert(TargetDataObject {

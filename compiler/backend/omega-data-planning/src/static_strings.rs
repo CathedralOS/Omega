@@ -32,12 +32,13 @@ fn collect_static_string_expression_data(
     match expressions.expression(expression) {
         ExpressionNode::String(value) => {
             let offset = data_plan.bytes.len();
-            let bytes = if value.is_empty() {
-                vec![0]
+            let byte_span = if value.is_empty() {
+                data_plan.bytes.insert_many(std::iter::once(0))
             } else {
-                value.as_bytes().to_vec()
+                data_plan
+                    .bytes
+                    .insert_many(value.as_bytes().iter().copied())
             };
-            let byte_span = data_plan.bytes.insert_many(bytes);
             let symbol_index = data_plan.objects.len() + 1;
 
             data_plan.objects.insert(TargetDataObject {
