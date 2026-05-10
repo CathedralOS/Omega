@@ -8,7 +8,7 @@ What it is trying to prove:
 - console input/output is isolated behind a platform machine
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
-- parent-to-child machine flow can be expressed with nested arrows
+- the game loop can act like a render loop where each submitted line advances a frame
 - user input drives explicit `transition` dispatch
 - invalid input can loop back without hidden branches
 
@@ -23,21 +23,22 @@ Current runtime note:
 Current state cycle:
 
 - enter a room
-- print the current cell, such as `A1`
-- print adjacent rooms
+- render the room through the CLI view
 - read a user command
 - classify the command into owned navigation data
 - move if the command names an adjacent room
-- print room details for `look` or `info`
-- print command and exit help for `exits` or `help`
-- otherwise print an invalid-command message and ask again
-- complete back to parent control flow from the terminal dungeon state
+- render room details for `look` or `info`
+- render command and exit help for `exits` or `help`
+- otherwise render an invalid-command message and ask again
+- complete back to parent control flow from the terminal game state
 
 Sample layout:
 
 - `build.omg`: host policy for console input, output, and process exit
 - `main.omg`: process-level runner
-- `dungeon/`: generic dungeon flow, room movement, and command classification
+- `game/`: submitted-input game loop and frame advancement
+- `view/`: CLI rendering over dungeon snapshots
+- `dungeon/`: dungeon state and domain mutation
 - `generation/`: small deterministic dungeon generation
 - `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
   and `rewards/`: domain-owned models plus their behavior

@@ -1,0 +1,151 @@
+use commands::command_parser;
+use dungeon::dungeon;
+use platform::console;
+use platform::console_types;
+use rooms::map;
+use view::game_view;
+
+data Game {
+    console: ConsolePlatform;
+    dungeon: Dungeon;
+    parser: CommandParser;
+    view: GameView;
+    input: ConsoleLine;
+    output: ConsoleLine;
+}
+
+machine for Game {
+    fn start(&mut self) {
+        self.dungeon.start();
+    }
+
+    fn entry(&mut self) {
+        self.view.render_title(mut self.console);
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state enter_room(&mut self) {
+        self.dungeon.enter_room();
+        self.view.render_room(self.dungeon, mut self.console, mut self.output);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state prompt(&mut self) {
+        transition self.dungeon.player.health == 0 {
+            true -> game_over()
+            false -> read_command()
+        }
+    }
+
+    state read_command(&mut self) {
+        self.view.render_prompt(mut self.console);
+        self.console.read_line(mut self.input);
+
+        self.dungeon.navigation.choice = NavigationChoice::Invalid;
+        self.dungeon.navigation.destination = CellId::Empty;
+        self.parser.resolve_command(self.input, mut self.dungeon.navigation);
+        self.parser.resolve_exit(self.dungeon.level, self.dungeon.current_cell, self.input, mut self.dungeon.navigation);
+
+        transition self.dungeon.navigation.choice {
+            NavigationChoice::Quit -> finished()
+            NavigationChoice::Look -> look()
+            NavigationChoice::Exits -> exits()
+            NavigationChoice::Inventory -> inventory()
+            NavigationChoice::Character -> character()
+            NavigationChoice::UseFountain -> use_event()
+            NavigationChoice::Fight -> fight()
+            NavigationChoice::Move -> move()
+            NavigationChoice::Invalid -> invalid_command()
+        }
+    }
+
+    state look(&mut self) {
+        self.view.render_look(self.dungeon, mut self.console, mut self.output);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state exits(&mut self) {
+        self.view.render_exits(self.dungeon, mut self.console, mut self.output);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state inventory(&mut self) {
+        self.view.render_inventory(self.dungeon, mut self.console, mut self.output);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state character(&mut self) {
+        self.view.render_character(self.dungeon, mut self.console, mut self.output);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state use_event(&mut self) {
+        self.dungeon.use_event(mut self.output);
+        self.view.render_line(self.output, mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state fight(&mut self) {
+        self.dungeon.fight(mut self.output);
+        self.view.render_line(self.output, mut self.console);
+
+        transition self.dungeon.combat_round.player_defeated {
+            true -> game_over()
+            false -> prompt()
+        }
+    }
+
+    state move(&mut self) {
+        self.dungeon.move();
+
+        transition {
+            _ -> enter_room()
+        }
+    }
+
+    state invalid_command(&mut self) {
+        self.view.render_invalid_command(mut self.console);
+
+        transition {
+            _ -> prompt()
+        }
+    }
+
+    state game_over(&mut self) {
+        self.dungeon.game_over();
+        self.view.render_game_over(mut self.console);
+
+        transition {
+            _ -> finished()
+        }
+    }
+
+    state finished(&mut self) {
+    }
+
+    fn exit(&mut self, return_code: i32) {
+        self.view.render_goodbye(mut self.console);
+        self.console.exit_process(return_code);
+    }
+}

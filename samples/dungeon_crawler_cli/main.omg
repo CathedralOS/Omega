@@ -1,16 +1,13 @@
-use dungeon::dungeon;
-use screens::title_screen;
+use game::game;
 
 data main {
-    dungeon: Dungeon;
-    title: TitleScreen;
+    game: Game;
     return_code: i32 = 0;
 }
 
 machine for main {
     fn entry(&mut self) {
-        self.title.show();
-        self.dungeon.start();
+        self.game.start();
 
         transition {
             _ -> running()
@@ -18,7 +15,7 @@ machine for main {
     }
 
     state running(&mut self) {
-        self.dungeon.entry();
+        self.game.entry();
 
         transition {
             _ -> shutdown()
@@ -27,6 +24,6 @@ machine for main {
 
     state shutdown(&mut self) {
         self.return_code = 0;
-        self.dungeon.exit(self.return_code);
+        self.game.exit(self.return_code);
     }
 }

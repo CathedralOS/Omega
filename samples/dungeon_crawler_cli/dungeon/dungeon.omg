@@ -1,29 +1,22 @@
-use commands::command_parser;
 use events::event_runtime;
 use generation::dungeon_generator;
 use combat::combat_round;
-use platform::console;
 use platform::console_types;
 use player::player;
 use player::player_state;
 use rng::random;
 use rng::random_state;
 use rooms::map;
-use rooms::room_formatter;
 use rooms::room_lookup;
 use rooms::rooms;
 
 data Dungeon {
-    console: ConsolePlatform;
     generator: DungeonGenerator;
-    parser: CommandParser;
-    formatter: RoomFormatter;
     events: EventRuntime;
     player_system: PlayerSystem;
     lookup: RoomLookup;
     rng: Random;
 
-    command_line: ConsoleLine;
     current_cell: CellId = CellId::Empty;
     level: Level;
     navigation: Navigation;
@@ -34,143 +27,28 @@ data Dungeon {
 }
 
 machine for Dungeon {
-    fn entry(&mut self) {
-        transition {
-            _ -> enter_room()
-        }
-    }
-
-    state enter_room(&mut self) {
+    fn enter_room(&mut self) {
         self.mark_current_room_discovered();
-
-        self.formatter.write_current_cell(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-        self.formatter.write_room_info(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-        self.formatter.write_room_event(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-        self.formatter.write_adjacent_rooms(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
     }
 
-    state prompt(&mut self) {
-        transition self.player.health == 0 {
-            true -> game_over()
-            false -> {}
-        }
-
-        self.console.write("> ");
-        self.console.read_line(mut self.command_line);
-        self.navigation.choice = NavigationChoice::Invalid;
-        self.navigation.destination = CellId::Empty;
-
-        self.parser.resolve_command(self.command_line, mut self.navigation);
-        self.parser.resolve_exit(self.level, self.current_cell, self.command_line, mut self.navigation);
-
-        transition self.navigation.choice {
-            NavigationChoice::Quit -> finished()
-            NavigationChoice::Look -> look()
-            NavigationChoice::Exits -> exits()
-            NavigationChoice::Inventory -> inventory()
-            NavigationChoice::Character -> character()
-            NavigationChoice::UseFountain -> use_event()
-            NavigationChoice::Fight -> fight()
-            NavigationChoice::Move -> move()
-            NavigationChoice::Invalid -> invalid_command()
-        }
-    }
-
-    state look(&mut self) {
-        self.formatter.write_room_info(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-        self.formatter.write_room_event(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
-    }
-
-    state exits(&mut self) {
-        self.formatter.write_adjacent_rooms(self.level, self.current_cell, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
-    }
-
-    state inventory(&mut self) {
-        self.formatter.write_inventory(self.player, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
-    }
-
-    state character(&mut self) {
-        self.formatter.write_character(self.player, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
-    }
-
-    state use_event(&mut self) {
+    fn use_event(&mut self, line: &mut ConsoleLine) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, mut room);
-        self.events.use_event(mut self.player, mut room, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition {
-            _ -> prompt()
-        }
+        self.events.use_event(mut self.player, mut room, line);
     }
 
-    state fight(&mut self) {
+    fn fight(&mut self, line: &mut ConsoleLine) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, mut room);
-        self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, mut self.command_line);
-        self.console.write_line(self.command_line.text);
-
-        transition self.combat_round.player_defeated {
-            true -> game_over()
-            false -> prompt()
-        }
+        self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, line);
     }
 
-    state move(&mut self) {
+    fn move(&mut self) {
         self.current_cell = self.navigation.destination;
-
-        transition {
-            _ -> enter_room()
-        }
     }
 
-    state invalid_command(&mut self) {
-        self.console.write_line("That path is not open.");
-
-        transition {
-            _ -> prompt()
-        }
-    }
-
-    state game_over(&mut self) {
+    fn game_over(&mut self) {
         self.mode = GameMode::GameOver;
-        self.console.write_line("Game over.");
-
-        transition {
-            _ -> finished()
-        }
-    }
-
-    state finished(&mut self) {
     }
 
     fn start(&mut self) {
@@ -179,11 +57,6 @@ machine for Dungeon {
         self.generator.generate(1337, mut self.level);
         self.current_cell = self.level.start_cell;
         self.mode = GameMode::Exploring;
-    }
-
-    fn exit(&mut self, return_code: i32) {
-        self.console.write_line("Goodbye.");
-        self.console.exit_process(return_code);
     }
 
     fn mark_current_room_discovered(&mut self) {
