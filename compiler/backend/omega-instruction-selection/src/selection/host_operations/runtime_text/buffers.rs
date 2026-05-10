@@ -2,7 +2,8 @@ use crate::InstructionSelectionInput;
 use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::{
-    expression_name_with_suffix_eq_in_table, expression_place_eq, expression_place_eq_in_table,
+    expression_name_with_suffix_eq_in_table, expression_name_with_suffix_eq_tree,
+    expression_place_eq_in_table,
 };
 use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
 use omega_typed_program::expression::Expression;
@@ -69,19 +70,19 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
     text_place: &Expression,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        text_place_for_buffer_target(&input.runtime_text.expressions.to_tree(buffer.target))
-            .is_some_and(|place| expression_place_eq(&place, text_place))
-            .then_some(buffer)
+        expression_name_with_suffix_eq_tree(
+            &input.runtime_text.expressions,
+            buffer.target,
+            text_place,
+            "text",
+        )
+        .then_some(buffer)
     })?;
 
     input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == buffer.source_key
             && data_object.source_statement == buffer.statement_index
     })
-}
-
-pub(super) fn text_place_for_buffer_target(target: &Expression) -> Option<Expression> {
-    text_expression_for_buffer_target(target)
 }
 
 pub(super) fn text_expression_for_buffer_target(target: &Expression) -> Option<Expression> {
