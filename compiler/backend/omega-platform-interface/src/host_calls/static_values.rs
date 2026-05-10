@@ -139,21 +139,15 @@ fn copy_static_prefix(
     source_key: &PlaceKey,
     target_key: &PlaceKey,
 ) {
-    let copied_values = static_values
-        .iter()
-        .filter_map(|(existing_key, value)| {
-            if !existing_key.starts_with(source_key) {
-                return None;
-            }
+    let initial_value_count = static_values.len();
+    for index in 0..initial_value_count {
+        let (existing_key, value) = &static_values[index];
+        if !existing_key.starts_with(source_key) {
+            continue;
+        }
 
-            Some((
-                existing_key.replace_prefix(source_key, target_key),
-                value.clone(),
-            ))
-        })
-        .collect::<Vec<_>>();
-
-    for (copied_key, copied_value) in copied_values {
+        let copied_key = existing_key.replace_prefix(source_key, target_key);
+        let copied_value = value.clone();
         set_static_value(static_values, copied_key, copied_value);
     }
 }
