@@ -149,7 +149,10 @@ pub fn backend_report_text(
                             argument.index,
                             argument.parameter_name,
                             argument.kind,
-                            argument.expression.display_name(),
+                            backend_plan
+                                .state_calls
+                                .expressions
+                                .display_name(argument.expression),
                             argument.required
                         ));
                     }
@@ -177,7 +180,10 @@ pub fn backend_report_text(
                 alias.statement_index,
                 callee_name,
                 alias.parameter_name,
-                alias.argument.display_name(),
+                backend_plan
+                    .alias_flow
+                    .expressions
+                    .display_name(alias.argument),
                 alias.required
             ));
         }

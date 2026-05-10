@@ -1,11 +1,12 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlan {
+    pub expressions: ExpressionTable,
     pub calls: Arena<StateCall>,
     pub arguments: Arena<StateCallArgument>,
 }
@@ -46,7 +47,7 @@ pub struct StateCallArgument {
     pub index: usize,
     pub parameter_symbol: SymbolHandle,
     pub parameter_name: ProgramName,
-    pub expression: Expression,
+    pub expression: ExpressionHandle,
     pub kind: StateCallArgumentKind,
     pub required: bool,
 }
@@ -57,7 +58,7 @@ impl Default for StateCallArgument {
             index: 0,
             parameter_symbol: SymbolHandle::invalid(),
             parameter_name: ProgramName::default(),
-            expression: Expression::Integer(0),
+            expression: ExpressionHandle::invalid(),
             kind: StateCallArgumentKind::Value,
             required: false,
         }

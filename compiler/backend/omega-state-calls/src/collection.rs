@@ -1,7 +1,10 @@
 use crate::StateCallPlanningContext;
-use omega_control_flow::{ControlFlowPlan, MachineFlow, OperationKind, StateKey};
+use omega_control_flow::{
+    ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
+};
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::name::ProgramName;
 
 use super::StateCallResolution;
@@ -12,7 +15,7 @@ pub(crate) struct CollectedStateCall {
     pub statement_index: usize,
     pub receiver: ProgramName,
     pub target_key: StateKey,
-    pub raw_arguments: Vec<Expression>,
+    pub raw_arguments: HandleSpan<ExpressionHandle>,
     pub reachable: bool,
     pub required: bool,
     pub resolution: StateCallResolution,
@@ -39,7 +42,7 @@ pub(crate) fn collect_machine_state_calls(
                 target_symbol,
                 receiver,
                 target,
-                arguments,
+                arguments: _,
             } = &operation.kind
             else {
                 continue;
@@ -69,7 +72,10 @@ pub(crate) fn collect_machine_state_calls(
                     .as_ref()
                     .map(|target| target.key)
                     .unwrap_or_default(),
-                raw_arguments: arguments.clone(),
+                raw_arguments: match operation.expressions {
+                    OperationExpressionRefs::Call { arguments } => arguments,
+                    _ => HandleSpan::empty(),
+                },
                 reachable: context.runtime_state_is_reachable_by_key(state.key),
                 required: false,
                 resolution: resolved_target

@@ -31,8 +31,9 @@ pub(super) fn bind_runtime_operation_aliases(
     };
 
     for argument in arguments {
+        let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
         let resolved_expression =
-            resolve_runtime_alias_binding(&argument.expression, state_call.source_key, aliases);
+            resolve_runtime_alias_binding(&argument_expression, state_call.source_key, aliases);
         let expression = strip_mutable_expression(resolved_expression.expression);
         set_runtime_alias(
             aliases,

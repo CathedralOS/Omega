@@ -2495,7 +2495,13 @@ fn tracks_mutable_state_call_argument_bindings() {
         .expect("mutable argument should produce an alias binding");
 
     assert_eq!(alias.parameter_name, "out_line");
-    assert_eq!(alias.argument.display_name(), "mut line");
+    assert_eq!(
+        backend_plan
+            .alias_flow
+            .expressions
+            .display_name(alias.argument),
+        "mut line"
+    );
     assert!(alias.required);
 }
 

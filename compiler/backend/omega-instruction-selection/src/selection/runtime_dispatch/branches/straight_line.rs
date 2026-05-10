@@ -130,11 +130,12 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         .enumerate()
         .filter_map(|(parameter_index, parameter)| {
             let argument = arguments.get(parameter_index)?;
+            let argument_expression = input.state_calls.expressions.to_tree(argument.expression);
             Some(RuntimeLeafBranchBinding {
                 parameter_symbol: parameter.symbol,
                 parameter_name: parameter.name.clone(),
                 expression: resolve_straight_line_binding_expression(
-                    &argument.expression,
+                    &argument_expression,
                     straight_line_bindings,
                 ),
                 kind: RuntimeLeafBranchBindingKind::LeafParameter,

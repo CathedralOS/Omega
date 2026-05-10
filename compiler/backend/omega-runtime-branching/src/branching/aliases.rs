@@ -35,12 +35,14 @@ pub(super) fn branch_parameter_bindings(
             arguments
                 .iter()
                 .map(|argument| {
+                    let argument_expression =
+                        context.state_calls.expressions.to_tree(argument.expression);
                     let expression = if argument.kind == StateCallArgumentKind::MutableAlias
-                        && !matches!(argument.expression, Expression::Mutable(_))
+                        && !matches!(argument_expression, Expression::Mutable(_))
                     {
-                        Expression::Mutable(Box::new(argument.expression.clone()))
+                        Expression::Mutable(Box::new(argument_expression))
                     } else {
-                        argument.expression.clone()
+                        argument_expression
                     };
                     BranchParameterBinding {
                         parameter_symbol: argument.parameter_symbol,
@@ -67,12 +69,13 @@ pub(super) fn bind_runtime_branch_aliases(
     };
 
     for argument in arguments {
+        let argument_expression = context.state_calls.expressions.to_tree(argument.expression);
         let expression = if argument.kind == StateCallArgumentKind::MutableAlias
-            && !matches!(argument.expression, Expression::Mutable(_))
+            && !matches!(argument_expression, Expression::Mutable(_))
         {
-            Expression::Mutable(Box::new(argument.expression.clone()))
+            Expression::Mutable(Box::new(argument_expression))
         } else {
-            argument.expression.clone()
+            argument_expression
         };
         set_runtime_branch_alias(
             aliases,

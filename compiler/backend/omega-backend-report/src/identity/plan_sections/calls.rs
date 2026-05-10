@@ -1,6 +1,8 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use crate::identity::expressions::count_expression_strings;
+use crate::identity::expressions::{
+    count_control_flow_expression_strings, count_expression_strings,
+};
 use omega_platform_interface::HostCallArgumentKind;
 
 pub(in crate::identity) fn count_host_call_strings(
@@ -34,7 +36,11 @@ pub(in crate::identity) fn count_state_call_strings(
     }
     for (_, argument) in backend_plan.state_calls.arguments.iter() {
         storage.count_program_name_identity(&argument.parameter_name);
-        count_expression_strings(&argument.expression, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.state_calls.expressions,
+            argument.expression,
+            storage,
+        );
     }
 }
 
@@ -44,6 +50,10 @@ pub(in crate::identity) fn count_alias_flow_strings(
 ) {
     for (_, alias) in backend_plan.alias_flow.aliases.iter() {
         storage.count_program_name_identity(&alias.parameter_name);
-        count_expression_strings(&alias.argument, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.alias_flow.expressions,
+            alias.argument,
+            storage,
+        );
     }
 }

@@ -332,6 +332,51 @@ impl ExpressionTable {
         }
     }
 
+    pub fn to_tree(&self, expression: ExpressionHandle) -> Expression {
+        match self.expression(expression) {
+            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(
+                self.expression_handles(*values)
+                    .iter()
+                    .map(|value| self.to_tree(*value))
+                    .collect(),
+            ),
+            ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
+                left: self.to_tree(binary.left),
+                operator: binary.operator,
+                right: self.to_tree(binary.right),
+            })),
+            ExpressionNode::Boolean(value) => Expression::Boolean(*value),
+            ExpressionNode::Float(value) => Expression::Float(*value),
+            ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
+                collection: self.to_tree(indexed.collection),
+                index: self.to_tree(indexed.index),
+            })),
+            ExpressionNode::Integer(value) => Expression::Integer(*value),
+            ExpressionNode::Mutable(inner_expression) => {
+                Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
+            }
+            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved(
+                self.name_path_members(path.members).to_vec(),
+                path.head_symbol,
+                path.symbol,
+            )),
+            ExpressionNode::StructLiteral(struct_literal) => {
+                Expression::StructLiteral(StructLiteral {
+                    type_name: struct_literal.type_name.clone(),
+                    fields: self
+                        .struct_fields(struct_literal.fields)
+                        .iter()
+                        .map(|field| StructLiteralField {
+                            name: field.name.clone(),
+                            value: self.to_tree(field.value),
+                        })
+                        .collect(),
+                })
+            }
+            ExpressionNode::String(value) => Expression::String(value.clone()),
+        }
+    }
+
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }
@@ -811,6 +856,10 @@ mod tests {
         let copied_root = copied.copy_from(&source, root);
 
         assert_eq!(source.display_name(root), copied.display_name(copied_root));
+        assert_eq!(
+            expression.display_name(),
+            copied.to_tree(copied_root).display_name()
+        );
 
         let ExpressionNode::StructLiteral(struct_literal) = copied.expression(copied_root) else {
             panic!("copied root should remain a struct literal");

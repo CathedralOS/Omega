@@ -1,19 +1,25 @@
 use crate::StateCallPlanningContext;
 use omega_control_flow::StateKey;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 
 use super::lookups::state_flow_from_key;
 use super::{StateCallArgument, StateCallArgumentKind};
 
-pub(crate) fn build_call_arguments<'a>(
+pub(crate) fn build_call_arguments(
     context: &StateCallPlanningContext,
+    output_expressions: &mut ExpressionTable,
     target_key: StateKey,
     required: bool,
-    raw_arguments: &'a [Expression],
-) -> impl Iterator<Item = StateCallArgument> + 'a {
+    raw_arguments: HandleSpan<ExpressionHandle>,
+) -> Vec<StateCallArgument> {
     let parameters = state_parameters(context, target_key);
+    let raw_arguments = context
+        .control_flow
+        .expressions
+        .expression_handles(raw_arguments);
 
     raw_arguments
         .iter()
@@ -28,14 +34,19 @@ pub(crate) fn build_call_arguments<'a>(
                 .get(index)
                 .map(|parameter| parameter.1.clone())
                 .unwrap_or_default(),
-            expression: expression.clone(),
-            kind: if matches!(expression, Expression::Mutable(_)) {
+            expression: output_expressions
+                .copy_from(&context.control_flow.expressions, *expression),
+            kind: if matches!(
+                context.control_flow.expressions.expression(*expression),
+                ExpressionNode::Mutable(_)
+            ) {
                 StateCallArgumentKind::MutableAlias
             } else {
                 StateCallArgumentKind::Value
             },
             required,
         })
+        .collect()
 }
 
 fn state_parameters(

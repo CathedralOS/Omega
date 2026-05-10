@@ -130,12 +130,14 @@ pub fn build_state_call_plan_with_workers(
     let mut plan = StateCallPlan::default();
     for call in calls {
         let lowering = state_call_lowering(&context, &call);
-        let arguments = plan.arguments.insert_many(build_call_arguments(
+        let arguments = build_call_arguments(
             &context,
+            &mut plan.expressions,
             call.target_key,
             call.required,
-            &call.raw_arguments,
-        ));
+            call.raw_arguments,
+        );
+        let arguments = plan.arguments.insert_many(arguments);
 
         plan.calls.insert(StateCall {
             source_key: call.source_key,
