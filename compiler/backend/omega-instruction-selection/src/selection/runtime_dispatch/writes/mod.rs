@@ -32,6 +32,25 @@ pub(super) fn select_runtime_storage_write_for_operation(
     };
 
     let (source_machine, source_state) = state_names(input, mutation.source_key);
+    if aliases.is_empty()
+        && let Some(copy) = storage_copy::runtime_storage_copy_in_table(
+            input,
+            dispatch_index,
+            mutation.source_key,
+            mutation.source_key,
+            &input.state_storage.expressions,
+            mutation.target,
+            mutation.value,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: copy,
+            source_key: mutation.source_key,
+            source_statement: mutation.statement_index,
+        });
+        return;
+    }
+
     let target = input.state_storage.expressions.to_tree(mutation.target);
     let value = input.state_storage.expressions.to_tree(mutation.value);
     mutation::select_runtime_mutation_writes(

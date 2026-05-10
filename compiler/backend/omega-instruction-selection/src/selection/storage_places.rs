@@ -5,18 +5,18 @@ mod nested_fields;
 mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
-pub(super) use machine_owned::resolve_machine_owned_place;
+pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owned_place_in_table};
 pub(super) use model::RuntimeStoragePlace;
 use omega_target_program::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
 use crate::InstructionSelectionInput;
-use expressions::normalized_storage_expression;
+use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
-use omega_typed_program::expression::{Expression, NamePath};
+use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,
@@ -59,6 +59,67 @@ pub(super) fn resolve_runtime_storage_place(
             input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
                 slot.dispatch_index == dispatch_index
                     && slot_matches_path(slot.symbol, path, slot.name.as_str())
+            })
+        })
+        .map(|(_, slot)| slot)?;
+    let root_field = FieldLayout {
+        symbol: slot.symbol,
+        name: slot.name.clone(),
+        offset: slot.byte_offset,
+        type_symbol: slot.type_symbol,
+        type_name: slot.type_name.clone(),
+        layout: TypeLayout {
+            size: slot.byte_size,
+            alignment: slot.alignment,
+        },
+    };
+    let (byte_offset, layout) = resolve_nested_field_layout(&input.layouts, &root_field, suffix)?;
+
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset,
+        byte_count: layout.size,
+    })
+}
+
+pub(super) fn resolve_runtime_storage_place_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoragePlace> {
+    if let Some((byte_offset, byte_count)) = resolve_machine_owned_place_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        expression,
+    ) {
+        return Some(RuntimeStoragePlace {
+            region: RuntimeStorageRegion::Machine,
+            byte_offset,
+            byte_count,
+        });
+    }
+
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let [_root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
+    let slot = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find(|(_, slot)| {
+            slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot_matches_path(slot.symbol, &path, slot.name.as_str())
+        })
+        .or_else(|| {
+            input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
+                slot.dispatch_index == dispatch_index
+                    && slot_matches_path(slot.symbol, &path, slot.name.as_str())
             })
         })
         .map(|(_, slot)| slot)?;

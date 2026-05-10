@@ -1,8 +1,8 @@
-use super::expressions::normalized_storage_expression;
+use super::expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use super::nested_fields::resolve_nested_field_layout;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, LayoutPlan};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable};
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
@@ -14,6 +14,30 @@ pub(in crate::selection) fn resolve_machine_owned_place(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
+    let [root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
+    let root_symbol = path.head_symbol();
+    let (machine_base_offset, root_field) = root_machine_field_layout(
+        layouts,
+        entry_machine,
+        source_machine,
+        root_symbol,
+        root_name,
+    )?;
+    let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
+
+    Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+pub(in crate::selection) fn resolve_machine_owned_place_in_table(
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<(usize, usize)> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
     let [root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
