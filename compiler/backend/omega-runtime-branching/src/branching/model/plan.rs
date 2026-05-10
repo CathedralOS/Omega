@@ -4,13 +4,14 @@ use super::{
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
 };
 use omega_core::arena::Arena;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeBranchingCallPlan {
+    pub expressions: ExpressionTable,
     pub calls: Arena<RuntimeBranchingCall>,
     pub edges: Arena<RuntimeBranchingCallEdge>,
-    pub target_arguments: Arena<Expression>,
+    pub target_arguments: Arena<ExpressionHandle>,
     pub leaf_expansions: Arena<RuntimeLeafBranchExpansion>,
     pub leaf_operations: Arena<RuntimeLeafBranchOperation>,
     pub leaf_bindings: Arena<RuntimeLeafBranchBinding>,

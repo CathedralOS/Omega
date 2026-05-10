@@ -14,7 +14,7 @@ use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(
@@ -38,12 +38,19 @@ pub(super) fn append_leaf_branch_expansions(
         };
 
         let branch_bindings = branch_parameter_bindings(context, state_call, aliases);
-        let bindings = plan.leaf_bindings.insert_many(leaf_branch_bindings(
+        let leaf_arguments = plan
+            .target_arguments
+            .span_or_empty(edge.target_arguments)
+            .to_vec();
+        let bindings = leaf_branch_bindings(
             &branch_bindings,
             context,
             *leaf_key,
-            plan.target_arguments.span_or_empty(edge.target_arguments),
-        ));
+            &plan.expressions,
+            &leaf_arguments,
+        )
+        .collect::<Vec<_>>();
+        let bindings = plan.leaf_bindings.insert_many(bindings);
         let operations = plan
             .leaf_operations
             .insert_many(leaf_operations(context, *leaf_key));
@@ -89,14 +96,19 @@ pub(super) fn append_straight_line_branch_expansions(
         };
 
         let branch_bindings = branch_parameter_bindings(context, state_call, aliases);
-        let bindings = plan
-            .straight_line_bindings
-            .insert_many(straight_line_branch_bindings(
-                &branch_bindings,
-                context,
-                *target_key,
-                plan.target_arguments.span_or_empty(edge.target_arguments),
-            ));
+        let target_arguments = plan
+            .target_arguments
+            .span_or_empty(edge.target_arguments)
+            .to_vec();
+        let bindings = straight_line_branch_bindings(
+            &branch_bindings,
+            context,
+            *target_key,
+            &plan.expressions,
+            &target_arguments,
+        )
+        .collect::<Vec<_>>();
+        let bindings = plan.straight_line_bindings.insert_many(bindings);
         let operations = plan
             .straight_line_operations
             .insert_many(straight_line_operations(context, *target_key));
@@ -122,7 +134,8 @@ fn leaf_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
     context: &RuntimeBranchingContext,
     leaf_key: StateKey,
-    leaf_arguments: &'a [Expression],
+    expression_table: &'a ExpressionTable,
+    leaf_arguments: &'a [ExpressionHandle],
 ) -> impl Iterator<Item = RuntimeLeafBranchBinding> + 'a {
     let branch_parameter_bindings =
         branch_bindings
@@ -141,10 +154,11 @@ fn leaf_branch_bindings<'a>(
             .enumerate()
             .filter_map(move |(parameter_index, parameter)| {
                 let expression = leaf_arguments.get(parameter_index)?;
+                let expression = expression_table.to_tree(*expression);
                 Some(RuntimeLeafBranchBinding {
                     parameter_symbol: parameter.symbol,
                     parameter_name: parameter.name,
-                    expression: resolve_branch_expression(expression, branch_bindings),
+                    expression: resolve_branch_expression(&expression, branch_bindings),
                     kind: RuntimeLeafBranchBindingKind::LeafParameter,
                 })
             });
@@ -156,7 +170,8 @@ fn straight_line_branch_bindings<'a>(
     branch_bindings: &'a [BranchParameterBinding],
     context: &RuntimeBranchingContext,
     target_key: StateKey,
-    target_arguments: &'a [Expression],
+    expression_table: &'a ExpressionTable,
+    target_arguments: &'a [ExpressionHandle],
 ) -> impl Iterator<Item = RuntimeStraightLineBranchBinding> + 'a {
     let branch_parameter_bindings =
         branch_bindings
@@ -172,10 +187,11 @@ fn straight_line_branch_bindings<'a>(
     let target_parameter_bindings = target_parameters.into_iter().enumerate().filter_map(
         move |(parameter_index, parameter)| {
             let expression = target_arguments.get(parameter_index)?;
+            let expression = expression_table.to_tree(*expression);
             Some(RuntimeStraightLineBranchBinding {
                 parameter_symbol: parameter.symbol,
                 parameter_name: parameter.name,
-                expression: resolve_branch_expression(expression, branch_bindings),
+                expression: resolve_branch_expression(&expression, branch_bindings),
                 kind: RuntimeStraightLineBranchBindingKind::TargetParameter,
             })
         },

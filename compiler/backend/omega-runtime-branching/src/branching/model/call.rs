@@ -2,7 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::StateGuardKind;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::ExpressionHandle;
 use omega_typed_program::statement::TransitionGuard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +36,7 @@ pub struct RuntimeBranchingCallEdge {
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
-    pub target_arguments: HandleSpan<Expression>,
+    pub target_arguments: HandleSpan<ExpressionHandle>,
     pub guard_kind: StateGuardKind,
     pub lowering: RuntimeBranchTargetLowering,
 }

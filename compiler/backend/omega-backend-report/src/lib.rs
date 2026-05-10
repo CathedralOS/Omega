@@ -835,7 +835,10 @@ pub fn backend_report_text(
                                 " args ({})",
                                 target_arguments
                                     .iter()
-                                    .map(|argument| argument.display_name())
+                                    .map(|argument| backend_plan
+                                        .runtime_branching_calls
+                                        .expressions
+                                        .display_name(*argument))
                                     .collect::<Vec<_>>()
                                     .join(", ")
                             ));

@@ -58,8 +58,12 @@ pub fn build_runtime_branching_call_plan(
             let Some(state_call) = state_call else {
                 continue;
             };
-            let branch_edges =
-                build_branch_edges(context, state_call.target_key, &mut plan.target_arguments);
+            let branch_edges = build_branch_edges(
+                context,
+                state_call.target_key,
+                &mut plan.expressions,
+                &mut plan.target_arguments,
+            );
             let expansion = classify_branch_call_expansion(&branch_edges);
             if matches!(
                 expansion,

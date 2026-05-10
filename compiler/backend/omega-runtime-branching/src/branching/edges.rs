@@ -3,7 +3,7 @@ use omega_control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, St
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard;
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 
 use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
@@ -11,7 +11,8 @@ use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};
 pub(super) fn build_branch_edges(
     context: &RuntimeBranchingContext,
     state_key: StateKey,
-    target_arguments: &mut Arena<Expression>,
+    expressions: &mut ExpressionTable,
+    target_arguments: &mut Arena<ExpressionHandle>,
 ) -> Vec<RuntimeBranchingCallEdge> {
     let Some(machine) = context.control_flow.machine_by_symbol(state_key.machine) else {
         return Vec::new();
@@ -39,7 +40,12 @@ pub(super) fn build_branch_edges(
                         runtime_transition_target(context, machine, state.key, continuation)
                     })
                     .unwrap_or(RuntimeTransitionTarget::None),
-                target_arguments: transition_target_arguments(&transition.target, target_arguments),
+                target_arguments: transition_target_arguments(
+                    context,
+                    transition.expressions.target_arguments,
+                    expressions,
+                    target_arguments,
+                ),
                 guard_kind: classify_transition_guard(&transition.guard),
                 guard: transition.guard.clone(),
             }
@@ -48,16 +54,20 @@ pub(super) fn build_branch_edges(
 }
 
 fn transition_target_arguments(
-    target: &PlannedTransitionTarget,
-    arena: &mut Arena<Expression>,
-) -> HandleSpan<Expression> {
-    match target {
-        PlannedTransitionTarget::State { arguments, .. }
-        | PlannedTransitionTarget::Nested { arguments, .. } => arena.insert_many(arguments.clone()),
-        PlannedTransitionTarget::SelfTarget | PlannedTransitionTarget::Terminal => {
-            HandleSpan::empty()
-        }
-    }
+    context: &RuntimeBranchingContext,
+    arguments: HandleSpan<ExpressionHandle>,
+    expressions: &mut ExpressionTable,
+    arena: &mut Arena<ExpressionHandle>,
+) -> HandleSpan<ExpressionHandle> {
+    let copied = context
+        .control_flow
+        .expressions
+        .expression_handles(arguments)
+        .iter()
+        .map(|argument| expressions.copy_from(&context.control_flow.expressions, *argument))
+        .collect::<Vec<_>>();
+
+    arena.insert_many(copied)
 }
 
 fn branch_target_lowering(

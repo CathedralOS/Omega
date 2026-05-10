@@ -7,17 +7,21 @@ use omega_typed_program::expression::{
 use omega_typed_program::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_expression_span_strings(
-    span: omega_core::arena::HandleSpan<Expression>,
+    span: omega_core::arena::HandleSpan<ExpressionHandle>,
     backend_plan: &BackendReportInput<'_>,
     storage: &mut BackendStringStorage,
 ) {
-    if let Some(expressions) = backend_plan
+    if let Some(expression_handles) = backend_plan
         .runtime_branching_calls
         .target_arguments
         .span(span)
     {
-        for expression in expressions {
-            count_expression_strings(expression, storage);
+        for expression in expression_handles {
+            count_control_flow_expression_strings(
+                &backend_plan.runtime_branching_calls.expressions,
+                *expression,
+                storage,
+            );
         }
     }
 }
