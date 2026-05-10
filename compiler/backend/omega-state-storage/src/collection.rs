@@ -6,8 +6,8 @@ use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::Program;
 use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::Statement;
-use omega_typed_program::types::{PrimitiveType, TypeReference};
+use omega_typed_program::statement::StatementNode;
+use omega_typed_program::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::sync::Arc;
 
 pub fn build_state_storage_plan(
@@ -39,7 +39,7 @@ pub fn build_state_storage_plan_with_workers(
             .get(index)
             .expect("state-storage worker index should be in range");
 
-        build_machine_state_storage_plan(&context, machine)
+        build_machine_state_storage_plan(&program, &context, machine)
     });
 
     let mut plan = StateStoragePlan::default();
@@ -47,18 +47,27 @@ pub fn build_state_storage_plan_with_workers(
     for machine_plan in machine_plans {
         plan.locals
             .insert_many(machine_plan.locals.iter().map(|(_, local)| local.clone()));
-        plan.mutations.insert_many(
-            machine_plan
-                .mutations
-                .iter()
-                .map(|(_, mutation)| mutation.clone()),
-        );
+        let mutations = machine_plan
+            .mutations
+            .iter()
+            .map(|(_, mutation)| StateMutation {
+                target: plan
+                    .expressions
+                    .copy_from(&machine_plan.expressions, mutation.target),
+                value: plan
+                    .expressions
+                    .copy_from(&machine_plan.expressions, mutation.value),
+                ..mutation.clone()
+            })
+            .collect::<Vec<_>>();
+        plan.mutations.insert_many(mutations);
     }
 
     plan
 }
 
 fn build_machine_state_storage_plan(
+    program: &Program,
     context: &StateStoragePlanningContext,
     machine: &Machine,
 ) -> StateStoragePlan {
@@ -72,26 +81,40 @@ fn build_machine_state_storage_plan(
         };
         let required = context.state_is_required_by_key(source_key);
 
-        for (statement_index, statement) in state.statements.iter().enumerate() {
+        let statements = program.statement_table.statements(state.statement_nodes);
+
+        for (statement_index, statement) in statements.iter().enumerate() {
             match statement {
-                Statement::LocalData(local_data) => {
+                StatementNode::LocalData(local_data) => {
                     plan.locals.insert(StateLocalStorage {
                         source_key,
                         statement_index,
                         symbol: local_data.symbol,
                         name: local_data.name.clone(),
-                        type_symbol: type_reference_symbol(&local_data.type_reference),
-                        type_name: local_data.type_reference.display_name(),
+                        type_symbol: type_reference_symbol(program, local_data.type_reference),
+                        type_name: type_reference_display_name(program, local_data.type_reference),
                         required,
                     });
                 }
-                Statement::Assignment(assignment) => {
-                    let mutation_kind = mutation_kind(machine, state, &assignment.target);
+                StatementNode::Assignment(assignment) => {
+                    let target = plan
+                        .expressions
+                        .copy_from(&program.expression_table, assignment.target);
+                    let value = plan
+                        .expressions
+                        .copy_from(&program.expression_table, assignment.value);
+                    let mutation_kind = mutation_kind(
+                        machine,
+                        state,
+                        statements,
+                        &program.expression_table,
+                        assignment.target,
+                    );
                     plan.mutations.insert(StateMutation {
                         source_key,
                         statement_index,
-                        target: assignment.target.clone(),
-                        value: assignment.value.clone(),
+                        target,
+                        value,
                         mutation_kind,
                         lowering: mutation_lowering(
                             context,
@@ -110,16 +133,20 @@ fn build_machine_state_storage_plan(
     plan
 }
 
-fn type_reference_symbol(type_reference: &TypeReference) -> SymbolHandle {
-    match type_reference {
-        TypeReference::Constrained { base_type, .. } => type_reference_symbol(base_type),
-        TypeReference::FixedArray { element_type, .. } => type_reference_symbol(element_type),
-        TypeReference::Generic {
+fn type_reference_symbol(program: &Program, type_reference: TypeReferenceHandle) -> SymbolHandle {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_symbol(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_reference_symbol(program, *element_type)
+        }
+        TypeReferenceNode::Generic {
             base_symbol,
             base_name,
             ..
         } => {
-            if PrimitiveType::from_name(base_name).is_some() {
+            if PrimitiveType::from_name(base_name.as_str()).is_some() {
                 return SymbolHandle::invalid();
             }
             if base_symbol.is_valid() {
@@ -128,8 +155,8 @@ fn type_reference_symbol(type_reference: &TypeReference) -> SymbolHandle {
 
             SymbolHandle::invalid()
         }
-        TypeReference::Named { symbol, name } => {
-            if PrimitiveType::from_name(name).is_some() {
+        TypeReferenceNode::Named { symbol, name } => {
+            if PrimitiveType::from_name(name.as_str()).is_some() {
                 return SymbolHandle::invalid();
             }
             if symbol.is_valid() {
@@ -138,6 +165,48 @@ fn type_reference_symbol(type_reference: &TypeReference) -> SymbolHandle {
 
             SymbolHandle::invalid()
         }
-        TypeReference::Unit => SymbolHandle::invalid(),
+        TypeReferenceNode::Unit => SymbolHandle::invalid(),
+    }
+}
+
+fn type_reference_display_name(program: &Program, type_reference: TypeReferenceHandle) -> String {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            format!(
+                "{}[{}]",
+                type_reference_display_name(program, *base_type),
+                match constraints.count() {
+                    1 => "1 constraint".to_owned(),
+                    count => format!("{count} constraints"),
+                }
+            )
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => format!(
+            "[{}; {}]",
+            type_reference_display_name(program, *element_type),
+            length
+        ),
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            let arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|argument| type_reference_display_name(program, *argument))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{base_name}<{arguments}>")
+        }
+        TypeReferenceNode::Named { name, .. } => name.to_string(),
+        TypeReferenceNode::Unit => "()".to_owned(),
     }
 }

@@ -49,8 +49,8 @@ pub(super) fn build_runtime_storage_body_plan(
                         dispatch_index: body_input.body.dispatch_index,
                         source_key: operation.source_key,
                         statement_index: operation.statement_index,
-                        target: mutation.target.clone(),
-                        value: mutation.value.clone(),
+                        target: context.state_storage.expressions.to_tree(mutation.target),
+                        value: context.state_storage.expressions.to_tree(mutation.value),
                         mutation_kind: mutation.mutation_kind,
                         lowering: mutation.lowering,
                     });

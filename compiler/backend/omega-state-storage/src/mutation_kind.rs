@@ -2,9 +2,11 @@ use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{Expression, NamePath};
+use omega_typed_program::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
+};
 use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::Statement;
+use omega_typed_program::statement::StatementNode;
 
 pub(super) fn mutation_lowering(
     context: &StateStoragePlanningContext,
@@ -27,9 +29,11 @@ pub(super) fn mutation_lowering(
 pub(super) fn mutation_kind(
     machine: &Machine,
     state: &omega_typed_program::state::State,
-    target: &Expression,
+    statements: &[StatementNode],
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
 ) -> StateMutationKind {
-    let Some(place) = place_symbols(target) else {
+    let Some(place) = place_symbols(expressions, target) else {
         return StateMutationKind::Unknown;
     };
 
@@ -49,8 +53,8 @@ pub(super) fn mutation_kind(
         return StateMutationKind::ParameterOrAlias;
     }
 
-    if state.statements.iter().any(|statement| {
-        matches!(statement, Statement::LocalData(local_data) if local_data.symbol == place.head_symbol)
+    if statements.iter().any(|statement| {
+        matches!(statement, StatementNode::LocalData(local_data) if local_data.symbol == place.head_symbol)
     }) {
         return StateMutationKind::Local;
     }
@@ -64,23 +68,23 @@ struct PlaceSymbols {
     symbol: SymbolHandle,
 }
 
-fn place_symbols(expression: &Expression) -> Option<PlaceSymbols> {
-    match expression {
-        Expression::Name(path) => name_path_symbols(path),
-        Expression::Indexed(indexed) => place_symbols(&indexed.collection),
-        Expression::Mutable(expression) => place_symbols(expression),
+fn place_symbols(table: &ExpressionTable, expression: ExpressionHandle) -> Option<PlaceSymbols> {
+    match table.expression(expression) {
+        ExpressionNode::Name(path) => name_path_symbols(path),
+        ExpressionNode::Indexed(indexed) => place_symbols(table, indexed.collection),
+        ExpressionNode::Mutable(expression) => place_symbols(table, *expression),
         _ => None,
     }
 }
 
-fn name_path_symbols(path: &NamePath) -> Option<PlaceSymbols> {
-    let head_symbol = path.head_symbol();
+fn name_path_symbols(path: &TableNamePath) -> Option<PlaceSymbols> {
+    let head_symbol = path.head_symbol;
     if !head_symbol.is_valid() {
         return None;
     }
 
     Some(PlaceSymbols {
         head_symbol,
-        symbol: path.symbol(),
+        symbol: path.symbol,
     })
 }

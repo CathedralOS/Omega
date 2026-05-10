@@ -153,8 +153,10 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         else {
             continue;
         };
-        let resolved_target = resolve_leaf_binding_expression(&mutation.target, &leaf_bindings);
-        let resolved_value = resolve_leaf_binding_expression(&mutation.value, &leaf_bindings);
+        let mutation_target = input.state_storage.expressions.to_tree(mutation.target);
+        let mutation_value = input.state_storage.expressions.to_tree(mutation.value);
+        let resolved_target = resolve_leaf_binding_expression(&mutation_target, &leaf_bindings);
+        let resolved_value = resolve_leaf_binding_expression(&mutation_value, &leaf_bindings);
         select_runtime_resolved_mutation_write(
             input,
             expansion.dispatch_index,

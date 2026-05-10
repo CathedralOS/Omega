@@ -32,16 +32,18 @@ pub fn build_runtime_text_plan(
 
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
-        if !is_text_place(&mutation.target) {
+        let target = state_storage.expressions.to_tree(mutation.target);
+        if !is_text_place(&target) {
             continue;
         }
+        let value = state_storage.expressions.to_tree(mutation.value);
 
         plan.writes.insert(RuntimeTextWrite {
             source_key: mutation.source_key,
             statement_index: mutation.statement_index,
-            target: mutation.target.clone(),
-            value: mutation.value.clone(),
-            kind: classify_runtime_text_write(&mutation.value),
+            kind: classify_runtime_text_write(&value),
+            target,
+            value,
         });
     }
 }

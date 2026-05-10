@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_state_storage::StateStoragePlan;
 use omega_target_program::{TargetDataObject, TargetDataPlan};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn collect_static_string_assignment_data(
     state_storage: &StateStoragePlan,
@@ -13,7 +13,8 @@ pub(super) fn collect_static_string_assignment_data(
         }
 
         collect_static_string_expression_data(
-            &mutation.value,
+            &state_storage.expressions,
+            mutation.value,
             mutation.source_key,
             mutation.statement_index,
             data_plan,
@@ -22,13 +23,14 @@ pub(super) fn collect_static_string_assignment_data(
 }
 
 fn collect_static_string_expression_data(
-    expression: &Expression,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
     source_key: StateKey,
     source_statement: usize,
     data_plan: &mut TargetDataPlan,
 ) {
-    match expression {
-        Expression::String(value) => {
+    match expressions.expression(expression) {
+        ExpressionNode::String(value) => {
             let offset = data_plan.bytes.len();
             let bytes = if value.is_empty() {
                 vec![0]
@@ -47,45 +49,49 @@ fn collect_static_string_expression_data(
                 source_statement,
             });
         }
-        Expression::StructLiteral(struct_literal) => {
-            for field in &struct_literal.fields {
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in expressions.struct_fields(struct_literal.fields) {
                 collect_static_string_expression_data(
-                    &field.value,
+                    expressions,
+                    field.value,
                     source_key,
                     source_statement,
                     data_plan,
                 );
             }
         }
-        Expression::ArrayLiteral(elements) => {
-            for element in elements {
+        ExpressionNode::ArrayLiteral(elements) => {
+            for element in expressions.expression_handles(*elements) {
                 collect_static_string_expression_data(
-                    element,
+                    expressions,
+                    *element,
                     source_key,
                     source_statement,
                     data_plan,
                 );
             }
         }
-        Expression::Binary(binary) => {
+        ExpressionNode::Binary(binary) => {
             collect_static_string_expression_data(
-                &binary.left,
+                expressions,
+                binary.left,
                 source_key,
                 source_statement,
                 data_plan,
             );
             collect_static_string_expression_data(
-                &binary.right,
+                expressions,
+                binary.right,
                 source_key,
                 source_statement,
                 data_plan,
             );
         }
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Indexed(_)
-        | Expression::Integer(_)
-        | Expression::Mutable(_)
-        | Expression::Name(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Name(_) => {}
     }
 }

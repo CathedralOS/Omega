@@ -30,6 +30,8 @@ pub(super) fn select_runtime_storage_write_for_operation(
     };
 
     let (source_machine, source_state) = state_names(input, mutation.source_key);
+    let target = input.state_storage.expressions.to_tree(mutation.target);
+    let value = input.state_storage.expressions.to_tree(mutation.value);
     mutation::select_runtime_mutation_writes(
         input,
         dispatch_index,
@@ -37,8 +39,8 @@ pub(super) fn select_runtime_storage_write_for_operation(
         &source_machine,
         &source_state,
         mutation.statement_index,
-        &mutation.target,
-        &mutation.value,
+        &target,
+        &value,
         aliases,
         static_values,
         selected_instructions,

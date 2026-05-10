@@ -69,8 +69,8 @@ fn leaf_operation_kind(
         return RuntimeLeafBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
-            target: mutation.target.clone(),
-            value: mutation.value.clone(),
+            target: context.state_storage.expressions.to_tree(mutation.target),
+            value: context.state_storage.expressions.to_tree(mutation.value),
         };
     }
 
@@ -93,8 +93,8 @@ fn straight_line_operation_kind(
         return RuntimeStraightLineBranchOperationKind::Mutation {
             mutation_kind: mutation.mutation_kind,
             lowering: mutation.lowering,
-            target: mutation.target.clone(),
-            value: mutation.value.clone(),
+            target: context.state_storage.expressions.to_tree(mutation.target),
+            value: context.state_storage.expressions.to_tree(mutation.value),
         };
     }
 

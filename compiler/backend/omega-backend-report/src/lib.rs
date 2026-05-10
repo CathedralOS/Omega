@@ -214,8 +214,14 @@ pub fn backend_report_text(
             mutation.statement_index,
             mutation.mutation_kind,
             mutation.lowering,
-            mutation.target.display_name(),
-            mutation.value.display_name(),
+            backend_plan
+                .state_storage
+                .expressions
+                .display_name(mutation.target),
+            backend_plan
+                .state_storage
+                .expressions
+                .display_name(mutation.value),
             mutation.required
         ));
     }

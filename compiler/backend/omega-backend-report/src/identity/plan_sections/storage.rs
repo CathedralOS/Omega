@@ -13,8 +13,16 @@ pub(in crate::identity) fn count_state_storage_strings(
         storage.count_identity(&local.type_name);
     }
     for (_, mutation) in backend_plan.state_storage.mutations.iter() {
-        count_expression_strings(&mutation.target, storage);
-        count_expression_strings(&mutation.value, storage);
+        count_control_flow_expression_strings(
+            &backend_plan.state_storage.expressions,
+            mutation.target,
+            storage,
+        );
+        count_control_flow_expression_strings(
+            &backend_plan.state_storage.expressions,
+            mutation.value,
+            storage,
+        );
     }
 }
 
