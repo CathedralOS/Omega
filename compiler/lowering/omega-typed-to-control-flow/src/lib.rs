@@ -1,4 +1,4 @@
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_typed_program::Program;
@@ -58,39 +58,95 @@ fn merge_machine_flow(
     source: &ControlFlowPlan,
     machine_flow: &MachineFlow,
 ) {
-    let states = source
-        .states
-        .span_or_empty(machine_flow.states)
-        .iter()
-        .map(|state| {
-            let operations = source
-                .operations
-                .span_or_empty(state.operations)
-                .iter()
-                .map(|operation| remap_operation(target, source, operation))
-                .collect::<Vec<_>>();
-            let operations = target.operations.insert_many(operations);
-            let transitions = source
-                .transitions
-                .span_or_empty(state.transitions)
-                .iter()
-                .map(|transition| remap_transition(target, source, transition))
-                .collect::<Vec<_>>();
-            let transitions = target.transitions.insert_many(transitions);
-
-            StateFlow {
-                operations,
-                transitions,
-                ..state.clone()
-            }
-        })
-        .collect::<Vec<_>>();
-    let states = target.states.insert_many(states);
+    let states = append_remapped_states(target, source, machine_flow.states);
 
     target.machines.insert(MachineFlow {
         states,
         ..machine_flow.clone()
     });
+}
+
+fn append_remapped_states(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    states: HandleSpan<StateFlow>,
+) -> HandleSpan<StateFlow> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for state in source.states.span_or_empty(states) {
+        let operations = append_remapped_operations(target, source, state.operations);
+        let transitions = append_remapped_transitions(target, source, state.transitions);
+        let handle = target.states.append(StateFlow {
+            operations,
+            transitions,
+            ..state.clone()
+        });
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("control-flow state span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    }
+}
+
+fn append_remapped_operations(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    operations: HandleSpan<Operation>,
+) -> HandleSpan<Operation> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for operation in source.operations.span_or_empty(operations) {
+        let operation = remap_operation(target, source, operation);
+        let handle = target.operations.append(operation);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("control-flow operation span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    }
+}
+
+fn append_remapped_transitions(
+    target: &mut ControlFlowPlan,
+    source: &ControlFlowPlan,
+    transitions: HandleSpan<TransitionFlow>,
+) -> HandleSpan<TransitionFlow> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for transition in source.transitions.span_or_empty(transitions) {
+        let transition = remap_transition(target, source, transition);
+        let handle = target.transitions.append(transition);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("control-flow transition span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    }
 }
 
 fn build_machine_flow(
