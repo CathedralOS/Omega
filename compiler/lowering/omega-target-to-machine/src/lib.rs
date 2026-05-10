@@ -1,5 +1,5 @@
 use omega_calling_conventions::HostAbiPlan;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
 use omega_target_program::InstructionPlan;
@@ -30,14 +30,12 @@ pub fn build_machine_code_plan(
 
     for (function_handle, function) in input.instructions.functions.iter() {
         let function_offset = machine_code_plan.byte_count;
-        let machine_instructions = select_machine_instructions(input, function_offset, function)?;
-        let function_byte_count = machine_instructions
-            .iter()
-            .map(|instruction| instruction.byte_width)
-            .sum();
-        let instructions = machine_code_plan
-            .instructions
-            .insert_many(machine_instructions);
+        let (instructions, function_byte_count) = append_machine_instructions(
+            input,
+            function_offset,
+            function,
+            &mut machine_code_plan.instructions,
+        )?;
 
         machine_code_plan.functions.insert(MachineFunctionCode {
             source_function: function_handle,
@@ -51,38 +49,49 @@ pub fn build_machine_code_plan(
     Ok(machine_code_plan)
 }
 
-fn select_machine_instructions(
+fn append_machine_instructions(
     input: TargetToMachineInput<'_>,
     function_offset: usize,
     function: &omega_target_program::FunctionInstructionPlan,
-) -> Result<Vec<MachineInstruction>, Diagnostic> {
+    output_instructions: &mut Arena<MachineInstruction>,
+) -> Result<(HandleSpan<MachineInstruction>, usize), Diagnostic> {
     let Some(selected_instructions) = input.instructions.instructions.span(function.instructions)
     else {
-        return Ok(Vec::new());
+        return Ok((HandleSpan::empty(), 0));
     };
 
     let mut offset = function_offset;
-    let machine_instructions = selected_instructions
-        .iter()
-        .enumerate()
-        .map(|(selected_offset, selected_instruction)| {
-            let selected_instruction_index = function
-                .instructions
-                .start()
-                .arena_index()
-                .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
-                .expect("selected instruction overflow");
-            let (kind, byte_width) = machine_instruction_shape(input, &selected_instruction.kind);
-            let instruction = MachineInstruction {
-                selected_instruction_index,
-                offset,
-                byte_width,
-                kind,
-            };
-            offset += byte_width;
-            instruction
-        })
-        .collect::<Vec<_>>();
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
 
-    Ok(machine_instructions)
+    for (selected_offset, selected_instruction) in selected_instructions.iter().enumerate() {
+        let selected_instruction_index = function
+            .instructions
+            .start()
+            .arena_index()
+            .checked_add(u32::try_from(selected_offset).expect("selected instruction overflow"))
+            .expect("selected instruction overflow");
+        let (kind, byte_width) = machine_instruction_shape(input, &selected_instruction.kind);
+        let handle = output_instructions.append(MachineInstruction {
+            selected_instruction_index,
+            offset,
+            byte_width,
+            kind,
+        });
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("machine instruction span count overflow");
+        offset += byte_width;
+    }
+
+    let instructions = if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    };
+
+    Ok((instructions, offset - function_offset))
 }
