@@ -451,6 +451,60 @@ impl ExpressionTable {
         }
     }
 
+    pub fn to_tree_with_place_suffix(
+        &self,
+        expression: ExpressionHandle,
+        suffix: &[ProgramName],
+    ) -> Expression {
+        if suffix.is_empty() {
+            return self.to_tree(expression);
+        }
+
+        match self.expression(expression) {
+            ExpressionNode::Name(path) => {
+                let mut resolved_path = self.name_path_to_tree(path);
+                resolved_path.extend_from_slice(suffix);
+                Expression::Name(resolved_path)
+            }
+            ExpressionNode::Indexed(indexed) => {
+                if let Some(mut indexed_path) = self.indexed_expression_path(indexed) {
+                    indexed_path.extend_from_slice(suffix);
+                    Expression::Name(indexed_path)
+                } else {
+                    self.to_tree(expression)
+                }
+            }
+            ExpressionNode::Mutable(target) => {
+                Expression::Mutable(Box::new(self.to_tree_with_place_suffix(*target, suffix)))
+            }
+            _ => self.to_tree(expression),
+        }
+    }
+
+    fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
+        NamePath::resolved(
+            self.name_path_members(path.members).to_vec(),
+            path.head_symbol,
+            path.symbol,
+        )
+    }
+
+    fn indexed_expression_path(&self, indexed: &TableIndexedExpression) -> Option<NamePath> {
+        let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
+            return None;
+        };
+        let mut path = match self.expression(indexed.collection) {
+            ExpressionNode::Name(path) => self.name_path_to_tree(path),
+            ExpressionNode::Indexed(inner_indexed) => {
+                self.indexed_expression_path(inner_indexed)?
+            }
+            _ => return None,
+        };
+        let last_segment = path.last_mut()?;
+        *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
+        Some(path)
+    }
+
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }

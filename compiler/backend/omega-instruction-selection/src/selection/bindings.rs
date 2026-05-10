@@ -98,10 +98,8 @@ pub(super) fn resolve_runtime_alias_binding(
             .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
             .map(|alias| RuntimeResolvedExpression {
                 source_key: alias.expression_source_key,
-                expression: append_place_suffix(
-                    &alias_expressions.to_tree(alias.expression),
-                    &path[1..],
-                ),
+                expression: alias_expressions
+                    .to_tree_with_place_suffix(alias.expression, &path[1..]),
             })
             .unwrap_or_else(|| RuntimeResolvedExpression {
                 source_key,
@@ -139,7 +137,7 @@ pub(super) fn resolve_leaf_binding_expression(
                     .iter()
                     .find(|binding| leaf_binding_matches_path(binding, path))
             })
-            .map(|binding| append_place_suffix(&table.to_tree(binding.expression), &path[1..]))
+            .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
     }
@@ -170,7 +168,7 @@ pub(super) fn resolve_straight_line_binding_expression(
                     .iter()
                     .find(|binding| straight_line_binding_matches_path(binding, path))
             })
-            .map(|binding| append_place_suffix(&table.to_tree(binding.expression), &path[1..]))
+            .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),
     }
