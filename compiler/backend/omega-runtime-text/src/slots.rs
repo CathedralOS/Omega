@@ -23,12 +23,7 @@ pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<Runt
         })
         .collect::<Vec<_>>();
 
-    let uses = plan
-        .uses
-        .iter()
-        .map(|(_, text_use)| text_use.clone())
-        .collect::<Vec<_>>();
-    for text_use in uses {
+    for (_, text_use) in plan.uses.iter() {
         if text_use.source != RuntimeTextSource::StoredPlace {
             continue;
         }
@@ -55,12 +50,7 @@ pub(crate) fn build_runtime_text_slots(plan: &mut RuntimeTextPlan) -> Arena<Runt
         );
     }
 
-    let writes = plan
-        .writes
-        .iter()
-        .map(|(_, write)| write.clone())
-        .collect::<Vec<_>>();
-    for write in writes {
+    for (_, write) in plan.writes.iter() {
         push_or_update_text_slot(plan, &mut slots, write.target, 0, false);
     }
 
