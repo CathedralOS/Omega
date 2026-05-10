@@ -27,8 +27,8 @@ pub fn emit_machine_bytes(
 ) -> Result<EncodedMachinePlan, Diagnostic> {
     let mut encoded_plan = EncodedMachinePlan {
         target: input.target,
-        instructions: Arena::new(),
-        bytes: Arena::new(),
+        instructions: Arena::with_capacity(input.machine_code.instructions.len()),
+        bytes: Arena::with_capacity(input.machine_code.byte_count),
         byte_count: input.machine_code.byte_count,
     };
 
