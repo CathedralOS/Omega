@@ -1932,6 +1932,7 @@ mod tests {
                             name: "Room".into(),
                         },
                     })],
+                    statement_nodes: omega_core::arena::HandleSpan::empty(),
                 }],
             }],
             platforms: vec![Platform {

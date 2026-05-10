@@ -41,6 +41,10 @@ impl AstTables {
                 for member in &data_definition.members {
                     if let DataMember::Field(field) = member {
                         self.insert_type_reference(&field.type_reference);
+
+                        if let Some(initial_value) = &field.initial_value {
+                            self.insert_expression(initial_value);
+                        }
                     }
                 }
             }

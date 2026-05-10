@@ -1,7 +1,7 @@
 use game::game;
 
 data main {
-    game: Game = Game::new();
+    game: Game;
 }
 
 machine for main {

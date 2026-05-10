@@ -145,6 +145,7 @@ pub enum DataMember {
 pub struct DataField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
+    pub initial_value: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

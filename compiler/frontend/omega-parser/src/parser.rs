@@ -95,6 +95,8 @@ impl Parser<'_, '_> {
             }
         }
 
+        merge_machine_items(&mut items);
+
         let tables = AstTables::from_items(&items);
 
         Ok(AstFile {
@@ -377,10 +379,16 @@ impl Parser<'_, '_> {
 
             if self.consume(":") {
                 let type_reference = self.parse_type_reference()?;
+                let initial_value = if self.consume("=") {
+                    Some(self.parse_expression()?)
+                } else {
+                    None
+                };
                 self.expect(";")?;
                 members.push(DataMember::Field(DataField {
                     name: member_name,
                     type_reference,
+                    initial_value,
                 }));
             } else {
                 members.push(DataMember::Variant(DataVariant { name: member_name }));
@@ -595,6 +603,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_machine(&mut self) -> Result<Machine, ParseError> {
+        let _ = self.consume("for");
         let name = self.expect_identifier()?;
         self.expect("{")?;
 
@@ -607,6 +616,11 @@ impl Parser<'_, '_> {
                 contains.push(self.parse_contains()?);
             } else if self.consume("owns") {
                 owned_data.push(self.parse_owned_data()?);
+            } else if self.consume("pub") {
+                self.expect_callable_keyword()?;
+                states.push(self.parse_state_with_entry_support()?);
+            } else if self.consume_callable_keyword() {
+                states.push(self.parse_state_with_entry_support()?);
             } else if self.consume_state_or_fn_keyword() {
                 states.push(self.parse_state()?);
             } else if self.consume("invariant") {
@@ -660,6 +674,20 @@ impl Parser<'_, '_> {
 
     fn parse_state(&mut self) -> Result<State, ParseError> {
         let name = self.expect_identifier()?;
+        self.parse_named_state_body(name)
+    }
+
+    fn parse_state_with_entry_support(&mut self) -> Result<State, ParseError> {
+        let name = if self.check("(") {
+            Identifier::generated("entry")
+        } else {
+            self.expect_identifier()?
+        };
+
+        self.parse_named_state_body(name)
+    }
+
+    fn parse_named_state_body(&mut self, name: Identifier) -> Result<State, ParseError> {
         let parameters = if self.check("(") {
             self.parse_state_parameters()?
         } else {
@@ -1174,6 +1202,10 @@ impl Parser<'_, '_> {
         self.consume("state") || self.consume("fn")
     }
 
+    fn consume_callable_keyword(&mut self) -> bool {
+        self.consume("entry")
+    }
+
     fn check(&self, lexeme: &str) -> bool {
         self.peek()
             .is_some_and(|token| token.lexeme.as_str() == lexeme)
@@ -1200,6 +1232,14 @@ impl Parser<'_, '_> {
             Ok(())
         } else {
             Err(self.error_here("expected `state` or `fn`"))
+        }
+    }
+
+    fn expect_callable_keyword(&mut self) -> Result<(), ParseError> {
+        if self.consume_callable_keyword() {
+            Ok(())
+        } else {
+            Err(self.error_here("expected `entry`"))
         }
     }
 
@@ -1268,6 +1308,29 @@ impl Parser<'_, '_> {
     }
 }
 
+fn merge_machine_items(items: &mut Vec<Item>) {
+    let mut merged = Vec::with_capacity(items.len());
+
+    for item in items.drain(..) {
+        match item {
+            Item::Machine(machine) => {
+                if let Some(Item::Machine(existing)) = merged.iter_mut().find(|existing_item| {
+                    matches!(existing_item, Item::Machine(existing) if existing.name == machine.name)
+                }) {
+                    existing.contains.extend(machine.contains);
+                    existing.owned_data.extend(machine.owned_data);
+                    existing.states.extend(machine.states);
+                } else {
+                    merged.push(Item::Machine(machine));
+                }
+            }
+            other => merged.push(other),
+        }
+    }
+
+    *items = merged;
+}
+
 fn identifier_from_token(
     file_id: FileId,
     source: Option<&Arc<str>>,
@@ -1302,4 +1365,70 @@ fn binary_expression(left: Expression, operator: BinaryOperator, right: Expressi
         operator,
         right,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_file;
+    use omega_lexer::Lexer;
+
+    #[test]
+    fn parses_machine_for_with_pub_entry_and_merges_blocks() {
+        let tokens = Lexer::new(
+            r#"
+            data Game {
+                seed: u64 = 1337;
+            }
+
+            machine for Game {
+                pub entry new() -> Game {
+                }
+            }
+
+            machine for Game {
+                state ready(&mut self) {
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+
+        assert_eq!(parsed.items.len(), 2);
+
+        let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[1] else {
+            panic!("expected merged machine item");
+        };
+
+        assert_eq!(machine.name, "Game");
+        assert_eq!(machine.states.len(), 2);
+        assert_eq!(machine.states[0].name, "new");
+        assert_eq!(machine.states[1].name, "ready");
+    }
+
+    #[test]
+    fn parses_unnamed_entry_as_entry_state() {
+        let tokens = Lexer::new(
+            r#"
+            machine for main {
+                pub entry(&mut self) -> i32 {
+                    0
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_file(&tokens).expect("parse should succeed");
+
+        let omega_abstract_syntax_tree::item::Item::Machine(machine) = &parsed.items[0] else {
+            panic!("expected machine item");
+        };
+
+        assert_eq!(machine.states.len(), 1);
+        assert_eq!(machine.states[0].name, "entry");
+    }
 }
