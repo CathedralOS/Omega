@@ -33,6 +33,8 @@ pub(super) fn append_leaf_branch_expansions(
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
 ) {
+    let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+
     for edge in edges {
         if edge.lowering != RuntimeBranchTargetLowering::InlineLeaf {
             continue;
@@ -42,7 +44,6 @@ pub(super) fn append_leaf_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
         let leaf_arguments = target_arguments.span_or_empty(edge.target_arguments);
         let bindings = leaf_branch_bindings(
             &branch_bindings,
@@ -86,6 +87,8 @@ pub(super) fn append_straight_line_branch_expansions(
     state_call: &StateCall,
     aliases: &[RuntimeBranchAlias],
 ) {
+    let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+
     for edge in edges {
         if edge.lowering != RuntimeBranchTargetLowering::InlineStraightLine {
             continue;
@@ -98,7 +101,6 @@ pub(super) fn append_straight_line_branch_expansions(
             continue;
         };
 
-        let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
         let target_arguments = target_arguments.span_or_empty(edge.target_arguments);
         let bindings = straight_line_branch_bindings(
             &branch_bindings,
