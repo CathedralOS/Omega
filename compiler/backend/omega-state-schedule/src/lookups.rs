@@ -3,7 +3,7 @@ use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::symbols::SymbolHandle;
 
 pub(super) fn machine_flow<'plan>(
-    context: &'plan StateScheduleContext,
+    context: &StateScheduleContext<'plan>,
     machine_name: &str,
 ) -> Result<&'plan MachineFlow, String> {
     context
@@ -15,10 +15,10 @@ pub(super) fn machine_flow<'plan>(
         .ok_or_else(|| format!("machine `{machine_name}` was not present in the control-flow plan"))
 }
 
-pub(super) fn machine_flow_by_symbol(
-    context: &StateScheduleContext,
+pub(super) fn machine_flow_by_symbol<'plan>(
+    context: &StateScheduleContext<'plan>,
     machine_symbol: SymbolHandle,
-) -> Result<&MachineFlow, String> {
+) -> Result<&'plan MachineFlow, String> {
     context
         .control_flow
         .machines
@@ -34,7 +34,7 @@ pub(super) fn machine_flow_by_symbol(
 }
 
 pub(super) fn state_flow<'plan>(
-    context: &'plan StateScheduleContext,
+    context: &StateScheduleContext<'plan>,
     machine: &MachineFlow,
     state_name: &str,
 ) -> Result<&'plan StateFlow, String> {
@@ -51,10 +51,10 @@ pub(super) fn state_flow<'plan>(
         })
 }
 
-pub(super) fn state_flow_by_key(
-    context: &StateScheduleContext,
+pub(super) fn state_flow_by_key<'plan>(
+    context: &StateScheduleContext<'plan>,
     key: StateKey,
-) -> Result<&StateFlow, String> {
+) -> Result<&'plan StateFlow, String> {
     let machine = machine_flow_by_symbol(context, key.machine)?;
 
     context

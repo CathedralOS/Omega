@@ -16,17 +16,17 @@ use static_values::{
 };
 use transitions::next_state;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateScheduleContext {
-    pub control_flow: ControlFlowPlan,
-    pub host_calls: HostCallPlan,
+#[derive(Debug, Clone, Copy)]
+pub struct StateScheduleContext<'plan> {
+    pub control_flow: &'plan ControlFlowPlan,
+    pub host_calls: &'plan HostCallPlan,
 }
 
-impl StateScheduleContext {
-    pub fn new(control_flow: &ControlFlowPlan, host_calls: &HostCallPlan) -> Self {
+impl<'plan> StateScheduleContext<'plan> {
+    pub fn new(control_flow: &'plan ControlFlowPlan, host_calls: &'plan HostCallPlan) -> Self {
         Self {
-            control_flow: control_flow.clone(),
-            host_calls: host_calls.clone(),
+            control_flow,
+            host_calls,
         }
     }
 }
@@ -57,7 +57,7 @@ pub fn scheduled_state_contains_key(schedule: &[ScheduledState], state_key: Stat
 }
 
 pub fn scheduled_state_flow<'plan>(
-    context: &'plan StateScheduleContext,
+    context: &StateScheduleContext<'plan>,
     scheduled_state: &ScheduledState,
 ) -> Option<&'plan StateFlow> {
     lookups::state_flow_by_key(context, scheduled_state.key).ok()
