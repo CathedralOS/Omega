@@ -34,15 +34,15 @@ pub(super) fn state_call_for_statement<'plan>(
         .map(|(_, state_call)| state_call)
 }
 
-pub(super) fn state_parameters(
-    input: &InstructionSelectionInput<'_>,
+pub(super) fn state_parameters<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
     state_key: StateKey,
-) -> Vec<StateParameterFlow> {
+) -> &'plan [StateParameterFlow] {
     input
         .control_flow
         .state_by_key(state_key)
-        .map(|state| state.parameters.to_vec())
-        .unwrap_or_default()
+        .map(|state| state.parameters.as_slice())
+        .unwrap_or(&[])
 }
 
 pub(super) fn state_operations<'plan>(
