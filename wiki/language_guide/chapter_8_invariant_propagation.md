@@ -9,9 +9,14 @@ fn take_damage(amount: i32[range<1, 100>]) {
     relax self.health {
         self.health -= amount;
 
-        -> revive() when self.health <= 0
-        -> bloodied(amount) when self.health > 25 && amount <= 50
-        -> still_alive()
+        let dead: bool = self.health <= 0;
+        let bloodied_range: bool = self.health > 25 && amount <= 50;
+
+        transition (dead, bloodied_range) {
+            (true, _) -> revive()
+            (false, true) -> bloodied(amount)
+            (false, false) -> still_alive()
+        }
     }
 }
 
@@ -27,10 +32,12 @@ The useful idea is not that `relax` means "anything goes." It means the compiler
 
 Each outgoing transition must account for that debt:
 
-- `-> revive() when self.health <= 0` is valid if `revive` re-establishes `self.health: i32[range<1, 100>]`.
-- `-> bloodied(amount) when self.health > 25 && amount <= 50` is valid only if the guard plus the current proof context implies the target argument bounds.
-- `-> still_alive()` is valid only if the remaining ordered-transition context proves `self.health` is back inside `range<1, 100>` or `still_alive` accepts the weakened invariant.
+- `(true, _) -> revive()` is valid if `revive` re-establishes `self.health: i32[range<1, 100>]`.
+- `(false, true) -> bloodied(amount)` is valid only if the matched facts plus the current proof context imply the target argument bounds.
+- `(false, false) -> still_alive()` is valid only if the matched facts prove `self.health` is back inside `range<1, 100>` or `still_alive` accepts the weakened invariant.
 
-Because transitions are ordered, the final bare transition inherits the negation of earlier guards. In this sketch, `still_alive` sees `self.health > 0` and the negation of the `bloodied` guard if the earlier edges did not fire.
+Tuple transition dispatch makes the partition explicit. In this sketch,
+`still_alive` sees `dead == false` and `bloodied_range == false` because those
+facts are part of the selected arm.
 
 This gives Omega a way to model controlled damage, recovery, saturation, clamping, retry state, and other real programs without pretending every intermediate instruction preserves every invariant.

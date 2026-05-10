@@ -30,20 +30,22 @@ The clamp graph produces an obvious proof shape:
 
 ```omega
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
-    -> min when value < min
-    -> max when value > max
-
-    -> value
+    match (value < min, value > max) {
+        (true, _) -> min
+        (false, true) -> max
+        (false, false) -> value
+    }
 }
 ```
 
-The ordered transitions create a proof partition:
+The match arms create a proof partition:
 
-- If `value < min`, the function completes with `min`.
-- If `value > max`, the function completes with `max`.
-- Otherwise, `value` is only returned when `min <= value <= max`.
+- In the `(true, _)` arm, the compiler knows `value < min`.
+- In the `(false, true)` arm, the compiler knows `value >= min` and `value > max`.
+- In the `(false, false)` arm, the compiler knows `value >= min` and `value <= max`.
 
-The order matters. A later transition inherits the fact that earlier transitions did not fire.
+When a boolean or tuple match becomes hard to read, name the facts before
+matching. The facts become part of the proof context for each arm.
 
 ## Generic Invariants
 
@@ -69,6 +71,65 @@ Important runtime rule:
 - Debug builds or proof artifacts may choose to emit extra validation, but that is instrumentation, not the language's core runtime model.
 
 This keeps invariants as part of the compiler's reasoning system. They describe what must be true, not an object header or dynamic type tag.
+
+## Slices And Proof-Carrying Indices
+
+Owning growable containers and stable indexed views should be distinct.
+
+```omega
+data Inventory {
+    items: Vec<InventoryItem>;
+}
+
+fn find_item(inventory: &Inventory, kind: ItemKind) -> Option<usize> {
+    let items: &[InventoryItem] = inventory.items.as_slice();
+
+    match items.len > 0 {
+        true -> find_item_at(items, kind, 0)
+        false -> None
+    }
+}
+
+fn find_item_at(
+    items: &[InventoryItem],
+    kind: ItemKind,
+    index: IndexOf<items>,
+) -> Option<usize> {
+    let found: bool = items[index].kind == kind;
+    let next_index: usize = index + 1;
+
+    match found {
+        true -> index
+        false -> find_item_after(items, kind, next_index)
+    }
+}
+```
+
+Working interpretation:
+
+- `Vec<T>` owns growable storage.
+- `&[T]` is borrowed slice-view syntax, intentionally close to Rust.
+- `Vec<T>.as_slice()` creates a stable immutable view for the borrow lifetime.
+- `Vec<T>.as_mut_slice()` creates a stable mutable view for the borrow lifetime.
+- `IndexOf<items>` is a proof-carrying index tied to that exact slice view.
+- `items[index]` is a proof-requiring operator. The compiler must prove that
+  `index` is valid for `items`.
+- Literal or computed integers may be coerced into `IndexOf<items>` only when
+  the current proof context establishes they are valid for that view.
+- Slice indexing should not silently add hidden runtime bounds checks as the
+  language model. Debug or proof-instrumented builds may add checks as
+  instrumentation.
+
+This avoids putting arbitrary member paths or function calls inside invariant
+parameters. A function call such as `items.len()` should not appear inside a
+type-level invariant. A stable field on a proof-bearing view, such as
+`items.len`, may be read as ordinary data, while validity of an index is
+represented by `IndexOf<items>`.
+
+`Vec<T>` belongs in the allocation/runtime layer, while slice views and
+proof-carrying indices are core language concepts. Mutation through `Vec<T>`
+may invalidate existing slice views; the borrow system must enforce that an
+active `&[T]` view cannot be invalidated by a conflicting mutable operation.
 
 ## Invariant Aliases
 

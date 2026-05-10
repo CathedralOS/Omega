@@ -9,7 +9,7 @@ What it is trying to prove:
 - room entry is explicit and visible in the state graph
 - level data can be hardcoded without hardcoding traversal logic
 - parent-to-child machine flow can be expressed with nested arrows
-- user input drives ordered transitions
+- user input drives explicit `transition` dispatch
 - invalid input can loop back without hidden branches
 
 Current runtime note:
@@ -20,7 +20,7 @@ Current runtime note:
 - Interactive terminal input is the intended runtime path once `read_line`
   lowering is made safe again.
 
-Current loop:
+Current state cycle:
 
 - enter a room
 - print the current cell, such as `A1`
@@ -39,7 +39,8 @@ Sample layout:
 - `main.omg`: process-level runner
 - `dungeon/`: generic dungeon flow, room movement, and command classification
 - `generation/`: small deterministic dungeon generation
-- `data/`: shared dungeon data
+- `rooms/`, `inventory/`, `events/`, `combat/`, `player/`, `enemies/`,
+  and `rewards/`: domain-owned models plus their behavior
 - `platform/`: console boundary
 
 Build output:

@@ -4,10 +4,11 @@ A function or plain state may accept explicit entry data and declare the value s
 
 ```omega
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
-    -> min when value < min
-    -> max when value > max
-
-    -> value
+    match (value < min, value > max) {
+        (true, _) -> min
+        (false, true) -> max
+        (false, false) -> value
+    }
 }
 ```
 
@@ -15,8 +16,10 @@ Plain states may also be typed when they are part of a function's internal trans
 
 ```omega
 fn fight_rat(player: &mut Player) -> bool {
-    -> defeated() when player.health == 0
-    -> survived()
+    transition player.health == 0 {
+        true -> defeated()
+        false -> survived()
+    }
 }
 
 state defeated() -> bool {

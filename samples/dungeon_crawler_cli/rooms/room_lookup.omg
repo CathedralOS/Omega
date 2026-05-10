@@ -3,35 +3,52 @@ use rooms::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {
+        let rooms: &[Room] = level.rooms.as_slice();
+
         transition level.room_count > 0 {
-            true -> find_room_at(level, cell, out_room, 0)
+            true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
             false -> {}
         }
     }
 
     fn find_room_mut(level: &mut Level, cell: CellId) -> &mut Room {
-        -> find_room_mut_at(level, cell, 0);
+        let rooms: &mut [Room] = level.rooms.as_mut_slice();
+
+        -> find_room_mut_at(rooms, level.room_count, cell, 0);
     }
 
-    state find_room_at(level: Level, cell: CellId, out_room: &mut Room, index: usize) {
-        let found: bool = level.rooms[index].cell == cell;
-        let has_next: bool = index + 1 < level.room_count;
+    state find_room_at(
+        rooms: &[Room],
+        room_count: usize[positive],
+        cell: CellId,
+        out_room: &mut Room,
+        index: IndexOf<rooms>,
+    ) {
+        let found: bool = rooms[index].cell == cell;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < room_count;
 
         transition (found, has_next) {
-            (true, _) -> apply_room(level.rooms[index], out_room)
-            (false, true) -> find_room_at(level, cell, out_room, index + 1)
+            (true, _) -> apply_room(rooms[index], out_room)
+            (false, true) -> find_room_at(rooms, room_count, cell, out_room, next_index)
             (false, false) -> {}
         }
     }
 
-    fn find_room_mut_at(level: &mut Level, cell: CellId, index: usize) -> &mut Room {
-        let found: bool = level.rooms[index].cell == cell;
-        let has_next: bool = index + 1 < level.room_count;
+    fn find_room_mut_at(
+        rooms: &mut [Room],
+        room_count: usize[positive],
+        cell: CellId,
+        index: IndexOf<rooms>,
+    ) -> &mut Room {
+        let found: bool = rooms[index].cell == cell;
+        let next_index: usize = index + 1;
+        let has_next: bool = next_index < room_count;
 
         match (found, has_next) {
-            (true, _) -> &mut level.rooms[index]
-            (false, true) -> find_room_mut_at(level, cell, index + 1)
-            (false, false) -> &mut level.rooms[0]
+            (true, _) -> &mut rooms[index]
+            (false, true) -> find_room_mut_at(rooms, room_count, cell, next_index)
+            (false, false) -> &mut rooms[0]
         }
     }
 

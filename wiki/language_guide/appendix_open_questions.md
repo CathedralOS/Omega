@@ -7,10 +7,12 @@ This page tracks design pressure that is not fully nailed down yet.
 - `const` parameters are compile-time values, proof constants, or both. Omega should use every fact it can soundly know.
 - `&mut self` is acceptable if it is the clearest spelling. The goal is not to be different for the sake of being different.
 - `fn` is the spelling for a frame boundary. Calling a function creates a stack frame and continuation; transitioning to a plain `state` does not.
-- Plain states are graph nodes inside the active function frame. They may take arguments and return-compatible values, but they are reached by `-> state_name(args)`, not by normal call syntax.
-- Terminal value transitions are useful: `-> value` completes the active function frame with a value, while `-> state_name(args)` transitions to a plain state.
+- Plain states are graph nodes inside the active function frame. They may take arguments and return-compatible values, but they are reached by `transition`, not by normal call syntax.
+- Terminal value completion is useful: `-> value` completes the active function frame with a value, while `transition { _ -> state_name(args) }` transitions to a plain state.
 - Relax obligations are compile-time proof obligations. The runtime should not carry hidden invariant state unless a debug/proof artifact explicitly asks for it.
 - Target signatures define the invariants they accept. Either the caller can prove the handoff satisfies the signature, or the transition is illegal.
+- `match` is for value selection. `transition` is for control movement. Conditional transitions name a scrutinee; anonymous `transition { _ -> target }` is only for unconditional jumps.
+- Borrowed slices should use Rust-like `&[T]` / `&mut [T]` surface syntax. `IndexOf<slice>` is the working proof-carrying index type for safe indexing into a stable slice view.
 - The working refinement syntax is `i32[range<1, 100>]` and `i32[range<min, max>]`. Rust has range values, range patterns, and const generics, but it does not have native refined primitive types like this. Omega should use the syntax that makes proof obligations easiest to read.
 - Omega should distinguish proof numbers from machine numbers. `UInt`, `Int`, and `Real` are useful as mathematical/spec types, while `i32`, `u64`, `f32`, and similar types are concrete machine representations with explicit proof obligations.
 - Machine integer arithmetic should probably default to exact/proven semantics. Weaker behavior such as `wrapping`, `trap`, `saturating`, or `checked` should be explicit because each mode changes proof obligations and runtime behavior.
@@ -22,7 +24,7 @@ This page tracks design pressure that is not fully nailed down yet.
 
 ## Still Open
 
-- Can the compiler infer result bounds from ordered transitions without explicit annotations?
+- Can the compiler infer result bounds from `match` and `transition` partitions without explicit annotations?
 - Can relax obligations cross arbitrary transitions, or only transitions to states that opt in?
 - How explicit should weakened machine invariants be in target state signatures?
 - Can typed state clusters suspend across ticks, or must they complete in one scheduling turn?

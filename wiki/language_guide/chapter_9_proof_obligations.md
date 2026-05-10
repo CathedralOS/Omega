@@ -36,7 +36,7 @@ Likely obligations:
 - Every terminal expression of a typed state satisfies the declared return value type.
 - Every transition into a typed state provides compatible arguments.
 - Every typed transition satisfies return value compatibility.
-- Every guarded transition establishes the assumptions needed by its target.
+- Every transition dispatch arm establishes the assumptions needed by its target.
 - Every `relax` scope re-establishes all relaxed invariants before exit.
 - Every transition leaving a `relax` scope either re-establishes the invariant or carries an explicit proof obligation into a compatible target.
 - Every generic invariant is instantiated with compile-time or proof-visible facts.

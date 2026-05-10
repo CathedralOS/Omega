@@ -17,8 +17,10 @@ machine main {
     }
 
     state running() {
+        dungeon.entry();
+
         transition {
-            _ -> dungeon.entry() -> shutdown()
+            _ -> shutdown()
         }
     }
 

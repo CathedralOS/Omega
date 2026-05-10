@@ -33,7 +33,10 @@ state my_state() {
 }
 
 state my_state_with_asm() {
-    -> some_other_state() when self.value > 0
+    transition self.value > 0 {
+        true -> some_other_state()
+        false -> {}
+    }
 
     asm {
         jmp my_state()

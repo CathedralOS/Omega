@@ -6,12 +6,10 @@ The key check is return value compatibility: every reachable terminal completion
 
 ```omega
 fn fib(n: i32) -> i32 {
-    -> n when n <= 1
-
-    left: i32 = fib(n - 1);
-    right: i32 = fib(n - 2);
-
-    -> left + right
+    match n <= 1 {
+        true -> n
+        false -> fib(n - 1) + fib(n - 2)
+    }
 }
 ```
 
@@ -25,8 +23,10 @@ Plain states can participate in the function's return-value graph.
 fn fight_rat(player: &mut Player) -> bool {
     player.health = saturating_sub(player.health, 10);
 
-    -> defeated() when player.health == 0
-    -> survived()
+    transition player.health == 0 {
+        true -> defeated()
+        false -> survived()
+    }
 }
 
 state defeated() -> bool {
@@ -46,7 +46,7 @@ The compatibility checks are:
 - State-transition arguments match the target state's parameters.
 - Terminal value transitions satisfy the active function's return type.
 - Every reachable terminal path in a typed function graph produces the declared return value type.
-- Guarded transitions may add proof assumptions for the target edge, but they do not create caller frames.
+- Transition dispatch arms add proof assumptions for the target edge, but they do not create caller frames.
 
 This is the key distinction from classic functions: return value compatibility is a graph invariant for the active function frame, not a return path between ordinary states.
 
@@ -67,12 +67,16 @@ means terminal completion with `value`.
 means terminal completion with unit/no value.
 
 ```omega
--> state_name(args)
+transition {
+    _ -> state_name(args)
+}
 ```
 
 means transition to a plain state.
 
-State transitions always include parentheses, even when no arguments are passed. That leaves bare values available for terminal completion without requiring `return`.
+State transition targets always include parentheses, even when no arguments are
+passed. That leaves bare values available for terminal completion without
+requiring `return`.
 
 ## Transitioning To Functions
 
@@ -84,7 +88,9 @@ fn helper() -> i32 {
 }
 
 state bad() {
-    -> helper() // illegal: helper is a function, not a plain transition state
+    transition {
+        _ -> helper() // illegal: helper is a function, not a plain transition state
+    }
 }
 ```
 

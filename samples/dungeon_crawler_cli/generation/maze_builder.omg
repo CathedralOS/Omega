@@ -75,30 +75,33 @@ machine MazeBuilder {
     }
 
     fn carve_room(level: &mut Level, random: &mut RandomState, cell: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
-        let index: usize = cell_index(cell);
-        level.rooms[index].cell = cell;
-        level.rooms[index].depth = depth;
-        level.rooms[index].branch = branch_id;
-        level.rooms[index].label = room_label(cell);
-        level.rooms[index].description = room_description(depth, branch_id);
-        level.rooms[index].exit_count = 0;
-        level.rooms[index].discovered = cell == level.start_cell;
-        events.roll_event(depth, random, mut level.rooms[index].event);
+        let rooms: &mut [Room] = level.rooms.as_mut_slice();
+        let index: IndexOf<rooms> = cell_index(cell);
+        rooms[index].cell = cell;
+        rooms[index].depth = depth;
+        rooms[index].branch = branch_id;
+        rooms[index].label = room_label(cell);
+        rooms[index].description = room_description(depth, branch_id);
+        rooms[index].exit_count = 0;
+        rooms[index].discovered = cell == level.start_cell;
+        events.roll_event(depth, random, mut rooms[index].event);
         level.room_count = max(level.room_count, index + 1);
         level.deepest_depth = max(level.deepest_depth, depth);
     }
 
     fn connect(level: &mut Level, from: CellId, to: CellId, direction: Direction) {
-        let from_index: usize = cell_index(from);
-        let to_index: usize = cell_index(to);
+        let rooms: &mut [Room] = level.rooms.as_mut_slice();
+        let from_index: IndexOf<rooms> = cell_index(from);
+        let to_index: IndexOf<rooms> = cell_index(to);
 
-        append_exit(mut level.rooms[from_index], direction_command(direction), direction, to);
-        append_exit(mut level.rooms[to_index], direction_command(opposite(direction)), opposite(direction), from);
+        append_exit(mut rooms[from_index], direction_command(direction), direction, to);
+        append_exit(mut rooms[to_index], direction_command(opposite(direction)), opposite(direction), from);
     }
 
     fn append_exit(room: &mut Room, command: String, direction: Direction, destination: CellId) {
-        let index: usize = room.exit_count;
-        room.exits[index] = Exit { command: command, direction: direction, destination: destination };
+        let exits: &mut [Exit] = room.exits.as_mut_slice();
+        let index: IndexOf<exits> = room.exit_count;
+        exits[index] = Exit { command: command, direction: direction, destination: destination };
         room.exit_count = room.exit_count + 1;
     }
 

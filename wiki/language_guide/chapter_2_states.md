@@ -8,7 +8,9 @@ States execute straight-line work until a transition fires or the state complete
 state running() {
     tick();
 
-    -> running()
+    transition {
+        _ -> running()
+    }
 }
 ```
 
@@ -19,8 +21,9 @@ The important rule:
 - Transitions do not have bodies.
 - Transitions are not function calls.
 - Plain states are not callable by normal call syntax.
-- A transition to a state is written with call-shaped arguments, even when there are none: `-> running()`.
-- Ordered transitions replace local `if` / `else` branching.
+- A transition target is written with call-shaped arguments, even when there are none: `running()`.
+- `transition value { pattern -> target }` replaces local `if` / `else` branching.
+- `transition { _ -> target }` is reserved for unconditional jumps.
 
 States are the explicit stateful parts of the program. They are where debugger UX, proof boundaries, and code generation should line up.
 
@@ -34,20 +37,24 @@ Functions add stack-frame boundaries to this model, but they do not erase the gr
 fn run() {
     setup();
 
-    -> loop()
+    transition {
+        _ -> loop()
+    }
 }
 
 state loop() {
     tick();
 
-    -> loop()
+    transition {
+        _ -> loop()
+    }
 }
 ```
 
 Working interpretation:
 
 - Calling a `fn` creates a frame and a continuation.
-- Transitioning with `->` never creates a frame.
+- Transitioning to a plain state never creates a frame.
 - Plain `state`s can only be reached by transition.
 - Terminal completion from any plain state returns from the active function frame.
 - A function may transition into plain states that form its internal graph.
@@ -64,11 +71,18 @@ This is useful for early exits:
 state loading() {
     read_header();
 
-    -> failed() when header.invalid
+    transition header.invalid {
+        true -> failed()
+        false -> loading_body()
+    }
+}
 
+state loading_body() {
     read_body();
 
-    -> loaded()
+    transition {
+        _ -> loaded()
+    }
 }
 ```
 
@@ -80,14 +94,18 @@ The compiler should decompose the source state into semantic sub-states:
 state loading_0() {
     read_header();
 
-    -> failed() when header.invalid
-    -> loading_1()
+    transition header.invalid {
+        true -> failed()
+        false -> loading_1()
+    }
 }
 
 state loading_1() {
     read_body();
 
-    -> loaded()
+    transition {
+        _ -> loaded()
+    }
 }
 ```
 
@@ -109,10 +127,18 @@ Because a transition ends the current path, stack locals must be accounted for b
 state combat_round() {
     survived: bool = combat.fight_rat(&mut player);
 
-    -> game_over() when !survived
+    transition survived {
+        false -> game_over()
+        true -> continue_exploring()
+    }
+}
 
+state continue_exploring() {
     mode = GameMode::Exploring;
-    -> describe_room()
+
+    transition {
+        _ -> describe_room()
+    }
 }
 ```
 

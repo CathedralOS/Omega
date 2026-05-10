@@ -17,7 +17,7 @@ A dynamic or platform library declaration names the binary interface directly.
 library Kernel32 = "Kernel32.dll" calling_convention winapi {
     fn ReadFile(
         handle: HANDLE<[read]>,
-        buffer: Slice<u8, [writable, initialized]>,
+        buffer: &mut [u8, [writable, initialized]],
         bytes_to_read: usize,
         bytes_read: &mut usize
     ) -> bool
@@ -42,7 +42,7 @@ Anonymous library declarations are allowed when no namespace is needed:
 
 ```omega
 library "libSystem.B.dylib" calling_convention c {
-    fn write(fd: i32, buffer: Slice<u8, [initialized]>, count: usize) -> SyscallResult<usize>
+    fn write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
         symbol "_write"
         trust omega_darwin_libsystem_write
 }
@@ -70,7 +70,7 @@ Linux can expose a target syscall surface directly.
 
 ```omega
 syscalls linux_aarch64 {
-    fn write(fd: i32, buffer: Slice<u8, [initialized]>, count: usize) -> SyscallResult<usize>
+    fn write(fd: i32, buffer: &[u8, [initialized]], count: usize) -> SyscallResult<usize>
         number 64
         trust omega_linux_write
 }
@@ -92,13 +92,14 @@ Imported signatures should lean on invariant-parameterized types rather than
 duplicating normal type facts in ad-hoc `requires` clauses.
 
 ```omega
-Slice<u8, [non_empty, initialized]>
+&[u8, [non_empty, initialized]]
+&mut [u8, [writable, initialized]]
 HANDLE<[process, vm_read]>
 RemotePtr<const u8, [readable_by<process>]>
 ```
 
 The invariant names are resolved in the namespace of the type being
-instantiated. `Slice<u8, [initialized]>` and `HANDLE<[initialized]>` do not
+instantiated. `&[u8, [initialized]]` and `HANDLE<[initialized]>` do not
 have to mean the same thing.
 
 A type can define which invariant parameters it accepts:
@@ -115,6 +116,11 @@ machine Slice<T, I>
     invariant writable = ptr.writable<len>;
 }
 ```
+
+Surface syntax such as `&[T]` and `&mut [T]` is shorthand for borrowed
+proof-bearing slice views. The underlying core type can still be modeled as
+`Slice<T, I>`; users should not need to spell that internal form for ordinary
+borrowed contiguous data.
 
 This sketch needs more design work, but the direction is important:
 

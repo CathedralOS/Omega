@@ -42,18 +42,25 @@ machine RoomFormatter {
 
     fn format_exits(room: Room, out_line: &mut ConsoleLine) {
         out_line.text = "Commands: look | info | exits | inventory | character | use | fight | quit";
+        let exits: &[Exit] = room.exits.as_slice();
 
         transition room.exit_count > 0 {
-            true -> append_exit(room, out_line, 0)
+            true -> append_exit(exits, room.exit_count, out_line, 0)
             false -> {}
         }
     }
 
-    state append_exit(room: Room, out_line: &mut ConsoleLine, index: usize) {
-        out_line.text = out_line.text + " | " + room.exits[index].command;
+    state append_exit(
+        exits: &[Exit],
+        exit_count: usize[positive],
+        out_line: &mut ConsoleLine,
+        index: IndexOf<exits>,
+    ) {
+        out_line.text = out_line.text + " | " + exits[index].command;
+        let next_index: usize = index + 1;
 
-        transition index + 1 < room.exit_count {
-            true -> append_exit(room, out_line, index + 1)
+        transition next_index < exit_count {
+            true -> append_exit(exits, exit_count, out_line, next_index)
             false -> {}
         }
     }
