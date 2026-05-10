@@ -20,7 +20,9 @@ fn main() {
     };
 
     match compile(options) {
-        Ok(_output) => {}
+        Ok(report) => {
+            println!("{}", report.summary());
+        }
         Err(diagnostics) => {
             for diagnostic in diagnostics {
                 eprintln!("{diagnostic}");

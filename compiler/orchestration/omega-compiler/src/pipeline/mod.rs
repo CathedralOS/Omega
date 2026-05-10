@@ -8,5 +8,5 @@ pub mod source_file;
 pub mod source_storage;
 pub mod trust;
 
-pub use compiler::{CompileOutput, compile};
+pub use compiler::{CompileReport, compile};
 pub use compile_options::CompileOptions;

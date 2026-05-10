@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use crate::pipeline::phase_components::{
     BackendPlanner, Emitter, ImportDiscovery, LexerPhase, OutputWriter, ParserPhase, Resolver,
@@ -11,18 +10,28 @@ use crate::pipeline::phase_products::{
 };
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::import_queue::ImportQueue;
-use crate::pipeline::source_file::SourceFile;
 use crate::pipeline::source_storage::SourceStorage;
-use crate::source::SourceMap;
 use omega_core::diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileOutput {
-    pub files: Vec<SourceFile>,
-    pub sources: Arc<SourceMap>,
+pub struct CompileReport {
+    pub root_path: PathBuf,
+    pub source_file_count: usize,
+    pub wrote_output: bool,
 }
 
-pub fn compile(options: CompileOptions) -> Result<CompileOutput, Vec<Diagnostic>> {
+impl CompileReport {
+    pub fn summary(&self) -> String {
+        format!(
+            "compiled {} source file(s) from {}; write_output={}",
+            self.source_file_count,
+            self.root_path.display(),
+            self.wrote_output
+        )
+    }
+}
+
+pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     Compiler::new(options).compile()
 }
 
@@ -66,9 +75,7 @@ impl Compiler {
         }
     }
 
-    pub fn compile(mut self) -> Result<CompileOutput, Vec<Diagnostic>> {
-        self.imports.seed(self.options.root_path.clone());
-
+    pub fn compile(mut self) -> Result<CompileReport, Vec<Diagnostic>> {
         while self.imports.has_pending() {
             let frontier = self.imports.take_frontier();
             let sources = self.source_loader.load(frontier)?;
@@ -91,9 +98,10 @@ impl Compiler {
             self.output_writer.write(emitted)?;
         }
 
-        Ok(CompileOutput {
-            files: self.source_storage.files,
-            sources: Arc::new(self.source_storage.sources),
+        Ok(CompileReport {
+            root_path: self.options.root_path,
+            source_file_count: self.source_storage.files.len(),
+            wrote_output: self.options.write_output,
         })
     }
 }
