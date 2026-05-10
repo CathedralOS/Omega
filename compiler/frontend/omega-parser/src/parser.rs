@@ -1,8 +1,11 @@
 mod expressions;
 mod items;
 mod machines;
+mod syntax;
 
+use crate::ast::AstFile;
 use crate::parse_error::ParseError;
+use crate::syntax::SyntaxFile;
 use omega_abstract_syntax_tree::expression::{
     BinaryExpression, BinaryOperator, CallExpression, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
@@ -24,19 +27,12 @@ use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::source::{FileId, SourceText};
 use omega_lexer::{Token, TokenKind};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AstFile {
-    pub file_id: FileId,
-    pub items: Vec<Item>,
-    pub tables: AstTables,
-}
-
 pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    parse_file_with_id(FileId::default(), tokens)
+    crate::ast::parse_ast_file(tokens)
 }
 
 pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    parse_file_with_optional_source(file_id, tokens)
+    crate::ast::parse_ast_file_with_id(file_id, tokens)
 }
 
 pub fn parse_file_with_source(
@@ -44,10 +40,32 @@ pub fn parse_file_with_source(
     _source: std::sync::Arc<str>,
     tokens: &[Token<'_>],
 ) -> Result<AstFile, ParseError> {
-    parse_file_with_optional_source(file_id, tokens)
+    crate::ast::parse_ast_file_with_source(file_id, _source, tokens)
 }
 
-fn parse_file_with_optional_source(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
+pub fn parse_syntax_file(tokens: &[Token<'_>]) -> Result<SyntaxFile, ParseError> {
+    parse_syntax_file_with_id(FileId::default(), tokens)
+}
+
+pub fn parse_syntax_file_with_id(
+    file_id: FileId,
+    tokens: &[Token<'_>],
+) -> Result<SyntaxFile, ParseError> {
+    syntax::parse_syntax_file_impl(file_id, tokens)
+}
+
+pub fn parse_syntax_file_with_source(
+    file_id: FileId,
+    _source: std::sync::Arc<str>,
+    tokens: &[Token<'_>],
+) -> Result<SyntaxFile, ParseError> {
+    parse_syntax_file_with_id(file_id, tokens)
+}
+
+pub(crate) fn parse_ast_file_impl(
+    file_id: FileId,
+    tokens: &[Token<'_>],
+) -> Result<AstFile, ParseError> {
     Parser {
         file_id,
         tokens,
@@ -406,7 +424,7 @@ fn identifier_is_value_like(identifier: &Identifier) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_file;
+    use super::{parse_file, parse_syntax_file};
     use omega_lexer::Lexer;
 
     #[test]
@@ -570,5 +588,47 @@ mod tests {
 
         assert_eq!(machine.states.len(), 1);
         assert_eq!(machine.states[0].statements.len(), 3);
+    }
+
+    #[test]
+    fn parses_syntax_file_hierarchy_for_machine_body() {
+        let tokens = Lexer::new(
+            r#"
+            data Game {
+                score: i32;
+            }
+
+            machine Game::run -> i32 {
+                pub entry(&mut self) {
+                    transition {
+                        _ -> done()
+                    }
+                }
+
+                state done(&mut self) {
+                    0
+                }
+            }
+            "#,
+        )
+        .tokenize()
+        .expect("tokenization should succeed");
+
+        let parsed = parse_syntax_file(&tokens).expect("syntax parse should succeed");
+        let root = parsed.syntax.nodes.get(parsed.root);
+        assert_eq!(root.kind, crate::syntax::SyntaxKind::File);
+        assert_eq!(parsed.syntax.node_handles.span_or_empty(root.children).len(), 2);
+
+        let machine = parsed
+            .syntax
+            .node_handles
+            .span_or_empty(root.children)
+            .iter()
+            .map(|handle| parsed.syntax.nodes.get(*handle))
+            .find(|node| node.kind == crate::syntax::SyntaxKind::MachineItem)
+            .expect("machine node should exist");
+
+        let machine_children = parsed.syntax.node_handles.span_or_empty(machine.children);
+        assert_eq!(machine_children.len(), 2);
     }
 }
