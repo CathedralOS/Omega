@@ -39,12 +39,17 @@ pub(crate) fn mark_required_state_calls(
             changed |= push_required_state(&mut required_states, call.target_key);
         }
 
-        for state_key in required_states.clone() {
+        let mut required_index = 0;
+        while required_index < required_states.len() {
+            let state_key = required_states[required_index];
+
             for_each_transition_target_from(context, state_key, |target| {
                 if let RuntimeTransitionTarget::State { key, .. } = *target {
                     changed |= push_required_state(&mut required_states, key);
                 }
             });
+
+            required_index += 1;
         }
     }
 

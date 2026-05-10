@@ -53,7 +53,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.reached_states.push(state_key.clone());
         self.active_states.push(state_key.clone());
 
-        let transitions = self
+        let transition_count = self
             .control_flow
             .transitions
             .span(transition_span)
@@ -63,9 +63,22 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                     self.state_key_display(state_key.key)
                 ))
             })?
-            .to_vec();
+            .len();
 
-        for transition in transitions {
+        for transition_index in 0..transition_count {
+            let transition = self
+                .control_flow
+                .transitions
+                .span(transition_span)
+                .and_then(|transitions| transitions.get(transition_index))
+                .cloned()
+                .ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{} has an invalid transition span",
+                        self.state_key_display(state_key.key)
+                    ))
+                })?;
+
             self.visit_transition(&machine, &state_key, &transition)?;
         }
 

@@ -24,14 +24,13 @@ impl RuntimeFlowBuilder<'_> {
             .iter()
             .position(|active_state| active_state == target)
             .unwrap_or(0);
-        let cycle_states = self
-            .active_states
-            .iter()
-            .skip(start_index)
-            .cloned()
-            .chain(std::iter::once(target.clone()))
-            .collect::<Vec<_>>();
-        let states = self.runtime_flow.cycle_states.insert_many(cycle_states);
+        let states = self.runtime_flow.cycle_states.insert_many(
+            self.active_states
+                .iter()
+                .skip(start_index)
+                .cloned()
+                .chain(std::iter::once(target.clone())),
+        );
 
         self.runtime_flow.cycles.insert(RuntimeCycle { states });
     }
