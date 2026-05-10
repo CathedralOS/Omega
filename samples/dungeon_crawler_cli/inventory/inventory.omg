@@ -35,17 +35,18 @@ machine InventorySystem {
     }
 
     fn find_item(inventory: &Inventory, kind: ItemKind) -> Option<usize> {
-        let index: usize = 0;
-
-        loop index < inventory.items.len() {
-            match {
-                inventory.items[index].kind == kind -> index
-                _ -> {}
-            }
-            index = index + 1;
+        match {
+            inventory.items.len() > 0 -> find_item_at(inventory, kind, 0)
+            _ -> None
         }
+    }
 
-        -> None;
+    fn find_item_at(inventory: &Inventory, kind: ItemKind, index: usize) -> Option<usize> {
+        match {
+            inventory.items[index].kind == kind -> index
+            index + 1 < inventory.items.len() -> find_item_at(inventory, kind, index + 1)
+            _ -> None
+        }
     }
 
     fn increment_item(item: &mut InventoryItem, amount: u32[exact, positive]) {

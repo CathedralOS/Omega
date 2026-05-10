@@ -61,14 +61,17 @@ machine CommandParser {
     }
 
     fn find_exit(room: Room, command: String, out_navigation: &mut Navigation) {
-        let index: usize = 0;
+        match {
+            room.exit_count > 0 -> find_exit_at(room, command, out_navigation, 0)
+            _ -> {}
+        }
+    }
 
-        loop index < room.exit_count {
-            match {
-                room.exits[index].command == command -> resolve_move(room.exits[index].destination, out_navigation)
-                _ -> {}
-            }
-            index = index + 1;
+    state find_exit_at(room: Room, command: String, out_navigation: &mut Navigation, index: usize) {
+        match {
+            room.exits[index].command == command -> resolve_move(room.exits[index].destination, out_navigation)
+            index + 1 < room.exit_count -> find_exit_at(room, command, out_navigation, index + 1)
+            _ -> {}
         }
     }
 }

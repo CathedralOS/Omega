@@ -3,29 +3,30 @@ use data::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {
-        let index: usize = 0;
-
-        loop index < level.room_count {
-            match {
-                level.rooms[index].cell == cell -> apply_room(level.rooms[index], out_room)
-                _ -> {}
-            }
-            index = index + 1;
+        match {
+            level.room_count > 0 -> find_room_at(level, cell, out_room, 0)
+            _ -> {}
         }
     }
 
     fn find_room_mut(level: &mut Level, cell: CellId) -> &mut Room {
-        let index: usize = 0;
+        -> find_room_mut_at(level, cell, 0);
+    }
 
-        loop index < level.room_count {
-            match {
-                level.rooms[index].cell == cell -> &mut level.rooms[index]
-                _ -> {}
-            }
-            index = index + 1;
+    state find_room_at(level: Level, cell: CellId, out_room: &mut Room, index: usize) {
+        match {
+            level.rooms[index].cell == cell -> apply_room(level.rooms[index], out_room)
+            index + 1 < level.room_count -> find_room_at(level, cell, out_room, index + 1)
+            _ -> {}
         }
+    }
 
-        -> &mut level.rooms[0];
+    fn find_room_mut_at(level: &mut Level, cell: CellId, index: usize) -> &mut Room {
+        match {
+            level.rooms[index].cell == cell -> &mut level.rooms[index]
+            index + 1 < level.room_count -> find_room_mut_at(level, cell, index + 1)
+            _ -> &mut level.rooms[0]
+        }
     }
 
     state apply_room(room: Room, out_room: &mut Room) {
