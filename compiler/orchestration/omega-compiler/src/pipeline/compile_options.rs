@@ -5,6 +5,7 @@ pub struct CompileOptions {
     pub root_path: PathBuf,
     pub build_dir: Option<PathBuf>,
     pub target_name: Option<String>,
+    pub write_output: bool,
 }
 
 impl CompileOptions {

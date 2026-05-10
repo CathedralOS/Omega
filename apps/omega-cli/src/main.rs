@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use omega_compiler::{CompileOptions, check, compile};
+use omega_compiler::{CompileOptions, compile};
 use omega_core::allocations::CountingAllocator;
 
 #[global_allocator]
@@ -16,33 +16,17 @@ fn main() {
         build_dir: arguments.build_dir,
         root_path: arguments.root_path,
         target_name: arguments.target_name,
+        write_output: !arguments.check_only,
     };
 
-    if arguments.check_only {
-        match check(options) {
-            Ok(output) => {
-                println!("{}", output.summary);
+    match compile(options) {
+        Ok(_output) => {}
+        Err(diagnostics) => {
+            for diagnostic in diagnostics {
+                eprintln!("{diagnostic}");
             }
-            Err(diagnostics) => {
-                for diagnostic in diagnostics {
-                    eprintln!("{diagnostic}");
-                }
 
-                std::process::exit(1);
-            }
-        }
-    } else {
-        match compile(options) {
-            Ok(output) => {
-                println!("{}", output.summary);
-            }
-            Err(diagnostics) => {
-                for diagnostic in diagnostics {
-                    eprintln!("{diagnostic}");
-                }
-
-                std::process::exit(1);
-            }
+            std::process::exit(1);
         }
     };
 }

@@ -5,7 +5,7 @@ pub(crate) use omega_core::source;
 pub(crate) use omega_lexer as lexer;
 pub(crate) use omega_parser as parser;
 
-pub use pipeline::{CheckOutput, CompileOptions, CompileOutput, PhaseTiming, check, compiler};
+pub use pipeline::{CompileOptions, CompileOutput, compile};
 
 #[cfg(test)]
 mod tests;

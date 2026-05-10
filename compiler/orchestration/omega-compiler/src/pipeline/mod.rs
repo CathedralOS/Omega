@@ -5,5 +5,5 @@ pub mod old_bullshit;
 pub mod source_file;
 pub mod trust;
 
-pub use compiler::{CheckOutput, CompileOutput, check, compile};
+pub use compiler::{CompileOutput, compile};
 pub use compile_options::CompileOptions;
