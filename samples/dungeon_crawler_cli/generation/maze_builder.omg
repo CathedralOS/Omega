@@ -12,14 +12,14 @@ data MazeBuilder {
 machine for MazeBuilder {
     fn build(&mut self, seed: u64[wrapping], level: &mut Level) {
         let random: RandomState;
-        self.rng.seed(seed, mut random);
+        self.rng.seed(seed, &mut random);
 
         level.start_cell = CellId::R00;
         level.room_count = 0;
         level.deepest_depth = 0;
 
-        self.carve_room(level, mut random, CellId::R00, 0, 0);
-        self.branch(level, mut random, CellId::R00, 0, 0);
+        self.carve_room(level, &mut random, CellId::R00, 0, 0);
+        self.branch(level, &mut random, CellId::R00, 0, 0);
     }
 
     fn branch(&mut self, level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
@@ -86,7 +86,7 @@ machine for MazeBuilder {
         rooms[index].description = self.room_description(depth, branch_id);
         rooms[index].exit_count = 0;
         rooms[index].discovered = cell == level.start_cell;
-        self.events.roll_event(depth, random, mut rooms[index].event);
+        self.events.roll_event(depth, random, &mut rooms[index].event);
         level.room_count = max(level.room_count, index + 1);
         level.deepest_depth = max(level.deepest_depth, depth);
     }
@@ -96,8 +96,8 @@ machine for MazeBuilder {
         let from_index: IndexOf<rooms> = self.cell_index(from);
         let to_index: IndexOf<rooms> = self.cell_index(to);
 
-        self.append_exit(mut rooms[from_index], self.direction_command(direction), direction, to);
-        self.append_exit(mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
+        self.append_exit(&mut rooms[from_index], self.direction_command(direction), direction, to);
+        self.append_exit(&mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
     }
 
     fn append_exit(&mut self, room: &mut Room, command: String, direction: Direction, destination: CellId) {

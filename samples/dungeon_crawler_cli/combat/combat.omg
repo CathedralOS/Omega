@@ -27,7 +27,7 @@ machine for CombatSystem {
 
     state defeated_enemy(&mut self, player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
         let reward: Reward;
-        self.rewards.roll_enemy_reward(event.enemy, random, mut reward);
+        self.rewards.roll_enemy_reward(event.enemy, random, &mut reward);
         self.player_system.grant_reward(player, reward);
         self.player_system.grant_xp(player, event.enemy.xp_reward);
 

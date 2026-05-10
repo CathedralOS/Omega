@@ -58,18 +58,18 @@ machine for RoomEvents {
     state treasure(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
         event.kind = RoomEventKind::Treasure;
         event.consumed = false;
-        self.rewards.roll_room_treasure(depth, random, mut event.reward);
+        self.rewards.roll_room_treasure(depth, random, &mut event.reward);
     }
 
     state gold_cache(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
         event.kind = RoomEventKind::GoldCache;
         event.consumed = false;
-        self.rewards.roll_gold_cache(depth, random, mut event.reward);
+        self.rewards.roll_gold_cache(depth, random, &mut event.reward);
     }
 
     state enemy(&mut self, depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
         event.kind = RoomEventKind::Enemy;
         event.consumed = false;
-        self.enemies.roll_enemy(depth, random, mut event.enemy);
+        self.enemies.roll_enemy(depth, random, &mut event.enemy);
     }
 }

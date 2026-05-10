@@ -17,19 +17,19 @@ machine for Random {
     }
 
     fn range(&mut self, state: &mut RandomState, exclusive_max: u32[exact, positive]) -> u32[exact, range<0, exclusive_max>] {
-        let raw: u32[wrapping] = self.next_u32(mut state);
+        let raw: u32[wrapping] = self.next_u32(state);
 
         -> raw % exclusive_max;
     }
 
     fn chance(&mut self, state: &mut RandomState, numerator: u32[exact], denominator: u32[exact, positive]) -> bool {
-        let roll: u32[exact, range<0, denominator>] = self.range(mut state, denominator);
+        let roll: u32[exact, range<0, denominator>] = self.range(state, denominator);
 
         -> roll < numerator;
     }
 
     fn unit_real(&mut self, state: &mut RandomState) -> Real[finite, range<0.0, 1.0>] {
-        let raw: u32[wrapping] = self.next_u32(mut state);
+        let raw: u32[wrapping] = self.next_u32(state);
 
         -> Real::from(raw) / Real::from(u32::MAX);
     }

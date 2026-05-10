@@ -60,7 +60,7 @@ machine for CommandParser {
 
     fn resolve_exit(&mut self, level: Level, cell: CellId, line: ConsoleLine, out_navigation: &mut Navigation) {
         let room: Room;
-        self.lookup.find_room(level, cell, mut room);
+        self.lookup.find_room(level, cell, &mut room);
         self.find_exit(room, line.text, out_navigation);
     }
 

@@ -15,7 +15,7 @@ machine for PlayerSystem {
         player.health = player.max_health;
         player.attack = 4;
         player.defense = 1;
-        self.inventory.clear(mut player.inventory);
+        self.inventory.clear(&mut player.inventory);
     }
 
     fn heal(&mut self, player: &mut Player, amount: i32[exact, positive]) {
@@ -29,7 +29,7 @@ machine for PlayerSystem {
     }
 
     fn grant_reward(&mut self, player: &mut Player, reward: Reward) {
-        self.inventory.add_reward(mut player.inventory, reward);
+        self.inventory.add_reward(&mut player.inventory, reward);
     }
 
     fn grant_xp(&mut self, player: &mut Player, amount: u32[exact, non_negative]) {

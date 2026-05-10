@@ -13,25 +13,25 @@ data RoomFormatter {
 machine for RoomFormatter {
     fn write_current_cell(&mut self, level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(level, cell, mut room);
+        self.lookup.find_room(level, cell, &mut room);
         out_line.text = "Room " + room.label + " depth " + room.depth.to_string();
     }
 
     fn write_room_info(&mut self, level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(level, cell, mut room);
+        self.lookup.find_room(level, cell, &mut room);
         out_line.text = room.description;
     }
 
     fn write_room_event(&mut self, level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(level, cell, mut room);
+        self.lookup.find_room(level, cell, &mut room);
         self.events.describe(room, out_line);
     }
 
     fn write_adjacent_rooms(&mut self, level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(level, cell, mut room);
+        self.lookup.find_room(level, cell, &mut room);
         self.format_exits(room, out_line);
     }
 

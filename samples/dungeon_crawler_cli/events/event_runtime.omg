@@ -50,9 +50,9 @@ machine for EventRuntime {
 
     fn use_event(&mut self, player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
         transition (room.event.kind, room.event.consumed) {
-            (RoomEventKind::FountainOfLife, false) -> use_fountain(player, mut room.event, out_line)
-            (RoomEventKind::Treasure, false) -> use_reward(player, mut room.event, out_line)
-            (RoomEventKind::GoldCache, false) -> use_reward(player, mut room.event, out_line)
+            (RoomEventKind::FountainOfLife, false) -> use_fountain(player, &mut room.event, out_line)
+            (RoomEventKind::Treasure, false) -> use_reward(player, &mut room.event, out_line)
+            (RoomEventKind::GoldCache, false) -> use_reward(player, &mut room.event, out_line)
             _ -> no_usable_event(out_line)
         }
     }
@@ -82,7 +82,7 @@ machine for EventRuntime {
 
     state fight_enemy_event(&mut self, player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
 
-        self.combat.fight(player, mut room.event, random, round);
+        self.combat.fight(player, &mut room.event, random, round);
 
         transition (round.player_defeated, round.enemy_defeated) {
             (true, _) -> player_died(out_line)

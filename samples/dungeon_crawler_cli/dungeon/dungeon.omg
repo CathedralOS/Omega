@@ -33,14 +33,14 @@ machine for Dungeon {
 
     fn use_event(&mut self, line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(self.level, self.current_cell, mut room);
-        self.events.use_event(mut self.player, mut room, line);
+        self.lookup.find_room(self.level, self.current_cell, &mut room);
+        self.events.use_event(&mut self.player, &mut room, line);
     }
 
     fn fight(&mut self, line: &mut ConsoleLine) {
         let room: Room;
-        self.lookup.find_room(self.level, self.current_cell, mut room);
-        self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, line);
+        self.lookup.find_room(self.level, self.current_cell, &mut room);
+        self.events.fight_event(&mut self.player, &mut room, &mut self.random, &mut self.combat_round, line);
     }
 
     fn move(&mut self) {
@@ -52,16 +52,16 @@ machine for Dungeon {
     }
 
     fn start(&mut self) {
-        self.rng.seed(1337, mut self.random);
-        self.player_system.create("Wanderer", mut self.player);
-        self.generator.generate(1337, mut self.level);
+        self.rng.seed(1337, &mut self.random);
+        self.player_system.create("Wanderer", &mut self.player);
+        self.generator.generate(1337, &mut self.level);
         self.current_cell = self.level.start_cell;
         self.mode = GameMode::Exploring;
     }
 
     fn mark_current_room_discovered(&mut self) {
         let room: Room;
-        self.lookup.find_room(self.level, self.current_cell, mut room);
+        self.lookup.find_room(self.level, self.current_cell, &mut room);
         room.discovered = true;
     }
 }
