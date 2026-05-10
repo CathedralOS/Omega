@@ -33,14 +33,12 @@ machine RewardTables::roll_room_treasure {
         let is_ember_blade: bool = depth >= 5 && roll < 96;
         let is_deep_key: bool = depth >= 8;
 
-        match (is_early_dagger, is_early_buckler, is_healing_charm, is_ember_blade, is_deep_key) {
-            (true, _, _, _, _) -> ItemKind::RustedDagger
-            (false, true, _, _, _) -> ItemKind::CrackedBuckler
-            (false, false, true, _, _) -> ItemKind::HealingCharm
-            (false, false, false, true, _) -> ItemKind::EmberBlade
-            (false, false, false, false, true) -> ItemKind::DeepKey
-            _ -> ItemKind::RustedDagger
-        }
+        -> ItemKind::RustedDagger when is_early_dagger;
+        -> ItemKind::CrackedBuckler when is_early_buckler;
+        -> ItemKind::HealingCharm when is_healing_charm;
+        -> ItemKind::EmberBlade when is_ember_blade;
+        -> ItemKind::DeepKey when is_deep_key;
+        -> ItemKind::RustedDagger;
     }
 }
 
@@ -105,13 +103,11 @@ machine RewardTables::roll_enemy_reward {
         let is_ember_blade: bool = depth >= 5 && roll < 96;
         let is_deep_key: bool = depth >= 8;
 
-        match (is_early_dagger, is_early_buckler, is_healing_charm, is_ember_blade, is_deep_key) {
-            (true, _, _, _, _) -> ItemKind::RustedDagger
-            (false, true, _, _, _) -> ItemKind::CrackedBuckler
-            (false, false, true, _, _) -> ItemKind::HealingCharm
-            (false, false, false, true, _) -> ItemKind::EmberBlade
-            (false, false, false, false, true) -> ItemKind::DeepKey
-            _ -> ItemKind::RustedDagger
-        }
+        -> ItemKind::RustedDagger when is_early_dagger;
+        -> ItemKind::CrackedBuckler when is_early_buckler;
+        -> ItemKind::HealingCharm when is_healing_charm;
+        -> ItemKind::EmberBlade when is_ember_blade;
+        -> ItemKind::DeepKey when is_deep_key;
+        -> ItemKind::RustedDagger;
     }
 }

@@ -951,6 +951,21 @@ impl Parser<'_, '_> {
             path.push(self.expect_identifier()?);
         }
 
+        if self.check("{") && path.len() == 1 {
+            let expression = self.parse_struct_literal(
+                path.into_iter()
+                    .next()
+                    .expect("struct literal type path should have one member"),
+            )?;
+
+            if self.check("}") {
+                return Ok(Statement::Expression(expression));
+            }
+
+            self.expect(";")?;
+            return Ok(Statement::Expression(expression));
+        }
+
         if self.consume("=") {
             let value = self.parse_expression()?;
             self.expect(";")?;
@@ -1016,6 +1031,10 @@ impl Parser<'_, '_> {
                 arguments.push(self.parse_expression()?);
 
                 if !self.consume(",") {
+                    break;
+                }
+
+                if self.check(")") {
                     break;
                 }
             }
@@ -1269,17 +1288,18 @@ impl Parser<'_, '_> {
                     index,
                 }));
             } else if self.consume(".") {
-                let name = self.expect_identifier()?;
+                let member = self.expect_identifier()?;
                 expression = match expression {
                     Expression::Name(mut path) => {
-                        path.push(name);
+                        path.push(member);
                         Expression::Name(path)
                     }
-                    _ => {
-                        return Err(self.error_here(
-                            "field access after a complex expression is not supported yet",
-                        ));
-                    }
+                    other => Expression::Member(Box::new(
+                        omega_abstract_syntax_tree::expression::MemberExpression {
+                            receiver: other,
+                            member,
+                        },
+                    )),
                 };
             } else {
                 break;

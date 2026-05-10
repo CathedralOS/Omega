@@ -36,12 +36,10 @@ machine RoomEvents::roll_event {
         let is_fountain: bool = roll < 30;
         let is_reward: bool = roll < 60;
 
-        match (is_quiet, is_fountain, is_reward) {
-            (true, _, _) -> RoomEventAction::Quiet
-            (false, true, _) -> RoomEventAction::Fountain
-            (false, false, true) -> RoomEventAction::Reward
-            _ -> RoomEventAction::Enemy
-        }
+        -> RoomEventAction::Quiet when is_quiet;
+        -> RoomEventAction::Fountain when is_fountain;
+        -> RoomEventAction::Reward when is_reward;
+        -> RoomEventAction::Enemy;
     }
 
     state reward_event(

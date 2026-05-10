@@ -35,17 +35,13 @@ machine MazeBuilder::build {
         branch_id: u32[exact, non_negative]
     ) {
         let next_depth: u32[exact, non_negative] = depth + 1;
+        let carve_north_path: bool = self.should_carve(random, next_depth);
+        let carve_east_path: bool = self.should_carve(random, next_depth);
+        let carve_west_path: bool = self.should_carve(random, next_depth);
 
-        transition (
-            self.should_carve(random, next_depth),
-            self.should_carve(random, next_depth),
-            self.should_carve(random, next_depth)
-        ) {
-            (true, _, _) -> carve_north(level, random, from, next_depth, branch_id)
-            (false, true, _) -> carve_east(level, random, from, next_depth, branch_id + 1)
-            (false, false, true) -> carve_west(level, random, from, next_depth, branch_id + 2)
-            _ -> {}
-        }
+        -> carve_north(level, random, from, next_depth, branch_id) when carve_north_path;
+        -> carve_east(level, random, from, next_depth, branch_id + 1) when carve_east_path;
+        -> carve_west(level, random, from, next_depth, branch_id + 2) when carve_west_path;
     }
 
     state carve_north(
@@ -166,57 +162,51 @@ machine MazeBuilder::build {
         &mut self,
         level: Level
     ) -> CellId {
-        match level.room_count {
-            1 -> CellId::R01
-            2 -> CellId::R02
-            3 -> CellId::R03
-            4 -> CellId::R04
-            5 -> CellId::R05
-            6 -> CellId::R06
-            7 -> CellId::R07
-            8 -> CellId::R08
-            9 -> CellId::R09
-            10 -> CellId::R10
-            11 -> CellId::R11
-            12 -> CellId::R12
-            13 -> CellId::R13
-            14 -> CellId::R14
-            _ -> CellId::R15
-        }
+        -> CellId::R01 when level.room_count == 1;
+        -> CellId::R02 when level.room_count == 2;
+        -> CellId::R03 when level.room_count == 3;
+        -> CellId::R04 when level.room_count == 4;
+        -> CellId::R05 when level.room_count == 5;
+        -> CellId::R06 when level.room_count == 6;
+        -> CellId::R07 when level.room_count == 7;
+        -> CellId::R08 when level.room_count == 8;
+        -> CellId::R09 when level.room_count == 9;
+        -> CellId::R10 when level.room_count == 10;
+        -> CellId::R11 when level.room_count == 11;
+        -> CellId::R12 when level.room_count == 12;
+        -> CellId::R13 when level.room_count == 13;
+        -> CellId::R14 when level.room_count == 14;
+        -> CellId::R15;
     }
 
     fn cell_index(
         &mut self,
         cell: CellId
     ) -> usize {
-        match cell {
-            CellId::R00 -> 0
-            CellId::R01 -> 1
-            CellId::R02 -> 2
-            CellId::R03 -> 3
-            CellId::R04 -> 4
-            CellId::R05 -> 5
-            CellId::R06 -> 6
-            CellId::R07 -> 7
-            CellId::R08 -> 8
-            CellId::R09 -> 9
-            CellId::R10 -> 10
-            CellId::R11 -> 11
-            CellId::R12 -> 12
-            CellId::R13 -> 13
-            CellId::R14 -> 14
-            _ -> 15
-        }
+        -> 0 when cell == CellId::R00;
+        -> 1 when cell == CellId::R01;
+        -> 2 when cell == CellId::R02;
+        -> 3 when cell == CellId::R03;
+        -> 4 when cell == CellId::R04;
+        -> 5 when cell == CellId::R05;
+        -> 6 when cell == CellId::R06;
+        -> 7 when cell == CellId::R07;
+        -> 8 when cell == CellId::R08;
+        -> 9 when cell == CellId::R09;
+        -> 10 when cell == CellId::R10;
+        -> 11 when cell == CellId::R11;
+        -> 12 when cell == CellId::R12;
+        -> 13 when cell == CellId::R13;
+        -> 14 when cell == CellId::R14;
+        -> 15;
     }
 
     fn room_label(
         &mut self,
         cell: CellId
     ) -> String {
-        match cell {
-            CellId::R00 -> "Gate"
-            _ -> "Branch Room"
-        }
+        -> "Gate" when cell == CellId::R00;
+        -> "Branch Room";
     }
 
     fn room_description(
@@ -231,23 +221,19 @@ machine MazeBuilder::build {
         &mut self,
         direction: Direction
     ) -> String {
-        match direction {
-            Direction::North -> "north"
-            Direction::South -> "south"
-            Direction::East -> "east"
-            Direction::West -> "west"
-        }
+        -> "north" when direction == Direction::North;
+        -> "south" when direction == Direction::South;
+        -> "east" when direction == Direction::East;
+        -> "west";
     }
 
     fn opposite(
         &mut self,
         direction: Direction
     ) -> Direction {
-        match direction {
-            Direction::North -> Direction::South
-            Direction::South -> Direction::North
-            Direction::East -> Direction::West
-            Direction::West -> Direction::East
-        }
+        -> Direction::South when direction == Direction::North;
+        -> Direction::North when direction == Direction::South;
+        -> Direction::West when direction == Direction::East;
+        -> Direction::East;
     }
 }

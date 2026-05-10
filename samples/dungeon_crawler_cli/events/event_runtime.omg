@@ -23,13 +23,11 @@ machine EventRuntime::describe {
         room: Room,
         out_line: &mut ConsoleLine
     ) {
-        transition (room.event.kind, room.event.consumed) {
-            (RoomEventKind::FountainOfLife, false) -> describe_fountain(out_line)
-            (RoomEventKind::Treasure, false) -> describe_treasure(out_line)
-            (RoomEventKind::GoldCache, false) -> describe_gold(out_line)
-            (RoomEventKind::Enemy, false) -> describe_enemy(room.event.enemy, out_line)
-            _ -> quiet_room(out_line)
-        }
+        -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
+        -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
+        -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
+        -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
+        -> quiet_room(out_line);
     }
 
     state describe_fountain(
@@ -76,12 +74,10 @@ machine EventRuntime::use_event {
         room: &mut Room,
         out_line: &mut ConsoleLine
     ) {
-        transition (room.event.kind, room.event.consumed) {
-            (RoomEventKind::FountainOfLife, false) -> use_fountain(player, &mut room.event, out_line)
-            (RoomEventKind::Treasure, false) -> use_reward(player, &mut room.event, out_line)
-            (RoomEventKind::GoldCache, false) -> use_reward(player, &mut room.event, out_line)
-            _ -> no_usable_event(out_line)
-        }
+        -> use_fountain(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false;
+        -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && room.event.consumed == false;
+        -> use_reward(player, &mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false;
+        -> no_usable_event(out_line);
     }
 
     state use_fountain(
@@ -123,10 +119,8 @@ machine EventRuntime::fight_event {
         round: &mut CombatRound,
         out_line: &mut ConsoleLine
     ) {
-        transition (room.event.kind, room.event.consumed) {
-            (RoomEventKind::Enemy, false) -> fight_enemy_event(player, room, random, round, out_line)
-            _ -> no_enemy(out_line)
-        }
+        -> fight_enemy_event(player, room, random, round, out_line) when room.event.kind == RoomEventKind::Enemy && room.event.consumed == false;
+        -> no_enemy(out_line);
     }
 
     state fight_enemy_event(
@@ -139,11 +133,9 @@ machine EventRuntime::fight_event {
     ) {
         self.combat.fight(player, &mut room.event, random, round);
 
-        transition (round.player_defeated, round.enemy_defeated) {
-            (true, _) -> player_died(out_line)
-            (false, true) -> enemy_died(room.event.reward, out_line)
-            (false, false) -> exchange_blows(round, out_line)
-        }
+        -> player_died(out_line) when round.player_defeated;
+        -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
+        -> exchange_blows(round, out_line);
     }
 
     state no_enemy(

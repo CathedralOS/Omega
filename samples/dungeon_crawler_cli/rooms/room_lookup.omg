@@ -31,11 +31,8 @@ machine RoomLookup::find_room {
         let next_index: usize = index + 1;
         let has_next: bool = next_index < room_count;
 
-        transition (found, has_next) {
-            (true, _) -> apply_room(rooms[index], out_room)
-            (false, true) -> find_room_at(rooms, room_count, cell, out_room, next_index)
-            (false, false) -> {}
-        }
+        -> apply_room(rooms[index], out_room) when found;
+        -> find_room_at(rooms, room_count, cell, out_room, next_index) when has_next;
     }
 
     state apply_room(
@@ -69,10 +66,8 @@ machine RoomLookup::find_room_mut -> &mut Room {
         let next_index: usize = index + 1;
         let has_next: bool = next_index < room_count;
 
-        match (found, has_next) {
-            (true, _) -> &mut rooms[index]
-            (false, true) -> self.find_room_mut_at(rooms, room_count, cell, next_index)
-            (false, false) -> &mut rooms[0]
-        }
+        -> &mut rooms[index] when found;
+        -> self.find_room_mut_at(rooms, room_count, cell, next_index) when has_next;
+        -> &mut rooms[0];
     }
 }

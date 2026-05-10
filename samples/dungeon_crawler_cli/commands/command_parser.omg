@@ -16,30 +16,26 @@ machine CommandParser::resolve_navigation -> Navigation {
     ) {
         let choice: NavigationChoice = self.resolve_command(line);
 
-        match choice {
-            NavigationChoice::Invalid -> self.resolve_exit(level, cell, line)
-            _ -> self.navigation(choice, CellId::Empty)
-        }
+        -> self.resolve_exit(level, cell, line) when choice == NavigationChoice::Invalid;
+        -> self.navigation(choice, CellId::Empty);
     }
 
     fn resolve_command(
         &mut self,
         line: &ConsoleLine
     ) -> NavigationChoice {
-        match line.text {
-            "quit" -> NavigationChoice::Quit
-            "look" -> NavigationChoice::Look
-            "info" -> NavigationChoice::Look
-            "exits" -> NavigationChoice::Exits
-            "help" -> NavigationChoice::Exits
-            "inventory" -> NavigationChoice::Inventory
-            "inv" -> NavigationChoice::Inventory
-            "character" -> NavigationChoice::Character
-            "stats" -> NavigationChoice::Character
-            "use" -> NavigationChoice::UseFountain
-            "fight" -> NavigationChoice::Fight
-            _ -> NavigationChoice::Invalid
-        }
+        -> NavigationChoice::Quit when line.text == "quit";
+        -> NavigationChoice::Look when line.text == "look";
+        -> NavigationChoice::Look when line.text == "info";
+        -> NavigationChoice::Exits when line.text == "exits";
+        -> NavigationChoice::Exits when line.text == "help";
+        -> NavigationChoice::Inventory when line.text == "inventory";
+        -> NavigationChoice::Inventory when line.text == "inv";
+        -> NavigationChoice::Character when line.text == "character";
+        -> NavigationChoice::Character when line.text == "stats";
+        -> NavigationChoice::UseFountain when line.text == "use";
+        -> NavigationChoice::Fight when line.text == "fight";
+        -> NavigationChoice::Invalid;
     }
 
     fn resolve_exit(
@@ -77,11 +73,9 @@ machine CommandParser::resolve_navigation -> Navigation {
         let next_index: usize = index + 1;
         let has_next: bool = next_index < exit_count;
 
-        match (found, has_next) {
-            (true, _) -> self.navigation(NavigationChoice::Move, exits[index].destination)
-            (false, true) -> self.find_exit_at(exits, exit_count, command, next_index)
-            (false, false) -> self.invalid_navigation()
-        }
+        -> self.navigation(NavigationChoice::Move, exits[index].destination) when found;
+        -> self.find_exit_at(exits, exit_count, command, next_index) when has_next;
+        -> self.invalid_navigation();
     }
 
     fn invalid_navigation(&mut self) -> Navigation {
@@ -93,6 +87,6 @@ machine CommandParser::resolve_navigation -> Navigation {
         choice: NavigationChoice,
         destination: CellId
     ) -> Navigation {
-        -> Navigation { choice: choice, destination: destination };
+        Navigation { choice: choice, destination: destination }
     }
 }
