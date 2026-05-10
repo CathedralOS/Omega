@@ -56,10 +56,8 @@ pub fn build_runtime_storage_plan_with_workers(
                 .iter()
                 .map(|(_, frame_slot)| frame_slot.clone()),
         );
-        let writes = body_plan
-            .writes
-            .iter()
-            .map(|(_, write)| RuntimeStorageWrite {
+        for (_, write) in body_plan.writes.iter() {
+            plan.writes.append(RuntimeStorageWrite {
                 target: plan
                     .expressions
                     .copy_from(&body_plan.expressions, write.target),
@@ -67,9 +65,8 @@ pub fn build_runtime_storage_plan_with_workers(
                     .expressions
                     .copy_from(&body_plan.expressions, write.value),
                 ..write.clone()
-            })
-            .collect::<Vec<_>>();
-        plan.writes.insert_many(writes);
+            });
+        }
     }
 
     plan
