@@ -68,8 +68,10 @@ pub fn build_runtime_branching_call_plan(
                 state_call.target_key,
                 &mut plan.expressions,
                 &mut plan.target_arguments,
+                &mut plan.edges,
             );
-            let expansion = classify_branch_call_expansion(&branch_edges);
+            let branch_edges_slice = plan.edges.span_or_empty(branch_edges);
+            let expansion = classify_branch_call_expansion(branch_edges_slice);
             if matches!(
                 expansion,
                 RuntimeBranchCallExpansion::GuardedLeaf
@@ -78,12 +80,16 @@ pub fn build_runtime_branching_call_plan(
             ) {
                 append_leaf_branch_expansions(
                     context,
-                    &mut plan,
+                    &mut plan.expressions,
+                    &plan.target_arguments,
+                    &mut plan.leaf_expansions,
+                    &mut plan.leaf_bindings,
+                    &mut plan.leaf_operations,
                     operation.source_key,
                     *target_key,
                     operation.statement_index,
                     body.dispatch_index,
-                    &branch_edges,
+                    branch_edges_slice,
                     state_call,
                     &aliases,
                 );
@@ -91,17 +97,20 @@ pub fn build_runtime_branching_call_plan(
             if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
                 append_straight_line_branch_expansions(
                     context,
-                    &mut plan,
+                    &mut plan.expressions,
+                    &plan.target_arguments,
+                    &mut plan.straight_line_expansions,
+                    &mut plan.straight_line_bindings,
+                    &mut plan.straight_line_operations,
                     operation.source_key,
                     *target_key,
                     operation.statement_index,
                     body.dispatch_index,
-                    &branch_edges,
+                    branch_edges_slice,
                     state_call,
                     &aliases,
                 );
             }
-            let edges = plan.edges.insert_many(branch_edges);
             plan.calls.insert(RuntimeBranchingCall {
                 dispatch_index: body.dispatch_index,
                 source_key: operation.source_key,
@@ -109,7 +118,7 @@ pub fn build_runtime_branching_call_plan(
                 target_key: state_call.target_key,
                 argument_count: *argument_count,
                 expansion,
-                edges,
+                edges: branch_edges,
             });
             bind_runtime_branch_aliases(context, &mut plan.expressions, &mut aliases, state_call);
         }

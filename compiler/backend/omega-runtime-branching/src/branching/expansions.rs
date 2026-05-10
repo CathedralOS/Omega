@@ -5,10 +5,10 @@ use super::aliases::{
 use super::lookups::state_parameters;
 use super::operations::{leaf_operations, straight_line_operations};
 use super::{
-    RuntimeBranchTargetLowering, RuntimeBranchingCallEdge, RuntimeBranchingCallPlan,
-    RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion,
+    RuntimeBranchTargetLowering, RuntimeBranchingCallEdge, RuntimeLeafBranchBinding,
+    RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
-    RuntimeStraightLineBranchExpansion,
+    RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
 };
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
@@ -20,7 +20,11 @@ use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(
     context: &RuntimeBranchingContext,
-    plan: &mut RuntimeBranchingCallPlan,
+    expressions: &mut ExpressionTable,
+    target_arguments: &Arena<ExpressionHandle>,
+    leaf_expansions: &mut Arena<RuntimeLeafBranchExpansion>,
+    leaf_bindings: &mut Arena<RuntimeLeafBranchBinding>,
+    leaf_operations_arena: &mut Arena<RuntimeLeafBranchOperation>,
     source_key: StateKey,
     branch_key: StateKey,
     statement_index: usize,
@@ -38,32 +42,26 @@ pub(super) fn append_leaf_branch_expansions(
             continue;
         };
 
-        let branch_bindings =
-            branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
-        let leaf_arguments = plan.target_arguments.span_or_empty(edge.target_arguments);
+        let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+        let leaf_arguments = target_arguments.span_or_empty(edge.target_arguments);
         let bindings = leaf_branch_bindings(
             &branch_bindings,
             context,
             *leaf_key,
-            &mut plan.expressions,
-            &mut plan.leaf_bindings,
+            expressions,
+            leaf_bindings,
             leaf_arguments,
         );
-        let operations = leaf_operations(
-            context,
-            &mut plan.expressions,
-            &mut plan.leaf_operations,
-            *leaf_key,
-        );
+        let operations = leaf_operations(context, expressions, leaf_operations_arena, *leaf_key);
 
-        plan.leaf_expansions.insert(RuntimeLeafBranchExpansion {
+        leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
             source_key,
             statement_index,
             branch_key,
             edge_order: edge.order,
             guard: edge.guard.clone(),
-            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, &plan.expressions),
+            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, expressions),
             guard_kind: edge.guard_kind,
             leaf_key: *leaf_key,
             bindings,
@@ -75,7 +73,11 @@ pub(super) fn append_leaf_branch_expansions(
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_straight_line_branch_expansions(
     context: &RuntimeBranchingContext,
-    plan: &mut RuntimeBranchingCallPlan,
+    expressions: &mut ExpressionTable,
+    target_arguments: &Arena<ExpressionHandle>,
+    straight_line_expansions: &mut Arena<RuntimeStraightLineBranchExpansion>,
+    straight_line_bindings_arena: &mut Arena<RuntimeStraightLineBranchBinding>,
+    straight_line_operations_arena: &mut Arena<RuntimeStraightLineBranchOperation>,
     source_key: StateKey,
     branch_key: StateKey,
     statement_index: usize,
@@ -96,42 +98,36 @@ pub(super) fn append_straight_line_branch_expansions(
             continue;
         };
 
-        let branch_bindings =
-            branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
-        let target_arguments = plan.target_arguments.span_or_empty(edge.target_arguments);
+        let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+        let target_arguments = target_arguments.span_or_empty(edge.target_arguments);
         let bindings = straight_line_branch_bindings(
             &branch_bindings,
             context,
             *target_key,
-            &mut plan.expressions,
-            &mut plan.straight_line_bindings,
+            expressions,
+            straight_line_bindings_arena,
             target_arguments,
         );
         let operations = straight_line_operations(
             context,
-            &mut plan.expressions,
-            &mut plan.straight_line_operations,
+            expressions,
+            straight_line_operations_arena,
             *target_key,
         );
 
-        plan.straight_line_expansions
-            .insert(RuntimeStraightLineBranchExpansion {
-                dispatch_index,
-                source_key,
-                statement_index,
-                branch_key,
-                target_key: *target_key,
-                edge_order: edge.order,
-                guard: edge.guard.clone(),
-                resolved_guard: resolve_branch_guard(
-                    &edge.guard,
-                    &branch_bindings,
-                    &plan.expressions,
-                ),
-                guard_kind: edge.guard_kind,
-                bindings,
-                operations,
-            });
+        straight_line_expansions.insert(RuntimeStraightLineBranchExpansion {
+            dispatch_index,
+            source_key,
+            statement_index,
+            branch_key,
+            target_key: *target_key,
+            edge_order: edge.order,
+            guard: edge.guard.clone(),
+            resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, expressions),
+            guard_kind: edge.guard_kind,
+            bindings,
+            operations,
+        });
     }
 }
 
