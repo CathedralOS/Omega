@@ -15,6 +15,9 @@ pub enum TypeReference {
         element_type: Box<TypeReference>,
         length: usize,
     },
+    Slice {
+        element_type: Box<TypeReference>,
+    },
     Generic {
         base_symbol: SymbolHandle,
         base_name: ProgramName,
@@ -171,6 +174,10 @@ impl TypeReferenceTable {
                     length: *length,
                 })
             }
+            TypeReference::Slice { element_type } => {
+                let element_type = self.insert_tree(element_type, expressions, source_constraints);
+                self.insert(TypeReferenceNode::Slice { element_type })
+            }
             TypeReference::Generic {
                 base_symbol,
                 base_name,
@@ -211,6 +218,9 @@ pub enum TypeReferenceNode {
     FixedArray {
         element_type: TypeReferenceHandle,
         length: usize,
+    },
+    Slice {
+        element_type: TypeReferenceHandle,
     },
     Generic {
         base_symbol: SymbolHandle,
@@ -309,6 +319,9 @@ impl TypeReference {
             } => {
                 format!("[{}; {}]", element_type.display_name(), length)
             }
+            TypeReference::Slice { element_type } => {
+                format!("[{}]", element_type.display_name())
+            }
             TypeReference::Generic {
                 base_name,
                 arguments,
@@ -348,6 +361,9 @@ impl TypeReference {
                     length
                 )
             }
+            TypeReference::Slice { element_type } => {
+                format!("[{}]", element_type.display_name_with_constraints(type_constraints))
+            }
             TypeReference::Generic {
                 base_name,
                 arguments,
@@ -368,6 +384,7 @@ impl TypeReference {
             TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
             TypeReference::FixedArray { .. }
+            | TypeReference::Slice { .. }
             | TypeReference::Generic { .. }
             | TypeReference::Unit => None,
         }

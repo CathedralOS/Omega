@@ -185,6 +185,9 @@ fn count_type_reference_node(
         TypeReferenceNode::FixedArray { element_type, .. } => {
             count_type_reference_handle(table, *element_type, counts);
         }
+        TypeReferenceNode::Slice { element_type } => {
+            count_type_reference_handle(table, *element_type, counts);
+        }
         TypeReferenceNode::Generic {
             base_name,
             arguments,
@@ -270,6 +273,10 @@ fn count_expression_node(
             count_expression_handle(table, indexed.index, counts);
         }
         ExpressionNode::Mutable(expression) => count_expression_handle(table, *expression, counts),
+        ExpressionNode::Member(member) => {
+            count_expression_handle(table, member.receiver, counts);
+            count_expression_path_member(&member.member, counts);
+        }
         ExpressionNode::Name(path) => {
             for name in table.name_path_members(path.members) {
                 count_expression_path_member(name, counts);
@@ -316,6 +323,10 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
             count_expression(&indexed.collection, counts);
             count_expression(&indexed.index, counts);
         }
+        Expression::Member(member) => {
+            count_expression(&member.receiver, counts);
+            count_expression_path_member(&member.member, counts);
+        }
         Expression::Mutable(expression) => count_expression(expression, counts),
         Expression::Name(path) => {
             for name in path.members() {
@@ -352,6 +363,9 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentitySto
     match type_reference {
         TypeReference::Constrained { base_type, .. } => count_type_reference(base_type, counts),
         TypeReference::FixedArray { element_type, .. } => {
+            count_type_reference(element_type, counts);
+        }
+        TypeReference::Slice { element_type } => {
             count_type_reference(element_type, counts);
         }
         TypeReference::Generic {

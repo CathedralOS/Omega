@@ -513,6 +513,11 @@ impl Parser<'_, '_> {
     }
 
     fn parse_type_reference(&mut self) -> Result<TypeReference, ParseError> {
+        if self.consume("&") {
+            let _ = self.consume("mut");
+            return self.parse_type_reference();
+        }
+
         if self.consume("(") {
             self.expect(")")?;
 
@@ -521,13 +526,20 @@ impl Parser<'_, '_> {
 
         if self.consume("[") {
             let element_type = self.parse_type_reference()?;
-            self.expect(";")?;
-            let length = self.expect_integer_literal()?;
+            if self.consume(";") {
+                let length = self.expect_integer_literal()?;
+                self.expect("]")?;
+
+                return Ok(TypeReference::FixedArray {
+                    element_type: Box::new(element_type),
+                    length,
+                });
+            }
+
             self.expect("]")?;
 
-            return Ok(TypeReference::FixedArray {
+            return Ok(TypeReference::Slice {
                 element_type: Box::new(element_type),
-                length,
             });
         }
 
@@ -1146,11 +1158,19 @@ impl Parser<'_, '_> {
                         target: member,
                         arguments,
                     }));
-                } else if let Expression::Name(mut path) = expression {
-                    path.push(member);
-                    expression = Expression::Name(path);
                 } else {
-                    return Err(self.error_here("expected call after member access"));
+                    expression = match expression {
+                        Expression::Name(mut path) => {
+                            path.push(member);
+                            Expression::Name(path)
+                        }
+                        other => Expression::Member(Box::new(
+                            omega_abstract_syntax_tree::expression::MemberExpression {
+                                receiver: other,
+                                member,
+                            },
+                        )),
+                    };
                 }
 
                 continue;

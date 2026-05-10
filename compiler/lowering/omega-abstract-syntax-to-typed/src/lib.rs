@@ -10,7 +10,7 @@ use omega_typed_program::Program;
 use omega_typed_program::data::{DataDefinition, DataField, DataMember, DataVariant};
 use omega_typed_program::expression::{
     BinaryExpression, BinaryOperator, CallExpression, Expression, FloatLiteral,
-    IndexedExpression, NamePath, StructLiteral, StructLiteralField,
+    IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField,
 };
 use omega_typed_program::invariant::InvariantDefinition;
 use omega_typed_program::machine::{ContainedObject, Machine, OwnedData};
@@ -484,6 +484,9 @@ fn attach_type_reference_symbol(
         TypeReference::FixedArray { element_type, .. } => {
             attach_type_reference_symbol(symbols, root, element_type);
         }
+        TypeReference::Slice { element_type } => {
+            attach_type_reference_symbol(symbols, root, element_type);
+        }
         TypeReference::Generic {
             base_symbol,
             base_name,
@@ -617,6 +620,9 @@ fn attach_expression_symbol(
         Expression::Indexed(indexed) => {
             attach_expression_symbol(symbols, context, &mut indexed.collection);
             attach_expression_symbol(symbols, context, &mut indexed.index);
+        }
+        Expression::Member(member) => {
+            attach_expression_symbol(symbols, context, &mut member.receiver);
         }
         Expression::Mutable(inner_expression) => {
             attach_expression_symbol(symbols, context, inner_expression);
@@ -1076,6 +1082,7 @@ impl<'program, 'source> ProgramSymbolDefinitionBuilder<'program, 'source> {
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_children(element_type, depth + 1)
             }
+            TypeReference::Slice { element_type } => self.type_children(element_type, depth + 1),
             TypeReference::Generic { base_name, .. }
             | TypeReference::Named {
                 name: base_name, ..
@@ -1450,6 +1457,13 @@ fn remap_type_reference(
             )),
             length,
         },
+        TypeReference::Slice { element_type } => TypeReference::Slice {
+            element_type: Box::new(remap_type_reference(
+                *element_type,
+                source_constraints,
+                target_constraints,
+            )),
+        },
         TypeReference::Generic {
             base_symbol,
             base_name,
@@ -1641,6 +1655,13 @@ fn lower_type_reference(
                 type_constraints,
             )?),
             length: *length,
+        }),
+        ast::types::TypeReference::Slice { element_type } => Ok(TypeReference::Slice {
+            element_type: Box::new(lower_type_reference(
+                element_type,
+                aliases,
+                type_constraints,
+            )?),
         }),
         ast::types::TypeReference::Generic {
             base_name,
@@ -1865,6 +1886,13 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             })))
         }
         ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
+        ast::expression::Expression::Member(member) => Ok(Expression::Member(Box::new(
+            MemberExpression {
+                receiver: lower_expression(&member.receiver)?,
+                member_symbol: SymbolHandle::invalid(),
+                member: lower_name(&member.member),
+            },
+        ))),
         ast::expression::Expression::Float(value) => FloatLiteral::parse(value.as_str())
             .map(Expression::Float)
             .ok_or_else(|| Diagnostic::error(format!("invalid float literal `{value}`"))),

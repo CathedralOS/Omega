@@ -257,6 +257,10 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
             count_expression(&indexed.index, counts);
         }
         Expression::Mutable(expression) => count_expression(expression, counts),
+        Expression::Member(member) => {
+            count_expression(&member.receiver, counts);
+            count_identifier(&member.member, counts);
+        }
         Expression::Name(path) => count_identifier_path(path, counts),
         Expression::StructLiteral(struct_literal) => {
             count_identifier(&struct_literal.type_name, counts);
@@ -281,6 +285,9 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut AstIdentity
             }
         }
         TypeReference::FixedArray { element_type, .. } => {
+            count_type_reference(element_type, counts);
+        }
+        TypeReference::Slice { element_type } => {
             count_type_reference(element_type, counts);
         }
         TypeReference::Generic {

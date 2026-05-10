@@ -15,6 +15,7 @@ pub enum Expression {
     Float(FloatLiteral),
     Indexed(Box<IndexedExpression>),
     Integer(i64),
+    Member(Box<MemberExpression>),
     Mutable(Box<Expression>),
     Name(NamePath),
     StructLiteral(StructLiteral),
@@ -128,6 +129,14 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            ExpressionNode::Member(member) => {
+                let receiver = self.copy_from(source, member.receiver);
+                self.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
+                }))
+            }
             ExpressionNode::Mutable(inner_expression) => {
                 let inner_expression = self.copy_from(source, *inner_expression);
                 self.insert(ExpressionNode::Mutable(inner_expression))
@@ -519,6 +528,14 @@ impl ExpressionTable {
                 }))
             }
             Expression::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            Expression::Member(member) => {
+                let receiver = self.insert_tree(&member.receiver);
+                self.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
+                }))
+            }
             Expression::Mutable(inner_expression) => {
                 let inner_expression = self.insert_tree(inner_expression);
                 self.insert(ExpressionNode::Mutable(inner_expression))
@@ -575,6 +592,11 @@ impl ExpressionTable {
                 index: self.to_tree(indexed.index),
             })),
             ExpressionNode::Integer(value) => Expression::Integer(*value),
+            ExpressionNode::Member(member) => Expression::Member(Box::new(MemberExpression {
+                receiver: self.to_tree(member.receiver),
+                member_symbol: member.member_symbol,
+                member: member.member.clone(),
+            })),
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
             }
@@ -681,6 +703,7 @@ pub enum ExpressionNode {
     Float(FloatLiteral),
     Indexed(TableIndexedExpression),
     Integer(i64),
+    Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(TableNamePath),
     StructLiteral(TableStructLiteral),
@@ -704,6 +727,20 @@ pub struct TableBinaryExpression {
 pub struct TableIndexedExpression {
     pub collection: ExpressionHandle,
     pub index: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberExpression {
+    pub receiver: Expression,
+    pub member_symbol: SymbolHandle,
+    pub member: ProgramName,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableMemberExpression {
+    pub receiver: ExpressionHandle,
+    pub member_symbol: SymbolHandle,
+    pub member: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -947,6 +984,9 @@ impl Expression {
                 )
             }
             Expression::Integer(value) => value.to_string(),
+            Expression::Member(member) => {
+                format!("{}.{}", member.receiver.display_name(), member.member)
+            }
             Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
             Expression::Name(path) => display_name_path(path, "::"),
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
@@ -975,6 +1015,9 @@ impl ExpressionNode {
                 )
             }
             Self::Integer(value) => value.to_string(),
+            Self::Member(member) => {
+                format!("{}.{}", table.display_name(member.receiver), member.member)
+            }
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_name_path(table.name_path_members(path.members), "::"),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),

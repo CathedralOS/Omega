@@ -13,6 +13,9 @@ pub enum TypeReference {
         element_type: Box<TypeReference>,
         length: usize,
     },
+    Slice {
+        element_type: Box<TypeReference>,
+    },
     Generic {
         base_name: Identifier,
         arguments: Vec<TypeReference>,
@@ -158,6 +161,10 @@ impl TypeReferenceTable {
                     length: *length,
                 })
             }
+            TypeReference::Slice { element_type } => {
+                let element_type = self.insert_tree(element_type, expressions);
+                self.insert(TypeReferenceNode::Slice { element_type })
+            }
             TypeReference::Generic {
                 base_name,
                 arguments,
@@ -190,6 +197,9 @@ pub enum TypeReferenceNode {
     FixedArray {
         element_type: TypeReferenceHandle,
         length: usize,
+    },
+    Slice {
+        element_type: TypeReferenceHandle,
     },
     Generic {
         base_name: Identifier,
