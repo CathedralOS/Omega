@@ -56,7 +56,7 @@ pub(crate) fn collect_machine_state_calls(
                 machine,
                 *receiver_symbol,
                 *target_symbol,
-                receiver.as_ref(),
+                receiver.as_ref().map(|receiver| receiver.as_slice()),
                 target,
             );
 
@@ -65,7 +65,7 @@ pub(crate) fn collect_machine_state_calls(
                 statement_index: operation.statement_index,
                 receiver: receiver
                     .as_ref()
-                    .cloned()
+                    .and_then(|receiver| receiver.as_slice().last().cloned())
                     .unwrap_or_else(|| ProgramName::generated("self")),
                 target_key: resolved_target
                     .as_ref()
@@ -97,10 +97,10 @@ fn resolve_state_call_target(
     machine: &MachineFlow,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<&ProgramName>,
+    receiver: Option<&[ProgramName]>,
     target_state: &ProgramName,
 ) -> Option<ResolvedStateCall> {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == "self") {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
         return resolve_state_key_in_machine(
             control_flow,
             machine.symbol,
@@ -114,10 +114,15 @@ fn resolve_state_call_target(
     }
 
     if receiver_symbol.is_valid() {
+        let receiver_name = receiver.and_then(|receiver| receiver.last());
+
         if let Some(contained) = machine
             .contains
             .iter()
-            .find(|contained| contained.symbol == receiver_symbol)
+            .find(|contained| {
+                contained.symbol == receiver_symbol
+                    || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+            })
         {
             return resolve_state_key_in_machine(
                 control_flow,

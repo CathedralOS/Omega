@@ -27,7 +27,7 @@ pub struct LocalData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
-    pub receiver: Option<Identifier>,
+    pub receiver: Option<IdentifierPath>,
     pub target: Identifier,
     pub arguments: Vec<crate::expression::Expression>,
 }
@@ -119,8 +119,13 @@ impl StatementTable {
             Statement::Call(call) => {
                 let arguments =
                     self.insert_expression_handle_span_from_trees(&call.arguments, expressions);
+                let receiver = call
+                    .receiver
+                    .as_ref()
+                    .map(|path| self.insert_identifier_path_members(path))
+                    .unwrap_or_else(HandleSpan::empty);
                 self.insert(StatementNode::Call(TableCall {
-                    receiver: call.receiver.clone(),
+                    receiver,
                     target: call.target.clone(),
                     arguments,
                 }))
@@ -253,7 +258,7 @@ pub struct TableAssignment {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCall {
-    pub receiver: Option<Identifier>,
+    pub receiver: HandleSpan<Identifier>,
     pub target: Identifier,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
@@ -261,7 +266,7 @@ pub struct TableCall {
 impl Default for TableCall {
     fn default() -> Self {
         Self {
-            receiver: None,
+            receiver: HandleSpan::empty(),
             target: Identifier::default(),
             arguments: HandleSpan::empty(),
         }

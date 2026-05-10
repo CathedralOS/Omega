@@ -126,7 +126,7 @@ fn count_statement_node(
         }
         StatementNode::Call(call) => {
             count_call_name(&call.target, counts);
-            if let Some(receiver) = &call.receiver {
+            for receiver in statements.name_path_members(call.receiver) {
                 count_call_name(receiver, counts);
             }
             for argument in statements.expression_handles(call.arguments) {

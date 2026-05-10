@@ -1,6 +1,7 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
+use omega_typed_program::expression::NamePath;
 use omega_typed_program::name::ProgramName;
 use omega_typed_program::statement::TransitionGuard;
 
@@ -156,7 +157,7 @@ pub enum OperationKind {
     Call {
         receiver_symbol: SymbolHandle,
         target_symbol: SymbolHandle,
-        receiver: Option<ProgramName>,
+        receiver: Option<NamePath>,
         target: ProgramName,
     },
     ConstantIntegerAssignment,

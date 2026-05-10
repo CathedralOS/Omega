@@ -59,8 +59,17 @@ pub(crate) fn lower_host_call_arguments(
 }
 
 pub(crate) fn platform_call_name(call: &Call) -> String {
-    match call.receiver.as_deref() {
-        Some(receiver) => format!("{receiver}.{}", call.target),
+    match call.receiver.as_ref() {
+        Some(receiver) => format!(
+            "{}.{}",
+            receiver
+                .as_slice()
+                .iter()
+                .map(|member| member.as_str())
+                .collect::<Vec<_>>()
+                .join("."),
+            call.target
+        ),
         None => call.target.to_string(),
     }
 }

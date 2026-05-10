@@ -632,7 +632,7 @@ fn validate_call(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(receiver) = call.receiver.as_deref() else {
+    let Some(receiver_path) = call.receiver.as_ref() else {
         let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -652,7 +652,9 @@ fn validate_call(
         return;
     };
 
-    if receiver == "self" {
+    let receiver_members = receiver_path.as_slice();
+
+    if receiver_members == ["self"] {
         let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -672,6 +674,10 @@ fn validate_call(
         return;
     }
 
+    let receiver = receiver_members
+        .last()
+        .map(|member| member.as_str())
+        .unwrap_or_default();
     let receiver_type = machine_symbols.contained_type(receiver);
 
     if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
@@ -726,7 +732,13 @@ fn validate_call(
     }
 
     diagnostics.push(Diagnostic::error(format!(
-        "unknown call receiver `{receiver}`"
+        "unknown call receiver `{}`",
+        receiver_path
+            .as_slice()
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join(".")
     )));
 }
 

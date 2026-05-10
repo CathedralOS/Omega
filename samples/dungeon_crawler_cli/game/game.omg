@@ -17,9 +17,6 @@ data Game {
 machine for Game {
     pub entry new() -> Game {
         let game: Game;
-
-        game.dungeon = Dungeon::new(1337);
-
         -> game;
     }
 }

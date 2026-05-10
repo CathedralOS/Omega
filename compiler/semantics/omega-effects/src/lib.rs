@@ -105,9 +105,15 @@ fn infer_call_effect(
         return Effect::Mutates;
     }
 
-    let Some(receiver) = call.receiver.as_deref() else {
+    let Some(receiver_path) = call.receiver.as_ref() else {
         return Effect::Pure;
     };
+
+    let receiver = receiver_path
+        .as_slice()
+        .last()
+        .map(|member| member.as_str())
+        .unwrap_or_default();
 
     let Some(receiver_type) = machine
         .contains

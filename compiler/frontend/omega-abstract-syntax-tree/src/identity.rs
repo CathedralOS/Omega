@@ -182,7 +182,9 @@ fn count_statement(statement: &Statement, counts: &mut AstIdentityStorageCounts)
         }
         Statement::Call(call) => {
             if let Some(receiver) = &call.receiver {
-                count_identifier(receiver, counts);
+                for member in receiver.iter() {
+                    count_identifier(member, counts);
+                }
             }
             count_identifier(&call.target, counts);
             for argument in &call.arguments {

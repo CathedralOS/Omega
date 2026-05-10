@@ -404,7 +404,7 @@ fn collect_bounded_call_argument_obligations(
                 BoundedCallArgumentObligation {
                     machine: machine.name.to_string(),
                     state: state.name.to_string(),
-                    receiver: call.receiver.as_ref().map(ToString::to_string),
+                    receiver: call.receiver.as_ref().map(display_name_path),
                     target: call.target.to_string(),
                     parameter: parameter.name.to_string(),
                     argument: argument.clone(),
@@ -459,7 +459,7 @@ fn call_target_parameters<'program>(
     machine: &'program Machine,
     call: &Call,
 ) -> Option<&'program [StateParameter]> {
-    let Some(receiver) = call.receiver.as_deref() else {
+    let Some(receiver_path) = call.receiver.as_ref() else {
         return machine
             .states
             .iter()
@@ -467,7 +467,7 @@ fn call_target_parameters<'program>(
             .map(|state| state.parameters.as_slice());
     };
 
-    if receiver == "self" {
+    if receiver_path.as_slice() == ["self"] {
         return machine
             .states
             .iter()
@@ -475,6 +475,10 @@ fn call_target_parameters<'program>(
             .map(|state| state.parameters.as_slice());
     }
 
+    let receiver = receiver_path
+        .as_slice()
+        .last()
+        .map(|member| member.as_str())?;
     let receiver_type = machine
         .contains
         .iter()
@@ -490,6 +494,14 @@ fn call_target_parameters<'program>(
     receiver_type
         .and_then(|type_name| machine_state_parameters(program, type_name, &call.target))
         .or_else(|| machine_state_parameters(program, receiver, &call.target))
+}
+
+fn display_name_path(path: &omega_typed_program::expression::NamePath) -> String {
+    path.as_slice()
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 fn platform_state_parameters<'program>(

@@ -32,7 +32,7 @@ pub struct LocalData {
 pub struct Call {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<ProgramName>,
+    pub receiver: Option<NamePath>,
     pub target: ProgramName,
     pub arguments: Vec<Expression>,
 }
@@ -129,10 +129,15 @@ impl StatementTable {
             Statement::Call(call) => {
                 let arguments =
                     self.insert_expression_handle_span_from_trees(&call.arguments, expressions);
+                let receiver = call
+                    .receiver
+                    .as_ref()
+                    .map(|path| self.insert_name_path_members(path))
+                    .unwrap_or_else(HandleSpan::empty);
                 self.insert(StatementNode::Call(TableCall {
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
-                    receiver: call.receiver.clone(),
+                    receiver,
                     target: call.target.clone(),
                     arguments,
                 }))
@@ -275,7 +280,7 @@ pub struct TableAssignment {
 pub struct TableCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<ProgramName>,
+    pub receiver: HandleSpan<ProgramName>,
     pub target: ProgramName,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
@@ -285,7 +290,7 @@ impl Default for TableCall {
         Self {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
-            receiver: None,
+            receiver: HandleSpan::empty(),
             target: ProgramName::default(),
             arguments: HandleSpan::empty(),
         }

@@ -430,13 +430,16 @@ fn collect_statement(
         Statement::Call(call) => {
             let symbol = context.resolve_call_target(
                 &report.symbols,
-                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+                call.receiver.as_ref().map(IdentifierPath::as_slice),
                 call.target.as_str(),
             );
 
             insert_reference_from_identifiers(
                 report,
-                call.receiver.iter().chain(std::iter::once(&call.target)),
+                call.receiver
+                    .iter()
+                    .flat_map(IdentifierPath::iter)
+                    .chain(std::iter::once(&call.target)),
                 ResolvedReferenceKind::CallTarget,
                 owner,
                 symbol,
@@ -677,11 +680,16 @@ impl ResolveContext {
     fn resolve_call_target(
         self,
         symbols: &SymbolTable,
-        receiver: Option<&str>,
+        receiver: Option<&[Identifier]>,
         target: &str,
     ) -> SymbolHandle {
         if let Some(receiver) = receiver {
-            return self.resolve_symbol(symbols, [receiver, target]);
+            let path = receiver
+                .iter()
+                .map(|member| member.as_str())
+                .chain(std::iter::once(target))
+                .collect::<Vec<_>>();
+            return self.resolve_symbol(symbols, path);
         }
 
         self.resolve_symbol(symbols, [target])

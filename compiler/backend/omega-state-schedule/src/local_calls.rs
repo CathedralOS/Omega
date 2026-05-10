@@ -10,7 +10,7 @@ use omega_control_flow::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::ExpressionHandle;
+use omega_typed_program::expression::{ExpressionHandle, NamePath};
 use omega_typed_program::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
@@ -69,7 +69,10 @@ pub(super) fn append_local_state_calls(
                 state.name,
                 operation.statement_index,
                 target,
-                receiver.as_deref().unwrap_or("self")
+                receiver
+                    .as_ref()
+                    .map(display_name_path)
+                    .unwrap_or_else(|| "self".to_owned())
             )
         })?;
 
@@ -100,7 +103,7 @@ fn resolve_state_call_key(
     machine: &MachineFlow,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-    receiver: Option<&ProgramName>,
+    receiver: Option<&NamePath>,
     target: &ProgramName,
 ) -> Option<StateKey> {
     let target_machine =
@@ -120,17 +123,21 @@ fn resolve_state_call_machine_flow<'plan>(
     context: &'plan StateScheduleContext,
     machine: &'plan MachineFlow,
     receiver_symbol: SymbolHandle,
-    receiver: Option<&ProgramName>,
+    receiver: Option<&NamePath>,
 ) -> Option<&'plan MachineFlow> {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == "self") {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver.as_slice() == ["self"]) {
         return Some(machine);
     }
 
     if receiver_symbol.is_valid() {
+        let receiver_name = receiver.and_then(|receiver| receiver.as_slice().last());
         if let Some(contained) = machine
             .contains
             .iter()
-            .find(|contained| contained.symbol == receiver_symbol)
+            .find(|contained| {
+                contained.symbol == receiver_symbol
+                    || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+            })
         {
             return machine_flow_by_symbol(context, contained.type_symbol).ok();
         }
@@ -140,6 +147,14 @@ fn resolve_state_call_machine_flow<'plan>(
 
     let _ = receiver?;
     None
+}
+
+fn display_name_path(path: &NamePath) -> String {
+    path.as_slice()
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 pub(super) fn bind_state_arguments_by_key(

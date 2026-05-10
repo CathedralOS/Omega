@@ -544,11 +544,11 @@ fn attach_statement_expression_symbols(
         Statement::Call(call) => {
             call.receiver_symbol = context.resolve_call_receiver(
                 symbols,
-                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+                call.receiver.as_ref().map(|receiver| receiver.members()),
             );
             call.target_symbol = context.resolve_call_target(
                 symbols,
-                call.receiver.as_ref().map(|receiver| receiver.as_str()),
+                call.receiver.as_ref().map(|receiver| receiver.members()),
                 call.target.as_str(),
             );
             for argument in &mut call.arguments {
@@ -708,29 +708,33 @@ impl<'context> ExpressionResolveContext<'context> {
         SymbolHandle::invalid()
     }
 
-    fn resolve_call_receiver(self, symbols: &SymbolTable, receiver: Option<&str>) -> SymbolHandle {
+    fn resolve_call_receiver(
+        self,
+        symbols: &SymbolTable,
+        receiver: Option<&[ProgramName]>,
+    ) -> SymbolHandle {
         match receiver {
-            Some("self") | None => self.machine,
-            Some(receiver) => self.resolve_symbol(symbols, [receiver]),
+            Some(receiver) => self.resolve_identifier_path(symbols, receiver),
+            None => self.machine,
         }
     }
 
     fn resolve_call_target(
         self,
         symbols: &SymbolTable,
-        receiver: Option<&str>,
+        receiver: Option<&[ProgramName]>,
         target: &str,
     ) -> SymbolHandle {
         if let Some(receiver) = receiver {
-            if receiver != "self"
-                && let Some(type_symbol) = self.contained_type_symbol(receiver)
-            {
+            if let Some(type_symbol) = self.machine_type_symbol_for_receiver(receiver) {
                 return symbols
                     .find_child_by_name(type_symbol, target)
                     .unwrap_or_else(SymbolHandle::invalid);
             }
 
-            return self.resolve_symbol(symbols, [receiver, target]);
+            let mut path = receiver.iter().map(|member| member.as_str()).collect::<Vec<_>>();
+            path.push(target);
+            return self.resolve_symbol(symbols, path);
         }
 
         self.resolve_symbol(symbols, [target])
@@ -783,6 +787,14 @@ impl<'context> ExpressionResolveContext<'context> {
             .find(|(name, _)| name == receiver)
             .map(|(_, type_symbol)| *type_symbol)
             .filter(|type_symbol| type_symbol.is_valid())
+    }
+
+    fn machine_type_symbol_for_receiver(self, receiver: &[ProgramName]) -> Option<SymbolHandle> {
+        match receiver {
+            [receiver] if receiver != "self" => self.contained_type_symbol(receiver.as_str()),
+            [head, receiver] if head == "self" => self.contained_type_symbol(receiver.as_str()),
+            _ => None,
+        }
     }
 }
 
@@ -1742,7 +1754,7 @@ fn lower_statement(
         ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
-            receiver: call.receiver.as_ref().map(lower_name),
+            receiver: call.receiver.as_ref().map(lower_name_path),
             target: lower_name(&call.target),
             arguments: call
                 .arguments
@@ -1846,6 +1858,10 @@ fn lower_expression(expression: &ast::expression::Expression) -> Result<Expressi
             Ok(Expression::String(value.as_str().to_owned()))
         }
     }
+}
+
+fn lower_name_path(path: &ast::identifier::IdentifierPath) -> NamePath {
+    NamePath::unresolved(path.iter().map(lower_name).collect())
 }
 
 fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOperator {

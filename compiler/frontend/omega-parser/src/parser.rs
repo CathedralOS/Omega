@@ -458,14 +458,20 @@ impl Parser<'_, '_> {
         }
 
         loop {
-            let (name, type_reference, is_const, is_mutable, is_self) = if self.consume("&") {
-                self.expect("mut")?;
+            let (name, type_reference, is_const, is_mutable, is_self) = if self.check("&")
+                && self
+                    .tokens
+                    .get(self.index + 1)
+                    .is_some_and(|token| token.lexeme.as_str() == "self" || token.lexeme.as_str() == "mut")
+            {
+                self.expect("&")?;
+                let is_mutable = self.consume("mut");
                 self.expect("self")?;
                 (
                     Identifier::generated("self"),
                     TypeReference::named("Self"),
                     false,
-                    true,
+                    is_mutable,
                     true,
                 )
             } else {
@@ -474,8 +480,7 @@ impl Parser<'_, '_> {
                 self.expect(":")?;
                 let is_const = self.consume("const");
                 if self.consume("&") {
-                    self.expect("mut")?;
-                    is_mutable = true;
+                    is_mutable = self.consume("mut");
                 }
                 let type_reference = self.parse_type_reference()?;
                 (name, type_reference, is_const, is_mutable, false)
@@ -885,13 +890,17 @@ impl Parser<'_, '_> {
             return Ok(Statement::Expression(expression));
         }
 
-        let first_name = self.expect_identifier()?;
+        let mut path = vec![self.expect_identifier()?];
+
+        while self.consume(".") {
+            path.push(self.expect_identifier()?);
+        }
 
         if self.consume("=") {
             let value = self.parse_expression()?;
             self.expect(";")?;
             return Ok(Statement::Assignment(Assignment {
-                target: Expression::Name(vec![first_name].into()),
+                target: Expression::Name(path.into()),
                 value,
             }));
         }
@@ -899,40 +908,24 @@ impl Parser<'_, '_> {
         if self.check("(") {
             self.expect("(")?;
             let arguments = self.parse_call_arguments()?;
+            let (receiver, target) = split_call_path(path);
             return Ok(Statement::Call(Call {
-                receiver: None,
-                target: first_name,
+                receiver,
+                target,
                 arguments,
             }));
         }
 
         if self.check("}") {
-            return Ok(Statement::Expression(Expression::Name(
-                vec![first_name].into(),
-            )));
+            return Ok(Statement::Expression(Expression::Name(path.into())));
         }
 
-        self.expect(".")?;
-        let second_name = self.expect_identifier()?;
+        let target = self.parse_reference_tail(Expression::Name(path.into()))?;
 
-        if !self.check("(") {
-            let target =
-                self.parse_reference_tail(Expression::Name(vec![first_name, second_name].into()))?;
-
-            self.expect("=")?;
-            let value = self.parse_expression()?;
-            self.expect(";")?;
-            return Ok(Statement::Assignment(Assignment { target, value }));
-        }
-
-        self.expect("(")?;
-        let arguments = self.parse_call_arguments()?;
-
-        Ok(Statement::Call(Call {
-            receiver: Some(first_name),
-            target: second_name,
-            arguments,
-        }))
+        self.expect("=")?;
+        let value = self.parse_expression()?;
+        self.expect(";")?;
+        Ok(Statement::Assignment(Assignment { target, value }))
     }
 
     fn parse_local_data(&mut self) -> Result<Statement, ParseError> {
@@ -1050,6 +1043,16 @@ impl Parser<'_, '_> {
     }
 
     fn parse_primary_expression(&mut self) -> Result<Expression, ParseError> {
+        if self.consume("&") {
+            let is_mutable = self.consume("mut");
+            let expression = self.parse_expression()?;
+            return if is_mutable {
+                Ok(Expression::Mutable(Box::new(expression)))
+            } else {
+                Ok(expression)
+            };
+        }
+
         if self.consume("mut") {
             return Ok(Expression::Mutable(Box::new(self.parse_expression()?)));
         }
@@ -1427,6 +1430,14 @@ fn merge_machine_items(items: &mut Vec<Item>) {
     }
 
     *items = merged;
+}
+
+fn split_call_path(mut path: Vec<Identifier>) -> (Option<IdentifierPath>, Identifier) {
+    let target = path
+        .pop()
+        .expect("call path should contain at least one member");
+    let receiver = (!path.is_empty()).then(|| IdentifierPath::new(path));
+    (receiver, target)
 }
 
 fn identifier_from_token(
