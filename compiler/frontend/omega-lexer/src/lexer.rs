@@ -1,7 +1,9 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::{LexError, Span, Token, TokenKind, TokenText};
+use crate::{
+    KeywordKind, LexError, PunctuationKind, Span, Token, TokenKind, TokenStream, TokenText,
+};
 
 pub struct Lexer<'source> {
     source: &'source str,
@@ -16,7 +18,7 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    pub fn tokenize(mut self) -> Result<Vec<Token<'source>>, LexError> {
+    pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
         let mut tokens = Vec::new();
         let source = self.source;
 
@@ -32,9 +34,13 @@ impl<'source> Lexer<'source> {
 
             if character.is_ascii_alphabetic() || character == '_' {
                 let end = self.lex_identifier_end(start, character);
+                let lexeme = &source[start..end];
+                let kind = KeywordKind::from_lexeme(lexeme)
+                    .map(TokenKind::Keyword)
+                    .unwrap_or(TokenKind::Identifier);
                 tokens.push(Token {
-                    kind: TokenKind::Identifier,
-                    lexeme: TokenText::source(&source[start..end]),
+                    kind,
+                    lexeme: TokenText::source(lexeme),
                     span: Span::new(start, end),
                 });
                 continue;
@@ -53,7 +59,7 @@ impl<'source> Lexer<'source> {
             if character == '"' {
                 let (lexeme, span) = self.lex_string(start)?;
                 tokens.push(Token {
-                    kind: TokenKind::String,
+                    kind: TokenKind::StringLiteral,
                     lexeme: TokenText::owned(lexeme),
                     span,
                 });
@@ -61,14 +67,18 @@ impl<'source> Lexer<'source> {
             }
 
             let end = self.lex_symbol_end(start, character);
+            let lexeme = &source[start..end];
+            let kind = PunctuationKind::from_lexeme(lexeme)
+                .map(TokenKind::Punctuation)
+                .unwrap_or(TokenKind::Punctuation(PunctuationKind::Unknown));
             tokens.push(Token {
-                kind: TokenKind::Symbol,
-                lexeme: TokenText::source(&source[start..end]),
+                kind,
+                lexeme: TokenText::source(lexeme),
                 span: Span::new(start, end),
             });
         }
 
-        Ok(tokens)
+        Ok(TokenStream::new(tokens))
     }
 
     fn skip_line_comment(&mut self) {
@@ -137,9 +147,9 @@ impl<'source> Lexer<'source> {
 
         (
             if is_float {
-                TokenKind::Float
+                TokenKind::FloatLiteral
             } else {
-                TokenKind::Integer
+                TokenKind::IntegerLiteral
             },
             end,
         )
@@ -210,5 +220,84 @@ impl<'source> Lexer<'source> {
 
     fn peek_character(&mut self) -> Option<char> {
         self.chars.peek().map(|(_, character)| *character)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Lexer;
+    use crate::{KeywordKind, PunctuationKind, TokenKind};
+
+    #[test]
+    fn tokenizes_keywords_and_identifiers_distinctly() {
+        let tokens = Lexer::new("machine game entry self true false custom")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Machine));
+        assert_eq!(tokens[1].kind, TokenKind::Identifier);
+        assert_eq!(tokens[2].kind, TokenKind::Keyword(KeywordKind::Entry));
+        assert_eq!(tokens[3].kind, TokenKind::Keyword(KeywordKind::SelfValue));
+        assert_eq!(tokens[4].kind, TokenKind::Keyword(KeywordKind::True));
+        assert_eq!(tokens[5].kind, TokenKind::Keyword(KeywordKind::False));
+        assert_eq!(tokens[6].kind, TokenKind::Identifier);
+    }
+
+    #[test]
+    fn tokenizes_multi_character_punctuation() {
+        let tokens = Lexer::new(":: -> == != << <= >> >= && ||")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        let kinds: Vec<_> = tokens.iter().map(|token| token.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                TokenKind::Punctuation(PunctuationKind::ColonColon),
+                TokenKind::Punctuation(PunctuationKind::Arrow),
+                TokenKind::Punctuation(PunctuationKind::EqualEqual),
+                TokenKind::Punctuation(PunctuationKind::ExclamationEqual),
+                TokenKind::Punctuation(PunctuationKind::LessLess),
+                TokenKind::Punctuation(PunctuationKind::LessEqual),
+                TokenKind::Punctuation(PunctuationKind::GreaterGreater),
+                TokenKind::Punctuation(PunctuationKind::GreaterEqual),
+                TokenKind::Punctuation(PunctuationKind::AndAnd),
+                TokenKind::Punctuation(PunctuationKind::PipePipe),
+            ]
+        );
+    }
+
+    #[test]
+    fn skips_line_comments_and_whitespace() {
+        let tokens = Lexer::new("let // comment\n value")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
+        assert_eq!(tokens[1].kind, TokenKind::Identifier);
+        assert_eq!(tokens[1].lexeme.as_str(), "value");
+    }
+
+    #[test]
+    fn tokenizes_string_literals_with_escapes() {
+        let tokens = Lexer::new("\"line\\nvalue\"")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].kind, TokenKind::StringLiteral);
+        assert_eq!(tokens[0].lexeme.as_str(), "line\nvalue");
+    }
+
+    #[test]
+    fn tokenizes_integer_and_float_literals() {
+        let tokens = Lexer::new("42 3.14f")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].kind, TokenKind::IntegerLiteral);
+        assert_eq!(tokens[1].kind, TokenKind::FloatLiteral);
     }
 }

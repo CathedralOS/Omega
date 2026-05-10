@@ -1,43 +1,41 @@
-use crate::{Span, TokenKind};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TokenText<'source> {
-    Source(&'source str),
-    Owned(String),
-}
-
-impl<'source> TokenText<'source> {
-    pub fn source(value: &'source str) -> Self {
-        Self::Source(value)
-    }
-
-    pub fn owned(value: String) -> Self {
-        Self::Owned(value)
-    }
-
-    pub fn as_str(&self) -> &str {
-        match self {
-            Self::Source(value) => value,
-            Self::Owned(value) => value.as_str(),
-        }
-    }
-}
-
-impl PartialEq<&str> for TokenText<'_> {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
-impl PartialEq<TokenText<'_>> for &str {
-    fn eq(&self, other: &TokenText<'_>) -> bool {
-        *self == other.as_str()
-    }
-}
+use crate::{KeywordKind, PunctuationKind, Span, TokenKind};
+use crate::TokenText;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token<'source> {
     pub kind: TokenKind,
     pub lexeme: TokenText<'source>,
     pub span: Span,
+}
+
+impl<'source> Token<'source> {
+    pub fn is_identifier(&self) -> bool {
+        matches!(self.kind, TokenKind::Identifier)
+    }
+
+    pub fn is_integer_literal(&self) -> bool {
+        matches!(self.kind, TokenKind::IntegerLiteral)
+    }
+
+    pub fn is_float_literal(&self) -> bool {
+        matches!(self.kind, TokenKind::FloatLiteral)
+    }
+
+    pub fn is_string_literal(&self) -> bool {
+        matches!(self.kind, TokenKind::StringLiteral)
+    }
+
+    pub fn keyword(&self) -> Option<KeywordKind> {
+        match self.kind {
+            TokenKind::Keyword(keyword) => Some(keyword),
+            _ => None,
+        }
+    }
+
+    pub fn punctuation(&self) -> Option<PunctuationKind> {
+        match self.kind {
+            TokenKind::Punctuation(punctuation) => Some(punctuation),
+            _ => None,
+        }
+    }
 }
