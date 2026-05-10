@@ -26,6 +26,7 @@ pub struct LocalData {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_reference: crate::types::TypeReference,
+    pub initial_value: Option<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -152,10 +153,16 @@ impl StatementTable {
                     expressions,
                     source_constraints,
                 );
+                let initial_value = local_data
+                    .initial_value
+                    .as_ref()
+                    .map(|value| expressions.insert_tree(value))
+                    .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
                 self.insert(StatementNode::LocalData(TableLocalData {
                     symbol: local_data.symbol,
                     name: local_data.name.clone(),
                     type_reference,
+                    initial_value,
                 }))
             }
             Statement::Transition(transition) => {
@@ -302,6 +309,7 @@ pub struct TableLocalData {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_reference: crate::types::TypeReferenceHandle,
+    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for TableLocalData {
@@ -310,6 +318,7 @@ impl Default for TableLocalData {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
+            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }

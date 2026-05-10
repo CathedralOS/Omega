@@ -195,6 +195,9 @@ fn count_statement(statement: &Statement, counts: &mut AstIdentityStorageCounts)
         Statement::LocalData(local_data) => {
             count_identifier(&local_data.name, counts);
             count_type_reference(&local_data.type_reference, counts);
+            if let Some(initial_value) = &local_data.initial_value {
+                count_expression(initial_value, counts);
+            }
         }
         Statement::Transition(transition) => {
             count_transition_target(&transition.target, counts);

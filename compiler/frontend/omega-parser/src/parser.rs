@@ -880,7 +880,7 @@ impl Parser<'_, '_> {
 
             let mut path = vec![Identifier::generated("self")];
 
-            while self.consume(".") {
+            while self.consume(".") || self.consume("::") {
                 path.push(self.expect_identifier()?);
             }
 
@@ -898,7 +898,7 @@ impl Parser<'_, '_> {
 
         let mut path = vec![self.expect_identifier()?];
 
-        while self.consume(".") {
+        while self.consume(".") || self.consume("::") {
             path.push(self.expect_identifier()?);
         }
 
@@ -975,11 +975,17 @@ impl Parser<'_, '_> {
         let name = self.expect_identifier()?;
         self.expect(":")?;
         let type_reference = self.parse_type_reference()?;
+        let initial_value = if self.consume("=") {
+            Some(self.parse_expression()?)
+        } else {
+            None
+        };
         self.expect(";")?;
 
         Ok(Statement::LocalData(LocalData {
             name,
             type_reference,
+            initial_value,
         }))
     }
 

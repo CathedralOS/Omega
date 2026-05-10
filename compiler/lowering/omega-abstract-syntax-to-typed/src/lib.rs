@@ -556,7 +556,11 @@ fn attach_statement_expression_symbols(
             }
         }
         Statement::Expression(expression) => attach_expression_symbol(symbols, context, expression),
-        Statement::LocalData(_) => {}
+        Statement::LocalData(local_data) => {
+            if let Some(initial_value) = &mut local_data.initial_value {
+                attach_expression_symbol(symbols, context, initial_value);
+            }
+        }
         Statement::Transition(transition) => {
             attach_transition_target_expression_symbols(symbols, context, &mut transition.target);
             if let Some(continuation) = &mut transition.continuation {
@@ -1404,6 +1408,7 @@ fn remap_statement(
                 source_constraints,
                 target_constraints,
             ),
+            initial_value: local_data.initial_value,
         }),
         Statement::Assignment(_)
         | Statement::Call(_)
@@ -1781,6 +1786,11 @@ fn lower_statement(
                 aliases,
                 type_constraints,
             )?,
+            initial_value: local_data
+                .initial_value
+                .as_ref()
+                .map(lower_expression)
+                .transpose()?,
         })),
         ast::statement::Statement::Transition(transition) => {
             Ok(Statement::Transition(Transition {
@@ -1975,6 +1985,7 @@ mod tests {
                             symbol: SymbolHandle::invalid(),
                             name: "Room".into(),
                         },
+                        initial_value: None,
                     })],
                     statement_nodes: omega_core::arena::HandleSpan::empty(),
                 }],

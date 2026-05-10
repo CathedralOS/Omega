@@ -23,6 +23,7 @@ pub struct Assignment {
 pub struct LocalData {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReference,
+    pub initial_value: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,9 +138,15 @@ impl StatementTable {
             Statement::LocalData(local_data) => {
                 let type_reference =
                     type_references.insert_tree(&local_data.type_reference, expressions);
+                let initial_value = local_data
+                    .initial_value
+                    .as_ref()
+                    .map(|value| expressions.insert_tree(value))
+                    .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
                 self.insert(StatementNode::LocalData(TableLocalData {
                     name: local_data.name.clone(),
                     type_reference,
+                    initial_value,
                 }))
             }
             Statement::Transition(transition) => {
@@ -277,6 +284,7 @@ impl Default for TableCall {
 pub struct TableLocalData {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
+    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 impl Default for TableLocalData {
@@ -284,6 +292,7 @@ impl Default for TableLocalData {
         Self {
             name: Identifier::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
+            initial_value: crate::expression::ExpressionHandle::invalid(),
         }
     }
 }

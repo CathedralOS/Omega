@@ -139,6 +139,9 @@ fn count_statement_node(
         StatementNode::LocalData(local_data) => {
             count_declaration_name(&local_data.name, counts);
             count_type_reference_handle(type_references, local_data.type_reference, counts);
+            if local_data.initial_value.is_valid() {
+                count_expression_handle(expressions, local_data.initial_value, counts);
+            }
         }
         StatementNode::Transition(transition) => {
             count_transition_target_node(
