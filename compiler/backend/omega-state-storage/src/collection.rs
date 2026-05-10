@@ -47,10 +47,8 @@ pub fn build_state_storage_plan_with_workers(
     for machine_plan in machine_plans {
         plan.locals
             .insert_many(machine_plan.locals.iter().map(|(_, local)| local.clone()));
-        let mutations = machine_plan
-            .mutations
-            .iter()
-            .map(|(_, mutation)| StateMutation {
+        for (_, mutation) in machine_plan.mutations.iter() {
+            plan.mutations.append(StateMutation {
                 target: plan
                     .expressions
                     .copy_from(&machine_plan.expressions, mutation.target),
@@ -58,9 +56,8 @@ pub fn build_state_storage_plan_with_workers(
                     .expressions
                     .copy_from(&machine_plan.expressions, mutation.value),
                 ..mutation.clone()
-            })
-            .collect::<Vec<_>>();
-        plan.mutations.insert_many(mutations);
+            });
+        }
     }
 
     plan
