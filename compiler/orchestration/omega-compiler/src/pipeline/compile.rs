@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -18,6 +19,7 @@ use omega_abstract_syntax_to_typed::{
 use omega_artifacts::{PhaseTiming, build_backend_surface_report, finalize_emitted_image_output};
 use omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers;
 use omega_backend_plan::BackendPlan;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::allocations::snapshot as allocation_snapshot;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
@@ -492,6 +494,62 @@ pub(crate) struct LoadedFile {
     pub(crate) syntax_table_index: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+struct DiscoveredSource {
+    path: PathBuf,
+}
+
+#[derive(Debug, Default)]
+struct SourceImportQueue {
+    seen: HashSet<PathBuf>,
+    discovered: Arena<DiscoveredSource>,
+    frontier_cursor: usize,
+}
+
+impl SourceImportQueue {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn enqueue(&mut self, path: PathBuf) -> bool {
+        if !self.seen.insert(path.clone()) {
+            return false;
+        }
+
+        self.discovered.append(DiscoveredSource { path });
+        true
+    }
+
+    fn next_frontier(&mut self) -> Option<HandleSpan<DiscoveredSource>> {
+        let total_discovered = self.seen.len();
+        if self.frontier_cursor >= total_discovered {
+            return None;
+        }
+
+        let new_count = total_discovered - self.frontier_cursor;
+        let start_index = self
+            .frontier_cursor
+            .checked_add(1)
+            .and_then(|index| u32::try_from(index).ok())
+            .expect("frontier start index overflow");
+        let count = u32::try_from(new_count).expect("frontier count overflow");
+        self.frontier_cursor = total_discovered;
+
+        Some(HandleSpan::from_parts(
+            omega_core::arena::Handle::from_arena_index(start_index),
+            count,
+        ))
+    }
+
+    fn paths(&self, frontier: HandleSpan<DiscoveredSource>) -> Vec<PathBuf> {
+        self.discovered
+            .span_or_empty(frontier)
+            .iter()
+            .map(|source| source.path.clone())
+            .collect()
+    }
+}
+
 impl LoadedProgram {
     fn file_ranges_are_valid(&self) -> bool {
         self.files.iter().all(|file| {
@@ -513,35 +571,19 @@ fn load_program_sources(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
 
-    let mut seen = Vec::<PathBuf>::new();
-    let mut pending = Vec::new();
+    let mut queue = SourceImportQueue::new();
     let mut items = Vec::new();
     let mut loaded_files = Vec::new();
     let mut source_files = Vec::new();
     let mut syntax_tables = Vec::new();
     let mut selected_target_found = options.target_name.is_none();
+    let root_path = normalize_path(&options.root_path)?;
+    let _ = queue.enqueue(root_path);
 
-    if let Some(build_path) = build_policy_path(&options.root_path) {
-        pending.push(build_path);
-    }
-
-    pending.push(options.root_path.clone());
-
-    while !pending.is_empty() {
-        let mut batch_paths = Vec::new();
-        while let Some(path) = pending.pop() {
-            let normalized = normalize_path(&path)?;
-
-            if seen.contains(&normalized) {
-                continue;
-            }
-
-            seen.push(normalized.clone());
-            batch_paths.push(normalized);
-        }
-
-        let first_file_id = seen.len() - batch_paths.len();
-        let files = Arc::new(load_source_batch(&workers, batch_paths, first_file_id)?);
+    while let Some(frontier) = queue.next_frontier() {
+        let batch_paths = queue.paths(frontier);
+        let first_file_id = source_files.len();
+        let files = Arc::new(load_source_batch(workers, batch_paths, first_file_id)?);
 
         let ast_files = parse_source_batch(&workers, Arc::clone(&files))?;
         let files = Arc::try_unwrap(files).unwrap_or_else(|files| files.as_ref().clone());
@@ -550,38 +592,12 @@ fn load_program_sources(
             let first_item = items.len();
             let item_count = ast_file.items.len();
 
-            for item in &ast_file.items {
-                match item {
-                    Item::Use(use_item) => {
-                        pending.push(resolve_source_path(&root_dir, &use_item.path));
-                    }
-                    Item::Target(target) => {
-                        let target_is_selected = options
-                            .target_name
-                            .as_ref()
-                            .is_none_or(|target_name| target.name.as_str() == target_name);
-
-                        if target_is_selected {
-                            selected_target_found = true;
-                        } else {
-                            continue;
-                        }
-
-                        if let Some(host) = &target.host {
-                            if is_bundled_omega_path(&host.provider) {
-                                pending.push(resolve_source_path(&root_dir, &host.provider));
-                            }
-                        }
-
-                        for trust_policy in &target.trust_policies {
-                            if is_bundled_omega_path(&trust_policy.path) {
-                                pending.push(resolve_source_path(&root_dir, &trust_policy.path));
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            selected_target_found |= enqueue_imports_from_ast_items(
+                &mut queue,
+                &root_dir,
+                &ast_file.items,
+                options.target_name.as_deref(),
+            )?;
 
             loaded_files.push(LoadedFile {
                 file_id: file.id,
@@ -598,7 +614,7 @@ fn load_program_sources(
 
     if !selected_target_found {
         return Err(vec![Diagnostic::error(format!(
-            "target `{}` was not found in build policy",
+            "target `{}` was not found in discovered source frontier",
             options
                 .target_name
                 .as_deref()
@@ -694,6 +710,53 @@ fn parse_source_file(file: &SourceFile) -> Result<AstFile, Vec<Diagnostic>> {
     )
 }
 
+fn enqueue_imports_from_ast_items(
+    queue: &mut SourceImportQueue,
+    root_dir: &Path,
+    items: &[Item],
+    selected_target_name: Option<&str>,
+) -> Result<bool, Vec<Diagnostic>> {
+    let mut selected_target_found = selected_target_name.is_none();
+
+    for item in items {
+        match item {
+            Item::Use(use_item) => {
+                let path = normalize_path(&resolve_source_path(root_dir, &use_item.path))?;
+                let _ = queue.enqueue(path);
+            }
+            Item::Target(target) => {
+                let target_is_selected = selected_target_name
+                    .is_none_or(|target_name| target.name.as_str() == target_name);
+
+                if target_is_selected {
+                    selected_target_found = true;
+                } else {
+                    continue;
+                }
+
+                if let Some(host) = &target.host {
+                    if is_bundled_omega_path(&host.provider) {
+                        let path =
+                            normalize_path(&resolve_source_path(root_dir, &host.provider))?;
+                        let _ = queue.enqueue(path);
+                    }
+                }
+
+                for trust_policy in &target.trust_policies {
+                    if is_bundled_omega_path(&trust_policy.path) {
+                        let path =
+                            normalize_path(&resolve_source_path(root_dir, &trust_policy.path))?;
+                        let _ = queue.enqueue(path);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(selected_target_found)
+}
+
 fn resolve_source_path(root_dir: &Path, source_path: &IdentifierPath) -> PathBuf {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
@@ -732,12 +795,6 @@ fn bundled_omega_root() -> PathBuf {
         .nth(3)
         .expect("compiler crate should live under compiler/orchestration/omega-compiler")
         .join("omega")
-}
-
-fn build_policy_path(root_path: &Path) -> Option<PathBuf> {
-    let build_path = root_path.parent()?.join("build.omg");
-
-    build_path.exists().then_some(build_path)
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
