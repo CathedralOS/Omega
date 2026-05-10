@@ -259,8 +259,14 @@ pub fn backend_report_text(
             write.statement_index,
             write.mutation_kind,
             write.lowering,
-            write.target.display_name(),
-            write.value.display_name()
+            backend_plan
+                .runtime_storage
+                .expressions
+                .display_name(write.target),
+            backend_plan
+                .runtime_storage
+                .expressions
+                .display_name(write.value)
         ));
     }
     output.push('\n');

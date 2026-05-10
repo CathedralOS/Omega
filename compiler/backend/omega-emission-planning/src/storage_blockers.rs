@@ -97,8 +97,8 @@ fn collect_runtime_body_storage_blockers(
                 write.statement_index,
                 write.mutation_kind,
                 write.lowering,
-                write.target.display_name(),
-                write.value.display_name()
+                input.runtime_storage.expressions.display_name(write.target),
+                input.runtime_storage.expressions.display_name(write.value)
             ),
         ));
     }
@@ -110,8 +110,10 @@ fn runtime_storage_write_has_planned_text_write(
 ) -> bool {
     runtime_text_write_for_statement(input, write.source_key, write.statement_index).is_some_and(
         |text_write| {
-            expression_place_eq(&text_write.target, &write.target)
-                && runtime_text_write_is_planned(input, text_write)
+            expression_place_eq(
+                &text_write.target,
+                &input.runtime_storage.expressions.to_tree(write.target),
+            ) && runtime_text_write_is_planned(input, text_write)
         },
     )
 }

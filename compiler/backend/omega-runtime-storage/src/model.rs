@@ -3,11 +3,12 @@ use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::{RuntimeDispatchBody, RuntimeDispatchBodyOperation};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_typed_program::expression::Expression;
+use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_program::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
+    pub expressions: ExpressionTable,
     pub frame_slots: Arena<RuntimeFrameSlot>,
     pub writes: Arena<RuntimeStorageWrite>,
 }
@@ -31,8 +32,8 @@ pub struct RuntimeStorageWrite {
     pub dispatch_index: u32,
     pub source_key: StateKey,
     pub statement_index: usize,
-    pub target: Expression,
-    pub value: Expression,
+    pub target: ExpressionHandle,
+    pub value: ExpressionHandle,
     pub mutation_kind: StateMutationKind,
     pub lowering: StateMutationLowering,
 }
@@ -43,8 +44,8 @@ impl Default for RuntimeStorageWrite {
             dispatch_index: 0,
             source_key: StateKey::default(),
             statement_index: 0,
-            target: Expression::Integer(0),
-            value: Expression::Integer(0),
+            target: ExpressionHandle::invalid(),
+            value: ExpressionHandle::invalid(),
             mutation_kind: StateMutationKind::Unknown,
             lowering: StateMutationLowering::Unknown,
         }

@@ -3664,7 +3664,11 @@ fn plans_state_storage_and_mutations() {
             .writes
             .iter()
             .any(|(_, write)| {
-                write.target.display_name() == "scratch"
+                backend_plan
+                    .runtime_storage
+                    .expressions
+                    .display_name(write.target)
+                    == "scratch"
                     && write.lowering == omega_state_storage::StateMutationLowering::NeedsLocalWrite
             })
     );
