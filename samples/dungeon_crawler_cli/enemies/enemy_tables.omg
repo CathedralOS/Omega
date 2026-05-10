@@ -6,7 +6,7 @@ machine EnemyTables {
     contains rng: Random;
 
     fn roll_enemy(depth: u32[exact, non_negative], random: &mut RandomState, enemy: &mut Enemy) {
-        transition tier_for_depth(depth) {
+        transition self.tier_for_depth(depth) {
             EnemyTier::Bat -> bat(random, enemy)
             EnemyTier::Spider -> spider(random, enemy)
             EnemyTier::Skeleton -> skeleton(random, enemy)
@@ -37,7 +37,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::Bat;
         enemy.name = "Cave Bat";
         enemy.depth = 0;
-        enemy.max_health = 6 + rng.range(random, 3);
+        enemy.max_health = 6 + self.rng.range(random, 3);
         enemy.health = enemy.max_health;
         enemy.attack = 2;
         enemy.defense = 0;
@@ -48,7 +48,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::Spider;
         enemy.name = "Gloom Spider";
         enemy.depth = 2;
-        enemy.max_health = 10 + rng.range(random, 5);
+        enemy.max_health = 10 + self.rng.range(random, 5);
         enemy.health = enemy.max_health;
         enemy.attack = 4;
         enemy.defense = 1;
@@ -59,7 +59,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::Skeleton;
         enemy.name = "Restless Skeleton";
         enemy.depth = 4;
-        enemy.max_health = 18 + rng.range(random, 8);
+        enemy.max_health = 18 + self.rng.range(random, 8);
         enemy.health = enemy.max_health;
         enemy.attack = 6;
         enemy.defense = 2;
@@ -70,7 +70,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::Cultist;
         enemy.name = "Ashen Cultist";
         enemy.depth = 6;
-        enemy.max_health = 26 + rng.range(random, 12);
+        enemy.max_health = 26 + self.rng.range(random, 12);
         enemy.health = enemy.max_health;
         enemy.attack = 9;
         enemy.defense = 3;
@@ -81,7 +81,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::Hellhound;
         enemy.name = "Hellhound";
         enemy.depth = 8;
-        enemy.max_health = 42 + rng.range(random, 20);
+        enemy.max_health = 42 + self.rng.range(random, 20);
         enemy.health = enemy.max_health;
         enemy.attack = 14;
         enemy.defense = 5;
@@ -92,7 +92,7 @@ machine EnemyTables {
         enemy.kind = EnemyKind::PitFiend;
         enemy.name = "Pit Fiend";
         enemy.depth = 10;
-        enemy.max_health = 80 + rng.range(random, 40);
+        enemy.max_health = 80 + self.rng.range(random, 40);
         enemy.health = enemy.max_health;
         enemy.attack = 24;
         enemy.defense = 8;

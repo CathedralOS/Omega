@@ -38,16 +38,16 @@ machine Dungeon {
     }
 
     state enter_room() {
-        mark_current_room_discovered();
+        self.mark_current_room_discovered();
 
-        formatter.write_current_cell(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
-        formatter.write_room_info(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
-        formatter.write_room_event(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
-        formatter.write_adjacent_rooms(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
+        self.formatter.write_current_cell(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
+        self.formatter.write_room_info(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
+        self.formatter.write_room_event(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
+        self.formatter.write_adjacent_rooms(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -55,20 +55,20 @@ machine Dungeon {
     }
 
     state prompt() {
-        transition player.health == 0 {
+        transition self.player.health == 0 {
             true -> game_over()
             false -> {}
         }
 
-        console.write("> ");
-        console.read_line(mut command_line);
-        navigation.choice = NavigationChoice::Invalid;
-        navigation.destination = CellId::Empty;
+        self.console.write("> ");
+        self.console.read_line(mut self.command_line);
+        self.navigation.choice = NavigationChoice::Invalid;
+        self.navigation.destination = CellId::Empty;
 
-        parser.resolve_command(command_line, mut navigation);
-        parser.resolve_exit(level, current_cell, command_line, mut navigation);
+        self.parser.resolve_command(self.command_line, mut self.navigation);
+        self.parser.resolve_exit(self.level, self.current_cell, self.command_line, mut self.navigation);
 
-        transition navigation.choice {
+        transition self.navigation.choice {
             NavigationChoice::Quit -> finished()
             NavigationChoice::Look -> look()
             NavigationChoice::Exits -> exits()
@@ -82,10 +82,10 @@ machine Dungeon {
     }
 
     state look() {
-        formatter.write_room_info(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
-        formatter.write_room_event(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
+        self.formatter.write_room_info(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
+        self.formatter.write_room_event(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -93,8 +93,8 @@ machine Dungeon {
     }
 
     state exits() {
-        formatter.write_adjacent_rooms(level, current_cell, mut command_line);
-        console.write_line(command_line.text);
+        self.formatter.write_adjacent_rooms(self.level, self.current_cell, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -102,8 +102,8 @@ machine Dungeon {
     }
 
     state inventory() {
-        formatter.write_inventory(player, mut command_line);
-        console.write_line(command_line.text);
+        self.formatter.write_inventory(self.player, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -111,8 +111,8 @@ machine Dungeon {
     }
 
     state character() {
-        formatter.write_character(player, mut command_line);
-        console.write_line(command_line.text);
+        self.formatter.write_character(self.player, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -121,9 +121,9 @@ machine Dungeon {
 
     state use_event() {
         let room: Room;
-        RoomLookup.find_room(level, current_cell, mut room);
-        events.use_event(mut player, mut room, mut command_line);
-        console.write_line(command_line.text);
+        RoomLookup.find_room(self.level, self.current_cell, mut room);
+        self.events.use_event(mut self.player, mut room, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
         transition {
             _ -> prompt()
@@ -132,18 +132,18 @@ machine Dungeon {
 
     state fight() {
         let room: Room;
-        RoomLookup.find_room(level, current_cell, mut room);
-        events.fight_event(mut player, mut room, mut random, mut combat_round, mut command_line);
-        console.write_line(command_line.text);
+        RoomLookup.find_room(self.level, self.current_cell, mut room);
+        self.events.fight_event(mut self.player, mut room, mut self.random, mut self.combat_round, mut self.command_line);
+        self.console.write_line(self.command_line.text);
 
-        transition combat_round.player_defeated {
+        transition self.combat_round.player_defeated {
             true -> game_over()
             false -> prompt()
         }
     }
 
     state move() {
-        current_cell = navigation.destination;
+        self.current_cell = self.navigation.destination;
 
         transition {
             _ -> enter_room()
@@ -151,7 +151,7 @@ machine Dungeon {
     }
 
     state invalid_command() {
-        console.write_line("That path is not open.");
+        self.console.write_line("That path is not open.");
 
         transition {
             _ -> prompt()
@@ -159,8 +159,8 @@ machine Dungeon {
     }
 
     state game_over() {
-        mode = GameMode::GameOver;
-        console.write_line("Game over.");
+        self.mode = GameMode::GameOver;
+        self.console.write_line("Game over.");
 
         transition {
             _ -> finished()
@@ -171,21 +171,21 @@ machine Dungeon {
     }
 
     fn start() {
-        rng.seed(1337, mut random);
-        player_system.create("Wanderer", mut player);
-        generator.generate(1337, mut level);
-        current_cell = level.start_cell;
-        mode = GameMode::Exploring;
+        self.rng.seed(1337, mut self.random);
+        self.player_system.create("Wanderer", mut self.player);
+        self.generator.generate(1337, mut self.level);
+        self.current_cell = self.level.start_cell;
+        self.mode = GameMode::Exploring;
     }
 
     fn exit(return_code: i32) {
-        console.write_line("Goodbye.");
-        console.exit_process(return_code);
+        self.console.write_line("Goodbye.");
+        self.console.exit_process(return_code);
     }
 
     fn mark_current_room_discovered() {
         let room: Room;
-        RoomLookup.find_room(level, current_cell, mut room);
+        RoomLookup.find_room(self.level, self.current_cell, mut room);
         room.discovered = true;
     }
 }

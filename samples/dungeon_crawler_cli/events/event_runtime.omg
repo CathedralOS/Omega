@@ -56,13 +56,13 @@ machine EventRuntime {
     }
 
     state use_fountain(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
-        player_system.heal(player, 12);
+        self.player_system.heal(player, 12);
         event.consumed = true;
         out_line.text = "The fountain heals your wounds.";
     }
 
     state use_reward(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
-        player_system.grant_reward(player, event.reward);
+        self.player_system.grant_reward(player, event.reward);
         event.consumed = true;
         out_line.text = "You take the treasure.";
     }
@@ -80,7 +80,7 @@ machine EventRuntime {
 
     state fight_enemy_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
 
-        combat.fight(player, mut room.event, random, round);
+        self.combat.fight(player, mut room.event, random, round);
 
         transition (round.player_defeated, round.enemy_defeated) {
             (true, _) -> player_died(out_line)

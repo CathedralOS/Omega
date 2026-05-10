@@ -23,13 +23,13 @@ machine RoomFormatter {
     fn write_room_event(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
         RoomLookup.find_room(level, cell, mut room);
-        events.describe(room, out_line);
+        self.events.describe(room, out_line);
     }
 
     fn write_adjacent_rooms(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
         RoomLookup.find_room(level, cell, mut room);
-        format_exits(room, out_line);
+        self.format_exits(room, out_line);
     }
 
     fn write_inventory(player: Player, out_line: &mut ConsoleLine) {

@@ -10,23 +10,23 @@ machine MazeBuilder {
 
     fn build(seed: u64[wrapping], level: &mut Level) {
         let random: RandomState;
-        rng.seed(seed, mut random);
+        self.rng.seed(seed, mut random);
 
         level.start_cell = CellId::R00;
         level.room_count = 0;
         level.deepest_depth = 0;
 
-        carve_room(level, mut random, CellId::R00, 0, 0);
-        branch(level, mut random, CellId::R00, 0, 0);
+        self.carve_room(level, mut random, CellId::R00, 0, 0);
+        self.branch(level, mut random, CellId::R00, 0, 0);
     }
 
     fn branch(level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
         let next_depth: u32[exact, non_negative] = depth + 1;
 
         transition (
-            should_carve(random, next_depth),
-            should_carve(random, next_depth),
-            should_carve(random, next_depth)
+            self.should_carve(random, next_depth),
+            self.should_carve(random, next_depth),
+            self.should_carve(random, next_depth)
         ) {
             (true, _, _) -> carve_north(level, random, from, next_depth, branch_id)
             (false, true, _) -> carve_east(level, random, from, next_depth, branch_id + 1)
@@ -36,9 +36,9 @@ machine MazeBuilder {
     }
 
     state carve_north(level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
-        let target: CellId = next_unused_cell(level);
-        carve_room(level, random, target, depth, branch_id);
-        connect(level, from, target, Direction::North);
+        let target: CellId = self.next_unused_cell(level);
+        self.carve_room(level, random, target, depth, branch_id);
+        self.connect(level, from, target, Direction::North);
 
         transition depth < 10 {
             true -> branch(level, random, target, depth, branch_id)
@@ -47,9 +47,9 @@ machine MazeBuilder {
     }
 
     state carve_east(level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
-        let target: CellId = next_unused_cell(level);
-        carve_room(level, random, target, depth, branch_id);
-        connect(level, from, target, Direction::East);
+        let target: CellId = self.next_unused_cell(level);
+        self.carve_room(level, random, target, depth, branch_id);
+        self.connect(level, from, target, Direction::East);
 
         transition depth < 10 {
             true -> branch(level, random, target, depth, branch_id)
@@ -58,9 +58,9 @@ machine MazeBuilder {
     }
 
     state carve_west(level: &mut Level, random: &mut RandomState, from: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
-        let target: CellId = next_unused_cell(level);
-        carve_room(level, random, target, depth, branch_id);
-        connect(level, from, target, Direction::West);
+        let target: CellId = self.next_unused_cell(level);
+        self.carve_room(level, random, target, depth, branch_id);
+        self.connect(level, from, target, Direction::West);
 
         transition depth < 10 {
             true -> branch(level, random, target, depth, branch_id)
@@ -71,31 +71,31 @@ machine MazeBuilder {
     fn should_carve(random: &mut RandomState, depth: u32[exact, non_negative]) -> bool {
         let chance: u32[exact, range<0, 100>] = max(15, 80 - depth * 6);
 
-        -> rng.chance(random, chance, 100);
+        -> self.rng.chance(random, chance, 100);
     }
 
     fn carve_room(level: &mut Level, random: &mut RandomState, cell: CellId, depth: u32[exact, non_negative], branch_id: u32[exact, non_negative]) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
-        let index: IndexOf<rooms> = cell_index(cell);
+        let index: IndexOf<rooms> = self.cell_index(cell);
         rooms[index].cell = cell;
         rooms[index].depth = depth;
         rooms[index].branch = branch_id;
-        rooms[index].label = room_label(cell);
-        rooms[index].description = room_description(depth, branch_id);
+        rooms[index].label = self.room_label(cell);
+        rooms[index].description = self.room_description(depth, branch_id);
         rooms[index].exit_count = 0;
         rooms[index].discovered = cell == level.start_cell;
-        events.roll_event(depth, random, mut rooms[index].event);
+        self.events.roll_event(depth, random, mut rooms[index].event);
         level.room_count = max(level.room_count, index + 1);
         level.deepest_depth = max(level.deepest_depth, depth);
     }
 
     fn connect(level: &mut Level, from: CellId, to: CellId, direction: Direction) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
-        let from_index: IndexOf<rooms> = cell_index(from);
-        let to_index: IndexOf<rooms> = cell_index(to);
+        let from_index: IndexOf<rooms> = self.cell_index(from);
+        let to_index: IndexOf<rooms> = self.cell_index(to);
 
-        append_exit(mut rooms[from_index], direction_command(direction), direction, to);
-        append_exit(mut rooms[to_index], direction_command(opposite(direction)), opposite(direction), from);
+        self.append_exit(mut rooms[from_index], self.direction_command(direction), direction, to);
+        self.append_exit(mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
     }
 
     fn append_exit(room: &mut Room, command: String, direction: Direction, destination: CellId) {

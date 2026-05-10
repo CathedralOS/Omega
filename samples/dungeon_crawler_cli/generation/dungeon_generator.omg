@@ -5,6 +5,6 @@ machine DungeonGenerator {
     contains maze: MazeBuilder;
 
     fn generate(seed: u64[wrapping], out_level: &mut Level) {
-        maze.build(seed, out_level);
+        self.maze.build(seed, out_level);
     }
 }

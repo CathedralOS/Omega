@@ -8,8 +8,8 @@ machine main {
     owns return_code: i32 = 0;
 
     fn entry() {
-        title.show();
-        dungeon.start();
+        self.title.show();
+        self.dungeon.start();
 
         transition {
             _ -> running()
@@ -17,7 +17,7 @@ machine main {
     }
 
     state running() {
-        dungeon.entry();
+        self.dungeon.entry();
 
         transition {
             _ -> shutdown()
@@ -25,7 +25,7 @@ machine main {
     }
 
     state shutdown() {
-        return_code = 0;
-        dungeon.exit(return_code);
+        self.return_code = 0;
+        self.dungeon.exit(self.return_code);
     }
 }
