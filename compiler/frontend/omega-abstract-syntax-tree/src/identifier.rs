@@ -1,6 +1,5 @@
 use std::fmt;
 use std::ops::Deref;
-use std::sync::Arc;
 
 use omega_core::source::SourceSpan;
 
@@ -14,28 +13,20 @@ pub struct Identifier {
 enum IdentifierText {
     #[default]
     Missing,
-    Source(Arc<str>),
-    Generated(String),
+    Owned(String),
 }
 
 impl Identifier {
     pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
-            text: IdentifierText::Generated(text.into()),
-            source_span,
-        }
-    }
-
-    pub fn source(source: Arc<str>, source_span: SourceSpan) -> Self {
-        Self {
-            text: IdentifierText::Source(source),
+            text: IdentifierText::Owned(text.into()),
             source_span,
         }
     }
 
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
-            text: IdentifierText::Generated(text.into()),
+            text: IdentifierText::Owned(text.into()),
             source_span: SourceSpan::default(),
         }
     }
@@ -43,10 +34,7 @@ impl Identifier {
     pub fn as_str(&self) -> &str {
         match &self.text {
             IdentifierText::Missing => "",
-            IdentifierText::Source(source) => source
-                .get(self.source_span.span.start..self.source_span.span.end)
-                .unwrap_or(""),
-            IdentifierText::Generated(text) => text.as_str(),
+            IdentifierText::Owned(text) => text.as_str(),
         }
     }
 
@@ -56,13 +44,6 @@ impl Identifier {
 
     pub fn is_source_backed(&self) -> bool {
         self.source_span.span.start != self.source_span.span.end
-    }
-
-    pub fn shared_source(&self) -> Option<(Arc<str>, SourceSpan)> {
-        match &self.text {
-            IdentifierText::Source(source) => Some((Arc::clone(source), self.source_span)),
-            IdentifierText::Missing | IdentifierText::Generated(_) => None,
-        }
     }
 
     pub fn into_string(self) -> String {

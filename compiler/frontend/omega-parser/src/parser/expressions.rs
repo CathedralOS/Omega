@@ -302,7 +302,6 @@ impl Parser<'_, '_> {
         }
 
         let file_id = self.file_id;
-        let source = self.source.clone();
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::Integer => token
@@ -311,11 +310,7 @@ impl Parser<'_, '_> {
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
-                TokenKind::Float => Ok(Expression::Float(source_text_from_token(
-                    file_id,
-                    source.as_ref(),
-                    token,
-                ))),
+                TokenKind::Float => Ok(Expression::Float(source_text_from_token(file_id, token))),
                 TokenKind::Identifier => {
                     if token.lexeme.as_str() == "true" {
                         return Ok(Expression::Boolean(true));
@@ -325,7 +320,7 @@ impl Parser<'_, '_> {
                         return Ok(Expression::Boolean(false));
                     }
 
-                    let mut path = vec![identifier_from_token(file_id, source.as_ref(), token)];
+                    let mut path = vec![identifier_from_token(file_id, token)];
 
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_identifier()?);

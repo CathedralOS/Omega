@@ -23,7 +23,6 @@ use omega_abstract_syntax_tree::tables::AstTables;
 use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
 use omega_core::source::{FileId, SourceText};
 use omega_lexer::{Token, TokenKind};
-use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AstFile {
@@ -37,25 +36,20 @@ pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
 }
 
 pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    parse_file_with_optional_source(file_id, None, tokens)
+    parse_file_with_optional_source(file_id, tokens)
 }
 
 pub fn parse_file_with_source(
     file_id: FileId,
-    source: Arc<str>,
+    _source: std::sync::Arc<str>,
     tokens: &[Token<'_>],
 ) -> Result<AstFile, ParseError> {
-    parse_file_with_optional_source(file_id, Some(source), tokens)
+    parse_file_with_optional_source(file_id, tokens)
 }
 
-fn parse_file_with_optional_source(
-    file_id: FileId,
-    source: Option<Arc<str>>,
-    tokens: &[Token<'_>],
-) -> Result<AstFile, ParseError> {
+fn parse_file_with_optional_source(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
     Parser {
         file_id,
-        source,
         tokens,
         index: 0,
     }
@@ -64,7 +58,6 @@ fn parse_file_with_optional_source(
 
 struct Parser<'tokens, 'source> {
     file_id: FileId,
-    source: Option<Arc<str>>,
     tokens: &'tokens [Token<'source>],
     index: usize,
 }
@@ -227,13 +220,12 @@ impl Parser<'_, '_> {
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError> {
         let file_id = self.file_id;
-        let source = self.source.clone();
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
 
         if token.kind == TokenKind::Identifier {
-            Ok(identifier_from_token(file_id, source.as_ref(), token))
+            Ok(identifier_from_token(file_id, token))
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
@@ -290,32 +282,14 @@ impl Parser<'_, '_> {
     }
 }
 
-fn identifier_from_token(
-    file_id: FileId,
-    source: Option<&Arc<str>>,
-    token: &Token<'_>,
-) -> Identifier {
+fn identifier_from_token(file_id: FileId, token: &Token<'_>) -> Identifier {
     let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
-
-    if let Some(source) = source {
-        Identifier::source(Arc::clone(source), source_span)
-    } else {
-        Identifier::new(token.lexeme.as_str(), source_span)
-    }
+    Identifier::new(token.lexeme.as_str(), source_span)
 }
 
-fn source_text_from_token(
-    file_id: FileId,
-    source: Option<&Arc<str>>,
-    token: &Token<'_>,
-) -> SourceText {
+fn source_text_from_token(file_id: FileId, token: &Token<'_>) -> SourceText {
     let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
-
-    if let Some(source) = source {
-        SourceText::source(Arc::clone(source), source_span)
-    } else {
-        SourceText::generated(token.lexeme.as_str())
-    }
+    SourceText::new(token.lexeme.as_str(), source_span)
 }
 
 fn binary_expression(left: Expression, operator: BinaryOperator, right: Expression) -> Expression {
