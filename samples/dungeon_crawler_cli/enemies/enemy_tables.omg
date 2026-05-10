@@ -6,13 +6,24 @@ machine EnemyTables {
     contains rng: Random;
 
     fn roll_enemy(depth: u32[exact, non_negative], random: &mut RandomState, enemy: &mut Enemy) {
-        transition {
-            depth <= 1 -> bat(random, enemy)
-            depth <= 2 -> spider(random, enemy)
-            depth <= 4 -> skeleton(random, enemy)
-            depth <= 6 -> cultist(random, enemy)
-            depth <= 8 -> hellhound(random, enemy)
-            _ -> pit_fiend(random, enemy)
+        transition tier_for_depth(depth) {
+            EnemyTier::Bat -> bat(random, enemy)
+            EnemyTier::Spider -> spider(random, enemy)
+            EnemyTier::Skeleton -> skeleton(random, enemy)
+            EnemyTier::Cultist -> cultist(random, enemy)
+            EnemyTier::Hellhound -> hellhound(random, enemy)
+            EnemyTier::PitFiend -> pit_fiend(random, enemy)
+        }
+    }
+
+    fn tier_for_depth(depth: u32[exact, non_negative]) -> EnemyTier {
+        match {
+            depth <= 1 -> EnemyTier::Bat
+            depth <= 2 -> EnemyTier::Spider
+            depth <= 4 -> EnemyTier::Skeleton
+            depth <= 6 -> EnemyTier::Cultist
+            depth <= 8 -> EnemyTier::Hellhound
+            _ -> EnemyTier::PitFiend
         }
     }
 

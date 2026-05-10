@@ -33,9 +33,9 @@ machine PlayerSystem {
     fn grant_xp(player: &mut Player, amount: u32[exact, non_negative]) {
         player.xp = player.xp + amount;
 
-        transition {
-            player.xp >= xp_required(player.level) -> level_up(player)
-            _ -> {}
+        transition player.xp >= xp_required(player.level) {
+            true -> level_up(player)
+            false -> {}
         }
     }
 
@@ -46,9 +46,9 @@ machine PlayerSystem {
         player.attack = player.attack + 1;
         player.health = player.max_health;
 
-        transition {
-            player.xp >= xp_required(player.level) -> level_up(player)
-            _ -> {}
+        transition player.xp >= xp_required(player.level) {
+            true -> level_up(player)
+            false -> {}
         }
     }
 

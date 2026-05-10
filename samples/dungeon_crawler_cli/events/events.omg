@@ -9,6 +9,13 @@ enum RoomEventKind {
     Enemy,
 }
 
+enum RoomEventAction {
+    Quiet,
+    Fountain,
+    Reward,
+    Enemy,
+}
+
 data RoomEvent {
     kind: RoomEventKind;
     enemy: Enemy;

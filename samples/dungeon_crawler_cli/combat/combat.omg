@@ -17,9 +17,9 @@ machine CombatSystem {
         event.enemy.health = max(0, event.enemy.health - round.player_damage);
         round.enemy_defeated = event.enemy.health == 0;
 
-        transition {
-            round.enemy_defeated -> defeated_enemy(player, event, random, round)
-            _ -> enemy_retaliates(player, event, random, round)
+        transition round.enemy_defeated {
+            true -> defeated_enemy(player, event, random, round)
+            false -> enemy_retaliates(player, event, random, round)
         }
     }
 

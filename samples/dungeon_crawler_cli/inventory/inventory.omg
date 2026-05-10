@@ -14,9 +14,9 @@ machine InventorySystem {
     fn add_item(inventory: &mut Inventory, kind: ItemKind) {
         let existing_index: Option<usize> = find_item(inventory, kind);
 
-        transition {
-            existing_index.is_some() -> increment_item(mut inventory.items[existing_index.unwrap()], 1)
-            _ -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
+        transition existing_index.is_some() {
+            true -> increment_item(mut inventory.items[existing_index.unwrap()], 1)
+            false -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
         }
     }
 

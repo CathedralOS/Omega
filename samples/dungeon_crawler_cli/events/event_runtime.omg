@@ -17,11 +17,11 @@ machine EventRuntime {
     contains player_system: PlayerSystem;
 
     fn describe(room: Room, out_line: &mut ConsoleLine) {
-        transition room.event.kind {
-            RoomEventKind::FountainOfLife when !room.event.consumed -> describe_fountain(out_line)
-            RoomEventKind::Treasure when !room.event.consumed -> describe_treasure(out_line)
-            RoomEventKind::GoldCache when !room.event.consumed -> describe_gold(out_line)
-            RoomEventKind::Enemy when !room.event.consumed -> describe_enemy(room.event.enemy, out_line)
+        transition (room.event.kind, room.event.consumed) {
+            (RoomEventKind::FountainOfLife, false) -> describe_fountain(out_line)
+            (RoomEventKind::Treasure, false) -> describe_treasure(out_line)
+            (RoomEventKind::GoldCache, false) -> describe_gold(out_line)
+            (RoomEventKind::Enemy, false) -> describe_enemy(room.event.enemy, out_line)
             _ -> quiet_room(out_line)
         }
     }
@@ -47,10 +47,10 @@ machine EventRuntime {
     }
 
     fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
-        transition room.event.kind {
-            RoomEventKind::FountainOfLife when !room.event.consumed -> use_fountain(player, mut room.event, out_line)
-            RoomEventKind::Treasure when !room.event.consumed -> use_reward(player, mut room.event, out_line)
-            RoomEventKind::GoldCache when !room.event.consumed -> use_reward(player, mut room.event, out_line)
+        transition (room.event.kind, room.event.consumed) {
+            (RoomEventKind::FountainOfLife, false) -> use_fountain(player, mut room.event, out_line)
+            (RoomEventKind::Treasure, false) -> use_reward(player, mut room.event, out_line)
+            (RoomEventKind::GoldCache, false) -> use_reward(player, mut room.event, out_line)
             _ -> no_usable_event(out_line)
         }
     }
@@ -72,9 +72,9 @@ machine EventRuntime {
     }
 
     fn fight_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
-        transition {
-            room.event.kind != RoomEventKind::Enemy || room.event.consumed -> no_enemy(out_line)
-            _ -> fight_enemy_event(player, room, random, round, out_line)
+        transition (room.event.kind, room.event.consumed) {
+            (RoomEventKind::Enemy, false) -> fight_enemy_event(player, room, random, round, out_line)
+            _ -> no_enemy(out_line)
         }
     }
 
@@ -82,10 +82,10 @@ machine EventRuntime {
 
         combat.fight(player, mut room.event, random, round);
 
-        transition {
-            round.player_defeated -> player_died(out_line)
-            round.enemy_defeated -> enemy_died(room.event.reward, out_line)
-            _ -> exchange_blows(round, out_line)
+        transition (round.player_defeated, round.enemy_defeated) {
+            (true, _) -> player_died(out_line)
+            (false, true) -> enemy_died(room.event.reward, out_line)
+            (false, false) -> exchange_blows(round, out_line)
         }
     }
 

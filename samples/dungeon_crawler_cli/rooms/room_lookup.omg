@@ -3,9 +3,9 @@ use rooms::rooms;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {
-        transition {
-            level.room_count > 0 -> find_room_at(level, cell, out_room, 0)
-            _ -> {}
+        transition level.room_count > 0 {
+            true -> find_room_at(level, cell, out_room, 0)
+            false -> {}
         }
     }
 
@@ -14,10 +14,10 @@ machine RoomLookup {
     }
 
     state find_room_at(level: Level, cell: CellId, out_room: &mut Room, index: usize) {
-        transition {
-            level.rooms[index].cell == cell -> apply_room(level.rooms[index], out_room)
-            index + 1 < level.room_count -> find_room_at(level, cell, out_room, index + 1)
-            _ -> {}
+        transition (level.rooms[index].cell == cell, index + 1 < level.room_count) {
+            (true, _) -> apply_room(level.rooms[index], out_room)
+            (false, true) -> find_room_at(level, cell, out_room, index + 1)
+            (false, false) -> {}
         }
     }
 

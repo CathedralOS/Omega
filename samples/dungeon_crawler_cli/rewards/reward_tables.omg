@@ -20,9 +20,9 @@ machine RewardTables {
     }
 
     fn roll_enemy_reward(enemy: Enemy, random: &mut RandomState, reward: &mut Reward) {
-        transition {
-            rng.chance(random, 1, 4) -> enemy_item(enemy, random, reward)
-            _ -> enemy_gold(enemy, random, reward)
+        transition rng.chance(random, 1, 4) {
+            true -> enemy_item(enemy, random, reward)
+            false -> enemy_gold(enemy, random, reward)
         }
     }
 

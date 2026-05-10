@@ -7,6 +7,15 @@ enum EnemyKind {
     PitFiend,
 }
 
+enum EnemyTier {
+    Bat,
+    Spider,
+    Skeleton,
+    Cultist,
+    Hellhound,
+    PitFiend,
+}
+
 data Enemy {
     kind: EnemyKind;
     name: String;

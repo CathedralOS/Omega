@@ -55,9 +55,9 @@ machine Dungeon {
     }
 
     state prompt() {
-        transition {
-            player.health == 0 -> game_over()
-            _ -> {}
+        transition player.health == 0 {
+            true -> game_over()
+            false -> {}
         }
 
         console.write("> ");
@@ -136,9 +136,9 @@ machine Dungeon {
         events.fight_event(mut player, mut room, mut random, mut combat_round, mut command_line);
         console.write_line(command_line.text);
 
-        transition {
-            combat_round.player_defeated -> game_over()
-            _ -> prompt()
+        transition combat_round.player_defeated {
+            true -> game_over()
+            false -> prompt()
         }
     }
 
