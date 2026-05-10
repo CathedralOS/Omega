@@ -39,16 +39,13 @@ pub(super) fn append_leaf_branch_expansions(
 
         let branch_bindings =
             branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
-        let leaf_arguments = plan
-            .target_arguments
-            .span_or_empty(edge.target_arguments)
-            .to_vec();
+        let leaf_arguments = plan.target_arguments.span_or_empty(edge.target_arguments);
         let bindings = leaf_branch_bindings(
             &branch_bindings,
             context,
             *leaf_key,
             &mut plan.expressions,
-            &leaf_arguments,
+            leaf_arguments,
         );
         let bindings = plan.leaf_bindings.insert_many(bindings);
         let operations = plan.leaf_operations.insert_many(leaf_operations(
@@ -99,16 +96,13 @@ pub(super) fn append_straight_line_branch_expansions(
 
         let branch_bindings =
             branch_parameter_bindings(context, state_call, aliases, &mut plan.expressions);
-        let target_arguments = plan
-            .target_arguments
-            .span_or_empty(edge.target_arguments)
-            .to_vec();
+        let target_arguments = plan.target_arguments.span_or_empty(edge.target_arguments);
         let bindings = straight_line_branch_bindings(
             &branch_bindings,
             context,
             *target_key,
             &mut plan.expressions,
-            &target_arguments,
+            target_arguments,
         );
         let bindings = plan.straight_line_bindings.insert_many(bindings);
         let operations = plan
