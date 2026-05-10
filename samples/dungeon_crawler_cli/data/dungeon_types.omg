@@ -1,43 +1,168 @@
 enum CellId {
     Empty,
-    A1,
-    A2,
-    B1,
-    B2,
+    R00,
+    R01,
+    R02,
+    R03,
+    R04,
+    R05,
+    R06,
+    R07,
+    R08,
+    R09,
+    R10,
+    R11,
+    R12,
+    R13,
+    R14,
+    R15,
+}
+
+enum Direction {
+    North,
+    South,
+    East,
+    West,
 }
 
 enum NavigationChoice {
     Quit,
     Look,
     Exits,
+    Inventory,
+    Character,
+    UseFountain,
+    Fight,
     Move,
     Invalid,
+}
+
+enum RoomEventKind {
+    Nothing,
+    FountainOfLife,
+    Treasure,
+    GoldCache,
+    Enemy,
+}
+
+enum EnemyKind {
+    Bat,
+    Spider,
+    Skeleton,
+    Cultist,
+    Hellhound,
+    PitFiend,
+}
+
+enum RewardKind {
+    None,
+    Gold,
+    Item,
+    GoldAndItem,
+}
+
+enum ItemKind {
+    RustedDagger,
+    CrackedBuckler,
+    HealingCharm,
+    EmberBlade,
+    DeepKey,
+}
+
+enum GameMode {
+    Title,
+    Exploring,
+    Combat,
+    GameOver,
 }
 
 data ConsoleLine {
     text: String;
 }
 
+data RandomState {
+    seed: u64[wrapping];
+    calls: Uint;
+}
+
 data Exit {
     command: String;
+    direction: Direction;
     destination: CellId;
+}
+
+data Enemy {
+    kind: EnemyKind;
+    name: String;
+    max_health: i32[exact, positive];
+    health: i32[exact, range<0, max_health>];
+    attack: i32[exact, positive];
+    defense: i32[exact, non_negative];
+    xp_reward: u32[exact];
+    depth: u32[exact];
+}
+
+data Reward {
+    kind: RewardKind;
+    gold: u32[exact, non_negative];
+    item: ItemKind;
+}
+
+data RoomEvent {
+    kind: RoomEventKind;
+    enemy: Enemy;
+    reward: Reward;
+    consumed: bool;
+}
+
+data InventoryItem {
+    kind: ItemKind;
+    count: u32[exact, positive];
+}
+
+data Inventory {
+    items: Vec<InventoryItem>;
+    gold: u32[exact, non_negative];
+}
+
+data Player {
+    name: String;
+    level: u32[exact, positive];
+    xp: u32[exact, non_negative];
+    max_health: i32[exact, positive];
+    health: i32[exact, range<0, max_health>];
+    attack: i32[exact, positive];
+    defense: i32[exact, non_negative];
+    inventory: Inventory;
 }
 
 data Room {
     cell: CellId;
+    depth: u32[exact, non_negative];
+    branch: u32[exact, non_negative];
     label: String;
     description: String;
     exits: [Exit; 4];
-    exit_count: u32;
+    exit_count: u32[exact, range<0, 4>];
+    event: RoomEvent;
+    discovered: bool;
 }
 
 data Level {
     rooms: [Room; 16];
-    room_count: u32;
+    room_count: u32[exact, range<1, 16>];
     start_cell: CellId;
+    deepest_depth: u32[exact, non_negative];
 }
 
 data Navigation {
     choice: NavigationChoice;
     destination: CellId;
+}
+
+data CombatRound {
+    player_damage: i32[exact, non_negative];
+    enemy_damage: i32[exact, non_negative];
+    enemy_defeated: bool;
+    player_defeated: bool;
 }

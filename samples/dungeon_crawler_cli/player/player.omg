@@ -1,0 +1,52 @@
+use data::dungeon_types;
+use inventory::inventory;
+
+machine PlayerSystem {
+    contains inventory: InventorySystem;
+
+    fn create(name: String, player: &mut Player) {
+        player.name = name;
+        player.level = 1;
+        player.xp = 0;
+        player.max_health = 30;
+        player.health = player.max_health;
+        player.attack = 4;
+        player.defense = 1;
+        inventory.clear(mut player.inventory);
+    }
+
+    fn heal(player: &mut Player, amount: i32[exact, positive]) {
+        player.health = min(player.max_health, player.health + amount);
+    }
+
+    fn take_damage(player: &mut Player, amount: i32[exact, non_negative]) {
+        let prevented: i32[exact, non_negative] = min(amount, player.defense);
+        let actual: i32[exact, non_negative] = amount - prevented;
+        player.health = max(0, player.health - actual);
+    }
+
+    fn grant_reward(player: &mut Player, reward: Reward) {
+        inventory.add_reward(mut player.inventory, reward);
+    }
+
+    fn grant_xp(player: &mut Player, amount: u32[exact, non_negative]) {
+        player.xp = player.xp + amount;
+        -> level_up(player) when player.xp >= xp_required(player.level);
+        ->
+    }
+
+    state level_up(player: &mut Player) {
+        player.xp = player.xp - xp_required(player.level);
+        player.level = player.level + 1;
+        player.max_health = player.max_health + 5;
+        player.attack = player.attack + 1;
+        player.health = player.max_health;
+
+        -> level_up(player) when player.xp >= xp_required(player.level);
+        ->
+    }
+
+    fn xp_required(level: u32[exact, positive]) -> u32[exact, positive] {
+        -> 10 + level * 5;
+    }
+}

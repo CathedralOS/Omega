@@ -1,26 +1,43 @@
-use data::dungeon_types;
 use commands::command_parser;
+use data::dungeon_types;
+use events::event_runtime;
 use generation::dungeon_generator;
 use platform::console;
+use player::player;
+use rng::random;
 use rooms::room_formatter;
+use rooms::room_lookup;
 
 machine Dungeon {
     contains console: ConsolePlatform;
     contains generator: DungeonGenerator;
     contains parser: CommandParser;
     contains formatter: RoomFormatter;
+    contains events: EventRuntime;
+    contains player_system: PlayerSystem;
+    contains rng: Random;
 
     owns command_line: ConsoleLine;
     owns current_cell: CellId = CellId::Empty;
     owns level: Level;
     owns navigation: Navigation;
+    owns player: Player;
+    owns random: RandomState;
+    owns combat_round: CombatRound;
+    owns mode: GameMode = GameMode::Title;
 
     state entry() {
         -> enter_room();
     }
 
     state enter_room() {
+        mark_current_room_discovered();
+
         formatter.write_current_cell(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+        formatter.write_room_info(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+        formatter.write_room_event(level, current_cell, mut command_line);
         console.write_line(command_line.text);
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
@@ -29,6 +46,8 @@ machine Dungeon {
     }
 
     state prompt() {
+        -> game_over() when player.health == 0;
+
         console.write("> ");
         console.read_line(mut command_line);
         navigation.choice = NavigationChoice::Invalid;
@@ -40,12 +59,18 @@ machine Dungeon {
         -> finished() when navigation.choice == NavigationChoice::Quit;
         -> look() when navigation.choice == NavigationChoice::Look;
         -> exits() when navigation.choice == NavigationChoice::Exits;
+        -> inventory() when navigation.choice == NavigationChoice::Inventory;
+        -> character() when navigation.choice == NavigationChoice::Character;
+        -> use_event() when navigation.choice == NavigationChoice::UseFountain;
+        -> fight() when navigation.choice == NavigationChoice::Fight;
         -> move() when navigation.choice == NavigationChoice::Move;
         -> invalid_command();
     }
 
     state look() {
         formatter.write_room_info(level, current_cell, mut command_line);
+        console.write_line(command_line.text);
+        formatter.write_room_event(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
         -> prompt();
@@ -55,6 +80,39 @@ machine Dungeon {
         formatter.write_adjacent_rooms(level, current_cell, mut command_line);
         console.write_line(command_line.text);
 
+        -> prompt();
+    }
+
+    state inventory() {
+        formatter.write_inventory(player, mut command_line);
+        console.write_line(command_line.text);
+
+        -> prompt();
+    }
+
+    state character() {
+        formatter.write_character(player, mut command_line);
+        console.write_line(command_line.text);
+
+        -> prompt();
+    }
+
+    state use_event() {
+        let room: Room;
+        RoomLookup.find_room(level, current_cell, mut room);
+        events.use_event(mut player, mut room, mut command_line);
+        console.write_line(command_line.text);
+
+        -> prompt();
+    }
+
+    state fight() {
+        let room: Room;
+        RoomLookup.find_room(level, current_cell, mut room);
+        events.fight_event(mut player, mut room, mut random, mut combat_round, mut command_line);
+        console.write_line(command_line.text);
+
+        -> game_over() when combat_round.player_defeated;
         -> prompt();
     }
 
@@ -70,16 +128,32 @@ machine Dungeon {
         -> prompt();
     }
 
+    state game_over() {
+        mode = GameMode::GameOver;
+        console.write_line("Game over.");
+
+        -> finished();
+    }
+
     state finished() {
     }
 
     fn start() {
+        rng.seed(1337, mut random);
+        player_system.create("Wanderer", mut player);
         generator.generate(1337, mut level);
         current_cell = level.start_cell;
+        mode = GameMode::Exploring;
     }
 
     fn exit(return_code: i32) {
         console.write_line("Goodbye.");
         console.exit_process(return_code);
+    }
+
+    fn mark_current_room_discovered() {
+        let room: Room;
+        RoomLookup.find_room(level, current_cell, mut room);
+        room.discovered = true;
     }
 }

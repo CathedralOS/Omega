@@ -2,15 +2,23 @@ use data::dungeon_types;
 
 machine RoomLookup {
     fn find_room(level: Level, cell: CellId, out_room: &mut Room) {
-        scan_room(level.rooms[0], cell, mut out_room);
-        scan_room(level.rooms[1], cell, mut out_room);
-        scan_room(level.rooms[2], cell, mut out_room);
-        scan_room(level.rooms[3], cell, mut out_room);
+        let index: usize = 0;
+
+        loop index < level.room_count {
+            -> apply_room(level.rooms[index], out_room) when level.rooms[index].cell == cell;
+            index = index + 1;
+        }
     }
 
-    fn scan_room(room: Room, cell: CellId, out_room: &mut Room) {
-        -> apply_room(room, mut out_room) when room.cell == cell;
-        ->
+    fn find_room_mut(level: &mut Level, cell: CellId) -> &mut Room {
+        let index: usize = 0;
+
+        loop index < level.room_count {
+            -> &mut level.rooms[index] when level.rooms[index].cell == cell;
+            index = index + 1;
+        }
+
+        -> &mut level.rooms[0];
     }
 
     state apply_room(room: Room, out_room: &mut Room) {

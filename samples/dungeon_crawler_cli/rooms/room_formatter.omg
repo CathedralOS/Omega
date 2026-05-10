@@ -1,11 +1,14 @@
 use data::dungeon_types;
+use events::event_runtime;
 use rooms::room_lookup;
 
 machine RoomFormatter {
+    contains events: EventRuntime;
+
     fn write_current_cell(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
         RoomLookup.find_room(level, cell, mut room);
-        out_line.text = "Room " + room.label;
+        out_line.text = "Room " + room.label + " depth " + room.depth.to_string();
     }
 
     fn write_room_info(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
@@ -14,26 +17,33 @@ machine RoomFormatter {
         out_line.text = room.description;
     }
 
+    fn write_room_event(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
+        let room: Room;
+        RoomLookup.find_room(level, cell, mut room);
+        events.describe(room, out_line);
+    }
+
     fn write_adjacent_rooms(level: Level, cell: CellId, out_line: &mut ConsoleLine) {
         let room: Room;
         RoomLookup.find_room(level, cell, mut room);
-        format_exits(room, mut out_line);
+        format_exits(room, out_line);
+    }
+
+    fn write_inventory(player: Player, out_line: &mut ConsoleLine) {
+        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.items.len().to_string();
+    }
+
+    fn write_character(player: Player, out_line: &mut ConsoleLine) {
+        out_line.text = player.name + " level " + player.level.to_string() + " hp " + player.health.to_string() + "/" + player.max_health.to_string() + " xp " + player.xp.to_string();
     }
 
     fn format_exits(room: Room, out_line: &mut ConsoleLine) {
-        out_line.text = "Commands: look | info | exits | help | quit";
-        append_exit(room.exits[0], mut out_line);
-        append_exit(room.exits[1], mut out_line);
-        append_exit(room.exits[2], mut out_line);
-        append_exit(room.exits[3], mut out_line);
-    }
+        out_line.text = "Commands: look | info | exits | inventory | character | use | fight | quit";
 
-    fn append_exit(exit: Exit, out_line: &mut ConsoleLine) {
-        -> append_open_exit(exit, mut out_line) when exit.destination != CellId::Empty;
-        ->
-    }
-
-    state append_open_exit(exit: Exit, out_line: &mut ConsoleLine) {
-        out_line.text = out_line.text + " | " + exit.command;
+        let index: usize = 0;
+        loop index < room.exit_count {
+            out_line.text = out_line.text + " | " + room.exits[index].command;
+            index = index + 1;
+        }
     }
 }

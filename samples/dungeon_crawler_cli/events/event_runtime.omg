@@ -1,0 +1,78 @@
+use data::dungeon_types;
+use combat::combat;
+use inventory::inventory;
+use player::player;
+use rng::random;
+
+machine EventRuntime {
+    contains combat: CombatSystem;
+    contains inventory: InventorySystem;
+    contains player_system: PlayerSystem;
+
+    fn describe(room: Room, out_line: &mut ConsoleLine) {
+        -> describe_fountain(out_line) when room.event.kind == RoomEventKind::FountainOfLife && !room.event.consumed;
+        -> describe_treasure(out_line) when room.event.kind == RoomEventKind::Treasure && !room.event.consumed;
+        -> describe_gold(out_line) when room.event.kind == RoomEventKind::GoldCache && !room.event.consumed;
+        -> describe_enemy(room.event.enemy, out_line) when room.event.kind == RoomEventKind::Enemy && !room.event.consumed;
+        out_line.text = "The room is quiet.";
+    }
+
+    state describe_fountain(out_line: &mut ConsoleLine) {
+        out_line.text = "A fountain of life glows here. Type use to drink.";
+    }
+
+    state describe_treasure(out_line: &mut ConsoleLine) {
+        out_line.text = "A treasure cache rests against the wall. Type use to claim it.";
+    }
+
+    state describe_gold(out_line: &mut ConsoleLine) {
+        out_line.text = "Loose gold glitters in the dust. Type use to collect it.";
+    }
+
+    state describe_enemy(enemy: Enemy, out_line: &mut ConsoleLine) {
+        out_line.text = enemy.name + " blocks the way. Type fight.";
+    }
+
+    fn use_event(player: &mut Player, room: &mut Room, out_line: &mut ConsoleLine) {
+        -> use_fountain(player, mut room.event, out_line) when room.event.kind == RoomEventKind::FountainOfLife && !room.event.consumed;
+        -> use_reward(player, mut room.event, out_line) when room.event.kind == RoomEventKind::Treasure && !room.event.consumed;
+        -> use_reward(player, mut room.event, out_line) when room.event.kind == RoomEventKind::GoldCache && !room.event.consumed;
+
+        out_line.text = "There is nothing here to use.";
+    }
+
+    state use_fountain(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
+        player_system.heal(player, 12);
+        event.consumed = true;
+        out_line.text = "The fountain heals your wounds.";
+    }
+
+    state use_reward(player: &mut Player, event: &mut RoomEvent, out_line: &mut ConsoleLine) {
+        player_system.grant_reward(player, event.reward);
+        event.consumed = true;
+        out_line.text = "You take the treasure.";
+    }
+
+    fn fight_event(player: &mut Player, room: &mut Room, random: &mut RandomState, round: &mut CombatRound, out_line: &mut ConsoleLine) {
+        -> no_enemy(out_line) when room.event.kind != RoomEventKind::Enemy || room.event.consumed;
+
+        combat.fight(player, mut room.event, random, round);
+
+        -> player_died(out_line) when round.player_defeated;
+        -> enemy_died(room.event.reward, out_line) when round.enemy_defeated;
+
+        out_line.text = "You strike for " + round.player_damage.to_string() + ", then take " + round.enemy_damage.to_string() + ".";
+    }
+
+    state no_enemy(out_line: &mut ConsoleLine) {
+        out_line.text = "There is no enemy here.";
+    }
+
+    state player_died(out_line: &mut ConsoleLine) {
+        out_line.text = "You fall in the dark.";
+    }
+
+    state enemy_died(reward: Reward, out_line: &mut ConsoleLine) {
+        out_line.text = "The enemy collapses. You gain " + reward.gold.to_string() + " gold.";
+    }
+}

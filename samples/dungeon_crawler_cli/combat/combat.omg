@@ -1,0 +1,34 @@
+use data::dungeon_types;
+use player::player;
+use rewards::reward_tables;
+use rng::random;
+
+machine CombatSystem {
+    contains player_system: PlayerSystem;
+    contains rewards: RewardTables;
+    contains rng: Random;
+
+    fn fight(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+        round.player_damage = max(0, player.attack - event.enemy.defense + rng.range(random, 3));
+        event.enemy.health = max(0, event.enemy.health - round.player_damage);
+        round.enemy_defeated = event.enemy.health == 0;
+
+        -> defeated_enemy(player, event, random, round) when round.enemy_defeated;
+
+        round.enemy_damage = max(0, event.enemy.attack - player.defense + rng.range(random, 3));
+        player_system.take_damage(player, round.enemy_damage);
+        round.player_defeated = player.health == 0;
+    }
+
+    state defeated_enemy(player: &mut Player, event: &mut RoomEvent, random: &mut RandomState, round: &mut CombatRound) {
+        let reward: Reward;
+        rewards.roll_enemy_reward(event.enemy, random, mut reward);
+        player_system.grant_reward(player, reward);
+        player_system.grant_xp(player, event.enemy.xp_reward);
+
+        event.reward = reward;
+        event.consumed = true;
+        round.enemy_damage = 0;
+        round.player_defeated = false;
+    }
+}

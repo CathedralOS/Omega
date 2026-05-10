@@ -1,0 +1,50 @@
+use data::dungeon_types;
+use enemies::enemy_tables;
+use rewards::reward_tables;
+use rng::random;
+
+machine RoomEvents {
+    contains enemies: EnemyTables;
+    contains rewards: RewardTables;
+    contains rng: Random;
+
+    fn roll_event(depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+        let roll: u32[exact, range<0, 100>] = rng.range(random, 100);
+
+        -> no_event(event) when roll < 20;
+        -> fountain(event) when roll < 30;
+        -> treasure(depth, random, event) when roll < 45;
+        -> gold_cache(depth, random, event) when roll < 60;
+        -> enemy(depth, random, event);
+    }
+
+    state no_event(event: &mut RoomEvent) {
+        event.kind = RoomEventKind::Nothing;
+        event.consumed = true;
+        event.reward.kind = RewardKind::None;
+    }
+
+    state fountain(event: &mut RoomEvent) {
+        event.kind = RoomEventKind::FountainOfLife;
+        event.consumed = false;
+        event.reward.kind = RewardKind::None;
+    }
+
+    state treasure(depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+        event.kind = RoomEventKind::Treasure;
+        event.consumed = false;
+        rewards.roll_room_treasure(depth, random, mut event.reward);
+    }
+
+    state gold_cache(depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+        event.kind = RoomEventKind::GoldCache;
+        event.consumed = false;
+        rewards.roll_gold_cache(depth, random, mut event.reward);
+    }
+
+    state enemy(depth: u32[exact, non_negative], random: &mut RandomState, event: &mut RoomEvent) {
+        event.kind = RoomEventKind::Enemy;
+        event.consumed = false;
+        enemies.roll_enemy(depth, random, mut event.enemy);
+    }
+}
