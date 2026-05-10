@@ -6,7 +6,6 @@ use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
 use omega_target_program::TargetDataObjectHandle;
-use omega_typed_program::expression::Expression;
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
     input: &InstructionSelectionInput<'_>,
@@ -77,11 +76,14 @@ pub(in crate::selection::host_operations) fn runtime_text_literal_for_host_call(
         if text_write.kind != RuntimeTextWriteKind::StaticText {
             continue;
         }
-        let Expression::String(value) = input.runtime_text.expressions.to_tree(text_write.value)
+        let Some(value) = input
+            .runtime_text
+            .expressions
+            .string_literal(text_write.value)
         else {
             continue;
         };
-        latest_static_text = Some(value);
+        latest_static_text = Some(value.to_owned());
     }
 
     let mut literal = latest_static_text?;

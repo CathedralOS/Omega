@@ -454,6 +454,13 @@ impl ExpressionTable {
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }
+
+    pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&str> {
+        match self.expression(handle) {
+            ExpressionNode::String(value) => Some(value.as_str()),
+            _ => None,
+        }
+    }
 }
 
 impl Default for ExpressionTable {

@@ -142,8 +142,11 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                 emitted = true;
             }
             RuntimeTextBuilderSegmentKind::StaticText => {
-                let Expression::String(literal) =
-                    input.runtime_text.expressions.to_tree(segment.expression)
+                let Some(literal) = input
+                    .runtime_text
+                    .expressions
+                    .string_literal(segment.expression)
+                    .map(str::to_owned)
                 else {
                     return false;
                 };
@@ -177,7 +180,11 @@ fn prefixed_stored_place_write(
     resolve_expression: &dyn Fn(&Expression) -> Expression,
     emit: &mut dyn FnMut(SelectedInstructionKind),
 ) -> bool {
-    let Expression::String(prefix) = input.runtime_text.expressions.to_tree(prefix.expression)
+    let Some(prefix) = input
+        .runtime_text
+        .expressions
+        .string_literal(prefix.expression)
+        .map(str::to_owned)
     else {
         return false;
     };
