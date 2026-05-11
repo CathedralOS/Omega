@@ -8,6 +8,13 @@ pub(super) fn layout_for_type(
     type_symbol: SymbolHandle,
     type_name: &str,
 ) -> TypeLayout {
+    if type_name.starts_with('&') {
+        return TypeLayout {
+            size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+        };
+    }
+
     if type_symbol.is_valid() {
         if let Some(data_layout) = context
             .layouts
@@ -34,7 +41,47 @@ pub(super) fn layout_for_type(
         return primitive_layout(context, primitive_type);
     }
 
+    if let Some(layout) = builtin_named_layout(context, type_name) {
+        return layout;
+    }
+
+    if is_slice_descriptor_name(type_name) {
+        return TypeLayout {
+            size: context.target.pointer_size * 2,
+            alignment: context.target.pointer_alignment,
+        };
+    }
+
+    if is_vector_descriptor_name(type_name) {
+        return TypeLayout {
+            size: context.target.pointer_size * 3,
+            alignment: context.target.pointer_alignment,
+        };
+    }
+
     TypeLayout::default()
+}
+
+fn is_slice_descriptor_name(type_name: &str) -> bool {
+    type_name.starts_with('[') && type_name.ends_with(']') && !type_name.contains(';')
+}
+
+fn is_vector_descriptor_name(type_name: &str) -> bool {
+    type_name.starts_with("Vec<") && type_name.ends_with('>')
+}
+
+fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Option<TypeLayout> {
+    match type_name {
+        "Uint" => Some(TypeLayout {
+            size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+        }),
+        "Real" => Some(TypeLayout {
+            size: 8,
+            alignment: 8,
+        }),
+        _ => None,
+    }
 }
 
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {

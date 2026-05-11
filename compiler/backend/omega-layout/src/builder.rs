@@ -246,9 +246,10 @@ impl<'program> LayoutBuilder<'program> {
                     alignment: element_layout.alignment,
                 })
             }
-            TypeReference::Slice { .. } => Err(Diagnostic::error(
-                "native layout for slice types is not implemented yet",
-            )),
+            TypeReference::Slice { .. } => Ok(self.slice_layout()),
+            TypeReference::Generic { base_name, .. } if base_name == "Vec" => {
+                Ok(self.vector_layout())
+            }
             TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
                 "native layout for generic type `{base_name}` is not implemented yet"
             ))),
@@ -260,6 +261,20 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
+    fn slice_layout(&self) -> TypeLayout {
+        TypeLayout {
+            size: self.target.pointer_size * 2,
+            alignment: self.target.pointer_alignment,
+        }
+    }
+
+    fn vector_layout(&self) -> TypeLayout {
+        TypeLayout {
+            size: self.target.pointer_size * 3,
+            alignment: self.target.pointer_alignment,
+        }
+    }
+
     fn layout_named_type(
         &mut self,
         symbol: SymbolHandle,
@@ -267,6 +282,10 @@ impl<'program> LayoutBuilder<'program> {
     ) -> Result<TypeLayout, Diagnostic> {
         if let Some(primitive_type) = PrimitiveType::from_name(name) {
             return Ok(primitive_type_layout(self.target, primitive_type));
+        }
+
+        if let Some(layout) = builtin_named_layout(self.target, name) {
+            return Ok(layout);
         }
 
         if !symbol.is_valid() {
@@ -360,5 +379,19 @@ impl<'program> LayoutBuilder<'program> {
             .ok_or_else(|| {
                 Diagnostic::error(format!("unknown machine symbol {}", symbol.arena_index()))
             })
+    }
+}
+
+fn builtin_named_layout(target: NativeTarget, name: &str) -> Option<TypeLayout> {
+    match name {
+        "Uint" => Some(TypeLayout {
+            size: target.pointer_size,
+            alignment: target.pointer_alignment,
+        }),
+        "Real" => Some(TypeLayout {
+            size: 8,
+            alignment: 8,
+        }),
+        _ => None,
     }
 }
