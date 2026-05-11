@@ -269,9 +269,15 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReference::Slice { .. } => Ok(self.slice_layout()),
-            TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
-                "native layout for generic type `{base_name}` is not implemented yet"
-            ))),
+            TypeReference::Generic { base_name, .. } => {
+                if let Some(layout) = builtin_named_layout(self.target, base_name) {
+                    return Ok(layout);
+                }
+
+                Err(Diagnostic::error(format!(
+                    "native layout for generic type `{base_name}` is not implemented yet"
+                )))
+            }
             TypeReference::Named { symbol, name } => self.layout_named_type(*symbol, name),
             TypeReference::Unit => Ok(TypeLayout {
                 size: 0,
@@ -394,6 +400,13 @@ impl<'program> LayoutBuilder<'program> {
 }
 
 fn builtin_named_layout(target: NativeTarget, name: &str) -> Option<TypeLayout> {
+    if name == "IndexOf" {
+        return Some(TypeLayout {
+            size: target.pointer_size,
+            alignment: target.pointer_alignment,
+        });
+    }
+
     match name {
         "Uint" => Some(TypeLayout {
             size: target.pointer_size,

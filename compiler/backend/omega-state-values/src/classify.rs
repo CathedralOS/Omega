@@ -9,10 +9,10 @@ pub(super) fn value_kind(table: &ExpressionTable, expression: ExpressionHandle) 
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => StateValueKind::Literal,
-        ExpressionNode::Call(_)
-        | ExpressionNode::Cast(_)
-        | ExpressionNode::Member(_) => StateValueKind::Binary,
-        ExpressionNode::Indexed(_) | ExpressionNode::Name(_) => StateValueKind::Place,
+        ExpressionNode::Call(_) | ExpressionNode::Cast(_) => StateValueKind::Binary,
+        ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Name(_) => {
+            StateValueKind::Place
+        }
         ExpressionNode::Mutable(_) => StateValueKind::MutablePlace,
         ExpressionNode::StructLiteral(_) => StateValueKind::Struct,
     }

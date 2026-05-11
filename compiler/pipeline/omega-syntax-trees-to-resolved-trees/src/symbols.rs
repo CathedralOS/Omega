@@ -89,7 +89,8 @@ fn state_symbol_definition<'program>(
         state
             .parameters
             .iter()
-            .map(|parameter| SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())),
+            .map(|parameter| SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str()))
+            .chain(local_symbol_definitions(&state.statements)),
     )
 }
 
@@ -112,6 +113,17 @@ fn platform_symbol_definition<'program>(
             )
         }),
     )
+}
+
+fn local_symbol_definitions<'program>(
+    statements: &'program [omega_resolved_trees::statement::Statement],
+) -> impl Iterator<Item = SymbolDefinition<'program>> + 'program {
+    statements.iter().filter_map(|statement| match statement {
+        omega_resolved_trees::statement::Statement::LocalData(local_data) => Some(
+            SymbolDefinition::named(SymbolKind::Local, local_data.name.as_str()),
+        ),
+        _ => None,
+    })
 }
 
 fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
@@ -155,6 +167,12 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
             for parameter in &mut state.parameters {
                 parameter.symbol = child_symbol(symbols, state.symbol, parameter.name.as_str());
                 assign_type_reference_symbol(symbols, &mut parameter.type_reference);
+            }
+
+            for statement in &mut state.statements {
+                if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement {
+                    local_data.symbol = child_symbol(symbols, state.symbol, local_data.name.as_str());
+                }
             }
 
             if let Some(return_type) = &mut state.return_type {
@@ -249,7 +267,24 @@ fn assign_statement_symbols(
     symbols: &SymbolTable,
 ) {
     match statement {
+        omega_resolved_trees::statement::Statement::Assignment(assignment) => {
+            assign_expression_symbols(
+                symbols,
+                machine.symbol,
+                state_symbol,
+                &mut assignment.target,
+            );
+            assign_expression_symbols(
+                symbols,
+                machine.symbol,
+                state_symbol,
+                &mut assignment.value,
+            );
+        }
         omega_resolved_trees::statement::Statement::Call(call) => {
+            for argument in &mut call.arguments {
+                assign_expression_symbols(symbols, machine.symbol, state_symbol, argument);
+            }
             if let Some(receiver) = &mut call.receiver {
                 if let Some((head_symbol, symbol)) =
                     resolve_state_scoped_path(symbols, machine.symbol, state_symbol, receiver)
@@ -261,13 +296,114 @@ fn assign_statement_symbols(
 
             call.target_symbol = resolve_call_target_symbol(machine, parameters, call, symbols);
         }
+        omega_resolved_trees::statement::Statement::Expression(expression) => {
+            assign_expression_symbols(symbols, machine.symbol, state_symbol, expression);
+        }
+        omega_resolved_trees::statement::Statement::LocalData(local_data) => {
+            assign_type_reference_symbol(symbols, &mut local_data.type_reference);
+            if let Some(initial_value) = &mut local_data.initial_value {
+                assign_expression_symbols(symbols, machine.symbol, state_symbol, initial_value);
+            }
+        }
         omega_resolved_trees::statement::Statement::Transition(transition) => {
+            if let omega_resolved_trees::statement::TransitionGuard::When(expression) =
+                &mut transition.guard
+            {
+                assign_expression_symbols(symbols, machine.symbol, state_symbol, expression);
+            }
             assign_transition_target_symbols(machine, state_symbol, &mut transition.target, symbols);
             if let Some(continuation) = &mut transition.continuation {
                 assign_transition_target_symbols(machine, state_symbol, continuation, symbols);
             }
         }
-        _ => {}
+    }
+}
+
+fn assign_expression_symbols(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: &mut omega_resolved_trees::expression::Expression,
+) {
+    match expression {
+        omega_resolved_trees::expression::Expression::ArrayLiteral(values) => {
+            for value in values {
+                assign_expression_symbols(symbols, machine_symbol, state_symbol, value);
+            }
+        }
+        omega_resolved_trees::expression::Expression::Binary(binary) => {
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut binary.left);
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut binary.right);
+        }
+        omega_resolved_trees::expression::Expression::Boolean(_)
+        | omega_resolved_trees::expression::Expression::Float(_)
+        | omega_resolved_trees::expression::Expression::Integer(_)
+        | omega_resolved_trees::expression::Expression::String(_) => {}
+        omega_resolved_trees::expression::Expression::Cast(cast) => {
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut cast.value);
+        }
+        omega_resolved_trees::expression::Expression::Call(call) => {
+            if let Some(receiver) = &mut call.receiver {
+                assign_expression_symbols(symbols, machine_symbol, state_symbol, receiver);
+            }
+            for argument in &mut call.arguments {
+                assign_expression_symbols(symbols, machine_symbol, state_symbol, argument);
+            }
+        }
+        omega_resolved_trees::expression::Expression::Indexed(indexed) => {
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut indexed.collection);
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut indexed.index);
+        }
+        omega_resolved_trees::expression::Expression::Member(member) => {
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut member.receiver);
+            if let Some(path) = expression_name_path(
+                &omega_resolved_trees::expression::Expression::Member(member.clone()),
+            ) && let Some((_, symbol)) =
+                resolve_state_scoped_path(symbols, machine_symbol, state_symbol, &path)
+            {
+                member.member_symbol = symbol;
+            }
+        }
+        omega_resolved_trees::expression::Expression::Mutable(inner) => {
+            assign_expression_symbols(symbols, machine_symbol, state_symbol, inner);
+        }
+        omega_resolved_trees::expression::Expression::Name(path) => {
+            if let Some((head_symbol, symbol)) =
+                resolve_state_scoped_path(symbols, machine_symbol, state_symbol, path)
+            {
+                *path = path.clone().with_symbols(head_symbol, symbol);
+            }
+        }
+        omega_resolved_trees::expression::Expression::StructLiteral(struct_literal) => {
+            for field in &mut struct_literal.fields {
+                assign_expression_symbols(symbols, machine_symbol, state_symbol, &mut field.value);
+            }
+        }
+    }
+}
+
+fn expression_name_path(
+    expression: &omega_resolved_trees::expression::Expression,
+) -> Option<omega_resolved_trees::expression::NamePath> {
+    match expression {
+        omega_resolved_trees::expression::Expression::Name(path) => Some(path.clone()),
+        omega_resolved_trees::expression::Expression::Member(member) => {
+            let mut path = expression_name_path(&member.receiver)?;
+            path.push(member.member.clone());
+            Some(path)
+        }
+        omega_resolved_trees::expression::Expression::Indexed(indexed) => {
+            let omega_resolved_trees::expression::Expression::Integer(index) = &indexed.index else {
+                return None;
+            };
+            let mut path = expression_name_path(&indexed.collection)?;
+            let last_segment = path.last_mut()?;
+            *last_segment =
+                omega_resolved_trees::name::ProgramName::generated(format!("{last_segment}[{index}]"));
+            Some(path)
+        }
+        omega_resolved_trees::expression::Expression::Mutable(inner) => expression_name_path(inner),
+        _ => None,
     }
 }
 
@@ -744,6 +880,7 @@ fn child_symbol(symbols: &SymbolTable, parent: SymbolHandle, name: &str) -> Symb
             SymbolKind::Variant,
             SymbolKind::State,
             SymbolKind::Parameter,
+            SymbolKind::Local,
             SymbolKind::Object,
         ],
         name,

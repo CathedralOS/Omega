@@ -3,7 +3,7 @@ use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::StatementNode;
@@ -37,10 +37,13 @@ pub(super) fn mutation_kind(
         return StateMutationKind::Unknown;
     };
 
-    if machine
-        .owned_data
+    if state
+        .parameters
         .iter()
-        .any(|owned_data| owned_data.symbol == place.symbol)
+        .any(|parameter| {
+            parameter.is_self
+                && (parameter.symbol == place.head_symbol || machine.symbol == place.head_symbol)
+        })
     {
         return StateMutationKind::MachineOwned;
     }
@@ -48,7 +51,7 @@ pub(super) fn mutation_kind(
     if state
         .parameters
         .iter()
-        .any(|parameter| parameter.symbol == place.head_symbol)
+        .any(|parameter| !parameter.is_self && parameter.symbol == place.head_symbol)
     {
         return StateMutationKind::ParameterOrAlias;
     }
@@ -57,6 +60,14 @@ pub(super) fn mutation_kind(
         matches!(statement, StatementNode::LocalData(local_data) if local_data.symbol == place.head_symbol)
     }) {
         return StateMutationKind::Local;
+    }
+
+    if machine
+        .owned_data
+        .iter()
+        .any(|owned_data| owned_data.symbol == place.head_symbol || owned_data.symbol == place.symbol)
+    {
+        return StateMutationKind::MachineOwned;
     }
 
     StateMutationKind::Unknown
@@ -71,10 +82,22 @@ struct PlaceSymbols {
 fn place_symbols(table: &ExpressionTable, expression: ExpressionHandle) -> Option<PlaceSymbols> {
     match table.expression(expression) {
         ExpressionNode::Name(path) => name_path_symbols(path),
+        ExpressionNode::Member(member) => member_symbols(table, member),
         ExpressionNode::Indexed(indexed) => place_symbols(table, indexed.collection),
         ExpressionNode::Mutable(expression) => place_symbols(table, *expression),
         _ => None,
     }
+}
+
+fn member_symbols(
+    table: &ExpressionTable,
+    member: &TableMemberExpression,
+) -> Option<PlaceSymbols> {
+    let mut place = place_symbols(table, member.receiver)?;
+    if member.member_symbol.is_valid() {
+        place.symbol = member.member_symbol;
+    }
+    Some(place)
 }
 
 fn name_path_symbols(path: &TableNamePath) -> Option<PlaceSymbols> {

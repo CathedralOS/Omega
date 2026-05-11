@@ -60,6 +60,13 @@ fn is_slice_descriptor_name(type_name: &str) -> bool {
 }
 
 fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Option<TypeLayout> {
+    if is_index_of_name(type_name) {
+        return Some(TypeLayout {
+            size: context.target.pointer_size,
+            alignment: context.target.pointer_alignment,
+        });
+    }
+
     match type_name {
         "Uint" => Some(TypeLayout {
             size: context.target.pointer_size,
@@ -71,6 +78,10 @@ fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Opt
         }),
         _ => None,
     }
+}
+
+fn is_index_of_name(type_name: &str) -> bool {
+    type_name == "IndexOf" || type_name.starts_with("IndexOf<")
 }
 
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {
