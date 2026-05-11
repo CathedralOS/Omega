@@ -18,6 +18,10 @@ use super::static_values::{
 };
 use super::storage_copy::runtime_storage_copy;
 
+fn supports_scalar_integer_write(byte_size: usize) -> bool {
+    matches!(byte_size, 1 | 4 | 8)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_mutation_writes(
     input: &InstructionSelectionInput<'_>,
@@ -212,7 +216,8 @@ fn select_runtime_resolved_target_mutation_writes(
             return;
         }
 
-        if let Some(value) = resolve_runtime_static_integer_value(
+        if supports_scalar_integer_write(indexed_target.byte_count)
+            && let Some(value) = resolve_runtime_static_integer_value(
             input,
             operation_source_key,
             value,
@@ -256,6 +261,9 @@ fn select_runtime_resolved_target_mutation_writes(
     ) else {
         return;
     };
+    if !supports_scalar_integer_write(target_place.byte_count) {
+        return;
+    }
 
     set_runtime_static_value(
         static_values,

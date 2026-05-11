@@ -1,11 +1,12 @@
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::Program;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    Assignment, Statement, StatementNode, TableTransition, Transition, TransitionGuard,
-    TransitionGuardNode,
+    Assignment, Call, Statement, StatementNode, TableCall, TableTransition, Transition,
+    TransitionGuard, TransitionGuardNode,
 };
 use omega_typed_trees::types::TypeReference;
 
@@ -24,17 +25,25 @@ pub(super) struct StateSegment<'program> {
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct SegmentTransition<'program> {
-    pub tree: &'program Transition,
-    pub table: TableTransition,
+pub(super) enum SegmentTransition<'program> {
+    Tree {
+        tree: &'program Transition,
+        table: TableTransition,
+    },
+    BranchCall {
+        call: &'program Call,
+        table: TableCall,
+        has_continuation_segment: bool,
+    },
 }
 
 pub(super) fn split_state_segments<'program>(
-    machine_symbol: SymbolHandle,
+    machine: &'program Machine,
     state: &'program State,
     program: &Program,
     state_graph: &mut StateGraph,
 ) -> Vec<StateSegment<'program>> {
+    let machine_symbol = machine.symbol;
     let state_symbol = state.symbol;
     let mut segments = Vec::new();
     let mut operations = Vec::new();
@@ -49,11 +58,39 @@ pub(super) fn split_state_segments<'program>(
         if let Statement::Transition(transition) = statement {
             transition_section_started = true;
             if let Some(StatementNode::Transition(table)) = table_statement {
-                transitions.push(SegmentTransition {
+                transitions.push(SegmentTransition::Tree {
                     tree: transition,
                     table: *table,
                 });
             }
+            continue;
+        }
+
+        if let Statement::Call(call) = statement
+            && let Some(StatementNode::Call(table_call)) = table_statement
+            && branch_call_target(program, machine, call).is_some()
+        {
+            segments.push(StateSegment {
+                key: StateKey {
+                    machine: machine_symbol,
+                    state: state_symbol,
+                    segment_index,
+                },
+                name: segment_name(&state.name, segment_index),
+                parameters: state_parameters_for_segment(state, segment_index),
+                operations,
+                transitions: vec![SegmentTransition::BranchCall {
+                    call,
+                    table: table_call.clone(),
+                    has_continuation_segment: statement_index + 1 < state.statements.len(),
+                }],
+                next_segment_name: None,
+            });
+
+            operations = Vec::new();
+            transitions = Vec::new();
+            segment_index += 1;
+            transition_section_started = false;
             continue;
         }
 
@@ -117,10 +154,10 @@ pub(super) fn split_state_segments<'program>(
 }
 
 pub(super) fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {
-    segment
-        .transitions
-        .iter()
-        .any(|transition| transition.tree.guard == TransitionGuard::Always)
+    segment.transitions.iter().any(|transition| match transition {
+        SegmentTransition::Tree { tree, .. } => tree.guard == TransitionGuard::Always,
+        SegmentTransition::BranchCall { .. } => true,
+    })
 }
 
 fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
@@ -251,4 +288,128 @@ fn is_constant_integer_assignment(assignment: &Assignment) -> bool {
         (omega_typed_trees::expression::Expression::Name(path), omega_typed_trees::expression::Expression::Integer(_))
             if path.len() == 1
     )
+}
+
+fn branch_call_target<'program>(
+    program: &'program Program,
+    current_machine: &'program Machine,
+    call: &'program Call,
+) -> Option<&'program State> {
+    branch_call_target_with_visited(program, current_machine, call, &mut Vec::new())
+}
+
+fn branch_call_target_with_visited<'program>(
+    program: &'program Program,
+    current_machine: &'program Machine,
+    call: &'program Call,
+    visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
+) -> Option<&'program State> {
+    let target_machine = if call.receiver.is_none()
+        || call
+            .receiver
+            .as_ref()
+            .is_some_and(|receiver| receiver.len() == 1 && receiver[0] == "self")
+    {
+        current_machine
+    } else {
+        let receiver_name = call.receiver.as_ref().and_then(|receiver| receiver.last());
+        let contained_symbol = current_machine
+            .contains
+            .iter()
+            .find(|contained| {
+                contained.symbol == call.receiver_symbol
+                    || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+            })
+            .map(|contained| contained.type_symbol)
+            .or_else(|| {
+                program
+                    .data_definitions
+                    .iter()
+                    .find(|data_definition| data_definition.name == current_machine.name)
+                    .and_then(|data_definition| {
+                        data_definition.members.iter().find_map(|member| {
+                            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                                return None;
+                            };
+                            let matches_receiver = field.symbol == call.receiver_symbol
+                                || receiver_name.is_some_and(|name| field.name == *name);
+                            if !matches_receiver {
+                                return None;
+                            }
+                            let field_type_name = type_reference_name(&field.type_reference);
+                            program
+                                .machines
+                                .iter()
+                                .find(|candidate| candidate.name == field_type_name)
+                                .map(|candidate| candidate.symbol)
+                        })
+                    })
+            })?;
+        program
+            .machines
+            .iter()
+            .find(|machine| machine.symbol == contained_symbol)?
+    };
+
+    let target_state = if call.target_symbol.is_valid() {
+        target_machine
+            .states
+            .iter()
+            .find(|state| state.symbol == call.target_symbol)
+    } else {
+        target_machine
+            .states
+            .iter()
+            .find(|state| state.name == call.target)
+    }?;
+
+    state_has_branching_flow(program, target_machine, target_state, visiting).then_some(target_state)
+}
+
+fn type_reference_name(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> omega_typed_trees::name::ProgramName {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_name(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_name(base_type)
+        }
+        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_typed_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_typed_trees::types::TypeReference::Unit => {
+            omega_typed_trees::name::ProgramName::default()
+        }
+    }
+}
+
+fn state_has_branching_flow(
+    program: &Program,
+    current_machine: &Machine,
+    state: &State,
+    visiting: &mut Vec<(SymbolHandle, SymbolHandle)>,
+) -> bool {
+    let visit_key = (current_machine.symbol, state.symbol);
+    if visiting.contains(&visit_key) {
+        return false;
+    }
+    visiting.push(visit_key);
+
+    let has_branching_flow = state.statements.iter().any(|statement| match statement {
+        Statement::Transition(_) => true,
+        Statement::Call(call) => {
+            branch_call_target_with_visited(program, current_machine, call, visiting).is_some()
+        }
+        _ => false,
+    });
+
+    visiting.pop();
+    has_branching_flow
 }

@@ -9,6 +9,10 @@ use super::super::super::storage_places::{
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
+fn supports_scalar_integer_write(byte_size: usize) -> bool {
+    matches!(byte_size, 1 | 4 | 8)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_mutation_write(
     input: &InstructionSelectionInput<'_>,
@@ -29,7 +33,8 @@ pub(super) fn select_runtime_resolved_mutation_write(
         operation_machine,
         operation_state,
         resolved_target,
-    ) && let Some(value) = static_integer_value(&input.layouts, resolved_value)
+    ) && supports_scalar_integer_write(target_place.byte_count)
+        && let Some(value) = static_integer_value(&input.layouts, resolved_value)
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
@@ -110,7 +115,9 @@ pub(super) fn select_runtime_resolved_mutation_write(
             return;
         }
 
-        if let Some(value) = static_integer_value(&input.layouts, resolved_value) {
+        if supports_scalar_integer_write(indexed_target.byte_count)
+            && let Some(value) = static_integer_value(&input.layouts, resolved_value)
+        {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
                     descriptor_offset: indexed_target.descriptor_offset,

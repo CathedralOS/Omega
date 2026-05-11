@@ -34,7 +34,8 @@ impl RuntimeFlowBuilder<'_> {
                 .contains
                 .iter()
                 .find(|contained| {
-                    receiver_symbol.is_valid() && contained.symbol == *receiver_symbol
+                    (receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
+                        || contained.name == *receiver
                 })
                 .and_then(|contained| {
                     self.control_flow
@@ -49,7 +50,8 @@ impl RuntimeFlowBuilder<'_> {
                         .span(target_machine.states)
                         .and_then(|states| {
                             states.iter().find(|candidate| {
-                                state_symbol.is_valid() && candidate.key.state == *state_symbol
+                                (state_symbol.is_valid() && candidate.key.state == *state_symbol)
+                                    || candidate.name == *state
                             })
                         })
                 })

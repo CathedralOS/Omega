@@ -8,6 +8,8 @@ pub(super) fn layout_for_type(
     type_symbol: SymbolHandle,
     type_name: &str,
 ) -> TypeLayout {
+    let type_name = strip_constraint_suffix(type_name);
+
     if type_name.starts_with('&') {
         return TypeLayout {
             size: context.target.pointer_size,
@@ -60,6 +62,13 @@ fn is_slice_descriptor_name(type_name: &str) -> bool {
 }
 
 fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Option<TypeLayout> {
+    if is_option_name(type_name) {
+        return Some(TypeLayout {
+            size: context.target.pointer_size * 2,
+            alignment: context.target.pointer_alignment,
+        });
+    }
+
     if is_index_of_name(type_name) {
         return Some(TypeLayout {
             size: context.target.pointer_size,
@@ -82,6 +91,20 @@ fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Opt
 
 fn is_index_of_name(type_name: &str) -> bool {
     type_name == "IndexOf" || type_name.starts_with("IndexOf<")
+}
+
+fn is_option_name(type_name: &str) -> bool {
+    type_name == "Option" || type_name.starts_with("Option<")
+}
+
+fn strip_constraint_suffix(type_name: &str) -> &str {
+    if type_name.ends_with(" constraint]") || type_name.ends_with(" constraints]") {
+        if let Some((base_type, _)) = type_name.rsplit_once('[') {
+            return base_type;
+        }
+    }
+
+    type_name
 }
 
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {

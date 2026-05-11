@@ -15,6 +15,7 @@ use super::host_operations::{
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
+use crate::selection::bindings::RuntimeAliasResolutionContext;
 use branches::{
     select_runtime_branch_preludes_for_operation,
     select_runtime_leaf_branch_expansions_for_operation,
@@ -108,11 +109,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 if let Some(host_call) =
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
+                    let alias_context = Some(RuntimeAliasResolutionContext {
+                        aliases: &runtime_aliases,
+                        alias_expressions: &runtime_alias_expressions,
+                    });
+
                     if runtime_string_descriptor_place(
                         input,
                         host_call,
                         Some(dispatch_case.dispatch_index),
-                        None,
+                        alias_context,
                     )
                     .is_none()
                         && let Some((buffer, literal)) =
@@ -131,7 +137,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         input,
                         host_call,
                         Some(dispatch_case.dispatch_index),
-                        None,
+                        alias_context,
                         operands,
                         selected_instructions,
                     );

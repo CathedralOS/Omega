@@ -12,6 +12,10 @@ use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
+fn supports_scalar_integer_write(byte_size: usize) -> bool {
+    matches!(byte_size, 1 | 4 | 8)
+}
+
 pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -168,6 +172,9 @@ fn runtime_leaf_machine_integer_write(
         expansion.source_key.machine,
         target,
     )?;
+    if !supports_scalar_integer_write(byte_size) {
+        return None;
+    }
     let value = static_integer_value(&input.layouts, value_expression)?;
 
     Some((byte_offset, byte_size, value))

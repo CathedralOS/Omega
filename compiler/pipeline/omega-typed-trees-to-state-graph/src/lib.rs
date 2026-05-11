@@ -164,7 +164,7 @@ fn build_machine_graph(
     let segments = machine
         .states
         .iter()
-        .map(|state| split_state_segments(machine_symbol, state, program, state_graph))
+        .map(|state| split_state_segments(machine, state, program, state_graph))
         .collect::<Vec<_>>();
     let state_indexes = segments
         .iter()
@@ -308,7 +308,8 @@ fn append_segment_transitions(
     let mut count = 0u32;
 
     for transition in &segment.transitions {
-        let transition = plan_transition(state_indexes, transition, program, state_graph)?;
+        let transition =
+            plan_transition(segment.key, state_indexes, transition, program, state_graph)?;
         append_transition(state_graph, transition, &mut start, &mut count);
     }
 
