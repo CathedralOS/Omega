@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use crate::selection::storage_places::resolve_machine_owned_place;
+use crate::selection::storage_places::resolve_runtime_storage_place;
 use omega_control_flow::StateKey;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
@@ -11,21 +11,25 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     input: &InstructionSelectionInput<'_>,
     literal_source_key: StateKey,
     target_source_key: StateKey,
-    _source_machine: &str,
+    source_machine: &str,
+    source_state: &str,
+    dispatch_index: u32,
     statement_index: usize,
     resolved_target: &Expression,
     value: &str,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
-        &input.layouts,
-        input.entry_key.machine,
-        target_source_key.machine,
+    let Some(target_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
         resolved_target,
     ) else {
         return;
     };
-    if byte_size != input.target.pointer_size * 2 {
+    if target_place.byte_count != input.target.pointer_size * 2 {
         return;
     }
     let Some((data, _data_object)) =
@@ -36,7 +40,7 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
 
     selected_instructions.push(SelectedInstruction {
         kind: SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset,
+            byte_offset: target_place.byte_offset,
             data,
             byte_length: value.len(),
         },

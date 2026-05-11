@@ -105,7 +105,8 @@ fn state_statement_has_local_storage(
     statement_index: usize,
 ) -> bool {
     input.state_storage.locals.iter().any(|(_, local)| {
-        local.source_key == source_key && local.statement_index == statement_index
+        state_key_matches_statement_source(local.source_key, source_key)
+            && local.statement_index == statement_index
     })
 }
 
@@ -115,7 +116,8 @@ fn state_statement_has_storage_mutation(
     statement_index: usize,
 ) -> bool {
     input.state_storage.mutations.iter().any(|(_, mutation)| {
-        mutation.source_key == source_key && mutation.statement_index == statement_index
+        state_key_matches_statement_source(mutation.source_key, source_key)
+            && mutation.statement_index == statement_index
     })
 }
 
@@ -138,7 +140,8 @@ fn state_statement_has_state_call(
     statement_index: usize,
 ) -> bool {
     input.state_calls.calls.iter().any(|(_, state_call)| {
-        state_call.source_key == source_key && state_call.statement_index == statement_index
+        state_key_matches_statement_source(state_call.source_key, source_key)
+            && state_call.statement_index == statement_index
     })
 }
 
@@ -160,6 +163,11 @@ fn state_statement_has_host_call(
     statement_index: usize,
 ) -> bool {
     input.host_calls.calls.iter().any(|(_, host_call)| {
-        host_call.source_key == source_key && host_call.statement_index == statement_index
+        state_key_matches_statement_source(host_call.source_key, source_key)
+            && host_call.statement_index == statement_index
     })
+}
+
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
 }
