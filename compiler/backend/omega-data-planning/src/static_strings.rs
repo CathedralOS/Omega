@@ -1,5 +1,6 @@
 use omega_control_flow::StateKey;
 use omega_state_storage::StateStoragePlan;
+use omega_state_values::StateValuePlan;
 use omega_target_operations::{TargetDataObject, TargetDataPlan};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
@@ -17,6 +18,25 @@ pub(super) fn collect_static_string_assignment_data(
             mutation.value,
             mutation.source_key,
             mutation.statement_index,
+            data_plan,
+        );
+    }
+}
+
+pub(super) fn collect_static_string_value_data(
+    state_values: &StateValuePlan,
+    data_plan: &mut TargetDataPlan,
+) {
+    for (_, value) in state_values.values.iter() {
+        if !value.required {
+            continue;
+        }
+
+        collect_static_string_expression_data(
+            &state_values.expressions,
+            value.expression,
+            value.source_key,
+            value.statement_index,
             data_plan,
         );
     }

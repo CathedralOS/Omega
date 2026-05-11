@@ -34,6 +34,34 @@ pub(super) fn mutation_kind(
     target: ExpressionHandle,
 ) -> StateMutationKind {
     let Some(place) = place_symbols(expressions, target) else {
+        if let Some(root_name) = root_place_name(expressions, target) {
+            if state.parameters.iter().any(|parameter| {
+                parameter.is_self && parameter.name.as_str() == root_name
+            }) {
+                return StateMutationKind::MachineOwned;
+            }
+
+            if state.parameters.iter().any(|parameter| {
+                !parameter.is_self && parameter.name.as_str() == root_name
+            }) {
+                return StateMutationKind::ParameterOrAlias;
+            }
+
+            if statements.iter().any(|statement| {
+                matches!(statement, StatementNode::LocalData(local_data) if local_data.name.as_str() == root_name)
+            }) {
+                return StateMutationKind::Local;
+            }
+
+            if machine
+                .owned_data
+                .iter()
+                .any(|owned_data| owned_data.name.as_str() == root_name)
+            {
+                return StateMutationKind::MachineOwned;
+            }
+        }
+
         return StateMutationKind::Unknown;
     };
 
@@ -110,4 +138,17 @@ fn name_path_symbols(path: &TableNamePath) -> Option<PlaceSymbols> {
         head_symbol,
         symbol: path.symbol,
     })
+}
+
+fn root_place_name(table: &ExpressionTable, expression: ExpressionHandle) -> Option<&str> {
+    match table.expression(expression) {
+        ExpressionNode::Name(path) => table
+            .name_path_members(path.members)
+            .first()
+            .map(|name| name.as_str()),
+        ExpressionNode::Member(member) => root_place_name(table, member.receiver),
+        ExpressionNode::Indexed(indexed) => root_place_name(table, indexed.collection),
+        ExpressionNode::Mutable(expression) => root_place_name(table, *expression),
+        _ => None,
+    }
 }

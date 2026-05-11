@@ -20,33 +20,49 @@ pub(super) fn resolve_runtime_static_integer_value(
     match expression {
         Expression::Integer(value) => Some(*value),
         Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
-            let resolved_expression = resolve_runtime_alias_expression(
-                expression,
-                source_key,
-                aliases,
-                alias_expressions,
-            );
-            let resolved_expression = strip_mutable_expression(resolved_expression);
-            static_values
-                .iter()
-                .find(|(target, _)| target == &resolved_expression)
-                .map(|(_, value)| *value)
+            resolve_runtime_resolved_static_integer_value(
+                input,
+                resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions),
+                static_values,
+            )
         }),
         Expression::Indexed(_) | Expression::Member(_) | Expression::Mutable(_) => {
-            let resolved_expression = resolve_runtime_alias_expression(
-                expression,
-                source_key,
-                aliases,
-                alias_expressions,
-            );
-            let resolved_expression = strip_mutable_expression(resolved_expression);
-            static_values
-                .iter()
-                .find(|(target, _)| target == &resolved_expression)
-                .map(|(_, value)| *value)
+            resolve_runtime_resolved_static_integer_value(
+                input,
+                resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions),
+                static_values,
+            )
         }
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::ArrayLiteral(_)
+        | Expression::Binary(_)
+        | Expression::Call(_)
+        | Expression::Cast(_)
+        | Expression::Float(_)
+        | Expression::String(_)
+        | Expression::StructLiteral(_) => None,
+    }
+}
+
+fn resolve_runtime_resolved_static_integer_value(
+    input: &InstructionSelectionInput<'_>,
+    expression: Expression,
+    static_values: &[(Expression, i64)],
+) -> Option<i64> {
+    let expression = strip_mutable_expression(expression);
+    match expression {
+        Expression::Integer(value) => Some(value),
+        Expression::Boolean(value) => Some(i64::from(value)),
+        Expression::Name(_)
+        | Expression::Indexed(_)
+        | Expression::Member(_) => enum_variant_value(&input.layouts, &expression).or_else(|| {
+            static_values
+                .iter()
+                .find(|(target, _)| target == &expression)
+                .map(|(_, value)| *value)
+        }),
+        Expression::Mutable(_)
+        | Expression::ArrayLiteral(_)
         | Expression::Binary(_)
         | Expression::Call(_)
         | Expression::Cast(_)

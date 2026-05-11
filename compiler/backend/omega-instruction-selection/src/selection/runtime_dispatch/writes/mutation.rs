@@ -127,6 +127,20 @@ fn select_runtime_resolved_target_mutation_writes(
 
     let resolved_value =
         resolve_runtime_alias_binding(value, operation_source_key, aliases, alias_expressions);
+    if let Expression::String(value) = &resolved_value.expression {
+        select_runtime_string_descriptor_write(
+            input,
+            operation_source_key,
+            target_source_key,
+            source_machine,
+            statement_index,
+            resolved_target,
+            value,
+            selected_instructions,
+        );
+        return;
+    }
+
     if let Some(copy) = runtime_storage_copy(
         input,
         dispatch_index,

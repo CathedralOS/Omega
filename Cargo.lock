@@ -256,6 +256,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-runtime-text",
  "omega-state-storage",
+ "omega-state-values",
  "omega-target-operations",
  "omega-typed-trees",
 ]

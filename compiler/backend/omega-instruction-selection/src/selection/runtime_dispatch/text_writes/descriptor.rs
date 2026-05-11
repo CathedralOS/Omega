@@ -51,7 +51,7 @@ fn string_literal_data_object<'plan>(
     statement_index: usize,
     value: &str,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
-    input.data.objects.iter().find(|(_, data_object)| {
+    let exact = input.data.objects.iter().find(|(_, data_object)| {
         data_object.source_key == source_key
             && data_object.source_statement == statement_index
             && input
@@ -61,5 +61,16 @@ fn string_literal_data_object<'plan>(
                 .is_some_and(|bytes| {
                     bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
                 })
+    });
+    exact.or_else(|| {
+        input.data.objects.iter().find(|(_, data_object)| {
+            input
+                .data
+                .bytes
+                .span(data_object.bytes)
+                .is_some_and(|bytes| {
+                    bytes == value.as_bytes() || (value.is_empty() && bytes == [0])
+                })
+        })
     })
 }
