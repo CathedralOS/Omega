@@ -111,6 +111,20 @@ pub(super) fn lower_machine_instruction_kind(
             value,
             ..
         } => runtime_storage::runtime_storage_integer_write_kind(*byte_offset, *byte_size, *value),
+        SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+            ..
+        } => runtime_storage::runtime_storage_binary_write_kind(
+            *target_offset,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,
@@ -125,6 +139,25 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *byte_size,
             *value,
+        ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_storage::runtime_frame_indexed_binary_write_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
         ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,

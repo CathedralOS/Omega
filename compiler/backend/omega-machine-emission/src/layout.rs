@@ -5,8 +5,10 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     dispatch_loop_enter_width, dispatch_state_write_width, host_call_sequence_width, return_width,
+    runtime_frame_indexed_binary_write_width,
     runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
     runtime_machine_string_write_width,
+    runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_text_buffer_materialize_width, runtime_text_line_read_width,
@@ -116,6 +118,17 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeStorageInteger { byte_size, .. } => {
             runtime_machine_integer_write_width(input.target.architecture, *byte_size)
         }
+        SelectedInstructionKind::WriteRuntimeStorageBinary {
+            byte_size,
+            left,
+            right,
+            ..
+        } => runtime_storage_binary_write_width(
+            input.target.architecture,
+            *byte_size,
+            left,
+            right,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             element_byte_size,
             field_byte_offset,
@@ -126,6 +139,21 @@ fn machine_instruction_width(
             *element_byte_size,
             *field_byte_offset,
             *byte_size,
+        ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            right,
+            ..
+        } => runtime_frame_indexed_binary_write_width(
+            input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            left,
+            right,
         ),
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)

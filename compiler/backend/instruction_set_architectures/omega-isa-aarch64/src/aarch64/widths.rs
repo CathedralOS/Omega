@@ -1,5 +1,6 @@
 use crate::Aarch64CallOperand;
 use crate::Aarch64CallOperand::*;
+use omega_target_operations::RuntimeValueOperand;
 
 pub fn host_call_sequence_width(operands: &[Aarch64CallOperand]) -> usize {
     operands.iter().map(operand_width).sum::<usize>() + 4
@@ -87,6 +88,16 @@ pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
     }
 }
 
+pub fn runtime_storage_binary_write_width(
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+) -> usize {
+    8 + runtime_value_operand_width(left)
+        + runtime_value_operand_width(right)
+        + runtime_binary_operation_width(byte_size)
+}
+
 pub fn runtime_frame_indexed_integer_write_width(
     element_byte_size: usize,
     field_byte_offset: usize,
@@ -94,6 +105,19 @@ pub fn runtime_frame_indexed_integer_write_width(
 ) -> usize {
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         + runtime_store_data_width(byte_size)
+}
+
+pub fn runtime_frame_indexed_binary_write_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + runtime_value_operand_width(left)
+        + runtime_value_operand_width(right)
+        + runtime_binary_operation_width(byte_size)
 }
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
@@ -164,6 +188,21 @@ fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
         _ if byte_count.is_multiple_of(8) => (byte_count / 8) * 8,
         _ => 0,
     }
+}
+
+fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
+    match operand {
+        RuntimeValueOperand::Immediate(value) => immediate_width(*value),
+        RuntimeValueOperand::Storage { byte_size, .. } => match byte_size {
+            1 | 4 => 12,
+            8 => 20,
+            _ => 0,
+        },
+    }
+}
+
+fn runtime_binary_operation_width(byte_size: usize) -> usize {
+    16 + runtime_store_data_width(byte_size)
 }
 
 fn runtime_store_data_width(byte_size: usize) -> usize {

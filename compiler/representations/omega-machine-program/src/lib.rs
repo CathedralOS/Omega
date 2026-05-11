@@ -53,6 +53,15 @@ impl Default for MachineInstruction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineRuntimeValueOperand {
+    Immediate(i64),
+    Storage {
+        byte_offset: usize,
+        byte_size: usize,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstructionKind {
     NoOp,
@@ -116,6 +125,13 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    RuntimeStorageBinaryWrite {
+        target_offset: usize,
+        byte_size: usize,
+        left: MachineRuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: MachineRuntimeValueOperand,
+    },
     RuntimeFrameIndexedIntegerWrite {
         descriptor_offset: usize,
         index_offset: usize,
@@ -123,6 +139,16 @@ pub enum MachineInstructionKind {
         field_byte_offset: usize,
         byte_size: usize,
         value: i64,
+    },
+    RuntimeFrameIndexedBinaryWrite {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: MachineRuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: MachineRuntimeValueOperand,
     },
     RuntimeMachineStringWrite {
         byte_offset: usize,

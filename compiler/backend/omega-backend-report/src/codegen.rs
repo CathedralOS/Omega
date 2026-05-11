@@ -304,6 +304,22 @@ fn selected_instruction_name(
                 "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_region,
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "write runtime storage binary {target_symbol}@{target_offset} bytes {byte_size} {} {operator:?} {}",
+                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+            )
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,
@@ -314,6 +330,22 @@ fn selected_instruction_name(
         } => {
             format!(
                 "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
+            )
+        }
+        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            format!(
+                "write runtime-frame indexed binary descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
+                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
             )
         }
         SelectedInstructionKind::WriteRuntimeMachineString {
@@ -415,6 +447,23 @@ fn runtime_text_read_source_name(source: &omega_target_operations::RuntimeTextRe
             number_register,
             supervisor_call,
         } => format!("syscall {number} via x{number_register}/svc #{supervisor_call}"),
+    }
+}
+
+fn runtime_value_operand_name(
+    operand: &omega_target_operations::RuntimeValueOperand,
+    entry_machine_name: &str,
+) -> String {
+    match operand {
+        omega_target_operations::RuntimeValueOperand::Immediate(value) => value.to_string(),
+        omega_target_operations::RuntimeValueOperand::Storage {
+            region,
+            byte_offset,
+            byte_size,
+        } => {
+            let symbol = storage_region_symbol_name(*region, entry_machine_name);
+            format!("{symbol}@{byte_offset}/{}", byte_size)
+        }
     }
 }
 

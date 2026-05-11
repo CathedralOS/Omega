@@ -163,6 +163,21 @@ pub(super) fn encode_machine_instruction(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+            ..
+        } => runtime_storage::encode_runtime_storage_binary_write(
+            input,
+            *target_offset,
+            *byte_size,
+            left,
+            *operator,
+            right,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,
@@ -178,6 +193,26 @@ pub(super) fn encode_machine_instruction(
             *field_byte_offset,
             *byte_size,
             *value,
+        ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_storage::encode_runtime_frame_indexed_binary_write(
+            input,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            left,
+            *operator,
+            right,
         ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,

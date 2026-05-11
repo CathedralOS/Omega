@@ -1,6 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
+use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
 
 pub fn encode_runtime_storage_compare(
     architecture: Architecture,
@@ -56,6 +57,28 @@ pub fn encode_runtime_machine_integer_write(
     }
 }
 
+pub fn encode_runtime_storage_binary_write(
+    architecture: Architecture,
+    target_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_binary_write(
+                target_offset,
+                byte_size,
+                left,
+                operator,
+                right,
+            )
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_frame_indexed_integer_write(
     architecture: Architecture,
     descriptor_offset: usize,
@@ -73,6 +96,32 @@ pub fn encode_runtime_frame_indexed_integer_write(
             field_byte_offset,
             byte_size,
             value,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_frame_indexed_binary_write(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_frame_indexed_binary_write(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
         ),
         Architecture::X86_64 => Ok(Vec::new()),
     }

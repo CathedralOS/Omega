@@ -3,7 +3,7 @@ use crate::branch_distances::byte_distance_to_next_runtime_write_end;
 use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_operations::StateGuardOperator;
+use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
 
 pub(super) fn encode_runtime_storage_compare(
     input: MachineEmissionContext<'_>,
@@ -65,6 +65,24 @@ pub(super) fn encode_runtime_machine_integer_write(
     )
 }
 
+pub(super) fn encode_runtime_storage_binary_write(
+    input: MachineEmissionContext<'_>,
+    target_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_binary_write(
+        input.target.architecture,
+        target_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub(super) fn encode_runtime_frame_indexed_integer_write(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,
@@ -82,6 +100,30 @@ pub(super) fn encode_runtime_frame_indexed_integer_write(
         field_byte_offset,
         byte_size,
         value,
+    )
+}
+
+pub(super) fn encode_runtime_frame_indexed_binary_write(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_frame_indexed_binary_write(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
     )
 }
 

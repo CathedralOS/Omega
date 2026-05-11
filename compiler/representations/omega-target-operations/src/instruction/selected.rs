@@ -21,6 +21,16 @@ impl Default for SelectedInstruction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RuntimeValueOperand {
+    Immediate(i64),
+    Storage {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectedInstructionKind {
     EnterFunction,
@@ -111,6 +121,14 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeStorageBinary {
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_size: usize,
+        left: RuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: RuntimeValueOperand,
+    },
     WriteRuntimeFrameIndexedInteger {
         descriptor_offset: usize,
         index_offset: usize,
@@ -118,6 +136,16 @@ pub enum SelectedInstructionKind {
         field_byte_offset: usize,
         byte_size: usize,
         value: i64,
+    },
+    WriteRuntimeFrameIndexedBinary {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: RuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: RuntimeValueOperand,
     },
     WriteRuntimeMachineString {
         byte_offset: usize,

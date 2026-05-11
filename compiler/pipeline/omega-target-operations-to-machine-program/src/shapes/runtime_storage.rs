@@ -1,5 +1,5 @@
-use omega_machine_program::MachineInstructionKind;
-use omega_target_operations::StateGuardOperator;
+use omega_machine_program::{MachineInstructionKind, MachineRuntimeValueOperand};
+use omega_target_operations::{RuntimeValueOperand, StateGuardOperator};
 
 pub(super) fn runtime_storage_compare_kind(
     left_offset: usize,
@@ -53,6 +53,22 @@ pub(super) fn runtime_storage_integer_write_kind(
     }
 }
 
+pub(super) fn runtime_storage_binary_write_kind(
+    target_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperand,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageBinaryWrite {
+        target_offset,
+        byte_size,
+        left: lower_runtime_value_operand(left),
+        operator,
+        right: lower_runtime_value_operand(right),
+    }
+}
+
 pub(super) fn runtime_frame_indexed_integer_write_kind(
     descriptor_offset: usize,
     index_offset: usize,
@@ -68,6 +84,28 @@ pub(super) fn runtime_frame_indexed_integer_write_kind(
         field_byte_offset,
         byte_size,
         value,
+    }
+}
+
+pub(super) fn runtime_frame_indexed_binary_write_kind(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperand,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeFrameIndexedBinaryWrite {
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left: lower_runtime_value_operand(left),
+        operator,
+        right: lower_runtime_value_operand(right),
     }
 }
 
@@ -108,5 +146,21 @@ pub(super) fn runtime_storage_copy_to_runtime_frame_indexed_kind(
         element_byte_size,
         field_byte_offset,
         byte_count,
+    }
+}
+
+fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeValueOperand {
+    match operand {
+        RuntimeValueOperand::Immediate(value) => MachineRuntimeValueOperand::Immediate(value),
+        RuntimeValueOperand::Storage {
+            byte_offset,
+            byte_size,
+            ..
+        } => {
+            MachineRuntimeValueOperand::Storage {
+                byte_offset,
+                byte_size,
+            }
+        }
     }
 }

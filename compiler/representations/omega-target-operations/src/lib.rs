@@ -5,8 +5,8 @@ pub use data::{TargetDataObject, TargetDataObjectHandle, TargetDataPlan};
 pub use guard::{StateGuardLowering, StateGuardOperator};
 pub use instruction::{
     FunctionInstructionPlan, HostOperationKey, InstructionOperand, InstructionOperandKind,
-    InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource, SelectedInstruction,
-    SelectedInstructionKind,
+    InstructionPlan, RuntimeStorageRegion, RuntimeTextReadSource, RuntimeValueOperand,
+    SelectedInstruction, SelectedInstructionKind,
 };
 
 mod guard {
@@ -21,6 +21,7 @@ mod guard {
         Less,
         LessOrEqual,
         Add,
+        Subtract,
         And,
         Or,
     }

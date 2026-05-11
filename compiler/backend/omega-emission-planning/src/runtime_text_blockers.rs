@@ -4,6 +4,7 @@ use omega_core::arena::Arena;
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
+use omega_target_operations::SelectedInstructionKind;
 
 use super::{EmissionBlocker, blocker};
 
@@ -21,6 +22,10 @@ pub(super) fn collect_state_value_blockers(
         }
 
         if state_value_is_static_assignment(input, value) {
+            continue;
+        }
+
+        if state_value_has_planned_storage_write(input, value) {
             continue;
         }
 
@@ -45,6 +50,31 @@ fn state_value_has_planned_text_builder(
                 && runtime_text_builder_for_write(input, text_write).is_some()
         },
     )
+}
+
+fn state_value_has_planned_storage_write(
+    input: &EmissionPlanningInput<'_>,
+    value: &StateValueUse,
+) -> bool {
+    if value.role != StateValueRole::AssignmentValue {
+        return false;
+    }
+
+    input.instructions.instructions.iter().any(|(_, instruction)| {
+        instruction.source_key == value.source_key
+            && instruction.source_statement == value.statement_index
+            && matches!(
+                instruction.kind,
+                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+            )
+    })
 }
 
 fn runtime_value_blocker_reason(

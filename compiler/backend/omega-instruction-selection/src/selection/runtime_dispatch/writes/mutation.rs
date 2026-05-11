@@ -1,7 +1,8 @@
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_control_flow::StateKey;
-use omega_typed_trees::expression::{Expression, ExpressionTable};
+use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
+use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionTable};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
@@ -16,7 +17,6 @@ use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
-use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_mutation_writes(
@@ -160,6 +160,27 @@ fn select_runtime_resolved_target_mutation_writes(
         return;
     }
 
+    if let Some(kind) = select_runtime_binary_mutation_write(
+        input,
+        dispatch_index,
+        operation_source_key,
+        target_source_key,
+        source_machine,
+        source_state,
+        resolved_target,
+        &resolved_value.expression,
+        aliases,
+        alias_expressions,
+        static_values,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind,
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
         input,
         dispatch_index,
@@ -251,4 +272,142 @@ fn select_runtime_resolved_target_mutation_writes(
         source_key: operation_source_key,
         source_statement: statement_index,
     });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_binary_mutation_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    target_source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    resolved_target: &Expression,
+    value: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    static_values: &RuntimeStaticValues,
+) -> Option<SelectedInstructionKind> {
+    let Expression::Binary(binary) = value else {
+        return None;
+    };
+    let operator = runtime_binary_operator(binary.operator)?;
+    let left = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        operation_source_key,
+        source_machine,
+        source_state,
+        &binary.left,
+        aliases,
+        alias_expressions,
+        static_values,
+    )?;
+    let right = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        operation_source_key,
+        source_machine,
+        source_state,
+        &binary.right,
+        aliases,
+        alias_expressions,
+        static_values,
+    )?;
+
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
+    let target_place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
+        resolved_target,
+    )?;
+
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        left,
+        operator,
+        right,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn resolve_runtime_value_operand(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    source_machine: &str,
+    source_state: &str,
+    expression: &Expression,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    static_values: &RuntimeStaticValues,
+) -> Option<RuntimeValueOperand> {
+    if let Some(value) = resolve_runtime_static_integer_value(
+        input,
+        source_key,
+        expression,
+        aliases,
+        alias_expressions,
+        static_values,
+    ) {
+        return Some(RuntimeValueOperand::Immediate(value));
+    }
+
+    let resolved =
+        resolve_runtime_alias_binding(expression, source_key, aliases, alias_expressions);
+    let place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        resolved.source_key,
+        source_machine,
+        source_state,
+        &resolved.expression,
+    )?;
+    Some(RuntimeValueOperand::Storage {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_size: place.byte_count,
+    })
+}
+
+fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
+    match operator {
+        BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::Equal => Some(StateGuardOperator::Equal),
+        BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
+        BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
+        BinaryOperator::And
+        | BinaryOperator::Divide
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Modulo
+        | BinaryOperator::Multiply
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
+    }
 }
