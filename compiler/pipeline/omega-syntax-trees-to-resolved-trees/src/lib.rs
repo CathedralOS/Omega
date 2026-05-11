@@ -6,6 +6,7 @@ mod machine;
 mod name;
 mod platform;
 mod program;
+mod symbols;
 mod state;
 mod statement;
 mod type_reference;

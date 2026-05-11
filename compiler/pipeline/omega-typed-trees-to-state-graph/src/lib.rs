@@ -170,7 +170,7 @@ fn build_machine_graph(
         .iter()
         .flat_map(|state_segments| state_segments.iter())
         .enumerate()
-        .map(|(index, segment)| (segment.key, index))
+        .map(|(index, segment)| (segment.key, index, segment.name.clone()))
         .collect::<Vec<_>>();
 
     let states = append_machine_states(state_graph, program, &segments, &state_indexes)?;
@@ -196,7 +196,7 @@ fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &Program,
     segments: &[Vec<crate::segments::StateSegment<'_>>],
-    state_indexes: &[(StateKey, usize)],
+    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
@@ -238,7 +238,7 @@ fn append_segment_transitions(
     state_graph: &mut StateGraph,
     program: &Program,
     segment: &crate::segments::StateSegment<'_>,
-    state_indexes: &[(StateKey, usize)],
+    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
@@ -257,8 +257,8 @@ fn append_segment_transitions(
         };
         let (next_key, next_index) = state_indexes
             .iter()
-            .find(|(key, _)| *key == next_segment_key)
-            .copied()
+            .find(|(key, _, _)| *key == next_segment_key)
+            .map(|(key, index, _)| (*key, *index))
             .ok_or_else(|| {
                 Diagnostic::error(format!(
                     "internal state-graph segment `{next_segment_name}` was not indexed"

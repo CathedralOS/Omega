@@ -1,7 +1,7 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::parse_statement;
 use crate::parser::transition::{parse_transition_block, parse_transition_statement};
-use crate::parser::type_reference::parse_type_reference_allowing_borrow;
+use crate::parser::type_reference::{parse_type_reference, parse_type_reference_allowing_borrow};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{State, StateParameter, StateSignature};
 use omega_syntax_trees::types::TypeReference;
@@ -123,6 +123,11 @@ fn parse_state_parameter<'tokens, 'source>(
     } else {
         (false, input)
     };
+    let (is_leading_mutable, input) = if input.at_contextual("mut") {
+        (true, input.take_contextual("mut")?)
+    } else {
+        (false, input)
+    };
 
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
@@ -144,7 +149,7 @@ fn parse_state_parameter<'tokens, 'source>(
                     name: Identifier::generated("self"),
                     type_reference: TypeReference::named("Self"),
                     is_const,
-                    is_mutable,
+                    is_mutable: is_mutable || is_leading_mutable,
                     is_self: true,
                 },
                 input,
@@ -153,13 +158,14 @@ fn parse_state_parameter<'tokens, 'source>(
 
         let (name, input) = input.take_identifier()?;
         let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, input) = parse_type_reference_allowing_borrow(input)?;
+        let (type_reference, borrowed_mutable, input) =
+            parse_parameter_type_reference(input)?;
         return Ok((
             StateParameter {
                 name,
                 type_reference,
                 is_const,
-                is_mutable,
+                is_mutable: is_mutable || is_leading_mutable || borrowed_mutable,
                 is_self: false,
             },
             input,
@@ -178,7 +184,7 @@ fn parse_state_parameter<'tokens, 'source>(
                 name: Identifier::generated("self"),
                 type_reference: TypeReference::named("Self"),
                 is_const,
-                is_mutable: false,
+                is_mutable: is_leading_mutable,
                 is_self: true,
             },
             input,
@@ -187,15 +193,33 @@ fn parse_state_parameter<'tokens, 'source>(
 
     let (name, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (type_reference, input) = parse_type_reference_allowing_borrow(input)?;
+    let (type_reference, borrowed_mutable, input) = parse_parameter_type_reference(input)?;
     Ok((
         StateParameter {
             name,
             type_reference,
             is_const,
-            is_mutable: false,
+            is_mutable: is_leading_mutable || borrowed_mutable,
             is_self: false,
         },
         input,
     ))
+}
+
+fn parse_parameter_type_reference<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> Result<(TypeReference, bool, Input<'tokens, 'source>), crate::parse_error::ParseError> {
+    if !input.at_punctuation(PunctuationKind::Ampersand) {
+        let (type_reference, input) = parse_type_reference_allowing_borrow(input)?;
+        return Ok((type_reference, false, input));
+    }
+
+    let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
+    let (borrowed_mutable, input) = if input.at_contextual("mut") {
+        (true, input.take_contextual("mut")?)
+    } else {
+        (false, input)
+    };
+    let (type_reference, input) = parse_type_reference(input)?;
+    Ok((type_reference, borrowed_mutable, input))
 }

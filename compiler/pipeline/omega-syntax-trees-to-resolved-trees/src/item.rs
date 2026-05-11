@@ -1,6 +1,6 @@
 use crate::data::lower_data_definition;
 use crate::invariant::lower_invariant_definition;
-use crate::machine::lower_machine;
+use crate::machine::lower_machine_into;
 use crate::platform::lower_platform;
 use crate::program::Lowerer;
 use omega_core::diagnostics::Diagnostic;
@@ -20,8 +20,7 @@ pub(crate) fn lower_item(lowerer: &mut Lowerer, item: &syntax::item::Item) -> Re
                 .push(invariant_definition);
         }
         syntax::item::Item::Machine(machine) => {
-            let machine = lower_machine(lowerer, machine)?;
-            lowerer.program.machines.push(machine);
+            lower_machine_into(lowerer, machine)?;
         }
         syntax::item::Item::Platform(platform) => {
             let platform = lower_platform(lowerer, platform)?;

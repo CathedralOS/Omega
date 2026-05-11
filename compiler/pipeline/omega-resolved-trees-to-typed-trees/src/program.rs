@@ -46,6 +46,7 @@ pub(crate) struct Lowerer<'source> {
 
 impl Lowerer<'_> {
     pub(crate) fn finish(mut self) -> Result<TypedProgram, Diagnostic> {
+        self.program.symbols = self.source_program.symbols.clone();
         self.program.rebuild_tables();
         Ok(self.program)
     }
@@ -80,5 +81,6 @@ mod tests {
         assert_eq!(program.data_definitions.len(), 1);
         assert_eq!(program.machines.len(), 1);
         assert_eq!(program.machines[0].states.len(), 1);
+        assert!(program.symbols.find_child_by_name(program.symbols.root(), "u32").is_some());
     }
 }

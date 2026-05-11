@@ -11,7 +11,7 @@ use omega_state_graph::{
 };
 
 pub(super) fn plan_transition(
-    state_indexes: &[(StateKey, usize)],
+    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
     transition: &SegmentTransition<'_>,
     program: &Program,
     state_graph: &mut StateGraph,
@@ -34,11 +34,11 @@ pub(super) fn plan_transition(
     });
 
     Ok(TransitionEdge {
-        target: plan_transition_target(state_indexes, &tree.target)?,
+        target: plan_transition_target(state_indexes, &tree.target, state_graph)?,
         continuation: tree
             .continuation
             .as_ref()
-            .map(|target| plan_transition_target(state_indexes, target))
+            .map(|target| plan_transition_target(state_indexes, target, state_graph))
             .transpose()?,
         guard: tree.guard.clone(),
         expressions: TransitionExpressionRefs {
@@ -76,8 +76,9 @@ fn table_transition_target_arguments(
 }
 
 fn plan_transition_target(
-    state_indexes: &[(StateKey, usize)],
+    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
     target: &TransitionTarget,
+    _state_graph: &StateGraph,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
         TransitionTarget::Named {
@@ -88,9 +89,13 @@ fn plan_transition_target(
             let target = symbol.is_valid().then(|| {
                 state_indexes
                     .iter()
-                    .find(|(key, _)| key.state == symbol && key.segment_index == 0)
+                    .find(|(key, _, _)| key.state == symbol && key.segment_index == 0)
+            }).flatten().or_else(|| {
+                state_indexes.iter().find(|(key, _, state_name)| {
+                    key.segment_index == 0 && *state_name == name
+                })
             });
-            let (key, index) = target.flatten().ok_or_else(|| {
+            let (key, index, _) = target.ok_or_else(|| {
                 Diagnostic::error(format!("unknown state transition target `{name}`"))
             })?;
 

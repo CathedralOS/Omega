@@ -25,6 +25,7 @@ pub(crate) struct Lowerer {
 
 impl Lowerer {
     pub(crate) fn finish(mut self) -> Result<Program, Diagnostic> {
+        crate::symbols::assign_symbols(&mut self.program);
         self.program.rebuild_tables();
         Ok(self.program)
     }
@@ -57,5 +58,27 @@ mod tests {
         assert_eq!(program.data_definitions.len(), 1);
         assert_eq!(program.machines.len(), 1);
         assert_eq!(program.machines[0].states.len(), 1);
+        assert!(program.symbols.find_child_by_name(program.symbols.root(), "u32").is_some());
+    }
+
+    #[test]
+    fn merges_machine_fragments_by_machine_name() {
+        let source = r#"
+        machine Game::new {
+            pub entry() {}
+        }
+
+        machine Game::running {
+            pub entry() {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+        assert_eq!(program.machines.len(), 1);
+        assert_eq!(program.machines[0].name.as_str(), "Game");
+        assert_eq!(program.machines[0].states.len(), 2);
     }
 }
