@@ -1,13 +1,9 @@
+use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::phase_components::{
     BackendPlanner, Emitter, ImportDiscovery, LexerPhase, OutputWriter, ParserPhase, Resolver,
     SourceLoader, SyntaxAssembler, Typechecker, Validator,
 };
-use crate::pipeline::phase_products::{
-    BackendPlan, EmittedProgram, ParsedSources, LoadedSources, LexedSources, AssembledSyntax,
-    ResolvedProgram, TypedProgram, ValidatedProgram,
-};
-use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use omega_core::diagnostics::Diagnostic;
 
@@ -17,70 +13,60 @@ pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>
 
 pub struct Compiler {
     options: CompileOptions,
-    imports: ImportQueue,
-    source_loader: SourceLoader,
-    lexer: LexerPhase,
-    parser: ParserPhase,
-    import_discovery: ImportDiscovery,
-    source_storage: SourceStorage,
-    syntax_assembler: SyntaxAssembler,
-    resolver: Resolver,
-    typechecker: Typechecker,
-    validator: Validator,
-    backend_planner: BackendPlanner,
-    emitter: Emitter,
-    output_writer: OutputWriter,
 }
 
 impl Compiler {
     pub fn new(options: CompileOptions) -> Self {
-        let mut imports = ImportQueue::default();
-        imports.seed(options.root_path.clone());
-
-        Self {
-            options,
-            imports,
-            source_loader: SourceLoader,
-            lexer: LexerPhase,
-            parser: ParserPhase,
-            import_discovery: ImportDiscovery,
-            source_storage: SourceStorage::default(),
-            syntax_assembler: SyntaxAssembler,
-            resolver: Resolver,
-            typechecker: Typechecker,
-            validator: Validator,
-            backend_planner: BackendPlanner,
-            emitter: Emitter,
-            output_writer: OutputWriter,
-        }
+        Self { options }
     }
 
-    pub fn compile(mut self) -> Result<CompileReport, Vec<Diagnostic>> {
-        while self.imports.has_pending() {
-            let frontier = self.imports.take_frontier();
-            let sources = self.source_loader.load(frontier)?;
-            let lexed = self.lexer.lex(sources)?;
-            let parsed = self.parser.parse(lexed)?;
-            let imports = self.import_discovery.discover(&parsed)?;
+    pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
+        let mut imports = ImportQueue::default();
+        imports.seed(self.options.root_path.clone());
 
-            self.imports.enqueue(imports)?;
-            self.source_storage.extend(parsed)?;
+        let source_loader = SourceLoader;
+        let lexer = LexerPhase;
+        let parser = ParserPhase;
+        let import_discovery = ImportDiscovery;
+        let mut source_storage = SourceStorage::default();
+        let syntax_assembler = SyntaxAssembler;
+        let resolver = Resolver;
+        let typechecker = Typechecker;
+        let validator = Validator;
+        let backend_planner = BackendPlanner;
+        let emitter = Emitter;
+        let output_writer = OutputWriter;
+
+        while imports.has_pending() {
+            let frontier = imports.take_frontier();
+            let first_file_id = source_storage.next_file_id();
+            let sources = source_loader.load(frontier, first_file_id)?;
+            let lexed = lexer.lex(sources)?;
+            let parsed = parser.parse(lexed)?;
+            let discovered_imports = import_discovery.discover(
+                &parsed,
+                &self.options.root_path,
+                self.options.target_name.as_deref(),
+            )?;
+
+            imports.enqueue(discovered_imports)?;
+            source_storage.extend(parsed)?;
         }
 
-        let syntax = self.syntax_assembler.assemble(&self.source_storage)?;
-        let resolved = self.resolver.resolve(syntax)?;
-        let typed = self.typechecker.typecheck(resolved)?;
-        let validated = self.validator.validate(typed)?;
-        let planned = self.backend_planner.plan(validated)?;
-        let emitted = self.emitter.emit(planned)?;
-        
+        let syntax = syntax_assembler.assemble(&source_storage)?;
+        let resolved = resolver.resolve(syntax)?;
+        let typed = typechecker.typecheck(resolved)?;
+        let validated = validator.validate(typed)?;
+        let planned = backend_planner.plan(validated)?;
+        let emitted = emitter.emit(planned)?;
+
         if self.options.write_output {
-            self.output_writer.write(emitted)?;
+            output_writer.write(emitted)?;
         }
 
         Ok(CompileReport {
             root_path: self.options.root_path,
-            source_file_count: self.source_storage.files.len(),
+            source_file_count: source_storage.file_count(),
             wrote_output: self.options.write_output,
         })
     }

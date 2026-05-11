@@ -29,6 +29,14 @@ impl SourceMap {
         self.files.get(file_id.0)
     }
 
+    pub fn len(&self) -> usize {
+        self.files.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
+    }
+
     pub fn text_at(&self, source_span: SourceSpan) -> &str {
         self.get(source_span.file_id)
             .map(|file| file.text_at(source_span.span))
@@ -40,8 +48,8 @@ impl SourceMap {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::Span;
     use crate::source::{FileId, SourceMap, SourceSpan};
+    use crate::Span;
 
     #[test]
     fn resolves_source_span_text() {
