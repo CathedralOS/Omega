@@ -1,5 +1,5 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_core::symbols::SymbolHandle;
+use omega_core::symbols::{SymbolHandle, SymbolKind};
 use omega_typed_trees::Program;
 
 pub(super) const ENTRY_MACHINE_NAME: &str = "main";
@@ -14,17 +14,39 @@ pub(super) struct BackendEntryPoint {
 pub(super) fn resolve_backend_entry_point(
     program: &Program,
 ) -> Result<BackendEntryPoint, Diagnostic> {
-    let machine_symbol = program
-        .symbols
-        .find_child_by_name(program.symbols.root(), ENTRY_MACHINE_NAME)
+    let machine_symbol = find_root_child_by_name_and_kind(program, ENTRY_MACHINE_NAME, SymbolKind::Machine)
         .ok_or_else(|| Diagnostic::error("unknown runtime machine `main`"))?;
-    let state_symbol = program
-        .symbols
-        .find_child_by_name(machine_symbol, ENTRY_STATE_NAME)
+    let state_symbol = find_child_by_name_and_kind(program, machine_symbol, ENTRY_STATE_NAME, SymbolKind::State)
         .ok_or_else(|| Diagnostic::error("unknown runtime state `main.entry`"))?;
 
     Ok(BackendEntryPoint {
         machine_symbol,
         state_symbol,
     })
+}
+
+fn find_root_child_by_name_and_kind(
+    program: &Program,
+    name: &str,
+    kind: SymbolKind,
+) -> Option<SymbolHandle> {
+    find_child_by_name_and_kind(program, program.symbols.root(), name, kind)
+}
+
+fn find_child_by_name_and_kind(
+    program: &Program,
+    parent: SymbolHandle,
+    name: &str,
+    kind: SymbolKind,
+) -> Option<SymbolHandle> {
+    let children = program.symbols.child_handles(parent)?;
+
+    for child in children {
+        let symbol = program.symbols.get(child);
+        if symbol.kind == kind && program.symbols.name(child) == name {
+            return Some(child);
+        }
+    }
+
+    None
 }

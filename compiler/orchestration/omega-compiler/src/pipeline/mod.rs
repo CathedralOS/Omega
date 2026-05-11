@@ -1,10 +1,8 @@
 pub mod compile_report;
 pub mod compiler;
 pub mod compile_options;
-pub mod phase_components;
-pub mod phase_products;
+pub mod frontend;
 pub mod source;
-pub mod trust;
 
 pub use compile_report::CompileReport;
 pub use compiler::compile;

@@ -45,6 +45,11 @@ pub(super) fn parse_transition_statement<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+    if continuation.is_none() {
+        if let TransitionTarget::Value(expression) = target {
+            return Ok((Statement::Expression(expression), input));
+        }
+    }
     guard = TransitionGuard::Always;
     Ok((
         Statement::Transition(Transition {
@@ -184,12 +189,21 @@ fn classify_transition_target(expression: Expression) -> TransitionTarget {
 }
 
 fn classify_call_target(call: CallExpression) -> TransitionTarget {
-    let path = match call.receiver.as_deref() {
-        None => IdentifierPath::from(vec![call.target.clone()]),
+    let receiver_path = match call.receiver.as_deref() {
+        None => None,
         Some(receiver) => {
-            let Some(mut path) = expression_to_identifier_path(receiver) else {
+            let Some(path) = expression_to_identifier_path(receiver) else {
                 return TransitionTarget::Value(Expression::Call(Box::new(call)));
             };
+            Some(path)
+        }
+    };
+    if receiver_path.as_ref().is_some_and(|path| path.len() > 1) {
+        return TransitionTarget::Value(Expression::Call(Box::new(call)));
+    }
+    let path = match receiver_path {
+        None => IdentifierPath::from(vec![call.target.clone()]),
+        Some(mut path) => {
             path.push(call.target.clone());
             path
         }

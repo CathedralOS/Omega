@@ -152,7 +152,9 @@ fn remap_transition(transition: &TransitionEdge) -> TransitionFlow {
         guard: transition.guard.clone(),
         expressions: TransitionExpressionRefs {
             target_arguments: transition.expressions.target_arguments,
+            target_value: transition.expressions.target_value,
             continuation_arguments: transition.expressions.continuation_arguments,
+            continuation_value: transition.expressions.continuation_value,
             guard: transition.expressions.guard,
         },
     }

@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use crate::source::SourceId;
-use omega_syntax_trees::item::Item;
 use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,11 +21,5 @@ impl Default for SourceFile {
                 tables: Default::default(),
             },
         }
-    }
-}
-
-impl SourceFile {
-    pub fn items(&self) -> &[Item] {
-        &self.syntax_trees.items
     }
 }

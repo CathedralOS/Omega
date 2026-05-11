@@ -201,7 +201,9 @@ pub struct TransitionFlow {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TransitionExpressionRefs {
     pub target_arguments: HandleSpan<ExpressionHandle>,
+    pub target_value: Option<ExpressionHandle>,
     pub continuation_arguments: HandleSpan<ExpressionHandle>,
+    pub continuation_value: Option<ExpressionHandle>,
     pub guard: Option<ExpressionHandle>,
 }
 

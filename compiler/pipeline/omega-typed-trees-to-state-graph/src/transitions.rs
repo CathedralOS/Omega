@@ -19,6 +19,7 @@ pub(super) fn plan_transition(
     let tree = transition.tree;
     let target_arguments =
         table_transition_target_arguments(transition.table.target, program, state_graph);
+    let target_value = table_transition_target_value(transition.table.target, program, state_graph);
     let continuation_arguments = transition
         .table
         .continuation
@@ -27,6 +28,12 @@ pub(super) fn plan_transition(
             table_transition_target_arguments(transition.table.continuation, program, state_graph)
         })
         .unwrap_or_default();
+    let continuation_value = transition
+        .table
+        .continuation
+        .is_valid()
+        .then(|| table_transition_target_value(transition.table.continuation, program, state_graph))
+        .flatten();
     let guard = table_transition_guard_expression(transition.table).map(|guard| {
         state_graph
             .expressions
@@ -43,7 +50,9 @@ pub(super) fn plan_transition(
         guard: tree.guard.clone(),
         expressions: TransitionExpressionRefs {
             target_arguments,
+            target_value,
             continuation_arguments,
+            continuation_value,
             guard,
         },
     })
@@ -72,6 +81,25 @@ fn table_transition_target_arguments(
         | omega_typed_trees::statement::TransitionTargetNode::Value(_) => {
             omega_core::arena::HandleSpan::empty()
         }
+    }
+}
+
+fn table_transition_target_value(
+    target: omega_typed_trees::statement::TransitionTargetHandle,
+    program: &Program,
+    state_graph: &mut StateGraph,
+) -> Option<omega_typed_trees::expression::ExpressionHandle> {
+    if !target.is_valid() {
+        return None;
+    }
+
+    match program.statement_table.transition_target(target) {
+        omega_typed_trees::statement::TransitionTargetNode::Value(expression) => Some(
+            state_graph
+                .expressions
+                .copy_from(&program.expression_table, *expression),
+        ),
+        _ => None,
     }
 }
 
@@ -118,9 +146,6 @@ fn plan_transition_target(
             display_name_path(path, ".")
         ))),
         TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
-        TransitionTarget::Terminal => Ok(PlannedTransitionTarget::Terminal),
-        TransitionTarget::Value(_) => Err(Diagnostic::error(
-            "value transition targets are not lowered to the state graph yet",
-        )),
+        TransitionTarget::Terminal | TransitionTarget::Value(_) => Ok(PlannedTransitionTarget::Terminal),
     }
 }

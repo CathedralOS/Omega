@@ -353,11 +353,19 @@ fn remap_transition(
                 source,
                 transition.expressions.target_arguments,
             ),
+            target_value: transition
+                .expressions
+                .target_value
+                .map(|value| copy_expression(target, source, value)),
             continuation_arguments: copy_expression_span(
                 target,
                 source,
                 transition.expressions.continuation_arguments,
             ),
+            continuation_value: transition
+                .expressions
+                .continuation_value
+                .map(|value| copy_expression(target, source, value)),
             guard: transition
                 .expressions
                 .guard

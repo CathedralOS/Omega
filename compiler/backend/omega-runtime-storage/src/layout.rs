@@ -52,22 +52,11 @@ pub(super) fn layout_for_type(
         };
     }
 
-    if is_vector_descriptor_name(type_name) {
-        return TypeLayout {
-            size: context.target.pointer_size * 3,
-            alignment: context.target.pointer_alignment,
-        };
-    }
-
     TypeLayout::default()
 }
 
 fn is_slice_descriptor_name(type_name: &str) -> bool {
     type_name.starts_with('[') && type_name.ends_with(']') && !type_name.contains(';')
-}
-
-fn is_vector_descriptor_name(type_name: &str) -> bool {
-    type_name.starts_with("Vec<") && type_name.ends_with('>')
 }
 
 fn builtin_named_layout(context: &RuntimeStorageContext, type_name: &str) -> Option<TypeLayout> {

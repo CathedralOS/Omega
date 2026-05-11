@@ -98,7 +98,7 @@ machine RoomFormatter::write_inventory {
         player: Player,
         out_line: &mut ConsoleLine
     ) {
-        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.items.len().to_string();
+        out_line.text = "Gold: " + player.inventory.gold.to_string() + " | items: " + player.inventory.item_count.to_string();
     }
 }
 

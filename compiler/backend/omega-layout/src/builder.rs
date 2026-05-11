@@ -247,9 +247,6 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReference::Slice { .. } => Ok(self.slice_layout()),
-            TypeReference::Generic { base_name, .. } if base_name == "Vec" => {
-                Ok(self.vector_layout())
-            }
             TypeReference::Generic { base_name, .. } => Err(Diagnostic::error(format!(
                 "native layout for generic type `{base_name}` is not implemented yet"
             ))),
@@ -267,14 +264,6 @@ impl<'program> LayoutBuilder<'program> {
             alignment: self.target.pointer_alignment,
         }
     }
-
-    fn vector_layout(&self) -> TypeLayout {
-        TypeLayout {
-            size: self.target.pointer_size * 3,
-            alignment: self.target.pointer_alignment,
-        }
-    }
-
     fn layout_named_type(
         &mut self,
         symbol: SymbolHandle,

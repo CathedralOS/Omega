@@ -9,7 +9,7 @@ machine InventorySystem::clear {
         &mut self,
         inventory: &mut Inventory
     ) {
-        inventory.items.clear();
+        inventory.item_count = 0;
         inventory.gold = 0;
     }
 }
@@ -45,8 +45,19 @@ machine InventorySystem::add_reward {
 
         transition existing_index.is_some() {
             true -> increment_item(&mut inventory.items[existing_index.unwrap()], 1)
-            false -> inventory.items.push(InventoryItem { kind: kind, count: 1 })
+            false -> append_item(inventory, kind)
         }
+    }
+
+    fn append_item(
+        &mut self,
+        inventory: &mut Inventory,
+        kind: ItemKind
+    ) {
+        let items: &mut [InventoryItem] = inventory.items.as_mut_slice();
+        let index: IndexOf<items> = inventory.item_count;
+        items[index] = InventoryItem { kind: kind, count: 1 };
+        inventory.item_count = inventory.item_count + 1;
     }
 
     state add_gold_and_item(
@@ -65,7 +76,7 @@ machine InventorySystem::add_reward {
     ) -> Option<usize> {
         let items: &[InventoryItem] = inventory.items.as_slice();
 
-        match items.len > 0 {
+        match inventory.item_count > 0 {
             true -> self.find_item_at(items, kind, 0)
             false -> None
         }

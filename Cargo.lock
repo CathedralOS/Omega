@@ -193,7 +193,6 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
- "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",
  "omega-backend-report",
@@ -207,6 +206,8 @@ dependencies = [
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
+ "omega-resolved-trees",
+ "omega-resolved-trees-to-typed-trees",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -214,6 +215,7 @@ dependencies = [
  "omega-source-files-to-tokens",
  "omega-state-calls",
  "omega-state-graph",
+ "omega-state-graph-to-control-flow",
  "omega-state-guards",
  "omega-state-schedule",
  "omega-state-storage",
@@ -225,6 +227,8 @@ dependencies = [
  "omega-tokens",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
+ "omega-typed-trees-to-state-graph",
+ "omega-validation",
 ]
 
 [[package]]

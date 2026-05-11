@@ -28,7 +28,11 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             let (field_name, rest) = input.take_identifier()?;
             let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
             let (type_reference, rest) = parse_type_reference(rest)?;
-            input = rest.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            input = if rest.at_punctuation(PunctuationKind::Semicolon) {
+                rest.take_punctuation(PunctuationKind::Semicolon, ";")?
+            } else {
+                rest
+            };
             members.push(CapabilityMember::Field(CapabilityField {
                 name: field_name,
                 type_reference,

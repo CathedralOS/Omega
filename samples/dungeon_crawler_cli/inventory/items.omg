@@ -12,6 +12,7 @@ data InventoryItem {
 }
 
 data Inventory {
-    items: Vec<InventoryItem>;
+    items: [InventoryItem; 32];
+    item_count: usize[exact, non_negative];
     gold: u32[exact, non_negative];
 }

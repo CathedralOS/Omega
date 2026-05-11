@@ -9,7 +9,6 @@ name = "omega_compiler"
 path = "src/lib.rs"
 
 [dependencies]
-omega-artifacts = { path = "../omega-artifacts" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
 omega-syntax-trees-to-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-resolved-trees" }
@@ -26,6 +25,9 @@ omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-object = { path = "../../backend/object/omega-object" }
+omega-resolved-trees = { path = "../../representations/omega-resolved-trees" }
+omega-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-resolved-trees-to-typed-trees" }
+omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
@@ -40,4 +42,6 @@ omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-typed-trees-to-state-graph = { path = "../../pipeline/omega-typed-trees-to-state-graph" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+omega-validation = { path = "../../semantics/omega-validation" }

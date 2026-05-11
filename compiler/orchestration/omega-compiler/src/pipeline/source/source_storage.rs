@@ -1,4 +1,4 @@
-use crate::pipeline::phase_products::ParsedSources;
+use crate::pipeline::frontend::ParsedSources;
 use crate::pipeline::source::SourceFile;
 use crate::source::SourceMap;
 use omega_core::arena::Arena;

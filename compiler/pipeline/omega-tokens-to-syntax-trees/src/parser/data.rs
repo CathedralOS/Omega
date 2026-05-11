@@ -26,14 +26,22 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             } else {
                 (None, input)
             };
-            input = next.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            input = if next.at_punctuation(PunctuationKind::Semicolon) {
+                next.take_punctuation(PunctuationKind::Semicolon, ";")?
+            } else {
+                next
+            };
             members.push(DataMember::Field(DataField {
                 name: field_name,
                 type_reference,
                 initial_value,
             }));
         } else {
-            input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            input = if input.at_punctuation(PunctuationKind::Semicolon) {
+                input.take_punctuation(PunctuationKind::Semicolon, ";")?
+            } else {
+                input
+            };
             members.push(DataMember::Variant(DataVariant { name: field_name }));
         }
     }
