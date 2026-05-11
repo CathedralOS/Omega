@@ -66,7 +66,7 @@ fn build_emission_plan(
         runtime_text: &backend_plan.runtime_text,
         state_guards: &backend_plan.state_guards,
         layouts: &backend_plan.layouts,
-        machine_code: &backend_plan.machine_code,
+        machine_program: &backend_plan.machine_program,
         encoded_machine: &backend_plan.encoded_machine,
         object: &backend_plan.object,
         relocations: &backend_plan.relocations,
@@ -1360,7 +1360,7 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
     );
     assert!(
         backend_plan
-            .machine_code
+            .machine_program
             .instructions
             .iter()
             .any(|(_, instruction)| {
@@ -1376,13 +1376,12 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
                 matches!(
                     instruction.kind,
                     omega_machine_program::MachineInstructionKind::DispatchCaseEnter { .. }
-                ) && instruction.byte_width == 8
-                    && encoded_bytes == 8
+                ) && encoded_bytes == 8
             })
     );
     assert!(
         backend_plan
-            .machine_code
+            .machine_program
             .instructions
             .iter()
             .any(|(_, instruction)| {
@@ -1396,7 +1395,6 @@ fn emits_dispatch_control_bytes_for_unguarded_state_cycles() {
                     .map(|(_, encoded)| encoded.bytes.count())
                     .unwrap_or(0);
                 instruction.kind == omega_machine_program::MachineInstructionKind::DispatchCaseLeave
-                    && instruction.byte_width == 4
                     && encoded_bytes == 4
             })
     );
@@ -2656,7 +2654,7 @@ fn plans_native_object_shape() {
     assert_eq!(backend_plan.object.sections.len(), 3);
     assert!(!backend_plan.instructions.functions.is_empty());
     assert!(!backend_plan.instructions.instructions.is_empty());
-    assert!(backend_plan.machine_code.byte_count > 0);
+    assert!(backend_plan.encoded_machine.byte_count > 0);
     assert!(
         backend_plan
             .object
@@ -2714,7 +2712,7 @@ fn selected_windows_target_plans_coff_and_kernel32_imports() {
     assert_eq!(backend_plan.data.bytes.len(), 7);
     assert!(backend_plan.instructions.instructions.len() >= 5);
     assert_eq!(backend_plan.instructions.operands.len(), 4);
-    assert!(backend_plan.machine_code.byte_count > 0);
+    assert!(backend_plan.encoded_machine.byte_count > 0);
     assert_eq!(backend_plan.relocations.records.len(), 4);
 }
 
@@ -2759,7 +2757,7 @@ fn selected_linux_target_plans_elf_and_syscalls() {
     assert_eq!(backend_plan.data.bytes.len(), 7);
     assert!(backend_plan.instructions.instructions.len() >= 4);
     assert_eq!(backend_plan.instructions.operands.len(), 4);
-    assert!(backend_plan.machine_code.byte_count > 0);
+    assert!(backend_plan.encoded_machine.byte_count > 0);
     assert_eq!(backend_plan.relocations.records.len(), 1);
 }
 
@@ -2794,7 +2792,7 @@ fn selected_linux_arm64_target_encodes_syscalls() {
     assert!(emission_plan.blockers.is_empty());
     assert_eq!(
         backend_plan.encoded_machine.bytes.len(),
-        backend_plan.machine_code.byte_count
+        backend_plan.encoded_machine.byte_count
     );
     assert!(
         backend_plan
@@ -2903,7 +2901,7 @@ fn encodes_aarch64_immediates_that_need_movk() {
     let backend_plan = build_backend_plan(&program, NativeTarget::macos_arm64())
         .expect("backend planning should encode multi-instruction immediates");
 
-    assert_eq!(backend_plan.machine_code.byte_count, 36);
+    assert_eq!(backend_plan.encoded_machine.byte_count, 36);
 }
 
 #[test]

@@ -16,8 +16,6 @@ omega-syntax-trees-to-resolved-trees = { path = "../../pipeline/omega-syntax-tre
 omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-emission-planning = { path = "../../backend/omega-emission-planning" }
-omega-effects = { path = "../../semantics/omega-effects" }
-omega-graph = { path = "../../semantics/omega-graph" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
@@ -30,8 +28,6 @@ omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-object = { path = "../../backend/object/omega-object" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
-omega-proof = { path = "../../semantics/omega-proof" }
-omega-names = { path = "../../semantics/omega-names" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
 omega-runtime-dispatch-loop = { path = "../../backend/omega-runtime-dispatch-loop" }
@@ -44,7 +40,4 @@ omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-typed-trees-to-control-flow = { path = "../../pipeline/omega-typed-trees-to-control-flow" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
-omega-types = { path = "../../semantics/omega-types" }
-omega-validation = { path = "../../semantics/omega-validation" }

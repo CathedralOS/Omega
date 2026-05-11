@@ -37,7 +37,7 @@ use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
-use omega_target_operations_to_machine_program::{TargetToMachineInput, build_machine_code_plan};
+use omega_target_operations_to_machine_program::build_machine_program;
 use omega_typed_trees::Program;
 use std::sync::Arc;
 
@@ -242,20 +242,16 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             data: &backend_plan.data,
         })
     });
-    backend_plan.machine_code = record_backend_phase(&mut phase_timings, "machine code", || {
-        build_machine_code_plan(TargetToMachineInput {
-            target: backend_plan.target,
-            instructions: &backend_plan.instructions,
-            host_abi: &backend_plan.host_abi,
-            terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
-        })
-    })?;
+    backend_plan.machine_program =
+        record_backend_phase(&mut phase_timings, "machine program", || {
+            build_machine_program(&backend_plan.instructions)
+        })?;
     backend_plan.encoded_machine =
         record_backend_phase(&mut phase_timings, "machine emission", || {
             emit_machine_bytes(MachineEmissionInput {
                 target: backend_plan.target,
                 instructions: &backend_plan.instructions,
-                machine_code: &backend_plan.machine_code,
+                machine_program: &backend_plan.machine_program,
                 host_abi: &backend_plan.host_abi,
                 terminal_dispatch_index: backend_plan.runtime_dispatch_loop.terminal_dispatch_index,
             })
@@ -267,7 +263,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             layouts: &backend_plan.layouts,
             entry_machine_symbol: backend_plan.entry_key.machine,
             entry_machine_name: backend_plan.entry_machine_name(),
-            machine_code: &backend_plan.machine_code,
+            encoded_machine: &backend_plan.encoded_machine,
             data: &backend_plan.data,
             runtime_frame_size: runtime_frame_storage_size(&backend_plan.runtime_storage),
             runtime_frame_alignment: runtime_frame_storage_alignment(&backend_plan.runtime_storage),
@@ -277,7 +273,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_relocation_plan(RelocationPlanningInput {
             target: backend_plan.target,
             instructions: &backend_plan.instructions,
-            machine_code: &backend_plan.machine_code,
+            encoded_machine: &backend_plan.encoded_machine,
             data: &backend_plan.data,
             object: &backend_plan.object,
             host_abi: &backend_plan.host_abi,

@@ -311,40 +311,6 @@ fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
         .find_child_by_name(report.symbols.root(), machine.name.as_str())
         .unwrap_or_else(SymbolHandle::invalid);
 
-    for contained_object in &machine.contains {
-        let symbol = resolve_global_name(report, contained_object.type_name.as_str());
-        insert_reference(
-            report,
-            &contained_object.type_name,
-            ResolvedReferenceKind::Type,
-            &format!(
-                "machine `{}` contains `{}`",
-                machine.name, contained_object.name
-            ),
-            symbol,
-        );
-    }
-
-    for owned_data in &machine.owned_data {
-        collect_type_reference(
-            report,
-            &owned_data.type_reference,
-            &format!("machine `{}` owns `{}`", machine.name, owned_data.name),
-        );
-
-        if let Some(initial_value) = &owned_data.initial_value {
-            collect_expression(
-                report,
-                initial_value,
-                &format!(
-                    "machine `{}` owned `{}` initializer",
-                    machine.name, owned_data.name
-                ),
-                ResolveContext::from_symbols(machine_symbol, SymbolHandle::invalid()),
-            );
-        }
-    }
-
     for state in &machine.states {
         collect_state_references(report, machine, machine_symbol, state);
     }
@@ -899,28 +865,9 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
                 SymbolKind::Machine,
                 &machine.name,
                 machine
-                    .contains
+                    .states
                     .iter()
-                    .map(|contained| {
-                        source_symbol_with_children(
-                            SymbolKind::Object,
-                            &contained.name,
-                            self.named_type_children(contained.type_name.as_str(), 0),
-                        )
-                    })
-                    .chain(machine.owned_data.iter().map(|owned_data| {
-                        source_symbol_with_children(
-                            SymbolKind::Field,
-                            &owned_data.name,
-                            self.type_children(&owned_data.type_reference, 0),
-                        )
-                    }))
-                    .chain(
-                        machine
-                            .states
-                            .iter()
-                            .map(|state| self.state_symbol_definition(state)),
-                    ),
+                    .map(|state| self.state_symbol_definition(state)),
             )),
             Item::Platform(platform) => Some(source_symbol_with_children(
                 SymbolKind::Platform,
@@ -1119,9 +1066,7 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
-    use omega_syntax_trees::item::{
-        Contains, Item, Machine, OwnedData, State, StateParameter, UseItem,
-    };
+    use omega_syntax_trees::item::{Item, Machine, State, StateParameter, UseItem};
     use omega_syntax_trees::statement::{
         Statement, Transition, TransitionGuard, TransitionTarget,
     };
@@ -1148,15 +1093,6 @@ mod tests {
             }),
             Item::Machine(Machine {
                 name: Identifier::generated("main"),
-                contains: vec![Contains {
-                    name: Identifier::generated("console"),
-                    type_name: Identifier::generated("Console"),
-                }],
-                owned_data: vec![OwnedData {
-                    name: Identifier::generated("score"),
-                    type_reference: TypeReference::named("i32"),
-                    initial_value: None,
-                }],
                 states: vec![
                     State {
                         name: Identifier::generated("entry"),
@@ -1189,7 +1125,7 @@ mod tests {
 
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.definitions.len(), 1);
-        assert_eq!(report.references.len(), 4);
+        assert_eq!(report.references.len(), 2);
 
         let (_, definition) = report
             .definitions

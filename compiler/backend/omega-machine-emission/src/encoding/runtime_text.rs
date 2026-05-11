@@ -4,16 +4,16 @@ use crate::branch_distances::{
     byte_distance_to_next_runtime_write_end_from_branch_offset,
     byte_distances_to_next_runtime_machine_write_end,
 };
+use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_instruction_selection::runtime_text_storage_compare_width;
-use omega_machine_program::MachineInstruction;
 use omega_target_operations::RuntimeTextReadSource;
 use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -36,7 +36,7 @@ pub(super) fn encode_runtime_text_literal_compare(
 
 pub(super) fn encode_runtime_text_storage_compare(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     source_offset: usize,
     operator: StateGuardOperator,

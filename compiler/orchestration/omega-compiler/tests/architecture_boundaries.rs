@@ -13,7 +13,7 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
 
         for crate_name in forbidden {
             assert!(
-                !contents.contains(crate_name),
+                !has_dependency(&contents, crate_name),
                 "{} must not depend on early-phase crate `{crate_name}`",
                 cargo_toml.display()
             );
@@ -50,7 +50,7 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
 
         for crate_name in forbidden {
             assert!(
-                !contents.contains(crate_name),
+                !has_dependency(&contents, crate_name),
                 "{} must not depend on early-phase crate `{crate_name}`; put transform edges under compiler/pipeline instead",
                 cargo_toml.display()
             );
@@ -151,4 +151,12 @@ fn collect_cargo_tomls(path: &Path, cargo_tomls: &mut Vec<PathBuf>) {
             cargo_tomls.push(path);
         }
     }
+}
+
+fn has_dependency(contents: &str, crate_name: &str) -> bool {
+    let dependency_prefix = format!("{crate_name} =");
+    contents
+        .lines()
+        .map(str::trim_start)
+        .any(|line| line.starts_with(&dependency_prefix))
 }

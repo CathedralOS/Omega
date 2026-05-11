@@ -119,3 +119,12 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         self.visit_target(continuation)
     }
 }
+
+pub fn build_runtime_flow_plan(
+    control_flow: &ControlFlowPlan,
+    entry_key: omega_control_flow::StateKey,
+) -> Result<RuntimeFlowPlan, Diagnostic> {
+    let mut builder = RuntimeFlowBuilder::new(control_flow);
+    builder.visit_state(RuntimeState { key: entry_key })?;
+    Ok(builder.finish())
+}

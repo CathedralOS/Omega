@@ -78,7 +78,7 @@ fn next_runtime_write_group_end<'instructions>(
     input: MachineEmissionContext<'_>,
     machine_instructions: &'instructions [LaidOutMachineInstruction],
     machine_instruction_index: usize,
-) -> Option<&'instructions MachineInstruction> {
+) -> Option<&'instructions LaidOutMachineInstruction> {
     let first_write_index = machine_instructions
         .iter()
         .enumerate()

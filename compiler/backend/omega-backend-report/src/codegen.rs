@@ -1,7 +1,7 @@
 use super::backend_state_name;
 
 use crate::BackendReportInput;
-use omega_machine_program::{MachineFunctionCode, MachineInstruction};
+use omega_machine_program::{MachineFunction, MachineInstruction};
 use omega_object::storage_region_symbol_name;
 use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
@@ -39,14 +39,14 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     }
     output.push('\n');
 
-    output.push_str("## Machine Code Shape\n");
+    output.push_str("## Machine Program\n");
     output.push_str(&format!(
         "functions: {}\n",
-        backend_plan.machine_code.functions.len()
+        backend_plan.machine_program.functions.len()
     ));
     output.push_str(&format!(
         "instructions: {}\n",
-        backend_plan.machine_code.instructions.len()
+        backend_plan.machine_program.instructions.len()
     ));
     output.push_str(&format!(
         "encoded bytes: {}\n",
@@ -54,9 +54,9 @@ pub(super) fn write_codegen_sections(output: &mut String, backend_plan: &Backend
     ));
     output.push_str(&format!(
         "bytes: {}\n",
-        backend_plan.machine_code.byte_count
+        backend_plan.encoded_machine.byte_count
     ));
-    for (_, function) in backend_plan.machine_code.functions.iter() {
+    for (_, function) in backend_plan.machine_program.functions.iter() {
         write_machine_function_code(output, backend_plan, function);
     }
     output.push('\n');
@@ -410,16 +410,13 @@ fn selected_instruction_operands_name(
 fn write_machine_function_code(
     output: &mut String,
     backend_plan: &BackendReportInput<'_>,
-    function: &MachineFunctionCode,
+    function: &MachineFunction,
 ) {
     let function_symbol = machine_function_symbol(backend_plan, function);
-    output.push_str(&format!(
-        "- function {} @{} bytes {}\n",
-        function_symbol, function.offset, function.byte_count
-    ));
+    output.push_str(&format!("- function {}\n", function_symbol));
 
     match backend_plan
-        .machine_code
+        .machine_program
         .instructions
         .span(function.instructions)
     {
@@ -436,7 +433,7 @@ fn write_machine_function_code(
 
 fn machine_function_symbol(
     backend_plan: &BackendReportInput<'_>,
-    function: &MachineFunctionCode,
+    function: &MachineFunction,
 ) -> String {
     backend_plan
         .instructions
@@ -452,10 +449,8 @@ fn write_machine_instruction(
     instruction: &MachineInstruction,
 ) {
     output.push_str(&format!(
-        "    - selected #{} @{} bytes {} {:?} encoded {}\n",
+        "    - selected #{} {:?} encoded {}\n",
         instruction.selected_instruction_index,
-        instruction.offset,
-        instruction.byte_width,
         instruction.kind,
         machine_instruction_bytes_name(backend_plan, instruction)
     ));

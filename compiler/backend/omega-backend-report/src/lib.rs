@@ -11,7 +11,7 @@ use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
 use omega_machine_bytes::EncodedMachinePlan;
-use omega_machine_program::MachineCodePlan;
+use omega_machine_program::MachineProgram;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -64,7 +64,7 @@ pub struct BackendReportInput<'plan> {
     pub runtime_storage: &'plan RuntimeStoragePlan,
     pub runtime_text: &'plan RuntimeTextPlan,
     pub layouts: &'plan LayoutPlan,
-    pub machine_code: &'plan MachineCodePlan,
+    pub machine_program: &'plan MachineProgram,
     pub encoded_machine: &'plan EncodedMachinePlan,
     pub object: &'plan ObjectPlan,
     pub relocations: &'plan RelocationPlan,

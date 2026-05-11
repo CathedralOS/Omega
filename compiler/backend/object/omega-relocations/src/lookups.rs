@@ -6,44 +6,31 @@ use omega_target_operations::FunctionInstructionPlan;
 
 pub(super) fn selected_instruction_text_offset(
     input: RelocationPlanningInput<'_>,
-    function_handle: Handle<FunctionInstructionPlan>,
+    _function_handle: Handle<FunctionInstructionPlan>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
 ) -> Result<usize, Diagnostic> {
-    let Some(machine_function) = input
-        .machine_code
-        .functions
-        .iter()
-        .find(|(_, machine_function)| machine_function.source_function == function_handle)
-        .map(|(_, machine_function)| machine_function)
-    else {
-        return Err(Diagnostic::error(format!(
-            "cannot plan relocations for `{}`: missing machine-code function",
-            function.symbol
-        )));
-    };
+    let mut offset = 0usize;
 
-    let Some(machine_instructions) = input
-        .machine_code
-        .instructions
-        .span(machine_function.instructions)
-    else {
-        return Err(Diagnostic::error(format!(
-            "cannot plan relocations for `{}`: invalid machine instruction span",
-            function.symbol
-        )));
-    };
+    for (_, instruction) in input.encoded_machine.instructions.iter() {
+        let byte_len = input
+            .encoded_machine
+            .bytes
+            .span(instruction.bytes)
+            .map(|bytes| bytes.len())
+            .unwrap_or(0);
 
-    machine_instructions
-        .iter()
-        .find(|instruction| instruction.selected_instruction_index == selected_instruction_index)
-        .map(|instruction| instruction.offset)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "cannot plan relocation for `{}` selected instruction #{}: missing machine-code instruction",
-                function.symbol, selected_instruction_index
-            ))
-        })
+        if instruction.selected_instruction_index == selected_instruction_index {
+            return Ok(offset);
+        }
+
+        offset += byte_len;
+    }
+
+    Err(Diagnostic::error(format!(
+        "cannot plan relocation for `{}` selected instruction #{}: missing encoded instruction bytes",
+        function.symbol, selected_instruction_index
+    )))
 }
 
 pub(super) fn find_host_binding<'plan>(

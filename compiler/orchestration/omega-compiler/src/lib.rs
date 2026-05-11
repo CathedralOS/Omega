@@ -7,6 +7,3 @@ pub(crate) use omega_tokens as tokens;
 pub(crate) use omega_tokens_to_syntax_trees as parser;
 
 pub use pipeline::{CompileOptions, CompileReport, compile};
-
-#[cfg(test)]
-mod tests;

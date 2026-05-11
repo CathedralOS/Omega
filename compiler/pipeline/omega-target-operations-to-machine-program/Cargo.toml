@@ -9,7 +9,6 @@ name = "omega_target_operations_to_machine_program"
 path = "src/lib.rs"
 
 [dependencies]
-omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }

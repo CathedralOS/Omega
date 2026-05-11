@@ -80,14 +80,6 @@ pub fn build_proof_surface_report(items: &[Item]) -> ProofSurfaceReport {
 }
 
 fn collect_machine(report: &mut ProofSurfaceReport, machine: &Machine) {
-    for owned_data in &machine.owned_data {
-        collect_bounded_type_site(
-            report,
-            &owned_data.type_reference,
-            &format!("machine `{}` owns `{}`", machine.name, owned_data.name),
-        );
-    }
-
     for state in &machine.states {
         collect_state(report, machine, state);
     }
@@ -247,7 +239,7 @@ fn constraint_name(constraint: &TypeConstraint) -> String {
 #[cfg(test)]
 mod tests {
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, OwnedData};
+    use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, State, StateParameter};
     use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 
     use super::build_proof_surface_report;
@@ -261,18 +253,23 @@ mod tests {
             }),
             Item::Machine(Machine {
                 name: Identifier::generated("main"),
-                contains: Vec::new(),
-                owned_data: vec![OwnedData {
-                    name: Identifier::generated("speed"),
-                    type_reference: TypeReference::Constrained {
-                        base_type: Box::new(TypeReference::named("f32")),
-                        constraints: vec![TypeConstraint::Named(Identifier::generated(
-                            "speed_range",
-                        ))],
-                    },
-                    initial_value: None,
+                states: vec![State {
+                    name: Identifier::generated("entry"),
+                    parameters: vec![StateParameter {
+                        name: Identifier::generated("speed"),
+                        type_reference: TypeReference::Constrained {
+                            base_type: Box::new(TypeReference::named("f32")),
+                            constraints: vec![TypeConstraint::Named(Identifier::generated(
+                                "speed_range",
+                            ))],
+                        },
+                        is_const: false,
+                        is_mutable: false,
+                        is_self: false,
+                    }],
+                    return_type: None,
+                    statements: Vec::new(),
                 }],
-                states: Vec::new(),
             }),
         ]);
 

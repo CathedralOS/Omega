@@ -12,7 +12,7 @@ mod host_bindings;
 mod layout;
 
 use encoding::encode_machine_instruction;
-use layout::{LaidOutMachineInstruction, layout_machine_instructions};
+use layout::layout_machine_instructions;
 
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {

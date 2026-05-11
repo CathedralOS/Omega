@@ -1,13 +1,13 @@
 use crate::MachineEmissionContext;
 use crate::branch_distances::byte_distance_to_next_runtime_write_end;
+use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_machine_program::MachineInstruction;
 use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_runtime_storage_compare(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     left_offset: usize,
     right_offset: usize,
@@ -30,7 +30,7 @@ pub(super) fn encode_runtime_storage_compare(
 
 pub(super) fn encode_runtime_storage_value_compare(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
     byte_size: usize,

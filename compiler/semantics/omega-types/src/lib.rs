@@ -163,27 +163,6 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
 fn collect_machine(report: &mut TypeSurfaceReport, machine: &Machine) {
     insert_declaration(report, &machine.name, TypeDeclarationKind::Machine);
 
-    for contained_object in &machine.contains {
-        insert_reference(
-            report,
-            &contained_object.type_name,
-            TypeReferenceUseKind::Storage,
-            &format!(
-                "machine `{}` contains `{}`",
-                machine.name, contained_object.name
-            ),
-        );
-    }
-
-    for owned_data in &machine.owned_data {
-        collect_type_reference(
-            report,
-            &owned_data.type_reference,
-            TypeReferenceUseKind::Storage,
-            &format!("machine `{}` owns `{}`", machine.name, owned_data.name),
-        );
-    }
-
     for state in &machine.states {
         collect_state(report, machine, state);
     }
@@ -317,9 +296,8 @@ fn insert_reference(
 #[cfg(test)]
 mod tests {
     use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{Item, Machine, OwnedData, State, StateParameter};
+    use omega_syntax_trees::item::{Item, Machine, State, StateParameter};
     use omega_syntax_trees::types::{TypeConstraint, TypeReference};
-    use omega_core::source::SourceText;
 
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
 
@@ -327,30 +305,22 @@ mod tests {
     fn collects_state_signatures_and_constraints() {
         let report = build_type_surface_report(&[Item::Machine(Machine {
             name: Identifier::generated("main"),
-            contains: Vec::new(),
-            owned_data: vec![OwnedData {
-                name: Identifier::generated("speed"),
-                type_reference: TypeReference::Constrained {
-                    base_type: Box::new(TypeReference::named("f32")),
-                    constraints: vec![
-                        TypeConstraint::Named(Identifier::generated("finite")),
-                        TypeConstraint::Range {
-                            minimum: omega_syntax_trees::expression::Expression::Float(
-                                SourceText::generated("0.0f"),
-                            ),
-                            maximum: omega_syntax_trees::expression::Expression::Float(
-                                SourceText::generated("100000.0f"),
-                            ),
-                        },
-                    ],
-                },
-                initial_value: None,
-            }],
             states: vec![State {
                 name: Identifier::generated("entry"),
                 parameters: vec![StateParameter {
                     name: Identifier::generated("value"),
-                    type_reference: TypeReference::named("f32"),
+                    type_reference: TypeReference::Constrained {
+                        base_type: Box::new(TypeReference::named("f32")),
+                        constraints: vec![
+                            TypeConstraint::Named(Identifier::generated("finite")),
+                            TypeConstraint::Range {
+                                minimum: omega_syntax_trees::expression::Expression::Integer(0),
+                                maximum: omega_syntax_trees::expression::Expression::Integer(
+                                    100000,
+                                ),
+                            },
+                        ],
+                    },
                     is_const: false,
                     is_mutable: false,
                     is_self: false,
@@ -374,11 +344,11 @@ mod tests {
         );
         assert!(
             report.references.iter().any(|(_, reference)| {
-                reference.name == "range<0.0f, 100000.0f>"
+                reference.name == "range<0, 100000>"
                     && reference.kind == TypeReferenceUseKind::RangeConstraint
             }),
             "range constraints should be recorded"
         );
-        assert_eq!(report.references.len(), 5);
+        assert_eq!(report.references.len(), 4);
     }
 }

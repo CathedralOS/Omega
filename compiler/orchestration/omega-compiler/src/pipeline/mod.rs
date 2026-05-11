@@ -1,7 +1,6 @@
 pub mod compile_report;
 pub mod compiler;
 pub mod compile_options;
-pub mod old_bullshit;
 pub mod phase_components;
 pub mod phase_products;
 pub mod source;

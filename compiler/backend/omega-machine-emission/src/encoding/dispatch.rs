@@ -3,9 +3,9 @@ use crate::branch_distances::{
     byte_distance_to_case_end, byte_distance_to_case_leave, byte_distance_to_dispatch_loop_start,
     byte_distance_to_next_state_write_end,
 };
+use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_machine_program::MachineInstruction;
 use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_dispatch_loop_enter(
@@ -17,7 +17,7 @@ pub(super) fn encode_dispatch_loop_enter(
 
 pub(super) fn encode_dispatch_case_enter(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -30,7 +30,7 @@ pub(super) fn encode_dispatch_case_enter(
 
 pub(super) fn encode_dispatch_guard_compare_static(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     byte_offset: usize,
     byte_size: usize,
@@ -49,7 +49,7 @@ pub(super) fn encode_dispatch_guard_compare_static(
 
 pub(super) fn encode_dispatch_state_write(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     dispatch_index: u32,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -62,7 +62,7 @@ pub(super) fn encode_dispatch_state_write(
 
 pub(super) fn encode_dispatch_terminal_write(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     encode_dispatch_state_write(
@@ -75,7 +75,7 @@ pub(super) fn encode_dispatch_terminal_write(
 
 pub(super) fn encode_dispatch_case_leave(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_dispatch_case_leave(

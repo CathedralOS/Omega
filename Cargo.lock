@@ -200,17 +200,13 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-core",
- "omega-effects",
  "omega-emission-planning",
- "omega-graph",
  "omega-image",
  "omega-image-emission",
  "omega-layout",
  "omega-machine-program",
- "omega-names",
  "omega-object",
  "omega-platform-interface",
- "omega-proof",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -229,9 +225,6 @@ dependencies = [
  "omega-tokens",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
- "omega-typed-trees-to-control-flow",
- "omega-types",
- "omega-validation",
 ]
 
 [[package]]
@@ -477,7 +470,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-instruction-selection",
- "omega-machine-program",
+ "omega-machine-bytes",
  "omega-object",
  "omega-target",
  "omega-target-operations",
@@ -601,6 +594,7 @@ dependencies = [
 name = "omega-state-graph"
 version = "0.1.0"
 dependencies = [
+ "omega-control-flow",
  "omega-core",
  "omega-typed-trees",
 ]
@@ -699,7 +693,6 @@ dependencies = [
 name = "omega-target-operations-to-machine-program"
 version = "0.1.0"
 dependencies = [
- "omega-calling-conventions",
  "omega-core",
  "omega-machine-program",
  "omega-target-operations",
