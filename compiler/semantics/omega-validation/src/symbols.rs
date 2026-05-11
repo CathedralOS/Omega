@@ -1,11 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_typed_program::Program;
-use omega_typed_program::data::DataMember;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::platform::Platform;
-use omega_typed_program::state::State;
-use omega_typed_program::types::TypeReference;
+use omega_typed_trees::Program;
+use omega_typed_trees::data::DataMember;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::platform::Platform;
+use omega_typed_trees::state::State;
+use omega_typed_trees::types::TypeReference;
 
 #[derive(Debug)]
 pub struct ProgramSymbols<'program> {

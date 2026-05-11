@@ -1,7 +1,7 @@
 use crate::branching::aliases::{BranchParameterBinding, RuntimeBranchAlias};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     BinaryExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableBinaryExpression, TableIndexedExpression, TableNamePath,
 };

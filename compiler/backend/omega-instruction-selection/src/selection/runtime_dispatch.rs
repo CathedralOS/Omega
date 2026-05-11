@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
-use omega_typed_program::expression::ExpressionTable;
+use omega_typed_trees::expression::ExpressionTable;
 
 mod branches;
 mod edges;
@@ -20,7 +20,7 @@ use branches::{
     select_runtime_straight_line_branch_expansions_for_operation,
 };
 use edges::select_runtime_dispatch_edge;
-use omega_target_program::{InstructionOperand, SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{InstructionOperand, SelectedInstruction, SelectedInstructionKind};
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 

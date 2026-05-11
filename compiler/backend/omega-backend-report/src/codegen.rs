@@ -3,7 +3,7 @@ use super::backend_state_name;
 use crate::BackendReportInput;
 use omega_machine_program::{MachineFunctionCode, MachineInstruction};
 use omega_object::storage_region_symbol_name;
-use omega_target_program::{
+use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionOperandKind, SelectedInstruction,
     SelectedInstructionKind, TargetDataObject,
 };
@@ -366,12 +366,12 @@ fn selected_instruction_name(
     }
 }
 
-fn runtime_text_read_source_name(source: &omega_target_program::RuntimeTextReadSource) -> String {
+fn runtime_text_read_source_name(source: &omega_target_operations::RuntimeTextReadSource) -> String {
     match source {
-        omega_target_program::RuntimeTextReadSource::Import { symbol } => {
+        omega_target_operations::RuntimeTextReadSource::Import { symbol } => {
             format!("import {symbol}")
         }
-        omega_target_program::RuntimeTextReadSource::Syscall {
+        omega_target_operations::RuntimeTextReadSource::Syscall {
             number,
             number_register,
             supervisor_call,

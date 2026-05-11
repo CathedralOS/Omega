@@ -2,11 +2,11 @@ use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
-use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::StatementNode;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::statement::StatementNode;
 
 pub(super) fn mutation_lowering(
     context: &StateStoragePlanningContext,
@@ -28,7 +28,7 @@ pub(super) fn mutation_lowering(
 
 pub(super) fn mutation_kind(
     machine: &Machine,
-    state: &omega_typed_program::state::State,
+    state: &omega_typed_trees::state::State,
     statements: &[StatementNode],
     expressions: &ExpressionTable,
     target: ExpressionHandle,

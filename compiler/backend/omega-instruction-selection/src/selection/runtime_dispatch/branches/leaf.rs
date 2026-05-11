@@ -1,8 +1,8 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
-use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::name::ProgramName;
 
 use super::super::super::bindings::resolve_leaf_binding_expression;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
@@ -10,7 +10,7 @@ use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_leaf_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,

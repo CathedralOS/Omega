@@ -1,8 +1,8 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateCallPlan {

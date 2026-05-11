@@ -1,6 +1,6 @@
 use omega_object::RelocationKind;
 use omega_target::Architecture;
-use omega_target_program::InstructionOperand;
+use omega_target_operations::InstructionOperand;
 
 pub(super) fn external_call_relocation_offset(
     architecture: Architecture,
@@ -93,7 +93,7 @@ pub(super) fn runtime_text_buffer_materialize_target_address_offset(
 
 pub(super) fn runtime_text_line_read_target_address_offset(
     architecture: Architecture,
-    source: &omega_target_program::RuntimeTextReadSource,
+    source: &omega_target_operations::RuntimeTextReadSource,
 ) -> usize {
     omega_instruction_selection::runtime_text_line_read_target_address_offset(architecture, source)
 }

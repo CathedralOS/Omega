@@ -6,7 +6,7 @@ mod runtime_text;
 use crate::MachineEmissionContext;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
-use omega_target_program::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
+use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
 use omega_machine_program::MachineInstruction;
 

@@ -15,7 +15,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(

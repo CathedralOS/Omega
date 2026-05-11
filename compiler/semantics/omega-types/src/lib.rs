@@ -4,10 +4,10 @@
 //! ownership, borrow, and proof-aware type solving can grow here without living
 //! inside the compiler orchestration crate.
 
-use omega_abstract_syntax_tree::item::{
+use omega_syntax_trees::item::{
     CapabilityMember, DataMember, Item, Machine, State, StateParameter, StateSignature,
 };
-use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -316,9 +316,9 @@ fn insert_reference(
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::identifier::Identifier;
-    use omega_abstract_syntax_tree::item::{Item, Machine, OwnedData, State, StateParameter};
-    use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+    use omega_syntax_trees::identifier::Identifier;
+    use omega_syntax_trees::item::{Item, Machine, OwnedData, State, StateParameter};
+    use omega_syntax_trees::types::{TypeConstraint, TypeReference};
     use omega_core::source::SourceText;
 
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
@@ -335,10 +335,10 @@ mod tests {
                     constraints: vec![
                         TypeConstraint::Named(Identifier::generated("finite")),
                         TypeConstraint::Range {
-                            minimum: omega_abstract_syntax_tree::expression::Expression::Float(
+                            minimum: omega_syntax_trees::expression::Expression::Float(
                                 SourceText::generated("0.0f"),
                             ),
-                            maximum: omega_abstract_syntax_tree::expression::Expression::Float(
+                            maximum: omega_syntax_trees::expression::Expression::Float(
                                 SourceText::generated("100000.0f"),
                             ),
                         },

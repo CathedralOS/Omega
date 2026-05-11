@@ -9,7 +9,7 @@ use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
-use omega_typed_program::Program;
+use omega_typed_trees::Program;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

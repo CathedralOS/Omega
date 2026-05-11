@@ -2,7 +2,7 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;
-use omega_typed_program::Program;
+use omega_typed_trees::Program;
 use std::sync::Arc;
 
 mod collection;

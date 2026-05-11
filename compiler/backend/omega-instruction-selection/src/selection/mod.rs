@@ -13,7 +13,7 @@ mod state_bodies;
 mod storage_places;
 
 use instruction_sink::SelectedInstructionSink;
-use omega_target_program::{
+use omega_target_operations::{
     FunctionInstructionPlan, InstructionOperand, InstructionPlan, SelectedInstruction,
     SelectedInstructionKind,
 };

@@ -10,11 +10,11 @@ use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
-pub use omega_target_program::{StateGuardLowering, StateGuardOperator};
-use omega_typed_program::expression::{
+pub use omega_target_operations::{StateGuardLowering, StateGuardOperator};
+use omega_typed_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::statement::TransitionGuard;
 use operands::{GuardOperands, guard_operands};
 
 pub fn build_state_guard_plan(

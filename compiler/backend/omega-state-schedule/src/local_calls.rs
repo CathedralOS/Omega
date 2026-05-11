@@ -10,8 +10,8 @@ use omega_control_flow::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{ExpressionHandle, NamePath};
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::{ExpressionHandle, NamePath};
+use omega_typed_trees::name::ProgramName;
 
 pub(super) fn append_local_state_calls(
     context: &StateScheduleContext,

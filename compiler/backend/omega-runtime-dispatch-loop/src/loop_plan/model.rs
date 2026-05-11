@@ -2,7 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, StateGuardOperator};
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopPlan {

@@ -1,9 +1,9 @@
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::name::ProgramName;
 
 use super::places::expression_place_eq_in_table;
 use super::{RuntimeTextPlan, RuntimeTextSlot, RuntimeTextSource};

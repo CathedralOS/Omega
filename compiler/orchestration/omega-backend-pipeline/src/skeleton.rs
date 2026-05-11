@@ -17,8 +17,8 @@ use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_program::InstructionPlan;
-use omega_target_program::TargetDataPlan;
+use omega_target_operations::InstructionPlan;
+use omega_target_operations::TargetDataPlan;
 
 pub(super) struct BackendPlanSkeletonInput {
     pub target: NativeTarget,

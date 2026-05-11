@@ -1,11 +1,11 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable};
+use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 
 use super::super::super::storage_places::{
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
 };
-use omega_target_program::SelectedInstructionKind;
+use omega_target_operations::SelectedInstructionKind;
 
 pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
     input: &InstructionSelectionInput<'_>,

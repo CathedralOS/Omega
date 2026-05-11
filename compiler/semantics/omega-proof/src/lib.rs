@@ -1,10 +1,10 @@
 //! Proof surface collection, proof obligation building, and invariant checking.
 
-use omega_abstract_syntax_tree::item::{
+use omega_syntax_trees::item::{
     DataMember, Item, Machine, Platform, State, StateParameter, StateSignature,
 };
-use omega_abstract_syntax_tree::statement::Statement;
-use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+use omega_syntax_trees::statement::Statement;
+use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
 
 pub mod checker;
@@ -246,9 +246,9 @@ fn constraint_name(constraint: &TypeConstraint) -> String {
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::identifier::Identifier;
-    use omega_abstract_syntax_tree::item::{InvariantDefinition, Item, Machine, OwnedData};
-    use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+    use omega_syntax_trees::identifier::Identifier;
+    use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, OwnedData};
+    use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 
     use super::build_proof_surface_report;
 

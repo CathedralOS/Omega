@@ -5,8 +5,8 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
-use omega_typed_program::expression::{Expression, NamePath};
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::{Expression, NamePath};
+use omega_typed_trees::name::ProgramName;
 
 use super::super::super::bindings::{
     append_place_suffix, resolve_straight_line_binding_expression,
@@ -42,7 +42,7 @@ fn select_runtime_straight_line_branch_expansion(
     expansion: &RuntimeStraightLineBranchExpansion,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if expansion.resolved_guard != omega_typed_program::statement::TransitionGuard::Always {
+    if expansion.resolved_guard != omega_typed_trees::statement::TransitionGuard::Always {
         return;
     }
 

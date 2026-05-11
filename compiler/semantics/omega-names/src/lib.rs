@@ -5,13 +5,13 @@
 //! syntactic references without pretending that every reference is fully bound.
 //! That gives later phases a concrete spine to grow from.
 
-use omega_abstract_syntax_tree::expression::Expression;
-use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
-use omega_abstract_syntax_tree::item::{
+use omega_syntax_trees::expression::Expression;
+use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
+use omega_syntax_trees::item::{
     CapabilityMember, DataMember, Item, Machine, State, StateSignature,
 };
-use omega_abstract_syntax_tree::statement::{Statement, TransitionGuard, TransitionTarget};
-use omega_abstract_syntax_tree::types::{TypeConstraint, TypeReference};
+use omega_syntax_trees::statement::{Statement, TransitionGuard, TransitionTarget};
+use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
@@ -389,7 +389,7 @@ fn collect_state_signature_references(
 
 fn collect_state_signature_parts(
     report: &mut ResolveReport,
-    parameters: &[omega_abstract_syntax_tree::item::StateParameter],
+    parameters: &[omega_syntax_trees::item::StateParameter],
     return_type: Option<&TypeReference>,
     owner: &str,
 ) {
@@ -1118,14 +1118,14 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
-    use omega_abstract_syntax_tree::item::{
+    use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
+    use omega_syntax_trees::item::{
         Contains, Item, Machine, OwnedData, State, StateParameter, UseItem,
     };
-    use omega_abstract_syntax_tree::statement::{
+    use omega_syntax_trees::statement::{
         Statement, Transition, TransitionGuard, TransitionTarget,
     };
-    use omega_abstract_syntax_tree::types::TypeReference;
+    use omega_syntax_trees::types::TypeReference;
 
     use super::{
         ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report_without_sources,

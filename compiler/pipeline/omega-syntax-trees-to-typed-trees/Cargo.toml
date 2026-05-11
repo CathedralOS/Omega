@@ -1,0 +1,14 @@
+[package]
+name = "omega-syntax-trees-to-typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_syntax_trees_to_typed_trees"
+path = "src/lib.rs"
+
+[dependencies]
+omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

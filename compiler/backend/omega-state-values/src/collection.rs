@@ -2,10 +2,10 @@ use super::classify::value_kind;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_control_flow::StateKey;
-use omega_typed_program::Program;
-use omega_typed_program::expression::ExpressionHandle;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use omega_typed_trees::Program;
+use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 pub(super) fn build_machine_state_value_plan(
     program: &Program,
@@ -115,7 +115,7 @@ fn collect_transition_arguments(
     program: &Program,
     source_key: StateKey,
     statement_index: usize,
-    target: omega_typed_program::statement::TransitionTargetHandle,
+    target: omega_typed_trees::statement::TransitionTargetHandle,
     required: bool,
 ) {
     let TransitionTargetNode::Named { arguments, .. } =

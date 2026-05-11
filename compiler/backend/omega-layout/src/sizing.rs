@@ -1,6 +1,6 @@
 use crate::TypeLayout;
 use omega_target::NativeTarget;
-use omega_typed_program::types::PrimitiveType;
+use omega_typed_trees::types::PrimitiveType;
 
 pub(super) fn primitive_type_layout(
     target: NativeTarget,

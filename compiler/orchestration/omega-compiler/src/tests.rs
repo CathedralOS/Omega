@@ -4,9 +4,9 @@ use crate::ast::item::Item;
 use crate::ast::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::ast::types::{TypeConstraint, TypeReference};
 use crate::parser::ast::parse_ast_file;
-use omega_abstract_syntax_to_typed::lower_program;
+use omega_syntax_trees_to_typed_trees::lower_program;
 use omega_calling_conventions::HostOperation;
-use omega_lexer::Lexer;
+use omega_source_files_to_tokens::Lexer;
 use omega_target::{NativeTarget, ObjectFormat};
 
 fn identifier_path(members: &[&str]) -> IdentifierPath {
@@ -30,11 +30,11 @@ fn native_state_name(
 }
 
 fn build_backend_plan(
-    program: &omega_typed_program::Program,
+    program: &omega_typed_trees::Program,
     target: NativeTarget,
 ) -> Result<omega_backend_plan::BackendPlan, omega_core::diagnostics::Diagnostic> {
     let workers = omega_core::parallel::WorkerPool::with_available_parallelism();
-    let control_flow = omega_typed_to_control_flow::build_control_flow_plan(program)?;
+    let control_flow = omega_typed_trees_to_control_flow::build_control_flow_plan(program)?;
 
     omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         std::sync::Arc::new(program.clone()),
@@ -1147,7 +1147,7 @@ fn expands_invariant_aliases_during_lowering() {
         .type_constraints
         .span(program.invariant_definitions[1].constraints)
         .expect("invariant constraints should resolve");
-    let omega_typed_program::types::TypeReference::Constrained {
+    let omega_typed_trees::types::TypeReference::Constrained {
         base_type,
         constraints,
     } = &program.machines[0].owned_data[0].type_reference
@@ -1155,7 +1155,7 @@ fn expands_invariant_aliases_during_lowering() {
         panic!("expected constrained owned data");
     };
 
-    let omega_typed_program::types::TypeReference::Named { name, .. } = base_type.as_ref() else {
+    let omega_typed_trees::types::TypeReference::Named { name, .. } = base_type.as_ref() else {
         panic!("expected f32 base type");
     };
     assert_eq!(name, "f32");
@@ -1167,11 +1167,11 @@ fn expands_invariant_aliases_during_lowering() {
     assert_eq!(invariant_constraints, owned_data_constraints);
     assert!(matches!(
         owned_data_constraints[0],
-        omega_typed_program::types::TypeConstraint::Named(ref name) if name == "finite"
+        omega_typed_trees::types::TypeConstraint::Named(ref name) if name == "finite"
     ));
     assert!(matches!(
         owned_data_constraints[1],
-        omega_typed_program::types::TypeConstraint::Range { .. }
+        omega_typed_trees::types::TypeConstraint::Range { .. }
     ));
 }
 
@@ -1199,7 +1199,7 @@ fn plans_state_control_flow() {
     let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
+    let control_flow = omega_typed_trees_to_control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
         .machines
@@ -1520,7 +1520,7 @@ fn plans_runtime_dispatch_loop_for_state_cycles() {
             && edge.target_dispatch_index != 0
     }));
     assert!(prompt_edges.iter().any(|edge| {
-        edge.guard_lowering == omega_target_program::StateGuardLowering::CompareStaticValue
+        edge.guard_lowering == omega_target_operations::StateGuardLowering::CompareStaticValue
     }));
 }
 
@@ -1574,7 +1574,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_target_program::SelectedInstructionKind::EnterDispatchLoop { .. }
+                    omega_target_operations::SelectedInstructionKind::EnterDispatchLoop { .. }
                 )
             })
     );
@@ -1586,7 +1586,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_target_program::SelectedInstructionKind::EnterDispatchCase {
+                    omega_target_operations::SelectedInstructionKind::EnterDispatchCase {
                         dispatch_index,
                         ..
                     } if dispatch_index == prompt_dispatch_index
@@ -1601,7 +1601,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_target_program::SelectedInstructionKind::SetDispatchState { .. }
+                    omega_target_operations::SelectedInstructionKind::SetDispatchState { .. }
                 )
             })
     );
@@ -1614,7 +1614,7 @@ fn selects_runtime_dispatch_loop_instructions() {
             .any(|(_, instruction)| {
                 matches!(
                     instruction.kind,
-                    omega_target_program::SelectedInstructionKind::HostOperation { .. }
+                    omega_target_operations::SelectedInstructionKind::HostOperation { .. }
                 )
             })
     );
@@ -1649,8 +1649,8 @@ fn plans_runtime_guards_for_dispatch_edges() {
     assert!(backend_plan.state_guards.guards.iter().any(|(_, guard)| {
         native_state_name(&backend_plan, guard.source) == "main.entry"
             && guard.kind == omega_state_guards::StateGuardKind::RuntimeEquality
-            && guard.operator == omega_target_program::StateGuardOperator::Equal
-            && guard.lowering == omega_target_program::StateGuardLowering::CompareStaticValue
+            && guard.operator == omega_target_operations::StateGuardOperator::Equal
+            && guard.lowering == omega_target_operations::StateGuardLowering::CompareStaticValue
             && backend_plan
                 .state_guards
                 .expressions
@@ -2128,7 +2128,7 @@ fn plans_runtime_straight_line_branch_expansion() {
             .iter()
             .any(|(_, instruction)| matches!(
                 instruction.kind,
-                omega_target_program::SelectedInstructionKind::WriteRuntimeMachineInteger {
+                omega_target_operations::SelectedInstructionKind::WriteRuntimeMachineInteger {
                     value: 2,
                     ..
                 }
@@ -2209,9 +2209,9 @@ fn plans_runtime_leaf_branch_argument_bindings() {
 
     assert_eq!(
         match &expansion.resolved_guard {
-            omega_typed_program::statement::TransitionGuard::When(expression) =>
+            omega_typed_trees::statement::TransitionGuard::When(expression) =>
                 expression.display_name(),
-            omega_typed_program::statement::TransitionGuard::Always => "always".to_owned(),
+            omega_typed_trees::statement::TransitionGuard::Always => "always".to_owned(),
         },
         "first::id == CellId::A1"
     );
@@ -2276,7 +2276,7 @@ fn selects_instructions_for_runtime_reachable_loop_states() {
         .filter(|(_, instruction)| {
             matches!(
                 instruction.kind,
-                omega_target_program::SelectedInstructionKind::HostOperation { .. }
+                omega_target_operations::SelectedInstructionKind::HostOperation { .. }
             )
         })
         .count();
@@ -2329,7 +2329,7 @@ fn selects_host_calls_inside_required_state_call_targets() {
         .filter(|(_, instruction)| {
             matches!(
                 instruction.kind,
-                omega_target_program::SelectedInstructionKind::HostOperation { .. }
+                omega_target_operations::SelectedInstructionKind::HostOperation { .. }
             )
         })
         .count();
@@ -2568,7 +2568,7 @@ fn plans_mid_state_transition_as_generated_segments() {
     let parsed = parse_ast_file(&tokens).expect("parse should succeed");
     let program = lower_program(&parsed.items).expect("lowering should succeed");
     omega_validation::validate_program(&program).expect("validation should pass");
-    let control_flow = omega_typed_to_control_flow::build_control_flow_plan(&program)
+    let control_flow = omega_typed_trees_to_control_flow::build_control_flow_plan(&program)
         .expect("control-flow planning should pass");
     let (_, machine) = control_flow
         .machines
@@ -4158,7 +4158,7 @@ fn lowers_mutable_output_host_call() {
             .iter()
             .any(|(_, instruction)| matches!(
                 &instruction.kind,
-                omega_target_program::SelectedInstructionKind::ReadRuntimeTextLine {
+                omega_target_operations::SelectedInstructionKind::ReadRuntimeTextLine {
                     buffer,
                     ..
                 } if *buffer == read_buffer.0

@@ -15,4 +15,4 @@ omega-layout = { path = "../omega-layout" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-storage = { path = "../omega-state-storage" }
 omega-target = { path = "../omega-target" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

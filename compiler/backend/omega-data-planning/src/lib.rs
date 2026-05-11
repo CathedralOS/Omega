@@ -4,7 +4,7 @@ mod static_strings;
 use host_calls::{collect_host_call_data, collect_newline_data};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
-use omega_target_program::TargetDataPlan;
+use omega_target_operations::TargetDataPlan;
 use static_strings::collect_static_string_assignment_data;
 
 pub fn build_target_data_plan(

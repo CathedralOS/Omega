@@ -10,7 +10,7 @@ use super::offsets::{
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
 use omega_object::{RelocationPlan, machine_storage_symbol_name, storage_region_symbol_name};
-use omega_target_program::{
+use omega_target_operations::{
     FunctionInstructionPlan, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
     StateGuardOperator,
 };

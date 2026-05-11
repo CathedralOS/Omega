@@ -1,12 +1,12 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_branching::RuntimeLeafBranchExpansion;
 use omega_state_guards::StateGuardOperator;
-use omega_typed_program::expression::Expression;
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::name::ProgramName;
 
 use super::super::host_operations::runtime_text_input_buffer_data_for_text_place;
 use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
-use omega_target_program::{SelectedInstructionKind, TargetDataObjectHandle};
+use omega_target_operations::{SelectedInstructionKind, TargetDataObjectHandle};
 
 pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
@@ -23,12 +23,12 @@ fn runtime_text_literal_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<(TargetDataObjectHandle, String)> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_trees::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
-    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
+    if binary.operator != omega_typed_trees::expression::BinaryOperator::Equal {
         return None;
     }
 
@@ -46,12 +46,12 @@ fn runtime_text_storage_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_trees::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
-    if binary.operator != omega_typed_program::expression::BinaryOperator::Equal {
+    if binary.operator != omega_typed_trees::expression::BinaryOperator::Equal {
         return None;
     }
     let operator = StateGuardOperator::Equal;
@@ -107,14 +107,14 @@ fn runtime_storage_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
-    let omega_typed_program::statement::TransitionGuard::When(Expression::Binary(binary)) =
+    let omega_typed_trees::statement::TransitionGuard::When(Expression::Binary(binary)) =
         &expansion.resolved_guard
     else {
         return None;
     };
     let operator = match binary.operator {
-        omega_typed_program::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
-        omega_typed_program::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        omega_typed_trees::expression::BinaryOperator::Equal => StateGuardOperator::Equal,
+        omega_typed_trees::expression::BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
         _ => return None,
     };
     let source_machine = source_machine_name(input, expansion.source_key);

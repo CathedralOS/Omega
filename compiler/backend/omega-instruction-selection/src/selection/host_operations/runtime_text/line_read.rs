@@ -7,8 +7,8 @@ use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
 use omega_platform_interface::HostCall;
-use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
-use omega_typed_program::name::ProgramName;
+use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_typed_trees::name::ProgramName;
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,

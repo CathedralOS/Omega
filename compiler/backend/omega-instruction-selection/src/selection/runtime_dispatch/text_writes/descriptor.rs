@@ -2,9 +2,9 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use crate::selection::storage_places::resolve_machine_owned_place;
 use omega_control_flow::StateKey;
-use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
-use omega_target_program::{TargetDataObject, TargetDataObjectHandle};
-use omega_typed_program::expression::Expression;
+use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
+use omega_typed_trees::expression::Expression;
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn select_runtime_string_descriptor_write(

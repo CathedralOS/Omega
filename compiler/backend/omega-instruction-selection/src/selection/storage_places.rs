@@ -7,7 +7,7 @@ mod static_values;
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owned_place_in_table};
 pub(super) use model::RuntimeStoragePlace;
-use omega_target_program::RuntimeStorageRegion;
+use omega_target_operations::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
 use crate::InstructionSelectionInput;
@@ -16,7 +16,7 @@ use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
-use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,

@@ -3,7 +3,7 @@ use omega_control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, St
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard;
-use omega_typed_program::expression::{ExpressionHandle, ExpressionTable};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 
 use super::lookups::state_statement_has_host_call;
 use super::{RuntimeBranchTargetLowering, RuntimeBranchingCallEdge};

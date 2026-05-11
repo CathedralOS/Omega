@@ -4,9 +4,9 @@ use crate::obligations::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_program::expression::{BinaryOperator, Expression};
-use omega_typed_program::statement::TransitionGuard;
-use omega_typed_program::types::TypeConstraint;
+use omega_typed_trees::expression::{BinaryOperator, Expression};
+use omega_typed_trees::statement::TransitionGuard;
+use omega_typed_trees::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct IntegerRange {
@@ -496,7 +496,7 @@ fn float_literal_expression(expression: &Expression) -> Option<f64> {
     }
 }
 
-fn finite_float_literal(value: omega_typed_program::expression::FloatLiteral) -> Option<f64> {
+fn finite_float_literal(value: omega_typed_trees::expression::FloatLiteral) -> Option<f64> {
     let value = value.value();
     value.is_finite().then_some(value)
 }

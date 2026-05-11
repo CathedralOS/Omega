@@ -2,7 +2,7 @@ use crate::RelocationPlanningInput;
 use omega_calling_conventions::{HostBinding, HostOperationKey};
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
-use omega_target_program::FunctionInstructionPlan;
+use omega_target_operations::FunctionInstructionPlan;
 
 pub(super) fn selected_instruction_text_offset(
     input: RelocationPlanningInput<'_>,

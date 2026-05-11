@@ -28,5 +28,5 @@ omega-state-schedule = { path = "../omega-state-schedule" }
 omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../omega-target" }
-omega-target-program = { path = "../../representations/omega-target-program" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

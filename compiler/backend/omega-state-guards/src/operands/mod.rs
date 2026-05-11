@@ -8,7 +8,7 @@ use layout::resolve_guard_operand_layout;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
-use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use values::resolved_guard_operand_value;
 
 pub(crate) struct GuardOperands {

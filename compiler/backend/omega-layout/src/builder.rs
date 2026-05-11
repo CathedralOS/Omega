@@ -7,10 +7,10 @@ use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_target::NativeTarget;
-use omega_typed_program::Program;
-use omega_typed_program::data::{DataDefinition, DataMember, DataShapeKind};
-use omega_typed_program::machine::Machine;
-use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
+use omega_typed_trees::Program;
+use omega_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 pub fn build_layout_plan(
     program: &Program,

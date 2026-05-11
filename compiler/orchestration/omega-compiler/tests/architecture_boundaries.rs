@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 fn backend_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
     let backend_root = repo_root.join("compiler/backend");
-    let forbidden = ["omega-abstract-syntax-tree", "omega-parser", "omega-lexer"];
+    let forbidden = ["omega-syntax-trees", "omega-tokens-to-syntax-trees", "omega-source-files-to-tokens"];
 
     for cargo_toml in cargo_tomls_under(&backend_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -14,7 +14,7 @@ fn backend_crates_do_not_depend_on_frontend_crates() {
         for crate_name in forbidden {
             assert!(
                 !contents.contains(crate_name),
-                "{} must not depend on frontend crate `{crate_name}`",
+                "{} must not depend on early-phase crate `{crate_name}`",
                 cargo_toml.display()
             );
         }
@@ -32,7 +32,7 @@ fn backend_crates_do_not_depend_on_lowering_crates() {
 
         assert!(
             !contents.contains("../../lowering/"),
-            "{} must not depend on lowering crates; orchestration should pass lowered IR forward",
+            "{} must not depend on pipeline crates; orchestration should pass lowered IR forward",
             cargo_toml.display()
         );
     }
@@ -42,7 +42,7 @@ fn backend_crates_do_not_depend_on_lowering_crates() {
 fn representation_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
     let representations_root = repo_root.join("compiler/representations");
-    let forbidden = ["omega-abstract-syntax-tree", "omega-parser", "omega-lexer"];
+    let forbidden = ["omega-syntax-trees", "omega-tokens-to-syntax-trees", "omega-source-files-to-tokens"];
 
     for cargo_toml in cargo_tomls_under(&representations_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -51,7 +51,7 @@ fn representation_crates_do_not_depend_on_frontend_crates() {
         for crate_name in forbidden {
             assert!(
                 !contents.contains(crate_name),
-                "{} must not depend on frontend crate `{crate_name}`; put parsing/lowering edges under compiler/lowering instead",
+                "{} must not depend on early-phase crate `{crate_name}`; put transform edges under compiler/pipeline instead",
                 cargo_toml.display()
             );
         }
@@ -78,7 +78,7 @@ fn representation_crates_do_not_depend_on_native_bridge() {
 #[test]
 fn lowering_crates_do_not_depend_on_backend_crates() {
     let repo_root = repo_root();
-    let lowering_root = repo_root.join("compiler/lowering");
+    let lowering_root = repo_root.join("compiler/pipeline");
 
     for cargo_toml in cargo_tomls_under(&lowering_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -86,7 +86,7 @@ fn lowering_crates_do_not_depend_on_backend_crates() {
 
         assert!(
             !contents.contains("../../backend/"),
-            "{} must not depend on backend crates; lowering should produce IR, not know final target machinery",
+            "{} must not depend on backend crates; pipeline crates should produce IR, not know final target machinery",
             cargo_toml.display()
         );
     }

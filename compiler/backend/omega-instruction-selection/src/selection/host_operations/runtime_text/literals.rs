@@ -5,7 +5,7 @@ use omega_control_flow::StateKey;
 use omega_platform_interface::HostCall;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_runtime_text::RuntimeTextWriteKind;
-use omega_target_program::TargetDataObjectHandle;
+use omega_target_operations::TargetDataObjectHandle;
 
 pub(in crate::selection) fn runtime_text_literal_write_for_host_call(
     input: &InstructionSelectionInput<'_>,

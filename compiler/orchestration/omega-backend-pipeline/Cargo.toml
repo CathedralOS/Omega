@@ -34,6 +34,6 @@ omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
-omega-target-to-machine = { path = "../../lowering/omega-target-to-machine" }
-omega-target-program = { path = "../../representations/omega-target-program" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-target-operations-to-machine-program = { path = "../../pipeline/omega-target-operations-to-machine-program" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

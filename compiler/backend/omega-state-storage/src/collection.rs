@@ -4,10 +4,10 @@ use crate::mutation_kind::{mutation_kind, mutation_lowering};
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::Program;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::StatementNode;
-use omega_typed_program::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::Program;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::statement::StatementNode;
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt::Write;
 use std::sync::Arc;
 

@@ -14,9 +14,9 @@ use omega_image::EmittedImageOutput;
 use omega_names::ResolveReport;
 use omega_proof::ProofSurfaceReport;
 use omega_proof::obligations::{ProofObligation, ProofPlan};
-use omega_typed_program::Program;
-use omega_typed_program::data::DataMember;
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::Program;
+use omega_typed_trees::data::DataMember;
+use omega_typed_trees::statement::TransitionGuard;
 use omega_types::TypeSurfaceReport;
 
 pub(crate) struct ArtifactWriter {
@@ -164,7 +164,7 @@ impl ArtifactWriter {
             program.type_reference_table.constraint_count()
         ));
 
-        let identity_storage = omega_typed_program::identity::count_identity_storage(program);
+        let identity_storage = omega_typed_trees::identity::count_identity_storage(program);
         output.push_str("## Identity Storage\n");
         output.push_str(&format!(
             "owned identity strings: {}\n",
@@ -638,7 +638,7 @@ fn write_typed_program_machines(output: &mut String, program: &Program) {
 
 fn typed_program_constraint_span_name(
     program: &Program,
-    span: omega_core::arena::HandleSpan<omega_typed_program::types::TypeConstraint>,
+    span: omega_core::arena::HandleSpan<omega_typed_trees::types::TypeConstraint>,
 ) -> String {
     let Some(constraints) = program.type_constraints.span(span) else {
         return "[invalid constraint span]".to_owned();
@@ -665,7 +665,7 @@ fn typed_program_constraint_span_name(
 
 fn typed_program_parameters_name(
     program: &Program,
-    parameters: &[omega_typed_program::signature::StateParameter],
+    parameters: &[omega_typed_trees::signature::StateParameter],
 ) -> String {
     let mut output = String::new();
 
@@ -701,7 +701,7 @@ fn typed_program_parameters_name(
 
 fn typed_program_return_type_name(
     program: &Program,
-    return_type: Option<&omega_typed_program::types::TypeReference>,
+    return_type: Option<&omega_typed_trees::types::TypeReference>,
 ) -> String {
     return_type
         .map(|return_type| {
@@ -817,7 +817,7 @@ fn write_proof_obligation(
 
 fn proof_constraints_name(
     proof_plan: &ProofPlan,
-    constraints: omega_core::arena::HandleSpan<omega_typed_program::types::TypeConstraint>,
+    constraints: omega_core::arena::HandleSpan<omega_typed_trees::types::TypeConstraint>,
 ) -> String {
     let Some(constraints) = proof_plan.type_constraints.span(constraints) else {
         return "[invalid constraint span]".to_owned();
@@ -831,22 +831,22 @@ fn proof_constraints_name(
         "[{}]",
         constraints
             .iter()
-            .map(omega_typed_program::types::TypeConstraint::display_name)
+            .map(omega_typed_trees::types::TypeConstraint::display_name)
             .collect::<Vec<_>>()
             .join(", ")
     )
 }
 
 fn proof_transition_target_name(
-    target: &omega_typed_program::statement::TransitionTarget,
+    target: &omega_typed_trees::statement::TransitionTarget,
 ) -> String {
     match target {
-        omega_typed_program::statement::TransitionTarget::Named { path, .. } => {
-            omega_typed_program::expression::display_name_path(path, ".")
+        omega_typed_trees::statement::TransitionTarget::Named { path, .. } => {
+            omega_typed_trees::expression::display_name_path(path, ".")
         }
-        omega_typed_program::statement::TransitionTarget::SelfTarget => "self".to_owned(),
-        omega_typed_program::statement::TransitionTarget::Terminal => "terminal".to_owned(),
-        omega_typed_program::statement::TransitionTarget::Value(expression) => {
+        omega_typed_trees::statement::TransitionTarget::SelfTarget => "self".to_owned(),
+        omega_typed_trees::statement::TransitionTarget::Terminal => "terminal".to_owned(),
+        omega_typed_trees::statement::TransitionTarget::Value(expression) => {
             format!("value {}", expression.display_name())
         }
     }

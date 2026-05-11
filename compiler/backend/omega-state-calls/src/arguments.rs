@@ -3,7 +3,7 @@ use omega_control_flow::StateKey;
 use omega_control_flow::StateParameterFlow;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 use super::lookups::state_flow_from_key;
 use super::{StateCallArgument, StateCallArgumentKind};

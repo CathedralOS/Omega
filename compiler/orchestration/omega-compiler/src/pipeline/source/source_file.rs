@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use crate::ast::AstFile;
 use crate::source::FileId;
-use omega_abstract_syntax_tree::item::Item;
-use omega_abstract_syntax_tree::tables::AstTables;
+use omega_syntax_trees::item::Item;
+use omega_syntax_trees::tables::AstTables;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {

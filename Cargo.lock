@@ -72,29 +72,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 
 [[package]]
-name = "omega-abstract-syntax-to-typed"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-syntax-tree",
- "omega-core",
- "omega-typed-program",
-]
-
-[[package]]
-name = "omega-abstract-syntax-tree"
-version = "0.1.0"
-dependencies = [
- "omega-core",
-]
-
-[[package]]
 name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-image",
  "omega-target",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -126,9 +110,9 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
- "omega-target-program",
- "omega-target-to-machine",
- "omega-typed-program",
+ "omega-target-operations",
+ "omega-target-operations-to-machine-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -154,7 +138,7 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
@@ -182,8 +166,8 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
- "omega-target-program",
- "omega-typed-program",
+ "omega-target-operations",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -206,8 +190,6 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-to-typed",
- "omega-abstract-syntax-tree",
  "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",
@@ -221,27 +203,29 @@ dependencies = [
  "omega-image",
  "omega-image-emission",
  "omega-layout",
- "omega-lexer",
  "omega-machine-program",
  "omega-names",
  "omega-object",
- "omega-parser",
  "omega-platform-interface",
  "omega-proof",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
  "omega-runtime-text",
+ "omega-source-files-to-tokens",
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-schedule",
  "omega-state-storage",
  "omega-state-values",
+ "omega-syntax-trees",
+ "omega-syntax-trees-to-typed-trees",
  "omega-target",
- "omega-target-program",
- "omega-typed-program",
- "omega-typed-to-control-flow",
+ "omega-target-operations",
+ "omega-tokens-to-syntax-trees",
+ "omega-typed-trees",
+ "omega-typed-trees-to-control-flow",
  "omega-types",
  "omega-validation",
 ]
@@ -251,7 +235,7 @@ name = "omega-control-flow"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -269,8 +253,8 @@ dependencies = [
  "omega-control-flow",
  "omega-platform-interface",
  "omega-state-storage",
- "omega-target-program",
- "omega-typed-program",
+ "omega-target-operations",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -278,7 +262,7 @@ name = "omega-effects"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -306,15 +290,15 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
 name = "omega-graph"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-core",
+ "omega-syntax-trees",
 ]
 
 [[package]]
@@ -378,8 +362,8 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-target",
- "omega-target-program",
- "omega-typed-program",
+ "omega-target-operations",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -395,14 +379,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-target",
- "omega-typed-program",
-]
-
-[[package]]
-name = "omega-lexer"
-version = "0.1.0"
-dependencies = [
- "omega-core",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -415,7 +392,7 @@ dependencies = [
  "omega-instruction-selection",
  "omega-machine-program",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
@@ -425,15 +402,15 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
 name = "omega-names"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-core",
+ "omega-syntax-trees",
 ]
 
 [[package]]
@@ -442,7 +419,7 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
@@ -455,16 +432,7 @@ dependencies = [
  "omega-machine-program",
  "omega-object",
  "omega-target",
- "omega-target-program",
-]
-
-[[package]]
-name = "omega-parser"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-syntax-tree",
- "omega-core",
- "omega-lexer",
+ "omega-target-operations",
 ]
 
 [[package]]
@@ -475,16 +443,16 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-target",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
 name = "omega-proof"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-core",
- "omega-typed-program",
+ "omega-syntax-trees",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -497,7 +465,7 @@ dependencies = [
  "omega-machine-program",
  "omega-object",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
@@ -510,7 +478,7 @@ dependencies = [
  "omega-state-calls",
  "omega-state-dispatch",
  "omega-state-storage",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -525,7 +493,7 @@ dependencies = [
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-storage",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -538,7 +506,7 @@ dependencies = [
  "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-guards",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -551,7 +519,7 @@ dependencies = [
  "omega-runtime-bodies",
  "omega-state-storage",
  "omega-target",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -563,7 +531,14 @@ dependencies = [
  "omega-core",
  "omega-platform-interface",
  "omega-state-storage",
- "omega-typed-program",
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-source-files-to-tokens"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
 ]
 
 [[package]]
@@ -574,7 +549,7 @@ dependencies = [
  "omega-core",
  "omega-platform-interface",
  "omega-state-graph",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -584,7 +559,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-state-graph",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -593,7 +568,7 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -605,8 +580,8 @@ dependencies = [
  "omega-layout",
  "omega-state-dispatch",
  "omega-state-graph",
- "omega-target-program",
- "omega-typed-program",
+ "omega-target-operations",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -616,7 +591,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -627,7 +602,7 @@ dependencies = [
  "omega-core",
  "omega-state-calls",
  "omega-state-graph",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -638,7 +613,23 @@ dependencies = [
  "omega-core",
  "omega-state-calls",
  "omega-state-graph",
- "omega-typed-program",
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+]
+
+[[package]]
+name = "omega-syntax-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-syntax-trees",
+ "omega-typed-trees",
 ]
 
 [[package]]
@@ -649,7 +640,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-target-program"
+name = "omega-target-operations"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
@@ -659,7 +650,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-target-to-machine"
+name = "omega-target-operations-to-machine-program"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
@@ -668,31 +659,40 @@ dependencies = [
  "omega-instruction-selection",
  "omega-machine-program",
  "omega-target",
- "omega-target-program",
+ "omega-target-operations",
 ]
 
 [[package]]
-name = "omega-typed-program"
+name = "omega-tokens-to-syntax-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-source-files-to-tokens",
+ "omega-syntax-trees",
+]
+
+[[package]]
+name = "omega-typed-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
 ]
 
 [[package]]
-name = "omega-typed-to-control-flow"
+name = "omega-typed-trees-to-control-flow"
 version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]
 name = "omega-types"
 version = "0.1.0"
 dependencies = [
- "omega-abstract-syntax-tree",
  "omega-core",
+ "omega-syntax-trees",
 ]
 
 [[package]]
@@ -700,7 +700,7 @@ name = "omega-validation"
 version = "0.1.0"
 dependencies = [
  "omega-core",
- "omega-typed-program",
+ "omega-typed-trees",
 ]
 
 [[package]]

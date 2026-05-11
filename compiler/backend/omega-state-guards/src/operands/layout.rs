@@ -2,8 +2,8 @@ use crate::StateGuardOperandStorage;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
-use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ResolvedOperandLayout {

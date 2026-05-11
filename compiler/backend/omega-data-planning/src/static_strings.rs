@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_state_storage::StateStoragePlan;
-use omega_target_program::{TargetDataObject, TargetDataPlan};
-use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_target_operations::{TargetDataObject, TargetDataPlan};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn collect_static_string_assignment_data(
     state_storage: &StateStoragePlan,

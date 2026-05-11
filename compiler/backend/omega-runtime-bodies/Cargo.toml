@@ -15,4 +15,4 @@ omega-platform-interface = { path = "../omega-platform-interface" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-storage = { path = "../omega-state-storage" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

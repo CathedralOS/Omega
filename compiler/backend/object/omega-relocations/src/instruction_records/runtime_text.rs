@@ -9,7 +9,7 @@ use super::super::offsets::{
 };
 use super::context::InstructionRelocationContext;
 use omega_object::{RelocationRecord, object_symbol_handle_by_name, storage_region_symbol_name};
-use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
 pub(super) fn collect_runtime_text_relocations(
     context: &mut InstructionRelocationContext<'_, '_>,

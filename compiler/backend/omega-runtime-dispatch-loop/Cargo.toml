@@ -14,4 +14,4 @@ omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../omega-state-guards" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

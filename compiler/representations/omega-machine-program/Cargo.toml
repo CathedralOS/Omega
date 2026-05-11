@@ -12,4 +12,4 @@ path = "src/lib.rs"
 omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-target = { path = "../../backend/omega-target" }
-omega-target-program = { path = "../omega-target-program" }
+omega-target-operations = { path = "../omega-target-operations" }

@@ -9,5 +9,5 @@ name = "omega_names"
 path = "src/lib.rs"
 
 [dependencies]
-omega-abstract-syntax-tree = { path = "../../frontend/omega-abstract-syntax-tree" }
+omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
 omega-core = { path = "../../foundation/omega-core" }

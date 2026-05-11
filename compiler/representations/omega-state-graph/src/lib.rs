@@ -1,6 +1,6 @@
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::statement::TransitionGuard;
 
 mod runtime_flow;
 

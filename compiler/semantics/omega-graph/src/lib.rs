@@ -4,8 +4,8 @@
 //! orchestration crate still owns the lowered control-flow plan until that
 //! boundary is ready for its own representation crate.
 
-use omega_abstract_syntax_tree::item::{Item, Machine, State};
-use omega_abstract_syntax_tree::statement::{
+use omega_syntax_trees::item::{Item, Machine, State};
+use omega_syntax_trees::statement::{
     Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_core::arena::{Arena, HandleSpan};
@@ -111,9 +111,9 @@ fn transition_guard_name(guard: &TransitionGuard) -> String {
 
 #[cfg(test)]
 mod tests {
-    use omega_abstract_syntax_tree::identifier::{Identifier, IdentifierPath};
-    use omega_abstract_syntax_tree::item::{Item, Machine, State};
-    use omega_abstract_syntax_tree::statement::{
+    use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
+    use omega_syntax_trees::item::{Item, Machine, State};
+    use omega_syntax_trees::statement::{
         Statement, Transition, TransitionGuard, TransitionTarget,
     };
 

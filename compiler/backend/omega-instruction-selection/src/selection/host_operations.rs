@@ -7,10 +7,10 @@ use omega_calling_conventions::{
 };
 use omega_core::arena::Arena;
 use omega_platform_interface::HostCall;
-use omega_target_program::TargetDataObject;
+use omega_target_operations::TargetDataObject;
 
 use super::instruction_sink::SelectedInstructionSink;
-use omega_target_program::{
+use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, SelectedInstruction, SelectedInstructionKind,
 };
 use operands::{data_object_handle, operand, select_host_operation_operands};

@@ -1,7 +1,7 @@
 use omega_calling_conventions::HostOperationKey;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_program::{FunctionInstructionPlan, StateGuardOperator};
+use omega_target_operations::{FunctionInstructionPlan, StateGuardOperator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineCodePlan {

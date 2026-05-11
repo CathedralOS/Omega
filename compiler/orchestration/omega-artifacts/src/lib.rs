@@ -6,7 +6,7 @@ use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::{NativeTarget, ObjectFormat};
-use omega_typed_program::{Program, machine::Machine, platform::Platform};
+use omega_typed_trees::{Program, machine::Machine, platform::Platform};
 
 pub struct ArtifactWriter {
     root: PathBuf,
@@ -909,12 +909,12 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 #[cfg(test)]
 mod tests {
     use omega_core::symbols::SymbolHandle;
-    use omega_typed_program::Program;
-    use omega_typed_program::machine::Machine;
-    use omega_typed_program::name::ProgramName;
-    use omega_typed_program::platform::Platform;
-    use omega_typed_program::signature::StateSignature;
-    use omega_typed_program::state::State;
+    use omega_typed_trees::Program;
+    use omega_typed_trees::machine::Machine;
+    use omega_typed_trees::name::ProgramName;
+    use omega_typed_trees::platform::Platform;
+    use omega_typed_trees::signature::StateSignature;
+    use omega_typed_trees::state::State;
 
     use super::build_backend_surface_report;
 

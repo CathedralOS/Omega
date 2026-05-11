@@ -2,12 +2,12 @@ mod symbols;
 
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_program::Program;
-use omega_typed_program::data::{DataMember, DataShapeKind};
-use omega_typed_program::expression::Expression;
-use omega_typed_program::signature::StateParameter;
-use omega_typed_program::statement::{Statement, TransitionTarget};
-use omega_typed_program::types::{PrimitiveType, TypeConstraint, TypeReference};
+use omega_typed_trees::Program;
+use omega_typed_trees::data::{DataMember, DataShapeKind};
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::statement::{Statement, TransitionTarget};
+use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -141,7 +141,7 @@ fn validate_local_data_names(
 
 fn validate_state_statement(
     program: &Program,
-    machine: &omega_typed_program::machine::Machine,
+    machine: &omega_typed_trees::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
@@ -329,7 +329,7 @@ fn validate_state_signature_types<'program>(
 }
 
 fn validate_platform_state_names(
-    platform: &omega_typed_program::platform::Platform,
+    platform: &omega_typed_trees::platform::Platform,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut state_names = Vec::new();
@@ -391,7 +391,7 @@ fn validate_data_field_types(
 }
 
 fn validate_data_shape(
-    data_definition: &omega_typed_program::data::DataDefinition,
+    data_definition: &omega_typed_trees::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match data_definition.shape_kind() {
@@ -405,7 +405,7 @@ fn validate_data_shape(
 }
 
 fn validate_data_member_names(
-    data_definition: &omega_typed_program::data::DataDefinition,
+    data_definition: &omega_typed_trees::data::DataDefinition,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut member_names = Vec::new();
@@ -548,7 +548,7 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
 }
 
 fn validate_contained_types(
-    machine: &omega_typed_program::machine::Machine,
+    machine: &omega_typed_trees::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -564,7 +564,7 @@ fn validate_contained_types(
 
 fn validate_owned_data(
     program: &Program,
-    machine: &omega_typed_program::machine::Machine,
+    machine: &omega_typed_trees::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -613,8 +613,8 @@ fn validate_initial_value(
 
 fn validate_call(
     program: &Program,
-    call: &omega_typed_program::statement::Call,
-    current_machine: &omega_typed_program::machine::Machine,
+    call: &omega_typed_trees::statement::Call,
+    current_machine: &omega_typed_trees::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,

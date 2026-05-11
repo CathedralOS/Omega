@@ -21,7 +21,7 @@ use omega_state_schedule::{
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_program::{InstructionPlan, TargetDataPlan};
+use omega_target_operations::{InstructionPlan, TargetDataPlan};
 
 mod host_argument_blockers;
 mod host_binding_blockers;

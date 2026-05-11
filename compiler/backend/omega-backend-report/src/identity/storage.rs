@@ -1,4 +1,4 @@
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct BackendStringStorage {

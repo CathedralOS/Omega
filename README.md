@@ -127,7 +127,7 @@ Long-term design assumptions:
 - The backend is shared where it should be shared, but architecture and platform boundaries stay obvious in the tree.
 - The standard library, host contracts, startup/runtime, and calling-convention/platform ABI knowledge are versioned inside the workspace, not treated as mysterious external glue.
 
-Current migration note: the old native bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing and `compiler/representations/omega-backend-plan` carries the temporary aggregate report surface. The long-term pressure stays the same: shrink the aggregate plan as phase-specific representations and artifacts become precise enough to stand alone.
+Current migration note: the old native bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing. The long-term pressure stays the same: phase boundaries should become precise enough that temporary aggregate report surfaces disappear instead of ossifying.
 
 Near-term compiler pipeline direction:
 
@@ -163,11 +163,8 @@ Omega/
 |   |   `-- [CRATE] omega-profiling/                    # Timings, phase counters, artifact metrics.
 |   |
 |   |-- frontend/
-|   |   |-- [CRATE] omega-token/                        # Token definitions, trivia, and doc-comment tokens.
-|   |   |-- [CRATE] omega-lexer/                        # Source text to tokens.
 |   |   |-- [CRATE] omega-concrete-syntax-tree/         # Comments and lossless parse nodes (CST).
-|   |   |-- [CRATE] omega-parser/                       # Tokens to concrete/abstract syntax tables.
-|   |   |-- [CRATE] omega-abstract-syntax-tree/         # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
+|   |   |-- [CRATE] omega-syntax-trees/         # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
 |   |   `-- [CRATE] omega-format/                       # Formatter and syntax-preserving rewrites.
 |   |
 |   |-- packages/
@@ -180,32 +177,36 @@ Omega/
 |   |   |-- [CRATE] omega-names/                        # Definitions, scopes, imports, symbol resolution.
 |   |   |-- [CRATE] omega-types/                        # Type checking, inference, coercions, layout preconditions.
 |   |   |-- [CRATE] omega-effects/                      # Effect surface, mutation/host capability checking.
-|   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.
 |   |   |-- [CRATE] omega-borrow/                       # Ownership, aliasing, lifetime-style checks as needed.
+|   |   |-- [CRATE] omega-invariants/                   # Variable/state invariant propagation and refinement checking.
+|   |   |-- [CRATE] omega-contracts/                    # Requires/ensures/halts-style callable and machine contracts.
+|   |   |-- [CRATE] omega-validation/                   # Cross-semantic program validation and diagnostics.
 |   |   |-- [CRATE] omega-consteval/                    # Compile-time evaluation and folding.
-|   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and validation.
+|   |   |-- [CRATE] omega-graph/                        # Machine/state graph construction and graph-facing semantic facts.
 |   |   |-- [CRATE] omega-proof/                        # Proof obligations, invariants, liveness hooks.
 |   |   `-- [CRATE] omega-semantics/                    # Phase glue for semantic passes and canonical reports.
 |   |
 |   |-- representations/
-|   |   |-- [CRATE] omega-source-program/               # First meaning-bearing source program, roughly HIR-shaped.
-|   |   |-- [CRATE] omega-typed-program/                # Typed/effect-aware program after semantic checks.
+|   |   |-- [CRATE] omega-source-files/                 # Discovered and loaded source files with stable source identity.
+|   |   |-- [CRATE] omega-tokens/                       # Per-file token streams and token-set ownership.
+|   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
+|   |   |-- [CRATE] omega-resolved-trees/               # Syntax trees with names, imports, and symbol references resolved.
+|   |   |-- [CRATE] omega-typed-trees/                  # Resolved trees with type/effect information attached.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-target-program/               # Target-aware operations before instruction selection, roughly LIR-shaped.
+|   |   |-- [CRATE] omega-target-operations/            # Target-aware operations before instruction selection.
 |   |   |-- [CRATE] omega-machine-program/              # Machine functions, blocks, virtual/physical registers (MIR/LIR territory).
-|   |   |-- [CRATE] omega-backend-plan/                 # Temporary aggregate backend phase output used by reports/artifacts while phase surfaces settle.
-|   |   |-- [CRATE] omega-dataflow/                     # Shared data-flow framework.
-|   |   |-- [CRATE] omega-optimization/                 # Machine-independent optimization passes.
-|   |   `-- [CRATE] omega-specialization/               # Monomorphization/specialization and code unit planning.
+|   |   `-- [CRATE] omega-machine-bytes/                # Encoded machine bytes and relocation-ready emission payload.
 |   |
-|   |-- lowering/
-|   |   |-- [CRATE] omega-abstract-syntax-to-source/    # Abstract syntax tree to source program.
-|   |   |-- [CRATE] omega-source-to-typed/              # Source program to typed program.
-|   |   |-- [CRATE] omega-typed-to-state-graph/         # Typed program to explicit machine/state graph.
-|   |   |-- [CRATE] omega-state-graph-to-control-flow/  # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-target/       # Control flow to target-aware operations.
-|   |   `-- [CRATE] omega-target-to-machine/            # Target program to symbolic machine program, before bytes.
+|   |-- pipeline/
+|   |   |-- [CRATE] omega-source-files-to-tokens/               # Source files to per-file token streams.
+|   |   |-- [CRATE] omega-tokens-to-syntax-trees/               # Token streams to parsed syntax trees.
+|   |   |-- [CRATE] omega-syntax-trees-to-resolved-trees/       # Syntax trees to resolved trees with symbol/name meaning attached.
+|   |   |-- [CRATE] omega-resolved-trees-to-typed-trees/        # Resolved trees to typed/effect-annotated trees.
+|   |   |-- [CRATE] omega-typed-trees-to-state-graph/           # Typed trees to explicit machine/state graph.
+|   |   |-- [CRATE] omega-state-graph-to-control-flow/          # State graph to control-flow/data-flow graph.
+|   |   |-- [CRATE] omega-control-flow-to-target-operations/    # Control flow to target-aware operations.
+|   |   `-- [CRATE] omega-target-operations-to-machine-program/ # Target-aware operations to symbolic machine program, before bytes.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
@@ -324,15 +325,16 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 
 - `omega-cli`, `omega-language-server`, and `omega-documentation-generator` stay thin. They parse user intent and call `omega-compiler` or `omega-ide`; they do not own compiler semantics.
 - `foundation/` must stay dependency-light. If a crate there starts depending on semantic representations, machine representations, or target details, it is in the wrong layer.
-- `frontend/` owns syntax and source-preserving structure only. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
-- `omega-abstract-syntax-tree` should be table-shaped, not a long-lived recursive heap tree. Recursive syntax edges should be `Handle<T>` and repeated children should be `HandleSpan<T>` so parser output does not normalize tiny allocations into the rest of the compiler.
+- `frontend/` owns syntax definitions and source-preserving structure only. The durable per-file outputs of frontend work belong in `representations/`. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
+- `omega-syntax-trees` should be table-shaped, not a long-lived recursive heap tree. Recursive syntax edges should be `Handle<T>` and repeated children should be `HandleSpan<T>` so parser output does not normalize tiny allocations into the rest of the compiler.
 - `packages/` owns manifests, dependency graphs, and source loading. It should not grow semantic rules for the language itself.
-- `omega-source-program` is the first meaning-bearing representation, roughly Omega's HIR-shaped layer. Parser conveniences and concrete syntax trivia do not belong there.
+- `omega-resolved-trees` is the first representation where source spelling has been disambiguated into symbol/name meaning. Parser conveniences and concrete syntax trivia do not belong there.
 - `semantics/` proves and reports what the program means. `representations/` decides how that meaning is shaped for optimization and code generation.
+- `omega-borrow` answers who may read or mutate. `omega-invariants` answers what remains true. `omega-contracts` answers what a callable or machine requires or promises. `omega-proof` is where those obligations are discharged.
 - `omega-graph` and `omega-proof` stay semantic/proof-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
-- `omega-typed-program`, `omega-state-graph`, `omega-control-flow`, `omega-target-program`, and `omega-machine-program` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, and LIR.
-- `representations/` owns the durable structs and arena data. `lowering/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
-- `omega-target-to-machine` is a lowering crate only if it produces a symbolic machine program. It may consume pure target/ISA/calling-convention facts, but it must not emit final bytes, own relocation records, or commit to final physical registers/stack offsets/branch displacements. If it starts doing those things, split that work into backend crates instead of letting the lowering layer become a printer.
+- `omega-resolved-trees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-target-operations`, `omega-machine-program`, and `omega-machine-bytes` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, LIR, and final encoded machine output.
+- `representations/` owns the durable structs and arena data, including frontend products like source files, token streams, and syntax trees. `pipeline/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
+- `omega-target-operations-to-machine-program` is a pipeline crate only if it produces a symbolic machine program. It may consume pure target/ISA/calling-convention facts, but it must not emit final bytes, own relocation records, or commit to final physical registers/stack offsets/branch displacements. If it starts doing those things, split that work into backend crates instead of letting the pipeline layer become a printer.
 - `backend/instruction_set_architectures/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-instruction-selection`, not duplicated per architecture unless the target really demands it.
 - `omega-machine-program` is Omega's LLVM-like handoff layer: virtual registers, symbolic labels, abstract stack slots, unresolved calls, machine constraints, and proof obligations are still inspectable here. Register allocation, scheduling, branch relaxation, and peephole rewrites happen before byte emission.
 - `omega-machine-emission` is where final bytes are born. No earlier representation should carry encoded instruction bytes as its primary truth. Final branch offsets, final physical registers, final stack-frame offsets, and target-specific instruction encodings belong here or immediately before it in backend-only passes.

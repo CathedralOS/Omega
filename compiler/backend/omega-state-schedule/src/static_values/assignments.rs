@@ -2,7 +2,7 @@ use super::aliases::{PlaceKey, canonical_place_key, shallow_canonical_place_key}
 use super::evaluation::resolve_static_value;
 use crate::StateScheduleContext;
 use omega_control_flow::{OperationExpressionRefs, StateFlow};
-use omega_typed_program::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(crate) fn apply_static_operations(
     context: &StateScheduleContext,

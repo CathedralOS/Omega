@@ -4,7 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_machine_program::MachineCodePlan;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_target::NativeTarget;
-use omega_target_program::{FunctionInstructionPlan, InstructionPlan, TargetDataPlan};
+use omega_target_operations::{FunctionInstructionPlan, InstructionPlan, TargetDataPlan};
 
 mod data_addresses;
 mod instruction_records;

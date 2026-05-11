@@ -13,5 +13,5 @@ omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-state-storage = { path = "../omega-state-storage" }
-omega-target-program = { path = "../../representations/omega-target-program" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

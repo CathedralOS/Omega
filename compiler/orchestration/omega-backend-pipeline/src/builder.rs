@@ -37,8 +37,8 @@ use omega_state_guards::build_state_guard_plan;
 use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_with_workers};
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
-use omega_target_to_machine::{TargetToMachineInput, build_machine_code_plan};
-use omega_typed_program::Program;
+use omega_target_operations_to_machine_program::{TargetToMachineInput, build_machine_code_plan};
+use omega_typed_trees::Program;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(

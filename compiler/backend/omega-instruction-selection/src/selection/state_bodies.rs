@@ -6,7 +6,7 @@ use omega_state_schedule::ScheduledState;
 use super::host_operations::select_host_call;
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::{host_call_for_statement, state_call_for_statement};
-use omega_target_program::InstructionOperand;
+use omega_target_operations::InstructionOperand;
 
 pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,

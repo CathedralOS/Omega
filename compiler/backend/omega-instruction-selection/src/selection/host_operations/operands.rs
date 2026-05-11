@@ -8,7 +8,7 @@ use super::runtime_text::{
     runtime_text_literal_for_host_call,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_target_program::{
+use omega_target_operations::{
     InstructionOperand, InstructionOperandKind, TargetDataObject, TargetDataObjectHandle,
 };
 

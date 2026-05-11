@@ -4,9 +4,9 @@ use omega_core::symbols::SymbolHandle;
 use omega_state_calls::StateCallLowering;
 use omega_state_guards::StateGuardKind;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_typed_program::expression::ExpressionHandle;
-use omega_typed_program::name::ProgramName;
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::statement::TransitionGuard;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStraightLineBranchExpansion {

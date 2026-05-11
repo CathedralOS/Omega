@@ -1,6 +1,6 @@
 use omega_core::arena::{Arena, Handle};
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
-use omega_target_program::RuntimeStorageRegion;
+use omega_target_operations::RuntimeStorageRegion;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectPlan {

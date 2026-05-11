@@ -1,13 +1,13 @@
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::Program;
-use omega_typed_program::expression::Expression;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::signature::StateParameter;
-use omega_typed_program::state::State;
-use omega_typed_program::statement::{
+use omega_typed_trees::Program;
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::state::State;
+use omega_typed_trees::statement::{
     Assignment, Call, Transition, TransitionGuard, TransitionTarget,
 };
-use omega_typed_program::types::{TypeConstraint, TypeReference};
+use omega_typed_trees::types::{TypeConstraint, TypeReference};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofPlan {
@@ -165,7 +165,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 
             for statement in &state.statements {
                 let transition = match statement {
-                    omega_typed_program::statement::Statement::Assignment(assignment) => {
+                    omega_typed_trees::statement::Statement::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
                             program,
                             machine,
@@ -175,7 +175,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         );
                         continue;
                     }
-                    omega_typed_program::statement::Statement::Call(call) => {
+                    omega_typed_trees::statement::Statement::Call(call) => {
                         collect_bounded_call_argument_obligations(
                             program,
                             machine,
@@ -185,7 +185,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         );
                         continue;
                     }
-                    omega_typed_program::statement::Statement::Transition(transition) => transition,
+                    omega_typed_trees::statement::Statement::Transition(transition) => transition,
                     _ => continue,
                 };
 
@@ -436,7 +436,7 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let Some(omega_typed_program::statement::Statement::Expression(value)) =
+    let Some(omega_typed_trees::statement::Statement::Expression(value)) =
         state.statements.last()
     else {
         return;
@@ -502,7 +502,7 @@ fn call_target_parameters<'program>(
         .or_else(|| machine_state_parameters(program, receiver, &call.target))
 }
 
-fn display_name_path(path: &omega_typed_program::expression::NamePath) -> String {
+fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
     path.as_slice()
         .iter()
         .map(|member| member.as_str())
@@ -636,7 +636,7 @@ fn expression_type_reference<'program>(
         .map(|parameter| &parameter.type_reference)
         .or_else(|| {
             state.statements.iter().find_map(|statement| {
-                let omega_typed_program::statement::Statement::LocalData(local_data) = statement
+                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
                 else {
                     return None;
                 };

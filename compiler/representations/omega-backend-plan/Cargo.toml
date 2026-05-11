@@ -28,4 +28,4 @@ omega-state-guards = { path = "../../backend/omega-state-guards" }
 omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
-omega-target-program = { path = "../omega-target-program" }
+omega-target-operations = { path = "../omega-target-operations" }

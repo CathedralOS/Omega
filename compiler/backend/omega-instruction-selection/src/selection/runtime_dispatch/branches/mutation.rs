@@ -1,11 +1,11 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_typed_program::expression::Expression;
+use omega_typed_trees::expression::Expression;
 
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_program::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_resolved_mutation_write(

@@ -1,0 +1,14 @@
+[package]
+name = "omega-tokens-to-syntax-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_tokens_to_syntax_trees"
+path = "src/lib.rs"
+
+[dependencies]
+omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-source-files-to-tokens = { path = "../omega-source-files-to-tokens" }

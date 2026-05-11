@@ -1,10 +1,10 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
-use omega_typed_program::Program;
-use omega_typed_program::expression::Expression;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::statement::Call;
+use omega_typed_trees::Program;
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::statement::Call;
 
 pub(crate) fn platform_call_receiver_type(
     program: &Program,

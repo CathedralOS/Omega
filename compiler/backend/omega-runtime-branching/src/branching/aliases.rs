@@ -1,7 +1,7 @@
 use crate::RuntimeBranchingContext;
 use omega_state_calls::{StateCall, StateCallArgumentKind};
-use omega_typed_program::expression::{ExpressionNode, ExpressionTable};
-use omega_typed_program::statement::TransitionGuard;
+use omega_typed_trees::expression::{ExpressionNode, ExpressionTable};
+use omega_typed_trees::statement::TransitionGuard;
 
 mod expressions;
 mod model;

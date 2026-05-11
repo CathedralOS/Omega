@@ -8,8 +8,8 @@ use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_instruction_selection::runtime_text_storage_compare_width;
 use omega_machine_program::MachineInstruction;
-use omega_target_program::RuntimeTextReadSource;
-use omega_target_program::StateGuardOperator;
+use omega_target_operations::RuntimeTextReadSource;
+use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_runtime_text_literal_compare(
     input: MachineEmissionContext<'_>,

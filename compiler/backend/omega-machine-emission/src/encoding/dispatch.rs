@@ -6,7 +6,7 @@ use crate::branch_distances::{
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_machine_program::MachineInstruction;
-use omega_target_program::StateGuardOperator;
+use omega_target_operations::StateGuardOperator;
 
 pub(super) fn encode_dispatch_loop_enter(
     input: MachineEmissionContext<'_>,

@@ -1,0 +1,12 @@
+[package]
+name = "omega-typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_typed_trees"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }

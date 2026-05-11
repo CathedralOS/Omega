@@ -11,10 +11,10 @@ use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
-use omega_typed_program::Program;
-use omega_typed_program::machine::Machine;
-use omega_typed_program::state::State;
-use omega_typed_program::statement::{Call, Statement};
+use omega_typed_trees::Program;
+use omega_typed_trees::machine::Machine;
+use omega_typed_trees::state::State;
+use omega_typed_trees::statement::{Call, Statement};
 
 pub(super) fn collect_machine_host_calls(
     program: &Program,

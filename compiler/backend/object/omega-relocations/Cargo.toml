@@ -15,4 +15,4 @@ omega-instruction-selection = { path = "../../omega-instruction-selection" }
 omega-machine-program = { path = "../../../representations/omega-machine-program" }
 omega-object = { path = "../omega-object" }
 omega-target = { path = "../../omega-target" }
-omega-target-program = { path = "../../../representations/omega-target-program" }
+omega-target-operations = { path = "../../../representations/omega-target-operations" }

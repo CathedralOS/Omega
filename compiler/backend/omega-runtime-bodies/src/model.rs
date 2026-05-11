@@ -3,7 +3,7 @@ use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::symbols::SymbolHandle;
 use omega_state_calls::StateCallLowering;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyPlan {

@@ -7,8 +7,8 @@ use crate::pipeline::phase_products::{
 };
 use crate::pipeline::source::SourceStorage;
 use crate::{lexer, parser};
-use omega_abstract_syntax_tree::identifier::IdentifierPath;
-use omega_abstract_syntax_tree::item::Item;
+use omega_syntax_trees::identifier::IdentifierPath;
+use omega_syntax_trees::item::Item;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::FileId;

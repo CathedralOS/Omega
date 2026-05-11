@@ -2,7 +2,7 @@ use super::expressions::{normalized_storage_expression, normalized_storage_name_
 use super::nested_fields::resolve_nested_field_layout;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, LayoutPlan};
-use omega_typed_program::expression::{Expression, ExpressionHandle, ExpressionTable};
+use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,

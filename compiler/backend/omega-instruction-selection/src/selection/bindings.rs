@@ -1,10 +1,10 @@
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableIndexedExpression, TableNamePath,
 };
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
 use omega_runtime_branching::{
@@ -104,7 +104,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: collection.source_key,
                 expression: Expression::Indexed(Box::new(
-                    omega_typed_program::expression::IndexedExpression {
+                    omega_typed_trees::expression::IndexedExpression {
                         collection: collection.expression,
                         index: index.expression,
                     },

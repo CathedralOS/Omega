@@ -1,8 +1,8 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
 };
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PlaceKey {

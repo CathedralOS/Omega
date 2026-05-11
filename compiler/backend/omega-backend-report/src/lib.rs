@@ -32,8 +32,8 @@ use omega_state_schedule::{
 use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
-use omega_target_program::{InstructionPlan, TargetDataPlan};
-use omega_typed_program::statement::TransitionGuard;
+use omega_target_operations::{InstructionPlan, TargetDataPlan};
+use omega_typed_trees::statement::TransitionGuard;
 
 pub struct BackendReportPhaseTiming {
     pub phase: String,

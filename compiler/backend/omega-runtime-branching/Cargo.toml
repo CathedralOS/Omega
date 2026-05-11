@@ -16,4 +16,4 @@ omega-state-calls = { path = "../omega-state-calls" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../omega-state-guards" }
 omega-state-storage = { path = "../omega-state-storage" }
-omega-typed-program = { path = "../../representations/omega-typed-program" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

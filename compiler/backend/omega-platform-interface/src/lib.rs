@@ -1,7 +1,7 @@
 use omega_calling_conventions::{HostOperationKey, PlatformCallData};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
-use omega_typed_program::expression::Expression;
+use omega_typed_trees::expression::Expression;
 
 mod host_calls;
 mod place_keys;

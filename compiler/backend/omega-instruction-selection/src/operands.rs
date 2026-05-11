@@ -1,6 +1,6 @@
 use omega_isa_aarch64::{Aarch64CallOperand, aarch64};
 use omega_target::Architecture;
-use omega_target_program::{InstructionOperand, InstructionOperandKind};
+use omega_target_operations::{InstructionOperand, InstructionOperandKind};
 
 pub fn operand_width(architecture: Architecture, operand: &InstructionOperand) -> usize {
     match architecture {

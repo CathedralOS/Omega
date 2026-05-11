@@ -4,8 +4,8 @@ use omega_control_flow::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_program::expression::ExpressionHandle;
-use omega_typed_program::name::ProgramName;
+use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::name::ProgramName;
 
 use super::StateCallResolution;
 

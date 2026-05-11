@@ -13,7 +13,7 @@ use crate::pipeline::artifacts::ArtifactWriter;
 use crate::pipeline::backend_report;
 use crate::pipeline::trust::build_trust_report;
 use crate::source::{FileId, SourceFile, SourceMap};
-use omega_abstract_syntax_to_typed::{
+use omega_syntax_trees_to_typed_trees::{
     AstLoweringInput, lower_program_input_with_symbol_table_and_workers,
 };
 use omega_artifacts::{PhaseTiming, build_backend_surface_report, finalize_emitted_image_output};
@@ -32,7 +32,7 @@ use omega_proof::build_proof_surface_report;
 use omega_proof::checker::check_proof_plan;
 use omega_proof::obligations::build_proof_plan;
 use omega_target::NativeTarget;
-use omega_typed_to_control_flow::build_control_flow_plan_with_workers;
+use omega_typed_trees_to_control_flow::build_control_flow_plan_with_workers;
 use omega_types::build_type_surface_report;
 use omega_validation::validate_program;
 

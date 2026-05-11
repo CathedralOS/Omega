@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
-use omega_target_program::RuntimeTextReadSource;
+use omega_target_operations::RuntimeTextReadSource;
 
 pub fn encode_runtime_text_literal_compare(
     architecture: Architecture,

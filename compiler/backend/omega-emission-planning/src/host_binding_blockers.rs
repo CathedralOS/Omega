@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
-use omega_target_program::{RuntimeTextReadSource, SelectedInstructionKind};
+use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
 use super::{EmissionBlocker, blocker};
 

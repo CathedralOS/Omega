@@ -5,7 +5,7 @@ use omega_machine_program::{
     EncodedMachineInstruction, EncodedMachinePlan, MachineCodePlan, MachineInstruction,
 };
 use omega_target::NativeTarget;
-use omega_target_program::InstructionPlan;
+use omega_target_operations::InstructionPlan;
 
 mod branch_distances;
 mod encoding;

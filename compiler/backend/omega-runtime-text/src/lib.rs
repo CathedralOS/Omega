@@ -12,7 +12,7 @@ pub use model::{
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use slots::build_runtime_text_slots;

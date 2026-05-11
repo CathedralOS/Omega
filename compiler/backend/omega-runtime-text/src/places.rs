@@ -1,4 +1,4 @@
-use omega_typed_program::expression::{
+use omega_typed_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath, TableNamePath,
 };
 

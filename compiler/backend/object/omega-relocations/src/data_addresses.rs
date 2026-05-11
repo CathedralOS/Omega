@@ -5,13 +5,13 @@ use omega_object::{
     object_symbol_handle_by_name,
 };
 use omega_target::Architecture;
-use omega_target_program::{FunctionInstructionPlan, InstructionOperandKind};
+use omega_target_operations::{FunctionInstructionPlan, InstructionOperandKind};
 
 pub(super) fn collect_data_address_relocations(
     input: RelocationPlanningInput<'_>,
     function: &FunctionInstructionPlan,
     selected_instruction_index: u32,
-    operands: omega_core::arena::HandleSpan<omega_target_program::InstructionOperand>,
+    operands: omega_core::arena::HandleSpan<omega_target_operations::InstructionOperand>,
     selected_text_offset: usize,
     relocation_plan: &mut RelocationPlan,
 ) {

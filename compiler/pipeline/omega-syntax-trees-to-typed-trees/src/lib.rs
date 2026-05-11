@@ -1,0 +1,2129 @@
+use omega_syntax_trees as ast;
+use omega_core::arena::Arena;
+use omega_core::diagnostics::Diagnostic;
+use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
+use omega_core::source::{SourceMap, SourceSpan};
+use omega_core::symbols::{
+    SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
+};
+use omega_typed_trees::Program;
+use omega_typed_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+use omega_typed_trees::expression::{
+    BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, FloatLiteral,
+    IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField,
+};
+use omega_typed_trees::invariant::InvariantDefinition;
+use omega_typed_trees::machine::{ContainedObject, Machine, OwnedData};
+use omega_typed_trees::name::ProgramName;
+use omega_typed_trees::platform::Platform;
+use omega_typed_trees::signature::{StateParameter, StateSignature};
+use omega_typed_trees::state::State;
+use omega_typed_trees::statement::{
+    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+};
+use omega_typed_trees::types::{TypeConstraint, TypeReference};
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct InvariantAliases {
+    items: Vec<ast::item::InvariantDefinition>,
+}
+
+#[derive(Clone)]
+pub struct AstLoweringInput {
+    pub items: Arc<Vec<ast::item::Item>>,
+    pub syntax_tables: Option<Arc<Vec<ast::tables::AstTables>>>,
+    pub sources: Option<Arc<SourceMap>>,
+}
+
+impl AstLoweringInput {
+    pub fn new(items: Arc<Vec<ast::item::Item>>) -> Self {
+        Self {
+            items,
+            syntax_tables: None,
+            sources: None,
+        }
+    }
+
+    pub fn with_syntax_tables(mut self, syntax_tables: Arc<Vec<ast::tables::AstTables>>) -> Self {
+        self.syntax_tables = Some(syntax_tables);
+        self
+    }
+
+    pub fn with_sources(mut self, sources: Arc<SourceMap>) -> Self {
+        self.sources = Some(sources);
+        self
+    }
+}
+
+impl InvariantAliases {
+    fn build(items: &[ast::item::Item]) -> Result<Self, Diagnostic> {
+        let mut aliases = Self { items: Vec::new() };
+
+        for item in items {
+            let ast::item::Item::Invariant(invariant) = item else {
+                continue;
+            };
+
+            if aliases.get(&invariant.name).is_some() {
+                return Err(Diagnostic::error(format!(
+                    "duplicate invariant `{}`",
+                    invariant.name
+                )));
+            }
+
+            aliases.items.push(invariant.clone());
+        }
+
+        Ok(aliases)
+    }
+
+    fn get(&self, name: &str) -> Option<&ast::item::InvariantDefinition> {
+        self.items.iter().find(|alias| alias.name == name)
+    }
+}
+
+pub fn lower_program(items: &[ast::item::Item]) -> Result<Program, Diagnostic> {
+    let workers = WorkerPool::with_available_parallelism();
+
+    lower_program_with_workers(Arc::new(items.to_vec()), workers.handle())
+}
+
+pub fn lower_program_with_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_input_with_workers(AstLoweringInput::new(items), workers)
+}
+
+pub fn lower_program_with_sources_and_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    sources: Option<Arc<SourceMap>>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    let input = if let Some(sources) = sources {
+        AstLoweringInput::new(items).with_sources(sources)
+    } else {
+        AstLoweringInput::new(items)
+    };
+
+    lower_program_input_with_workers(input, workers)
+}
+
+pub fn lower_program_with_symbol_table_and_workers(
+    items: Arc<Vec<ast::item::Item>>,
+    symbols: SymbolTable,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_input_with_symbol_table_and_workers(
+        AstLoweringInput::new(items),
+        symbols,
+        workers,
+    )
+}
+
+pub fn lower_program_input_with_workers(
+    input: AstLoweringInput,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_input_with_optional_symbol_table(input, None, workers)
+}
+
+pub fn lower_program_input_with_symbol_table_and_workers(
+    input: AstLoweringInput,
+    symbols: SymbolTable,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    lower_program_input_with_optional_symbol_table(input, Some(symbols), workers)
+}
+
+fn lower_program_input_with_optional_symbol_table(
+    input: AstLoweringInput,
+    symbols: Option<SymbolTable>,
+    workers: WorkerPoolHandle,
+) -> Result<Program, Diagnostic> {
+    let items = input.items;
+    let sources = input.sources;
+    debug_assert!(
+        input
+            .syntax_tables
+            .as_ref()
+            .is_none_or(|syntax_tables| syntax_tables.is_empty() || !items.is_empty())
+    );
+
+    let aliases = InvariantAliases::build(&items)?;
+    let mut program = Program::default();
+
+    for alias in &aliases.items {
+        let mut expansion_stack = vec![alias.name.to_string()];
+        let constraints =
+            lower_type_constraints(&alias.constraints, &aliases, &mut expansion_stack)?;
+        let constraints = program.type_constraints.insert_many(constraints);
+
+        program.invariant_definitions.push(InvariantDefinition {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(&alias.name),
+            constraints,
+        });
+    }
+
+    let aliases = Arc::new(aliases);
+    let item_count = items.len();
+    let items_for_workers = Arc::clone(&items);
+    let lowered_items = workers.map_ordered(item_count, move |index| {
+        let item = items_for_workers
+            .get(index)
+            .expect("lowering worker index should be in range");
+
+        lower_top_level_item(item, &aliases)
+    });
+
+    for lowered_item in lowered_items {
+        if let Some(lowered_item) = lowered_item? {
+            merge_lowered_item(&mut program, lowered_item);
+        }
+    }
+
+    program.symbols = symbols
+        .unwrap_or_else(|| register_program_symbols(&program, Some(items.as_slice()), sources));
+    attach_program_symbols(&mut program);
+    attach_type_reference_symbols(&mut program);
+    attach_expression_symbols(&mut program);
+    program.rebuild_tables();
+
+    Ok(program)
+}
+
+struct LoweredTopLevelItem {
+    type_constraints: Arena<TypeConstraint>,
+    item: LoweredTopLevelItemKind,
+}
+
+enum LoweredTopLevelItemKind {
+    Data(DataDefinition),
+    Machine(Machine),
+    Platform(Platform),
+}
+
+fn lower_top_level_item(
+    item: &ast::item::Item,
+    aliases: &InvariantAliases,
+) -> Result<Option<LoweredTopLevelItem>, Diagnostic> {
+    let mut type_constraints = Arena::new();
+    let item =
+        match item {
+            ast::item::Item::Data(data_definition) => Some(LoweredTopLevelItemKind::Data(
+                lower_data_definition(data_definition, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Machine(machine) => Some(LoweredTopLevelItemKind::Machine(
+                lower_machine(machine, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Platform(platform) => Some(LoweredTopLevelItemKind::Platform(
+                lower_platform(platform, aliases, &mut type_constraints)?,
+            )),
+            ast::item::Item::Capability(_)
+            | ast::item::Item::Invariant(_)
+            | ast::item::Item::Library(_)
+            | ast::item::Item::Target(_)
+            | ast::item::Item::TrustDefinition(_)
+            | ast::item::Item::Use(_) => None,
+        };
+
+    Ok(item.map(|item| LoweredTopLevelItem {
+        type_constraints,
+        item,
+    }))
+}
+
+fn merge_lowered_item(program: &mut Program, lowered_item: LoweredTopLevelItem) {
+    match lowered_item.item {
+        LoweredTopLevelItemKind::Data(data_definition) => {
+            program.data_definitions.push(remap_data_definition(
+                data_definition,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+        LoweredTopLevelItemKind::Machine(machine) => {
+            program.machines.push(remap_machine(
+                machine,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+        LoweredTopLevelItemKind::Platform(platform) => {
+            program.platforms.push(remap_platform(
+                platform,
+                &lowered_item.type_constraints,
+                &mut program.type_constraints,
+            ));
+        }
+    }
+}
+
+fn register_program_symbols(
+    program: &Program,
+    source_items: Option<&[ast::item::Item]>,
+    sources: Option<Arc<SourceMap>>,
+) -> SymbolTable {
+    let builder = ProgramSymbolDefinitionBuilder {
+        program,
+        source_items,
+        use_source_spans: sources.is_some(),
+    };
+
+    SymbolTable::from_definition_with_sources(
+        SymbolDefinition::static_with_children(
+            SymbolKind::Root,
+            "program",
+            builtin_type_symbol_definitions()
+                .into_iter()
+                .chain(
+                    program
+                        .invariant_definitions
+                        .iter()
+                        .map(|invariant| builder.invariant_symbol_definition(invariant)),
+                )
+                .chain(
+                    program
+                        .data_definitions
+                        .iter()
+                        .map(|data_definition| builder.data_symbol_definition(data_definition)),
+                )
+                .chain(
+                    program
+                        .platforms
+                        .iter()
+                        .map(|platform| builder.platform_symbol_definition(platform)),
+                )
+                .chain(
+                    program
+                        .machines
+                        .iter()
+                        .map(|machine| builder.machine_symbol_definition(machine)),
+                ),
+        ),
+        sources,
+    )
+}
+
+fn attach_program_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+    let root = symbols.root();
+
+    for invariant in &mut program.invariant_definitions {
+        invariant.symbol = find_child_symbol(
+            symbols,
+            root,
+            SymbolKind::Invariant,
+            invariant.name.as_str(),
+        );
+    }
+
+    for data_definition in &mut program.data_definitions {
+        data_definition.symbol = find_child_symbol(
+            symbols,
+            root,
+            SymbolKind::Data,
+            data_definition.name.as_str(),
+        );
+
+        for member in &mut data_definition.members {
+            match member {
+                DataMember::Field(field) => {
+                    field.symbol = find_child_symbol(
+                        symbols,
+                        data_definition.symbol,
+                        SymbolKind::Field,
+                        field.name.as_str(),
+                    );
+                }
+                DataMember::Variant(variant) => {
+                    variant.symbol = find_child_symbol(
+                        symbols,
+                        data_definition.symbol,
+                        SymbolKind::Variant,
+                        variant.name.as_str(),
+                    );
+                }
+            }
+        }
+    }
+
+    for platform in &mut program.platforms {
+        platform.symbol =
+            find_child_symbol(symbols, root, SymbolKind::Platform, platform.name.as_str());
+
+        for signature in &mut platform.states {
+            signature.symbol = find_child_symbol(
+                symbols,
+                platform.symbol,
+                SymbolKind::State,
+                signature.name.as_str(),
+            );
+            attach_parameter_symbols(symbols, signature.symbol, &mut signature.parameters);
+        }
+    }
+
+    for machine in &mut program.machines {
+        machine.symbol =
+            find_child_symbol(symbols, root, SymbolKind::Machine, machine.name.as_str());
+
+        for contained in &mut machine.contains {
+            contained.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::Object,
+                contained.name.as_str(),
+            );
+            contained.type_symbol = symbols
+                .find_descendant_by_path(root, [contained.type_name.as_str()])
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for owned_data in &mut machine.owned_data {
+            owned_data.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::Field,
+                owned_data.name.as_str(),
+            );
+        }
+
+        for state in &mut machine.states {
+            state.symbol = find_child_symbol(
+                symbols,
+                machine.symbol,
+                SymbolKind::State,
+                state.name.as_str(),
+            );
+            attach_parameter_symbols(symbols, state.symbol, &mut state.parameters);
+            attach_local_symbols(symbols, state.symbol, &mut state.statements);
+        }
+    }
+}
+
+fn attach_parameter_symbols(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    parameters: &mut [StateParameter],
+) {
+    for parameter in parameters {
+        parameter.symbol = find_child_symbol(
+            symbols,
+            parent,
+            SymbolKind::Parameter,
+            parameter.name.as_str(),
+        );
+    }
+}
+
+fn attach_local_symbols(symbols: &SymbolTable, parent: SymbolHandle, statements: &mut [Statement]) {
+    for statement in statements {
+        let Statement::LocalData(local_data) = statement else {
+            continue;
+        };
+
+        local_data.symbol =
+            find_child_symbol(symbols, parent, SymbolKind::Local, local_data.name.as_str());
+    }
+}
+
+fn attach_type_reference_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+    let root = symbols.root();
+
+    for data_definition in &mut program.data_definitions {
+        for member in &mut data_definition.members {
+            if let DataMember::Field(field) = member {
+                attach_type_reference_symbol(symbols, root, &mut field.type_reference);
+            }
+        }
+    }
+
+    for platform in &mut program.platforms {
+        for signature in &mut platform.states {
+            if let Some(return_type) = &mut signature.return_type {
+                attach_type_reference_symbol(symbols, root, return_type);
+            }
+            for parameter in &mut signature.parameters {
+                attach_type_reference_symbol(symbols, root, &mut parameter.type_reference);
+            }
+        }
+    }
+
+    for machine in &mut program.machines {
+        for owned_data in &mut machine.owned_data {
+            attach_type_reference_symbol(symbols, root, &mut owned_data.type_reference);
+        }
+        for state in &mut machine.states {
+            if let Some(return_type) = &mut state.return_type {
+                attach_type_reference_symbol(symbols, root, return_type);
+            }
+            for parameter in &mut state.parameters {
+                attach_type_reference_symbol(symbols, root, &mut parameter.type_reference);
+            }
+            for statement in &mut state.statements {
+                if let Statement::LocalData(local_data) = statement {
+                    attach_type_reference_symbol(symbols, root, &mut local_data.type_reference);
+                }
+            }
+        }
+    }
+}
+
+fn attach_type_reference_symbol(
+    symbols: &SymbolTable,
+    root: SymbolHandle,
+    type_reference: &mut TypeReference,
+) {
+    match type_reference {
+        TypeReference::Constrained { base_type, .. } => {
+            attach_type_reference_symbol(symbols, root, base_type);
+        }
+        TypeReference::FixedArray { element_type, .. } => {
+            attach_type_reference_symbol(symbols, root, element_type);
+        }
+        TypeReference::Slice { element_type } => {
+            attach_type_reference_symbol(symbols, root, element_type);
+        }
+        TypeReference::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+        } => {
+            *base_symbol = resolve_type_symbol(symbols, root, base_name.as_str());
+            for argument in arguments {
+                attach_type_reference_symbol(symbols, root, argument);
+            }
+        }
+        TypeReference::Named { symbol, name } => {
+            *symbol = resolve_type_symbol(symbols, root, name.as_str());
+        }
+        TypeReference::Unit => {}
+    }
+}
+
+fn resolve_type_symbol(symbols: &SymbolTable, root: SymbolHandle, name: &str) -> SymbolHandle {
+    symbols
+        .find_child_by_name(root, name)
+        .unwrap_or_else(SymbolHandle::invalid)
+}
+
+fn attach_expression_symbols(program: &mut Program) {
+    let symbols = &program.symbols;
+
+    for machine in &mut program.machines {
+        let contained_types = machine
+            .contains
+            .iter()
+            .map(|contained| (contained.name.clone(), contained.type_symbol))
+            .collect::<Vec<_>>();
+
+        for state in &mut machine.states {
+            let context = ExpressionResolveContext::from_symbols(
+                machine.symbol,
+                state.symbol,
+                &contained_types,
+            );
+
+            for statement in &mut state.statements {
+                attach_statement_expression_symbols(symbols, context, statement);
+            }
+        }
+    }
+}
+
+fn attach_statement_expression_symbols(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    statement: &mut Statement,
+) {
+    match statement {
+        Statement::Assignment(assignment) => {
+            attach_expression_symbol(symbols, context, &mut assignment.target);
+            attach_expression_symbol(symbols, context, &mut assignment.value);
+        }
+        Statement::Call(call) => {
+            call.receiver_symbol = context.resolve_call_receiver(
+                symbols,
+                call.receiver.as_ref().map(|receiver| receiver.members()),
+            );
+            call.target_symbol = context.resolve_call_target(
+                symbols,
+                call.receiver.as_ref().map(|receiver| receiver.members()),
+                call.target.as_str(),
+            );
+            for argument in &mut call.arguments {
+                attach_expression_symbol(symbols, context, argument);
+            }
+        }
+        Statement::Expression(expression) => attach_expression_symbol(symbols, context, expression),
+        Statement::LocalData(local_data) => {
+            if let Some(initial_value) = &mut local_data.initial_value {
+                attach_expression_symbol(symbols, context, initial_value);
+            }
+        }
+        Statement::Transition(transition) => {
+            attach_transition_target_expression_symbols(symbols, context, &mut transition.target);
+            if let Some(continuation) = &mut transition.continuation {
+                attach_transition_target_expression_symbols(symbols, context, continuation);
+            }
+            if let TransitionGuard::When(expression) = &mut transition.guard {
+                attach_expression_symbol(symbols, context, expression);
+            }
+        }
+    }
+}
+
+fn attach_transition_target_expression_symbols(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    target: &mut TransitionTarget,
+) {
+    let TransitionTarget::Named { path, arguments } = target else {
+        return;
+    };
+
+    let head_symbol = context.resolve_identifier_head(symbols, path.members());
+    let symbol = context.resolve_identifier_path(symbols, path.members());
+    *path = path.clone().with_symbols(head_symbol, symbol);
+
+    for argument in arguments.iter_mut() {
+        attach_expression_symbol(symbols, context, argument);
+    }
+
+    if !transition_target_is_state_like(symbols, path) {
+        let expression = if arguments.is_empty() {
+            Expression::Name(path.clone())
+        } else {
+            let mut members = path.as_slice().to_vec();
+            let target = members
+                .pop()
+                .expect("named transition target should contain at least one member");
+            let receiver = (!members.is_empty()).then(|| {
+                Box::new(Expression::Name(NamePath::resolved(
+                    members,
+                    path.head_symbol(),
+                    SymbolHandle::invalid(),
+                )))
+            });
+
+            Expression::Call(Box::new(CallExpression {
+                receiver,
+                target_symbol: path.symbol(),
+                target,
+                arguments: arguments.clone(),
+            }))
+        };
+
+        *target = TransitionTarget::Value(expression);
+    }
+}
+
+fn transition_target_is_state_like(symbols: &SymbolTable, path: &NamePath) -> bool {
+    let symbol = path.symbol();
+    symbol.is_valid() && symbols.get(symbol).kind == SymbolKind::State
+}
+
+fn attach_expression_symbol(
+    symbols: &SymbolTable,
+    context: ExpressionResolveContext,
+    expression: &mut Expression,
+) {
+    match expression {
+        Expression::ArrayLiteral(values) => {
+            for value in values {
+                attach_expression_symbol(symbols, context, value);
+            }
+        }
+        Expression::Binary(binary) => {
+            attach_expression_symbol(symbols, context, &mut binary.left);
+            attach_expression_symbol(symbols, context, &mut binary.right);
+        }
+        Expression::Cast(cast) => {
+            attach_expression_symbol(symbols, context, &mut cast.value);
+        }
+        Expression::Call(call) => {
+            if let Some(receiver) = &mut call.receiver {
+                attach_expression_symbol(symbols, context, receiver);
+            }
+            for argument in &mut call.arguments {
+                attach_expression_symbol(symbols, context, argument);
+            }
+        }
+        Expression::Indexed(indexed) => {
+            attach_expression_symbol(symbols, context, &mut indexed.collection);
+            attach_expression_symbol(symbols, context, &mut indexed.index);
+        }
+        Expression::Member(member) => {
+            attach_expression_symbol(symbols, context, &mut member.receiver);
+        }
+        Expression::Mutable(inner_expression) => {
+            attach_expression_symbol(symbols, context, inner_expression);
+        }
+        Expression::Name(path) => {
+            let head_symbol = context.resolve_identifier_head(symbols, path.members());
+            let symbol = context.resolve_identifier_path(symbols, path.members());
+            *path = path.clone().with_symbols(head_symbol, symbol);
+        }
+        Expression::StructLiteral(struct_literal) => {
+            for field in &mut struct_literal.fields {
+                attach_expression_symbol(symbols, context, &mut field.value);
+            }
+        }
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::String(_) => {}
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ExpressionResolveContext<'context> {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    contained_types: &'context [(ProgramName, SymbolHandle)],
+}
+
+impl<'context> ExpressionResolveContext<'context> {
+    fn from_symbols(
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        contained_types: &'context [(ProgramName, SymbolHandle)],
+    ) -> Self {
+        Self {
+            machine,
+            state,
+            contained_types,
+        }
+    }
+
+    fn resolve_identifier_head(self, symbols: &SymbolTable, path: &[ProgramName]) -> SymbolHandle {
+        let Some(first_member) = path.first().map(|member| member.as_str()) else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return self.machine;
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) = symbols.find_child_by_name(root, first_member) {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn resolve_identifier_path(self, symbols: &SymbolTable, path: &[ProgramName]) -> SymbolHandle {
+        let Some(first_member) = path.first().map(|member| member.as_str()) else {
+            return SymbolHandle::invalid();
+        };
+
+        if first_member == "self" && self.machine.is_valid() {
+            return symbols
+                .find_descendant_by_path(
+                    self.machine,
+                    path.iter().skip(1).map(|member| member.as_str()),
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        if path.len() > 1
+            && let Some(type_symbol) = self.contained_type_symbol(first_member)
+        {
+            return symbols
+                .find_descendant_by_path(
+                    type_symbol,
+                    path.iter().skip(1).map(|member| member.as_str()),
+                )
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) =
+                symbols.find_descendant_by_path(root, path.iter().map(|member| member.as_str()))
+            {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn resolve_call_receiver(
+        self,
+        symbols: &SymbolTable,
+        receiver: Option<&[ProgramName]>,
+    ) -> SymbolHandle {
+        match receiver {
+            Some(receiver) => self.resolve_identifier_path(symbols, receiver),
+            None => self.machine,
+        }
+    }
+
+    fn resolve_call_target(
+        self,
+        symbols: &SymbolTable,
+        receiver: Option<&[ProgramName]>,
+        target: &str,
+    ) -> SymbolHandle {
+        if let Some(receiver) = receiver {
+            if let Some(type_symbol) = self.machine_type_symbol_for_receiver(receiver) {
+                return symbols
+                    .find_child_by_name(type_symbol, target)
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
+
+            let mut path = receiver.iter().map(|member| member.as_str()).collect::<Vec<_>>();
+            path.push(target);
+            return self.resolve_symbol(symbols, path);
+        }
+
+        self.resolve_symbol(symbols, [target])
+    }
+
+    fn resolve_symbol<'path>(
+        self,
+        symbols: &SymbolTable,
+        path: impl IntoIterator<Item = &'path str> + Clone,
+    ) -> SymbolHandle {
+        let mut members = path.clone().into_iter();
+        let Some(first_member) = members.next() else {
+            return SymbolHandle::invalid();
+        };
+        let has_remaining_members = path.clone().into_iter().nth(1).is_some();
+
+        if first_member == "self" && self.machine.is_valid() {
+            if !has_remaining_members {
+                return self.machine;
+            }
+
+            return symbols
+                .find_descendant_by_path(self.machine, path.clone().into_iter().skip(1))
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        if has_remaining_members && let Some(type_symbol) = self.contained_type_symbol(first_member)
+        {
+            return symbols
+                .find_descendant_by_path(type_symbol, path.clone().into_iter().skip(1))
+                .unwrap_or_else(SymbolHandle::invalid);
+        }
+
+        for root in [self.state, self.machine, symbols.root()] {
+            if !root.is_valid() {
+                continue;
+            }
+
+            if let Some(symbol) = symbols.find_descendant_by_path(root, path.clone()) {
+                return symbol;
+            }
+        }
+
+        SymbolHandle::invalid()
+    }
+
+    fn contained_type_symbol(self, receiver: &str) -> Option<SymbolHandle> {
+        self.contained_types
+            .iter()
+            .find(|(name, _)| name == receiver)
+            .map(|(_, type_symbol)| *type_symbol)
+            .filter(|type_symbol| type_symbol.is_valid())
+    }
+
+    fn machine_type_symbol_for_receiver(self, receiver: &[ProgramName]) -> Option<SymbolHandle> {
+        match receiver {
+            [receiver] if receiver != "self" => self.contained_type_symbol(receiver.as_str()),
+            [head, receiver] if head == "self" => self.contained_type_symbol(receiver.as_str()),
+            _ => None,
+        }
+    }
+}
+
+fn find_child_symbol(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kind: SymbolKind,
+    name: &str,
+) -> SymbolHandle {
+    let Some(children) = symbols.child_handles(parent) else {
+        return SymbolHandle::invalid();
+    };
+
+    for child in children {
+        let symbol = symbols.get(child);
+        if symbol.kind == kind && symbols.name(child) == name {
+            return child;
+        }
+    }
+
+    SymbolHandle::invalid()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ProgramSymbolDefinitionBuilder<'program, 'source> {
+    program: &'program Program,
+    source_items: Option<&'source [ast::item::Item]>,
+    use_source_spans: bool,
+}
+
+impl<'program, 'source> ProgramSymbolDefinitionBuilder<'program, 'source> {
+    fn invariant_symbol_definition(
+        self,
+        invariant: &'program InvariantDefinition,
+    ) -> SymbolDefinition<'program> {
+        self.symbol(
+            SymbolKind::Invariant,
+            invariant.name.as_str(),
+            self.source_invariant(invariant.name.as_str())
+                .map(|invariant| &invariant.name),
+        )
+    }
+
+    fn data_symbol_definition(
+        self,
+        data_definition: &'program DataDefinition,
+    ) -> SymbolDefinition<'program> {
+        let source_data = self.source_data(data_definition.name.as_str());
+
+        self.symbol_with_children(
+            SymbolKind::Data,
+            data_definition.name.as_str(),
+            source_data.map(|data_definition| &data_definition.name),
+            data_definition
+                .members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| {
+                    self.data_member_symbol_definition(
+                        member,
+                        source_data.and_then(|data_definition| data_definition.members.get(index)),
+                        0,
+                    )
+                }),
+        )
+    }
+
+    fn platform_symbol_definition(
+        self,
+        platform: &'program Platform,
+    ) -> SymbolDefinition<'program> {
+        let source_platform = self.source_platform(platform.name.as_str());
+
+        self.symbol_with_children(
+            SymbolKind::Platform,
+            platform.name.as_str(),
+            source_platform.map(|platform| &platform.name),
+            platform
+                .states
+                .iter()
+                .enumerate()
+                .map(|(index, signature)| {
+                    self.state_signature_symbol_definition(
+                        signature,
+                        source_platform.and_then(|platform| platform.states.get(index)),
+                    )
+                }),
+        )
+    }
+
+    fn machine_symbol_definition(self, machine: &'program Machine) -> SymbolDefinition<'program> {
+        let source_machine = self.source_machine(machine.name.as_str());
+
+        self.symbol_with_children(
+            SymbolKind::Machine,
+            machine.name.as_str(),
+            source_machine.map(|machine| &machine.name),
+            machine
+                .contains
+                .iter()
+                .enumerate()
+                .map(|(index, contained)| {
+                    let source_contained =
+                        source_machine.and_then(|machine| machine.contains.get(index));
+
+                    self.symbol_with_children(
+                        SymbolKind::Object,
+                        contained.name.as_str(),
+                        source_contained.map(|contained| &contained.name),
+                        self.named_type_children(contained.type_name.as_str(), 0),
+                    )
+                })
+                .chain(
+                    machine
+                        .owned_data
+                        .iter()
+                        .enumerate()
+                        .map(|(index, owned_data)| {
+                            let source_owned_data =
+                                source_machine.and_then(|machine| machine.owned_data.get(index));
+
+                            self.symbol_with_children(
+                                SymbolKind::Field,
+                                owned_data.name.as_str(),
+                                source_owned_data.map(|owned_data| &owned_data.name),
+                                self.type_children(&owned_data.type_reference, 0),
+                            )
+                        }),
+                )
+                .chain(machine.states.iter().enumerate().map(|(index, state)| {
+                    self.state_symbol_definition(
+                        state,
+                        source_machine.and_then(|machine| machine.states.get(index)),
+                    )
+                })),
+        )
+    }
+
+    fn state_symbol_definition(
+        self,
+        state: &'program State,
+        source_state: Option<&'source ast::item::State>,
+    ) -> SymbolDefinition<'program> {
+        let mut local_index = 0usize;
+
+        self.symbol_with_children(
+            SymbolKind::State,
+            state.name.as_str(),
+            source_state.map(|state| &state.name),
+            state
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    self.parameter_symbol_definition(
+                        parameter,
+                        source_state.and_then(|state| state.parameters.get(index)),
+                    )
+                })
+                .chain(state.statements.iter().filter_map(move |statement| {
+                    let current_local_index = local_index;
+                    let symbol = self.local_data_symbol_definition(
+                        statement,
+                        source_state
+                            .and_then(|state| nth_source_local_data(state, current_local_index)),
+                    );
+
+                    if symbol.is_some() {
+                        local_index += 1;
+                    }
+
+                    symbol
+                })),
+        )
+    }
+
+    fn state_signature_symbol_definition(
+        self,
+        signature: &'program StateSignature,
+        source_signature: Option<&'source ast::item::StateSignature>,
+    ) -> SymbolDefinition<'program> {
+        self.symbol_with_children(
+            SymbolKind::State,
+            signature.name.as_str(),
+            source_signature.map(|signature| &signature.name),
+            signature
+                .parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    self.parameter_symbol_definition(
+                        parameter,
+                        source_signature.and_then(|signature| signature.parameters.get(index)),
+                    )
+                }),
+        )
+    }
+
+    fn parameter_symbol_definition(
+        self,
+        parameter: &'program StateParameter,
+        source_parameter: Option<&'source ast::item::StateParameter>,
+    ) -> SymbolDefinition<'program> {
+        self.symbol_with_children(
+            SymbolKind::Parameter,
+            parameter.name.as_str(),
+            source_parameter.map(|parameter| &parameter.name),
+            self.type_children(&parameter.type_reference, 0),
+        )
+    }
+
+    fn local_data_symbol_definition(
+        self,
+        statement: &'program Statement,
+        source_local_data: Option<&'source ast::statement::LocalData>,
+    ) -> Option<SymbolDefinition<'program>> {
+        let Statement::LocalData(local_data) = statement else {
+            return None;
+        };
+
+        Some(self.symbol_with_children(
+            SymbolKind::Local,
+            local_data.name.as_str(),
+            source_local_data.map(|local_data| &local_data.name),
+            self.type_children(&local_data.type_reference, 0),
+        ))
+    }
+
+    fn data_member_symbol_definition(
+        self,
+        member: &'program DataMember,
+        source_member: Option<&'source ast::item::DataMember>,
+        depth: usize,
+    ) -> SymbolDefinition<'program> {
+        match member {
+            DataMember::Field(field) => {
+                let source_field = match source_member {
+                    Some(ast::item::DataMember::Field(field)) => Some(field),
+                    _ => None,
+                };
+
+                self.symbol_with_children(
+                    SymbolKind::Field,
+                    field.name.as_str(),
+                    source_field.map(|field| &field.name),
+                    self.type_children(&field.type_reference, depth + 1),
+                )
+            }
+            DataMember::Variant(variant) => {
+                let source_variant = match source_member {
+                    Some(ast::item::DataMember::Variant(variant)) => Some(variant),
+                    _ => None,
+                };
+
+                self.symbol(
+                    SymbolKind::Variant,
+                    variant.name.as_str(),
+                    source_variant.map(|variant| &variant.name),
+                )
+            }
+        }
+    }
+
+    fn type_children(
+        self,
+        type_reference: &'program TypeReference,
+        depth: usize,
+    ) -> Vec<SymbolDefinition<'program>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        match type_reference {
+            TypeReference::Constrained { base_type, .. } => self.type_children(base_type, depth),
+            TypeReference::FixedArray { element_type, .. } => {
+                self.type_children(element_type, depth + 1)
+            }
+            TypeReference::Slice { element_type } => self.type_children(element_type, depth + 1),
+            TypeReference::Generic { base_name, .. }
+            | TypeReference::Named {
+                name: base_name, ..
+            } => self.named_type_children(base_name.as_str(), depth + 1),
+            TypeReference::Unit => Vec::new(),
+        }
+    }
+
+    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'program>> {
+        if depth > 8 {
+            return Vec::new();
+        }
+
+        if let Some(data_definition) = self
+            .program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name == type_name)
+        {
+            return data_definition
+                .members
+                .iter()
+                .enumerate()
+                .map(|(index, member)| {
+                    self.data_member_symbol_definition(
+                        member,
+                        self.source_data(data_definition.name.as_str())
+                            .and_then(|data_definition| data_definition.members.get(index)),
+                        depth + 1,
+                    )
+                })
+                .collect();
+        }
+
+        if let Some(machine) = self
+            .program
+            .machines
+            .iter()
+            .find(|machine| machine.name == type_name)
+        {
+            return machine
+                .states
+                .iter()
+                .enumerate()
+                .map(|(index, state)| {
+                    self.state_symbol_definition(
+                        state,
+                        self.source_machine(machine.name.as_str())
+                            .and_then(|machine| machine.states.get(index)),
+                    )
+                })
+                .collect();
+        }
+
+        if let Some(platform) = self
+            .program
+            .platforms
+            .iter()
+            .find(|platform| platform.name == type_name)
+        {
+            return platform
+                .states
+                .iter()
+                .enumerate()
+                .map(|(index, signature)| {
+                    self.state_signature_symbol_definition(
+                        signature,
+                        self.source_platform(platform.name.as_str())
+                            .and_then(|platform| platform.states.get(index)),
+                    )
+                })
+                .collect();
+        }
+
+        Vec::new()
+    }
+
+    fn symbol(
+        self,
+        kind: SymbolKind,
+        fallback_name: &'program str,
+        source_identifier: Option<&ast::identifier::Identifier>,
+    ) -> SymbolDefinition<'program> {
+        if self.use_source_spans
+            && let Some(source_span) = source_name_span(source_identifier)
+        {
+            SymbolDefinition::source_named(kind, source_span)
+        } else {
+            SymbolDefinition::named(kind, fallback_name)
+        }
+    }
+
+    fn symbol_with_children(
+        self,
+        kind: SymbolKind,
+        fallback_name: &'program str,
+        source_identifier: Option<&ast::identifier::Identifier>,
+        children: impl IntoIterator<Item = SymbolDefinition<'program>>,
+    ) -> SymbolDefinition<'program> {
+        if self.use_source_spans
+            && let Some(source_span) = source_name_span(source_identifier)
+        {
+            SymbolDefinition::source_with_children(kind, source_span, children)
+        } else {
+            SymbolDefinition::with_children(kind, fallback_name, children)
+        }
+    }
+
+    fn source_invariant(self, name: &str) -> Option<&'source ast::item::InvariantDefinition> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Invariant(invariant) if invariant.name.as_str() == name => {
+                Some(invariant)
+            }
+            _ => None,
+        })
+    }
+
+    fn source_data(self, name: &str) -> Option<&'source ast::item::DataDefinition> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Data(data_definition) if data_definition.name.as_str() == name => {
+                Some(data_definition)
+            }
+            _ => None,
+        })
+    }
+
+    fn source_machine(self, name: &str) -> Option<&'source ast::item::Machine> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Machine(machine) if machine.name.as_str() == name => Some(machine),
+            _ => None,
+        })
+    }
+
+    fn source_platform(self, name: &str) -> Option<&'source ast::item::Platform> {
+        self.source_items?.iter().find_map(|item| match item {
+            ast::item::Item::Platform(platform) if platform.name.as_str() == name => Some(platform),
+            _ => None,
+        })
+    }
+}
+
+fn source_name_span(identifier: Option<&ast::identifier::Identifier>) -> Option<SourceSpan> {
+    let source_span = identifier?.source_span();
+
+    (source_span.span.start != source_span.span.end).then_some(source_span)
+}
+
+fn nth_source_local_data(
+    state: &ast::item::State,
+    target_index: usize,
+) -> Option<&ast::statement::LocalData> {
+    state
+        .statements
+        .iter()
+        .filter_map(|statement| match statement {
+            ast::statement::Statement::LocalData(local_data) => Some(local_data),
+            _ => None,
+        })
+        .nth(target_index)
+}
+
+fn remap_data_definition(
+    data_definition: DataDefinition,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> DataDefinition {
+    DataDefinition {
+        symbol: data_definition.symbol,
+        name: data_definition.name,
+        members: data_definition
+            .members
+            .into_iter()
+            .map(|member| remap_data_member(member, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_data_member(
+    member: DataMember,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> DataMember {
+    match member {
+        DataMember::Field(field) => DataMember::Field(DataField {
+            symbol: field.symbol,
+            name: field.name,
+            type_reference: remap_type_reference(
+                field.type_reference,
+                source_constraints,
+                target_constraints,
+            ),
+        }),
+        DataMember::Variant(variant) => DataMember::Variant(variant),
+    }
+}
+
+fn remap_machine(
+    machine: Machine,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Machine {
+    Machine {
+        symbol: machine.symbol,
+        name: machine.name,
+        contains: machine.contains,
+        owned_data: machine
+            .owned_data
+            .into_iter()
+            .map(|owned_data| remap_owned_data(owned_data, source_constraints, target_constraints))
+            .collect(),
+        states: machine
+            .states
+            .into_iter()
+            .map(|state| remap_state(state, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_owned_data(
+    owned_data: OwnedData,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> OwnedData {
+    OwnedData {
+        symbol: owned_data.symbol,
+        name: owned_data.name,
+        type_reference: remap_type_reference(
+            owned_data.type_reference,
+            source_constraints,
+            target_constraints,
+        ),
+        initial_value: owned_data.initial_value,
+    }
+}
+
+fn remap_platform(
+    platform: Platform,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Platform {
+    Platform {
+        symbol: platform.symbol,
+        name: platform.name,
+        states: platform
+            .states
+            .into_iter()
+            .map(|state| remap_state_signature(state, source_constraints, target_constraints))
+            .collect(),
+    }
+}
+
+fn remap_state(
+    state: State,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> State {
+    State {
+        symbol: state.symbol,
+        name: state.name,
+        return_type: state.return_type.map(|return_type| {
+            remap_type_reference(return_type, source_constraints, target_constraints)
+        }),
+        parameters: state
+            .parameters
+            .into_iter()
+            .map(|parameter| {
+                remap_state_parameter(parameter, source_constraints, target_constraints)
+            })
+            .collect(),
+        statements: state
+            .statements
+            .into_iter()
+            .map(|statement| remap_statement(statement, source_constraints, target_constraints))
+            .collect(),
+        statement_nodes: omega_core::arena::HandleSpan::empty(),
+    }
+}
+
+fn remap_state_signature(
+    signature: StateSignature,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> StateSignature {
+    StateSignature {
+        symbol: signature.symbol,
+        name: signature.name,
+        return_type: signature.return_type.map(|return_type| {
+            remap_type_reference(return_type, source_constraints, target_constraints)
+        }),
+        parameters: signature
+            .parameters
+            .into_iter()
+            .map(|parameter| {
+                remap_state_parameter(parameter, source_constraints, target_constraints)
+            })
+            .collect(),
+    }
+}
+
+fn remap_state_parameter(
+    parameter: StateParameter,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> StateParameter {
+    StateParameter {
+        symbol: parameter.symbol,
+        name: parameter.name,
+        type_reference: remap_type_reference(
+            parameter.type_reference,
+            source_constraints,
+            target_constraints,
+        ),
+        is_const: parameter.is_const,
+        is_mutable: parameter.is_mutable,
+        is_self: parameter.is_self,
+    }
+}
+
+fn remap_statement(
+    statement: Statement,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> Statement {
+    match statement {
+        Statement::LocalData(local_data) => Statement::LocalData(LocalData {
+            symbol: local_data.symbol,
+            name: local_data.name,
+            type_reference: remap_type_reference(
+                local_data.type_reference,
+                source_constraints,
+                target_constraints,
+            ),
+            initial_value: local_data.initial_value,
+        }),
+        Statement::Assignment(_)
+        | Statement::Call(_)
+        | Statement::Expression(_)
+        | Statement::Transition(_) => statement,
+    }
+}
+
+fn remap_type_reference(
+    type_reference: TypeReference,
+    source_constraints: &Arena<TypeConstraint>,
+    target_constraints: &mut Arena<TypeConstraint>,
+) -> TypeReference {
+    match type_reference {
+        TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => TypeReference::Constrained {
+            base_type: Box::new(remap_type_reference(
+                *base_type,
+                source_constraints,
+                target_constraints,
+            )),
+            constraints: target_constraints.insert_many(
+                source_constraints
+                    .span_or_empty(constraints)
+                    .iter()
+                    .cloned(),
+            ),
+        },
+        TypeReference::FixedArray {
+            element_type,
+            length,
+        } => TypeReference::FixedArray {
+            element_type: Box::new(remap_type_reference(
+                *element_type,
+                source_constraints,
+                target_constraints,
+            )),
+            length,
+        },
+        TypeReference::Slice { element_type } => TypeReference::Slice {
+            element_type: Box::new(remap_type_reference(
+                *element_type,
+                source_constraints,
+                target_constraints,
+            )),
+        },
+        TypeReference::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+        } => TypeReference::Generic {
+            base_symbol,
+            base_name,
+            arguments: arguments
+                .into_iter()
+                .map(|argument| {
+                    remap_type_reference(argument, source_constraints, target_constraints)
+                })
+                .collect(),
+        },
+        TypeReference::Named { .. } | TypeReference::Unit => type_reference,
+    }
+}
+
+fn lower_data_definition(
+    data_definition: &ast::item::DataDefinition,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<DataDefinition, Diagnostic> {
+    let members = data_definition
+        .members
+        .iter()
+        .map(|member| lower_data_member(member, aliases, type_constraints))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(DataDefinition {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&data_definition.name),
+        members,
+    })
+}
+
+fn lower_data_member(
+    member: &ast::item::DataMember,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<DataMember, Diagnostic> {
+    match member {
+        ast::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(&field.name),
+            type_reference: lower_type_reference(&field.type_reference, aliases, type_constraints)?,
+        })),
+        ast::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(&variant.name),
+        })),
+    }
+}
+
+fn lower_machine(
+    machine: &ast::item::Machine,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<Machine, Diagnostic> {
+    let contains = machine
+        .contains
+        .iter()
+        .map(|contained_object| ContainedObject {
+            symbol: SymbolHandle::invalid(),
+            type_symbol: SymbolHandle::invalid(),
+            name: lower_name(&contained_object.name),
+            type_name: lower_name(&contained_object.type_name),
+        })
+        .collect();
+
+    let owned_data = machine
+        .owned_data
+        .iter()
+        .map(|owned_data| lower_owned_data(owned_data, aliases, type_constraints))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let states = machine
+        .states
+        .iter()
+        .map(|state| lower_state(state, aliases, type_constraints))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Machine {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&machine.name),
+        contains,
+        owned_data,
+        states,
+    })
+}
+
+fn lower_owned_data(
+    owned_data: &ast::item::OwnedData,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<OwnedData, Diagnostic> {
+    Ok(OwnedData {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&owned_data.name),
+        type_reference: lower_type_reference(
+            &owned_data.type_reference,
+            aliases,
+            type_constraints,
+        )?,
+        initial_value: owned_data
+            .initial_value
+            .as_ref()
+            .map(lower_expression)
+            .transpose()?,
+    })
+}
+
+fn lower_platform(
+    platform: &ast::item::Platform,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<Platform, Diagnostic> {
+    let states = platform
+        .states
+        .iter()
+        .map(|signature| lower_state_signature(signature, aliases, type_constraints))
+        .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+    Ok(Platform {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&platform.name),
+        states,
+    })
+}
+
+fn lower_state_signature(
+    signature: &ast::item::StateSignature,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<StateSignature, Diagnostic> {
+    Ok(StateSignature {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&signature.name),
+        return_type: signature
+            .return_type
+            .as_ref()
+            .map(|type_reference| lower_type_reference(type_reference, aliases, type_constraints))
+            .transpose()?,
+        parameters: signature
+            .parameters
+            .iter()
+            .map(|parameter| {
+                Ok(StateParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: lower_name(&parameter.name),
+                    type_reference: lower_type_reference(
+                        &parameter.type_reference,
+                        aliases,
+                        type_constraints,
+                    )?,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                    is_self: parameter.is_self,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?,
+    })
+}
+
+fn lower_type_reference(
+    type_reference: &ast::types::TypeReference,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<TypeReference, Diagnostic> {
+    match type_reference {
+        ast::types::TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => Ok(TypeReference::Constrained {
+            base_type: Box::new(lower_type_reference(base_type, aliases, type_constraints)?),
+            constraints: {
+                let lowered_constraints =
+                    lower_type_constraints(constraints, aliases, &mut Vec::new())?;
+                type_constraints.insert_many(lowered_constraints)
+            },
+        }),
+        ast::types::TypeReference::FixedArray {
+            element_type,
+            length,
+        } => Ok(TypeReference::FixedArray {
+            element_type: Box::new(lower_type_reference(
+                element_type,
+                aliases,
+                type_constraints,
+            )?),
+            length: *length,
+        }),
+        ast::types::TypeReference::Slice { element_type } => Ok(TypeReference::Slice {
+            element_type: Box::new(lower_type_reference(
+                element_type,
+                aliases,
+                type_constraints,
+            )?),
+        }),
+        ast::types::TypeReference::Generic {
+            base_name,
+            arguments,
+        } => Ok(TypeReference::Generic {
+            base_symbol: SymbolHandle::invalid(),
+            base_name: lower_name(base_name),
+            arguments: arguments
+                .iter()
+                .map(|argument| lower_type_reference(argument, aliases, type_constraints))
+                .collect::<Result<Vec<_>, _>>()?,
+        }),
+        ast::types::TypeReference::Named(name) => Ok(TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(name),
+        }),
+        ast::types::TypeReference::Unit => Ok(TypeReference::Unit),
+    }
+}
+
+fn lower_type_constraint(
+    constraint: &ast::types::TypeConstraint,
+) -> Result<TypeConstraint, Diagnostic> {
+    match constraint {
+        ast::types::TypeConstraint::Named(name) => Ok(TypeConstraint::Named(lower_name(name))),
+        ast::types::TypeConstraint::Range { minimum, maximum } => Ok(TypeConstraint::Range {
+            minimum: lower_expression(minimum)?,
+            maximum: lower_expression(maximum)?,
+        }),
+    }
+}
+
+fn lower_type_constraints(
+    constraints: &[ast::types::TypeConstraint],
+    aliases: &InvariantAliases,
+    expansion_stack: &mut Vec<String>,
+) -> Result<Vec<TypeConstraint>, Diagnostic> {
+    let mut lowered_constraints = Vec::new();
+
+    for constraint in constraints {
+        match constraint {
+            ast::types::TypeConstraint::Named(name) => {
+                if let Some(alias) = aliases.get(name.as_str()) {
+                    if expansion_stack.iter().any(|entry| entry == name.as_str()) {
+                        return Err(Diagnostic::error(format!(
+                            "recursive invariant alias `{name}`"
+                        )));
+                    }
+
+                    expansion_stack.push(name.to_string());
+                    lowered_constraints.extend(lower_type_constraints(
+                        &alias.constraints,
+                        aliases,
+                        expansion_stack,
+                    )?);
+                    expansion_stack.pop();
+                } else {
+                    lowered_constraints.push(TypeConstraint::Named(lower_name(name)));
+                }
+            }
+            ast::types::TypeConstraint::Range { .. } => {
+                lowered_constraints.push(lower_type_constraint(constraint)?);
+            }
+        }
+    }
+
+    Ok(lowered_constraints)
+}
+
+fn lower_state(
+    state: &ast::item::State,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<State, Diagnostic> {
+    let statements = state
+        .statements
+        .iter()
+        .map(|statement| lower_statement(statement, aliases, type_constraints))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(State {
+        symbol: SymbolHandle::invalid(),
+        name: lower_name(&state.name),
+        return_type: state
+            .return_type
+            .as_ref()
+            .map(|type_reference| lower_type_reference(type_reference, aliases, type_constraints))
+            .transpose()?,
+        parameters: state
+            .parameters
+            .iter()
+            .map(|parameter| {
+                Ok(StateParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: lower_name(&parameter.name),
+                    type_reference: lower_type_reference(
+                        &parameter.type_reference,
+                        aliases,
+                        type_constraints,
+                    )?,
+                    is_const: parameter.is_const,
+                    is_mutable: parameter.is_mutable,
+                    is_self: parameter.is_self,
+                })
+            })
+            .collect::<Result<Vec<_>, Diagnostic>>()?,
+        statements,
+        statement_nodes: omega_core::arena::HandleSpan::empty(),
+    })
+}
+
+fn lower_statement(
+    statement: &ast::statement::Statement,
+    aliases: &InvariantAliases,
+    type_constraints: &mut Arena<TypeConstraint>,
+) -> Result<Statement, Diagnostic> {
+    match statement {
+        ast::statement::Statement::Assignment(assignment) => {
+            Ok(Statement::Assignment(Assignment {
+                target: lower_expression(&assignment.target)?,
+                value: lower_expression(&assignment.value)?,
+            }))
+        }
+        ast::statement::Statement::Call(call) => Ok(Statement::Call(Call {
+            receiver_symbol: SymbolHandle::invalid(),
+            target_symbol: SymbolHandle::invalid(),
+            receiver: call.receiver.as_ref().map(lower_name_path),
+            target: lower_name(&call.target),
+            arguments: call
+                .arguments
+                .iter()
+                .map(lower_expression)
+                .collect::<Result<Vec<_>, _>>()?,
+        })),
+        ast::statement::Statement::Expression(expression) => {
+            Ok(Statement::Expression(lower_expression(expression)?))
+        }
+        ast::statement::Statement::LocalData(local_data) => Ok(Statement::LocalData(LocalData {
+            symbol: SymbolHandle::invalid(),
+            name: lower_name(&local_data.name),
+            type_reference: lower_type_reference(
+                &local_data.type_reference,
+                aliases,
+                type_constraints,
+            )?,
+            initial_value: local_data
+                .initial_value
+                .as_ref()
+                .map(lower_expression)
+                .transpose()?,
+        })),
+        ast::statement::Statement::Transition(transition) => {
+            Ok(Statement::Transition(Transition {
+                target: lower_transition_target(&transition.target)?,
+                continuation: transition
+                    .continuation
+                    .as_ref()
+                    .map(lower_transition_target)
+                    .transpose()?,
+                guard: lower_transition_guard(&transition.guard)?,
+            }))
+        }
+    }
+}
+
+fn lower_name(identifier: &ast::identifier::Identifier) -> ProgramName {
+    ProgramName::generated(identifier.as_str())
+}
+
+fn lower_transition_guard(
+    guard: &ast::statement::TransitionGuard,
+) -> Result<TransitionGuard, Diagnostic> {
+    match guard {
+        ast::statement::TransitionGuard::Always => Ok(TransitionGuard::Always),
+        ast::statement::TransitionGuard::When(expression) => {
+            Ok(TransitionGuard::When(lower_expression(expression)?))
+        }
+    }
+}
+
+fn lower_identifier_path(path: &ast::identifier::IdentifierPath) -> NamePath {
+    NamePath::unresolved(path.iter().map(lower_name).collect())
+}
+
+fn lower_expression(expression: &ast::expression::Expression) -> Result<Expression, Diagnostic> {
+    match expression {
+        ast::expression::Expression::ArrayLiteral(values) => Ok(Expression::ArrayLiteral(
+            values
+                .iter()
+                .map(lower_expression)
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        ast::expression::Expression::Binary(binary) => {
+            Ok(Expression::Binary(Box::new(BinaryExpression {
+                left: lower_expression(&binary.left)?,
+                operator: lower_binary_operator(binary.operator),
+                right: lower_expression(&binary.right)?,
+            })))
+        }
+        ast::expression::Expression::Boolean(value) => Ok(Expression::Boolean(*value)),
+        ast::expression::Expression::Cast(cast) => Ok(Expression::Cast(Box::new(CastExpression {
+            value: lower_expression(&cast.value)?,
+            target_type: lower_name_path(&cast.target_type),
+        }))),
+        ast::expression::Expression::Call(call) => Ok(Expression::Call(Box::new(
+            CallExpression {
+                receiver: call
+                    .receiver
+                    .as_ref()
+                    .map(|receiver| lower_expression(receiver))
+                    .transpose()?
+                    .map(Box::new),
+                target_symbol: SymbolHandle::invalid(),
+                target: lower_name(&call.target),
+                arguments: call
+                    .arguments
+                    .iter()
+                    .map(lower_expression)
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+        ))),
+        ast::expression::Expression::Indexed(indexed) => {
+            Ok(Expression::Indexed(Box::new(IndexedExpression {
+                collection: lower_expression(&indexed.collection)?,
+                index: lower_expression(&indexed.index)?,
+            })))
+        }
+        ast::expression::Expression::Integer(value) => Ok(Expression::Integer(*value)),
+        ast::expression::Expression::Member(member) => Ok(Expression::Member(Box::new(
+            MemberExpression {
+                receiver: lower_expression(&member.receiver)?,
+                member_symbol: SymbolHandle::invalid(),
+                member: lower_name(&member.member),
+            },
+        ))),
+        ast::expression::Expression::Float(value) => FloatLiteral::parse(value.as_str())
+            .map(Expression::Float)
+            .ok_or_else(|| Diagnostic::error(format!("invalid float literal `{value}`"))),
+        ast::expression::Expression::Mutable(inner_expression) => Ok(Expression::Mutable(
+            Box::new(lower_expression(inner_expression)?),
+        )),
+        ast::expression::Expression::Name(path) => {
+            Ok(Expression::Name(lower_identifier_path(path)))
+        }
+        ast::expression::Expression::StructLiteral(struct_literal) => {
+            Ok(Expression::StructLiteral(StructLiteral {
+                type_name: lower_name(&struct_literal.type_name),
+                fields: struct_literal
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        Ok(StructLiteralField {
+                            name: lower_name(&field.name),
+                            value: lower_expression(&field.value)?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            }))
+        }
+        ast::expression::Expression::String(value) => {
+            Ok(Expression::String(value.as_str().to_owned()))
+        }
+    }
+}
+
+fn lower_name_path(path: &ast::identifier::IdentifierPath) -> NamePath {
+    NamePath::unresolved(path.iter().map(lower_name).collect())
+}
+
+fn lower_binary_operator(operator: ast::expression::BinaryOperator) -> BinaryOperator {
+    match operator {
+        ast::expression::BinaryOperator::Add => BinaryOperator::Add,
+        ast::expression::BinaryOperator::And => BinaryOperator::And,
+        ast::expression::BinaryOperator::Divide => BinaryOperator::Divide,
+        ast::expression::BinaryOperator::Equal => BinaryOperator::Equal,
+        ast::expression::BinaryOperator::Greater => BinaryOperator::Greater,
+        ast::expression::BinaryOperator::GreaterOrEqual => BinaryOperator::GreaterOrEqual,
+        ast::expression::BinaryOperator::Less => BinaryOperator::Less,
+        ast::expression::BinaryOperator::LessOrEqual => BinaryOperator::LessOrEqual,
+        ast::expression::BinaryOperator::Modulo => BinaryOperator::Modulo,
+        ast::expression::BinaryOperator::Multiply => BinaryOperator::Multiply,
+        ast::expression::BinaryOperator::NotEqual => BinaryOperator::NotEqual,
+        ast::expression::BinaryOperator::Or => BinaryOperator::Or,
+        ast::expression::BinaryOperator::ShiftLeft => BinaryOperator::ShiftLeft,
+        ast::expression::BinaryOperator::ShiftRight => BinaryOperator::ShiftRight,
+        ast::expression::BinaryOperator::Subtract => BinaryOperator::Subtract,
+    }
+}
+
+fn lower_transition_target(
+    target: &ast::statement::TransitionTarget,
+) -> Result<TransitionTarget, Diagnostic> {
+    match target {
+        ast::statement::TransitionTarget::Named { path, arguments } => {
+            Ok(TransitionTarget::Named {
+                path: lower_identifier_path(path),
+                arguments: arguments
+                    .iter()
+                    .map(lower_expression)
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            })
+        }
+        ast::statement::TransitionTarget::Value(expression) => {
+            Ok(TransitionTarget::Value(lower_expression(expression)?))
+        }
+        ast::statement::TransitionTarget::SelfTarget => Ok(TransitionTarget::SelfTarget),
+        ast::statement::TransitionTarget::Terminal => Ok(TransitionTarget::Terminal),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use omega_core::symbols::SymbolHandle;
+    use omega_typed_trees::Program;
+    use omega_typed_trees::data::{DataDefinition, DataField, DataMember};
+    use omega_typed_trees::machine::{ContainedObject, Machine};
+    use omega_typed_trees::platform::Platform;
+    use omega_typed_trees::signature::StateSignature;
+    use omega_typed_trees::state::State;
+    use omega_typed_trees::statement::{LocalData, Statement};
+    use omega_typed_trees::types::TypeReference;
+
+    use crate::{attach_program_symbols, register_program_symbols};
+
+    #[test]
+    fn typed_program_symbols_project_children_from_declared_types() {
+        let mut program = Program {
+            data_definitions: vec![DataDefinition {
+                symbol: SymbolHandle::invalid(),
+                name: "Room".into(),
+                members: vec![DataMember::Field(DataField {
+                    symbol: SymbolHandle::invalid(),
+                    name: "label".into(),
+                    type_reference: TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: "String".into(),
+                    },
+                })],
+            }],
+            machines: vec![Machine {
+                symbol: SymbolHandle::invalid(),
+                name: "main".into(),
+                contains: vec![ContainedObject {
+                    symbol: SymbolHandle::invalid(),
+                    type_symbol: SymbolHandle::invalid(),
+                    name: "console".into(),
+                    type_name: "Console".into(),
+                }],
+                owned_data: Vec::new(),
+                states: vec![State {
+                    symbol: SymbolHandle::invalid(),
+                    name: "entry".into(),
+                    parameters: Vec::new(),
+                    return_type: None,
+                    statements: vec![Statement::LocalData(LocalData {
+                        symbol: SymbolHandle::invalid(),
+                        name: "room".into(),
+                        type_reference: TypeReference::Named {
+                            symbol: SymbolHandle::invalid(),
+                            name: "Room".into(),
+                        },
+                        initial_value: None,
+                    })],
+                    statement_nodes: omega_core::arena::HandleSpan::empty(),
+                }],
+            }],
+            platforms: vec![Platform {
+                symbol: SymbolHandle::invalid(),
+                name: "Console".into(),
+                states: vec![StateSignature {
+                    symbol: SymbolHandle::invalid(),
+                    name: "write_line".into(),
+                    parameters: Vec::new(),
+                    return_type: None,
+                }],
+            }],
+            ..Program::default()
+        };
+        program.symbols = register_program_symbols(&program, None, None);
+        attach_program_symbols(&mut program);
+
+        let root = program.symbols.root();
+        let main = program
+            .symbols
+            .find_child_by_name(root, "main")
+            .expect("main should resolve");
+        let console = program
+            .symbols
+            .find_child_by_name(main, "console")
+            .expect("console object should resolve");
+        let console_write_line = program
+            .symbols
+            .find_child_by_name(console, "write_line")
+            .expect("contained platform states should project under the object");
+        let entry = program
+            .symbols
+            .find_child_by_name(main, "entry")
+            .expect("entry should resolve");
+        let room = program
+            .symbols
+            .find_child_by_name(entry, "room")
+            .expect("local room should resolve");
+        let room_label = program
+            .symbols
+            .find_child_by_name(room, "label")
+            .expect("local data fields should project from their type");
+        let console_platform = program
+            .symbols
+            .find_child_by_name(root, "Console")
+            .expect("platform should resolve");
+
+        assert_eq!(program.symbols.name(console_write_line), "write_line");
+        assert_eq!(program.symbols.name(room_label), "label");
+        assert_eq!(program.machines[0].symbol, main);
+        assert_eq!(program.machines[0].contains[0].symbol, console);
+        assert_eq!(
+            program.machines[0].contains[0].type_symbol,
+            console_platform
+        );
+        assert_eq!(program.machines[0].states[0].symbol, entry);
+    }
+}
