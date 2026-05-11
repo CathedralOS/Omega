@@ -223,6 +223,7 @@ dependencies = [
  "omega-syntax-trees-to-typed-trees",
  "omega-target",
  "omega-target-operations",
+ "omega-tokens",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
  "omega-typed-trees-to-control-flow",
@@ -539,6 +540,7 @@ name = "omega-source-files-to-tokens"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "omega-tokens",
 ]
 
 [[package]]
@@ -663,12 +665,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-tokens"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+]
+
+[[package]]
 name = "omega-tokens-to-syntax-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-source-files-to-tokens",
  "omega-syntax-trees",
+ "omega-tokens",
 ]
 
 [[package]]

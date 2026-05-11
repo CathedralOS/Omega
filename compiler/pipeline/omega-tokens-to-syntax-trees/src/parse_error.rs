@@ -1,4 +1,4 @@
-use omega_source_files_to_tokens::Span;
+use omega_core::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {

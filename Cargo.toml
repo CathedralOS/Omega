@@ -2,6 +2,7 @@
 members = [
     "apps/omega-cli",
     "compiler/foundation/omega-core",
+    "compiler/representations/omega-tokens",
     "compiler/representations/omega-syntax-trees",
     "compiler/pipeline/omega-source-files-to-tokens",
     "compiler/pipeline/omega-tokens-to-syntax-trees",

@@ -17,19 +17,19 @@ impl SourceStorage {
                 .sources
                 .add(parsed_source.path.clone(), parsed_source.source.to_string());
 
-            debug_assert_eq!(added.id, parsed_source.file_id);
+            debug_assert_eq!(added.source_id, parsed_source.source_id);
 
             self.files.append(SourceFile {
-                file_id: parsed_source.file_id,
+                source_id: parsed_source.source_id,
                 path: parsed_source.path.clone(),
-                ast: parsed_source.ast.clone(),
+                source_trees: parsed_source.source_trees.clone(),
             });
         }
 
         Ok(())
     }
 
-    pub fn next_file_id(&self) -> usize {
+    pub fn next_source_id(&self) -> usize {
         self.sources.len()
     }
 

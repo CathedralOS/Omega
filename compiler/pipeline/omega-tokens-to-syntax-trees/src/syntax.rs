@@ -1,7 +1,7 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceId;
 use omega_core::Span;
-use omega_source_files_to_tokens::{PunctuationKind, Token, TokenKind};
+use omega_tokens::{PunctuationKind, Token, TokenKind};
 
 pub type SyntaxNodeHandle = Handle<SyntaxNode>;
 

@@ -2,7 +2,7 @@ use crate::parse_error::ParseError;
 use omega_syntax_trees::item::Item;
 use omega_syntax_trees::tables::AstTables;
 use omega_core::source::SourceId;
-use omega_source_files_to_tokens::Token;
+use omega_tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceTrees {

@@ -7,7 +7,7 @@ use crate::parse_error::ParseError;
 use crate::source_trees::SourceTrees;
 use crate::syntax::SyntaxTree;
 use omega_core::source::{SourceId, SourceSpan, SourceText};
-use omega_source_files_to_tokens::{KeywordKind, Token, TokenKind};
+use omega_tokens::{KeywordKind, Token, TokenKind};
 use omega_syntax_trees::expression::{
     BinaryExpression, BinaryOperator, CallExpression, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,

@@ -1,13 +1,12 @@
 [package]
-name = "omega-source-files-to-tokens"
+name = "omega-tokens"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_source_files_to_tokens"
+name = "omega_tokens"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
-omega-tokens = { path = "../../representations/omega-tokens" }

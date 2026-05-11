@@ -1,8 +1,10 @@
 use std::iter::Peekable;
 use std::str::CharIndices;
 
-use crate::{
-    KeywordKind, LexError, PunctuationKind, Span, Token, TokenKind, TokenStream, TokenText,
+use crate::LexError;
+use omega_core::Span;
+use omega_tokens::{
+    KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
 };
 
 pub struct Lexer<'source> {
@@ -226,7 +228,7 @@ impl<'source> Lexer<'source> {
 #[cfg(test)]
 mod tests {
     use super::Lexer;
-    use crate::{KeywordKind, PunctuationKind, TokenKind};
+    use omega_tokens::{KeywordKind, PunctuationKind, TokenKind};
 
     #[test]
     fn tokenizes_keywords_and_identifiers_distinctly() {

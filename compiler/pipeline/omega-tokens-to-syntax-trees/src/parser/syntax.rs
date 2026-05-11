@@ -1,7 +1,7 @@
 use crate::parse_error::ParseError;
 use crate::syntax::{SyntaxTree, SyntaxKind, SyntaxNodeHandle, SyntaxTable};
 use omega_core::source::SourceId;
-use omega_source_files_to_tokens::Token;
+use omega_tokens::Token;
 
 pub(super) fn parse_syntax_tree_impl(
     source_id: SourceId,

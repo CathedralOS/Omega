@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::ast::AstFile;
-use crate::lexer::{Token, TokenStream, TokenText};
-use crate::source::FileId;
+use crate::parser::SourceTrees;
+use crate::source::SourceId;
+use crate::tokens::{Token, TokenStream, TokenText};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LoadedSource {
-    pub file_id: FileId,
+    pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
 }
@@ -21,7 +21,7 @@ pub struct LoadedSources {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LexedSource {
-    pub file_id: FileId,
+    pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
     pub tokens: TokenStream<'static>,
@@ -35,20 +35,20 @@ pub struct LexedSources {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedSource {
-    pub file_id: FileId,
+    pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
-    pub ast: AstFile,
+    pub source_trees: SourceTrees,
 }
 
 impl Default for ParsedSource {
     fn default() -> Self {
         Self {
-            file_id: FileId::default(),
+            source_id: SourceId::default(),
             path: PathBuf::default(),
             source: Arc::from(""),
-            ast: AstFile {
-                file_id: FileId::default(),
+            source_trees: SourceTrees {
+                source_id: SourceId::default(),
                 items: Vec::new(),
                 tables: Default::default(),
             },

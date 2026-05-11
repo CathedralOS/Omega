@@ -1,4 +1,4 @@
-use crate::Span;
+use omega_core::Span;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LexError {

@@ -39,8 +39,8 @@ impl Compiler {
 
         while imports.has_pending() {
             let frontier = imports.take_frontier();
-            let first_file_id = source_storage.next_file_id();
-            let sources = source_loader.load(frontier, first_file_id)?;
+            let first_source_id = source_storage.next_source_id();
+            let sources = source_loader.load(frontier, first_source_id)?;
             let lexed = lexer.lex(sources)?;
             let parsed = parser.parse(lexed)?;
             let discovered_imports = import_discovery.discover(

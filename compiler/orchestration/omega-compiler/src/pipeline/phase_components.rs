@@ -11,7 +11,7 @@ use omega_syntax_trees::identifier::IdentifierPath;
 use omega_syntax_trees::item::Item;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
-use omega_core::source::FileId;
+use omega_core::source::SourceId;
 
 pub struct SourceLoader;
 pub struct LexerPhase;
@@ -29,7 +29,7 @@ impl SourceLoader {
     pub fn load(
         &self,
         frontier: Vec<PathBuf>,
-        first_file_id: usize,
+        first_source_id: usize,
     ) -> Result<LoadedSources, Vec<Diagnostic>> {
         let mut sources = Arena::new();
         let loaded = frontier
@@ -41,7 +41,7 @@ impl SourceLoader {
                 })?;
 
                 Ok(LoadedSource {
-                    file_id: FileId(first_file_id + index),
+                    source_id: SourceId(first_source_id + index),
                     path,
                     source: std::sync::Arc::from(source),
                 })
@@ -75,7 +75,7 @@ impl LexerPhase {
                         })?;
 
                     Ok(LexedSource {
-                        file_id: loaded_source.file_id,
+                        source_id: loaded_source.source_id,
                         path: loaded_source.path.clone(),
                         source: loaded_source.source.clone(),
                         tokens: own_token_stream(&tokens),
@@ -101,8 +101,11 @@ impl ParserPhase {
                 .span_or_empty(lexed.batch)
                 .iter()
                 .map(|lexed_source| {
-                    let ast =
-                        parser::parse_file_with_id(lexed_source.file_id, &lexed_source.tokens)
+                    let source_trees =
+                        parser::parse_source_trees_with_id(
+                            lexed_source.source_id,
+                            &lexed_source.tokens,
+                        )
                             .map_err(|error| {
                                 Diagnostic::error(format!(
                                     "{}: {}",
@@ -112,10 +115,10 @@ impl ParserPhase {
                             })?;
 
                     Ok(ParsedSource {
-                        file_id: lexed_source.file_id,
+                        source_id: lexed_source.source_id,
                         path: lexed_source.path.clone(),
                         source: lexed_source.source.clone(),
-                        ast,
+                        source_trees,
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()
@@ -144,7 +147,7 @@ impl ImportDiscovery {
         let mut selected_target_found = selected_target_name.is_none();
 
         for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-            for item in &parsed_source.ast.items {
+            for item in &parsed_source.source_trees.items {
                 match item {
                     Item::Use(use_item) => {
                         imports.push(normalize_path(&resolve_source_path(

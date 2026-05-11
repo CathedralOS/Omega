@@ -21,6 +21,7 @@ omega-graph = { path = "../../semantics/omega-graph" }
 omega-image = { path = "../../backend/images/omega-image" }
 omega-image-emission = { path = "../../backend/images/omega-image-emission" }
 omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
+omega-tokens = { path = "../../representations/omega-tokens" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-backend-pipeline = { path = "../omega-backend-pipeline" }
