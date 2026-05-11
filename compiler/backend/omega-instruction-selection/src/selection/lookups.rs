@@ -4,6 +4,10 @@ use omega_platform_interface::HostCall;
 use omega_state_calls::StateCall;
 use omega_state_storage::StateMutation;
 
+fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+    expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
+}
+
 pub(super) fn host_call_for_statement<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,
@@ -14,7 +18,8 @@ pub(super) fn host_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, host_call)| {
-            host_call.source_key == source_key && host_call.statement_index == statement_index
+            state_key_matches_statement_source(host_call.source_key, source_key)
+                && host_call.statement_index == statement_index
         })
         .map(|(_, host_call)| host_call)
 }

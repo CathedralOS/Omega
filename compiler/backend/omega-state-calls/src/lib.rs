@@ -30,6 +30,14 @@ pub struct StateCallPlanningContext {
 }
 
 impl StateCallPlanningContext {
+    fn state_key_matches_statement_source(
+        expected: StateKey,
+        actual: StateKey,
+    ) -> bool {
+        expected == actual
+            || (expected.machine == actual.machine && expected.state == actual.state)
+    }
+
     pub fn runtime_state_is_reachable_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states
@@ -43,7 +51,8 @@ impl StateCallPlanningContext {
         statement_index: usize,
     ) -> bool {
         self.host_calls.calls.iter().any(|(_, host_call)| {
-            host_call.source_key == source_key && host_call.statement_index == statement_index
+            Self::state_key_matches_statement_source(host_call.source_key, source_key)
+                && host_call.statement_index == statement_index
         })
     }
 
