@@ -100,7 +100,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 if let Some(host_call) =
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
-                    if runtime_string_descriptor_place(input, host_call).is_none()
+                    if runtime_string_descriptor_place(
+                        input,
+                        host_call,
+                        Some(dispatch_case.dispatch_index),
+                        None,
+                    )
+                    .is_none()
                         && let Some((buffer, literal)) =
                             runtime_text_literal_write_for_host_call(input, host_call)
                     {
@@ -113,7 +119,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             source_statement: host_call.statement_index,
                         });
                     }
-                    select_host_call(input, host_call, operands, selected_instructions);
+                    select_host_call(
+                        input,
+                        host_call,
+                        Some(dispatch_case.dispatch_index),
+                        None,
+                        operands,
+                        selected_instructions,
+                    );
                 }
             }
         }

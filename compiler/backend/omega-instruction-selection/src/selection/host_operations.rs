@@ -2,6 +2,7 @@ mod operands;
 mod runtime_text;
 
 use crate::InstructionSelectionInput;
+use crate::selection::bindings::RuntimeAliasResolutionContext;
 use omega_calling_conventions::{
     HostCapability, HostOperation, HostOperationKey, PlatformCallData,
 };
@@ -23,6 +24,8 @@ pub(super) use runtime_text::{
 pub(super) fn select_host_call(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
@@ -32,7 +35,8 @@ pub(super) fn select_host_call(
         source_statement: host_call.statement_index,
     });
 
-    if let Some(read_line) = runtime_text_line_read(input, host_call) {
+    if let Some(read_line) = runtime_text_line_read(input, host_call, dispatch_index, alias_context)
+    {
         selected_instructions.push(SelectedInstruction {
             kind: read_line,
             source_key: host_call.source_key,
@@ -46,8 +50,14 @@ pub(super) fn select_host_call(
     };
 
     for operation in operations {
-        let operation_operands =
-            select_host_operation_operands(input, host_call, operation.operation_key, operands);
+        let operation_operands = select_host_operation_operands(
+            input,
+            host_call,
+            dispatch_index,
+            alias_context,
+            operation.operation_key,
+            operands,
+        );
 
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::HostOperation {
@@ -60,7 +70,8 @@ pub(super) fn select_host_call(
     }
 
     if host_call_appends_newline(host_call)
-        && runtime_string_descriptor_place(input, host_call).is_some()
+        && runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
+            .is_some()
         && let Some(newline) = newline_data_object(input)
     {
         let newline_operands = operands.insert_many([

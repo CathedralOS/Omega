@@ -1,5 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
+use omega_typed_trees::expression::ExpressionTable;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
 
 mod bindings;
@@ -64,6 +65,14 @@ fn select_entry_instructions(
     select_state_body_instructions(
         input,
         input.entry_key,
+        input
+            .runtime_bodies
+            .bodies
+            .iter()
+            .find(|(_, body)| body.key == input.entry_key)
+            .map(|(_, body)| body.dispatch_index),
+        &[],
+        &ExpressionTable::new(),
         operands,
         &mut selected_instructions,
         &mut Vec::new(),

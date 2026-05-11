@@ -169,10 +169,70 @@ fn machine_storage_offset(
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == entry_machine)
         .map(|(_, machine_layout)| machine_layout)?;
-    layouts
-        .fields
-        .span(entry_layout.fields)?
+
+    nested_machine_storage_offset(layouts, entry_layout, source_machine, 0)
+}
+
+fn nested_machine_storage_offset(
+    layouts: &LayoutPlan,
+    machine_layout: &omega_layout::MachineLayout,
+    target_machine: SymbolHandle,
+    base_offset: usize,
+) -> Option<usize> {
+    let fields = layouts.fields.span(machine_layout.fields)?;
+
+    for field in fields {
+        let field_offset = base_offset + field.offset;
+
+        let nested_machine_layout = field_machine_layout(layouts, field.type_symbol, &field.type_name);
+
+        if nested_machine_layout
+            .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
+        {
+            return Some(field_offset);
+        }
+
+        let Some(nested_machine_layout) = nested_machine_layout else {
+            continue;
+        };
+
+        if let Some(offset) = nested_machine_storage_offset(
+            layouts,
+            nested_machine_layout,
+            target_machine,
+            field_offset,
+        ) {
+            return Some(offset);
+        }
+    }
+
+    None
+}
+
+fn field_machine_layout<'plan>(
+    layouts: &'plan LayoutPlan,
+    type_symbol: SymbolHandle,
+    type_name: &str,
+) -> Option<&'plan omega_layout::MachineLayout> {
+    if let Some(machine_layout) = layouts
+        .machine_layouts
         .iter()
-        .find(|field| field.type_symbol == source_machine)
-        .map(|field| field.offset)
+        .find(|(_, machine_layout)| machine_layout.symbol == type_symbol)
+        .map(|(_, machine_layout)| machine_layout)
+    {
+        return Some(machine_layout);
+    }
+
+    let data_name = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.symbol == type_symbol)
+        .map(|(_, data_layout)| data_layout.name.as_str())
+        .unwrap_or(type_name);
+
+    layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.name.as_str() == data_name)
+        .map(|(_, machine_layout)| machine_layout)
 }

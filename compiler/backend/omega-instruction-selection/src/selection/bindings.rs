@@ -21,6 +21,12 @@ pub(super) struct RuntimeAliasBinding {
     pub(super) expression: ExpressionHandle,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct RuntimeAliasResolutionContext<'alias, 'expr> {
+    pub(super) aliases: &'alias [RuntimeAliasBinding],
+    pub(super) alias_expressions: &'expr ExpressionTable,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct RuntimeResolvedExpression {
     pub(super) source_key: StateKey,
@@ -111,6 +117,20 @@ pub(super) fn resolve_runtime_alias_binding(
                 )),
             }
         }
+        Expression::Member(member) => {
+            let receiver =
+                resolve_runtime_alias_binding(&member.receiver, source_key, aliases, alias_expressions);
+            RuntimeResolvedExpression {
+                source_key: receiver.source_key,
+                expression: Expression::Member(Box::new(
+                    omega_typed_trees::expression::MemberExpression {
+                        receiver: receiver.expression,
+                        member_symbol: member.member_symbol,
+                        member: member.member.clone(),
+                    },
+                )),
+            }
+        }
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
@@ -165,6 +185,24 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                     TableIndexedExpression {
                         collection: collection.expression,
                         index: index.expression,
+                    },
+                )),
+            }
+        }
+        ExpressionNode::Member(member) => {
+            let receiver = resolve_runtime_alias_binding_handle(
+                member.receiver,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            RuntimeResolvedExpressionHandle {
+                source_key: receiver.source_key,
+                expression: alias_expressions.insert(ExpressionNode::Member(
+                    omega_typed_trees::expression::TableMemberExpression {
+                        receiver: receiver.expression,
+                        member_symbol: member.member_symbol,
+                        member: member.member.clone(),
                     },
                 )),
             }
@@ -255,7 +293,12 @@ pub(super) fn resolve_straight_line_binding_expression(
 }
 
 fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
-    symbol_matches_path(alias.parameter_symbol, path)
+    if symbol_matches_path(alias.parameter_symbol, path) {
+        return true;
+    }
+
+    path.first()
+        .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
 }
 
 fn alias_matches_table_path(alias: &RuntimeAliasBinding, path: &TableNamePath) -> bool {

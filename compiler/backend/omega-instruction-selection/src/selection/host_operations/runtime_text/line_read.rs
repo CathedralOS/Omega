@@ -1,5 +1,6 @@
 use super::bindings::host_binding_mechanism;
 use crate::InstructionSelectionInput;
+use crate::selection::bindings::{RuntimeAliasResolutionContext, resolve_runtime_alias_binding};
 use crate::selection::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place};
 use omega_calling_conventions::{
     HostBindingMechanism, HostCapability, HostOperation, HostOperationKey, PlatformCallData,
@@ -12,6 +13,8 @@ use omega_typed_trees::name::ProgramName;
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    _alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
 ) -> Option<SelectedInstructionKind> {
     let PlatformCallData::MutableOutputBuffer { byte_capacity } = host_call.data else {
         return None;
@@ -51,7 +54,7 @@ pub(in crate::selection::host_operations) fn runtime_text_line_read(
         .state_name_by_key_cloned(host_call.source_key);
     let target_place = resolve_runtime_storage_place(
         input,
-        0,
+        dispatch_index.unwrap_or(0),
         host_call.source_key,
         &source_machine,
         &source_state,
@@ -96,6 +99,8 @@ fn runtime_text_read_source(
 pub(in crate::selection) fn runtime_string_descriptor_place(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
 ) -> Option<RuntimeStoragePlace> {
     let first_argument = input
         .host_calls
@@ -107,8 +112,19 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
     else {
         return None;
     };
+    let (resolved_source_key, resolved_expression) = alias_context
+        .map(|context| {
+            let resolved = resolve_runtime_alias_binding(
+                expression,
+                host_call.source_key,
+                context.aliases,
+                context.alias_expressions,
+            );
+            (resolved.source_key, resolved.expression)
+        })
+        .unwrap_or((host_call.source_key, expression.clone()));
     let (resolved_source_key, resolved_expression) =
-        resolve_host_call_alias_expression(input, host_call.source_key, expression);
+        resolve_host_call_alias_expression(input, resolved_source_key, &resolved_expression);
     let source_machine = input
         .control_flow
         .state_machine_name_by_key_cloned(resolved_source_key);
@@ -117,7 +133,7 @@ pub(in crate::selection) fn runtime_string_descriptor_place(
         .state_name_by_key_cloned(resolved_source_key);
     let place = resolve_runtime_storage_place(
         input,
-        0,
+        dispatch_index.unwrap_or(0),
         resolved_source_key,
         &source_machine,
         &source_state,

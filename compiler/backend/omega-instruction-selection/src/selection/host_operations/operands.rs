@@ -1,4 +1,5 @@
 use crate::InstructionSelectionInput;
+use crate::selection::bindings::RuntimeAliasResolutionContext;
 use omega_calling_conventions::{HostCapability, HostOperation, HostOperationKey};
 use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind};
 use omega_target::ObjectFormat;
@@ -15,6 +16,8 @@ use omega_target_operations::{
 pub(super) fn select_host_operation_operands(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     operation_key: HostOperationKey,
     operands: &mut Arena<InstructionOperand>,
 ) -> HandleSpan<InstructionOperand> {
@@ -75,7 +78,13 @@ pub(super) fn select_host_operation_operands(
 
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
-                && runtime_string_descriptor_place(input, host_call).is_none()
+                && runtime_string_descriptor_place(
+                    input,
+                    host_call,
+                    dispatch_index,
+                    alias_context,
+                )
+                .is_none()
             {
                 return stdout_operands(
                     operands,
@@ -87,7 +96,13 @@ pub(super) fn select_host_operation_operands(
                 );
             }
 
-            if let Some(place) = runtime_string_descriptor_place(input, host_call) {
+            if let Some(place) = runtime_string_descriptor_place(
+                input,
+                host_call,
+                dispatch_index,
+                alias_context,
+            )
+            {
                 return stdout_operands(
                     operands,
                     operation_key.operation,
