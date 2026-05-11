@@ -41,16 +41,32 @@ fn runtime_branching_call_has_planned_expansion(
     input: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> bool {
+    let leaf_count = runtime_branching_call_leaf_expansion_count(input, call);
+    let straight_line_count = runtime_branching_call_straight_line_expansion_count(input, call);
+    let Some(edges) = input.runtime_branching_calls.edges.span(call.edges) else {
+        return false;
+    };
+    let needs_leaf = edges.iter().any(|edge| {
+        matches!(
+            edge.lowering,
+            omega_runtime_branching::RuntimeBranchTargetLowering::InlineLeaf
+        )
+    });
+    let needs_straight_line = edges.iter().any(|edge| {
+        matches!(
+            edge.lowering,
+            omega_runtime_branching::RuntimeBranchTargetLowering::InlineStraightLine
+                | omega_runtime_branching::RuntimeBranchTargetLowering::InlineBranching
+        )
+    });
+
     match call.expansion {
-        RuntimeBranchCallExpansion::GuardedLeaf => {
-            runtime_branching_call_leaf_expansion_count(input, call) > 0
-        }
-        RuntimeBranchCallExpansion::NeedsStraightLineTarget => {
-            runtime_branching_call_leaf_expansion_count(input, call) > 0
-                && runtime_branching_call_straight_line_expansion_count(input, call) > 0
+        RuntimeBranchCallExpansion::GuardedLeaf
+        | RuntimeBranchCallExpansion::NeedsStraightLineTarget
+        | RuntimeBranchCallExpansion::NeedsNestedBranchTarget => {
+            (!needs_leaf || leaf_count > 0) && (!needs_straight_line || straight_line_count > 0)
         }
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
-        | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
         | RuntimeBranchCallExpansion::UnknownTarget
         | RuntimeBranchCallExpansion::Unplanned => false,
     }

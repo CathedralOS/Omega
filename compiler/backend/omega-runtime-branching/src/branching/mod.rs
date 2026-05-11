@@ -77,6 +77,7 @@ pub fn build_runtime_branching_call_plan(
                 RuntimeBranchCallExpansion::GuardedLeaf
                     | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
                     | RuntimeBranchCallExpansion::NeedsStraightLineTarget
+                    | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
             ) {
                 append_leaf_branch_expansions(
                     context,
@@ -94,7 +95,11 @@ pub fn build_runtime_branching_call_plan(
                     &aliases,
                 );
             }
-            if expansion == RuntimeBranchCallExpansion::NeedsStraightLineTarget {
+            if matches!(
+                expansion,
+                RuntimeBranchCallExpansion::NeedsStraightLineTarget
+                    | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
+            ) {
                 append_straight_line_branch_expansions(
                     context,
                     &mut plan.expressions,

@@ -14,6 +14,7 @@ use super::super::super::bindings::{
 use super::super::super::lookups::{
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
 };
+use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -42,11 +43,20 @@ fn select_runtime_straight_line_branch_expansion(
     expansion: &RuntimeStraightLineBranchExpansion,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if expansion.resolved_guard != omega_typed_trees::statement::TransitionGuard::Always {
-        return;
+    let mut emitted_guard = false;
+    if let Some(guard) = select_runtime_straight_line_branch_guard(input, expansion) {
+        selected_instructions.push(omega_target_operations::SelectedInstruction {
+            kind: guard,
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
+        emitted_guard = true;
     }
-
+    let write_start = selected_instructions.len();
     select_runtime_straight_line_branch_writes(input, expansion, selected_instructions);
+    if emitted_guard && selected_instructions.len() == write_start {
+        selected_instructions.pop();
+    }
 }
 
 fn select_runtime_straight_line_branch_writes(
