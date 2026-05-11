@@ -16,6 +16,7 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-data-planning = { path = "../../backend/omega-data-planning" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-machine-emission = { path = "../../backend/omega-machine-emission" }
 omega-machine-program = { path = "../../representations/omega-machine-program" }
 omega-object = { path = "../../backend/object/omega-object" }

@@ -1,9 +1,10 @@
 use omega_core::diagnostics::Diagnostic;
 
-use omega_machine_program::{MachineInstruction, MachineInstructionKind};
+use crate::layout::LaidOutMachineInstruction;
+use omega_machine_program::MachineInstructionKind;
 
 pub(crate) fn byte_distance_to_case_end(
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
@@ -26,7 +27,7 @@ pub(crate) fn byte_distance_to_case_end(
 }
 
 pub(crate) fn byte_distance_to_next_state_write_end(
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
@@ -54,7 +55,7 @@ pub(crate) fn byte_distance_to_next_state_write_end(
 }
 
 pub(crate) fn byte_distance_to_case_leave(
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
@@ -76,7 +77,7 @@ pub(crate) fn byte_distance_to_case_leave(
 }
 
 pub(crate) fn byte_distance_to_dispatch_loop_start(
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {

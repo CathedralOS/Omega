@@ -23,6 +23,7 @@ members = [
     "compiler/representations/omega-control-flow",
     "compiler/representations/omega-target-operations",
     "compiler/representations/omega-machine-program",
+    "compiler/representations/omega-machine-bytes",
     "compiler/representations/omega-backend-plan",
     "compiler/backend/omega-target",
     "compiler/backend/omega-data-planning",

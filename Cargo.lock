@@ -92,6 +92,7 @@ dependencies = [
  "omega-data-planning",
  "omega-instruction-selection",
  "omega-layout",
+ "omega-machine-bytes",
  "omega-machine-emission",
  "omega-machine-program",
  "omega-object",
@@ -123,6 +124,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-layout",
+ "omega-machine-bytes",
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
@@ -150,6 +152,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-layout",
+ "omega-machine-bytes",
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
@@ -276,6 +279,7 @@ dependencies = [
  "omega-core",
  "omega-image-emission",
  "omega-layout",
+ "omega-machine-bytes",
  "omega-machine-program",
  "omega-object",
  "omega-platform-interface",
@@ -384,6 +388,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-machine-bytes"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-target",
+]
+
+[[package]]
 name = "omega-machine-emission"
 version = "0.1.0"
 dependencies = [
@@ -391,6 +403,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-instruction-selection",
+ "omega-machine-bytes",
  "omega-machine-program",
  "omega-target",
  "omega-target-operations",
@@ -430,6 +443,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-core",
  "omega-layout",
+ "omega-machine-bytes",
  "omega-machine-program",
  "omega-object",
  "omega-target",
@@ -686,11 +700,8 @@ name = "omega-target-operations-to-machine-program"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
- "omega-control-flow",
  "omega-core",
- "omega-instruction-selection",
  "omega-machine-program",
- "omega-target",
  "omega-target-operations",
 ]
 

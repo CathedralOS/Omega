@@ -1,0 +1,13 @@
+[package]
+name = "omega-machine-bytes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_machine_bytes"
+path = "src/lib.rs"
+
+[dependencies]
+omega-core = { path = "../../foundation/omega-core" }
+omega-target = { path = "../../backend/omega-target" }

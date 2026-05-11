@@ -3,7 +3,7 @@ use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{LayoutPlan, MachineLayout};
-use omega_machine_program::MachineCodePlan;
+use omega_machine_bytes::EncodedMachinePlan;
 use omega_object::{
     ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, entry_symbol_name,
     machine_storage_symbol_name, runtime_frame_storage_symbol_name, section_name,
@@ -17,7 +17,7 @@ pub struct ObjectPlanningInput<'plan> {
     pub layouts: &'plan LayoutPlan,
     pub entry_machine_symbol: SymbolHandle,
     pub entry_machine_name: &'plan str,
-    pub machine_code: &'plan MachineCodePlan,
+    pub encoded_machine: &'plan EncodedMachinePlan,
     pub data: &'plan TargetDataPlan,
     pub runtime_frame_size: usize,
     pub runtime_frame_alignment: usize,
@@ -55,7 +55,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         SectionPlan {
             name: section_name(input.target, SectionKind::Text),
             kind: SectionKind::Text,
-            size: input.machine_code.byte_count,
+            size: input.encoded_machine.byte_count,
             alignment: 16,
         },
         SectionPlan {
@@ -77,7 +77,7 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
             name: object_plan.entry_symbol.clone(),
             section: Some(section_name(input.target, SectionKind::Text)),
             offset: 0,
-            size: input.machine_code.byte_count,
+            size: input.encoded_machine.byte_count,
             kind: SymbolKind::Function,
         },
         SymbolPlan {

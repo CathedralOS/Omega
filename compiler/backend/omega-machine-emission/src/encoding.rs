@@ -4,15 +4,14 @@ mod runtime_storage;
 mod runtime_text;
 
 use crate::MachineEmissionContext;
+use crate::layout::LaidOutMachineInstruction;
 use omega_core::diagnostics::Diagnostic;
 use omega_instruction_selection as architecture;
 use omega_target_operations::{SelectedInstructionKind, StateGuardLowering, StateGuardOperator};
 
-use omega_machine_program::MachineInstruction;
-
 pub(super) fn encode_machine_instruction(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     kind: &SelectedInstructionKind,
 ) -> Result<Vec<u8>, Diagnostic> {

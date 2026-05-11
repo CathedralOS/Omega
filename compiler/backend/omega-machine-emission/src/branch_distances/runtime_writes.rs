@@ -1,12 +1,13 @@
 use crate::MachineEmissionContext;
+use crate::layout::LaidOutMachineInstruction;
 use omega_control_flow::StateKey;
 use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::{MachineInstruction, MachineInstructionKind};
+use omega_machine_program::MachineInstructionKind;
 
 pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     literal: &str,
 ) -> Result<Vec<isize>, Diagnostic> {
@@ -36,7 +37,7 @@ pub(crate) fn byte_distances_to_next_runtime_machine_write_end(
 
 pub(crate) fn byte_distance_to_next_runtime_write_end(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Result<isize, Diagnostic> {
     let Some(current) = machine_instructions.get(machine_instruction_index) else {
@@ -52,7 +53,7 @@ pub(crate) fn byte_distance_to_next_runtime_write_end(
 
 pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &[MachineInstruction],
+    machine_instructions: &[LaidOutMachineInstruction],
     machine_instruction_index: usize,
     branch_offset: usize,
 ) -> Result<isize, Diagnostic> {
@@ -75,7 +76,7 @@ pub(crate) fn byte_distance_to_next_runtime_write_end_from_branch_offset(
 
 fn next_runtime_write_group_end<'instructions>(
     input: MachineEmissionContext<'_>,
-    machine_instructions: &'instructions [MachineInstruction],
+    machine_instructions: &'instructions [LaidOutMachineInstruction],
     machine_instruction_index: usize,
 ) -> Option<&'instructions MachineInstruction> {
     let first_write_index = machine_instructions
@@ -105,7 +106,7 @@ fn next_runtime_write_group_end<'instructions>(
 
 fn selected_instruction_source<'plan>(
     input: MachineEmissionContext<'plan>,
-    instruction: &MachineInstruction,
+    instruction: &LaidOutMachineInstruction,
 ) -> Option<StateKey> {
     let handle = Handle::from_arena_index(instruction.selected_instruction_index);
     if !input.instructions.instructions.is_valid(handle) {
@@ -115,7 +116,7 @@ fn selected_instruction_source<'plan>(
     Some(selected.source_key)
 }
 
-fn is_runtime_write(instruction: &MachineInstruction) -> bool {
+fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
     matches!(
         instruction.kind,
         MachineInstructionKind::RuntimeMachineIntegerWrite { .. }

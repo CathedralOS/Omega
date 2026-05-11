@@ -2,7 +2,8 @@ use omega_backend_plan::{BackendPlan, BackendPlanPhaseTiming};
 use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
-use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
+use omega_machine_bytes::EncodedMachinePlan;
+use omega_machine_program::MachineProgram;
 use omega_object::{ObjectPlan, RelocationPlan, entry_symbol_name};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -54,7 +55,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         runtime_storage: RuntimeStoragePlan::default(),
         runtime_text: RuntimeTextPlan::default(),
         layouts: input.layouts,
-        machine_code: MachineCodePlan::default(),
+        machine_program: MachineProgram::default(),
         encoded_machine: EncodedMachinePlan::default(),
         object: ObjectPlan {
             target: input.target,

@@ -1,23 +1,24 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_program::{
-    EncodedMachineInstruction, EncodedMachinePlan, MachineCodePlan, MachineInstruction,
-};
+use omega_machine_bytes::{EncodedMachineInstruction, EncodedMachinePlan};
+use omega_machine_program::{MachineInstruction, MachineProgram};
 use omega_target::NativeTarget;
 use omega_target_operations::InstructionPlan;
 
 mod branch_distances;
 mod encoding;
 mod host_bindings;
+mod layout;
 
 use encoding::encode_machine_instruction;
+use layout::{LaidOutMachineInstruction, layout_machine_instructions};
 
 #[derive(Debug)]
 pub struct MachineEmissionInput<'plan, 'machine> {
     pub target: NativeTarget,
     pub instructions: &'plan InstructionPlan,
-    pub machine_code: &'machine MachineCodePlan,
+    pub machine_program: &'machine MachineProgram,
     pub host_abi: &'plan HostAbiPlan,
     pub terminal_dispatch_index: u32,
 }
@@ -25,57 +26,53 @@ pub struct MachineEmissionInput<'plan, 'machine> {
 pub fn emit_machine_bytes(
     input: MachineEmissionInput<'_, '_>,
 ) -> Result<EncodedMachinePlan, Diagnostic> {
-    let mut encoded_plan = EncodedMachinePlan {
+    let mut encoded_bytes = EncodedMachinePlan {
         target: input.target,
-        instructions: Arena::with_capacity(input.machine_code.instructions.len()),
-        bytes: Arena::with_capacity(input.machine_code.byte_count),
-        byte_count: input.machine_code.byte_count,
+        instructions: Arena::with_capacity(input.machine_program.instructions.len()),
+        bytes: Arena::new(),
+        byte_count: 0,
     };
 
-    for (_, function) in input.machine_code.functions.iter() {
+    for (_, function) in input.machine_program.functions.iter() {
         emit_function_bytes(
-            input.target,
-            input.instructions,
-            input.host_abi,
-            input.terminal_dispatch_index,
-            input.machine_code,
-            &mut encoded_plan,
+            MachineEmissionContext {
+                target: input.target,
+                instructions: input.instructions,
+                host_abi: input.host_abi,
+                terminal_dispatch_index: input.terminal_dispatch_index,
+            },
+            input.machine_program,
+            &mut encoded_bytes,
             function.instructions,
         )?;
     }
 
-    Ok(encoded_plan)
+    encoded_bytes.byte_count = encoded_bytes.bytes.len();
+
+    Ok(encoded_bytes)
 }
 
 fn emit_function_bytes(
-    target: NativeTarget,
-    instructions: &InstructionPlan,
-    host_abi: &HostAbiPlan,
-    terminal_dispatch_index: u32,
-    machine_code: &MachineCodePlan,
+    emission_context: MachineEmissionContext<'_>,
+    machine_program: &MachineProgram,
     encoded_plan: &mut EncodedMachinePlan,
     machine_instructions_span: HandleSpan<MachineInstruction>,
 ) -> Result<(), Diagnostic> {
-    let Some(machine_instructions) = machine_code.instructions.span(machine_instructions_span)
+    let Some(machine_instructions) = machine_program.instructions.span(machine_instructions_span)
     else {
         return Ok(());
     };
-
-    let emission_context = MachineEmissionContext {
-        target,
-        instructions,
-        host_abi,
-        terminal_dispatch_index,
-    };
+    let laid_out_instructions =
+        layout_machine_instructions(emission_context, machine_instructions)?;
 
     for (machine_instruction_index, machine_instruction) in machine_instructions.iter().enumerate()
     {
         let selected_handle =
             Handle::from_arena_index(machine_instruction.selected_instruction_index);
-        let selected_instruction = instructions.instructions.get(selected_handle);
+        let selected_instruction = emission_context.instructions.instructions.get(selected_handle);
         let encoded = encode_machine_instruction(
             emission_context,
-            &machine_instructions,
+            &laid_out_instructions,
             machine_instruction_index,
             &selected_instruction.kind,
         )?;

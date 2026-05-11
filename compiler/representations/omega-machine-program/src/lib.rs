@@ -4,38 +4,32 @@ use omega_target::NativeTarget;
 use omega_target_operations::{FunctionInstructionPlan, StateGuardOperator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineCodePlan {
+pub struct MachineProgram {
     pub target: NativeTarget,
-    pub functions: Arena<MachineFunctionCode>,
+    pub functions: Arena<MachineFunction>,
     pub instructions: Arena<MachineInstruction>,
-    pub byte_count: usize,
 }
 
-impl Default for MachineCodePlan {
+impl Default for MachineProgram {
     fn default() -> Self {
         Self {
             target: NativeTarget::host(),
             functions: Arena::new(),
             instructions: Arena::new(),
-            byte_count: 0,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineFunctionCode {
+pub struct MachineFunction {
     pub source_function: Handle<FunctionInstructionPlan>,
-    pub offset: usize,
-    pub byte_count: usize,
     pub instructions: HandleSpan<MachineInstruction>,
 }
 
-impl Default for MachineFunctionCode {
+impl Default for MachineFunction {
     fn default() -> Self {
         Self {
             source_function: Handle::invalid(),
-            offset: 0,
-            byte_count: 0,
             instructions: HandleSpan::empty(),
         }
     }
@@ -44,8 +38,6 @@ impl Default for MachineFunctionCode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineInstruction {
     pub selected_instruction_index: u32,
-    pub offset: usize,
-    pub byte_width: usize,
     pub kind: MachineInstructionKind,
 }
 
@@ -53,41 +45,14 @@ impl Default for MachineInstruction {
     fn default() -> Self {
         Self {
             selected_instruction_index: 0,
-            offset: 0,
-            byte_width: 0,
-            kind: MachineInstructionKind::NoBytes,
+            kind: MachineInstructionKind::NoOp,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EncodedMachinePlan {
-    pub target: NativeTarget,
-    pub instructions: Arena<EncodedMachineInstruction>,
-    pub bytes: Arena<u8>,
-    pub byte_count: usize,
-}
-
-impl Default for EncodedMachinePlan {
-    fn default() -> Self {
-        Self {
-            target: NativeTarget::host(),
-            instructions: Arena::new(),
-            bytes: Arena::new(),
-            byte_count: 0,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct EncodedMachineInstruction {
-    pub selected_instruction_index: u32,
-    pub bytes: HandleSpan<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineInstructionKind {
-    NoBytes,
+    NoOp,
     DispatchLoopEnter {
         entry_dispatch_index: u32,
     },
@@ -165,9 +130,7 @@ pub enum MachineInstructionKind {
     DispatchStateWrite {
         dispatch_index: u32,
     },
-    DispatchTerminate {
-        terminal_dispatch_index: u32,
-    },
+    DispatchTerminate,
     DispatchCaseLeave,
     HostCallSequence {
         operation_key: HostOperationKey,

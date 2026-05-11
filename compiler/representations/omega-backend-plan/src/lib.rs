@@ -2,7 +2,8 @@ use omega_calling_conventions::HostAbiPlan;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
-use omega_machine_program::{EncodedMachinePlan, MachineCodePlan};
+use omega_machine_bytes::EncodedMachinePlan;
+use omega_machine_program::MachineProgram;
 use omega_object::{ObjectPlan, RelocationPlan};
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -41,7 +42,7 @@ pub struct BackendPlan {
     pub runtime_storage: RuntimeStoragePlan,
     pub runtime_text: RuntimeTextPlan,
     pub layouts: LayoutPlan,
-    pub machine_code: MachineCodePlan,
+    pub machine_program: MachineProgram,
     pub encoded_machine: EncodedMachinePlan,
     pub object: ObjectPlan,
     pub relocations: RelocationPlan,
