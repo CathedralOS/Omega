@@ -79,6 +79,12 @@ pub(super) fn collect_instruction_relocations(
             let symbol = storage_region_symbol_name(*target_region, input.entry_machine_name);
             context.insert_data_address_at_instruction_start(&symbol);
         }
+        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. } => {
+            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                input.entry_machine_name,
+            ));
+        }
         SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
             let data_symbol = &input.data.objects.get(*data).symbol;
             context.insert_data_address_at_instruction_start(data_symbol);
@@ -101,6 +107,12 @@ pub(super) fn collect_instruction_relocations(
                 runtime_storage_copy_target_address_offset(input.target.architecture),
                 &target_symbol,
             );
+        }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. } => {
+            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                input.entry_machine_name,
+            ));
         }
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
     }

@@ -116,6 +116,14 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    RuntimeFrameIndexedIntegerWrite {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     RuntimeMachineStringWrite {
         byte_offset: usize,
         byte_length: usize,
@@ -128,6 +136,14 @@ pub enum MachineInstructionKind {
     RuntimeStorageCopy {
         source_offset: usize,
         target_offset: usize,
+        byte_count: usize,
+    },
+    RuntimeStorageCopyToRuntimeFrameIndexed {
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
         byte_count: usize,
     },
     DispatchStateWrite {

@@ -87,6 +87,15 @@ pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
     }
 }
 
+pub fn runtime_frame_indexed_integer_write_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + runtime_store_data_width(byte_size)
+}
+
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
@@ -113,6 +122,16 @@ pub fn runtime_text_line_read_import_call_offset() -> usize {
 
 pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
     16 + runtime_storage_copy_data_width(byte_count)
+}
+
+pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
+        + 8
+        + runtime_storage_copy_data_width(byte_count)
 }
 
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
@@ -144,6 +163,38 @@ fn runtime_storage_copy_data_width(byte_count: usize) -> usize {
         1 | 4 => 8,
         _ if byte_count.is_multiple_of(8) => (byte_count / 8) * 8,
         _ => 0,
+    }
+}
+
+fn runtime_store_data_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 4 | 8 => 12,
+        _ => 0,
+    }
+}
+
+fn runtime_frame_index_setup_width(element_byte_size: usize, field_byte_offset: usize) -> usize {
+    12 + 12 + scale_index_width(element_byte_size) + add_constant_width(field_byte_offset)
+}
+
+fn scale_index_width(element_byte_size: usize) -> usize {
+    if element_byte_size == 0 {
+        return 0;
+    }
+
+    let highest_bit = usize::BITS - element_byte_size.leading_zeros();
+    let doubles = highest_bit.saturating_sub(1) as usize;
+    let additions = element_byte_size.count_ones() as usize;
+    8 + (doubles + additions) * 4
+}
+
+fn add_constant_width(value: usize) -> usize {
+    if value == 0 {
+        0
+    } else if value <= 4095 {
+        4
+    } else {
+        unsigned_immediate_width(value as u64) + 4
     }
 }
 

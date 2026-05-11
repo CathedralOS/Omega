@@ -111,6 +111,14 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeFrameIndexedInteger {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: TargetDataObjectHandle,
@@ -128,6 +136,15 @@ pub enum SelectedInstructionKind {
         source_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
+        byte_count: usize,
+    },
+    CopyRuntimeStorageToRuntimeFrameIndexed {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
         byte_count: usize,
     },
     SetDispatchState {

@@ -137,8 +137,10 @@ fn runtime_storage_write_is_planned(
                 instruction.kind,
                 SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
             )
         })
 }

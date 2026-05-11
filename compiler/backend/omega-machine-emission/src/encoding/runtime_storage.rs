@@ -65,6 +65,26 @@ pub(super) fn encode_runtime_machine_integer_write(
     )
 }
 
+pub(super) fn encode_runtime_frame_indexed_integer_write(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_frame_indexed_integer_write(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        value,
+    )
+}
+
 pub(super) fn encode_runtime_machine_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,
@@ -87,6 +107,26 @@ pub(super) fn encode_runtime_storage_copy(
         input.target.architecture,
         source_offset,
         target_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_to_runtime_frame_indexed(
+    input: MachineEmissionContext<'_>,
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_to_runtime_frame_indexed(
+        input.target.architecture,
+        source_offset,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
         byte_count,
     )
 }

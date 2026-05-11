@@ -163,6 +163,22 @@ pub(super) fn encode_machine_instruction(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => runtime_storage::encode_runtime_frame_indexed_integer_write(
+            input,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             byte_length,
@@ -190,6 +206,23 @@ pub(super) fn encode_machine_instruction(
             input,
             *source_offset,
             *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+            ..
+        } => runtime_storage::encode_runtime_storage_copy_to_runtime_frame_indexed(
+            input,
+            *source_offset,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
             *byte_count,
         ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {

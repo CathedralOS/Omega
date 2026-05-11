@@ -150,6 +150,22 @@ pub fn runtime_machine_integer_write_width(architecture: Architecture, byte_size
     }
 }
 
+pub fn runtime_frame_indexed_integer_write_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_frame_indexed_integer_write_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        ),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
@@ -202,6 +218,22 @@ pub fn runtime_text_line_read_import_call_offset(architecture: Architecture) -> 
 pub fn runtime_storage_copy_width(architecture: Architecture, byte_count: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_storage_copy_width(byte_count),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_storage_copy_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
         Architecture::X86_64 => 0,
     }
 }

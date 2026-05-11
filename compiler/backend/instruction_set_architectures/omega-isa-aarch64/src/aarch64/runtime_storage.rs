@@ -3,9 +3,10 @@ use omega_core::diagnostics::Diagnostic;
 use super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_register,
     encode_compare_w17_immediate, encode_conditional_branch_equal,
-    encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x, encode_movz_w,
-    encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_unsigned_immediate, encode_unsigned_immediate_padded,
+    encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
+    encode_move_x_register, encode_movz_w, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_store_x_to_x, encode_store_x17_to_x16, encode_unsigned_immediate,
+    encode_unsigned_immediate_padded, encode_add_x_immediate, encode_add_x_register,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -128,5 +129,149 @@ pub fn encode_runtime_storage_copy(
         }
     }
 
+    Ok(bytes)
+}
+
+pub fn encode_runtime_frame_indexed_integer_write(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let value = u64::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
+        ))
+    })?;
+
+    let mut bytes = encode_runtime_frame_index_target_address(
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    match byte_size {
+        1 | 4 => {
+            bytes.extend(encode_movz_w(17, value as u16));
+            bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
+        }
+        8 => {
+            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot store {byte_size}-byte runtime integers yet"
+            )));
+        }
+    }
+
+    Ok(bytes)
+}
+
+pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_runtime_frame_index_target_address(
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+
+    match byte_count {
+        1 | 4 => {
+            bytes.extend(encode_load_w_from_x(17, 20, source_offset, byte_count)?);
+            bytes.extend(encode_store_w_to_x(17, 16, 0, byte_count)?);
+        }
+        _ if byte_count.is_multiple_of(8) => {
+            for offset in (0..byte_count).step_by(8) {
+                bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) into indexed runtime storage yet"
+            )));
+        }
+    }
+
+    Ok(bytes)
+}
+
+fn encode_runtime_frame_index_target_address(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(20);
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_load_x_from_x(16, 20, descriptor_offset)?);
+    bytes.extend(encode_load_x_from_x(17, 20, index_offset)?);
+    bytes.extend(encode_scale_x_register_by_constant(18, 17, element_byte_size)?);
+    bytes.extend(encode_add_x_register(16, 16, 18));
+    bytes.extend(encode_add_constant_to_x_register(16, field_byte_offset)?);
+    Ok(bytes)
+}
+
+fn encode_scale_x_register_by_constant(
+    destination_register: u8,
+    source_register: u8,
+    scale: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if scale == 0 {
+        return Err(Diagnostic::error(
+            "AArch64 MVP encoder cannot scale indexed runtime storage by zero",
+        ));
+    }
+
+    let mut bytes = encode_unsigned_immediate(destination_register, 0);
+    let working_register = 19u8;
+    bytes.extend(encode_move_x_register(working_register, source_register));
+
+    let highest_bit = usize::BITS - scale.leading_zeros();
+    for bit_index in 0..highest_bit {
+        if (scale >> bit_index) & 1 == 1 {
+            bytes.extend(encode_add_x_register(
+                destination_register,
+                destination_register,
+                working_register,
+            ));
+        }
+
+        if bit_index + 1 < highest_bit {
+            bytes.extend(encode_add_x_register(
+                working_register,
+                working_register,
+                working_register,
+            ));
+        }
+    }
+
+    Ok(bytes)
+}
+
+fn encode_add_constant_to_x_register(
+    register: u8,
+    value: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if value == 0 {
+        return Ok(Vec::new());
+    }
+    if value <= 4095 {
+        return encode_add_x_immediate(register, register, value);
+    }
+
+    let mut bytes = encode_unsigned_immediate(19, value as u64);
+    bytes.extend(encode_add_x_register(register, register, 19));
     Ok(bytes)
 }

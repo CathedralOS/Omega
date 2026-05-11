@@ -6,7 +6,7 @@ mod static_values;
 
 pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{resolve_machine_owned_place, resolve_machine_owned_place_in_table};
-pub(super) use model::RuntimeStoragePlace;
+pub(super) use model::{IndexedTargetPath, RuntimeFrameIndexedTarget, RuntimeStoragePlace};
 use omega_target_operations::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
@@ -17,6 +17,7 @@ use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
 use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_typed_trees::types::PrimitiveType;
 
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,
@@ -143,6 +144,56 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     })
 }
 
+pub(super) fn resolve_runtime_frame_indexed_target(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameIndexedTarget> {
+    let indexed = indexed_target_path(expression)?;
+    let collection_slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &indexed.collection)?;
+    let descriptor_place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        source_key,
+        "",
+        "",
+        &indexed.collection,
+    )?;
+    let index_place =
+        resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", &indexed.index)?;
+    if descriptor_place.region != RuntimeStorageRegion::RuntimeFrame
+        || index_place.region != RuntimeStorageRegion::RuntimeFrame
+    {
+        return None;
+    }
+
+    let element_layout = indexed_element_layout(input, collection_slot.type_symbol)?;
+    let element_type_name = indexed_element_type_name(&collection_slot.type_name)?;
+    let (field_byte_offset, field_layout) = if indexed.suffix.is_empty() {
+        (0, element_layout)
+    } else {
+        let root_field = FieldLayout {
+            symbol: collection_slot.symbol,
+            name: collection_slot.name.clone(),
+            offset: 0,
+            type_symbol: collection_slot.type_symbol,
+            type_name: element_type_name.to_owned(),
+            layout: element_layout,
+        };
+        resolve_nested_field_layout(&input.layouts, &root_field, &indexed.suffix)?
+    };
+
+    Some(RuntimeFrameIndexedTarget {
+        descriptor_offset: descriptor_place.byte_offset,
+        index_offset: index_place.byte_offset,
+        element_byte_size: element_layout.size,
+        field_byte_offset,
+        byte_count: field_layout.size,
+    })
+}
+
 fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str) -> bool {
     if slot_symbol.is_valid() && path.head_symbol().is_valid() {
         return slot_symbol == path.head_symbol();
@@ -150,4 +201,81 @@ fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str
 
     path.first()
         .is_some_and(|root_name| root_name.as_str() == slot_name)
+}
+
+fn runtime_frame_slot_for_expression<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let normalized_expression = normalized_storage_expression(expression)?;
+    let Expression::Name(path) = &normalized_expression else {
+        return None;
+    };
+
+    input.runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
+        (slot.dispatch_index == dispatch_index
+            && slot.source_key == source_key
+            && slot_matches_path(slot.symbol, path, slot.name.as_str()))
+        .then_some(slot)
+    })
+}
+
+fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath> {
+    match expression {
+        Expression::Mutable(target) => indexed_target_path(target),
+        Expression::Member(member) => {
+            let mut path = indexed_target_path(&member.receiver)?;
+            path.suffix.push(member.member.clone());
+            Some(path)
+        }
+        Expression::Indexed(indexed) => Some(IndexedTargetPath {
+            collection: indexed.collection.clone(),
+            index: indexed.index.clone(),
+            suffix: Vec::new(),
+        }),
+        _ => None,
+    }
+}
+
+fn indexed_element_layout(
+    input: &InstructionSelectionInput<'_>,
+    type_symbol: SymbolHandle,
+) -> Option<TypeLayout> {
+    if type_symbol.is_valid() {
+        if let Some(layout) = input
+            .layouts
+            .data_layouts
+            .iter()
+            .find(|(_, layout)| layout.symbol == type_symbol)
+            .map(|(_, layout)| layout.layout)
+        {
+            return Some(layout);
+        }
+
+        if let Some(layout) = input
+            .layouts
+            .machine_layouts
+            .iter()
+            .find(|(_, layout)| layout.symbol == type_symbol)
+            .map(|(_, layout)| layout.layout)
+        {
+            return Some(layout);
+        }
+    }
+
+    let _ = PrimitiveType::Bool;
+    None
+}
+
+fn indexed_element_type_name(type_name: &str) -> Option<&str> {
+    type_name
+        .strip_prefix("&mut [")
+        .and_then(|inner| inner.strip_suffix(']'))
+        .or_else(|| {
+            type_name
+                .strip_prefix("&[")
+                .and_then(|inner| inner.strip_suffix(']'))
+        })
 }

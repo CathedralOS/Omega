@@ -304,6 +304,18 @@ fn selected_instruction_name(
                 "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        } => {
+            format!(
+                "write runtime-frame indexed integer descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} value {value}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             data,
@@ -342,6 +354,21 @@ fn selected_instruction_name(
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
                 "copy runtime storage {source_symbol}@{source_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
+            source_region,
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime storage {source_symbol}@{source_offset} -> runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {

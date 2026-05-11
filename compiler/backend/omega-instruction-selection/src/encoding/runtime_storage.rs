@@ -56,6 +56,28 @@ pub fn encode_runtime_machine_integer_write(
     }
 }
 
+pub fn encode_runtime_frame_indexed_integer_write(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_frame_indexed_integer_write(
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_machine_string_write(
     architecture: Architecture,
     byte_offset: usize,
@@ -79,6 +101,28 @@ pub fn encode_runtime_storage_copy(
         Architecture::Aarch64 => {
             aarch64::encode_runtime_storage_copy(source_offset, target_offset, byte_count)
         }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
+    architecture: Architecture,
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_copy_to_runtime_frame_indexed(
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
