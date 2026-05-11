@@ -69,6 +69,7 @@ pub enum RuntimeBranchTargetLowering {
 pub enum RuntimeBranchCallExpansion {
     GuardedLeaf,
     GuardedLeafWithComplexGuards,
+    NeedsBranchPrelude,
     NeedsStraightLineTarget,
     NeedsNestedBranchTarget,
     UnknownTarget,

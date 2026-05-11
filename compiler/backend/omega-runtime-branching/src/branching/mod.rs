@@ -1,4 +1,5 @@
 use crate::RuntimeBranchingContext;
+use omega_control_flow::StateKey;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_calls::StateCallLowering;
 
@@ -71,7 +72,10 @@ pub fn build_runtime_branching_call_plan(
                 &mut plan.edges,
             );
             let branch_edges_slice = plan.edges.span_or_empty(branch_edges);
-            let expansion = classify_branch_call_expansion(branch_edges_slice);
+            let mut expansion = classify_branch_call_expansion(branch_edges_slice);
+            if branch_target_has_prelude(context, state_call.target_key) {
+                expansion = RuntimeBranchCallExpansion::NeedsBranchPrelude;
+            }
             if matches!(
                 expansion,
                 RuntimeBranchCallExpansion::GuardedLeaf
@@ -130,4 +134,12 @@ pub fn build_runtime_branching_call_plan(
     }
 
     plan
+}
+
+fn branch_target_has_prelude(context: &RuntimeBranchingContext, target_key: StateKey) -> bool {
+    context
+        .control_flow
+        .state_by_key(target_key)
+        .and_then(|state| context.control_flow.operations.span(state.operations))
+        .is_some_and(|operations| !operations.is_empty())
 }

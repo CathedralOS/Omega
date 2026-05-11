@@ -59,10 +59,11 @@ fn branch_expansion_rank(expansion: RuntimeBranchCallExpansion) -> u8 {
     match expansion {
         RuntimeBranchCallExpansion::GuardedLeaf => 0,
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards => 1,
-        RuntimeBranchCallExpansion::NeedsStraightLineTarget => 2,
-        RuntimeBranchCallExpansion::NeedsNestedBranchTarget => 3,
-        RuntimeBranchCallExpansion::UnknownTarget => 4,
-        RuntimeBranchCallExpansion::Unplanned => 5,
+        RuntimeBranchCallExpansion::NeedsBranchPrelude => 2,
+        RuntimeBranchCallExpansion::NeedsStraightLineTarget => 3,
+        RuntimeBranchCallExpansion::NeedsNestedBranchTarget => 4,
+        RuntimeBranchCallExpansion::UnknownTarget => 5,
+        RuntimeBranchCallExpansion::Unplanned => 6,
     }
 }
 
@@ -71,6 +72,9 @@ fn runtime_branch_expansion_reason(expansion: RuntimeBranchCallExpansion) -> &'s
         RuntimeBranchCallExpansion::GuardedLeaf => "guarded leaf branch expansion",
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards => {
             "guarded leaf branch expansion with complex guards"
+        }
+        RuntimeBranchCallExpansion::NeedsBranchPrelude => {
+            "guarded branch expansion with branch-state prelude"
         }
         RuntimeBranchCallExpansion::NeedsStraightLineTarget => {
             "guarded branch expansion with straight-line target"

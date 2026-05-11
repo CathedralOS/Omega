@@ -67,6 +67,7 @@ fn runtime_branching_call_has_planned_expansion(
             (!needs_leaf || leaf_count > 0) && (!needs_straight_line || straight_line_count > 0)
         }
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
+        | RuntimeBranchCallExpansion::NeedsBranchPrelude
         | RuntimeBranchCallExpansion::UnknownTarget
         | RuntimeBranchCallExpansion::Unplanned => false,
     }
