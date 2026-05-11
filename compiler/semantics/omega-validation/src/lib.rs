@@ -733,6 +733,8 @@ fn validate_call_arguments(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    validate_argument_borrows(arguments, target_name, writable_roots, diagnostics);
+
     let callable_parameter_count = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -775,7 +777,7 @@ fn validate_call_arguments(
         }
     }
 
-    let _ = (arguments, target_name, writable_roots, diagnostics);
+    let _ = (writable_roots, diagnostics);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
