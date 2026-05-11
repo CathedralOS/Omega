@@ -175,7 +175,6 @@ pub fn discover_imports(
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
     let mut imports = Vec::new();
-    let mut selected_target_found = selected_target_name.is_none();
 
     for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
         for item in &parsed_source.syntax_trees.items {
@@ -187,9 +186,7 @@ pub fn discover_imports(
                     let target_is_selected = selected_target_name
                         .is_none_or(|target_name| target.name.as_str() == target_name);
 
-                    if target_is_selected {
-                        selected_target_found = true;
-                    } else {
+                    if !target_is_selected {
                         continue;
                     }
 
@@ -214,13 +211,6 @@ pub fn discover_imports(
                 _ => {}
             }
         }
-    }
-
-    if !selected_target_found {
-        return Err(vec![Diagnostic::error(format!(
-            "target `{}` was not found in discovered source frontier",
-            selected_target_name.expect("selected target should exist when missing")
-        ))]);
     }
 
     Ok(imports)

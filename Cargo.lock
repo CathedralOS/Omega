@@ -193,6 +193,7 @@ dependencies = [
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
+ "omega-artifacts",
  "omega-backend-pipeline",
  "omega-backend-plan",
  "omega-backend-report",

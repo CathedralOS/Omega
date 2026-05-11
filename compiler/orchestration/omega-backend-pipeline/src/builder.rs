@@ -168,7 +168,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             )
         });
     let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
-        !backend_plan.runtime_flow.cycles.is_empty(),
+        !backend_plan.state_dispatch.states.is_empty(),
         &backend_plan.state_dispatch,
         backend_plan.entry_key,
         backend_plan.state_guards.clone(),

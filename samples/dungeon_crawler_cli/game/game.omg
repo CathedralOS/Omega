@@ -14,10 +14,12 @@ data Game {
     output: ConsoleLine;
 }
 
-machine Game::new -> Game {
-    pub entry() {
-        let game: Game;
-        -> game;
+machine Game::initialize {
+    pub entry(
+        &mut self,
+        seed: u64[wrapping]
+    ) {
+        self.dungeon.initialize(seed);
     }
 }
 

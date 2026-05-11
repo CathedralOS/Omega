@@ -6,6 +6,8 @@ data main {
 
 machine main -> i32 {
     pub entry(&mut self) {
+        self.game.initialize(7);
+
         transition {
             _ -> running()
         }

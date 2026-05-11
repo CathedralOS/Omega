@@ -72,16 +72,15 @@ machine Dungeon::game_over {
     }
 }
 
-machine Dungeon::new -> Dungeon {
-    pub entry(seed: u64[wrapping]) {
-        let dungeon: Dungeon;
-
-        dungeon.rng.seed(seed, &mut dungeon.random);
-        dungeon.player_system.create("Wanderer", &mut dungeon.player);
-        dungeon.generator.generate(seed, &mut dungeon.level);
-        dungeon.current_cell = dungeon.level.start_cell;
-        dungeon.mode = GameMode::Exploring;
-
-        -> dungeon;
+machine Dungeon::initialize {
+    pub entry(
+        &mut self,
+        seed: u64[wrapping]
+    ) {
+        self.rng.seed(seed, &mut self.random);
+        self.player_system.create("Wanderer", &mut self.player);
+        self.generator.generate(seed, &mut self.level);
+        self.current_cell = self.level.start_cell;
+        self.mode = GameMode::Exploring;
     }
 }

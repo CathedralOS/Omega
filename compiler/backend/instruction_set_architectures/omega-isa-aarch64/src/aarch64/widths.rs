@@ -79,8 +79,12 @@ pub fn runtime_text_buffer_materialize_width() -> usize {
     60
 }
 
-pub fn runtime_machine_integer_write_width() -> usize {
-    16
+pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 4 => 16,
+        8 => 28,
+        _ => 0,
+    }
 }
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {

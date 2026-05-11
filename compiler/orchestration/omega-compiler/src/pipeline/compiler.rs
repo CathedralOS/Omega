@@ -4,8 +4,11 @@ use crate::pipeline::frontend::{
     discover_imports, extend_source_storage, lex_sources, load_sources, parse_sources,
 };
 use crate::pipeline::source::{ImportQueue, SourceStorage};
+use omega_artifacts::{ArtifactWriter, build_backend_surface_report};
+use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
+use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_image_emission::{ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image};
 use omega_object::{ObjectContainerInput, SectionKind, emit_omega_object_container};
 use omega_resolved_trees::Program as ResolvedProgram;
@@ -28,7 +31,9 @@ impl Compiler {
 
     pub fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
         let mut imports = ImportQueue::default();
-        imports.seed(self.options.root_path.clone());
+        for root in project_roots(&self.options.root_path) {
+            imports.seed(root);
+        }
         let workers = WorkerPool::with_available_parallelism();
 
         let mut source_storage = SourceStorage::default();
@@ -46,12 +51,21 @@ impl Compiler {
             extend_source_storage(&mut source_storage, parsed)?;
         }
 
+        validate_selected_target(&source_storage, self.options.target_name.as_deref())?;
+
         let syntax = assemble_syntax(&source_storage)?;
         let resolved = resolve_program(syntax)?;
         let typed = typecheck_program(resolved)?;
         let validated = validate_program(typed)?;
+        let backend_surface = build_backend_surface_report(&validated.program);
         let planned = plan_backend(validated, self.options.target_name.as_deref(), workers.handle())?;
-        let emitted = emit_backend(planned)?;
+        let emission_plan = plan_emission(&planned);
+        if self.options.write_output {
+            write_backend_report(&self.options, &backend_surface, &planned)?;
+            write_emission_plan(&self.options, &emission_plan)?;
+        }
+        ensure_emission_ready(&emission_plan)?;
+        let emitted = emit_backend(&planned)?;
 
         if self.options.write_output {
             write_output(&self.options, emitted)?;
@@ -63,6 +77,56 @@ impl Compiler {
             wrote_output: self.options.write_output,
         })
     }
+}
+
+fn project_roots(root_path: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut roots = vec![root_path.to_path_buf()];
+    let Some(parent) = root_path.parent() else {
+        return roots;
+    };
+
+    for companion_name in companion_root_names(root_path.file_name().and_then(|name| name.to_str())) {
+        let companion = parent.join(companion_name);
+        if companion != root_path && companion.is_file() {
+            roots.push(companion);
+        }
+    }
+
+    roots
+}
+
+fn companion_root_names(root_name: Option<&str>) -> &'static [&'static str] {
+    match root_name {
+        Some("main.omg") => &["build.omg"],
+        Some("build.omg") => &["main.omg"],
+        _ => &["build.omg"],
+    }
+}
+
+fn validate_selected_target(
+    source_storage: &SourceStorage,
+    selected_target_name: Option<&str>,
+) -> Result<(), Vec<Diagnostic>> {
+    let Some(target_name) = selected_target_name else {
+        return Ok(());
+    };
+
+    let target_found = source_storage.files.iter().any(|(_, file)| {
+        file.syntax_trees.items.iter().any(|item| {
+            matches!(
+                item,
+                omega_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
+            )
+        })
+    });
+
+    if target_found {
+        return Ok(());
+    }
+
+    Err(vec![Diagnostic::error(format!(
+        "target `{target_name}` was not found in discovered source frontier"
+    ))])
 }
 
 struct AssembledSyntax {
@@ -135,16 +199,118 @@ fn plan_backend(
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn emit_backend(plan: omega_backend_plan::BackendPlan) -> Result<EmittedProgram, Vec<Diagnostic>> {
+fn emit_backend(plan: &omega_backend_plan::BackendPlan) -> Result<EmittedProgram, Vec<Diagnostic>> {
     let text_bytes = plan.encoded_machine.bytes.storage_slice().to_vec();
     Ok(EmittedProgram {
         target: plan.target,
         planned_text_bytes: object_text_size(&plan.object),
-        object: plan.object,
-        relocations: plan.relocations,
+        object: plan.object.clone(),
+        relocations: plan.relocations.clone(),
         text_bytes,
         data_bytes: plan.data.bytes.storage_slice().to_vec(),
     })
+}
+
+fn write_backend_report(
+    options: &CompileOptions,
+    backend_surface: &omega_artifacts::BackendSurfaceReport,
+    plan: &omega_backend_plan::BackendPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    let phase_timings = plan
+        .phase_timings
+        .iter()
+        .map(|timing| BackendReportPhaseTiming {
+            phase: timing.phase.clone(),
+            microseconds: timing.microseconds,
+            allocations: timing.allocations,
+        })
+        .collect::<Vec<_>>();
+    let report = backend_report_text(
+        backend_surface,
+        &BackendReportInput {
+            target: plan.target,
+            entry_key: plan.entry_key,
+            phase_timings: &phase_timings,
+            host_abi: &plan.host_abi,
+            host_calls: &plan.host_calls,
+            state_calls: &plan.state_calls,
+            alias_flow: &plan.alias_flow,
+            state_storage: &plan.state_storage,
+            state_values: &plan.state_values,
+            data: &plan.data,
+            instructions: &plan.instructions,
+            control_flow: &plan.control_flow,
+            runtime_flow: &plan.runtime_flow,
+            state_dispatch: &plan.state_dispatch,
+            state_guards: &plan.state_guards,
+            runtime_bodies: &plan.runtime_bodies,
+            runtime_branching_calls: &plan.runtime_branching_calls,
+            runtime_dispatch_loop: &plan.runtime_dispatch_loop,
+            runtime_storage: &plan.runtime_storage,
+            runtime_text: &plan.runtime_text,
+            layouts: &plan.layouts,
+            machine_program: &plan.machine_program,
+            encoded_machine: &plan.encoded_machine,
+            object: &plan.object,
+            relocations: &plan.relocations,
+        },
+    );
+
+    let build_dir = options.build_dir();
+    let output_path = build_dir.join("09_backend_report.txt");
+    std::fs::create_dir_all(build_dir).map_err(io_diagnostic)?;
+    std::fs::write(output_path, report).map_err(io_diagnostic)
+}
+
+fn plan_emission(plan: &omega_backend_plan::BackendPlan) -> omega_artifacts::EmissionPlan {
+    build_emission_plan(&EmissionPlanningInput {
+        target: plan.target,
+        entry_key: plan.entry_key,
+        host_abi: &plan.host_abi,
+        host_calls: &plan.host_calls,
+        state_calls: &plan.state_calls,
+        state_storage: &plan.state_storage,
+        state_values: &plan.state_values,
+        data: &plan.data,
+        instructions: &plan.instructions,
+        control_flow: &plan.control_flow,
+        runtime_flow: &plan.runtime_flow,
+        runtime_bodies: &plan.runtime_bodies,
+        runtime_branching_calls: &plan.runtime_branching_calls,
+        runtime_dispatch_loop: &plan.runtime_dispatch_loop,
+        runtime_storage: &plan.runtime_storage,
+        runtime_text: &plan.runtime_text,
+        state_guards: &plan.state_guards,
+        layouts: &plan.layouts,
+        machine_program: &plan.machine_program,
+        encoded_machine: &plan.encoded_machine,
+        object: &plan.object,
+        relocations: &plan.relocations,
+    })
+}
+
+fn write_emission_plan(
+    options: &CompileOptions,
+    emission_plan: &omega_artifacts::EmissionPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    let writer = ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+    writer
+        .write_emission_plan(emission_plan)
+        .map_err(|diagnostic| vec![diagnostic])
+}
+
+fn ensure_emission_ready(
+    emission_plan: &omega_artifacts::EmissionPlan,
+) -> Result<(), Vec<Diagnostic>> {
+    if emission_plan.blockers.is_empty() {
+        return Ok(());
+    }
+
+    Err(emission_plan
+        .blockers
+        .iter()
+        .map(|(_, blocker)| Diagnostic::error(format!("{}: {}", blocker.stage, blocker.reason)))
+        .collect())
 }
 
 fn write_output(options: &CompileOptions, emitted: EmittedProgram) -> Result<(), Vec<Diagnostic>> {

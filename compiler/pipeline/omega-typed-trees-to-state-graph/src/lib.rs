@@ -178,18 +178,82 @@ fn build_machine_graph(
     Ok(MachineGraph {
         symbol: machine_symbol,
         name: machine.name.clone(),
-        contains: machine
-            .contains
-            .iter()
-            .map(|contained| ContainedGraph {
-                symbol: contained.symbol,
-                name: contained.name.clone(),
-                type_symbol: contained.type_symbol,
-                type_name: contained.type_name.clone(),
-            })
-            .collect(),
+        contains: machine_contains(program, machine),
         states,
     })
+}
+
+fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph> {
+    let mut contains = machine
+        .contains
+        .iter()
+        .map(|contained| ContainedGraph {
+            symbol: contained.symbol,
+            name: contained.name.clone(),
+            type_symbol: contained.type_symbol,
+            type_name: contained.type_name.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    let Some(data_definition) = program
+        .data_definitions
+        .iter()
+        .find(|data_definition| data_definition.name == machine.name)
+    else {
+        return contains;
+    };
+
+    for member in &data_definition.members {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            continue;
+        };
+
+        let field_type_name = type_reference_name(&field.type_reference);
+        let Some(target_machine) = program
+            .machines
+            .iter()
+            .find(|candidate| candidate.name == field_type_name)
+        else {
+            continue;
+        };
+
+        if contains.iter().any(|contained| contained.symbol == field.symbol) {
+            continue;
+        }
+
+        contains.push(ContainedGraph {
+            symbol: field.symbol,
+            name: field.name.clone(),
+            type_symbol: target_machine.symbol,
+            type_name: target_machine.name.clone(),
+        });
+    }
+
+    contains
+}
+
+fn type_reference_name(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> omega_typed_trees::name::ProgramName {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_name(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_name(base_type)
+        }
+        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_typed_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_typed_trees::types::TypeReference::Unit => {
+            omega_typed_trees::name::ProgramName::default()
+        }
+    }
 }
 
 fn append_machine_states(

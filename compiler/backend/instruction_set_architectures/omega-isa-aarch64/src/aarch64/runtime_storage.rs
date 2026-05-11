@@ -5,7 +5,7 @@ use super::primitives::{
     encode_compare_w17_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x, encode_movz_w,
     encode_store_w_to_x, encode_store_w17_to_x16, encode_store_x_to_x, encode_store_x17_to_x16,
-    encode_unsigned_immediate,
+    encode_unsigned_immediate, encode_unsigned_immediate_padded,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -60,7 +60,7 @@ pub fn encode_runtime_machine_integer_write(
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
-    let value = u16::try_from(value).map_err(|_| {
+    let value = u64::try_from(value).map_err(|_| {
         Diagnostic::error(format!(
             "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
         ))
@@ -68,8 +68,21 @@ pub fn encode_runtime_machine_integer_write(
 
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_movz_w(17, value));
-    bytes.extend(encode_store_w17_to_x16(byte_offset, byte_size)?);
+    match byte_size {
+        1 | 4 => {
+            bytes.extend(encode_movz_w(17, value as u16));
+            bytes.extend(encode_store_w17_to_x16(byte_offset, byte_size)?);
+        }
+        8 => {
+            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot store {byte_size}-byte runtime integers yet"
+            )));
+        }
+    }
     Ok(bytes)
 }
 
