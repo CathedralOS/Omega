@@ -1,6 +1,7 @@
 mod classify;
 mod collection;
 mod model;
+mod simplify;
 
 pub use model::{StateValueKind, StateValuePlan, StateValueRole, StateValueUse};
 

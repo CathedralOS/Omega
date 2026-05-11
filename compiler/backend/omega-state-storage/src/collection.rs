@@ -1,6 +1,7 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
+use crate::simplify::simplify_expression;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
@@ -98,9 +99,9 @@ fn build_machine_state_storage_plan(
                     let target = plan
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
-                    let value = plan
-                        .expressions
-                        .copy_from(&program.expression_table, assignment.value);
+                    let simplified_value =
+                        simplify_expression(program, machine, &program.expression_table.to_tree(assignment.value));
+                    let value = plan.expressions.insert_tree(&simplified_value);
                     let mutation_kind = mutation_kind(
                         machine,
                         state,

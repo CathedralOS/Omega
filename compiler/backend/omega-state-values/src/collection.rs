@@ -1,4 +1,5 @@
 use super::classify::value_kind;
+use super::simplify::simplify_expression;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_control_flow::StateKey;
@@ -29,6 +30,7 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         program,
+                        machine,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentTarget,
@@ -38,6 +40,7 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         program,
+                        machine,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentValue,
@@ -50,6 +53,7 @@ pub(super) fn build_machine_state_value_plan(
                         push_value(
                             &mut plan,
                             program,
+                            machine,
                             source_key,
                             statement_index,
                             StateValueRole::CallArgument,
@@ -63,6 +67,7 @@ pub(super) fn build_machine_state_value_plan(
                         push_value(
                             &mut plan,
                             program,
+                            machine,
                             source_key,
                             statement_index,
                             StateValueRole::TransitionGuard,
@@ -74,6 +79,7 @@ pub(super) fn build_machine_state_value_plan(
                     collect_transition_arguments(
                         &mut plan,
                         program,
+                        machine,
                         source_key,
                         statement_index,
                         transition.target,
@@ -84,6 +90,7 @@ pub(super) fn build_machine_state_value_plan(
                         collect_transition_arguments(
                             &mut plan,
                             program,
+                            machine,
                             source_key,
                             statement_index,
                             transition.continuation,
@@ -95,6 +102,7 @@ pub(super) fn build_machine_state_value_plan(
                     push_value(
                         &mut plan,
                         program,
+                        machine,
                         source_key,
                         statement_index,
                         StateValueRole::AssignmentValue,
@@ -113,6 +121,7 @@ pub(super) fn build_machine_state_value_plan(
 fn collect_transition_arguments(
     plan: &mut StateValuePlan,
     program: &Program,
+    machine: &Machine,
     source_key: StateKey,
     statement_index: usize,
     target: omega_typed_trees::statement::TransitionTargetHandle,
@@ -128,6 +137,7 @@ fn collect_transition_arguments(
         push_value(
             plan,
             program,
+            machine,
             source_key,
             statement_index,
             StateValueRole::TransitionArgument,
@@ -140,15 +150,16 @@ fn collect_transition_arguments(
 fn push_value(
     plan: &mut StateValuePlan,
     program: &Program,
+    machine: &Machine,
     source_key: StateKey,
     statement_index: usize,
     role: StateValueRole,
     expression: ExpressionHandle,
     required: bool,
 ) {
-    let expression = plan
-        .expressions
-        .copy_from(&program.expression_table, expression);
+    let simplified_expression =
+        simplify_expression(program, machine, &program.expression_table.to_tree(expression));
+    let expression = plan.expressions.insert_tree(&simplified_expression);
     plan.values.insert(StateValueUse {
         source_key,
         statement_index,
