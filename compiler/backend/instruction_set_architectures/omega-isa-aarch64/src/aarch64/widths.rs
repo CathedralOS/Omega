@@ -114,7 +114,7 @@ pub fn runtime_storage_copy_width(byte_count: usize) -> usize {
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
-        RuntimeMachineStringPointer { .. } | RuntimeMachineStringLength { .. } => 12,
+        RuntimeStringPointer { .. } | RuntimeStringLength { .. } => 12,
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
     }

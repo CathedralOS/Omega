@@ -1,8 +1,8 @@
 use crate::RelocationPlanningInput;
 use omega_instruction_selection as architecture;
 use omega_object::{
-    RelocationKind, RelocationPlan, RelocationRecord, machine_storage_symbol_name,
-    object_symbol_handle_by_name,
+    RelocationKind, RelocationPlan, RelocationRecord, object_symbol_handle_by_name,
+    storage_region_symbol_name,
 };
 use omega_target::Architecture;
 use omega_target_operations::{FunctionInstructionPlan, InstructionOperandKind};
@@ -37,15 +37,15 @@ pub(super) fn collect_data_address_relocations(
                     symbol,
                 );
             }
-            InstructionOperandKind::RuntimeMachineStringPointer { .. }
-            | InstructionOperandKind::RuntimeMachineStringLength { .. } => {
+            InstructionOperandKind::RuntimeStringPointer { region, .. }
+            | InstructionOperandKind::RuntimeStringLength { region, .. } => {
                 insert_data_address_relocations(
                     input,
                     relocation_plan,
                     function,
                     selected_instruction_index,
                     operand_text_offset,
-                    &machine_storage_symbol_name(input.entry_machine_name),
+                    &storage_region_symbol_name(*region, input.entry_machine_name),
                 );
             }
             InstructionOperandKind::ImmediateInteger(_) | InstructionOperandKind::ByteLength(_) => {

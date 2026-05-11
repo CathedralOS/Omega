@@ -53,6 +53,7 @@ pub fn emit_macho_aarch64_executable(
         + MACHO_SEGMENT_COMMAND_SIZE
         + MACHO_CODE_SIGNATURE_COMMAND_SIZE;
     let text_offset = align_to(MACHO_HEADER_SIZE + sizeofcmds, 16);
+    let entry_offset = text_offset + macho_entry_text_offset(&image)?;
     let data_offset = align_to(text_offset + image.text.len(), MACHO_ARM64_PAGE_SIZE);
     let text_address = MACHO_EXECUTABLE_BASE + text_offset as u64;
     let data_address = MACHO_EXECUTABLE_BASE + data_offset as u64;
@@ -113,7 +114,7 @@ pub fn emit_macho_aarch64_executable(
     write_macho_load_dylinker_command(&mut bytes);
     write_macho_uuid_command(&mut bytes);
     write_macho_executable_build_version_command(&mut bytes);
-    write_macho_main_command(&mut bytes, text_offset);
+    write_macho_main_command(&mut bytes, entry_offset);
     write_macho_load_libsystem_command(&mut bytes);
     if has_imports {
         write_macho_dyld_info_command(&mut bytes, bind_offset, bind_info.len());
@@ -152,6 +153,28 @@ pub fn emit_macho_aarch64_executable(
         imports: image.imports.len(),
         relocations: image.relocations.len(),
     })
+}
+
+fn macho_entry_text_offset(image: &FinalImage) -> Result<usize, Diagnostic> {
+    let (_, entry_symbol) = image
+        .symbols
+        .iter()
+        .find(|(_, symbol)| symbol.name == image.entry_symbol)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "Mach-O entry symbol `{}` is missing from the final image",
+                image.entry_symbol
+            ))
+        })?;
+
+    if entry_symbol.section != FinalImageSection::Text {
+        return Err(Diagnostic::error(format!(
+            "Mach-O entry symbol `{}` is not in the text section",
+            image.entry_symbol
+        )));
+    }
+
+    Ok(entry_symbol.offset)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

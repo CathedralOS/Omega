@@ -9,5 +9,6 @@ name = "omega_machine_bytes"
 path = "src/lib.rs"
 
 [dependencies]
+omega-control-flow = { path = "../omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-target = { path = "../../backend/omega-target" }

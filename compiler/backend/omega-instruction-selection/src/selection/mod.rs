@@ -1,8 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
-use omega_state_schedule::{
-    StateScheduleContext, build_entry_state_schedule, scheduled_state_flow,
-};
+use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
 
 mod bindings;
 mod host_operations;
@@ -18,9 +16,7 @@ use omega_target_operations::{
     SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
-use state_bodies::{
-    runtime_reachable_states, select_state_body_instructions, select_state_host_calls,
-};
+use state_bodies::{runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
     let mut instruction_plan = InstructionPlan {
@@ -61,35 +57,17 @@ fn select_entry_instructions(
     }
 
     let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
-    let state_schedule_result = build_entry_state_schedule(&schedule_context, input.entry_key);
-    let can_inline_state_calls = state_schedule_result.is_ok()
-        && input
-            .state_calls
-            .calls
-            .iter()
-            .any(|(_, call)| call.required);
-    let state_schedule = state_schedule_result.unwrap_or_else(|_| runtime_reachable_states(input));
+    let _state_schedule =
+        build_entry_state_schedule(&schedule_context, input.entry_key)
+            .unwrap_or_else(|_| runtime_reachable_states(input));
 
-    if can_inline_state_calls {
-        select_state_body_instructions(
-            input,
-            input.entry_key,
-            operands,
-            &mut selected_instructions,
-            &mut Vec::new(),
-        );
-    } else {
-        for scheduled_state in &state_schedule {
-            if let Some(state_flow) = scheduled_state_flow(&schedule_context, scheduled_state) {
-                select_state_host_calls(
-                    input,
-                    state_flow.key,
-                    operands,
-                    &mut selected_instructions,
-                );
-            }
-        }
-    }
+    select_state_body_instructions(
+        input,
+        input.entry_key,
+        operands,
+        &mut selected_instructions,
+        &mut Vec::new(),
+    );
 
     selected_instructions.push(exit_instruction(input));
     selected_instructions.finish()

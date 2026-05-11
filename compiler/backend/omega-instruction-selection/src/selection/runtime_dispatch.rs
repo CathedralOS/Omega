@@ -10,7 +10,7 @@ mod text_writes;
 mod writes;
 
 use super::host_operations::{
-    runtime_machine_string_descriptor_offset, runtime_text_literal_write_for_host_call,
+    runtime_string_descriptor_place, runtime_text_literal_write_for_host_call,
     select_host_call,
 };
 use super::instruction_sink::SelectedInstructionSink;
@@ -100,7 +100,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                 if let Some(host_call) =
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
-                    if runtime_machine_string_descriptor_offset(input, host_call).is_none()
+                    if runtime_string_descriptor_place(input, host_call).is_none()
                         && let Some((buffer, literal)) =
                             runtime_text_literal_write_for_host_call(input, host_call)
                     {

@@ -21,13 +21,71 @@ pub(crate) fn platform_call_receiver_type(
         .contains
         .iter()
         .find(|contained_object| contained_object.symbol == call.receiver_symbol)
-        .map(|contained_object| contained_object.type_symbol)?;
+        .map(|contained_object| contained_object.type_symbol)
+        .or_else(|| {
+            program
+                .data_definitions
+                .iter()
+                .find(|data_definition| data_definition.name == machine.name)
+                .and_then(|data_definition| {
+                    data_definition.members.iter().find_map(|member| match member {
+                        omega_typed_trees::data::DataMember::Field(field)
+                            if field.symbol == call.receiver_symbol =>
+                        {
+                            type_reference_symbol(&field.type_reference)
+                        }
+                        _ => None,
+                    })
+                })
+        })
+        .or_else(|| {
+            machine.owned_data.iter().find_map(|field| {
+                (field.symbol == call.receiver_symbol)
+                    .then(|| type_reference_symbol(&field.type_reference))
+                    .flatten()
+            })
+        })
+        .or_else(|| {
+            call.target_symbol.is_valid().then(|| {
+                program
+                    .platforms
+                    .iter()
+                    .find(|platform| platform.states.iter().any(|state| state.symbol == call.target_symbol))
+                    .map(|platform| platform.symbol)
+            }).flatten()
+        })?;
 
     program
         .platforms
         .iter()
         .find(|platform| platform.symbol == receiver_type_symbol)
         .map(|platform| platform.name.to_string())
+}
+
+fn type_reference_symbol(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> Option<omega_core::symbols::SymbolHandle> {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_symbol(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_symbol(base_type)
+        }
+        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_symbol(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_symbol(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. } => {
+            base_symbol.is_valid().then_some(*base_symbol)
+        }
+        omega_typed_trees::types::TypeReference::Named { symbol, .. } => {
+            symbol.is_valid().then_some(*symbol)
+        }
+        omega_typed_trees::types::TypeReference::Unit => None,
+    }
 }
 
 pub(crate) fn find_platform_call_lowering<'abi>(

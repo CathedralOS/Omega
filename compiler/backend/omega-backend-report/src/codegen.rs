@@ -394,11 +394,19 @@ fn selected_instruction_operands_name(
                 let symbol = backend_plan.data.objects.get(*data).symbol.as_str();
                 format!("addr {symbol}")
             }
-            InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
-                format!("machine string ptr @{byte_offset}")
+            InstructionOperandKind::RuntimeStringPointer {
+                region,
+                byte_offset,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("string ptr {symbol}@{byte_offset}")
             }
-            InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
-                format!("machine string len @{byte_offset}")
+            InstructionOperandKind::RuntimeStringLength {
+                region,
+                byte_offset,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("string len {symbol}@{byte_offset}")
             }
             InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
             InstructionOperandKind::ByteLength(value) => format!("len {value}"),
@@ -432,15 +440,10 @@ fn write_machine_function_code(
 }
 
 fn machine_function_symbol(
-    backend_plan: &BackendReportInput<'_>,
+    _backend_plan: &BackendReportInput<'_>,
     function: &MachineFunction,
 ) -> String {
-    backend_plan
-        .instructions
-        .functions
-        .get(function.source_function)
-        .symbol
-        .clone()
+    function.symbol.clone()
 }
 
 fn write_machine_instruction(

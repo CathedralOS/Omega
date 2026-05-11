@@ -388,6 +388,7 @@ dependencies = [
 name = "omega-machine-bytes"
 version = "0.1.0"
 dependencies = [
+ "omega-control-flow",
  "omega-core",
  "omega-target",
 ]
@@ -411,6 +412,7 @@ name = "omega-machine-program"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-core",
  "omega-target",
  "omega-target-operations",
@@ -438,6 +440,7 @@ name = "omega-object-planning"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-control-flow",
  "omega-core",
  "omega-layout",
  "omega-machine-bytes",

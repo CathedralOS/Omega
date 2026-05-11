@@ -8,6 +8,7 @@ pub(crate) fn assign_symbols(program: &mut Program) {
     let symbols = program.symbols.clone();
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
+    assign_statement_call_symbols(program, &symbols);
 }
 
 fn build_symbol_table(program: &Program) -> SymbolTable {
@@ -189,6 +190,498 @@ fn assign_type_reference_symbols(
             if let omega_resolved_trees::data::DataMember::Field(field) = member {
                 assign_type_reference_symbol(symbols, &mut field.type_reference);
             }
+        }
+    }
+}
+
+fn assign_statement_call_symbols(program: &mut Program, symbols: &SymbolTable) {
+    let data_definitions = program.data_definitions.clone();
+    for machine in &mut program.machines {
+        let machine_scope = MachineScope {
+            symbol: machine.symbol,
+            contains: machine.contains.clone(),
+            fields: machine_field_bindings(&data_definitions, machine),
+        };
+        for state in &mut machine.states {
+            let parameter_bindings = state_parameter_bindings(state);
+            for statement in &mut state.statements {
+                assign_statement_symbols(
+                    &machine_scope,
+                    &parameter_bindings,
+                    state.symbol,
+                    statement,
+                    symbols,
+                );
+            }
+        }
+    }
+
+}
+
+#[derive(Clone)]
+struct MachineScope {
+    symbol: SymbolHandle,
+    contains: Vec<omega_resolved_trees::machine::ContainedObject>,
+    fields: Vec<FieldBinding>,
+}
+
+#[derive(Clone)]
+struct FieldBinding {
+    symbol: SymbolHandle,
+    name: omega_resolved_trees::name::ProgramName,
+    type_name: omega_resolved_trees::name::ProgramName,
+    type_symbol: SymbolHandle,
+}
+
+#[derive(Clone)]
+struct ParameterBinding {
+    symbol: SymbolHandle,
+    name: omega_resolved_trees::name::ProgramName,
+    type_name: omega_resolved_trees::name::ProgramName,
+    type_symbol: SymbolHandle,
+}
+
+fn assign_statement_symbols(
+    machine: &MachineScope,
+    parameters: &[ParameterBinding],
+    state_symbol: SymbolHandle,
+    statement: &mut omega_resolved_trees::statement::Statement,
+    symbols: &SymbolTable,
+) {
+    match statement {
+        omega_resolved_trees::statement::Statement::Call(call) => {
+            if let Some(receiver) = &mut call.receiver {
+                if let Some((head_symbol, symbol)) =
+                    resolve_state_scoped_path(symbols, machine.symbol, state_symbol, receiver)
+                {
+                    *receiver = receiver.clone().with_symbols(head_symbol, symbol);
+                    call.receiver_symbol = symbol;
+                }
+            }
+
+            call.target_symbol = resolve_call_target_symbol(machine, parameters, call, symbols);
+        }
+        omega_resolved_trees::statement::Statement::Transition(transition) => {
+            assign_transition_target_symbols(machine, state_symbol, &mut transition.target, symbols);
+            if let Some(continuation) = &mut transition.continuation {
+                assign_transition_target_symbols(machine, state_symbol, continuation, symbols);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn assign_transition_target_symbols(
+    machine: &MachineScope,
+    state_symbol: SymbolHandle,
+    target: &mut omega_resolved_trees::statement::TransitionTarget,
+    symbols: &SymbolTable,
+) {
+    let omega_resolved_trees::statement::TransitionTarget::Named { path, .. } = target else {
+        return;
+    };
+
+    let target_name = path.last().cloned();
+    if let Some((head_symbol, symbol)) =
+        resolve_state_scoped_path(symbols, machine.symbol, state_symbol, path)
+    {
+        *path = path.clone().with_symbols(head_symbol, symbol);
+        return;
+    }
+
+    let Some(target_name) = target_name else {
+        return;
+    };
+
+    if path.len() <= 2 {
+        let target_symbol =
+            child_symbol_by_kinds(symbols, machine.symbol, &[SymbolKind::State], target_name.as_str());
+        if target_symbol.is_valid() {
+            *path = path.clone().with_symbols(target_symbol, target_symbol);
+        }
+    }
+}
+
+fn resolve_call_target_symbol(
+    machine: &MachineScope,
+    parameters: &[ParameterBinding],
+    call: &omega_resolved_trees::statement::Call,
+    symbols: &SymbolTable,
+) -> SymbolHandle {
+    if let Some(receiver) = &call.receiver {
+        if call.receiver_symbol.is_valid() {
+            if let Some(contained) = machine
+                .contains
+                .iter()
+                .find(|contained| contained.symbol == call.receiver_symbol)
+            {
+                return child_symbol_by_kinds(
+                    symbols,
+                    contained.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+            }
+
+            if let Some(field) = machine
+                .fields
+                .iter()
+                .find(|field| field.symbol == call.receiver_symbol)
+            {
+                let symbol = child_symbol_by_kinds(
+                    symbols,
+                    field.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+                if symbol.is_valid() {
+                    return symbol;
+                }
+                let callable_type = top_level_symbol_by_kinds(
+                    symbols,
+                    &[SymbolKind::Machine, SymbolKind::Platform],
+                    field.type_name.as_str(),
+                );
+                if callable_type.is_valid() {
+                    return child_symbol_by_kinds(
+                        symbols,
+                        callable_type,
+                        &[SymbolKind::State],
+                        call.target.as_str(),
+                    );
+                }
+                return symbol;
+            }
+
+            let receiver_kind = symbols.get(call.receiver_symbol).kind;
+            if let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.symbol == call.receiver_symbol)
+            {
+                let direct = child_symbol_by_kinds(
+                    symbols,
+                    parameter.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+                if direct.is_valid() {
+                    return direct;
+                }
+                let callable_type = top_level_symbol_by_kinds(
+                    symbols,
+                    &[SymbolKind::Machine, SymbolKind::Platform],
+                    parameter.type_name.as_str(),
+                );
+                if callable_type.is_valid() {
+                    return child_symbol_by_kinds(
+                        symbols,
+                        callable_type,
+                        &[SymbolKind::State],
+                        call.target.as_str(),
+                    );
+                }
+            }
+            if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Platform) {
+                return child_symbol_by_kinds(
+                    symbols,
+                    call.receiver_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+            }
+        }
+
+        if let Some(receiver_name) = receiver.last() {
+            if let Some(contained) = machine
+                .contains
+                .iter()
+                .find(|contained| contained.name == *receiver_name)
+            {
+                return child_symbol_by_kinds(
+                    symbols,
+                    contained.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+            }
+
+            if let Some(field) = machine
+                .fields
+                .iter()
+                .find(|field| field.name == *receiver_name)
+            {
+                let direct = child_symbol_by_kinds(
+                    symbols,
+                    field.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+                if direct.is_valid() {
+                    return direct;
+                }
+                let callable_type = top_level_symbol_by_kinds(
+                    symbols,
+                    &[SymbolKind::Machine, SymbolKind::Platform],
+                    field.type_name.as_str(),
+                );
+                if callable_type.is_valid() {
+                    return child_symbol_by_kinds(
+                        symbols,
+                        callable_type,
+                        &[SymbolKind::State],
+                        call.target.as_str(),
+                    );
+                }
+                return direct;
+            }
+
+            if let Some(parameter) = parameters
+                .iter()
+                .find(|parameter| parameter.name == *receiver_name)
+            {
+                let direct = child_symbol_by_kinds(
+                    symbols,
+                    parameter.type_symbol,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+                if direct.is_valid() {
+                    return direct;
+                }
+                let callable_type = top_level_symbol_by_kinds(
+                    symbols,
+                    &[SymbolKind::Machine, SymbolKind::Platform],
+                    parameter.type_name.as_str(),
+                );
+                if callable_type.is_valid() {
+                    return child_symbol_by_kinds(
+                        symbols,
+                        callable_type,
+                        &[SymbolKind::State],
+                        call.target.as_str(),
+                    );
+                }
+                return direct;
+            }
+
+            let top_level_receiver = top_level_symbol_by_kinds(
+                symbols,
+                &[SymbolKind::Machine, SymbolKind::Platform],
+                receiver_name.as_str(),
+            );
+            if top_level_receiver.is_valid() {
+                return child_symbol_by_kinds(
+                    symbols,
+                    top_level_receiver,
+                    &[SymbolKind::State],
+                    call.target.as_str(),
+                );
+            }
+        }
+    }
+
+    child_symbol_by_kinds(
+        symbols,
+        machine.symbol,
+        &[SymbolKind::State],
+        call.target.as_str(),
+    )
+}
+
+fn resolve_state_scoped_path(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    path: &omega_resolved_trees::expression::NamePath,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    let members = path.members();
+    if members.is_empty() {
+        return None;
+    }
+
+    let mut index = 0usize;
+    let mut current = SymbolHandle::invalid();
+    let head: SymbolHandle;
+
+    if members.first().is_some_and(|member| member.as_str() == "self") {
+        current = machine_symbol;
+        index = 1;
+    }
+
+    if index >= members.len() {
+        return current.is_valid().then_some((current, current));
+    }
+
+    if !current.is_valid() {
+        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index])?;
+        head = current;
+        index += 1;
+    } else {
+        current = child_symbol_by_kinds(
+            symbols,
+            current,
+            &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+            members[index].as_str(),
+        );
+        if !current.is_valid() {
+            return None;
+        }
+        head = current;
+        index += 1;
+    }
+
+    for member in &members[index..] {
+        current = child_symbol_by_kinds(
+            symbols,
+            current,
+            &[
+                SymbolKind::Field,
+                SymbolKind::Object,
+                SymbolKind::State,
+                SymbolKind::Parameter,
+                SymbolKind::Variant,
+            ],
+            member.as_str(),
+        );
+        if !current.is_valid() {
+            return None;
+        }
+    }
+
+    Some((head, current))
+}
+
+fn resolve_base_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    member: &omega_resolved_trees::name::ProgramName,
+) -> Option<SymbolHandle> {
+    if state_symbol.is_valid() {
+        let parameter_symbol =
+            child_symbol_by_kinds(symbols, state_symbol, &[SymbolKind::Parameter], member.as_str());
+        if parameter_symbol.is_valid() {
+            return Some(parameter_symbol);
+        }
+    }
+
+    let machine_child = child_symbol_by_kinds(
+        symbols,
+        machine_symbol,
+        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        member.as_str(),
+    );
+    if machine_child.is_valid() {
+        return Some(machine_child);
+    }
+
+    let top_level = top_level_symbol_by_kinds(
+        symbols,
+        &[
+            SymbolKind::BuiltinType,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Platform,
+            SymbolKind::Invariant,
+        ],
+        member.as_str(),
+    );
+    top_level.is_valid().then_some(top_level)
+}
+
+fn machine_field_bindings(
+    data_definitions: &[omega_resolved_trees::data::DataDefinition],
+    machine: &omega_resolved_trees::machine::Machine,
+) -> Vec<FieldBinding> {
+    let mut fields = Vec::new();
+
+    if let Some(data_definition) = data_definitions
+        .iter()
+        .find(|data_definition| data_definition.name == machine.name)
+    {
+        for member in &data_definition.members {
+            let omega_resolved_trees::data::DataMember::Field(field) = member else {
+                continue;
+            };
+
+            fields.push(FieldBinding {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_name: type_reference_name(&field.type_reference),
+                type_symbol: type_reference_symbol(&field.type_reference),
+            });
+        }
+    }
+
+    for owned_data in &machine.owned_data {
+        fields.push(FieldBinding {
+            symbol: owned_data.symbol,
+            name: owned_data.name.clone(),
+            type_name: type_reference_name(&owned_data.type_reference),
+            type_symbol: type_reference_symbol(&owned_data.type_reference),
+        });
+    }
+
+    fields
+}
+
+fn state_parameter_bindings(
+    state: &omega_resolved_trees::state::State,
+) -> Vec<ParameterBinding> {
+    state
+        .parameters
+        .iter()
+        .map(|parameter| ParameterBinding {
+            symbol: parameter.symbol,
+            name: parameter.name.clone(),
+            type_name: type_reference_name(&parameter.type_reference),
+            type_symbol: type_reference_symbol(&parameter.type_reference),
+        })
+        .collect()
+}
+
+fn type_reference_symbol(
+    type_reference: &omega_resolved_trees::types::TypeReference,
+) -> SymbolHandle {
+    match type_reference {
+        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_symbol(referee)
+        }
+        omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_symbol(base_type)
+        }
+        omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_symbol(element_type)
+        }
+        omega_resolved_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_symbol(element_type)
+        }
+        omega_resolved_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
+        omega_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
+        omega_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
+    }
+}
+
+fn type_reference_name(
+    type_reference: &omega_resolved_trees::types::TypeReference,
+) -> omega_resolved_trees::name::ProgramName {
+    match type_reference {
+        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_name(referee)
+        }
+        omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_name(base_type)
+        }
+        omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_name(element_type)
+        }
+        omega_resolved_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_name(element_type)
+        }
+        omega_resolved_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_resolved_trees::types::TypeReference::Unit => {
+            omega_resolved_trees::name::ProgramName::default()
         }
     }
 }

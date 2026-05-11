@@ -143,6 +143,7 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stat
         .map(|parameter| StateParameterFlow {
             symbol: parameter.symbol,
             name: parameter.name.clone(),
+            is_mutable_reference: parameter.is_mutable_reference,
         })
         .collect()
 }

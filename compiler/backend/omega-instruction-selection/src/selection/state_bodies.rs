@@ -1,5 +1,5 @@
 use crate::InstructionSelectionInput;
-use omega_control_flow::{OperationKind, StateKey};
+use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
 use omega_core::arena::Arena;
 use omega_state_schedule::ScheduledState;
 
@@ -29,6 +29,7 @@ pub(super) fn select_state_body_instructions(
         visiting.pop();
         return;
     };
+    let transitions = input.control_flow.transitions.span_or_empty(state.transitions);
 
     for operation in operations {
         if let Some(host_call) =
@@ -60,22 +61,44 @@ pub(super) fn select_state_body_instructions(
         );
     }
 
+    for transition in transitions {
+        follow_transition_target(
+            input,
+            &transition.target,
+            operands,
+            selected_instructions,
+            visiting,
+        );
+        if let Some(continuation) = &transition.continuation {
+            follow_transition_target(
+                input,
+                continuation,
+                operands,
+                selected_instructions,
+                visiting,
+            );
+        }
+    }
+
     visiting.pop();
 }
 
-pub(super) fn select_state_host_calls(
+fn follow_transition_target(
     input: &InstructionSelectionInput<'_>,
-    state_key: StateKey,
+    target: &PlannedTransitionTarget,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut SelectedInstructionSink,
+    visiting: &mut Vec<StateKey>,
 ) {
-    for (_, host_call) in input.host_calls.calls.iter() {
-        if host_call.source_key != state_key {
-            continue;
-        }
+    let PlannedTransitionTarget::State { key, .. } = target else {
+        return;
+    };
 
-        select_host_call(input, host_call, operands, selected_instructions);
+    if !key.is_valid() {
+        return;
     }
+
+    select_state_body_instructions(input, *key, operands, selected_instructions, visiting);
 }
 
 pub(super) fn runtime_reachable_states(

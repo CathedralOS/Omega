@@ -149,6 +149,7 @@ impl Default for StateNode {
 pub struct StateParameterNode {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub is_mutable_reference: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

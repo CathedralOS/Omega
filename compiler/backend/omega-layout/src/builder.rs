@@ -187,6 +187,28 @@ impl<'program> LayoutBuilder<'program> {
     fn compute_machine_layout(&mut self, machine: &Machine) -> Result<MachineLayout, Diagnostic> {
         let mut fields = Vec::new();
 
+        if let Some(data_definition) = self
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name == machine.name)
+        {
+            for member in &data_definition.members {
+                let DataMember::Field(field) = member else {
+                    continue;
+                };
+
+                fields.push(PlannedField {
+                    symbol: field.symbol,
+                    name: field.name.clone(),
+                    type_symbol: self.type_reference_symbol(&field.type_reference),
+                    type_name: field
+                        .type_reference
+                        .display_name_with_constraints(self.type_constraints),
+                    layout: self.layout_type_reference(&field.type_reference)?,
+                });
+            }
+        }
+
         for owned_data in &machine.owned_data {
             fields.push(PlannedField {
                 symbol: owned_data.symbol,

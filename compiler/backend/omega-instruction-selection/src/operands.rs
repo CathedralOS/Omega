@@ -16,13 +16,13 @@ pub fn aarch64_call_operands(operands: &[InstructionOperand]) -> Vec<Aarch64Call
 fn aarch64_call_operand(operand: &InstructionOperand) -> Aarch64CallOperand {
     match &operand.kind {
         InstructionOperandKind::DataAddress { .. } => Aarch64CallOperand::DataAddress,
-        InstructionOperandKind::RuntimeMachineStringPointer { byte_offset } => {
-            Aarch64CallOperand::RuntimeMachineStringPointer {
+        InstructionOperandKind::RuntimeStringPointer { byte_offset, .. } => {
+            Aarch64CallOperand::RuntimeStringPointer {
                 byte_offset: *byte_offset,
             }
         }
-        InstructionOperandKind::RuntimeMachineStringLength { byte_offset } => {
-            Aarch64CallOperand::RuntimeMachineStringLength {
+        InstructionOperandKind::RuntimeStringLength { byte_offset, .. } => {
+            Aarch64CallOperand::RuntimeStringLength {
                 byte_offset: *byte_offset,
             }
         }

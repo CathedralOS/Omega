@@ -1,4 +1,5 @@
 use omega_calling_conventions::{HostAbiPlan, HostBindingMechanism};
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -17,6 +18,7 @@ pub struct ObjectPlanningInput<'plan> {
     pub layouts: &'plan LayoutPlan,
     pub entry_machine_symbol: SymbolHandle,
     pub entry_machine_name: &'plan str,
+    pub entry_state_key: StateKey,
     pub encoded_machine: &'plan EncodedMachinePlan,
     pub data: &'plan TargetDataPlan,
     pub runtime_frame_size: usize,
@@ -37,6 +39,18 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
             ))
         })?;
     let entry_symbol = entry_symbol_name(input.target);
+    let entry_function = input
+        .encoded_machine
+        .functions
+        .iter()
+        .find(|(_, function)| function.source_key == input.entry_state_key)
+        .map(|(_, function)| function)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "missing encoded entry function for state key {:?}",
+                input.entry_state_key
+            ))
+        })?;
     let runtime_frame_offset = align_to(main_layout.layout.size, input.runtime_frame_alignment);
     let bss_size = runtime_frame_offset + input.runtime_frame_size;
     let bss_alignment = main_layout
@@ -76,8 +90,8 @@ pub fn build_object_plan(input: ObjectPlanningInput<'_>) -> Result<ObjectPlan, D
         SymbolPlan {
             name: object_plan.entry_symbol.clone(),
             section: Some(section_name(input.target, SectionKind::Text)),
-            offset: 0,
-            size: input.encoded_machine.byte_count,
+            offset: entry_function.byte_offset,
+            size: entry_function.byte_count,
             kind: SymbolKind::Function,
         },
         SymbolPlan {

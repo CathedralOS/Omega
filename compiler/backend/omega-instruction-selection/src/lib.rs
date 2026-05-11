@@ -17,7 +17,7 @@ use omega_runtime_branching::RuntimeBranchingCallPlan;
 use omega_runtime_dispatch_loop::RuntimeDispatchLoopPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_runtime_text::RuntimeTextPlan;
-use omega_state_calls::StateCallPlan;
+use omega_state_calls::{AliasFlowPlan, StateCallPlan};
 use omega_state_graph::RuntimeFlowPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
@@ -32,6 +32,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
+    pub alias_flow: &'plan AliasFlowPlan,
     pub state_storage: &'plan StateStoragePlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,
     pub runtime_bodies: &'plan RuntimeDispatchBodyPlan,

@@ -4,7 +4,7 @@ use omega_platform_interface::{HostCall, HostCallArgument, HostCallArgumentKind}
 use omega_target::ObjectFormat;
 
 use super::runtime_text::{
-    find_runtime_text_input_buffer_data_object, runtime_machine_string_descriptor_offset,
+    find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
     runtime_text_literal_for_host_call,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
@@ -75,7 +75,7 @@ pub(super) fn select_host_operation_operands(
 
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
-                && runtime_machine_string_descriptor_offset(input, host_call).is_none()
+                && runtime_string_descriptor_place(input, host_call).is_none()
             {
                 return stdout_operands(
                     operands,
@@ -87,12 +87,18 @@ pub(super) fn select_host_operation_operands(
                 );
             }
 
-            if let Some(byte_offset) = runtime_machine_string_descriptor_offset(input, host_call) {
+            if let Some(place) = runtime_string_descriptor_place(input, host_call) {
                 return stdout_operands(
                     operands,
                     operation_key.operation,
-                    InstructionOperandKind::RuntimeMachineStringPointer { byte_offset },
-                    InstructionOperandKind::RuntimeMachineStringLength { byte_offset },
+                    InstructionOperandKind::RuntimeStringPointer {
+                        region: place.region,
+                        byte_offset: place.byte_offset,
+                    },
+                    InstructionOperandKind::RuntimeStringLength {
+                        region: place.region,
+                        byte_offset: place.byte_offset,
+                    },
                 );
             }
 

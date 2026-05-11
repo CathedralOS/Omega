@@ -1,7 +1,8 @@
 use omega_calling_conventions::HostOperationKey;
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_control_flow::StateKey;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_target::NativeTarget;
-use omega_target_operations::{FunctionInstructionPlan, StateGuardOperator};
+use omega_target_operations::StateGuardOperator;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineProgram {
@@ -22,14 +23,16 @@ impl Default for MachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineFunction {
-    pub source_function: Handle<FunctionInstructionPlan>,
+    pub symbol: String,
+    pub source_key: StateKey,
     pub instructions: HandleSpan<MachineInstruction>,
 }
 
 impl Default for MachineFunction {
     fn default() -> Self {
         Self {
-            source_function: Handle::invalid(),
+            symbol: String::new(),
+            source_key: StateKey::default(),
             instructions: HandleSpan::empty(),
         }
     }

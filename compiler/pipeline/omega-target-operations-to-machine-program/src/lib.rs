@@ -14,12 +14,13 @@ pub fn build_machine_program(instructions: &InstructionPlan) -> Result<MachinePr
         instructions: Arena::new(),
     };
 
-    for (function_handle, function) in instructions.functions.iter() {
+    for (_, function) in instructions.functions.iter() {
         let machine_instructions =
             append_machine_instructions(instructions, function, &mut machine_program.instructions)?;
 
         machine_program.functions.insert(MachineFunction {
-            source_function: function_handle,
+            symbol: function.symbol.clone(),
+            source_key: function.source_key,
             instructions: machine_instructions,
         });
     }

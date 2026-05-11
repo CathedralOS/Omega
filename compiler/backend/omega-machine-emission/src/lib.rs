@@ -1,7 +1,7 @@
 use omega_calling_conventions::HostAbiPlan;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
-use omega_machine_bytes::{EncodedMachineInstruction, EncodedMachinePlan};
+use omega_machine_bytes::{EncodedMachineFunction, EncodedMachineInstruction, EncodedMachinePlan};
 use omega_machine_program::{MachineInstruction, MachineProgram};
 use omega_target::NativeTarget;
 use omega_target_operations::InstructionPlan;
@@ -28,12 +28,14 @@ pub fn emit_machine_bytes(
 ) -> Result<EncodedMachinePlan, Diagnostic> {
     let mut encoded_bytes = EncodedMachinePlan {
         target: input.target,
+        functions: Arena::with_capacity(input.machine_program.functions.len()),
         instructions: Arena::with_capacity(input.machine_program.instructions.len()),
         bytes: Arena::new(),
         byte_count: 0,
     };
 
     for (_, function) in input.machine_program.functions.iter() {
+        let byte_offset = encoded_bytes.bytes.len();
         emit_function_bytes(
             MachineEmissionContext {
                 target: input.target,
@@ -45,6 +47,13 @@ pub fn emit_machine_bytes(
             &mut encoded_bytes,
             function.instructions,
         )?;
+        let byte_count = encoded_bytes.bytes.len() - byte_offset;
+        encoded_bytes.functions.insert(EncodedMachineFunction {
+            symbol: function.symbol.clone(),
+            source_key: function.source_key,
+            byte_offset,
+            byte_count,
+        });
     }
 
     encoded_bytes.byte_count = encoded_bytes.bytes.len();

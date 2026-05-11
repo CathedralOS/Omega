@@ -14,9 +14,16 @@ impl Default for InstructionOperand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstructionOperandKind {
     DataAddress { data: TargetDataObjectHandle },
-    RuntimeMachineStringPointer { byte_offset: usize },
-    RuntimeMachineStringLength { byte_offset: usize },
+    RuntimeStringPointer {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
+    RuntimeStringLength {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
     ImmediateInteger(i64),
     ByteLength(usize),
 }
+use crate::RuntimeStorageRegion;
 use crate::TargetDataObjectHandle;

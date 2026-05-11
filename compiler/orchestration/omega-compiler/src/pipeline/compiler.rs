@@ -136,12 +136,13 @@ fn plan_backend(
 }
 
 fn emit_backend(plan: omega_backend_plan::BackendPlan) -> Result<EmittedProgram, Vec<Diagnostic>> {
+    let text_bytes = plan.encoded_machine.bytes.storage_slice().to_vec();
     Ok(EmittedProgram {
         target: plan.target,
         planned_text_bytes: object_text_size(&plan.object),
         object: plan.object,
         relocations: plan.relocations,
-        text_bytes: plan.encoded_machine.bytes.storage_slice().to_vec(),
+        text_bytes,
         data_bytes: plan.data.bytes.storage_slice().to_vec(),
     })
 }

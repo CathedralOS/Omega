@@ -54,7 +54,7 @@ fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diag
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 next_register += 1;
             }
-            RuntimeMachineStringPointer { byte_offset } => {
+            RuntimeStringPointer { byte_offset } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 bytes.extend(encode_load_x_from_x(
@@ -64,7 +64,7 @@ fn encode_call_operands(operands: &[Aarch64CallOperand]) -> Result<Vec<u8>, Diag
                 )?);
                 next_register += 1;
             }
-            RuntimeMachineStringLength { byte_offset } => {
+            RuntimeStringLength { byte_offset } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 bytes.extend(encode_load_x_from_x(

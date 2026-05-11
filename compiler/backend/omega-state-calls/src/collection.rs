@@ -149,6 +149,19 @@ fn resolve_state_call_target(
             });
         }
 
+        if target_symbol.is_valid()
+            && let Some((key, _)) = control_flow
+                .states
+                .iter()
+                .find(|(_, state)| state.key.state == target_symbol && state.key.segment_index == 0)
+                .map(|(_, state)| (state.key, state.name.clone()))
+        {
+            return Some(ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::ContainedMachine,
+            });
+        }
+
         return None;
     }
 

@@ -39,7 +39,10 @@ pub(crate) fn build_call_arguments(
                 kind: if matches!(
                     context.control_flow.expressions.expression(*expression),
                     ExpressionNode::Mutable(_)
-                ) {
+                ) || parameters
+                    .get(index)
+                    .is_some_and(|parameter| parameter.is_mutable_reference)
+                {
                     StateCallArgumentKind::MutableAlias
                 } else {
                     StateCallArgumentKind::Value

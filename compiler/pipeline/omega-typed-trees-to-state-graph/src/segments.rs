@@ -7,6 +7,7 @@ use omega_typed_trees::statement::{
     Assignment, Statement, StatementNode, TableTransition, Transition, TransitionGuard,
     TransitionGuardNode,
 };
+use omega_typed_trees::types::TypeReference;
 
 use omega_state_graph::{
     Operation, OperationExpressionRefs, OperationKind, StateGraph, StateKey, StateParameterNode,
@@ -142,6 +143,13 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stat
         .map(|parameter| StateParameterNode {
             symbol: parameter.symbol,
             name: parameter.name.clone(),
+            is_mutable_reference: matches!(
+                parameter.type_reference,
+                TypeReference::Reference {
+                    is_mutable: true,
+                    ..
+                }
+            ),
         })
         .collect()
 }

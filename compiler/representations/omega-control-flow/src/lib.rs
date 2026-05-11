@@ -142,6 +142,7 @@ impl Default for StateFlow {
 pub struct StateParameterFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub is_mutable_reference: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
