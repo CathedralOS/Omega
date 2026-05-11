@@ -70,9 +70,12 @@ impl<'source> Lexer<'source> {
 
             let end = self.lex_symbol_end(start, character);
             let lexeme = &source[start..end];
-            let kind = PunctuationKind::from_lexeme(lexeme)
-                .map(TokenKind::Punctuation)
-                .unwrap_or(TokenKind::Punctuation(PunctuationKind::Unknown));
+            let Some(kind) = PunctuationKind::from_lexeme(lexeme).map(TokenKind::Punctuation) else {
+                return Err(LexError::new(
+                    format!("unsupported punctuation `{lexeme}`"),
+                    Span::new(start, end),
+                ));
+            };
             tokens.push(Token {
                 kind,
                 lexeme: TokenText::source(lexeme),

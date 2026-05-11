@@ -250,7 +250,10 @@ impl Parser<'_, '_> {
         if token.kind == TokenKind::Identifier {
             Ok(identifier_from_token(source_id, token))
         } else {
-            Err(ParseError::at_span("expected identifier", token.span))
+            Err(ParseError::at_source_span(
+                "expected identifier",
+                source_span_from_token(source_id, token),
+            ))
         }
     }
 
@@ -270,7 +273,10 @@ impl Parser<'_, '_> {
                 token.lexeme.as_str(),
                 SourceSpan::new(source_id, token.span),
             )),
-            _ => Err(ParseError::at_span("expected identifier", token.span)),
+            _ => Err(ParseError::at_source_span(
+                "expected identifier",
+                source_span_from_token(source_id, token),
+            )),
         }
     }
 
@@ -284,7 +290,10 @@ impl Parser<'_, '_> {
             TokenKind::Identifier | TokenKind::Keyword(KeywordKind::Entry) => {
                 Ok(identifier_from_token(source_id, token))
             }
-            _ => Err(ParseError::at_span("expected identifier", token.span)),
+            _ => Err(ParseError::at_source_span(
+                "expected identifier",
+                source_span_from_token(source_id, token),
+            )),
         }
     }
 
@@ -300,7 +309,10 @@ impl Parser<'_, '_> {
             | TokenKind::Keyword(KeywordKind::Platform) => {
                 Ok(identifier_from_token(source_id, token))
             }
-            _ => Err(ParseError::at_span("expected identifier", token.span)),
+            _ => Err(ParseError::at_source_span(
+                "expected identifier",
+                source_span_from_token(source_id, token),
+            )),
         }
     }
 
@@ -316,27 +328,40 @@ impl Parser<'_, '_> {
             | TokenKind::Keyword(KeywordKind::Target) => {
                 Ok(identifier_from_token(source_id, token))
             }
-            _ => Err(ParseError::at_span("expected identifier", token.span)),
+            _ => Err(ParseError::at_source_span(
+                "expected identifier",
+                source_span_from_token(source_id, token),
+            )),
         }
     }
 
     fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected integer literal"));
         };
 
         if token.kind != TokenKind::IntegerLiteral {
-            return Err(ParseError::at_span("expected integer literal", token.span));
+            return Err(ParseError::at_source_span(
+                "expected integer literal",
+                source_span_from_token(source_id, token),
+            ));
         }
 
         token
             .lexeme
             .as_str()
             .parse::<usize>()
-            .map_err(|_| ParseError::at_span("invalid integer literal", token.span))
+            .map_err(|_| {
+                ParseError::at_source_span(
+                    "invalid integer literal",
+                    source_span_from_token(source_id, token),
+                )
+            })
     }
 
     fn expect_string_literal(&mut self) -> Result<String, ParseError> {
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected string literal"));
         };
@@ -344,7 +369,10 @@ impl Parser<'_, '_> {
         if token.kind == TokenKind::StringLiteral {
             Ok(token.lexeme.as_str().to_owned())
         } else {
-            Err(ParseError::at_span("expected string literal", token.span))
+            Err(ParseError::at_source_span(
+                "expected string literal",
+                source_span_from_token(source_id, token),
+            ))
         }
     }
 
@@ -364,20 +392,24 @@ impl Parser<'_, '_> {
 
     fn error_here(&self, message: impl Into<String>) -> ParseError {
         if let Some(token) = self.peek() {
-            ParseError::at_span(message, token.span)
+            ParseError::at_source_span(message, source_span_from_token(self.source_id, token))
         } else {
             ParseError::new(message)
         }
     }
 }
 
+fn source_span_from_token(source_id: SourceId, token: &Token<'_>) -> SourceSpan {
+    SourceSpan::new(source_id, token.span)
+}
+
 fn identifier_from_token(source_id: SourceId, token: &Token<'_>) -> Identifier {
-    let source_span = omega_core::source::SourceSpan::new(source_id, token.span);
+    let source_span = source_span_from_token(source_id, token);
     Identifier::new(token.lexeme.as_str(), source_span)
 }
 
 fn source_text_from_token(source_id: SourceId, token: &Token<'_>) -> SourceText {
-    let source_span = omega_core::source::SourceSpan::new(source_id, token.span);
+    let source_span = source_span_from_token(source_id, token);
     SourceText::new(token.lexeme.as_str(), source_span)
 }
 
@@ -482,7 +514,7 @@ mod tests {
     use omega_source_files_to_tokens::Lexer;
 
     #[test]
-    fn parses_machine_for_with_pub_entry_and_merges_blocks() {
+    fn parses_machine_for_with_pub_entry_without_merging_blocks() {
         let tokens = Lexer::new(
             r#"
             data Game {
@@ -505,16 +537,22 @@ mod tests {
 
         let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
-        assert_eq!(parsed.items.len(), 2);
+        assert_eq!(parsed.items.len(), 3);
 
-        let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[1] else {
-            panic!("expected merged machine item");
+        let omega_syntax_trees::item::Item::Machine(first_machine) = &parsed.items[1] else {
+            panic!("expected first machine item");
+        };
+        let omega_syntax_trees::item::Item::Machine(second_machine) = &parsed.items[2] else {
+            panic!("expected second machine item");
         };
 
-        assert_eq!(machine.name, "Game");
-        assert_eq!(machine.states.len(), 2);
-        assert_eq!(machine.states[0].name, "new");
-        assert_eq!(machine.states[1].name, "ready");
+        assert_eq!(first_machine.name, "Game");
+        assert_eq!(first_machine.states.len(), 1);
+        assert_eq!(first_machine.states[0].name, "new");
+
+        assert_eq!(second_machine.name, "Game");
+        assert_eq!(second_machine.states.len(), 1);
+        assert_eq!(second_machine.states[0].name, "ready");
     }
 
     #[test]

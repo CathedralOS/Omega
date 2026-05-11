@@ -341,7 +341,12 @@ impl Parser<'_, '_> {
                     .as_str()
                     .parse::<i64>()
                     .map(Expression::Integer)
-                    .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
+                    .map_err(|_| {
+                        ParseError::at_source_span(
+                            "invalid integer literal",
+                            source_span_from_token(source_id, token),
+                        )
+                    }),
                 TokenKind::FloatLiteral => {
                     Ok(Expression::Float(source_text_from_token(source_id, token)))
                 }
@@ -375,7 +380,10 @@ impl Parser<'_, '_> {
                 TokenKind::StringLiteral => Ok(Expression::String(SourceText::generated(
                     token.lexeme.as_str(),
                 ))),
-                _ => Err(ParseError::at_span("expected expression", token.span)),
+                _ => Err(ParseError::at_source_span(
+                    "expected expression",
+                    source_span_from_token(source_id, token),
+                )),
             }
         } else {
             Err(self.error_here("expected expression"))

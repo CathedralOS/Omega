@@ -374,7 +374,7 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
 
     fn error_here(&self, message: impl Into<String>) -> ParseError {
         if let Some(token) = self.peek() {
-            ParseError::at_span(message, token.span)
+            ParseError::at_source_span(message, omega_core::source::SourceSpan::new(self.source_id, token.span))
         } else {
             ParseError::new(message)
         }

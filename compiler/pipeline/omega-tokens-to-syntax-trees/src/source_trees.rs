@@ -30,8 +30,7 @@ pub fn parse_source_trees_with_source(
     parse_source_trees_with_id(source_id, tokens)
 }
 
-pub(crate) fn build_source_trees(source_id: SourceId, mut items: Vec<Item>) -> SourceTrees {
-    merge_machine_items(&mut items);
+pub(crate) fn build_source_trees(source_id: SourceId, items: Vec<Item>) -> SourceTrees {
     let tables = AstTables::from_items(&items);
 
     SourceTrees {
@@ -39,28 +38,4 @@ pub(crate) fn build_source_trees(source_id: SourceId, mut items: Vec<Item>) -> S
         items,
         tables,
     }
-}
-
-fn merge_machine_items(items: &mut Vec<Item>) {
-    let mut merged = Vec::with_capacity(items.len());
-
-    for item in items.drain(..) {
-        match item {
-            Item::Machine(machine) => {
-                if let Some(Item::Machine(existing)) = merged
-                    .iter_mut()
-                    .find(|existing_item| matches!(existing_item, Item::Machine(existing) if existing.name == machine.name))
-                {
-                    existing.contains.extend(machine.contains);
-                    existing.owned_data.extend(machine.owned_data);
-                    existing.states.extend(machine.states);
-                } else {
-                    merged.push(Item::Machine(machine));
-                }
-            }
-            other => merged.push(other),
-        }
-    }
-
-    *items = merged;
 }

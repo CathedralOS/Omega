@@ -1,23 +1,23 @@
-use omega_core::Span;
+use omega_core::source::SourceSpan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     pub message: String,
-    pub span: Option<Span>,
+    pub source_span: SourceSpan,
 }
 
 impl ParseError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
-            span: None,
+            source_span: SourceSpan::default(),
         }
     }
 
-    pub fn at_span(message: impl Into<String>, span: Span) -> Self {
+    pub fn at_source_span(message: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
             message: message.into(),
-            span: Some(span),
+            source_span,
         }
     }
 }
