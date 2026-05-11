@@ -1,11 +1,23 @@
-machine main {
-    owns value: i32 = 1;
+data main {
+    value: i32;
+}
 
-    pub entry() {
-        swap(mut value, mut value);
+machine main -> i32 {
+    pub entry(&mut self) {
+        transition {
+            _ -> swap(&mut self.value, &mut self.value)
+        }
     }
 
-    state swap(left: &mut i32, right: &mut i32) {
+    state swap(&mut self, left: &mut i32, right: &mut i32) {
         left = right;
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
     }
 }

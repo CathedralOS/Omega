@@ -3,18 +3,13 @@ platform Console {
     fn exit_process(return_code: i32);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+}
 
+machine main {
     pub entry(&mut self) {
         self.console.write_line("entry");
-
-        transition {
-            _ -> shutdown()
-        }
-    }
-
-    state shutdown(&mut self) {
         self.console.exit_process(0);
     }
 }

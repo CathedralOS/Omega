@@ -11,16 +11,25 @@ platform Console {
     fn exit_process(return_code: i32);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+    room: Room;
+    line: Line;
+}
 
-    owns room: Room;
-    owns line: Line;
+machine main -> i32 {
+    pub entry(&mut self) {
+        self.room.label = "A1";
+        self.line.text = "Room " + self.room.label;
 
-    pub entry() {
-        room.label = "A1";
-        line.text = "Room " + room.label;
-        console.write_line(line.text);
-        console.exit_process(0);
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        self.console.write_line(self.line.text);
+        self.console.exit_process(0);
+        0
     }
 }

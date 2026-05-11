@@ -1,11 +1,23 @@
-machine main {
-    owns value: i32 = 1;
+data main {
+    value: i32;
+}
 
-    pub entry() {
-        copy(mut value, value);
+machine main -> i32 {
+    pub entry(&mut self) {
+        transition {
+            _ -> copy(&mut self.value, self.value)
+        }
     }
 
-    state copy(out_value: &mut i32, input_value: i32) {
+    state copy(&mut self, out_value: &mut i32, input_value: i32) {
         out_value = input_value;
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
     }
 }

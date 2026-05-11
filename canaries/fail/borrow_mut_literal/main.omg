@@ -1,9 +1,21 @@
-machine main {
-    pub entry() {
-        write(mut 1);
+data main {}
+
+machine main -> i32 {
+    pub entry(&mut self) {
+        transition {
+            _ -> write(&mut 1)
+        }
     }
 
-    fn write(out_value: &mut i32) {
+    state write(&mut self, out_value: &mut i32) {
         out_value = 2;
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
     }
 }

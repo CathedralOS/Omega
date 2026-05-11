@@ -3,24 +3,25 @@ platform Console {
     fn exit_process(return_code: i32);
 }
 
-machine Banner {
-    contains console: Console;
+data Banner {
+    console: Console;
+}
 
-    pub entry() {
-        console.write_line("nested");
+machine Banner::entry {
+    pub entry(&mut self) {
+        self.console.write_line("nested");
     }
 }
 
+data main {
+    banner: Banner;
+    console: Console;
+}
+
 machine main {
-    contains banner: Banner;
-    contains console: Console;
-
-    pub entry() {
-        -> banner.entry() -> shutdown();
-    }
-
-    state shutdown() {
-        console.write_line("continued");
-        console.exit_process(0);
+    pub entry(&mut self) {
+        self.banner.entry();
+        self.console.write_line("continued");
+        self.console.exit_process(0);
     }
 }

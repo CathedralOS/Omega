@@ -13,31 +13,37 @@ platform Console {
     fn exit_process(return_code: i32);
 }
 
-machine main {
-    contains console: Console;
+data main {
+    console: Console;
+    command: Command;
+}
 
-    owns command: Command;
+machine main -> i32 {
+    pub entry(&mut self) {
+        self.command.kind = CommandKind::Look;
 
-    pub entry() {
-        command.kind = CommandKind::Look;
-
-        -> look() when command.kind == CommandKind::Look;
-        -> quit() when command.kind == CommandKind::Quit;
-        -> invalid();
+        transition self.command.kind {
+            CommandKind::Look -> look()
+            CommandKind::Quit -> quit()
+            _ -> invalid()
+        }
     }
 
-    state look() {
-        console.write_line("look");
-        console.exit_process(0);
+    state look(&mut self) {
+        self.console.write_line("look");
+        self.console.exit_process(0);
+        0
     }
 
-    state quit() {
-        console.write_line("quit");
-        console.exit_process(0);
+    state quit(&mut self) {
+        self.console.write_line("quit");
+        self.console.exit_process(0);
+        0
     }
 
-    state invalid() {
-        console.write_line("invalid");
-        console.exit_process(1);
+    state invalid(&mut self) {
+        self.console.write_line("invalid");
+        self.console.exit_process(1);
+        1
     }
 }

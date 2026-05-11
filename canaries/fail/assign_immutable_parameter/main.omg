@@ -1,11 +1,23 @@
-machine main {
-    owns value: i32 = 1;
+data main {
+    value: i32;
+}
 
-    pub entry() {
-        overwrite(value);
+machine main -> i32 {
+    pub entry(&mut self) {
+        transition {
+            _ -> overwrite(self.value)
+        }
     }
 
-    state overwrite(input_value: i32) {
+    state overwrite(&mut self, input_value: i32) {
         input_value = 2;
+
+        transition {
+            _ -> shutdown()
+        }
+    }
+
+    state shutdown(&mut self) {
+        0
     }
 }
