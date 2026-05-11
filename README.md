@@ -129,6 +129,14 @@ Long-term design assumptions:
 
 Current migration note: the old native bring-up bridge has been split apart. Domain logic now lives in explicit backend crates, while `compiler/orchestration/omega-backend-pipeline` owns the remaining phase sequencing and `compiler/representations/omega-backend-plan` carries the temporary aggregate report surface. The long-term pressure stays the same: shrink the aggregate plan as phase-specific representations and artifacts become precise enough to stand alone.
 
+Near-term compiler pipeline direction:
+
+- `omega-compiler` should read like an obvious conveyor belt: load sources, lex, parse, discover imports, assemble syntax, resolve, typecheck, validate, plan backend, emit, optionally write outputs.
+- Source discovery/loading is a subsystem inside `compiler/orchestration/omega-compiler/src/pipeline/source/`, not a responsibility smeared across lexer, parser, and compiler entrypoints.
+- The source subsystem should own frontier management, canonical source identity, file contents, and compiler-local source storage.
+- Lexer and parser should stay narrow: `TokenStream` in, syntax out. Import discovery happens from parsed per-file structure, not by giving the parser orchestration jobs.
+- New crates should come later, only after these boundaries stop moving. For now, the right move is cleaner subsystems inside the orchestration crate.
+
 Legend:
 
 - `[CRATE]` means a Cargo workspace package.

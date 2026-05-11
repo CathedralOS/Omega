@@ -4,7 +4,7 @@ use crate::pipeline::phase_products::{
     AssembledSyntax, BackendPlan, DiscoveredImports, EmittedProgram, LexedSources, LoadedSources,
     ParsedSources, ResolvedProgram, TypedProgram, ValidatedProgram,
 };
-use crate::pipeline::source_storage::SourceStorage;
+use crate::pipeline::source::SourceStorage;
 use omega_core::diagnostics::Diagnostic;
 
 pub struct SourceLoader;

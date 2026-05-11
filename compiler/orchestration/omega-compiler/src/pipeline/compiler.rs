@@ -9,8 +9,7 @@ use crate::pipeline::phase_products::{
     ResolvedProgram, TypedProgram, ValidatedProgram,
 };
 use crate::pipeline::compile_options::CompileOptions;
-use crate::pipeline::import_queue::ImportQueue;
-use crate::pipeline::source_storage::SourceStorage;
+use crate::pipeline::source::{ImportQueue, SourceStorage};
 use omega_core::diagnostics::Diagnostic;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
