@@ -75,6 +75,10 @@ pub(super) fn collect_instruction_relocations(
                 input.entry_machine_name,
             ));
         }
+        SelectedInstructionKind::WriteRuntimeStorageInteger { target_region, .. } => {
+            let symbol = storage_region_symbol_name(*target_region, input.entry_machine_name);
+            context.insert_data_address_at_instruction_start(&symbol);
+        }
         SelectedInstructionKind::WriteRuntimeMachineString { data, .. } => {
             let data_symbol = &input.data.objects.get(*data).symbol;
             context.insert_data_address_at_instruction_start(data_symbol);

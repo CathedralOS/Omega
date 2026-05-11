@@ -41,6 +41,18 @@ pub(super) fn runtime_machine_integer_write_kind(
     }
 }
 
+pub(super) fn runtime_storage_integer_write_kind(
+    byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeMachineIntegerWrite {
+        byte_offset,
+        byte_size,
+        value,
+    }
+}
+
 pub(super) fn runtime_machine_string_write_kind(
     byte_offset: usize,
     byte_length: usize,

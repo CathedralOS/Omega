@@ -292,6 +292,18 @@ fn selected_instruction_name(
                 "write runtime machine integer offset {byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region,
+            byte_offset,
+            byte_size,
+            value,
+        } => {
+            let target_symbol =
+                storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
+            format!(
+                "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             data,

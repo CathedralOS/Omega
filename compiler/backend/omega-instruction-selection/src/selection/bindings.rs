@@ -135,10 +135,15 @@ pub(super) fn resolve_runtime_alias_binding(
             .iter()
             .rev()
             .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
-            .map(|alias| RuntimeResolvedExpression {
-                source_key: alias.expression_source_key,
-                expression: alias_expressions
-                    .to_tree_with_place_suffix(alias.expression, &path[1..]),
+            .map(|alias| {
+                let expression =
+                    alias_expressions.to_tree_with_place_suffix(alias.expression, &path[1..]);
+                resolve_runtime_alias_binding(
+                    &expression,
+                    alias.expression_source_key,
+                    aliases,
+                    alias_expressions,
+                )
             })
             .unwrap_or_else(|| RuntimeResolvedExpression {
                 source_key,
@@ -210,14 +215,25 @@ pub(super) fn resolve_runtime_alias_binding_handle(
         ExpressionNode::Name(path) if path.members.count() > 0 => aliases
             .iter()
             .rev()
-            .find(|alias| alias.source_key == source_key && alias_matches_table_path(alias, &path))
-            .map(|alias| RuntimeResolvedExpressionHandle {
-                source_key: alias.expression_source_key,
-                expression: alias_expressions.insert_copy_with_member_suffix(
+            .find(|alias| {
+                alias.source_key == source_key
+                    && alias_matches_table_path(alias, alias_expressions, &path)
+            })
+            .map(|alias| {
+                let resolved = resolve_runtime_alias_binding_handle(
                     alias.expression,
-                    path.members,
-                    1,
-                ),
+                    alias.expression_source_key,
+                    aliases,
+                    alias_expressions,
+                );
+                RuntimeResolvedExpressionHandle {
+                    source_key: resolved.source_key,
+                    expression: alias_expressions.insert_copy_with_member_suffix(
+                        resolved.expression,
+                        path.members,
+                        1,
+                    ),
+                }
             })
             .unwrap_or(RuntimeResolvedExpressionHandle {
                 source_key,
@@ -301,10 +317,21 @@ fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
         .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
 }
 
-fn alias_matches_table_path(alias: &RuntimeAliasBinding, path: &TableNamePath) -> bool {
-    alias.parameter_symbol.is_valid()
+fn alias_matches_table_path(
+    alias: &RuntimeAliasBinding,
+    table: &ExpressionTable,
+    path: &TableNamePath,
+) -> bool {
+    if alias.parameter_symbol.is_valid()
         && path.head_symbol.is_valid()
         && alias.parameter_symbol == path.head_symbol
+    {
+        return true;
+    }
+
+    table.name_path_members(path.members)
+        .first()
+        .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
 }
 
 fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {

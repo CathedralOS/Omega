@@ -7,7 +7,7 @@ use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
     strip_mutable_expression,
 };
-use super::super::super::storage_places::resolve_machine_owned_place;
+use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::text_writes::{
     runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
 };
@@ -155,10 +155,12 @@ fn select_runtime_resolved_target_mutation_writes(
     ) else {
         return;
     };
-    let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
-        &input.layouts,
-        input.entry_key.machine,
-        target_source_key.machine,
+    let Some(target_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        target_source_key,
+        source_machine,
+        source_state,
         resolved_target,
     ) else {
         return;
@@ -170,9 +172,10 @@ fn select_runtime_resolved_target_mutation_writes(
         value,
     );
     selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
-            byte_offset,
-            byte_size,
+        kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: target_place.region,
+            byte_offset: target_place.byte_offset,
+            byte_size: target_place.byte_count,
             value,
         },
         source_key: operation_source_key,

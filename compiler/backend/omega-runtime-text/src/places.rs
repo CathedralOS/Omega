@@ -8,6 +8,10 @@ pub fn expression_place_eq(left: &Expression, right: &Expression) -> bool {
         (Expression::Indexed(left), Expression::Indexed(right)) => {
             expression_place_eq(&left.collection, &right.collection) && left.index == right.index
         }
+        (Expression::Member(left), Expression::Member(right)) => {
+            left.member == right.member
+                && expression_place_eq(&left.receiver, &right.receiver)
+        }
         (Expression::Mutable(left), right) => expression_place_eq(left, right),
         (left, Expression::Mutable(right)) => expression_place_eq(left, right),
         _ => left == right,
@@ -40,6 +44,15 @@ pub fn expression_place_eq_across_tables(
                 right.collection,
             ) && expression_eq_across_tables(left_table, left.index, right_table, right.index)
         }
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+            left.member == right.member
+                && expression_place_eq_across_tables(
+                    left_table,
+                    left.receiver,
+                    right_table,
+                    right.receiver,
+                )
+        }
         (ExpressionNode::Mutable(left), _) => {
             expression_place_eq_across_tables(left_table, *left, right_table, right)
         }
@@ -56,14 +69,16 @@ pub fn expression_name_with_suffix_eq_in_table(
     place: ExpressionHandle,
     suffix: &str,
 ) -> bool {
-    let ExpressionNode::Name(base_path) = table.expression(base) else {
-        return false;
-    };
-    let ExpressionNode::Name(place_path) = table.expression(place) else {
-        return false;
-    };
-
-    table_name_path_with_suffix_eq(table, base_path, place_path, suffix)
+    match (table.expression(base), table.expression(place)) {
+        (ExpressionNode::Name(base_path), ExpressionNode::Name(place_path)) => {
+            table_name_path_with_suffix_eq(table, base_path, place_path, suffix)
+        }
+        (_, ExpressionNode::Member(member)) => {
+            member.member.as_str() == suffix
+                && expression_place_eq_across_tables(table, base, table, member.receiver)
+        }
+        _ => false,
+    }
 }
 
 pub fn expression_name_with_suffix_eq_tree(
@@ -72,14 +87,16 @@ pub fn expression_name_with_suffix_eq_tree(
     place: &Expression,
     suffix: &str,
 ) -> bool {
-    let ExpressionNode::Name(base_path) = table.expression(base) else {
-        return false;
-    };
-    let Expression::Name(place_path) = place else {
-        return false;
-    };
-
-    table_name_path_with_tree_suffix_eq(table, base_path, place_path, suffix)
+    match (table.expression(base), place) {
+        (ExpressionNode::Name(base_path), Expression::Name(place_path)) => {
+            table_name_path_with_tree_suffix_eq(table, base_path, place_path, suffix)
+        }
+        (_, Expression::Member(member)) => {
+            member.member.as_str() == suffix
+                && expression_place_eq(&table.to_tree(base), &member.receiver)
+        }
+        _ => false,
+    }
 }
 
 fn name_path_eq(left: &NamePath, right: &NamePath) -> bool {
@@ -208,6 +225,15 @@ fn expression_eq_across_tables(
                 && expression_eq_across_tables(left_table, left.index, right_table, right.index)
         }
         (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        (ExpressionNode::Member(left), ExpressionNode::Member(right)) => {
+            left.member == right.member
+                && expression_eq_across_tables(
+                    left_table,
+                    left.receiver,
+                    right_table,
+                    right.receiver,
+                )
+        }
         (ExpressionNode::Mutable(left), ExpressionNode::Mutable(right)) => {
             expression_eq_across_tables(left_table, *left, right_table, *right)
         }

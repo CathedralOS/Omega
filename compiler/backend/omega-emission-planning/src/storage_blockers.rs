@@ -4,6 +4,7 @@ use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
 use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
+use omega_target_operations::SelectedInstructionKind;
 
 use super::runtime_text_blockers::{
     runtime_text_write_for_statement, runtime_text_write_is_planned,
@@ -83,7 +84,7 @@ fn collect_runtime_body_storage_blockers(
     }
 
     for (_, write) in input.runtime_storage.writes.iter() {
-        if runtime_storage_write_has_planned_text_write(input, write) {
+        if runtime_storage_write_is_planned(input, write) {
             continue;
         }
 
@@ -118,6 +119,28 @@ fn runtime_storage_write_has_planned_text_write(
             ) && runtime_text_write_is_planned(input, text_write)
         },
     )
+}
+
+fn runtime_storage_write_is_planned(
+    input: &EmissionPlanningInput<'_>,
+    write: &RuntimeStorageWrite,
+) -> bool {
+    runtime_storage_write_has_planned_text_write(input, write)
+        || input.instructions.instructions.iter().any(|(_, instruction)| {
+            if instruction.source_key != write.source_key
+                || instruction.source_statement != write.statement_index
+            {
+                return false;
+            }
+
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
+            )
+        })
 }
 
 fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {

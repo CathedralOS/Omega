@@ -1,6 +1,7 @@
 use omega_calling_conventions::PlatformCallData;
 use omega_control_flow::StateKey;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
+use omega_runtime_text::RuntimeTextPlan;
 use omega_target_operations::{TargetDataObject, TargetDataPlan};
 
 pub(super) fn collect_host_call_data(
@@ -12,10 +13,22 @@ pub(super) fn collect_host_call_data(
         PlatformCallData::FirstTextArgument { append_newline } => {
             collect_text_argument_data(host_calls, host_call, data_plan, append_newline);
         }
-        PlatformCallData::MutableOutputBuffer { byte_capacity } => {
-            collect_mutable_output_buffer(host_call, data_plan, byte_capacity);
-        }
+        PlatformCallData::MutableOutputBuffer { .. } => {}
         PlatformCallData::None => {}
+    }
+}
+
+pub(super) fn collect_runtime_text_buffer_data(
+    runtime_text: &RuntimeTextPlan,
+    data_plan: &mut TargetDataPlan,
+) {
+    for (_, buffer) in runtime_text.buffers.iter() {
+        collect_runtime_text_buffer(
+            buffer.source_key,
+            buffer.statement_index,
+            data_plan,
+            buffer.byte_capacity,
+        );
     }
 }
 
@@ -89,8 +102,9 @@ fn collect_text_argument_data(
     });
 }
 
-fn collect_mutable_output_buffer(
-    host_call: &HostCall,
+fn collect_runtime_text_buffer(
+    source_key: StateKey,
+    source_statement: usize,
     data_plan: &mut TargetDataPlan,
     byte_capacity: usize,
 ) {
@@ -105,7 +119,7 @@ fn collect_mutable_output_buffer(
         offset,
         bytes: byte_span,
         alignment: 16,
-        source_key: host_call.source_key,
-        source_statement: host_call.statement_index,
+        source_key,
+        source_statement,
     });
 }

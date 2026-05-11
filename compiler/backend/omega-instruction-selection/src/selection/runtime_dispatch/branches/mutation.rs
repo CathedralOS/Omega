@@ -2,7 +2,9 @@ use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
 use omega_typed_trees::expression::Expression;
 
-use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
+use super::super::super::storage_places::{
+    resolve_runtime_storage_place, static_integer_value,
+};
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
@@ -20,17 +22,20 @@ pub(super) fn select_runtime_resolved_mutation_write(
     resolved_value: &Expression,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    if let Some((byte_offset, byte_size)) = resolve_machine_owned_place(
-        &input.layouts,
-        input.entry_key.machine,
-        operation_key.machine,
+    if let Some(target_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        operation_key,
+        operation_machine,
+        operation_state,
         resolved_target,
     ) && let Some(value) = static_integer_value(&input.layouts, resolved_value)
     {
         selected_instructions.push(SelectedInstruction {
-            kind: SelectedInstructionKind::WriteRuntimeMachineInteger {
-                byte_offset,
-                byte_size,
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: target_place.region,
+                byte_offset: target_place.byte_offset,
+                byte_size: target_place.byte_count,
                 value,
             },
             source_key: operation_key,

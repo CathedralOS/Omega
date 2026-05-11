@@ -111,6 +111,9 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeMachineInteger { byte_size, .. } => {
             runtime_machine_integer_write_width(input.target.architecture, *byte_size)
         }
+        SelectedInstructionKind::WriteRuntimeStorageInteger { byte_size, .. } => {
+            runtime_machine_integer_write_width(input.target.architecture, *byte_size)
+        }
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)
         }

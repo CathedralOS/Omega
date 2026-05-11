@@ -152,6 +152,17 @@ pub(super) fn encode_machine_instruction(
             *byte_size,
             *value,
         ),
+        SelectedInstructionKind::WriteRuntimeStorageInteger {
+            byte_offset,
+            byte_size,
+            value,
+            ..
+        } => runtime_storage::encode_runtime_machine_integer_write(
+            input,
+            *byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             byte_length,

@@ -1,7 +1,7 @@
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
+    ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression,
 };
 use omega_typed_trees::name::ProgramName;
 
@@ -122,15 +122,16 @@ fn text_place_for_buffer_target(
     target: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
     match *expressions.expression(target) {
-        ExpressionNode::Name(path) => {
-            let members = expressions
-                .copy_name_path_members_with_suffix(path.members, ProgramName::generated("text"));
-            Some(expressions.insert(ExpressionNode::Name(TableNamePath {
-                members,
-                head_symbol: path.head_symbol,
-                symbol: SymbolHandle::invalid(),
-            })))
-        }
+        ExpressionNode::Name(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_) => Some(expressions.insert(ExpressionNode::Member(
+            TableMemberExpression {
+                receiver: target,
+                member_symbol: SymbolHandle::invalid(),
+                member: ProgramName::generated("text"),
+            },
+        ))),
+        ExpressionNode::Mutable(inner) => text_place_for_buffer_target(expressions, inner),
         _ => None,
     }
 }

@@ -220,7 +220,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_runtime_text_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });
     backend_plan.data = record_backend_phase(&mut phase_timings, "target data", || {
-        build_target_data_plan(&backend_plan.host_calls, &backend_plan.state_storage)
+        build_target_data_plan(
+            &backend_plan.host_calls,
+            &backend_plan.state_storage,
+            &backend_plan.runtime_text,
+        )
     });
     backend_plan.instructions = record_backend_phase(&mut phase_timings, "instructions", || {
         build_instruction_plan(&InstructionSelectionInput {

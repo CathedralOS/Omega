@@ -105,6 +105,12 @@ pub(super) fn lower_machine_instruction_kind(
             byte_size,
             value,
         } => runtime_storage::runtime_machine_integer_write_kind(*byte_offset, *byte_size, *value),
+        SelectedInstructionKind::WriteRuntimeStorageInteger {
+            byte_offset,
+            byte_size,
+            value,
+            ..
+        } => runtime_storage::runtime_storage_integer_write_kind(*byte_offset, *byte_size, *value),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             byte_length,

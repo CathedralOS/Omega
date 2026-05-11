@@ -254,6 +254,7 @@ dependencies = [
  "omega-calling-conventions",
  "omega-control-flow",
  "omega-platform-interface",
+ "omega-runtime-text",
  "omega-state-storage",
  "omega-target-operations",
  "omega-typed-trees",

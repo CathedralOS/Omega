@@ -105,6 +105,12 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimeStorageInteger {
+        target_region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: TargetDataObjectHandle,
