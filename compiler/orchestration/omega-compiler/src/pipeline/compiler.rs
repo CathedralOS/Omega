@@ -1,5 +1,4 @@
-use std::path::PathBuf;
-
+use crate::pipeline::compile_report::CompileReport;
 use crate::pipeline::phase_components::{
     BackendPlanner, Emitter, ImportDiscovery, LexerPhase, OutputWriter, ParserPhase, Resolver,
     SourceLoader, SyntaxAssembler, Typechecker, Validator,
@@ -11,24 +10,6 @@ use crate::pipeline::phase_products::{
 use crate::pipeline::compile_options::CompileOptions;
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use omega_core::diagnostics::Diagnostic;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompileReport {
-    pub root_path: PathBuf,
-    pub source_file_count: usize,
-    pub wrote_output: bool,
-}
-
-impl CompileReport {
-    pub fn summary(&self) -> String {
-        format!(
-            "compiled {} source file(s) from {}; write_output={}",
-            self.source_file_count,
-            self.root_path.display(),
-            self.wrote_output
-        )
-    }
-}
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     Compiler::new(options).compile()
