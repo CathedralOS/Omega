@@ -79,6 +79,12 @@ pub(super) fn collect_state_codegen_blockers(
                         state_flow.key,
                         operation.statement_index,
                     ) => {}
+                OperationKind::Expression
+                    if state_statement_has_expression_lowering(
+                        input,
+                        state_flow.key,
+                        operation.statement_index,
+                    ) => {}
                 _ => {
                     blockers.insert(blocker(
                         "state codegen",
@@ -111,6 +117,19 @@ fn state_statement_has_storage_mutation(
     input.state_storage.mutations.iter().any(|(_, mutation)| {
         mutation.source_key == source_key && mutation.statement_index == statement_index
     })
+}
+
+fn state_statement_has_expression_lowering(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    state_statement_has_storage_mutation(input, source_key, statement_index)
+        || state_statement_has_host_call(input, source_key, statement_index)
+        || state_statement_has_state_call(input, source_key, statement_index)
+        || input.state_values.values.iter().any(|(_, value)| {
+            value.source_key == source_key && value.statement_index == statement_index
+        })
 }
 
 fn state_statement_has_state_call(
