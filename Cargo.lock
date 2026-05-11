@@ -220,7 +220,7 @@ dependencies = [
  "omega-state-storage",
  "omega-state-values",
  "omega-syntax-trees",
- "omega-syntax-trees-to-typed-trees",
+ "omega-syntax-trees-to-resolved-trees",
  "omega-target",
  "omega-target-operations",
  "omega-tokens",
@@ -470,6 +470,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-resolved-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+]
+
+[[package]]
+name = "omega-resolved-trees-to-typed-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-resolved-trees",
+ "omega-source-files-to-tokens",
+ "omega-syntax-trees-to-resolved-trees",
+ "omega-tokens-to-syntax-trees",
+ "omega-typed-trees",
+]
+
+[[package]]
 name = "omega-runtime-bodies"
 version = "0.1.0"
 dependencies = [
@@ -568,8 +587,17 @@ dependencies = [
 name = "omega-state-graph"
 version = "0.1.0"
 dependencies = [
+ "omega-core",
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-state-graph-to-control-flow"
+version = "0.1.0"
+dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-state-graph",
  "omega-typed-trees",
 ]
 
@@ -626,12 +654,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-syntax-trees-to-typed-trees"
+name = "omega-syntax-trees-to-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "omega-resolved-trees",
+ "omega-source-files-to-tokens",
  "omega-syntax-trees",
- "omega-typed-trees",
+ "omega-tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -694,6 +724,15 @@ version = "0.1.0"
 dependencies = [
  "omega-control-flow",
  "omega-core",
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-typed-trees-to-state-graph"
+version = "0.1.0"
+dependencies = [
+ "omega-core",
+ "omega-state-graph",
  "omega-typed-trees",
 ]
 

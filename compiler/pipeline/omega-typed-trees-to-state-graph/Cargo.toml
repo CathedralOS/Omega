@@ -1,0 +1,14 @@
+[package]
+name = "omega-typed-trees-to-state-graph"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_typed_trees_to_state_graph"
+path = "src/lib.rs"
+
+[dependencies]
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-core = { path = "../../foundation/omega-core" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

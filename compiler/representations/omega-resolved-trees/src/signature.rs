@@ -1,0 +1,21 @@
+use crate::name::ProgramName;
+use crate::types::TypeReference;
+use omega_core::symbols::SymbolHandle;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateSignature {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub parameters: Vec<StateParameter>,
+    pub return_type: Option<TypeReference>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateParameter {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub type_reference: TypeReference,
+    pub is_const: bool,
+    pub is_mutable: bool,
+    pub is_self: bool,
+}

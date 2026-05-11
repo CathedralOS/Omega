@@ -1,13 +1,12 @@
 [package]
-name = "omega-state-graph"
+name = "omega-resolved-trees"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_state_graph"
+name = "omega_resolved_trees"
 path = "src/lib.rs"
 
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
-omega-typed-trees = { path = "../omega-typed-trees" }

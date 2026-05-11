@@ -4,8 +4,6 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 pub type StateParameterHandle = Handle<StateParameterNode>;
 pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
-pub type ContainsHandle = Handle<ContainsNode>;
-pub type OwnedDataHandle = Handle<OwnedDataNode>;
 pub type MachineHandle = Handle<MachineNode>;
 pub type PlatformHandle = Handle<PlatformNode>;
 
@@ -165,22 +163,7 @@ pub struct DataVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
-    pub contains: Vec<Contains>,
-    pub owned_data: Vec<OwnedData>,
     pub states: Vec<State>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Contains {
-    pub name: Identifier,
-    pub type_name: Identifier,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedData {
-    pub name: Identifier,
-    pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<crate::expression::Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -221,8 +204,6 @@ pub struct ItemTable {
     state_parameter_handles: Arena<StateParameterHandle>,
     state_signature_handles: Arena<StateSignatureHandle>,
     statement_handles: Arena<crate::statement::StatementHandle>,
-    contains: Arena<ContainsNode>,
-    owned_data: Arena<OwnedDataNode>,
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
 }
@@ -236,8 +217,6 @@ impl ItemTable {
             state_parameter_handles: Arena::new(),
             state_signature_handles: Arena::new(),
             statement_handles: Arena::new(),
-            contains: Arena::new(),
-            owned_data: Arena::new(),
             machines: Arena::new(),
             platforms: Arena::new(),
         }
@@ -284,14 +263,6 @@ impl ItemTable {
         self.statement_handles.span_or_empty(span)
     }
 
-    pub fn contains_nodes(&self, span: HandleSpan<ContainsNode>) -> &[ContainsNode] {
-        self.contains.span_or_empty(span)
-    }
-
-    pub fn owned_data_nodes(&self, span: HandleSpan<OwnedDataNode>) -> &[OwnedDataNode] {
-        self.owned_data.span_or_empty(span)
-    }
-
     pub fn state_parameter_count(&self) -> usize {
         self.state_parameters.len()
     }
@@ -310,14 +281,6 @@ impl ItemTable {
 
     pub fn platform_count(&self) -> usize {
         self.platforms.len()
-    }
-
-    pub fn contains_count(&self) -> usize {
-        self.contains.len()
-    }
-
-    pub fn owned_data_count(&self) -> usize {
-        self.owned_data.len()
     }
 
     pub fn insert_state_signature_tree(
@@ -375,12 +338,6 @@ impl ItemTable {
         type_references: &mut crate::types::TypeReferenceTable,
         expressions: &mut crate::expression::ExpressionTable,
     ) -> MachineHandle {
-        let contains = self.insert_contains_span_from_trees(&machine.contains);
-        let owned_data = self.insert_owned_data_span_from_trees(
-            &machine.owned_data,
-            type_references,
-            expressions,
-        );
         let states = self.insert_state_span_from_trees(
             &machine.states,
             statements,
@@ -389,8 +346,6 @@ impl ItemTable {
         );
         self.machines.append(MachineNode {
             name: machine.name.clone(),
-            contains,
-            owned_data,
             states,
         })
     }
@@ -544,33 +499,6 @@ impl ItemTable {
         }
     }
 
-    fn insert_contains_span_from_trees(&mut self, contains: &[Contains]) -> HandleSpan<ContainsNode> {
-        self.contains.insert_many(contains.iter().map(|contained| ContainsNode {
-            name: contained.name.clone(),
-            type_name: contained.type_name.clone(),
-        }))
-    }
-
-    fn insert_owned_data_span_from_trees(
-        &mut self,
-        owned_data: &[OwnedData],
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<OwnedDataNode> {
-        self.owned_data.insert_many(owned_data.iter().map(|owned| {
-            let type_reference = type_references.insert_tree(&owned.type_reference, expressions);
-            let initial_value = owned
-                .initial_value
-                .as_ref()
-                .map(|value| expressions.insert_tree(value))
-                .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
-            OwnedDataNode {
-                name: owned.name.clone(),
-                type_reference,
-                initial_value,
-            }
-        }))
-    }
 }
 
 impl Default for ItemTable {
@@ -604,23 +532,8 @@ pub struct StateNode {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ContainsNode {
-    pub name: Identifier,
-    pub type_name: Identifier,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct OwnedDataNode {
-    pub name: Identifier,
-    pub type_reference: crate::types::TypeReferenceHandle,
-    pub initial_value: crate::expression::ExpressionHandle,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineNode {
     pub name: Identifier,
-    pub contains: HandleSpan<ContainsNode>,
-    pub owned_data: HandleSpan<OwnedDataNode>,
     pub states: HandleSpan<StateNode>,
 }
 

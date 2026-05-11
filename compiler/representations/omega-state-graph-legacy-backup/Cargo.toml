@@ -1,11 +1,11 @@
 [package]
-name = "omega-state-graph"
+name = "omega-control-flow"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_state_graph"
+name = "omega_control_flow"
 path = "src/lib.rs"
 
 [dependencies]

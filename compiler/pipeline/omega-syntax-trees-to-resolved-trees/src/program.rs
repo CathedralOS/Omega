@@ -1,0 +1,61 @@
+use crate::item::lower_item;
+use omega_core::diagnostics::Diagnostic;
+use omega_syntax_trees::{self as syntax, SyntaxTrees};
+use omega_resolved_trees::Program;
+
+pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnostic> {
+    let mut lowerer = Lowerer::default();
+
+    for item in &syntax_trees.items {
+        lower_item(&mut lowerer, item)?;
+    }
+
+    lowerer.finish()
+}
+
+pub fn lower_program(items: &[syntax::item::Item]) -> Result<Program, Diagnostic> {
+    let syntax_trees = SyntaxTrees::from_items(Default::default(), items.to_vec());
+    lower_syntax_trees(&syntax_trees)
+}
+
+#[derive(Default)]
+pub(crate) struct Lowerer {
+    pub(crate) program: Program,
+}
+
+impl Lowerer {
+    pub(crate) fn finish(mut self) -> Result<Program, Diagnostic> {
+        self.program.rebuild_tables();
+        Ok(self.program)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lower_syntax_trees;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn lowers_dungeon_style_machine_program() {
+        let source = r#"
+        data Inventory {
+            gold: u32[exact];
+        }
+
+        machine Inventory::clear {
+            pub entry(&mut self, inventory: &mut Inventory) {
+                inventory.gold = 0;
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+        assert_eq!(program.data_definitions.len(), 1);
+        assert_eq!(program.machines.len(), 1);
+        assert_eq!(program.machines[0].states.len(), 1);
+    }
+}

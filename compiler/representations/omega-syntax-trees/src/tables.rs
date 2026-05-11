@@ -121,8 +121,6 @@ mod tests {
     fn ast_tables_collect_state_expression_and_type_payloads() {
         let items = vec![Item::Machine(Machine {
             name: Identifier::generated("Main"),
-            contains: Vec::new(),
-            owned_data: Vec::new(),
             states: vec![State {
                 name: Identifier::generated("entry"),
                 parameters: Vec::new(),

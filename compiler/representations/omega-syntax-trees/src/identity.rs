@@ -104,17 +104,6 @@ fn count_item(item: &Item, counts: &mut AstIdentityStorageCounts) {
         Item::Use(use_item) => count_identifier_path(&use_item.path, counts),
         Item::Machine(machine) => {
             count_identifier(&machine.name, counts);
-            for contained in &machine.contains {
-                count_identifier(&contained.name, counts);
-                count_identifier(&contained.type_name, counts);
-            }
-            for owned_data in &machine.owned_data {
-                count_identifier(&owned_data.name, counts);
-                count_type_reference(&owned_data.type_reference, counts);
-                if let Some(initial_value) = &owned_data.initial_value {
-                    count_expression(initial_value, counts);
-                }
-            }
             for state in &machine.states {
                 count_identifier(&state.name, counts);
                 for parameter in &state.parameters {

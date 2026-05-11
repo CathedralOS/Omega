@@ -6,15 +6,15 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateGraph {
+pub struct ControlFlowPlan {
     pub expressions: ExpressionTable,
-    pub machines: Arena<MachineGraph>,
-    pub states: Arena<StateNode>,
+    pub machines: Arena<MachineFlow>,
+    pub states: Arena<StateFlow>,
     pub operations: Arena<Operation>,
-    pub transitions: Arena<TransitionEdge>,
+    pub transitions: Arena<TransitionFlow>,
 }
 
-impl StateGraph {
+impl ControlFlowPlan {
     pub fn state_key_by_symbols(
         &self,
         machine_symbol: SymbolHandle,
@@ -29,14 +29,14 @@ impl StateGraph {
             .map(|state| state.key)
     }
 
-    pub fn machine_by_symbol(&self, machine_symbol: SymbolHandle) -> Option<&MachineGraph> {
+    pub fn machine_by_symbol(&self, machine_symbol: SymbolHandle) -> Option<&MachineFlow> {
         self.machines
             .iter()
             .find(|(_, machine)| machine.symbol == machine_symbol)
             .map(|(_, machine)| machine)
     }
 
-    pub fn state_by_key(&self, key: StateKey) -> Option<&StateNode> {
+    pub fn state_by_key(&self, key: StateKey) -> Option<&StateFlow> {
         let machine = self.machine_by_symbol(key.machine)?;
 
         self.states
@@ -89,14 +89,14 @@ impl StateKey {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MachineGraph {
+pub struct MachineFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub contains: Vec<ContainedGraph>,
-    pub states: HandleSpan<StateNode>,
+    pub contains: Vec<ContainedFlow>,
+    pub states: HandleSpan<StateFlow>,
 }
 
-impl Default for MachineGraph {
+impl Default for MachineFlow {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
@@ -108,7 +108,7 @@ impl Default for MachineGraph {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ContainedGraph {
+pub struct ContainedFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
@@ -116,16 +116,16 @@ pub struct ContainedGraph {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateNode {
+pub struct StateFlow {
     pub key: StateKey,
     pub name: ProgramName,
     pub index: usize,
-    pub parameters: Vec<StateParameterNode>,
+    pub parameters: Vec<StateParameterFlow>,
     pub operations: HandleSpan<Operation>,
-    pub transitions: HandleSpan<TransitionEdge>,
+    pub transitions: HandleSpan<TransitionFlow>,
 }
 
-impl Default for StateNode {
+impl Default for StateFlow {
     fn default() -> Self {
         Self {
             key: StateKey::default(),
@@ -139,7 +139,7 @@ impl Default for StateNode {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StateParameterNode {
+pub struct StateParameterFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
 }
@@ -191,7 +191,7 @@ pub enum OperationExpressionRefs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TransitionEdge {
+pub struct TransitionFlow {
     pub target: PlannedTransitionTarget,
     pub continuation: Option<PlannedTransitionTarget>,
     pub guard: TransitionGuard,
@@ -222,7 +222,7 @@ pub enum PlannedTransitionTarget {
     Terminal,
 }
 
-impl Default for TransitionEdge {
+impl Default for TransitionFlow {
     fn default() -> Self {
         Self {
             target: PlannedTransitionTarget::Terminal,
