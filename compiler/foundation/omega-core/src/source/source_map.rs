@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::source::{FileId, SourceFile, SourceSpan};
+use crate::source::{SourceId, SourceFile, SourceSpan};
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SourceMap {
@@ -15,7 +15,7 @@ impl SourceMap {
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
         self.files.push(SourceFile {
-            id: FileId(self.files.len()),
+            source_id: SourceId(self.files.len()),
             path,
             source: Arc::from(source),
         });
@@ -25,8 +25,8 @@ impl SourceMap {
             .expect("source map should contain added file")
     }
 
-    pub fn get(&self, file_id: FileId) -> Option<&SourceFile> {
-        self.files.get(file_id.0)
+    pub fn get(&self, source_id: SourceId) -> Option<&SourceFile> {
+        self.files.get(source_id.0)
     }
 
     pub fn len(&self) -> usize {
@@ -38,7 +38,7 @@ impl SourceMap {
     }
 
     pub fn text_at(&self, source_span: SourceSpan) -> &str {
-        self.get(source_span.file_id)
+        self.get(source_span.source_id)
             .map(|file| file.text_at(source_span.span))
             .unwrap_or("")
     }
@@ -48,25 +48,25 @@ impl SourceMap {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::source::{FileId, SourceMap, SourceSpan};
+    use crate::source::{SourceId, SourceMap, SourceSpan};
     use crate::Span;
 
     #[test]
     fn resolves_source_span_text() {
         let mut sources = SourceMap::default();
-        let file_id = sources
+        let source_id = sources
             .add(PathBuf::from("main.omg"), String::from("machine main {}"))
-            .id;
-        let source_span = SourceSpan::new(file_id, Span::new(8, 12));
+            .source_id;
+        let source_span = SourceSpan::new(source_id, Span::new(8, 12));
 
-        assert_eq!(file_id, FileId(0));
+        assert_eq!(source_id, SourceId(0));
         assert_eq!(sources.text_at(source_span), "main");
     }
 
     #[test]
     fn invalid_source_span_resolves_to_empty_text() {
         let sources = SourceMap::default();
-        let source_span = SourceSpan::new(FileId(99), Span::new(0, 4));
+        let source_span = SourceSpan::new(SourceId(99), Span::new(0, 4));
 
         assert_eq!(sources.text_at(source_span), "");
     }

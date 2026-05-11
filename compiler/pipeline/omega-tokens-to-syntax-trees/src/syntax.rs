@@ -1,5 +1,5 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
-use omega_core::source::FileId;
+use omega_core::source::SourceId;
 use omega_core::Span;
 use omega_source_files_to_tokens::{PunctuationKind, Token, TokenKind};
 
@@ -9,7 +9,7 @@ pub type SyntaxNodeHandle = Handle<SyntaxNode>;
 pub enum SyntaxKind {
     #[default]
     Missing,
-    File,
+    SourceRoot,
     UseItem,
     TargetItem,
     TrustItem,
@@ -100,7 +100,7 @@ impl SyntaxTable {
 
     pub fn token_span(
         &self,
-        file_tokens: HandleSpan<SyntaxToken>,
+        source_tokens: HandleSpan<SyntaxToken>,
         start_index: usize,
         end_index: usize,
     ) -> HandleSpan<SyntaxToken> {
@@ -108,7 +108,7 @@ impl SyntaxTable {
             return HandleSpan::empty();
         }
 
-        let base = file_tokens.start();
+        let base = source_tokens.start();
         let start = Handle::from_parts(
             base.arena_index()
                 .checked_add(u32::try_from(start_index).expect("token index overflow"))
@@ -121,9 +121,9 @@ impl SyntaxTable {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SyntaxFile {
-    pub file_id: FileId,
+pub struct SyntaxTree {
+    pub source_id: SourceId,
     pub root: SyntaxNodeHandle,
-    pub file_tokens: HandleSpan<SyntaxToken>,
+    pub source_tokens: HandleSpan<SyntaxToken>,
     pub syntax: SyntaxTable,
 }

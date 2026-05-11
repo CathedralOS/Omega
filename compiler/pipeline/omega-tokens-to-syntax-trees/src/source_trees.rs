@@ -1,41 +1,41 @@
 use crate::parse_error::ParseError;
 use omega_syntax_trees::item::Item;
 use omega_syntax_trees::tables::AstTables;
-use omega_core::source::FileId;
+use omega_core::source::SourceId;
 use omega_source_files_to_tokens::Token;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AstFile {
-    pub file_id: FileId,
+pub struct SourceTrees {
+    pub source_id: SourceId,
     pub items: Vec<Item>,
     pub tables: AstTables,
 }
 
-pub fn parse_ast_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    parse_ast_file_with_id(FileId::default(), tokens)
+pub fn parse_source_trees(tokens: &[Token<'_>]) -> Result<SourceTrees, ParseError> {
+    parse_source_trees_with_id(SourceId::default(), tokens)
 }
 
-pub fn parse_ast_file_with_id(
-    file_id: FileId,
+pub fn parse_source_trees_with_id(
+    source_id: SourceId,
     tokens: &[Token<'_>],
-) -> Result<AstFile, ParseError> {
-    crate::parser::parse_ast_file_impl(file_id, tokens)
+) -> Result<SourceTrees, ParseError> {
+    crate::parser::parse_source_trees_impl(source_id, tokens)
 }
 
-pub fn parse_ast_file_with_source(
-    file_id: FileId,
+pub fn parse_source_trees_with_source(
+    source_id: SourceId,
     _source: std::sync::Arc<str>,
     tokens: &[Token<'_>],
-) -> Result<AstFile, ParseError> {
-    parse_ast_file_with_id(file_id, tokens)
+) -> Result<SourceTrees, ParseError> {
+    parse_source_trees_with_id(source_id, tokens)
 }
 
-pub(crate) fn build_ast_file(file_id: FileId, mut items: Vec<Item>) -> AstFile {
+pub(crate) fn build_source_trees(source_id: SourceId, mut items: Vec<Item>) -> SourceTrees {
     merge_machine_items(&mut items);
     let tables = AstTables::from_items(&items);
 
-    AstFile {
-        file_id,
+    SourceTrees {
+        source_id,
         items,
         tables,
     }

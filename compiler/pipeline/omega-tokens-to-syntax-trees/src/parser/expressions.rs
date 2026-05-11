@@ -333,7 +333,7 @@ impl Parser<'_, '_> {
             return Ok(expression);
         }
 
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         if let Some(token) = self.advance() {
             match token.kind {
                 TokenKind::IntegerLiteral => token
@@ -343,10 +343,10 @@ impl Parser<'_, '_> {
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
                 TokenKind::FloatLiteral => {
-                    Ok(Expression::Float(source_text_from_token(file_id, token)))
+                    Ok(Expression::Float(source_text_from_token(source_id, token)))
                 }
                 TokenKind::Identifier => {
-                    let mut path = vec![identifier_from_token(file_id, token)];
+                    let mut path = vec![identifier_from_token(source_id, token)];
 
                     while self.consume(".") || self.consume("::") {
                         path.push(self.expect_member_name_segment()?);
@@ -364,13 +364,13 @@ impl Parser<'_, '_> {
                 TokenKind::Keyword(KeywordKind::True) => Ok(Expression::Boolean(true)),
                 TokenKind::Keyword(KeywordKind::False) => Ok(Expression::Boolean(false)),
                 TokenKind::Keyword(KeywordKind::SelfValue) => Ok(Expression::Name(
-                    vec![identifier_from_token(file_id, token)].into(),
+                    vec![identifier_from_token(source_id, token)].into(),
                 )),
                 TokenKind::Keyword(KeywordKind::State) => Ok(Expression::Name(
-                    vec![identifier_from_token(file_id, token)].into(),
+                    vec![identifier_from_token(source_id, token)].into(),
                 )),
                 TokenKind::Keyword(KeywordKind::Target) => Ok(Expression::Name(
-                    vec![identifier_from_token(file_id, token)].into(),
+                    vec![identifier_from_token(source_id, token)].into(),
                 )),
                 TokenKind::StringLiteral => Ok(Expression::String(SourceText::generated(
                     token.lexeme.as_str(),

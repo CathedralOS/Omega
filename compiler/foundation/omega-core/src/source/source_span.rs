@@ -1,14 +1,14 @@
 use crate::Span;
-use crate::source::FileId;
+use crate::source::SourceId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SourceSpan {
-    pub file_id: FileId,
+    pub source_id: SourceId,
     pub span: Span,
 }
 
 impl SourceSpan {
-    pub fn new(file_id: FileId, span: Span) -> Self {
-        Self { file_id, span }
+    pub fn new(source_id: SourceId, span: Span) -> Self {
+        Self { source_id, span }
     }
 }

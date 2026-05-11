@@ -2,11 +2,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::Span;
-use crate::source::{FileId, SourceSpan};
+use crate::source::{SourceId, SourceSpan};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
-    pub id: FileId,
+    pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
 }
@@ -19,7 +19,7 @@ pub struct SourcePosition {
 
 impl SourceFile {
     pub fn source_span(&self, span: Span) -> SourceSpan {
-        SourceSpan::new(self.id, span)
+        SourceSpan::new(self.source_id, span)
     }
 
     pub fn text_at(&self, span: Span) -> &str {
@@ -53,18 +53,18 @@ mod tests {
     use std::sync::Arc;
 
     use crate::Span;
-    use crate::source::{FileId, SourceFile};
+    use crate::source::{SourceId, SourceFile};
 
     #[test]
-    fn source_span_carries_file_identity() {
+    fn source_span_carries_source_identity() {
         let file = SourceFile {
-            id: FileId(7),
+            source_id: SourceId(7),
             path: PathBuf::from("main.omg"),
             source: Arc::from("machine main {}"),
         };
         let span = file.source_span(Span::new(8, 12));
 
-        assert_eq!(span.file_id, FileId(7));
+        assert_eq!(span.source_id, SourceId(7));
         assert_eq!(file.text_at(span.span), "main");
     }
 }

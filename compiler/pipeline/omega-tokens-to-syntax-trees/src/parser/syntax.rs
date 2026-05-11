@@ -1,39 +1,39 @@
 use crate::parse_error::ParseError;
-use crate::syntax::{SyntaxFile, SyntaxKind, SyntaxNodeHandle, SyntaxTable};
-use omega_core::source::FileId;
+use crate::syntax::{SyntaxTree, SyntaxKind, SyntaxNodeHandle, SyntaxTable};
+use omega_core::source::SourceId;
 use omega_source_files_to_tokens::Token;
 
-pub(super) fn parse_syntax_file_impl(
-    file_id: FileId,
+pub(super) fn parse_syntax_tree_impl(
+    source_id: SourceId,
     tokens: &[Token<'_>],
-) -> Result<SyntaxFile, ParseError> {
-    let mut parser = SyntaxParser::new(file_id, tokens);
-    parser.parse_file()
+) -> Result<SyntaxTree, ParseError> {
+    let mut parser = SyntaxParser::new(source_id, tokens);
+    parser.parse_tree()
 }
 
 struct SyntaxParser<'tokens, 'source> {
-    file_id: FileId,
+    source_id: SourceId,
     tokens: &'tokens [Token<'source>],
     index: usize,
     syntax: SyntaxTable,
-    file_tokens: omega_core::arena::HandleSpan<crate::syntax::SyntaxToken>,
+    source_tokens: omega_core::arena::HandleSpan<crate::syntax::SyntaxToken>,
 }
 
 impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
-    fn new(file_id: FileId, tokens: &'tokens [Token<'source>]) -> Self {
+    fn new(source_id: SourceId, tokens: &'tokens [Token<'source>]) -> Self {
         let mut syntax = SyntaxTable::new();
-        let file_tokens = syntax.insert_tokens(tokens);
+        let source_tokens = syntax.insert_tokens(tokens);
 
         Self {
-            file_id,
+            source_id,
             tokens,
             index: 0,
             syntax,
-            file_tokens,
+            source_tokens,
         }
     }
 
-    fn parse_file(&mut self) -> Result<SyntaxFile, ParseError> {
+    fn parse_tree(&mut self) -> Result<SyntaxTree, ParseError> {
         let start = self.index;
         let mut children = Vec::new();
 
@@ -41,11 +41,11 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
             children.push(self.parse_item()?);
         }
 
-        let root = self.insert_node(SyntaxKind::File, start, self.index, children);
-        Ok(SyntaxFile {
-            file_id: self.file_id,
+        let root = self.insert_node(SyntaxKind::SourceRoot, start, self.index, children);
+        Ok(SyntaxTree {
+            source_id: self.source_id,
             root,
-            file_tokens: self.file_tokens,
+            source_tokens: self.source_tokens,
             syntax: std::mem::take(&mut self.syntax),
         })
     }
@@ -304,7 +304,7 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
     ) -> SyntaxNodeHandle {
         let tokens = self
             .syntax
-            .token_span(self.file_tokens, start_index, end_index);
+            .token_span(self.source_tokens, start_index, end_index);
         self.syntax.insert_node(kind, tokens, children)
     }
 

@@ -3,10 +3,10 @@ mod items;
 mod machines;
 mod syntax;
 
-use crate::ast::AstFile;
 use crate::parse_error::ParseError;
-use crate::syntax::SyntaxFile;
-use omega_core::source::{FileId, SourceSpan, SourceText};
+use crate::source_trees::SourceTrees;
+use crate::syntax::SyntaxTree;
+use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_source_files_to_tokens::{KeywordKind, Token, TokenKind};
 use omega_syntax_trees::expression::{
     BinaryExpression, BinaryOperator, CallExpression, Expression, IndexedExpression, StructLiteral,
@@ -26,57 +26,41 @@ use omega_syntax_trees::statement::{
 };
 use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 
-pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    crate::ast::parse_ast_file(tokens)
+pub fn parse_syntax_tree(tokens: &[Token<'_>]) -> Result<SyntaxTree, ParseError> {
+    parse_syntax_tree_with_id(SourceId::default(), tokens)
 }
 
-pub fn parse_file_with_id(file_id: FileId, tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
-    crate::ast::parse_ast_file_with_id(file_id, tokens)
+pub fn parse_syntax_tree_with_id(
+    source_id: SourceId,
+    tokens: &[Token<'_>],
+) -> Result<SyntaxTree, ParseError> {
+    syntax::parse_syntax_tree_impl(source_id, tokens)
 }
 
-pub fn parse_file_with_source(
-    file_id: FileId,
+pub fn parse_syntax_tree_with_source(
+    source_id: SourceId,
     _source: std::sync::Arc<str>,
     tokens: &[Token<'_>],
-) -> Result<AstFile, ParseError> {
-    crate::ast::parse_ast_file_with_source(file_id, _source, tokens)
+) -> Result<SyntaxTree, ParseError> {
+    parse_syntax_tree_with_id(source_id, tokens)
 }
 
-pub fn parse_syntax_file(tokens: &[Token<'_>]) -> Result<SyntaxFile, ParseError> {
-    parse_syntax_file_with_id(FileId::default(), tokens)
-}
-
-pub fn parse_syntax_file_with_id(
-    file_id: FileId,
+pub(crate) fn parse_source_trees_impl(
+    source_id: SourceId,
     tokens: &[Token<'_>],
-) -> Result<SyntaxFile, ParseError> {
-    syntax::parse_syntax_file_impl(file_id, tokens)
-}
-
-pub fn parse_syntax_file_with_source(
-    file_id: FileId,
-    _source: std::sync::Arc<str>,
-    tokens: &[Token<'_>],
-) -> Result<SyntaxFile, ParseError> {
-    parse_syntax_file_with_id(file_id, tokens)
-}
-
-pub(crate) fn parse_ast_file_impl(
-    file_id: FileId,
-    tokens: &[Token<'_>],
-) -> Result<AstFile, ParseError> {
+) -> Result<SourceTrees, ParseError> {
     let items = Parser {
-        file_id,
+        source_id,
         tokens,
         index: 0,
     }
     .parse_items()?;
 
-    Ok(crate::ast::build_ast_file(file_id, items))
+    Ok(crate::source_trees::build_source_trees(source_id, items))
 }
 
 struct Parser<'tokens, 'source> {
-    file_id: FileId,
+    source_id: SourceId,
     tokens: &'tokens [Token<'source>],
     index: usize,
 }
@@ -258,20 +242,20 @@ impl Parser<'_, '_> {
     }
 
     fn expect_identifier(&mut self) -> Result<Identifier, ParseError> {
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
 
         if token.kind == TokenKind::Identifier {
-            Ok(identifier_from_token(file_id, token))
+            Ok(identifier_from_token(source_id, token))
         } else {
             Err(ParseError::at_span("expected identifier", token.span))
         }
     }
 
     fn expect_value_name_segment(&mut self) -> Result<Identifier, ParseError> {
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
@@ -280,32 +264,32 @@ impl Parser<'_, '_> {
             TokenKind::Identifier
             | TokenKind::Keyword(KeywordKind::State)
             | TokenKind::Keyword(KeywordKind::Target) => {
-                Ok(identifier_from_token(file_id, token))
+                Ok(identifier_from_token(source_id, token))
             }
             TokenKind::Keyword(KeywordKind::SelfValue) => Ok(Identifier::new(
                 token.lexeme.as_str(),
-                SourceSpan::new(file_id, token.span),
+                SourceSpan::new(source_id, token.span),
             )),
             _ => Err(ParseError::at_span("expected identifier", token.span)),
         }
     }
 
     fn expect_member_name_segment(&mut self) -> Result<Identifier, ParseError> {
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
 
         match token.kind {
             TokenKind::Identifier | TokenKind::Keyword(KeywordKind::Entry) => {
-                Ok(identifier_from_token(file_id, token))
+                Ok(identifier_from_token(source_id, token))
             }
             _ => Err(ParseError::at_span("expected identifier", token.span)),
         }
     }
 
     fn expect_path_name_segment(&mut self) -> Result<Identifier, ParseError> {
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
@@ -314,14 +298,14 @@ impl Parser<'_, '_> {
             TokenKind::Identifier
             | TokenKind::Keyword(KeywordKind::Host)
             | TokenKind::Keyword(KeywordKind::Platform) => {
-                Ok(identifier_from_token(file_id, token))
+                Ok(identifier_from_token(source_id, token))
             }
             _ => Err(ParseError::at_span("expected identifier", token.span)),
         }
     }
 
     fn expect_binding_name(&mut self) -> Result<Identifier, ParseError> {
-        let file_id = self.file_id;
+        let source_id = self.source_id;
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected identifier"));
         };
@@ -330,7 +314,7 @@ impl Parser<'_, '_> {
             TokenKind::Identifier
             | TokenKind::Keyword(KeywordKind::State)
             | TokenKind::Keyword(KeywordKind::Target) => {
-                Ok(identifier_from_token(file_id, token))
+                Ok(identifier_from_token(source_id, token))
             }
             _ => Err(ParseError::at_span("expected identifier", token.span)),
         }
@@ -387,13 +371,13 @@ impl Parser<'_, '_> {
     }
 }
 
-fn identifier_from_token(file_id: FileId, token: &Token<'_>) -> Identifier {
-    let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
+fn identifier_from_token(source_id: SourceId, token: &Token<'_>) -> Identifier {
+    let source_span = omega_core::source::SourceSpan::new(source_id, token.span);
     Identifier::new(token.lexeme.as_str(), source_span)
 }
 
-fn source_text_from_token(file_id: FileId, token: &Token<'_>) -> SourceText {
-    let source_span = omega_core::source::SourceSpan::new(file_id, token.span);
+fn source_text_from_token(source_id: SourceId, token: &Token<'_>) -> SourceText {
+    let source_span = omega_core::source::SourceSpan::new(source_id, token.span);
     SourceText::new(token.lexeme.as_str(), source_span)
 }
 
@@ -493,8 +477,8 @@ fn identifier_is_value_like(identifier: &Identifier) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_syntax_file;
-    use crate::ast::parse_ast_file;
+    use super::parse_syntax_tree;
+    use crate::source_trees::parse_source_trees;
     use omega_source_files_to_tokens::Lexer;
 
     #[test]
@@ -519,7 +503,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
+        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
         assert_eq!(parsed.items.len(), 2);
 
@@ -547,7 +531,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
+        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -580,7 +564,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
+        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -607,7 +591,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
+        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -650,7 +634,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_ast_file(&tokens).expect("parse should succeed");
+        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -684,9 +668,9 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_syntax_file(&tokens).expect("syntax parse should succeed");
+        let parsed = parse_syntax_tree(&tokens).expect("syntax parse should succeed");
         let root = parsed.syntax.nodes.get(parsed.root);
-        assert_eq!(root.kind, crate::syntax::SyntaxKind::File);
+        assert_eq!(root.kind, crate::syntax::SyntaxKind::SourceRoot);
         assert_eq!(
             parsed
                 .syntax
