@@ -72,6 +72,8 @@ fn remap_parameter(parameter: &StateParameterNode) -> StateParameterFlow {
     StateParameterFlow {
         symbol: parameter.symbol,
         name: parameter.name.clone(),
+        type_symbol: parameter.type_symbol,
+        type_name: parameter.type_name.clone(),
         is_mutable_reference: parameter.is_mutable_reference,
     }
 }

@@ -143,8 +143,61 @@ fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<Stat
         .map(|parameter| StateParameterFlow {
             symbol: parameter.symbol,
             name: parameter.name.clone(),
+            type_symbol: type_reference_symbol(&parameter.type_reference),
+            type_name: ProgramName::generated(parameter.type_reference.display_name()),
+            is_mutable_reference: matches!(
+                parameter.type_reference,
+                omega_typed_trees::types::TypeReference::Reference {
+                    is_mutable: true,
+                    ..
+                }
+            ),
         })
         .collect()
+}
+
+fn type_reference_name(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> ProgramName {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_name(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_name(base_type)
+        }
+        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_name(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_typed_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_typed_trees::types::TypeReference::Unit => ProgramName::default(),
+    }
+}
+
+fn type_reference_symbol(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> SymbolHandle {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            type_reference_symbol(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            type_reference_symbol(base_type)
+        }
+        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+            type_reference_symbol(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+            type_reference_symbol(element_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
+        omega_typed_trees::types::TypeReference::Named { symbol, .. } => *symbol,
+        omega_typed_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
+    }
 }
 
 fn operation_kind(statement: &Statement) -> OperationKind {

@@ -147,7 +147,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
         if let Some(edges) = input.runtime_dispatch_loop.edges.span(dispatch_case.edges) {
             for edge in edges {
-                select_runtime_dispatch_edge(edge, dispatch_case.key, selected_instructions);
+                select_runtime_dispatch_edge(input, edge, dispatch_case.key, selected_instructions);
             }
         }
 

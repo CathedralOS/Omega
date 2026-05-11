@@ -2,6 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_typed_trees::expression::ExpressionHandle;
 use omega_typed_trees::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -41,8 +42,10 @@ pub struct RuntimeDispatchLoopEdge {
     pub order: usize,
     pub target: RuntimeTransitionTarget,
     pub target_dispatch_index: u32,
+    pub target_arguments: HandleSpan<ExpressionHandle>,
     pub continuation: RuntimeTransitionTarget,
     pub continuation_dispatch_index: u32,
+    pub continuation_arguments: HandleSpan<ExpressionHandle>,
     pub guard: TransitionGuard,
     pub guard_lowering: StateGuardLowering,
     pub guard_operator: StateGuardOperator,
@@ -60,8 +63,10 @@ impl Default for RuntimeDispatchLoopEdge {
             order: 0,
             target: RuntimeTransitionTarget::None,
             target_dispatch_index: 0,
+            target_arguments: HandleSpan::empty(),
             continuation: RuntimeTransitionTarget::None,
             continuation_dispatch_index: 0,
+            continuation_arguments: HandleSpan::empty(),
             guard: TransitionGuard::Always,
             guard_lowering: StateGuardLowering::NoOp,
             guard_operator: StateGuardOperator::None,

@@ -129,21 +129,17 @@ pub fn encode_runtime_storage_copy(
     bytes.extend(encode_adrp_placeholder(17));
     bytes.extend(encode_add_page_offset_placeholder(17));
 
-    match byte_count {
-        1 | 4 => {
-            bytes.extend(encode_load_w_from_x(18, 16, source_offset, byte_count)?);
-            bytes.extend(encode_store_w_to_x(18, 17, target_offset, byte_count)?);
-        }
-        _ if byte_count.is_multiple_of(8) => {
-            for offset in (0..byte_count).step_by(8) {
+    for (offset, chunk_size) in runtime_copy_chunks(source_offset, target_offset, byte_count)? {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(18, 16, source_offset + offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(18, 17, target_offset + offset, chunk_size)?);
+            }
+            8 => {
                 bytes.extend(encode_load_x_from_x(18, 16, source_offset + offset)?);
                 bytes.extend(encode_store_x_to_x(18, 17, target_offset + offset)?);
             }
-        }
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) of runtime storage yet"
-            )));
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
         }
     }
 
@@ -227,25 +223,61 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         field_byte_offset,
     )?;
 
-    match byte_count {
-        1 | 4 => {
-            bytes.extend(encode_load_w_from_x(17, 20, source_offset, byte_count)?);
-            bytes.extend(encode_store_w_to_x(17, 16, 0, byte_count)?);
-        }
-        _ if byte_count.is_multiple_of(8) => {
-            for offset in (0..byte_count).step_by(8) {
+    for (offset, chunk_size) in runtime_copy_chunks(source_offset, field_byte_offset, byte_count)? {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 20, source_offset + offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+            }
+            8 => {
                 bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
                 bytes.extend(encode_store_x_to_x(17, 16, offset)?);
             }
-        }
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) into indexed runtime storage yet"
-            )));
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
         }
     }
 
     Ok(bytes)
+}
+
+fn runtime_copy_chunks(
+    source_base_offset: usize,
+    target_base_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<(usize, usize)>, Diagnostic> {
+    let mut remaining = byte_count;
+    let mut offset = 0usize;
+    let mut chunks = Vec::new();
+
+    while remaining > 0 {
+        let source_offset = source_base_offset + offset;
+        let target_offset = target_base_offset + offset;
+        let chunk_size = if remaining >= 8
+            && source_offset.is_multiple_of(8)
+            && target_offset.is_multiple_of(8)
+        {
+            8
+        } else if remaining >= 4
+            && source_offset.is_multiple_of(4)
+            && target_offset.is_multiple_of(4)
+        {
+            4
+        } else {
+            1
+        };
+
+        chunks.push((offset, chunk_size));
+        offset += chunk_size;
+        remaining -= chunk_size;
+    }
+
+    if offset != byte_count {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot copy `{byte_count}` byte(s) of runtime storage yet"
+        )));
+    }
+
+    Ok(chunks)
 }
 
 fn encode_runtime_frame_index_target_address(

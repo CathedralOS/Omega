@@ -149,6 +149,8 @@ impl Default for StateNode {
 pub struct StateParameterNode {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_symbol: SymbolHandle,
+    pub type_name: ProgramName,
     pub is_mutable_reference: bool,
 }
 

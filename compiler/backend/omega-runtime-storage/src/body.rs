@@ -11,6 +11,12 @@ pub(super) fn build_runtime_storage_body_plan(
 ) -> RuntimeStoragePlan {
     let mut plan = RuntimeStoragePlan::default();
     let mut next_frame_offset = 0usize;
+    append_parameter_slots(
+        context,
+        body_input,
+        &mut plan,
+        &mut next_frame_offset,
+    );
     let Some(operations) = context
         .runtime_bodies
         .operations
@@ -72,6 +78,38 @@ pub(super) fn build_runtime_storage_body_plan(
     }
 
     plan
+}
+
+fn append_parameter_slots(
+    context: &RuntimeStorageContext,
+    body_input: &RuntimeStorageBodyInput,
+    plan: &mut RuntimeStoragePlan,
+    next_frame_offset: &mut usize,
+) {
+    let Some(state) = context.control_flow.state_by_key(body_input.body.key) else {
+        return;
+    };
+
+    for parameter in &state.parameters {
+        let layout = layout_for_type(context, parameter.type_symbol, parameter.type_name.as_str());
+        let byte_offset = align_to(*next_frame_offset, layout.alignment);
+        *next_frame_offset = byte_offset
+            .checked_add(layout.size)
+            .expect("runtime parameter slot size overflow");
+
+        plan.frame_slots.insert(RuntimeFrameSlot {
+            dispatch_index: body_input.body.dispatch_index,
+            source_key: body_input.body.key,
+            statement_index: usize::MAX,
+            symbol: parameter.symbol,
+            name: parameter.name.clone(),
+            type_symbol: parameter.type_symbol,
+            type_name: parameter.type_name.to_string(),
+            byte_offset,
+            byte_size: layout.size,
+            alignment: layout.alignment,
+        });
+    }
 }
 
 fn mutation_for_operation<'plan>(
