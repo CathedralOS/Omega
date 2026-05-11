@@ -14,13 +14,18 @@ mod operations;
 use aliases::bind_runtime_branch_aliases;
 use classify::classify_branch_call_expansion;
 use edges::build_branch_edges;
-use expansions::{append_leaf_branch_expansions, append_straight_line_branch_expansions};
+use expansions::{
+    append_branch_prelude_expansion, append_leaf_branch_expansions,
+    append_straight_line_branch_expansions,
+};
 use lookups::state_call_for_operation;
 pub use model::{
     RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
     RuntimeBranchingCallEdge, RuntimeBranchingCallPlan, RuntimeLeafBranchBinding,
     RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
-    RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
+    RuntimeLeafBranchOperationKind, RuntimeBranchPreludeBinding,
+    RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperation,
+    RuntimeBranchPreludeOperationKind, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
@@ -73,11 +78,27 @@ pub fn build_runtime_branching_call_plan(
             );
             let branch_edges_slice = plan.edges.span_or_empty(branch_edges);
             let mut expansion = classify_branch_call_expansion(branch_edges_slice);
-            if branch_target_has_prelude(context, state_call.target_key) {
+            let has_prelude = branch_target_has_prelude(context, state_call.target_key);
+            if has_prelude {
                 expansion = RuntimeBranchCallExpansion::NeedsBranchPrelude;
             }
+            if has_prelude {
+                append_branch_prelude_expansion(
+                    context,
+                    &mut plan.expressions,
+                    &mut plan.prelude_expansions,
+                    &mut plan.prelude_bindings,
+                    &mut plan.prelude_operations,
+                    operation.source_key,
+                    *target_key,
+                    operation.statement_index,
+                    body.dispatch_index,
+                    state_call,
+                    &aliases,
+                );
+            }
             if matches!(
-                expansion,
+                classify_branch_call_expansion(branch_edges_slice),
                 RuntimeBranchCallExpansion::GuardedLeaf
                     | RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
                     | RuntimeBranchCallExpansion::NeedsStraightLineTarget
@@ -100,7 +121,7 @@ pub fn build_runtime_branching_call_plan(
                 );
             }
             if matches!(
-                expansion,
+                classify_branch_call_expansion(branch_edges_slice),
                 RuntimeBranchCallExpansion::NeedsStraightLineTarget
                     | RuntimeBranchCallExpansion::NeedsNestedBranchTarget
             ) {

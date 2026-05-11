@@ -16,6 +16,7 @@ use super::host_operations::{
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
 use branches::{
+    select_runtime_branch_preludes_for_operation,
     select_runtime_leaf_branch_expansions_for_operation,
     select_runtime_straight_line_branch_expansions_for_operation,
 };
@@ -84,6 +85,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     selected_instructions,
                 );
 
+                select_runtime_branch_preludes_for_operation(
+                    input,
+                    dispatch_case.dispatch_index,
+                    operation,
+                    operands,
+                    selected_instructions,
+                );
                 select_runtime_leaf_branch_expansions_for_operation(
                     input,
                     dispatch_case.dispatch_index,

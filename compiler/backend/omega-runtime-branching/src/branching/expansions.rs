@@ -3,8 +3,9 @@ use super::aliases::{
     resolve_branch_expression_handle, resolve_branch_guard,
 };
 use super::lookups::state_parameters;
-use super::operations::{leaf_operations, straight_line_operations};
+use super::operations::{leaf_operations, prelude_operations, straight_line_operations};
 use super::{
+    RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperation,
     RuntimeBranchTargetLowering, RuntimeBranchingCallEdge, RuntimeLeafBranchBinding,
     RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchBindingKind,
@@ -16,6 +17,45 @@ use omega_core::arena::{Arena, HandleSpan};
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
+
+pub(super) fn append_branch_prelude_expansion(
+    context: &RuntimeBranchingContext,
+    expressions: &mut ExpressionTable,
+    prelude_expansions: &mut Arena<RuntimeBranchPreludeExpansion>,
+    prelude_bindings: &mut Arena<RuntimeBranchPreludeBinding>,
+    prelude_operations_arena: &mut Arena<RuntimeBranchPreludeOperation>,
+    source_key: StateKey,
+    branch_key: StateKey,
+    statement_index: usize,
+    dispatch_index: u32,
+    state_call: &StateCall,
+    aliases: &[RuntimeBranchAlias],
+) {
+    let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
+    let bindings = prelude_bindings.insert_many(branch_bindings.iter().map(|binding| {
+        RuntimeBranchPreludeBinding {
+            parameter_symbol: binding.parameter_symbol,
+            parameter_name: binding.parameter_name.clone(),
+            expression: binding.expression,
+        }
+    }));
+    let operations = prelude_operations(
+        context,
+        expressions,
+        prelude_operations_arena,
+        state_call.target_key,
+    );
+
+    prelude_expansions.insert(RuntimeBranchPreludeExpansion {
+        dispatch_index,
+        source_key,
+        statement_index,
+        branch_key,
+        target_key: state_call.target_key,
+        bindings,
+        operations,
+    });
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_leaf_branch_expansions(

@@ -8,6 +8,7 @@ use omega_typed_trees::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
 use omega_runtime_branching::{
+    RuntimeBranchPreludeBinding,
     RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind,
 };
@@ -302,6 +303,29 @@ pub(super) fn resolve_straight_line_binding_expression(
                     .iter()
                     .find(|binding| straight_line_binding_matches_path(binding, path))
             })
+            .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
+            .unwrap_or_else(|| expression.clone()),
+        _ => expression.clone(),
+    }
+}
+
+pub(super) fn resolve_branch_prelude_binding_expression(
+    table: &ExpressionTable,
+    expression: &Expression,
+    bindings: &[RuntimeBranchPreludeBinding],
+) -> Expression {
+    match expression {
+        Expression::Mutable(target) => {
+            let resolved_target = resolve_branch_prelude_binding_expression(table, target, bindings);
+            if matches!(resolved_target, Expression::Mutable(_)) {
+                resolved_target
+            } else {
+                Expression::Mutable(Box::new(resolved_target))
+            }
+        }
+        Expression::Name(path) if !path.is_empty() => bindings
+            .iter()
+            .find(|binding| symbol_matches_path(binding.parameter_symbol, path))
             .map(|binding| table.to_tree_with_place_suffix(binding.expression, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         _ => expression.clone(),

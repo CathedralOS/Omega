@@ -41,6 +41,7 @@ fn runtime_branching_call_has_planned_expansion(
     input: &EmissionPlanningInput<'_>,
     call: &RuntimeBranchingCall,
 ) -> bool {
+    let prelude_count = runtime_branching_call_prelude_expansion_count(input, call);
     let leaf_count = runtime_branching_call_leaf_expansion_count(input, call);
     let straight_line_count = runtime_branching_call_straight_line_expansion_count(input, call);
     let Some(edges) = input.runtime_branching_calls.edges.span(call.edges) else {
@@ -66,11 +67,32 @@ fn runtime_branching_call_has_planned_expansion(
         | RuntimeBranchCallExpansion::NeedsNestedBranchTarget => {
             (!needs_leaf || leaf_count > 0) && (!needs_straight_line || straight_line_count > 0)
         }
+        RuntimeBranchCallExpansion::NeedsBranchPrelude => {
+            prelude_count > 0
+                && (!needs_leaf || leaf_count > 0)
+                && (!needs_straight_line || straight_line_count > 0)
+        }
         RuntimeBranchCallExpansion::GuardedLeafWithComplexGuards
-        | RuntimeBranchCallExpansion::NeedsBranchPrelude
         | RuntimeBranchCallExpansion::UnknownTarget
         | RuntimeBranchCallExpansion::Unplanned => false,
     }
+}
+
+fn runtime_branching_call_prelude_expansion_count(
+    input: &EmissionPlanningInput<'_>,
+    call: &RuntimeBranchingCall,
+) -> usize {
+    input
+        .runtime_branching_calls
+        .prelude_expansions
+        .iter()
+        .filter(|(_, expansion)| {
+            expansion.dispatch_index == call.dispatch_index
+                && expansion.source_key == call.source_key
+                && expansion.statement_index == call.statement_index
+                && expansion.branch_key == call.target_key
+        })
+        .count()
 }
 
 fn runtime_branching_call_leaf_expansion_count(

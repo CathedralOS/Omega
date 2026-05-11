@@ -1,10 +1,12 @@
 mod branching;
 
 pub use branching::{
-    RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
-    RuntimeBranchingCallEdge, RuntimeBranchingCallPlan, RuntimeLeafBranchBinding,
-    RuntimeLeafBranchBindingKind, RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation,
-    RuntimeLeafBranchOperationKind, RuntimeStraightLineBranchBinding,
+    RuntimeBranchCallExpansion, RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion,
+    RuntimeBranchPreludeOperation, RuntimeBranchPreludeOperationKind,
+    RuntimeBranchTargetLowering, RuntimeBranchingCall, RuntimeBranchingCallEdge,
+    RuntimeBranchingCallPlan, RuntimeLeafBranchBinding, RuntimeLeafBranchBindingKind,
+    RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation, RuntimeLeafBranchOperationKind,
+    RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchBindingKind, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
     build_runtime_branching_call_plan,
