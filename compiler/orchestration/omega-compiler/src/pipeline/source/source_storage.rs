@@ -22,7 +22,7 @@ impl SourceStorage {
             self.files.append(SourceFile {
                 source_id: parsed_source.source_id,
                 path: parsed_source.path.clone(),
-                source_trees: parsed_source.source_trees.clone(),
+                syntax_trees: parsed_source.syntax_trees.clone(),
             });
         }
 

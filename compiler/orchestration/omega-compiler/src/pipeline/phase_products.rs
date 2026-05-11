@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::parser::SourceTrees;
 use crate::source::SourceId;
 use crate::tokens::{Token, TokenStream, TokenText};
 use omega_core::arena::{Arena, HandleSpan};
+use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LoadedSource {
@@ -38,7 +38,7 @@ pub struct ParsedSource {
     pub source_id: SourceId,
     pub path: PathBuf,
     pub source: Arc<str>,
-    pub source_trees: SourceTrees,
+    pub syntax_trees: SyntaxTrees,
 }
 
 impl Default for ParsedSource {
@@ -47,7 +47,7 @@ impl Default for ParsedSource {
             source_id: SourceId::default(),
             path: PathBuf::default(),
             source: Arc::from(""),
-            source_trees: SourceTrees {
+            syntax_trees: SyntaxTrees {
                 source_id: SourceId::default(),
                 items: Vec::new(),
                 tables: Default::default(),

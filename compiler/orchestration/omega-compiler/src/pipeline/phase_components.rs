@@ -101,8 +101,8 @@ impl ParserPhase {
                 .span_or_empty(lexed.batch)
                 .iter()
                 .map(|lexed_source| {
-                    let source_trees =
-                        parser::parse_source_trees_with_id(
+                    let syntax_trees =
+                        parser::parse_syntax_trees_with_id(
                             lexed_source.source_id,
                             &lexed_source.tokens,
                         )
@@ -118,7 +118,7 @@ impl ParserPhase {
                         source_id: lexed_source.source_id,
                         path: lexed_source.path.clone(),
                         source: lexed_source.source.clone(),
-                        source_trees,
+                        syntax_trees,
                     })
                 })
                 .collect::<Result<Vec<_>, Diagnostic>>()
@@ -147,7 +147,7 @@ impl ImportDiscovery {
         let mut selected_target_found = selected_target_name.is_none();
 
         for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-            for item in &parsed_source.source_trees.items {
+            for item in &parsed_source.syntax_trees.items {
                 match item {
                     Item::Use(use_item) => {
                         imports.push(normalize_path(&resolve_source_path(

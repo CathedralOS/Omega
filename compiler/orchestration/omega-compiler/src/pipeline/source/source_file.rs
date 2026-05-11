@@ -1,15 +1,14 @@
 use std::path::PathBuf;
 
-use crate::parser::SourceTrees;
 use crate::source::SourceId;
 use omega_syntax_trees::item::Item;
-use omega_syntax_trees::tables::AstTables;
+use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceFile {
     pub source_id: SourceId,
     pub path: PathBuf,
-    pub source_trees: SourceTrees,
+    pub syntax_trees: SyntaxTrees,
 }
 
 impl Default for SourceFile {
@@ -17,10 +16,10 @@ impl Default for SourceFile {
         Self {
             source_id: SourceId::default(),
             path: PathBuf::default(),
-            source_trees: SourceTrees {
+            syntax_trees: SyntaxTrees {
                 source_id: SourceId::default(),
                 items: Vec::new(),
-                tables: AstTables::default(),
+                tables: Default::default(),
             },
         }
     }
@@ -28,6 +27,6 @@ impl Default for SourceFile {
 
 impl SourceFile {
     pub fn items(&self) -> &[Item] {
-        &self.source_trees.items
+        &self.syntax_trees.items
     }
 }

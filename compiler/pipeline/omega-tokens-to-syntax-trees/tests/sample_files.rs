@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use omega_source_files_to_tokens::Lexer;
-use omega_tokens_to_syntax_trees::parse_source_trees;
+use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn parses_every_sample_and_canary_file() {
@@ -32,7 +32,7 @@ fn parses_every_sample_and_canary_file() {
             .tokenize()
             .unwrap_or_else(|error| panic!("failed to tokenize {}: {error:?}", path.display()));
 
-        parse_source_trees(&tokens)
+        parse_syntax_trees(&tokens)
             .unwrap_or_else(|error| panic!("failed to parse {}: {error:?}", path.display()));
     }
 }

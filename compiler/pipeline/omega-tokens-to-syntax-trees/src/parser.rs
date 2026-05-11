@@ -1,11 +1,8 @@
 mod expressions;
 mod items;
 mod machines;
-mod syntax;
 
 use crate::parse_error::ParseError;
-use crate::source_trees::SourceTrees;
-use crate::syntax::SyntaxTree;
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_tokens::{KeywordKind, Token, TokenKind};
 use omega_syntax_trees::expression::{
@@ -25,30 +22,16 @@ use omega_syntax_trees::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_syntax_trees::types::{TypeConstraint, TypeReference};
+use omega_syntax_trees::SyntaxTrees;
 
-pub fn parse_syntax_tree(tokens: &[Token<'_>]) -> Result<SyntaxTree, ParseError> {
-    parse_syntax_tree_with_id(SourceId::default(), tokens)
+pub fn parse_syntax_trees(tokens: &[Token<'_>]) -> Result<SyntaxTrees, ParseError> {
+    parse_syntax_trees_with_id(SourceId::default(), tokens)
 }
 
-pub fn parse_syntax_tree_with_id(
+pub fn parse_syntax_trees_with_id(
     source_id: SourceId,
     tokens: &[Token<'_>],
-) -> Result<SyntaxTree, ParseError> {
-    syntax::parse_syntax_tree_impl(source_id, tokens)
-}
-
-pub fn parse_syntax_tree_with_source(
-    source_id: SourceId,
-    _source: std::sync::Arc<str>,
-    tokens: &[Token<'_>],
-) -> Result<SyntaxTree, ParseError> {
-    parse_syntax_tree_with_id(source_id, tokens)
-}
-
-pub(crate) fn parse_source_trees_impl(
-    source_id: SourceId,
-    tokens: &[Token<'_>],
-) -> Result<SourceTrees, ParseError> {
+) -> Result<SyntaxTrees, ParseError> {
     let items = Parser {
         source_id,
         tokens,
@@ -56,7 +39,7 @@ pub(crate) fn parse_source_trees_impl(
     }
     .parse_items()?;
 
-    Ok(crate::source_trees::build_source_trees(source_id, items))
+    Ok(SyntaxTrees::from_items(source_id, items))
 }
 
 struct Parser<'tokens, 'source> {
@@ -509,9 +492,9 @@ fn identifier_is_value_like(identifier: &Identifier) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_syntax_tree;
-    use crate::source_trees::parse_source_trees;
+    use super::parse_syntax_trees;
     use omega_source_files_to_tokens::Lexer;
+    use omega_syntax_trees::item::Item;
 
     #[test]
     fn parses_machine_for_with_pub_entry_without_merging_blocks() {
@@ -535,7 +518,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
         assert_eq!(parsed.items.len(), 3);
 
@@ -569,7 +552,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -602,7 +585,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -629,7 +612,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -672,7 +655,7 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_source_trees(&tokens).expect("parse should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
         let omega_syntax_trees::item::Item::Machine(machine) = &parsed.items[0] else {
             panic!("expected machine item");
@@ -683,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_syntax_file_hierarchy_for_machine_body() {
+    fn parses_machine_structure_into_syntax_trees() {
         let tokens = Lexer::new(
             r#"
             data Game {
@@ -706,28 +689,10 @@ mod tests {
         .tokenize()
         .expect("tokenization should succeed");
 
-        let parsed = parse_syntax_tree(&tokens).expect("syntax parse should succeed");
-        let root = parsed.syntax.nodes.get(parsed.root);
-        assert_eq!(root.kind, crate::syntax::SyntaxKind::SourceRoot);
-        assert_eq!(
-            parsed
-                .syntax
-                .node_handles
-                .span_or_empty(root.children)
-                .len(),
-            2
-        );
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
 
-        let machine = parsed
-            .syntax
-            .node_handles
-            .span_or_empty(root.children)
-            .iter()
-            .map(|handle| parsed.syntax.nodes.get(*handle))
-            .find(|node| node.kind == crate::syntax::SyntaxKind::MachineItem)
-            .expect("machine node should exist");
-
-        let machine_children = parsed.syntax.node_handles.span_or_empty(machine.children);
-        assert_eq!(machine_children.len(), 2);
+        assert_eq!(parsed.items.len(), 2);
+        assert!(matches!(&parsed.items[0], Item::Data(_)));
+        assert!(matches!(&parsed.items[1], Item::Machine(_)));
     }
 }
