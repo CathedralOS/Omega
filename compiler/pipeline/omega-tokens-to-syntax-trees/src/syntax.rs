@@ -1,7 +1,7 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::FileId;
 use omega_core::Span;
-use omega_source_files_to_tokens::{Token, TokenKind};
+use omega_source_files_to_tokens::{PunctuationKind, Token, TokenKind};
 
 pub type SyntaxNodeHandle = Handle<SyntaxNode>;
 
@@ -53,7 +53,7 @@ impl SyntaxToken {
 impl Default for SyntaxToken {
     fn default() -> Self {
         Self {
-            kind: TokenKind::Symbol,
+            kind: TokenKind::Punctuation(PunctuationKind::Unknown),
             lexeme: String::new(),
             span: Span::default(),
         }

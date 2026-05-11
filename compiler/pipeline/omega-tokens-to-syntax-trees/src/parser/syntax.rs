@@ -200,12 +200,7 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
             }
         }
 
-        Ok(self.insert_node(
-            SyntaxKind::StatementTransitionBlock,
-            start,
-            self.index,
-            [],
-        ))
+        Ok(self.insert_node(SyntaxKind::StatementTransitionBlock, start, self.index, []))
     }
 
     fn parse_opaque_statement(&mut self) -> Result<SyntaxNodeHandle, ParseError> {
@@ -286,7 +281,10 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
         Ok(self.insert_node(kind, start, self.index, []))
     }
 
-    fn parse_opaque_braced_item(&mut self, kind: SyntaxKind) -> Result<SyntaxNodeHandle, ParseError> {
+    fn parse_opaque_braced_item(
+        &mut self,
+        kind: SyntaxKind,
+    ) -> Result<SyntaxNodeHandle, ParseError> {
         let start = self.index;
 
         while !self.check("{") {
@@ -355,7 +353,10 @@ impl<'tokens, 'source> SyntaxParser<'tokens, 'source> {
         Some(token)
     }
 
-    fn advance_or_error(&mut self, message: impl Into<String>) -> Result<&Token<'source>, ParseError> {
+    fn advance_or_error(
+        &mut self,
+        message: impl Into<String>,
+    ) -> Result<&Token<'source>, ParseError> {
         if self.is_at_end() {
             Err(self.error_here(message))
         } else {

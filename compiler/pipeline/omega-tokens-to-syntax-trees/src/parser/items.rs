@@ -48,7 +48,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_library_definition(&mut self) -> Result<LibraryDefinition, ParseError> {
-        let (name, path) = if self.check_kind(TokenKind::String) {
+        let (name, path) = if self.check_kind(TokenKind::StringLiteral) {
             (None, self.expect_string_literal()?)
         } else {
             let name = self.expect_identifier()?;
@@ -185,7 +185,11 @@ impl Parser<'_, '_> {
         } else {
             TrustMode::Checked
         };
-        let path = self.parse_path()?;
+        let path = if self.consume("host") {
+            IdentifierPath::new(vec![Identifier::generated("host")])
+        } else {
+            self.parse_path()?
+        };
 
         Ok(TrustPolicy { mode, path })
     }
@@ -250,6 +254,10 @@ impl Parser<'_, '_> {
     }
 
     fn parse_trust_level(&mut self) -> Result<TrustLevel, ParseError> {
+        if self.consume("host") {
+            return Ok(TrustLevel::Host);
+        }
+
         let name = self.expect_identifier()?;
 
         if name == "host" {
@@ -260,10 +268,10 @@ impl Parser<'_, '_> {
     }
 
     pub(super) fn parse_path(&mut self) -> Result<IdentifierPath, ParseError> {
-        let mut path = vec![self.expect_identifier()?];
+        let mut path = vec![self.expect_path_name_segment()?];
 
         while self.consume("::") {
-            path.push(self.expect_identifier()?);
+            path.push(self.expect_path_name_segment()?);
         }
 
         Ok(path.into())
@@ -386,11 +394,9 @@ impl Parser<'_, '_> {
 
         loop {
             let (name, type_reference, is_const, is_mutable, is_self) = if self.check("&")
-                && self
-                    .tokens
-                    .get(self.index + 1)
-                    .is_some_and(|token| token.lexeme.as_str() == "self" || token.lexeme.as_str() == "mut")
-            {
+                && self.tokens.get(self.index + 1).is_some_and(|token| {
+                    token.lexeme.as_str() == "self" || token.lexeme.as_str() == "mut"
+                }) {
                 self.expect("&")?;
                 let is_mutable = self.consume("mut");
                 self.expect("self")?;
@@ -403,7 +409,7 @@ impl Parser<'_, '_> {
                 )
             } else {
                 let mut is_mutable = self.consume("mut");
-                let name = self.expect_identifier()?;
+                let name = self.expect_binding_name()?;
                 self.expect(":")?;
                 let is_const = self.consume("const");
                 if self.consume("&") {
@@ -431,7 +437,9 @@ impl Parser<'_, '_> {
         Ok(parameters)
     }
 
-    pub(super) fn parse_optional_return_type(&mut self) -> Result<Option<TypeReference>, ParseError> {
+    pub(super) fn parse_optional_return_type(
+        &mut self,
+    ) -> Result<Option<TypeReference>, ParseError> {
         if self.consume("->") {
             return Ok(Some(self.parse_type_reference()?));
         }

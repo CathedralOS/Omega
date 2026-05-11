@@ -6,6 +6,8 @@ mod syntax;
 use crate::ast::AstFile;
 use crate::parse_error::ParseError;
 use crate::syntax::SyntaxFile;
+use omega_core::source::{FileId, SourceSpan, SourceText};
+use omega_source_files_to_tokens::{KeywordKind, Token, TokenKind};
 use omega_syntax_trees::expression::{
     BinaryExpression, BinaryOperator, CallExpression, Expression, IndexedExpression, StructLiteral,
     StructLiteralField,
@@ -23,8 +25,6 @@ use omega_syntax_trees::statement::{
     Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_syntax_trees::types::{TypeConstraint, TypeReference};
-use omega_core::source::{FileId, SourceText};
-use omega_source_files_to_tokens::{Token, TokenKind};
 
 pub fn parse_file(tokens: &[Token<'_>]) -> Result<AstFile, ParseError> {
     crate::ast::parse_ast_file(tokens)
@@ -270,12 +270,78 @@ impl Parser<'_, '_> {
         }
     }
 
+    fn expect_value_name_segment(&mut self) -> Result<Identifier, ParseError> {
+        let file_id = self.file_id;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected identifier"));
+        };
+
+        match token.kind {
+            TokenKind::Identifier
+            | TokenKind::Keyword(KeywordKind::State)
+            | TokenKind::Keyword(KeywordKind::Target) => {
+                Ok(identifier_from_token(file_id, token))
+            }
+            TokenKind::Keyword(KeywordKind::SelfValue) => Ok(Identifier::new(
+                token.lexeme.as_str(),
+                SourceSpan::new(file_id, token.span),
+            )),
+            _ => Err(ParseError::at_span("expected identifier", token.span)),
+        }
+    }
+
+    fn expect_member_name_segment(&mut self) -> Result<Identifier, ParseError> {
+        let file_id = self.file_id;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected identifier"));
+        };
+
+        match token.kind {
+            TokenKind::Identifier | TokenKind::Keyword(KeywordKind::Entry) => {
+                Ok(identifier_from_token(file_id, token))
+            }
+            _ => Err(ParseError::at_span("expected identifier", token.span)),
+        }
+    }
+
+    fn expect_path_name_segment(&mut self) -> Result<Identifier, ParseError> {
+        let file_id = self.file_id;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected identifier"));
+        };
+
+        match token.kind {
+            TokenKind::Identifier
+            | TokenKind::Keyword(KeywordKind::Host)
+            | TokenKind::Keyword(KeywordKind::Platform) => {
+                Ok(identifier_from_token(file_id, token))
+            }
+            _ => Err(ParseError::at_span("expected identifier", token.span)),
+        }
+    }
+
+    fn expect_binding_name(&mut self) -> Result<Identifier, ParseError> {
+        let file_id = self.file_id;
+        let Some(token) = self.advance() else {
+            return Err(self.error_here("expected identifier"));
+        };
+
+        match token.kind {
+            TokenKind::Identifier
+            | TokenKind::Keyword(KeywordKind::State)
+            | TokenKind::Keyword(KeywordKind::Target) => {
+                Ok(identifier_from_token(file_id, token))
+            }
+            _ => Err(ParseError::at_span("expected identifier", token.span)),
+        }
+    }
+
     fn expect_integer_literal(&mut self) -> Result<usize, ParseError> {
         let Some(token) = self.advance() else {
             return Err(self.error_here("expected integer literal"));
         };
 
-        if token.kind != TokenKind::Integer {
+        if token.kind != TokenKind::IntegerLiteral {
             return Err(ParseError::at_span("expected integer literal", token.span));
         }
 
@@ -291,7 +357,7 @@ impl Parser<'_, '_> {
             return Err(self.error_here("expected string literal"));
         };
 
-        if token.kind == TokenKind::String {
+        if token.kind == TokenKind::StringLiteral {
             Ok(token.lexeme.as_str().to_owned())
         } else {
             Err(ParseError::at_span("expected string literal", token.span))
@@ -375,9 +441,11 @@ fn expression_to_transition_target(expression: Expression) -> TransitionTarget {
                         if path_is_value_like(&path) {
                             return TransitionTarget::Value(Expression::Call(Box::new(
                                 CallExpression {
-                                    receiver: Some(Box::new(Expression::Name(IdentifierPath::new(
-                                        path.as_slice()[..path.len() - 1].to_vec(),
-                                    )))),
+                                    receiver: Some(Box::new(Expression::Name(
+                                        IdentifierPath::new(
+                                            path.as_slice()[..path.len() - 1].to_vec(),
+                                        ),
+                                    ))),
                                     target,
                                     arguments,
                                 },
@@ -619,7 +687,14 @@ mod tests {
         let parsed = parse_syntax_file(&tokens).expect("syntax parse should succeed");
         let root = parsed.syntax.nodes.get(parsed.root);
         assert_eq!(root.kind, crate::syntax::SyntaxKind::File);
-        assert_eq!(parsed.syntax.node_handles.span_or_empty(root.children).len(), 2);
+        assert_eq!(
+            parsed
+                .syntax
+                .node_handles
+                .span_or_empty(root.children)
+                .len(),
+            2
+        );
 
         let machine = parsed
             .syntax

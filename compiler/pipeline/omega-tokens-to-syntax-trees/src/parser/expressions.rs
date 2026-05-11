@@ -6,9 +6,9 @@ impl Parser<'_, '_> {
             return self.parse_local_data();
         }
 
-        if self.check_kind(TokenKind::Integer)
-            || self.check_kind(TokenKind::Float)
-            || self.check_kind(TokenKind::String)
+        if self.check_kind(TokenKind::IntegerLiteral)
+            || self.check_kind(TokenKind::FloatLiteral)
+            || self.check_kind(TokenKind::StringLiteral)
         {
             let expression = self.parse_expression()?;
 
@@ -20,10 +20,10 @@ impl Parser<'_, '_> {
             return Ok(Statement::Expression(expression));
         }
 
-        let mut path = vec![self.expect_identifier()?];
+        let mut path = vec![self.expect_value_name_segment()?];
 
         while self.consume(".") {
-            path.push(self.expect_identifier()?);
+            path.push(self.expect_member_name_segment()?);
         }
 
         if self.brace_starts_struct_literal() && path.len() == 1 {
@@ -74,7 +74,7 @@ impl Parser<'_, '_> {
     }
 
     fn parse_local_data(&mut self) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
+        let name = self.expect_binding_name()?;
         self.expect(":")?;
         let type_reference = self.parse_type_reference()?;
         let initial_value = if self.consume("=") {
@@ -98,7 +98,9 @@ impl Parser<'_, '_> {
         Ok(arguments)
     }
 
-    pub(super) fn parse_arguments_after_open_paren(&mut self) -> Result<Vec<Expression>, ParseError> {
+    pub(super) fn parse_arguments_after_open_paren(
+        &mut self,
+    ) -> Result<Vec<Expression>, ParseError> {
         let mut arguments = Vec::new();
 
         if !self.check(")") {
@@ -263,7 +265,7 @@ impl Parser<'_, '_> {
             }
 
             if self.consume(".") || self.consume("::") {
-                let member = self.expect_identifier()?;
+                let member = self.expect_member_name_segment()?;
 
                 if self.consume("(") {
                     let arguments = self.parse_arguments_after_open_paren()?;
@@ -292,12 +294,11 @@ impl Parser<'_, '_> {
 
             if self.consume("as") {
                 let target_type = self.parse_path()?;
-                expression = Expression::Cast(Box::new(
-                    omega_syntax_trees::expression::CastExpression {
+                expression =
+                    Expression::Cast(Box::new(omega_syntax_trees::expression::CastExpression {
                         value: expression,
                         target_type,
-                    },
-                ));
+                    }));
                 continue;
             }
 
@@ -335,26 +336,20 @@ impl Parser<'_, '_> {
         let file_id = self.file_id;
         if let Some(token) = self.advance() {
             match token.kind {
-                TokenKind::Integer => token
+                TokenKind::IntegerLiteral => token
                     .lexeme
                     .as_str()
                     .parse::<i64>()
                     .map(Expression::Integer)
                     .map_err(|_| ParseError::at_span("invalid integer literal", token.span)),
-                TokenKind::Float => Ok(Expression::Float(source_text_from_token(file_id, token))),
+                TokenKind::FloatLiteral => {
+                    Ok(Expression::Float(source_text_from_token(file_id, token)))
+                }
                 TokenKind::Identifier => {
-                    if token.lexeme.as_str() == "true" {
-                        return Ok(Expression::Boolean(true));
-                    }
-
-                    if token.lexeme.as_str() == "false" {
-                        return Ok(Expression::Boolean(false));
-                    }
-
                     let mut path = vec![identifier_from_token(file_id, token)];
 
                     while self.consume(".") || self.consume("::") {
-                        path.push(self.expect_identifier()?);
+                        path.push(self.expect_member_name_segment()?);
                     }
                     if self.brace_starts_struct_literal() && path.len() == 1 {
                         self.parse_struct_literal(
@@ -366,7 +361,18 @@ impl Parser<'_, '_> {
                         Ok(Expression::Name(path.into()))
                     }
                 }
-                TokenKind::String => Ok(Expression::String(SourceText::generated(
+                TokenKind::Keyword(KeywordKind::True) => Ok(Expression::Boolean(true)),
+                TokenKind::Keyword(KeywordKind::False) => Ok(Expression::Boolean(false)),
+                TokenKind::Keyword(KeywordKind::SelfValue) => Ok(Expression::Name(
+                    vec![identifier_from_token(file_id, token)].into(),
+                )),
+                TokenKind::Keyword(KeywordKind::State) => Ok(Expression::Name(
+                    vec![identifier_from_token(file_id, token)].into(),
+                )),
+                TokenKind::Keyword(KeywordKind::Target) => Ok(Expression::Name(
+                    vec![identifier_from_token(file_id, token)].into(),
+                )),
+                TokenKind::StringLiteral => Ok(Expression::String(SourceText::generated(
                     token.lexeme.as_str(),
                 ))),
                 _ => Err(ParseError::at_span("expected expression", token.span)),
@@ -389,7 +395,7 @@ impl Parser<'_, '_> {
                     index,
                 }));
             } else if self.consume(".") {
-                let member = self.expect_identifier()?;
+                let member = self.expect_member_name_segment()?;
                 expression = match expression {
                     Expression::Name(mut path) => {
                         path.push(member);
