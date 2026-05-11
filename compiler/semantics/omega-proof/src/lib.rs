@@ -148,6 +148,9 @@ fn collect_bounded_type_site(
     owner: &str,
 ) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            collect_bounded_type_site(report, referee, owner);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,
@@ -177,6 +180,13 @@ fn collect_bounded_type_site(
 
 fn type_reference_name(type_reference: &TypeReference) -> String {
     match type_reference {
+        TypeReference::Reference {
+            referee,
+            is_mutable,
+        } => {
+            let qualifier = if *is_mutable { "mut " } else { "" };
+            format!("&{qualifier}{}", type_reference_name(referee))
+        }
         TypeReference::Constrained { base_type, .. } => type_reference_name(base_type),
         TypeReference::FixedArray {
             element_type,

@@ -221,5 +221,12 @@ fn parse_parameter_type_reference<'tokens, 'source>(
         (false, input)
     };
     let (type_reference, input) = parse_type_reference(input)?;
-    Ok((type_reference, borrowed_mutable, input))
+    Ok((
+        TypeReference::Reference {
+            referee: Box::new(type_reference),
+            is_mutable: borrowed_mutable,
+        },
+        borrowed_mutable,
+        input,
+    ))
 }

@@ -223,6 +223,9 @@ fn collect_bounded_value_obligation(
     proof_plan: &mut ProofPlan,
 ) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            collect_bounded_value_obligation(program, owner, referee, proof_plan);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,
@@ -260,6 +263,9 @@ fn collect_bounded_initializer_obligation(
     proof_plan: &mut ProofPlan,
 ) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            collect_bounded_initializer_obligation(program, owner, referee, value, proof_plan);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,
@@ -655,6 +661,7 @@ fn expression_type_reference<'program>(
 
 fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec<TypeConstraint> {
     match type_reference {
+        TypeReference::Reference { referee, .. } => collect_constraints(program, referee),
         TypeReference::Constrained { constraints, .. } => {
             type_constraints(program, *constraints).to_vec()
         }

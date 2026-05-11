@@ -7,6 +7,10 @@ pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
+    Reference {
+        referee: Box<TypeReference>,
+        is_mutable: bool,
+    },
     Constrained {
         base_type: Box<TypeReference>,
         constraints: HandleSpan<TypeConstraint>,
@@ -149,6 +153,16 @@ impl TypeReferenceTable {
         source_constraints: &Arena<TypeConstraint>,
     ) -> TypeReferenceHandle {
         match type_reference {
+            TypeReference::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let referee = self.insert_tree(referee, expressions, source_constraints);
+                self.insert(TypeReferenceNode::Reference {
+                    referee,
+                    is_mutable: *is_mutable,
+                })
+            }
             TypeReference::Constrained {
                 base_type,
                 constraints,
@@ -211,6 +225,10 @@ impl Default for TypeReferenceTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReferenceNode {
+    Reference {
+        referee: TypeReferenceHandle,
+        is_mutable: bool,
+    },
     Constrained {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
@@ -300,6 +318,13 @@ pub enum PrimitiveType {
 impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
+            TypeReference::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let qualifier = if *is_mutable { "mut " } else { "" };
+                format!("&{qualifier}{}", referee.display_name())
+            }
             TypeReference::Constrained {
                 base_type,
                 constraints,
@@ -340,6 +365,16 @@ impl TypeReference {
         type_constraints: &Arena<TypeConstraint>,
     ) -> String {
         match self {
+            TypeReference::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let qualifier = if *is_mutable { "mut " } else { "" };
+                format!(
+                    "&{qualifier}{}",
+                    referee.display_name_with_constraints(type_constraints)
+                )
+            }
             TypeReference::Constrained {
                 base_type,
                 constraints,
@@ -381,6 +416,7 @@ impl TypeReference {
 
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
+            TypeReference::Reference { .. } => None,
             TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
             TypeReference::FixedArray { .. }

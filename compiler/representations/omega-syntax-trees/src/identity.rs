@@ -269,6 +269,9 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
 
 fn count_type_reference(type_reference: &TypeReference, counts: &mut AstIdentityStorageCounts) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            count_type_reference(referee, counts);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,

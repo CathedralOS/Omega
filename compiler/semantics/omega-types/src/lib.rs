@@ -219,6 +219,9 @@ fn collect_type_reference(
     owner: &str,
 ) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            collect_type_reference(report, referee, kind, owner);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,

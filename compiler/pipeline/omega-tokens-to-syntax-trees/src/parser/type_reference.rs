@@ -8,6 +8,12 @@ use omega_tokens::PunctuationKind;
 pub(super) fn parse_type_reference<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReference> {
+    if input.at_punctuation(PunctuationKind::LeftParen) {
+        let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+        let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+        return Ok((TypeReference::Unit, input));
+    }
+
     if input.at_punctuation(PunctuationKind::LeftBracket) {
         let input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
         let (element_type, input) = parse_type_reference(input)?;
@@ -77,18 +83,28 @@ pub(super) fn parse_type_reference<'tokens, 'source>(
 pub(super) fn parse_type_reference_allowing_borrow<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReference> {
-    let input = if input.at_punctuation(PunctuationKind::Ampersand) {
+    let (is_reference, is_mutable, input) = if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
         if input.at_contextual("mut") {
-            input.take_contextual("mut")?
+            (true, true, input.take_contextual("mut")?)
         } else {
-            input
+            (true, false, input)
         }
     } else {
-        input
+        (false, false, input)
     };
 
-    parse_type_reference(input)
+    let (type_reference, input) = parse_type_reference(input)?;
+    let type_reference = if is_reference {
+        TypeReference::Reference {
+            referee: Box::new(type_reference),
+            is_mutable,
+        }
+    } else {
+        type_reference
+    };
+
+    Ok((type_reference, input))
 }
 
 pub(super) fn parse_type_constraints<'tokens, 'source>(

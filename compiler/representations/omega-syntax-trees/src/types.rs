@@ -5,6 +5,10 @@ pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
+    Reference {
+        referee: Box<TypeReference>,
+        is_mutable: bool,
+    },
     Constrained {
         base_type: Box<TypeReference>,
         constraints: Vec<TypeConstraint>,
@@ -140,6 +144,16 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
     ) -> TypeReferenceHandle {
         match type_reference {
+            TypeReference::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let referee = self.insert_tree(referee, expressions);
+                self.insert(TypeReferenceNode::Reference {
+                    referee,
+                    is_mutable: *is_mutable,
+                })
+            }
             TypeReference::Constrained {
                 base_type,
                 constraints,
@@ -190,6 +204,10 @@ impl Default for TypeReferenceTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReferenceNode {
+    Reference {
+        referee: TypeReferenceHandle,
+        is_mutable: bool,
+    },
     Constrained {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
@@ -257,6 +275,20 @@ impl Default for TypeConstraintNode {
 impl TypeReference {
     pub fn named(name: impl Into<String>) -> Self {
         Self::Named(Identifier::generated(name))
+    }
+
+    pub fn shared_reference(referee: TypeReference) -> Self {
+        Self::Reference {
+            referee: Box::new(referee),
+            is_mutable: false,
+        }
+    }
+
+    pub fn mutable_reference(referee: TypeReference) -> Self {
+        Self::Reference {
+            referee: Box::new(referee),
+            is_mutable: true,
+        }
     }
 }
 

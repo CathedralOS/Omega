@@ -10,6 +10,7 @@ use omega_target::NativeTarget;
 use omega_typed_trees::Program;
 use omega_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::platform::Platform;
 use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
 
 pub fn build_layout_plan(
@@ -37,6 +38,7 @@ struct LayoutBuilder<'program> {
     machine_definitions: &'program [Machine],
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: Vec<SymbolHandle>,
+    platform_definitions: &'program [Platform],
     target: NativeTarget,
     type_constraints: &'program Arena<TypeConstraint>,
 }
@@ -51,6 +53,7 @@ impl<'program> LayoutBuilder<'program> {
             machine_definitions: &program.machines,
             machine_layouts: Arena::new(),
             machine_visiting: Vec::new(),
+            platform_definitions: &program.platforms,
             target,
             type_constraints: &program.type_constraints,
         }
@@ -227,6 +230,10 @@ impl<'program> LayoutBuilder<'program> {
         type_reference: &TypeReference,
     ) -> Result<TypeLayout, Diagnostic> {
         match type_reference {
+            TypeReference::Reference { .. } => Ok(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            }),
             TypeReference::Constrained { base_type, .. } => self.layout_type_reference(base_type),
             TypeReference::FixedArray {
                 element_type,
@@ -268,11 +275,42 @@ impl<'program> LayoutBuilder<'program> {
             )));
         }
 
-        self.layout_data_definition(symbol)
+        if self
+            .data_definitions
+            .iter()
+            .any(|definition| definition.symbol == symbol)
+        {
+            return self.layout_data_definition(symbol);
+        }
+
+        if self
+            .machine_definitions
+            .iter()
+            .any(|machine| machine.symbol == symbol)
+        {
+            return self.layout_machine(symbol);
+        }
+
+        if self
+            .platform_definitions
+            .iter()
+            .any(|platform| platform.symbol == symbol)
+        {
+            return Ok(TypeLayout {
+                size: self.target.pointer_size,
+                alignment: self.target.pointer_alignment,
+            });
+        }
+
+        Err(Diagnostic::error(format!(
+            "unknown layout-bearing type `{name}` for symbol {}",
+            symbol.arena_index()
+        )))
     }
 
     fn type_reference_symbol(&self, type_reference: &TypeReference) -> SymbolHandle {
         match type_reference {
+            TypeReference::Reference { referee, .. } => self.type_reference_symbol(referee),
             TypeReference::Constrained { base_type, .. } => self.type_reference_symbol(base_type),
             TypeReference::FixedArray { element_type, .. } => {
                 self.type_reference_symbol(element_type)

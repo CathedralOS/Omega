@@ -398,6 +398,7 @@ impl<'program> MachineSymbols<'program> {
 
 fn callable_receiver_type_name(type_reference: &TypeReference) -> Option<&str> {
     match type_reference {
+        TypeReference::Reference { referee, .. } => callable_receiver_type_name(referee),
         TypeReference::Constrained { base_type, .. } => callable_receiver_type_name(base_type),
         TypeReference::FixedArray { .. } | TypeReference::Slice { .. } => None,
         TypeReference::Generic { .. } => None,

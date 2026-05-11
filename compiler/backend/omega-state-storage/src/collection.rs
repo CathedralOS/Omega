@@ -133,6 +133,7 @@ fn build_machine_state_storage_plan(
 
 fn type_reference_symbol(program: &Program, type_reference: TypeReferenceHandle) -> SymbolHandle {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => type_reference_symbol(program, *referee),
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_reference_symbol(program, *base_type)
         }
@@ -170,6 +171,13 @@ fn type_reference_symbol(program: &Program, type_reference: TypeReferenceHandle)
 
 fn type_reference_display_name(program: &Program, type_reference: TypeReferenceHandle) -> String {
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+        } => {
+            let qualifier = if *is_mutable { "mut " } else { "" };
+            format!("&{qualifier}{}", type_reference_display_name(program, *referee))
+        }
         TypeReferenceNode::Constrained {
             base_type,
             constraints,

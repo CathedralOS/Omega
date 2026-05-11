@@ -435,6 +435,9 @@ fn validate_type_reference(
     owner: String,
 ) {
     match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            validate_type_reference(program, referee, symbols, diagnostics, owner);
+        }
         TypeReference::Constrained {
             base_type,
             constraints,
@@ -949,6 +952,7 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
     }
 
     match type_reference {
+        TypeReference::Reference { referee, .. } => argument_matches_type(argument, referee),
         TypeReference::Constrained { base_type, .. } => argument_matches_type(argument, base_type),
         TypeReference::FixedArray { .. } => matches!(
             argument,

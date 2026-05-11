@@ -115,11 +115,11 @@ fn platform_symbol_definition<'program>(
 
 fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
     for invariant in &mut program.invariant_definitions {
-        invariant.symbol = top_level_symbol(symbols, invariant.name.as_str());
+        invariant.symbol = top_level_symbol(symbols, SymbolKind::Invariant, invariant.name.as_str());
     }
 
     for data_definition in &mut program.data_definitions {
-        data_definition.symbol = top_level_symbol(symbols, data_definition.name.as_str());
+        data_definition.symbol = top_level_symbol(symbols, SymbolKind::Data, data_definition.name.as_str());
 
         for member in &mut data_definition.members {
             match member {
@@ -135,11 +135,12 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
     }
 
     for machine in &mut program.machines {
-        machine.symbol = top_level_symbol(symbols, machine.name.as_str());
+        machine.symbol = top_level_symbol(symbols, SymbolKind::Machine, machine.name.as_str());
 
         for contained_object in &mut machine.contains {
             contained_object.symbol = child_symbol(symbols, machine.symbol, contained_object.name.as_str());
-            contained_object.type_symbol = top_level_symbol(symbols, contained_object.type_name.as_str());
+            contained_object.type_symbol =
+                top_level_symbol(symbols, SymbolKind::Machine, contained_object.type_name.as_str());
         }
 
         for owned_data in &mut machine.owned_data {
@@ -162,7 +163,7 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
     }
 
     for platform in &mut program.platforms {
-        platform.symbol = top_level_symbol(symbols, platform.name.as_str());
+        platform.symbol = top_level_symbol(symbols, SymbolKind::Platform, platform.name.as_str());
 
         for state in &mut platform.states {
             state.symbol = child_symbol(symbols, platform.symbol, state.name.as_str());
@@ -197,6 +198,9 @@ fn assign_type_reference_symbol(
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
     match type_reference {
+        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
+            assign_type_reference_symbol(symbols, referee);
+        }
         omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
             assign_type_reference_symbol(symbols, base_type);
         }
@@ -211,25 +215,76 @@ fn assign_type_reference_symbol(
             base_name,
             arguments,
         } => {
-            *base_symbol = top_level_symbol(symbols, base_name.as_str());
+            *base_symbol = top_level_type_symbol(symbols, base_name.as_str());
 
             for argument in arguments {
                 assign_type_reference_symbol(symbols, argument);
             }
         }
         omega_resolved_trees::types::TypeReference::Named { symbol, name } => {
-            *symbol = top_level_symbol(symbols, name.as_str());
+            *symbol = top_level_type_symbol(symbols, name.as_str());
         }
         omega_resolved_trees::types::TypeReference::Unit => {}
     }
 }
 
-fn top_level_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
-    child_symbol(symbols, symbols.root(), name)
+fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
+    top_level_symbol_by_kinds(
+        symbols,
+        &[
+            SymbolKind::BuiltinType,
+            SymbolKind::Data,
+            SymbolKind::Machine,
+            SymbolKind::Platform,
+            SymbolKind::Invariant,
+        ],
+        name,
+    )
 }
 
 fn child_symbol(symbols: &SymbolTable, parent: SymbolHandle, name: &str) -> SymbolHandle {
-    symbols
-        .find_child_by_name(parent, name)
-        .unwrap_or_else(SymbolHandle::invalid)
+    child_symbol_by_kinds(
+        symbols,
+        parent,
+        &[
+            SymbolKind::Field,
+            SymbolKind::Variant,
+            SymbolKind::State,
+            SymbolKind::Parameter,
+            SymbolKind::Object,
+        ],
+        name,
+    )
+}
+
+fn top_level_symbol(symbols: &SymbolTable, kind: SymbolKind, name: &str) -> SymbolHandle {
+    top_level_symbol_by_kinds(symbols, &[kind], name)
+}
+
+fn top_level_symbol_by_kinds(
+    symbols: &SymbolTable,
+    kinds: &[SymbolKind],
+    name: &str,
+) -> SymbolHandle {
+    child_symbol_by_kinds(symbols, symbols.root(), kinds, name)
+}
+
+fn child_symbol_by_kinds(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kinds: &[SymbolKind],
+    name: &str,
+) -> SymbolHandle {
+    let Some(children) = symbols.child_handles(parent) else {
+        return SymbolHandle::invalid();
+    };
+
+    for child in children {
+        let symbol = symbols.get(child);
+        if symbols.name(child) == name && kinds.contains(&symbol.kind) {
+            return child;
+        }
+    }
+
+    SymbolHandle::invalid()
 }

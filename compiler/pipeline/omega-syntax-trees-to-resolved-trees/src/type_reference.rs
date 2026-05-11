@@ -11,6 +11,13 @@ pub(crate) fn lower_type_reference(
     type_reference: &syntax::types::TypeReference,
 ) -> Result<TypeReference, Diagnostic> {
     match type_reference {
+        syntax::types::TypeReference::Reference {
+            referee,
+            is_mutable,
+        } => Ok(TypeReference::Reference {
+            referee: Box::new(lower_type_reference(lowerer, referee)?),
+            is_mutable: *is_mutable,
+        }),
         syntax::types::TypeReference::Constrained {
             base_type,
             constraints,
