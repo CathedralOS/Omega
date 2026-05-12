@@ -88,7 +88,7 @@ impl StateCallPlanningContext {
                 && matches!(
                     operation.kind,
                     OperationKind::ConstantIntegerAssignment
-                        | OperationKind::StaticAssignment { .. }
+                        | OperationKind::StaticAssignment
                 )
         })
     }

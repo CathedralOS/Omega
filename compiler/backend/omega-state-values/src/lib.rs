@@ -9,7 +9,7 @@ pub use simplify::simplify_expression;
 use collection::build_machine_state_value_plan;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
-use omega_state_calls::{StateCallPlan, StateCallRole};
+use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
 use omega_typed_trees::Program;
 use std::sync::Arc;
@@ -26,12 +26,9 @@ impl StateValuePlanningContext {
             .states
             .iter()
             .any(|(_, state)| state.key == state_key)
-            || self.state_calls.calls.iter().any(|(_, state_call)| {
-                state_call.required
-                    && (state_call.source_key == state_key
-                        || (state_call.role == StateCallRole::Statement
-                            && state_call.target_key == state_key))
-            })
+            || self
+                .state_calls
+                .required_source_or_statement_target(state_key)
     }
 }
 

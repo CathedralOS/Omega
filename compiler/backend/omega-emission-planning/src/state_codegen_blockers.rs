@@ -56,15 +56,14 @@ pub(super) fn collect_state_codegen_blockers(
                         ),
                     ));
                 }
-                OperationKind::ConstantIntegerAssignment
-                | OperationKind::StaticAssignment { .. } => {}
-                OperationKind::Assignment { .. }
+                OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment => {}
+                OperationKind::Assignment
                     if state_statement_has_storage_mutation(
                         input,
                         state_flow.key,
                         operation.statement_index,
                     ) => {}
-                OperationKind::Assignment { .. } => {
+                OperationKind::Assignment => {
                     blockers.insert(blocker(
                         "state codegen",
                         &format!(
