@@ -1,5 +1,5 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::Program;
+use omega_checked_trees::Program;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::state::State;

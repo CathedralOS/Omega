@@ -1,5 +1,5 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::Program;
+use omega_checked_trees::Program;
 use omega_typed_trees::expression::display_name_path;
 use omega_typed_trees::statement::TransitionTarget;
 
