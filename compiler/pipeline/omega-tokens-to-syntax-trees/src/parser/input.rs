@@ -14,7 +14,10 @@ pub(super) struct Input<'tokens, 'source> {
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn new(source_id: SourceId, tokens: &'tokens [Token<'source>]) -> Self {
-        Self { source_id, tokens }
+        Self {
+            source_id,
+            tokens: skip_non_semantic_tokens(tokens),
+        }
     }
 
     pub(super) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
@@ -203,6 +206,16 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
         Ok((token_count, input))
     }
+}
+
+fn skip_non_semantic_tokens<'tokens, 'source>(
+    tokens: &'tokens [Token<'source>],
+) -> &'tokens [Token<'source>] {
+    let mut index = 0usize;
+    while index < tokens.len() && tokens[index].is_non_semantic() {
+        index += 1;
+    }
+    &tokens[index..]
 }
 
 pub(super) fn parse_path<'tokens, 'source>(

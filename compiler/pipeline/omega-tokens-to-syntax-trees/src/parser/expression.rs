@@ -5,7 +5,7 @@ use omega_syntax_trees::expression::{
     IndexedExpression, MemberExpression, StructLiteral, StructLiteralField,
 };
 use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
-use omega_tokens::{KeywordKind, PunctuationKind, TokenKind};
+use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
 pub(super) fn parse_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
@@ -245,7 +245,9 @@ fn parse_primary_expression<'tokens, 'source>(
     if input
         .tokens
         .first()
-        .is_some_and(|token| token.kind == TokenKind::IntegerLiteral)
+        .is_some_and(|token| {
+            token.kind == TokenKind::NumericLiteral(NumericLiteralKind::Integer)
+        })
     {
         let (value, input) = input.take_integer()?;
         return Ok((Expression::Integer(value), input));
@@ -254,7 +256,9 @@ fn parse_primary_expression<'tokens, 'source>(
     if input
         .tokens
         .first()
-        .is_some_and(|token| token.kind == TokenKind::FloatLiteral)
+        .is_some_and(|token| {
+            token.kind == TokenKind::NumericLiteral(NumericLiteralKind::Float)
+        })
     {
         let (value, input) = input.take_float_text()?;
         return Ok((Expression::Float(value), input));

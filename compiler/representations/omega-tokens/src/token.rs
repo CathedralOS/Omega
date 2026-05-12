@@ -1,4 +1,7 @@
-use crate::{KeywordKind, PunctuationKind, Span, TokenKind};
+use crate::{
+    CommentKind, KeywordKind, NumericLiteralKind, PunctuationKind, Span, TokenKind,
+    WhitespaceKind,
+};
 use crate::TokenText;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -14,11 +17,17 @@ impl<'source> Token<'source> {
     }
 
     pub fn is_integer_literal(&self) -> bool {
-        matches!(self.kind, TokenKind::IntegerLiteral)
+        matches!(
+            self.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer)
+        )
     }
 
     pub fn is_float_literal(&self) -> bool {
-        matches!(self.kind, TokenKind::FloatLiteral)
+        matches!(
+            self.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Float)
+        )
     }
 
     pub fn is_string_literal(&self) -> bool {
@@ -37,5 +46,23 @@ impl<'source> Token<'source> {
             TokenKind::Punctuation(punctuation) => Some(punctuation),
             _ => None,
         }
+    }
+
+    pub fn whitespace(&self) -> Option<WhitespaceKind> {
+        match self.kind {
+            TokenKind::Whitespace(kind) => Some(kind),
+            _ => None,
+        }
+    }
+
+    pub fn comment(&self) -> Option<CommentKind> {
+        match self.kind {
+            TokenKind::Comment(kind) => Some(kind),
+            _ => None,
+        }
+    }
+
+    pub fn is_non_semantic(&self) -> bool {
+        matches!(self.kind, TokenKind::Whitespace(_) | TokenKind::Comment(_))
     }
 }

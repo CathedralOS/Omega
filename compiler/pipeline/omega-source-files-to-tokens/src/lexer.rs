@@ -4,7 +4,8 @@ use std::str::CharIndices;
 use crate::LexError;
 use omega_core::Span;
 use omega_tokens::{
-    KeywordKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
+    CommentKind, KeywordKind, NumericLiteralKind, PunctuationKind, Token, TokenKind,
+    TokenStream, TokenText, WhitespaceKind,
 };
 
 pub struct Lexer<'source> {
@@ -37,13 +38,17 @@ impl<'source> Lexer<'source> {
     }
 
     fn lex_next_token(&mut self) -> Result<Option<LexedToken>, LexError> {
-        self.skip_trivia()?;
-
         let Some((start, character)) = self.chars.next() else {
             return Ok(None);
         };
 
-        let token = if character.is_ascii_alphabetic() || character == '_' {
+        let token = if character.is_whitespace() {
+            self.lex_whitespace(start, character)
+        } else if character == '/' && self.peek_character() == Some('/') {
+            self.lex_line_comment(start)
+        } else if character == '/' && self.peek_character() == Some('*') {
+            self.lex_block_comment(start)?
+        } else if character.is_ascii_alphabetic() || character == '_' {
             self.lex_identifier_or_keyword(start, character)
         } else if character.is_ascii_digit() {
             self.lex_number(start, character)
@@ -75,46 +80,57 @@ impl<'source> Lexer<'source> {
         }
     }
 
-    fn skip_trivia(&mut self) -> Result<(), LexError> {
-        loop {
-            let Some((start, character)) = self.chars.peek().copied() else {
-                return Ok(());
-            };
+    fn lex_whitespace(&mut self, start: usize, first: char) -> LexedToken {
+        let mut end = start + first.len_utf8();
+        let mut saw_newline = first == '\n' || first == '\r';
+        let mut saw_other = !saw_newline;
 
-            if character.is_whitespace() {
-                self.chars.next();
-                continue;
+        while let Some((next_index, next)) = self.chars.peek().copied() {
+            if !next.is_whitespace() {
+                break;
             }
 
-            if character == '/' && self.peek_second_character() == Some('/') {
-                self.chars.next();
-                self.skip_line_comment();
-                continue;
-            }
+            saw_newline |= next == '\n' || next == '\r';
+            saw_other |= next != '\n' && next != '\r';
+            end = next_index + next.len_utf8();
+            self.chars.next();
+        }
 
-            if character == '/' && self.peek_second_character() == Some('*') {
-                self.chars.next();
-                self.skip_block_comment(start)?;
-                continue;
-            }
+        let kind = match (saw_newline, saw_other) {
+            (true, false) => WhitespaceKind::Newline,
+            (false, true) => WhitespaceKind::Space,
+            _ => WhitespaceKind::Mixed,
+        };
 
-            return Ok(());
+        LexedToken {
+            kind: TokenKind::Whitespace(kind),
+            span: Span::new(start, end),
         }
     }
 
-    fn skip_line_comment(&mut self) {
+    fn lex_line_comment(&mut self, start: usize) -> LexedToken {
+        let mut end = start + '/'.len_utf8();
+        self.chars.next();
+        end += '/'.len_utf8();
+
         for (_, character) in self.chars.by_ref() {
             if character == '\n' {
                 break;
             }
+            end += character.len_utf8();
+        }
+
+        LexedToken {
+            kind: TokenKind::Comment(CommentKind::Line),
+            span: Span::new(start, end),
         }
     }
 
-    fn skip_block_comment(&mut self, start: usize) -> Result<(), LexError> {
+    fn lex_block_comment(&mut self, start: usize) -> Result<LexedToken, LexError> {
         self.chars.next();
         let mut depth = 1usize;
 
-        while let Some((_, character)) = self.chars.next() {
+        while let Some((index, character)) = self.chars.next() {
             match (character, self.peek_character()) {
                 ('/', Some('*')) => {
                     self.chars.next();
@@ -124,7 +140,10 @@ impl<'source> Lexer<'source> {
                     self.chars.next();
                     depth -= 1;
                     if depth == 0 {
-                        return Ok(());
+                        return Ok(LexedToken {
+                            kind: TokenKind::Comment(CommentKind::Block),
+                            span: Span::new(start, index + 2),
+                        });
                     }
                 }
                 _ => {}
@@ -203,9 +222,9 @@ impl<'source> Lexer<'source> {
 
         LexedToken {
             kind: if is_float {
-                TokenKind::FloatLiteral
+                TokenKind::NumericLiteral(NumericLiteralKind::Float)
             } else {
-                TokenKind::IntegerLiteral
+                TokenKind::NumericLiteral(NumericLiteralKind::Integer)
             },
             span: Span::new(start, end),
         }
@@ -336,42 +355,45 @@ impl<'source> Lexer<'source> {
         self.chars.peek().map(|(_, character)| *character)
     }
 
-    fn peek_second_character(&self) -> Option<char> {
-        let mut chars = self.chars.clone();
-        chars.next()?;
-        chars.next().map(|(_, character)| character)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Lexer;
-    use omega_tokens::{KeywordKind, PunctuationKind, TokenKind};
+    use omega_tokens::{
+        CommentKind, KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind,
+    };
+
+    fn semantic_kinds(source: &str) -> Vec<TokenKind> {
+        Lexer::new(source)
+            .tokenize()
+            .expect("tokenization should succeed")
+            .iter()
+            .filter(|token| !token.is_non_semantic())
+            .map(|token| token.kind)
+            .collect()
+    }
 
     #[test]
     fn tokenizes_keywords_and_identifiers_distinctly() {
-        let tokens = Lexer::new("machine game entry self true false custom")
-            .tokenize()
-            .expect("tokenization should succeed");
-
-        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Machine));
-        assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[2].kind, TokenKind::Keyword(KeywordKind::Entry));
-        assert_eq!(tokens[3].kind, TokenKind::Keyword(KeywordKind::SelfValue));
-        assert_eq!(tokens[4].kind, TokenKind::Keyword(KeywordKind::True));
-        assert_eq!(tokens[5].kind, TokenKind::Keyword(KeywordKind::False));
-        assert_eq!(tokens[6].kind, TokenKind::Identifier);
+        assert_eq!(
+            semantic_kinds("machine game entry self true false custom"),
+            vec![
+                TokenKind::Keyword(KeywordKind::Machine),
+                TokenKind::Identifier,
+                TokenKind::Keyword(KeywordKind::Entry),
+                TokenKind::Keyword(KeywordKind::SelfValue),
+                TokenKind::Keyword(KeywordKind::True),
+                TokenKind::Keyword(KeywordKind::False),
+                TokenKind::Identifier,
+            ]
+        );
     }
 
     #[test]
     fn tokenizes_multi_character_punctuation() {
-        let tokens = Lexer::new(":: -> == != << <= >> >= && ||")
-            .tokenize()
-            .expect("tokenization should succeed");
-
-        let kinds: Vec<_> = tokens.iter().map(|token| token.kind).collect();
         assert_eq!(
-            kinds,
+            semantic_kinds(":: -> == != << <= >> >= && ||"),
             vec![
                 TokenKind::Punctuation(PunctuationKind::ColonColon),
                 TokenKind::Punctuation(PunctuationKind::Arrow),
@@ -393,10 +415,13 @@ mod tests {
             .tokenize()
             .expect("tokenization should succeed");
 
-        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
-        assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].lexeme.as_str(), "value");
+        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Line)));
+        assert!(matches!(tokens[3].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[4].kind, TokenKind::Identifier);
+        assert_eq!(tokens[4].lexeme.as_str(), "value");
     }
 
     #[test]
@@ -405,10 +430,13 @@ mod tests {
             .tokenize()
             .expect("tokenization should succeed");
 
-        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
-        assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].lexeme.as_str(), "value");
+        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Block)));
+        assert!(matches!(tokens[3].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[4].kind, TokenKind::Identifier);
+        assert_eq!(tokens[4].lexeme.as_str(), "value");
     }
 
     #[test]
@@ -417,10 +445,13 @@ mod tests {
             .tokenize()
             .expect("tokenization should succeed");
 
-        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
-        assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].lexeme.as_str(), "value");
+        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Block)));
+        assert!(matches!(tokens[3].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[4].kind, TokenKind::Identifier);
+        assert_eq!(tokens[4].lexeme.as_str(), "value");
     }
 
     #[test]
@@ -449,8 +480,15 @@ mod tests {
             .tokenize()
             .expect("tokenization should succeed");
 
-        assert_eq!(tokens.len(), 2);
-        assert_eq!(tokens[0].kind, TokenKind::IntegerLiteral);
-        assert_eq!(tokens[1].kind, TokenKind::FloatLiteral);
+        assert_eq!(tokens.len(), 3);
+        assert_eq!(
+            tokens[0].kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer)
+        );
+        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert_eq!(
+            tokens[2].kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Float)
+        );
     }
 }
