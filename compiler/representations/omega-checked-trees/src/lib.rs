@@ -48,6 +48,7 @@ pub struct BorrowArgumentAccessFact {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowCallFact {
+    pub statement_index: usize,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: Option<expression::NamePath>,

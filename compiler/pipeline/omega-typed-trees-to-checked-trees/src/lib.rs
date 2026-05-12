@@ -151,7 +151,8 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
             let state_calls = state
                 .statements
                 .iter()
-                .filter_map(|statement| {
+                .enumerate()
+                .filter_map(|(statement_index, statement)| {
                     let omega_typed_trees::statement::Statement::Call(call) = statement else {
                         return None;
                     };
@@ -160,6 +161,7 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
                     let accesses = argument_accesses.insert_many(accesses);
 
                     Some(BorrowCallFact {
+                        statement_index,
                         receiver_symbol: call.receiver_symbol,
                         target_symbol: call.target_symbol,
                         receiver: call.receiver.clone(),
