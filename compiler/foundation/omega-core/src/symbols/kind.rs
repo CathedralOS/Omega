@@ -12,6 +12,7 @@ pub enum SymbolKind {
     Machine,
     State,
     Parameter,
+    TypeParameter,
     Local,
     Platform,
     HostCapability,

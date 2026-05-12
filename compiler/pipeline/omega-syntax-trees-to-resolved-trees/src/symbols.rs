@@ -33,14 +33,20 @@ fn data_symbol_definition<'program>(
     SymbolDefinition::with_children(
         SymbolKind::Data,
         data_definition.name.as_str(),
-        data_definition.members.iter().map(|member| match member {
-            omega_resolved_trees::data::DataMember::Field(field) => {
-                SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
-            }
-            omega_resolved_trees::data::DataMember::Variant(variant) => {
-                SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
-            }
-        }),
+        data_definition
+            .type_parameters
+            .iter()
+            .map(|parameter| {
+                SymbolDefinition::named(SymbolKind::TypeParameter, parameter.name.as_str())
+            })
+            .chain(data_definition.members.iter().map(|member| match member {
+                omega_resolved_trees::data::DataMember::Field(field) => {
+                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
+                }
+                omega_resolved_trees::data::DataMember::Variant(variant) => {
+                    SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+                }
+            })),
     )
 }
 
@@ -134,6 +140,11 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
     for data_definition in &mut program.data_definitions {
         data_definition.symbol = top_level_symbol(symbols, SymbolKind::Data, data_definition.name.as_str());
 
+        for type_parameter in &mut data_definition.type_parameters {
+            type_parameter.symbol =
+                child_symbol_by_kinds(symbols, data_definition.symbol, &[SymbolKind::TypeParameter], type_parameter.name.as_str());
+        }
+
         for member in &mut data_definition.members {
             match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
@@ -204,9 +215,14 @@ fn assign_type_reference_symbols(
     symbols: &SymbolTable,
 ) {
     for data_definition in &mut program.data_definitions {
+        let type_parameter_bindings = data_type_parameter_bindings(data_definition);
         for member in &mut data_definition.members {
             if let omega_resolved_trees::data::DataMember::Field(field) = member {
-                assign_type_reference_symbol(symbols, &mut field.type_reference);
+                assign_type_reference_symbol_with_locals(
+                    symbols,
+                    &type_parameter_bindings,
+                    &mut field.type_reference,
+                );
             }
         }
     }
@@ -257,6 +273,12 @@ struct ParameterBinding {
     name: omega_resolved_trees::name::ProgramName,
     type_name: omega_resolved_trees::name::ProgramName,
     type_symbol: SymbolHandle,
+}
+
+#[derive(Clone)]
+struct TypeParameterBinding {
+    symbol: SymbolHandle,
+    name: omega_resolved_trees::name::ProgramName,
 }
 
 fn assign_statement_symbols(
@@ -847,6 +869,19 @@ fn state_parameter_bindings(
         .collect()
 }
 
+fn data_type_parameter_bindings(
+    data_definition: &omega_resolved_trees::data::DataDefinition,
+) -> Vec<TypeParameterBinding> {
+    data_definition
+        .type_parameters
+        .iter()
+        .map(|parameter| TypeParameterBinding {
+            symbol: parameter.symbol,
+            name: parameter.name.clone(),
+        })
+        .collect()
+}
+
 fn type_reference_symbol(
     type_reference: &omega_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
@@ -897,18 +932,26 @@ fn assign_type_reference_symbol(
     symbols: &SymbolTable,
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
+    assign_type_reference_symbol_with_locals(symbols, &[], type_reference);
+}
+
+fn assign_type_reference_symbol_with_locals(
+    symbols: &SymbolTable,
+    local_type_parameters: &[TypeParameterBinding],
+    type_reference: &mut omega_resolved_trees::types::TypeReference,
+) {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
-            assign_type_reference_symbol(symbols, referee);
+            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, referee);
         }
         omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
-            assign_type_reference_symbol(symbols, base_type);
+            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, base_type);
         }
         omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            assign_type_reference_symbol(symbols, element_type);
+            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
         }
         omega_resolved_trees::types::TypeReference::Slice { element_type } => {
-            assign_type_reference_symbol(symbols, element_type);
+            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
         }
         omega_resolved_trees::types::TypeReference::Generic {
             base_symbol,
@@ -918,11 +961,15 @@ fn assign_type_reference_symbol(
             *base_symbol = top_level_type_symbol(symbols, base_name.as_str());
 
             for argument in arguments {
-                assign_type_reference_symbol(symbols, argument);
+                assign_type_reference_symbol_with_locals(symbols, local_type_parameters, argument);
             }
         }
         omega_resolved_trees::types::TypeReference::Named { symbol, name } => {
-            *symbol = top_level_type_symbol(symbols, name.as_str());
+            *symbol = local_type_parameters
+                .iter()
+                .find(|parameter| parameter.name.as_str() == name.as_str())
+                .map(|parameter| parameter.symbol)
+                .unwrap_or_else(|| top_level_type_symbol(symbols, name.as_str()));
         }
         omega_resolved_trees::types::TypeReference::Unit => {}
     }
@@ -951,6 +998,7 @@ fn child_symbol(symbols: &SymbolTable, parent: SymbolHandle, name: &str) -> Symb
             SymbolKind::Variant,
             SymbolKind::State,
             SymbolKind::Parameter,
+            SymbolKind::TypeParameter,
             SymbolKind::Local,
             SymbolKind::Object,
         ],

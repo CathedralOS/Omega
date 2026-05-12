@@ -1,13 +1,15 @@
 use crate::parser::expression::parse_expression;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference;
-use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant};
+use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
+    let (type_parameters, next) = parse_type_parameters(input)?;
+    input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut members = Vec::new();
 
@@ -47,13 +49,15 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((DataDefinition { name, members }, input))
+    Ok((DataDefinition { name, type_parameters, members }, input))
 }
 
 pub(super) fn parse_enum_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
+    let (type_parameters, next) = parse_type_parameters(input)?;
+    input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut members = Vec::new();
 
@@ -70,5 +74,30 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((DataDefinition { name, members }, input))
+    Ok((DataDefinition { name, type_parameters, members }, input))
+}
+
+fn parse_type_parameters<'tokens, 'source>(
+    mut input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<TypeParameter>> {
+    if !input.at_punctuation(PunctuationKind::Less) {
+        return Ok((Vec::new(), input));
+    }
+
+    input = input.take_punctuation(PunctuationKind::Less, "<")?;
+    let mut type_parameters = Vec::new();
+
+    loop {
+        let (name, next) = input.take_identifier()?;
+        input = next;
+        type_parameters.push(TypeParameter { name });
+
+        if input.at_punctuation(PunctuationKind::Comma) {
+            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            continue;
+        }
+
+        input = input.take_punctuation(PunctuationKind::Greater, ">")?;
+        return Ok((type_parameters, input));
+    }
 }

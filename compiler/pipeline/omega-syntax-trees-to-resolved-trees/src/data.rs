@@ -3,7 +3,7 @@ use crate::type_reference::lower_type_reference;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_syntax_trees as syntax;
-use omega_resolved_trees::data::{DataDefinition, DataField, DataMember, DataVariant};
+use omega_resolved_trees::data::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
 
 pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
@@ -18,6 +18,14 @@ pub(crate) fn lower_data_definition(
     Ok(DataDefinition {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&data_definition.name),
+        type_parameters: data_definition
+            .type_parameters
+            .iter()
+            .map(|parameter| TypeParameter {
+                symbol: SymbolHandle::invalid(),
+                name: crate::name::lower_name(&parameter.name),
+            })
+            .collect(),
         members,
     })
 }

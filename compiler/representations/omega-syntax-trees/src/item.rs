@@ -139,7 +139,13 @@ pub enum TrustMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub name: Identifier,
+    pub type_parameters: Vec<TypeParameter>,
     pub members: Vec<DataMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeParameter {
+    pub name: Identifier,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

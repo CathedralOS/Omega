@@ -6,6 +6,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub type_parameters: Vec<TypeParameter>,
     pub members: Vec<DataMember>,
 }
 
@@ -42,6 +43,12 @@ pub enum DataShapeKind {
 pub enum DataMember {
     Field(DataField),
     Variant(DataVariant),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TypeParameter {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
