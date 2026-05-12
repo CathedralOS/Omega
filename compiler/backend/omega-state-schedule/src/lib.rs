@@ -1,5 +1,6 @@
 use omega_control_flow::{ControlFlowPlan, StateFlow, StateKey};
 use omega_platform_interface::HostCallPlan;
+use omega_state_calls::StateCallPlan;
 
 mod display;
 mod local_calls;
@@ -20,13 +21,19 @@ use transitions::next_state;
 pub struct StateScheduleContext<'plan> {
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
+    pub state_calls: &'plan StateCallPlan,
 }
 
 impl<'plan> StateScheduleContext<'plan> {
-    pub fn new(control_flow: &'plan ControlFlowPlan, host_calls: &'plan HostCallPlan) -> Self {
+    pub fn new(
+        control_flow: &'plan ControlFlowPlan,
+        host_calls: &'plan HostCallPlan,
+        state_calls: &'plan StateCallPlan,
+    ) -> Self {
         Self {
             control_flow,
             host_calls,
+            state_calls,
         }
     }
 }

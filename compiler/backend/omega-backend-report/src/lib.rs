@@ -454,8 +454,11 @@ pub fn backend_report_text(
     output.push('\n');
 
     output.push_str("## State Schedule\n");
-    let schedule_context =
-        StateScheduleContext::new(&backend_plan.control_flow, &backend_plan.host_calls);
+    let schedule_context = StateScheduleContext::new(
+        &backend_plan.control_flow,
+        &backend_plan.host_calls,
+        &backend_plan.state_calls,
+    );
     match build_entry_state_schedule(&schedule_context, backend_plan.entry_key) {
         Ok(schedule) if schedule.is_empty() => output.push_str("states: 0\nnone\n"),
         Ok(schedule) => {
