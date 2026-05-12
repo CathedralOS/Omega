@@ -1,8 +1,9 @@
 use crate::RuntimeBranchingContext;
-use omega_control_flow::{MachineFlow, OperationKind, PlannedTransitionTarget, StateKey};
+use omega_control_flow::{MachineFlow, PlannedTransitionTarget, StateKey};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::classify_transition_guard;
+use omega_state_calls::StateCallRole;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 
 use super::lookups::state_statement_has_host_call;
@@ -108,16 +109,11 @@ fn branch_target_lowering(
         return RuntimeBranchTargetLowering::InlineBranching;
     }
 
-    let has_state_call = context
-        .control_flow
-        .operations
-        .span(target_state.operations)
-        .is_some_and(|operations| {
-            operations.iter().any(|operation| {
-                matches!(operation.kind, OperationKind::Call { .. })
-                    && !state_statement_has_host_call(context, *key, operation.statement_index)
-            })
-        });
+    let has_state_call = context.state_calls.calls.iter().any(|(_, state_call)| {
+        state_call.source_key == *key
+            && state_call.role == StateCallRole::Statement
+            && !state_statement_has_host_call(context, *key, state_call.statement_index)
+    });
 
     if has_state_call {
         RuntimeBranchTargetLowering::InlineStraightLine
