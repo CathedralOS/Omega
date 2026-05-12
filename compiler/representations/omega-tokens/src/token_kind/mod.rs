@@ -6,7 +6,9 @@ mod whitespace_kind;
 
 pub use comment_kind::CommentKind;
 pub use keyword_kind::KeywordKind;
-pub use numeric_literal_kind::NumericLiteralKind;
+pub use numeric_literal_kind::{
+    FloatLiteralKind, IntegerLiteralKind, NumericBase, NumericLiteralKind,
+};
 pub use punctuation_kind::PunctuationKind;
 pub use whitespace_kind::WhitespaceKind;
 

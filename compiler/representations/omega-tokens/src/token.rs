@@ -1,6 +1,6 @@
 use crate::{
-    CommentKind, KeywordKind, NumericLiteralKind, PunctuationKind, Span, TokenKind,
-    WhitespaceKind,
+    CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind,
+    PunctuationKind, Span, TokenKind, WhitespaceKind,
 };
 use crate::TokenText;
 
@@ -17,17 +17,11 @@ impl<'source> Token<'source> {
     }
 
     pub fn is_integer_literal(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::NumericLiteral(NumericLiteralKind::Integer)
-        )
+        matches!(self.kind, TokenKind::NumericLiteral(NumericLiteralKind::Integer(_)))
     }
 
     pub fn is_float_literal(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::NumericLiteral(NumericLiteralKind::Float)
-        )
+        matches!(self.kind, TokenKind::NumericLiteral(NumericLiteralKind::Float(_)))
     }
 
     pub fn is_string_literal(&self) -> bool {
@@ -44,6 +38,20 @@ impl<'source> Token<'source> {
     pub fn punctuation(&self) -> Option<PunctuationKind> {
         match self.kind {
             TokenKind::Punctuation(punctuation) => Some(punctuation),
+            _ => None,
+        }
+    }
+
+    pub fn integer_literal_kind(&self) -> Option<IntegerLiteralKind> {
+        match self.kind {
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer(kind)) => Some(kind),
+            _ => None,
+        }
+    }
+
+    pub fn float_literal_kind(&self) -> Option<FloatLiteralKind> {
+        match self.kind {
+            TokenKind::NumericLiteral(NumericLiteralKind::Float(kind)) => Some(kind),
             _ => None,
         }
     }

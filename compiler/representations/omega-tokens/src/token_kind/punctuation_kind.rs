@@ -37,6 +37,43 @@ pub enum PunctuationKind {
 }
 
 impl PunctuationKind {
+    pub fn ordered_lexemes() -> &'static [(&'static str, Self)] {
+        &[
+            ("::", Self::ColonColon),
+            ("->", Self::Arrow),
+            ("==", Self::EqualEqual),
+            ("!=", Self::ExclamationEqual),
+            ("<<", Self::LessLess),
+            ("<=", Self::LessEqual),
+            (">>", Self::GreaterGreater),
+            (">=", Self::GreaterEqual),
+            ("&&", Self::AndAnd),
+            ("||", Self::PipePipe),
+            ("&", Self::Ampersand),
+            ("*", Self::Asterisk),
+            ("^", Self::Caret),
+            (":", Self::Colon),
+            (",", Self::Comma),
+            (".", Self::Dot),
+            ("=", Self::Equal),
+            ("!", Self::Exclamation),
+            (">", Self::Greater),
+            ("{", Self::LeftBrace),
+            ("[", Self::LeftBracket),
+            ("(", Self::LeftParen),
+            ("<", Self::Less),
+            ("-", Self::Minus),
+            ("%", Self::Percent),
+            ("|", Self::Pipe),
+            ("+", Self::Plus),
+            ("}", Self::RightBrace),
+            ("]", Self::RightBracket),
+            (")", Self::RightParen),
+            (";", Self::Semicolon),
+            ("/", Self::Slash),
+        ]
+    }
+
     pub fn from_lexeme(lexeme: &str) -> Option<Self> {
         Some(match lexeme {
             "&" => Self::Ampersand,

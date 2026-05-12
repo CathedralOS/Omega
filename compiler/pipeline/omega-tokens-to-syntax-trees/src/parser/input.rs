@@ -1,7 +1,10 @@
 use crate::parse_error::ParseError;
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
-use omega_tokens::{KeywordKind, PunctuationKind, Token, TokenKind};
+use omega_tokens::{
+    FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase, PunctuationKind, Token,
+    TokenKind,
+};
 
 pub(super) type ParseResult<'tokens, 'source, T> =
     Result<(T, Input<'tokens, 'source>), ParseError>;
@@ -103,9 +106,9 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn take_integer(self) -> Result<(i64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if token.is_integer_literal() {
-            let value = token.lexeme.as_str().parse::<i64>().map_err(|_| {
-                ParseError::at_source_span("invalid integer literal", self.source_span(token))
+        if let Some(kind) = token.integer_literal_kind() {
+            let value = parse_integer_literal(token.lexeme.as_str(), kind).map_err(|message| {
+                ParseError::at_source_span(message, self.source_span(token))
             })?;
             Ok((value, rest))
         } else {
@@ -130,7 +133,10 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if token.is_float_literal() {
+        if let Some(kind) = token.float_literal_kind() {
+            validate_float_literal(kind).map_err(|message| {
+                ParseError::at_source_span(message, self.source_span(token))
+            })?;
             Ok((SourceText::new(token.lexeme.as_str(), self.source_span(token)), rest))
         } else {
             Err(ParseError::at_source_span(
@@ -216,6 +222,42 @@ fn skip_non_semantic_tokens<'tokens, 'source>(
         index += 1;
     }
     &tokens[index..]
+}
+
+fn parse_integer_literal(
+    text: &str,
+    kind: IntegerLiteralKind,
+) -> Result<i64, &'static str> {
+    if kind.empty_digits {
+        return Err("invalid integer literal");
+    }
+    if kind.has_suffix {
+        return Err("integer literal suffixes are not supported yet");
+    }
+
+    let (radix, body) = match kind.base {
+        NumericBase::Binary => (2, text.strip_prefix("0b").or_else(|| text.strip_prefix("0B"))),
+        NumericBase::Octal => (8, text.strip_prefix("0o").or_else(|| text.strip_prefix("0O"))),
+        NumericBase::Decimal => (10, Some(text)),
+        NumericBase::Hexadecimal => {
+            (16, text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")))
+        }
+    };
+
+    let body = body.ok_or("invalid integer literal")?;
+    let normalized: String = body.chars().filter(|character| *character != '_').collect();
+    i64::from_str_radix(&normalized, radix).map_err(|_| "invalid integer literal")
+}
+
+fn validate_float_literal(kind: FloatLiteralKind) -> Result<(), &'static str> {
+    if kind.empty_exponent {
+        return Err("invalid float literal");
+    }
+    if kind.has_suffix {
+        return Err("float literal suffixes are not supported yet");
+    }
+
+    Ok(())
 }
 
 pub(super) fn parse_path<'tokens, 'source>(

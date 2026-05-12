@@ -245,9 +245,7 @@ fn parse_primary_expression<'tokens, 'source>(
     if input
         .tokens
         .first()
-        .is_some_and(|token| {
-            token.kind == TokenKind::NumericLiteral(NumericLiteralKind::Integer)
-        })
+        .is_some_and(|token| matches!(token.kind, TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))))
     {
         let (value, input) = input.take_integer()?;
         return Ok((Expression::Integer(value), input));
@@ -256,9 +254,7 @@ fn parse_primary_expression<'tokens, 'source>(
     if input
         .tokens
         .first()
-        .is_some_and(|token| {
-            token.kind == TokenKind::NumericLiteral(NumericLiteralKind::Float)
-        })
+        .is_some_and(|token| matches!(token.kind, TokenKind::NumericLiteral(NumericLiteralKind::Float(_))))
     {
         let (value, input) = input.take_float_text()?;
         return Ok((Expression::Float(value), input));
