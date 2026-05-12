@@ -1,1 +1,1 @@
-needs runtime guard lowering
+native emission needs dispatch loop byte emission

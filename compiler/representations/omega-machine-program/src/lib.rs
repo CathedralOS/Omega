@@ -53,12 +53,17 @@ impl Default for MachineInstruction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MachineRuntimeValueOperand {
     Immediate(i64),
     Storage {
         byte_offset: usize,
         byte_size: usize,
+    },
+    Binary {
+        left: Box<MachineRuntimeValueOperand>,
+        operator: StateGuardOperator,
+        right: Box<MachineRuntimeValueOperand>,
     },
 }
 

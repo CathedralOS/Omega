@@ -213,6 +213,18 @@ fn selected_instruction_name(
                 "compare runtime storage {symbol}@{byte_offset} {operator:?} {expected_value} bytes {byte_size}"
             )
         }
+        SelectedInstructionKind::CompareRuntimeValues {
+            left,
+            right,
+            byte_size,
+            operator,
+        } => {
+            format!(
+                "compare runtime values {} {operator:?} {} bytes {byte_size}",
+                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+            )
+        }
         SelectedInstructionKind::WriteRuntimeTextLiteral { buffer, literal } => {
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             format!("write runtime text `{buffer_symbol}` = {literal:?}")
@@ -465,6 +477,15 @@ fn runtime_value_operand_name(
             let symbol = storage_region_symbol_name(*region, entry_machine_name);
             format!("{symbol}@{byte_offset}/{}", byte_size)
         }
+        omega_target_operations::RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        } => format!(
+            "({} {operator:?} {})",
+            runtime_value_operand_name(left, entry_machine_name),
+            runtime_value_operand_name(right, entry_machine_name),
+        ),
     }
 }
 

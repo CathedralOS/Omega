@@ -22,6 +22,7 @@ mod guard {
         LessOrEqual,
         Add,
         Subtract,
+        Multiply,
         And,
         Or,
     }

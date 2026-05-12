@@ -74,6 +74,7 @@ pub(super) fn lower_machine_instruction_kind(
             *expected_value,
             *operator,
         ),
+        SelectedInstructionKind::CompareRuntimeValues { .. } => MachineInstructionKind::NoOp,
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
             runtime_text::runtime_text_literal_write_kind(literal)
         }
@@ -128,9 +129,9 @@ pub(super) fn lower_machine_instruction_kind(
         } => runtime_storage::runtime_storage_binary_write_kind(
             *target_offset,
             *byte_size,
-            *left,
+            left.clone(),
             *operator,
-            *right,
+            right.clone(),
         ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
@@ -162,9 +163,9 @@ pub(super) fn lower_machine_instruction_kind(
             *element_byte_size,
             *field_byte_offset,
             *byte_size,
-            *left,
+            left.clone(),
             *operator,
-            *right,
+            right.clone(),
         ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,

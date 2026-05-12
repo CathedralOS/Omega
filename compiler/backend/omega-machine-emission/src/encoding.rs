@@ -111,6 +111,20 @@ pub(super) fn encode_machine_instruction(
             *expected_value,
             *operator,
         ),
+        SelectedInstructionKind::CompareRuntimeValues {
+            left,
+            right,
+            byte_size,
+            operator,
+        } => runtime_storage::encode_runtime_value_compare(
+            input,
+            machine_instructions,
+            machine_instruction_index,
+            left,
+            right,
+            *byte_size,
+            *operator,
+        ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
             runtime_text::encode_runtime_text_literal_write(input, literal)
         }

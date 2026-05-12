@@ -198,6 +198,9 @@ fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
             8 => 20,
             _ => 0,
         },
+        RuntimeValueOperand::Binary { left, right, .. } => {
+            runtime_value_operand_width(left) + runtime_value_operand_width(right) + 4
+        }
     }
 }
 

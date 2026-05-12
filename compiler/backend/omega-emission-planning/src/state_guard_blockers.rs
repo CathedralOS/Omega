@@ -2,6 +2,7 @@ use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
+use omega_typed_trees::expression::Expression;
 
 use super::{EmissionBlocker, blocker};
 
@@ -30,6 +31,12 @@ pub(super) fn collect_state_guard_blockers(
             guard.statement_order,
         )
         .is_some()
+        {
+            continue;
+        }
+
+        if guard.has_expression
+            && guard_expression_can_emit(&input.state_guards.expressions.to_tree(guard.expression))
         {
             continue;
         }
@@ -63,6 +70,42 @@ pub(super) fn collect_state_guard_blockers(
                     .display_name(guard.expression)
             ),
         ));
+    }
+}
+
+fn guard_expression_can_emit(expression: &Expression) -> bool {
+    let Expression::Binary(binary) = expression else {
+        return false;
+    };
+
+    matches!(
+        binary.operator,
+        omega_typed_trees::expression::BinaryOperator::Equal
+            | omega_typed_trees::expression::BinaryOperator::NotEqual
+            | omega_typed_trees::expression::BinaryOperator::Greater
+            | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+            | omega_typed_trees::expression::BinaryOperator::Less
+            | omega_typed_trees::expression::BinaryOperator::LessOrEqual
+    ) && runtime_value_expression_can_emit(&binary.left)
+        && runtime_value_expression_can_emit(&binary.right)
+}
+
+fn runtime_value_expression_can_emit(expression: &Expression) -> bool {
+    match expression {
+        Expression::Binary(binary) => matches!(
+            binary.operator,
+            omega_typed_trees::expression::BinaryOperator::Add
+                | omega_typed_trees::expression::BinaryOperator::Multiply
+                | omega_typed_trees::expression::BinaryOperator::Subtract
+        ) && runtime_value_expression_can_emit(&binary.left)
+            && runtime_value_expression_can_emit(&binary.right),
+        Expression::Name(_)
+        | Expression::Member(_)
+        | Expression::Indexed(_)
+        | Expression::Mutable(_)
+        | Expression::Boolean(_)
+        | Expression::Integer(_) => true,
+        _ => false,
     }
 }
 

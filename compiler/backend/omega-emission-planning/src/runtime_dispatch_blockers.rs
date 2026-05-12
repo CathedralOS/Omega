@@ -226,7 +226,9 @@ fn decomposed_guard_can_emit(
 fn fallback_expression_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
     matches!(
         edge.guard_lowering,
-        StateGuardLowering::CompareStaticValue | StateGuardLowering::CompareRuntimeValue
+        StateGuardLowering::CompareStaticValue
+            | StateGuardLowering::CompareRuntimeValue
+            | StateGuardLowering::NeedsRuntimeExpression
     ) && guard_expression_can_emit(&edge.guard)
 }
 
@@ -237,32 +239,33 @@ fn guard_expression_can_emit(guard: &TransitionGuard) -> bool {
 
     match binary.operator {
         omega_typed_trees::expression::BinaryOperator::Equal
-        | omega_typed_trees::expression::BinaryOperator::NotEqual => {
-            let left_place = is_place_like(&binary.left);
-            let right_place = is_place_like(&binary.right);
-            let left_static = is_static_like(&binary.left);
-            let right_static = is_static_like(&binary.right);
-
-            (left_place && (right_static || right_place))
-                || (right_place && left_static)
+        | omega_typed_trees::expression::BinaryOperator::NotEqual
+        | omega_typed_trees::expression::BinaryOperator::Greater
+        | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+        | omega_typed_trees::expression::BinaryOperator::Less
+        | omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+            runtime_value_expression_can_emit(&binary.left)
+                && runtime_value_expression_can_emit(&binary.right)
         }
         _ => false,
     }
 }
 
-fn is_place_like(expression: &Expression) -> bool {
+fn runtime_value_expression_can_emit(expression: &Expression) -> bool {
     match expression {
+        Expression::Binary(binary) => matches!(
+            binary.operator,
+            omega_typed_trees::expression::BinaryOperator::Add
+                | omega_typed_trees::expression::BinaryOperator::Multiply
+                | omega_typed_trees::expression::BinaryOperator::Subtract
+        ) && runtime_value_expression_can_emit(&binary.left)
+            && runtime_value_expression_can_emit(&binary.right),
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)
-        | Expression::Mutable(_) => true,
-        _ => false,
-    }
-}
-
-fn is_static_like(expression: &Expression) -> bool {
-    match expression {
-        Expression::Boolean(_) | Expression::Integer(_) | Expression::Name(_) => true,
+        | Expression::Mutable(_)
+        | Expression::Boolean(_)
+        | Expression::Integer(_) => true,
         _ => false,
     }
 }

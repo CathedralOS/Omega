@@ -8,7 +8,7 @@ use super::primitives::{
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
-    encode_move_x_register, encode_movz_w, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_move_x_register, encode_movz_w, encode_mul_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
     encode_store_x_to_x, encode_store_x17_to_x16, encode_unsigned_immediate,
     encode_unsigned_immediate_padded, encode_add_x_immediate, encode_add_x_register,
     encode_sub_x_register,
@@ -90,6 +90,31 @@ pub fn encode_runtime_storage_value_compare(
     Ok(bytes)
 }
 
+pub fn encode_runtime_value_compare(
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    operator: StateGuardOperator,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_runtime_value_operand(17, &[18, 15, 14], left)?;
+    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    match byte_size {
+        1 | 4 => bytes.extend(encode_compare_w_register(17, 18)),
+        8 => bytes.extend(encode_compare_x_register(17, 18)),
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot compare computed runtime values of width `{byte_size}` yet"
+            )));
+        }
+    }
+    bytes.extend(encode_conditional_branch_for_operator(
+        operator,
+        failure_branch_distance,
+    )?);
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_integer_write(
     byte_offset: usize,
     byte_size: usize,
@@ -130,9 +155,9 @@ pub fn encode_runtime_storage_binary_write(
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_runtime_value_operand(17, left)?);
-    bytes.extend(encode_runtime_value_operand(18, right)?);
-    bytes.extend(encode_runtime_binary_operation(17, operator)?);
+    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
+    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     bytes.extend(encode_runtime_storage_result_write(target_offset, byte_size));
     Ok(bytes)
 }
@@ -233,9 +258,9 @@ pub fn encode_runtime_frame_indexed_binary_write(
         element_byte_size,
         field_byte_offset,
     )?;
-    bytes.extend(encode_runtime_value_operand(17, left)?);
-    bytes.extend(encode_runtime_value_operand(18, right)?);
-    bytes.extend(encode_runtime_binary_operation(17, operator)?);
+    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
+    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
     bytes.extend(encode_runtime_storage_result_write(0, byte_size));
     Ok(bytes)
 }
@@ -330,6 +355,7 @@ fn encode_runtime_frame_index_target_address(
 
 fn encode_runtime_value_operand(
     destination_register: u8,
+    scratch_registers: &[u8],
     operand: &RuntimeValueOperand,
 ) -> Result<Vec<u8>, Diagnostic> {
     match operand {
@@ -341,19 +367,19 @@ fn encode_runtime_value_operand(
             })?;
             Ok(encode_unsigned_immediate(destination_register, value))
         }
-        RuntimeValueOperand::Storage { byte_offset, .. } => {
+        RuntimeValueOperand::Storage {
+            byte_offset,
+            byte_size,
+            ..
+        } => {
             let mut bytes = encode_adrp_placeholder(19);
             bytes.extend(encode_add_page_offset_placeholder(19));
-            let byte_size = match operand {
-                RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
-                RuntimeValueOperand::Immediate(_) => unreachable!(),
-            };
             match byte_size {
                 1 | 4 => bytes.extend(encode_load_w_from_x(
                     destination_register,
                     19,
                     *byte_offset,
-                    byte_size,
+                    *byte_size,
                 )?),
                 8 => bytes.extend(encode_load_x_from_x(destination_register, 19, *byte_offset)?),
                 _ => {
@@ -364,12 +390,34 @@ fn encode_runtime_value_operand(
             }
             Ok(bytes)
         }
+        RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        } => {
+            let Some((&rhs_register, remaining_scratch)) = scratch_registers.split_first() else {
+                return Err(Diagnostic::error(
+                    "AArch64 MVP encoder ran out of scratch registers for runtime arithmetic",
+                ));
+            };
+
+            let mut bytes =
+                encode_runtime_value_operand(destination_register, scratch_registers, left)?;
+            bytes.extend(encode_runtime_value_operand(rhs_register, remaining_scratch, right)?);
+            bytes.extend(encode_runtime_binary_operation(
+                destination_register,
+                *operator,
+                rhs_register,
+            )?);
+            Ok(bytes)
+        }
     }
 }
 
 fn encode_runtime_binary_operation(
     destination_register: u8,
     operator: StateGuardOperator,
+    right_register: u8,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::new();
 
@@ -378,18 +426,25 @@ fn encode_runtime_binary_operation(
             bytes.extend(encode_add_x_register(
                 destination_register,
                 destination_register,
-                18,
+                right_register,
             ));
         }
         StateGuardOperator::Subtract => {
             bytes.extend(encode_sub_x_register(
                 destination_register,
                 destination_register,
-                18,
+                right_register,
+            ));
+        }
+        StateGuardOperator::Multiply => {
+            bytes.extend(encode_mul_x_register(
+                destination_register,
+                destination_register,
+                right_register,
             ));
         }
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => {
-            bytes.extend(encode_compare_w_register(destination_register, 18));
+            bytes.extend(encode_compare_w_register(destination_register, right_register));
             bytes.extend(encode_movz_w(destination_register, 0));
             bytes.extend(match operator {
                 StateGuardOperator::Equal => encode_conditional_branch_not_equal(8)?,

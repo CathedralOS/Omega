@@ -212,6 +212,31 @@ fn resolve_runtime_value_operand(
         return Some(RuntimeValueOperand::Immediate(value));
     }
 
+    if let Expression::Binary(binary) = expression {
+        let operator = runtime_binary_operator(binary.operator)?;
+        let left = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            &binary.left,
+        )?;
+        let right = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            &binary.right,
+        )?;
+        return Some(RuntimeValueOperand::Binary {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        });
+    }
+
     let place = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -232,6 +257,7 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
+        BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::And
         | BinaryOperator::Divide
@@ -240,7 +266,6 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Modulo
-        | BinaryOperator::Multiply
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

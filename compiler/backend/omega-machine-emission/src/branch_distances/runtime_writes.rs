@@ -120,11 +120,14 @@ fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
     matches!(
         instruction.kind,
         MachineInstructionKind::RuntimeMachineIntegerWrite { .. }
+            | MachineInstructionKind::RuntimeStorageBinaryWrite { .. }
             | MachineInstructionKind::RuntimeFrameIndexedIntegerWrite { .. }
+            | MachineInstructionKind::RuntimeFrameIndexedBinaryWrite { .. }
             | MachineInstructionKind::RuntimeStorageCopy { .. }
             | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed { .. }
             | MachineInstructionKind::RuntimeTextBufferMaterialize { .. }
             | MachineInstructionKind::RuntimeTextStoredPlaceAppend { .. }
             | MachineInstructionKind::RuntimeTextLiteralAppend { .. }
+            | MachineInstructionKind::DispatchStateWrite { .. }
     )
 }

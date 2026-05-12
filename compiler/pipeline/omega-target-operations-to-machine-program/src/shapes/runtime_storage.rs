@@ -162,5 +162,14 @@ fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeVa
                 byte_size,
             }
         }
+        RuntimeValueOperand::Binary {
+            left,
+            operator,
+            right,
+        } => MachineRuntimeValueOperand::Binary {
+            left: Box::new(lower_runtime_value_operand(*left)),
+            operator,
+            right: Box::new(lower_runtime_value_operand(*right)),
+        },
     }
 }

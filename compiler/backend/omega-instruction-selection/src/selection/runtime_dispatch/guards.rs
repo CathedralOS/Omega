@@ -6,7 +6,7 @@ use omega_typed_trees::name::ProgramName;
 
 use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
 use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
-use omega_target_operations::{SelectedInstructionKind, TargetDataObjectHandle};
+use omega_target_operations::{RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle};
 
 pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
@@ -27,6 +27,14 @@ pub(super) fn select_runtime_leaf_branch_guard(
         expansion.source_key,
         &expansion.resolved_guard,
     )
+    .or_else(|| {
+        runtime_value_guard(
+            input,
+            expansion.dispatch_index,
+            expansion.source_key,
+            &expansion.resolved_guard,
+        )
+    })
     .or_else(|| {
         runtime_storage_guard(
             input,
@@ -57,6 +65,14 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         &expansion.resolved_guard,
     )
     .or_else(|| {
+        runtime_value_guard(
+            input,
+            expansion.dispatch_index,
+            expansion.source_key,
+            &expansion.resolved_guard,
+        )
+    })
+    .or_else(|| {
         runtime_storage_guard(
             input,
             expansion.dispatch_index,
@@ -79,6 +95,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     }
 
     runtime_text_storage_guard(input, dispatch_index, source_key, guard)
+        .or_else(|| runtime_value_guard(input, dispatch_index, source_key, guard))
         .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, guard))
 }
 
@@ -249,11 +266,165 @@ fn runtime_storage_guard(
     None
 }
 
+fn runtime_value_guard(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    guard: &omega_typed_trees::statement::TransitionGuard,
+) -> Option<SelectedInstructionKind> {
+    let omega_typed_trees::statement::TransitionGuard::When(Expression::Binary(binary)) = guard
+    else {
+        return None;
+    };
+    let operator = runtime_compare_operator(binary.operator)?;
+    let source_machine = source_machine_name(input, source_key);
+    let source_state = source_state_name(input, source_key);
+    let left = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        source_key,
+        &source_machine,
+        &source_state,
+        &binary.left,
+    )?;
+    let right = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        source_key,
+        &source_machine,
+        &source_state,
+        &binary.right,
+    )?;
+    let byte_size = runtime_value_operand_byte_size(&left)
+        .max(runtime_value_operand_byte_size(&right));
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return None;
+    }
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left,
+        right,
+        byte_size,
+        operator,
+    })
+}
+
 fn static_guard_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Boolean(value) => Some(i64::from(*value)),
         Expression::Integer(value) => Some(*value),
         _ => None,
+    }
+}
+
+fn resolve_runtime_value_operand(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    source_machine: &str,
+    source_state: &str,
+    expression: &Expression,
+) -> Option<RuntimeValueOperand> {
+    if let Some(value) = enum_variant_value(&input.layouts, expression)
+        .or_else(|| static_guard_value(expression))
+    {
+        return Some(RuntimeValueOperand::Immediate(value));
+    }
+
+    if let Expression::Binary(binary) = expression {
+        let operator = runtime_arithmetic_operator(binary.operator)?;
+        let left = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            &binary.left,
+        )?;
+        let right = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            &binary.right,
+        )?;
+        return Some(RuntimeValueOperand::Binary {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        });
+    }
+
+    let place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        source_key,
+        source_machine,
+        source_state,
+        expression,
+    )?;
+    Some(RuntimeValueOperand::Storage {
+        region: place.region,
+        byte_offset: place.byte_offset,
+        byte_size: place.byte_count,
+    })
+}
+
+fn runtime_value_operand_byte_size(operand: &RuntimeValueOperand) -> usize {
+    match operand {
+        RuntimeValueOperand::Immediate(_) => 8,
+        RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
+        RuntimeValueOperand::Binary { left, right, .. } => {
+            runtime_value_operand_byte_size(left).max(runtime_value_operand_byte_size(right))
+        }
+    }
+}
+
+fn runtime_compare_operator(
+    operator: omega_typed_trees::expression::BinaryOperator,
+) -> Option<StateGuardOperator> {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    match operator {
+        BinaryOperator::Equal => Some(StateGuardOperator::Equal),
+        BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
+        BinaryOperator::Greater => Some(StateGuardOperator::Greater),
+        BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
+        BinaryOperator::Less => Some(StateGuardOperator::Less),
+        BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
+        BinaryOperator::Add
+        | BinaryOperator::And
+        | BinaryOperator::Divide
+        | BinaryOperator::Modulo
+        | BinaryOperator::Multiply
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight
+        | BinaryOperator::Subtract => None,
+    }
+}
+
+fn runtime_arithmetic_operator(
+    operator: omega_typed_trees::expression::BinaryOperator,
+) -> Option<StateGuardOperator> {
+    use omega_typed_trees::expression::BinaryOperator;
+
+    match operator {
+        BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
+        BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
+        BinaryOperator::And
+        | BinaryOperator::Divide
+        | BinaryOperator::Equal
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Modulo
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
     }
 }
 

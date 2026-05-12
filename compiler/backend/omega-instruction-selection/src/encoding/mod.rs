@@ -13,7 +13,7 @@ pub use runtime_storage::{
     encode_runtime_machine_integer_write, encode_runtime_storage_binary_write,
     encode_runtime_machine_string_write, encode_runtime_storage_compare,
     encode_runtime_storage_copy, encode_runtime_storage_copy_to_runtime_frame_indexed,
-    encode_runtime_storage_value_compare,
+    encode_runtime_storage_value_compare, encode_runtime_value_compare,
 };
 pub use runtime_text::{
     encode_runtime_text_buffer_materialize, encode_runtime_text_line_read,

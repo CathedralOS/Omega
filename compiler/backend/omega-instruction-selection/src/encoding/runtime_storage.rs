@@ -43,6 +43,26 @@ pub fn encode_runtime_storage_value_compare(
     }
 }
 
+pub fn encode_runtime_value_compare(
+    architecture: Architecture,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+    byte_size: usize,
+    failure_branch_distance: isize,
+    operator: StateGuardOperator,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_value_compare(
+            left,
+            right,
+            byte_size,
+            failure_branch_distance,
+            operator,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_machine_integer_write(
     architecture: Architecture,
     byte_offset: usize,

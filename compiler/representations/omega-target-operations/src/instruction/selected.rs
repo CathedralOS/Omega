@@ -21,13 +21,18 @@ impl Default for SelectedInstruction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeValueOperand {
     Immediate(i64),
     Storage {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,
+    },
+    Binary {
+        left: Box<RuntimeValueOperand>,
+        operator: StateGuardOperator,
+        right: Box<RuntimeValueOperand>,
     },
 }
 
@@ -73,6 +78,12 @@ pub enum SelectedInstructionKind {
         byte_offset: usize,
         byte_size: usize,
         expected_value: i64,
+        operator: StateGuardOperator,
+    },
+    CompareRuntimeValues {
+        left: RuntimeValueOperand,
+        right: RuntimeValueOperand,
+        byte_size: usize,
         operator: StateGuardOperator,
     },
     WriteRuntimeTextLiteral {

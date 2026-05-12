@@ -51,6 +51,29 @@ pub(super) fn encode_runtime_storage_value_compare(
     )
 }
 
+pub(super) fn encode_runtime_value_compare(
+    input: MachineEmissionContext<'_>,
+    machine_instructions: &[LaidOutMachineInstruction],
+    machine_instruction_index: usize,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+    byte_size: usize,
+    operator: StateGuardOperator,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_value_compare(
+        input.target.architecture,
+        left,
+        right,
+        byte_size,
+        byte_distance_to_next_runtime_write_end(
+            input,
+            machine_instructions,
+            machine_instruction_index,
+        )?,
+        operator,
+    )
+}
+
 pub(super) fn encode_runtime_machine_integer_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,

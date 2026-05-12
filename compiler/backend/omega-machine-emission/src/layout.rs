@@ -8,6 +8,7 @@ use omega_instruction_selection::{
     runtime_frame_indexed_binary_write_width,
     runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
     runtime_machine_string_write_width,
+    runtime_value_compare_width,
     runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
@@ -100,6 +101,17 @@ fn machine_instruction_width(
         SelectedInstructionKind::CompareRuntimeStorageValue { .. } => {
             runtime_storage_value_compare_width(input.target.architecture)
         }
+        SelectedInstructionKind::CompareRuntimeValues {
+            left,
+            right,
+            byte_size,
+            ..
+        } => runtime_value_compare_width(
+            input.target.architecture,
+            *byte_size,
+            left,
+            right,
+        ),
         SelectedInstructionKind::WriteRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_write_width(input.target.architecture, literal)
         }
