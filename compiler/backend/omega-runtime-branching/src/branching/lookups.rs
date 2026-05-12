@@ -1,7 +1,7 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_platform_interface::HostCall;
-use omega_state_calls::{StateCall, StateCallRole};
+use omega_state_calls::StateCall;
 
 pub(super) fn host_call_for_statement<'plan>(
     context: &RuntimeBranchingContext<'plan>,
@@ -38,16 +38,7 @@ pub(super) fn state_call_for_operation<'plan>(
     source_key: StateKey,
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
-    context
-        .state_calls
-        .calls
-        .iter()
-        .find(|(_, state_call)| {
-            state_call.source_key == source_key
-                && state_call.statement_index == statement_index
-                && state_call.role == StateCallRole::Statement
-        })
-        .map(|(_, state_call)| state_call)
+    context.state_calls.statement_call(source_key, statement_index)
 }
 
 pub(super) fn state_parameters<'plan>(
