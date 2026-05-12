@@ -1,4 +1,4 @@
-use crate::parser::expression::parse_expression;
+use crate::parser::expression::{parse_expression, parse_expression_without_struct_literals};
 use crate::parser::input::{Input, ParseResult};
 use crate::parse_error::ParseError;
 use omega_syntax_trees::expression::{BinaryExpression, BinaryOperator, CallExpression, Expression, MemberExpression};
@@ -27,7 +27,7 @@ pub(super) fn parse_transition_statement<'tokens, 'source>(
         } else {
             input.take_contextual("when")?
         };
-        let (expression, rest) = parse_expression(input)?;
+        let (expression, rest) = parse_expression_without_struct_literals(input)?;
         let input = if rest.at_punctuation(PunctuationKind::Semicolon) {
             rest.take_punctuation(PunctuationKind::Semicolon, ";")?
         } else {
@@ -67,7 +67,8 @@ pub(super) fn parse_transition_block<'tokens, 'source>(
     let (subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
         (None, input.take_punctuation(PunctuationKind::LeftBrace, "{")?)
     } else {
-        let (expression, rest) = parse_expression_until_punctuation(input, PunctuationKind::LeftBrace)?;
+        let (expression, rest) =
+            parse_expression_until_punctuation(input, PunctuationKind::LeftBrace)?;
         let input = rest.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         (Some(expression), input)
     };
@@ -78,7 +79,7 @@ pub(super) fn parse_transition_block<'tokens, 'source>(
         let (guard, rest) = if input.at_contextual("_") {
             (TransitionGuard::Always, input.take_contextual("_")?)
         } else {
-            let (pattern, rest) = parse_expression(input)?;
+            let (pattern, rest) = parse_expression_without_struct_literals(input)?;
             if let Some(subject) = &subject {
                 (
                     TransitionGuard::When(Expression::Binary(Box::new(BinaryExpression {
@@ -125,57 +126,16 @@ fn parse_expression_until_punctuation<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     delimiter: PunctuationKind,
 ) -> Result<(Expression, Input<'tokens, 'source>), ParseError> {
-    let split_index = find_top_level_punctuation(input, delimiter)
-        .ok_or_else(|| input.error_here("expected transition block delimiter"))?;
-    let (expression_tokens, rest_tokens) = input.tokens.split_at(split_index);
-    let expression_input = Input::new(input.source_id, expression_tokens);
-    let (expression, rest) = parse_expression(expression_input)?;
+    let (expression_input, rest) =
+        input.split_at_top_level_punctuation(delimiter, "expected transition block delimiter")?;
+    let (expression, rest_after_expression) =
+        parse_expression_without_struct_literals(expression_input)?;
 
-    if !rest.tokens.is_empty() {
-        return Err(rest.error_here("expected transition subject expression"));
+    if !rest_after_expression.tokens.is_empty() {
+        return Err(rest_after_expression.error_here("expected transition subject expression"));
     }
 
-    Ok((expression, Input::new(input.source_id, rest_tokens)))
-}
-
-fn find_top_level_punctuation<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    delimiter: PunctuationKind,
-) -> Option<usize> {
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut brace_depth = 0usize;
-
-    for (index, token) in input.tokens.iter().enumerate() {
-        match token.punctuation() {
-            Some(PunctuationKind::LeftParen) => paren_depth += 1,
-            Some(PunctuationKind::RightParen) => paren_depth = paren_depth.saturating_sub(1),
-            Some(PunctuationKind::LeftBracket) => bracket_depth += 1,
-            Some(PunctuationKind::RightBracket) => bracket_depth = bracket_depth.saturating_sub(1),
-            Some(PunctuationKind::LeftBrace) => {
-                if delimiter == PunctuationKind::LeftBrace
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0
-                {
-                    return Some(index);
-                }
-                brace_depth += 1;
-            }
-            Some(PunctuationKind::RightBrace) => brace_depth = brace_depth.saturating_sub(1),
-            Some(punctuation)
-                if punctuation == delimiter
-                    && paren_depth == 0
-                    && bracket_depth == 0
-                    && brace_depth == 0 =>
-            {
-                return Some(index);
-            }
-            _ => {}
-        }
-    }
-
-    None
+    Ok((expression, rest))
 }
 
 fn classify_transition_target(expression: Expression) -> TransitionTarget {

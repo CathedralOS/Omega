@@ -1,3 +1,4 @@
+use crate::parser::context::ExpressionContext;
 use crate::parse_error::ParseError;
 use crate::parser::input::{parse_path, Input, ParseResult};
 use omega_syntax_trees::expression::{
@@ -10,7 +11,20 @@ use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 pub(super) fn parse_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Expression> {
-    parse_or_expression(input)
+    parse_expression_in(input, ExpressionContext::Default)
+}
+
+pub(super) fn parse_expression_without_struct_literals<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Expression> {
+    parse_expression_in(input, ExpressionContext::NoStructLiteral)
+}
+
+fn parse_expression_in<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    context: ExpressionContext,
+) -> ParseResult<'tokens, 'source, Expression> {
+    parse_or_expression(input, context)
 }
 
 pub(super) fn parse_argument_list_after_open_paren<'tokens, 'source>(
@@ -42,8 +56,9 @@ pub(super) fn parse_argument_list_after_open_paren<'tokens, 'source>(
 
 fn parse_or_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
-    parse_binary_chain(input, parse_and_expression, &[(
+    parse_binary_chain(input, context, parse_and_expression, &[(
         PunctuationKind::PipePipe,
         BinaryOperator::Or,
     )])
@@ -51,8 +66,9 @@ fn parse_or_expression<'tokens, 'source>(
 
 fn parse_and_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
-    parse_binary_chain(input, parse_equality_expression, &[(
+    parse_binary_chain(input, context, parse_equality_expression, &[(
         PunctuationKind::AndAnd,
         BinaryOperator::And,
     )])
@@ -60,9 +76,11 @@ fn parse_and_expression<'tokens, 'source>(
 
 fn parse_equality_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     parse_binary_chain(
         input,
+        context,
         parse_comparison_expression,
         &[
             (PunctuationKind::EqualEqual, BinaryOperator::Equal),
@@ -73,9 +91,11 @@ fn parse_equality_expression<'tokens, 'source>(
 
 fn parse_comparison_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     parse_binary_chain(
         input,
+        context,
         parse_shift_expression,
         &[
             (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual),
@@ -88,9 +108,11 @@ fn parse_comparison_expression<'tokens, 'source>(
 
 fn parse_shift_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     parse_binary_chain(
         input,
+        context,
         parse_add_expression,
         &[
             (PunctuationKind::LessLess, BinaryOperator::ShiftLeft),
@@ -101,9 +123,11 @@ fn parse_shift_expression<'tokens, 'source>(
 
 fn parse_add_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     parse_binary_chain(
         input,
+        context,
         parse_multiply_expression,
         &[
             (PunctuationKind::Plus, BinaryOperator::Add),
@@ -114,9 +138,11 @@ fn parse_add_expression<'tokens, 'source>(
 
 fn parse_multiply_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     parse_binary_chain(
         input,
+        context,
         parse_unary_expression,
         &[
             (PunctuationKind::Asterisk, BinaryOperator::Multiply),
@@ -128,10 +154,11 @@ fn parse_multiply_expression<'tokens, 'source>(
 
 fn parse_binary_chain<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    lower: fn(Input<'tokens, 'source>) -> ParseResult<'tokens, 'source, Expression>,
+    context: ExpressionContext,
+    lower: fn(Input<'tokens, 'source>, ExpressionContext) -> ParseResult<'tokens, 'source, Expression>,
     operators: &[(PunctuationKind, BinaryOperator)],
 ) -> ParseResult<'tokens, 'source, Expression> {
-    let (mut expression, mut input) = lower(input)?;
+    let (mut expression, mut input) = lower(input, context)?;
 
     loop {
         let Some((punctuation, operator)) = operators
@@ -143,7 +170,7 @@ fn parse_binary_chain<'tokens, 'source>(
         };
 
         input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-        let (right, rest) = lower(input)?;
+        let (right, rest) = lower(input, context)?;
         input = rest;
         expression = Expression::Binary(Box::new(BinaryExpression {
             left: expression,
@@ -157,6 +184,7 @@ fn parse_binary_chain<'tokens, 'source>(
 
 fn parse_unary_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     if input.at_punctuation(PunctuationKind::Ampersand) {
         let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
@@ -166,20 +194,21 @@ fn parse_unary_expression<'tokens, 'source>(
             } else {
                 input.take_keyword(KeywordKind::State, "state")?
             };
-            let (expression, rest) = parse_unary_expression(input)?;
+            let (expression, rest) = parse_unary_expression(input, context)?;
             return Ok((Expression::Mutable(Box::new(expression)), rest));
         }
 
-        return parse_unary_expression(input);
+        return parse_unary_expression(input, context);
     }
 
-    parse_postfix_expression(input)
+    parse_postfix_expression(input, context)
 }
 
 fn parse_postfix_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
-    let (mut expression, mut input) = parse_primary_expression(input)?;
+    let (mut expression, mut input) = parse_primary_expression(input, context)?;
 
     loop {
         if input.at_punctuation(PunctuationKind::LeftParen) {
@@ -192,7 +221,7 @@ fn parse_postfix_expression<'tokens, 'source>(
 
         if input.at_punctuation(PunctuationKind::LeftBracket) {
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-            let (index, rest) = parse_expression(input)?;
+            let (index, rest) = parse_expression_in(input, ExpressionContext::Default)?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
             expression = Expression::Indexed(Box::new(IndexedExpression {
                 collection: expression,
@@ -231,6 +260,7 @@ fn parse_postfix_expression<'tokens, 'source>(
 
 fn parse_primary_expression<'tokens, 'source>(
     input: Input<'tokens, 'source>,
+    context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, Expression> {
     if input.at_keyword(KeywordKind::True) {
         let input = input.take_keyword(KeywordKind::True, "true")?;
@@ -271,7 +301,7 @@ fn parse_primary_expression<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-        let (expression, input) = parse_expression(input)?;
+        let (expression, input) = parse_expression_in(input, ExpressionContext::Default)?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
         return Ok((expression, input));
     }
@@ -282,7 +312,7 @@ fn parse_primary_expression<'tokens, 'source>(
 
         if !input.at_punctuation(PunctuationKind::RightBracket) {
             loop {
-                let (value, rest) = parse_expression(input)?;
+                let (value, rest) = parse_expression_in(input, ExpressionContext::Default)?;
                 values.push(value);
                 input = rest;
 
@@ -302,7 +332,10 @@ fn parse_primary_expression<'tokens, 'source>(
     if input.at_name_like() {
         let (path, input) = parse_path(input)?;
 
-        if input.at_punctuation(PunctuationKind::LeftBrace) && path.len() == 1 {
+        if context != ExpressionContext::NoStructLiteral
+            && input.at_punctuation(PunctuationKind::LeftBrace)
+            && path.len() == 1
+        {
             let type_name = path
                 .as_slice()
                 .first()

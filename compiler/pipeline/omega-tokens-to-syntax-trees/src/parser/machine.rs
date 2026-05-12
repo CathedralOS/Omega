@@ -1,3 +1,4 @@
+use crate::parser::context::StateKind;
 use crate::parser::input::{parse_path, Input, ParseResult};
 use crate::parser::state::{parse_optional_return_type, parse_state};
 use omega_syntax_trees::identifier::Identifier;
@@ -18,22 +19,22 @@ pub(super) fn parse_machine<'tokens, 'source>(
         if input.at_keyword(KeywordKind::Pub) {
             let input2 = input.take_keyword(KeywordKind::Pub, "pub")?;
             let input2 = input2.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(input2, true)?;
+            let (state, rest) = parse_state(input2, StateKind::Entry)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Entry) {
             let input2 = input.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(input2, true)?;
+            let (state, rest) = parse_state(input2, StateKind::Entry)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
-            let (state, rest) = parse_state(input2, false)?;
+            let (state, rest) = parse_state(input2, StateKind::State)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Fn) {
             let input2 = input.take_keyword(KeywordKind::Fn, "fn")?;
-            let (state, rest) = parse_state(input2, false)?;
+            let (state, rest) = parse_state(input2, StateKind::Function)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Invariant) {

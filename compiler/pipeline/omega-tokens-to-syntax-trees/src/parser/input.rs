@@ -167,6 +167,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .is_some_and(|token| matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_)))
     }
 
+    pub(super) fn split_at_top_level_punctuation(
+        self,
+        delimiter: PunctuationKind,
+        message: &str,
+    ) -> Result<(Self, Self), ParseError> {
+        let split_index = self
+            .find_top_level_punctuation(delimiter)
+            .ok_or_else(|| self.error_here(message))?;
+        let (prefix_tokens, rest_tokens) = self.tokens.split_at(split_index);
+        Ok((
+            Self::new(self.source_id, prefix_tokens),
+            Self::new(self.source_id, rest_tokens),
+        ))
+    }
+
     pub(super) fn skip_braced_block(self) -> Result<(usize, Self), ParseError> {
         let mut input = self.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         let mut depth = 1usize;
@@ -211,6 +226,45 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
 
         Ok((token_count, input))
+    }
+
+    fn find_top_level_punctuation(self, delimiter: PunctuationKind) -> Option<usize> {
+        let mut paren_depth = 0usize;
+        let mut bracket_depth = 0usize;
+        let mut brace_depth = 0usize;
+
+        for (index, token) in self.tokens.iter().enumerate() {
+            match token.punctuation() {
+                Some(PunctuationKind::LeftParen) => paren_depth += 1,
+                Some(PunctuationKind::RightParen) => paren_depth = paren_depth.saturating_sub(1),
+                Some(PunctuationKind::LeftBracket) => bracket_depth += 1,
+                Some(PunctuationKind::RightBracket) => {
+                    bracket_depth = bracket_depth.saturating_sub(1)
+                }
+                Some(PunctuationKind::LeftBrace) => {
+                    if delimiter == PunctuationKind::LeftBrace
+                        && paren_depth == 0
+                        && bracket_depth == 0
+                        && brace_depth == 0
+                    {
+                        return Some(index);
+                    }
+                    brace_depth += 1;
+                }
+                Some(PunctuationKind::RightBrace) => brace_depth = brace_depth.saturating_sub(1),
+                Some(punctuation)
+                    if punctuation == delimiter
+                        && paren_depth == 0
+                        && bracket_depth == 0
+                        && brace_depth == 0 =>
+                {
+                    return Some(index);
+                }
+                _ => {}
+            }
+        }
+
+        None
     }
 }
 
