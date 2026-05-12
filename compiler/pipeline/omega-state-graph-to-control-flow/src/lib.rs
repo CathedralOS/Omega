@@ -116,6 +116,7 @@ fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
 
     for (_, call) in state_graph.borrow_calls.iter() {
         calls.append(StateBorrowCall {
+            statement_index: call.statement_index,
             receiver_symbol: call.receiver_symbol,
             target_symbol: call.target_symbol,
             receiver: call.receiver.clone(),

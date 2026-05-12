@@ -92,6 +92,19 @@ impl StateCallPlanningContext {
                 )
         })
     }
+
+    pub fn borrow_call_by_key(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&omega_control_flow::StateBorrowCall> {
+        let state = self.control_flow.state_by_key(source_key)?;
+        self.control_flow
+            .borrow_calls
+            .span(state.borrow.calls)?
+            .iter()
+            .find(|call| call.statement_index == statement_index)
+    }
 }
 
 pub fn build_state_call_plan(
@@ -144,6 +157,9 @@ pub fn build_state_call_plan_with_workers(
             &context,
             &mut plan.expressions,
             &mut plan.arguments,
+            call.source_key,
+            call.statement_index,
+            call.role,
             call.target_key,
             call.required,
             call.raw_arguments,
