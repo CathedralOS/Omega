@@ -18,6 +18,21 @@ pub struct StateStoragePlanningContext {
 }
 
 impl StateStoragePlanningContext {
+    pub fn state_flow_by_key(&self, state_key: StateKey) -> Option<&omega_control_flow::StateFlow> {
+        let machine = self
+            .control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.symbol == state_key.machine)
+            .map(|(_, machine)| machine)?;
+
+        self.control_flow
+            .states
+            .span(machine.states)?
+            .iter()
+            .find(|state| state.key == state_key)
+    }
+
     pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states
@@ -34,21 +49,7 @@ impl StateStoragePlanningContext {
         state_key: StateKey,
         statement_index: usize,
     ) -> bool {
-        let Some(machine) = self
-            .control_flow
-            .machines
-            .iter()
-            .find(|(_, machine)| machine.symbol == state_key.machine)
-            .map(|(_, machine)| machine)
-        else {
-            return false;
-        };
-        let Some(state) = self
-            .control_flow
-            .states
-            .span(machine.states)
-            .and_then(|states| states.iter().find(|state| state.key == state_key))
-        else {
+        let Some(state) = self.state_flow_by_key(state_key) else {
             return false;
         };
         let Some(operations) = self.control_flow.operations.span(state.operations) else {
