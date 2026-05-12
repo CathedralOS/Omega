@@ -149,7 +149,7 @@ fn simplify_call_expression(
         match call.target.as_str() {
             "is_some" => {
                 if let Some(is_none) =
-                    expression_match_condition(program, machine, receiver, &none_expression())
+                    expression_match_condition(program, machine, receiver, &none_expression(program))
                 {
                     return simplify_expression_with_bindings(
                         program,
@@ -161,19 +161,19 @@ fn simplify_call_expression(
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
                     operator: omega_typed_trees::expression::BinaryOperator::NotEqual,
-                    right: none_expression(),
+                    right: none_expression(program),
                 }));
             }
             "is_none" => {
                 if let Some(is_none) =
-                    expression_match_condition(program, machine, receiver, &none_expression())
+                    expression_match_condition(program, machine, receiver, &none_expression(program))
                 {
                     return simplify_expression_with_bindings(program, machine, &is_none, bindings);
                 }
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
                     operator: omega_typed_trees::expression::BinaryOperator::Equal,
-                    right: none_expression(),
+                    right: none_expression(program),
                 }));
             }
             _ => {}
@@ -466,8 +466,29 @@ fn expression_match_condition_with_stack(
     )
 }
 
-fn none_expression() -> Expression {
-    Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]))
+fn none_expression(program: &Program) -> Expression {
+    let Some(option) = program
+        .data_definitions
+        .iter()
+        .find(|definition| definition.name.as_str() == "Option")
+    else {
+        return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
+    };
+
+    let Some(variant) = option.members.iter().find_map(|member| match member {
+        omega_typed_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "None" => {
+            Some(variant)
+        }
+        _ => None,
+    }) else {
+        return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
+    };
+
+    Expression::Name(NamePath::resolved(
+        vec![option.name.clone(), variant.name.clone()],
+        option.symbol,
+        variant.symbol,
+    ))
 }
 
 fn helper_state_model(
