@@ -1,7 +1,7 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
-use omega_typed_trees::Program;
+use omega_checked_trees::Program;
 use omega_typed_trees::expression::Expression;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::Call;

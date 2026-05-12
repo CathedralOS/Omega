@@ -53,8 +53,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         build_host_abi_plan(target)
     });
     let typed_program = Arc::new(program.typed.clone());
-    let host_call_program = Arc::clone(&typed_program);
-    let layout_program = Arc::clone(&typed_program);
+    let host_call_program = Arc::clone(&program);
+    let layout_program = Arc::clone(&program);
     let host_call_abi = Arc::new(host_abi.clone());
     let host_call_workers = workers.clone();
     let (layouts, host_calls) =

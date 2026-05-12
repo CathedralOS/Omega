@@ -3,11 +3,11 @@ use crate::sizing::primitive_type_layout;
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout,
 };
+use omega_checked_trees::Program;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_target::NativeTarget;
-use omega_typed_trees::Program;
 use omega_typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::platform::Platform;

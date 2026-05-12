@@ -402,6 +402,7 @@ dependencies = [
 name = "omega-layout"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-core",
  "omega-target",
  "omega-typed-trees",
@@ -478,6 +479,7 @@ name = "omega-platform-interface"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-target",
