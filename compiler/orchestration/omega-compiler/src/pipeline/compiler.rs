@@ -57,11 +57,10 @@ impl Compiler {
         let syntax = assemble_syntax(&source_storage)?;
         let resolved = resolve_program(syntax)?;
         let typed = typecheck_program(resolved)?;
-        let validated = validate_program(typed)?;
-        let checked = check_program(&validated.program)?;
-        let backend_surface = build_backend_surface_report(&validated.program);
+        let checked = check_program(&typed)?;
+        let backend_surface = build_backend_surface_report(&typed);
         let planned = plan_backend(
-            validated,
+            typed,
             checked,
             self.options.target_name.as_deref(),
             workers.handle(),
@@ -140,10 +139,6 @@ struct AssembledSyntax {
     syntax_trees: SyntaxTrees,
 }
 
-struct ValidatedProgram {
-    program: TypedProgram,
-}
-
 struct CheckedProgramSurface {
     program: CheckedProgram,
 }
@@ -179,26 +174,20 @@ fn typecheck_program(resolved: ResolvedProgram) -> Result<TypedProgram, Vec<Diag
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn validate_program(typed: TypedProgram) -> Result<ValidatedProgram, Vec<Diagnostic>> {
-    omega_validation::validate_program(&typed)?;
-    Ok(ValidatedProgram { program: typed })
-}
-
 fn check_program(typed: &TypedProgram) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
-    let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
     Ok(CheckedProgramSurface { program })
 }
 
 fn plan_backend(
-    validated: ValidatedProgram,
+    typed: TypedProgram,
     checked: CheckedProgramSurface,
     target_name: Option<&str>,
     workers: omega_core::parallel::WorkerPoolHandle,
 ) -> Result<omega_backend_plan::BackendPlan, Vec<Diagnostic>> {
     let target =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
-    let program = std::sync::Arc::new(validated.program);
+    let program = std::sync::Arc::new(typed);
     let checked_program = std::sync::Arc::new(checked.program);
     let state_graph = omega_checked_trees_to_state_graph::build_state_graph_with_workers(
         checked_program,
