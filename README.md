@@ -6,19 +6,33 @@ The central bet is simple: state machines should not be a framework pattern hidd
 
 Current status: Omega is very early, but no longer purely theoretical. The compiler can parse/check all current samples, emit small native macOS ARM64 CLI programs as direct executable images, and writes phase artifacts for every compiler stage. The native path is still intentionally narrow; when a feature is not supported, the compiler should say so instead of pretending.
 
+Tiny current program:
+
+```omega
+use omega::language::std::console;
+
+machine main {
+    contains console: Console;
+
+    pub entry() {
+        console.write_line("Hello, Omega.");
+        console.exit_process(0);
+    }
+}
+```
+
 ## Language Direction
 
 Omega is exploring these core ideas:
 
 - State machines are first-class citizens, not library objects.
-- `machine main` with `fn entry()` is the process entry point.
-- States prefer straight-line work. Branching belongs in ordered transition arrows.
-- Transitions live at the end of states as `-> target()` edges.
-- A bare arrow target is unconditional; `when` adds a guard.
-- `-> self()` re-enters the current state.
-- A trailing bare `->` marks explicit terminal/default completion when a transition table needs it.
-- Nested machine flow can be expressed as `-> child.entry() -> continuation()`.
-- Calls to `fn` create frame/return semantics; transitions to `state` stay graph handoffs.
+- Process entry is currently expressed as `machine main` with `pub entry(...)`, often alongside `data main` for owned root data.
+- Machines can expose both `pub entry(...)` callable entry surfaces and `state ...` graph nodes.
+- States prefer straight-line work. Ordered `transition { ... }` tables handle branch handoff.
+- Transition rows use `_ -> target()` for unconditional/default flow and `condition -> target()` for guarded flow.
+- `-> expr;` is the expression-style terminal return form used by helper machines and value-returning states.
+- Nested machine flow can be expressed as machine calls in straight-line code or as continuation-style transition handoff.
+- Callable machine entries and helper `fn ...` items create frame/return semantics; `state ...` stays graph handoff.
 - Data flow should prefer explicit owned data and `&mut` parameters over ambient state.
 - Platform boundaries are explicit, trusted, and auditable.
 
@@ -58,7 +72,6 @@ Check the richer samples:
 
 ```bash
 cargo run -p omega-cli -- --check samples/dungeon_crawler_cli/main.omg
-cargo run -p omega-cli -- --check samples/point_and_click/main.omg
 ```
 
 Compile/check writes ignored phase artifacts under a `build/` directory next to the entrypoint unless `--build-dir <dir>` is provided.
@@ -290,7 +303,7 @@ Omega/
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
 |   |-- dungeon_crawler_cli/                            # Console input/output and room navigation pressure test.
-|   `-- point_and_click/                                # Windowed game/state-machine sketch.
+|   `-- README.md                                       # Notes for sample expectations and local build output.
 |
 |-- canaries/
 |   |-- pass/                                           # Tiny feature canaries expected to check.
@@ -346,8 +359,7 @@ Each sample is a copyable mini-project with its own `.gitignore`; local compiler
 Current samples:
 
 - `samples/cli_mvp/`: hello-world style CLI program.
-- `samples/dungeon_crawler_cli/`: static room layout, console input, room info, movement commands.
-- `samples/point_and_click/`: windowed game sketch with room ownership and render-loop boundaries.
+- `samples/dungeon_crawler_cli/`: richer console game pressure test covering generation, events, combat, inventory, and runtime dispatch.
 
 Canaries are not samples. They isolate one compiler capability at a time.
 They live under `canaries/pass/<feature>/main.omg` when the compiler should accept them and `canaries/fail/<feature>/main.omg` plus `expected.txt` when the compiler should reject them.
