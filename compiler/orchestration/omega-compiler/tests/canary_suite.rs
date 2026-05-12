@@ -93,5 +93,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_mut_literal",
-    "std_option_layout_missing",
+    "std_option_storage_write_missing",
 ];

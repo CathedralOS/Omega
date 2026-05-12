@@ -269,9 +269,20 @@ impl<'program> LayoutBuilder<'program> {
                 })
             }
             TypeReference::Slice { .. } => Ok(self.slice_layout()),
-            TypeReference::Generic { base_name, .. } => {
+            TypeReference::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => {
                 if let Some(layout) = builtin_named_layout(self.target, base_name) {
                     return Ok(layout);
+                }
+
+                if base_symbol.is_valid()
+                    && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
+                    && definition.shape_kind() == DataShapeKind::Enum
+                {
+                    return self.layout_data_definition(*base_symbol);
                 }
 
                 Err(Diagnostic::error(format!(
