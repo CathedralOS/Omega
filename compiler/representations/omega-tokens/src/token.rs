@@ -1,6 +1,6 @@
 use crate::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind,
-    PunctuationKind, Span, TokenKind, WhitespaceKind,
+    PunctuationKind, Span, TokenKind,
 };
 use crate::TokenText;
 
@@ -56,11 +56,8 @@ impl<'source> Token<'source> {
         }
     }
 
-    pub fn whitespace(&self) -> Option<WhitespaceKind> {
-        match self.kind {
-            TokenKind::Whitespace(kind) => Some(kind),
-            _ => None,
-        }
+    pub fn is_whitespace(&self) -> bool {
+        matches!(self.kind, TokenKind::Whitespace)
     }
 
     pub fn comment(&self) -> Option<CommentKind> {
@@ -71,6 +68,6 @@ impl<'source> Token<'source> {
     }
 
     pub fn is_non_semantic(&self) -> bool {
-        matches!(self.kind, TokenKind::Whitespace(_) | TokenKind::Comment(_))
+        matches!(self.kind, TokenKind::Whitespace | TokenKind::Comment(_))
     }
 }

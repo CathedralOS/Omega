@@ -7,7 +7,7 @@ pub use omega_core::Span;
 pub use token::Token;
 pub use token_kind::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
-    NumericLiteralKind, PunctuationKind, TokenKind, WhitespaceKind,
+    NumericLiteralKind, PunctuationKind, TokenKind,
 };
 pub use token_stream::TokenStream;
 pub use token_text::TokenText;

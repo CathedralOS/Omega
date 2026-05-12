@@ -6,7 +6,6 @@ use omega_core::Span;
 use omega_tokens::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase,
     NumericLiteralKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
-    WhitespaceKind,
 };
 use unicode_ident::{is_xid_continue, is_xid_start};
 
@@ -88,28 +87,18 @@ impl<'source> Lexer<'source> {
 
     fn lex_whitespace(&mut self, start: usize, first: char) -> LexedToken {
         let mut end = start + first.len_utf8();
-        let mut saw_newline = first == '\n' || first == '\r';
-        let mut saw_other = !saw_newline;
 
         while let Some((next_index, next)) = self.chars.peek().copied() {
             if !next.is_whitespace() {
                 break;
             }
 
-            saw_newline |= next == '\n' || next == '\r';
-            saw_other |= next != '\n' && next != '\r';
             end = next_index + next.len_utf8();
             self.chars.next();
         }
 
-        let kind = match (saw_newline, saw_other) {
-            (true, false) => WhitespaceKind::Newline,
-            (false, true) => WhitespaceKind::Space,
-            _ => WhitespaceKind::Mixed,
-        };
-
         LexedToken {
-            kind: TokenKind::Whitespace(kind),
+            kind: TokenKind::Whitespace,
             span: Span::new(start, end),
         }
     }
@@ -814,9 +803,9 @@ mod tests {
 
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
-        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[1].kind, TokenKind::Whitespace);
         assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Line)));
-        assert!(matches!(tokens[3].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[3].kind, TokenKind::Whitespace);
         assert_eq!(tokens[4].kind, TokenKind::Identifier);
         assert_eq!(tokens[4].lexeme.as_str(), "value");
     }
@@ -829,9 +818,9 @@ mod tests {
 
         assert_eq!(tokens.len(), 5);
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
-        assert!(matches!(tokens[1].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[1].kind, TokenKind::Whitespace);
         assert!(matches!(tokens[2].kind, TokenKind::Comment(CommentKind::Block)));
-        assert!(matches!(tokens[3].kind, TokenKind::Whitespace(_)));
+        assert_eq!(tokens[3].kind, TokenKind::Whitespace);
         assert_eq!(tokens[4].kind, TokenKind::Identifier);
         assert_eq!(tokens[4].lexeme.as_str(), "value");
     }
