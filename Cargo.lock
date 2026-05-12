@@ -654,6 +654,7 @@ dependencies = [
  "omega-core",
  "omega-state-calls",
  "omega-state-graph",
+ "omega-state-values",
  "omega-typed-trees",
 ]
 

@@ -22,6 +22,10 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
 }
 
+fn supports_runtime_value_operand(byte_size: usize) -> bool {
+    matches!(byte_size, 1 | 4 | 8)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn select_runtime_mutation_writes(
     input: &InstructionSelectionInput<'_>,
@@ -428,6 +432,9 @@ fn resolve_runtime_value_operand(
         source_state,
         &resolved.expression,
     )?;
+    if !supports_runtime_value_operand(place.byte_count) {
+        return None;
+    }
     Some(RuntimeValueOperand::Storage {
         region: place.region,
         byte_offset: place.byte_offset,

@@ -56,6 +56,7 @@ pub(crate) fn collect_machine_state_calls(
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
+                state.key,
                 *receiver_symbol,
                 *target_symbol,
                 receiver.as_ref().map(|receiver| receiver.as_slice()),
@@ -304,11 +305,45 @@ fn collect_expression_state_calls_in_table(
             let resolved_target = resolve_state_call_target(
                 &context.control_flow,
                 machine,
+                source_key,
                 receiver_symbol,
                 call.target_symbol,
                 receiver_path.as_deref(),
                 &call.target,
             );
+            let is_machine_call = resolved_target.is_some()
+                || receiver_can_dispatch_to_machine(
+                    &context.control_flow,
+                    machine,
+                    source_key,
+                    receiver_symbol,
+                    receiver_path.as_deref(),
+                );
+            if !is_machine_call {
+                if call.receiver.is_valid() {
+                    collect_expression_state_calls_in_table(
+                        context,
+                        machine,
+                        source_key,
+                        statement_index,
+                        role,
+                        call.receiver,
+                        calls,
+                    );
+                }
+                for argument in context.control_flow.expressions.expression_handles(call.arguments) {
+                    collect_expression_state_calls_in_table(
+                        context,
+                        machine,
+                        source_key,
+                        statement_index,
+                        role,
+                        *argument,
+                        calls,
+                    );
+                }
+                return;
+            }
             calls.push(CollectedStateCall {
                 source_key,
                 statement_index,
@@ -456,6 +491,7 @@ struct ResolvedStateCall {
 fn resolve_state_call_target(
     control_flow: &ControlFlowPlan,
     machine: &MachineFlow,
+    source_key: StateKey,
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
@@ -510,6 +546,22 @@ fn resolve_state_call_target(
             });
         }
 
+        if let Some(type_symbol) =
+            source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol)
+            && let Some(target_machine) = control_flow.machine_by_symbol(type_symbol)
+        {
+            return resolve_state_key_in_machine(
+                control_flow,
+                target_machine.symbol,
+                target_symbol,
+                target_state,
+            )
+            .map(|key| ResolvedStateCall {
+                key,
+                resolution: StateCallResolution::NamedMachine,
+            });
+        }
+
         if target_symbol.is_valid()
             && let Some((key, _)) = control_flow
                 .states
@@ -543,4 +595,48 @@ fn resolve_state_key_in_machine(
         let _ = (control_flow, machine_symbol, state_name);
         None
     }
+}
+
+fn receiver_can_dispatch_to_machine(
+    control_flow: &ControlFlowPlan,
+    machine: &MachineFlow,
+    source_key: StateKey,
+    receiver_symbol: SymbolHandle,
+    receiver: Option<&[ProgramName]>,
+) -> bool {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+        return true;
+    }
+
+    if !receiver_symbol.is_valid() {
+        return false;
+    }
+
+    if machine
+        .contains
+        .iter()
+        .any(|contained| contained.symbol == receiver_symbol)
+    {
+        return true;
+    }
+
+    control_flow.machine_by_symbol(receiver_symbol).is_some()
+        || source_state_parameter_machine_symbol(control_flow, source_key, receiver_symbol)
+            .and_then(|type_symbol| control_flow.machine_by_symbol(type_symbol))
+            .is_some()
+}
+
+fn source_state_parameter_machine_symbol(
+    control_flow: &ControlFlowPlan,
+    source_key: StateKey,
+    receiver_symbol: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let state = control_flow.states.iter().find_map(|(_, state)| {
+        (state.key == source_key).then_some(state)
+    })?;
+    state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+        .map(|parameter| parameter.type_symbol)
 }

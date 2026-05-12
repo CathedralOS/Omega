@@ -1,10 +1,10 @@
 use super::{StateLocalStorage, StateMutation, StateStoragePlan};
 use crate::StateStoragePlanningContext;
 use crate::mutation_kind::{mutation_kind, mutation_lowering};
-use crate::simplify::simplify_expression;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
+use omega_state_values::simplify_expression;
 use omega_typed_trees::Program;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::StatementNode;
