@@ -127,7 +127,7 @@ fn runtime_storage_write_is_planned(
 ) -> bool {
     runtime_storage_write_has_planned_text_write(input, write)
         || input.instructions.instructions.iter().any(|(_, instruction)| {
-            if instruction.source_key != write.source_key
+            if !state_key_matches_statement_source(instruction.source_key, write.source_key)
                 || instruction.source_statement != write.statement_index
             {
                 return false;
@@ -145,6 +145,11 @@ fn runtime_storage_write_is_planned(
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
             )
         })
+}
+
+fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
+    actual == expected
+        || (actual.machine == expected.machine && actual.state == expected.state)
 }
 
 fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {

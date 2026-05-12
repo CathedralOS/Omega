@@ -61,7 +61,7 @@ fn state_value_has_planned_storage_write(
     }
 
     input.instructions.instructions.iter().any(|(_, instruction)| {
-        instruction.source_key == value.source_key
+        state_key_matches_statement_source(instruction.source_key, value.source_key)
             && instruction.source_statement == value.statement_index
             && matches!(
                 instruction.kind,
@@ -197,4 +197,9 @@ fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
+}
+
+fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
+    actual == expected
+        || (actual.machine == expected.machine && actual.state == expected.state)
 }
