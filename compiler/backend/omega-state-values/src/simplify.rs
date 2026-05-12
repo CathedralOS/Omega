@@ -1,4 +1,5 @@
 use omega_core::symbols::SymbolHandle;
+use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::Program;
 use omega_typed_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, StructLiteral, StructLiteralField};
 use omega_typed_trees::machine::Machine;
@@ -10,67 +11,82 @@ pub fn simplify_expression(
     machine: &Machine,
     expression: &Expression,
 ) -> Expression {
-    simplify_expression_with_arguments(program, machine, expression, &[])
+    simplify_expression_with_bindings(program, machine, expression, &[])
 }
 
-fn simplify_expression_with_arguments(
+#[derive(Debug, Clone)]
+struct Binding {
+    symbol: SymbolHandle,
+    name: Option<ProgramName>,
+    value: Expression,
+}
+
+fn simplify_expression_with_bindings(
     program: &Program,
     machine: &Machine,
     expression: &Expression,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Expression {
     match expression {
         Expression::ArrayLiteral(values) => Expression::ArrayLiteral(
             values
                 .iter()
-                .map(|value| simplify_expression_with_arguments(program, machine, value, arguments))
+                .map(|value| simplify_expression_with_bindings(program, machine, value, bindings))
                 .collect(),
         ),
         Expression::Binary(binary) => simplify_binary_expression(
             program,
             machine,
             binary,
-            arguments,
+            bindings,
         ),
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::Integer(_)
         | Expression::String(_) => expression.clone(),
-        Expression::Call(call) => simplify_call_expression(program, machine, call, arguments),
+        Expression::Call(call) => simplify_call_expression(program, machine, call, bindings),
         Expression::Cast(cast) => Expression::Cast(Box::new(
             omega_typed_trees::expression::CastExpression {
-                value: simplify_expression_with_arguments(program, machine, &cast.value, arguments),
+                value: simplify_expression_with_bindings(program, machine, &cast.value, bindings),
                 target_type: cast.target_type.clone(),
             },
         )),
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
-            collection: simplify_expression_with_arguments(
+            collection: simplify_expression_with_bindings(
                 program,
                 machine,
                 &indexed.collection,
-                arguments,
+                bindings,
             ),
-            index: simplify_expression_with_arguments(program, machine, &indexed.index, arguments),
+            index: simplify_expression_with_bindings(program, machine, &indexed.index, bindings),
         })),
         Expression::Member(member) => Expression::Member(Box::new(MemberExpression {
-            receiver: simplify_expression_with_arguments(
+            receiver: simplify_expression_with_bindings(
                 program,
                 machine,
                 &member.receiver,
-                arguments,
+                bindings,
             ),
             member_symbol: member.member_symbol,
             member: member.member.clone(),
         })),
         Expression::Mutable(inner) => Expression::Mutable(Box::new(
-            simplify_expression_with_arguments(program, machine, inner, arguments),
+            simplify_expression_with_bindings(program, machine, inner, bindings),
         )),
-        Expression::Name(path) => arguments
+        Expression::Name(path) => bindings
             .iter()
-            .find(|(symbol, _)| {
-                symbol.is_valid() && path.head_symbol().is_valid() && *symbol == path.head_symbol()
+            .find(|binding| {
+                (binding.symbol.is_valid()
+                    && path.head_symbol().is_valid()
+                    && binding.symbol == path.head_symbol())
+                    || (!path.head_symbol().is_valid()
+                        && path.len() == 1
+                        && binding
+                            .name
+                            .as_ref()
+                            .is_some_and(|name| path.first().is_some_and(|segment| segment == name)))
             })
-            .map(|(_, value)| append_name_suffix(value, &path[1..]))
+            .map(|binding| append_name_suffix(&binding.value, &path[1..]))
             .unwrap_or_else(|| expression.clone()),
         Expression::StructLiteral(struct_literal) => {
             Expression::StructLiteral(StructLiteral {
@@ -80,11 +96,11 @@ fn simplify_expression_with_arguments(
                     .iter()
                     .map(|field| StructLiteralField {
                         name: field.name.clone(),
-                        value: simplify_expression_with_arguments(
+                        value: simplify_expression_with_bindings(
                             program,
                             machine,
                             &field.value,
-                            arguments,
+                            bindings,
                         ),
                     })
                     .collect(),
@@ -97,15 +113,15 @@ fn simplify_binary_expression(
     program: &Program,
     machine: &Machine,
     binary: &BinaryExpression,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Expression {
-    let left = simplify_expression_with_arguments(program, machine, &binary.left, arguments);
-    let right = simplify_expression_with_arguments(program, machine, &binary.right, arguments);
+    let left = simplify_expression_with_bindings(program, machine, &binary.left, bindings);
+    let right = simplify_expression_with_bindings(program, machine, &binary.right, bindings);
 
     if let Some(expression) =
-        simplify_guarded_helper_comparison(program, machine, binary.operator, &left, &right, arguments)
+        simplify_guarded_helper_comparison(program, machine, binary.operator, &left, &right, bindings)
     {
-        return simplify_expression_with_arguments(program, machine, &expression, arguments);
+        return simplify_expression_with_bindings(program, machine, &expression, bindings);
     }
 
     fold_binary_expression(binary.operator, left, right)
@@ -115,16 +131,16 @@ fn simplify_call_expression(
     program: &Program,
     machine: &Machine,
     call: &CallExpression,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Expression {
     let receiver = call
         .receiver
         .as_ref()
-        .map(|receiver| simplify_expression_with_arguments(program, machine, receiver, arguments));
+        .map(|receiver| simplify_expression_with_bindings(program, machine, receiver, bindings));
     let simplified_arguments: Vec<_> = call
         .arguments
         .iter()
-        .map(|argument| simplify_expression_with_arguments(program, machine, argument, arguments))
+        .map(|argument| simplify_expression_with_bindings(program, machine, argument, bindings))
         .collect();
 
     if let Some(target_machine) = resolve_call_target_machine(
@@ -138,10 +154,14 @@ fn simplify_call_expression(
             .parameters
             .iter()
             .zip(simplified_arguments.iter())
-            .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
+            .map(|(parameter, argument)| Binding {
+                symbol: parameter.symbol,
+                name: Some(parameter.name.clone()),
+                value: argument.clone(),
+            })
             .collect();
         if let Some(value) = helper_state_value(state, program, target_machine, &argument_bindings) {
-            return simplify_expression_with_arguments(program, machine, &value, &argument_bindings);
+            return simplify_expression_with_bindings(program, machine, &value, &argument_bindings);
         }
     }
 
@@ -159,7 +179,7 @@ fn simplify_guarded_helper_comparison(
     operator: omega_typed_trees::expression::BinaryOperator,
     left: &Expression,
     right: &Expression,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Option<Expression> {
     use omega_typed_trees::expression::BinaryOperator::{Equal, NotEqual};
 
@@ -169,7 +189,7 @@ fn simplify_guarded_helper_comparison(
 
     if let Expression::Call(call) = left
         && let Some(condition) =
-            simplify_helper_call_comparison(program, machine, call, right, arguments)
+            simplify_helper_call_comparison(program, machine, call, right, bindings)
     {
         return Some(match operator {
             Equal => condition,
@@ -180,7 +200,7 @@ fn simplify_guarded_helper_comparison(
 
     if let Expression::Call(call) = right
         && let Some(condition) =
-            simplify_helper_call_comparison(program, machine, call, left, arguments)
+            simplify_helper_call_comparison(program, machine, call, left, bindings)
     {
         return Some(match operator {
             Equal => condition,
@@ -197,24 +217,28 @@ fn simplify_helper_call_comparison(
     machine: &Machine,
     call: &CallExpression,
     expected: &Expression,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Option<Expression> {
     let receiver = call
         .receiver
         .as_ref()
-        .map(|receiver| simplify_expression_with_arguments(program, machine, receiver, arguments));
+        .map(|receiver| simplify_expression_with_bindings(program, machine, receiver, bindings));
     let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
     let state = resolve_call_target_state(target_machine, call)?;
     let argument_values: Vec<_> = call
         .arguments
         .iter()
-        .map(|argument| simplify_expression_with_arguments(program, machine, argument, arguments))
+        .map(|argument| simplify_expression_with_bindings(program, machine, argument, bindings))
         .collect();
     let argument_bindings: Vec<_> = state
         .parameters
         .iter()
         .zip(argument_values.iter())
-        .map(|(parameter, argument)| (parameter.symbol, argument.clone()))
+        .map(|(parameter, argument)| Binding {
+            symbol: parameter.symbol,
+            name: Some(parameter.name.clone()),
+            value: argument.clone(),
+        })
         .collect();
 
     helper_state_match_condition(
@@ -289,9 +313,9 @@ fn helper_state_value(
     state: &State,
     program: &Program,
     machine: &Machine,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Option<Expression> {
-    let helper = helper_state_model(state, program, machine, arguments)?;
+    let helper = helper_state_model(state, program, machine, bindings)?;
     let mut transitions = helper.transitions.iter();
     let transition = transitions.next()?;
     if transitions.next().is_some() {
@@ -307,10 +331,10 @@ fn helper_state_match_condition(
     state: &State,
     program: &Program,
     machine: &Machine,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
     expected: &Expression,
 ) -> Option<Expression> {
-    let helper = helper_state_model(state, program, machine, arguments)?;
+    let helper = helper_state_model(state, program, machine, bindings)?;
     let mut covered = Expression::Boolean(false);
     let mut matched = Expression::Boolean(false);
 
@@ -329,9 +353,9 @@ fn helper_state_model(
     state: &State,
     program: &Program,
     machine: &Machine,
-    arguments: &[(SymbolHandle, Expression)],
+    bindings: &[Binding],
 ) -> Option<HelperStateModel> {
-    let mut bindings = arguments.to_vec();
+    let mut bindings = bindings.to_vec();
     let mut transitions = Vec::new();
 
     for statement in &state.statements {
@@ -339,8 +363,12 @@ fn helper_state_model(
             Statement::LocalData(local) => {
                 let initial_value = local.initial_value.as_ref()?;
                 let value =
-                    simplify_expression_with_arguments(program, machine, initial_value, &bindings);
-                bindings.push((local.symbol, value));
+                    simplify_expression_with_bindings(program, machine, initial_value, &bindings);
+                bindings.push(Binding {
+                    symbol: local.symbol,
+                    name: Some(local.name.clone()),
+                    value,
+                });
             }
             Statement::Transition(transition) => {
                 if transition.continuation.is_some() {
@@ -349,13 +377,13 @@ fn helper_state_model(
                 let guard = match &transition.guard {
                     TransitionGuard::Always => Expression::Boolean(true),
                     TransitionGuard::When(expression) => {
-                        simplify_expression_with_arguments(program, machine, expression, &bindings)
+                        simplify_expression_with_bindings(program, machine, expression, &bindings)
                     }
                 };
                 let TransitionTarget::Value(value) = &transition.target else {
                     return None;
                 };
-                let value = simplify_expression_with_arguments(program, machine, value, &bindings);
+                let value = simplify_expression_with_bindings(program, machine, value, &bindings);
                 transitions.push(HelperTransition { guard, value });
             }
             Statement::Assignment(_) | Statement::Call(_) | Statement::Expression(_) => {
