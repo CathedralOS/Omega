@@ -1,0 +1,27 @@
+platform Console {
+    fn write_line(text: String);
+    fn exit_process(return_code: i32);
+}
+
+data main {
+    console: Console;
+    roll: i32[range<0, 100>];
+}
+
+machine main {
+    pub entry(&mut self) {
+        self.roll = 24;
+        -> reward() when self.roll >= 20 && self.roll < 30;
+        -> quiet();
+    }
+
+    state reward(&mut self) {
+        self.console.write_line("reward");
+        self.console.exit_process(0);
+    }
+
+    state quiet(&mut self) {
+        self.console.write_line("quiet");
+        self.console.exit_process(1);
+    }
+}

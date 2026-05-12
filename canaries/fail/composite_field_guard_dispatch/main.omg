@@ -1,0 +1,39 @@
+enum EventKind {
+    Quiet,
+    Treasure,
+}
+
+data Event {
+    kind: EventKind;
+    consumed: bool;
+}
+
+platform Console {
+    fn write_line(text: String);
+    fn exit_process(return_code: i32);
+}
+
+data main {
+    console: Console;
+    event: Event;
+}
+
+machine main {
+    pub entry(&mut self) {
+        self.event.kind = EventKind::Treasure;
+        self.event.consumed = false;
+
+        -> describe_reward() when self.event.kind == EventKind::Treasure && self.event.consumed == false;
+        -> describe_quiet();
+    }
+
+    state describe_reward(&mut self) {
+        self.console.write_line("reward");
+        self.console.exit_process(0);
+    }
+
+    state describe_quiet(&mut self) {
+        self.console.write_line("quiet");
+        self.console.exit_process(1);
+    }
+}
