@@ -2,6 +2,8 @@ use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardLowering, StateGuardOperator, lower_guard_conjunction};
+use omega_typed_trees::expression::Expression;
+use omega_typed_trees::statement::TransitionGuard;
 use omega_state_schedule::ScheduledState;
 
 use super::{EmissionBlocker, blocker};
@@ -128,6 +130,7 @@ fn first_unsupported_dispatch_guard(
                 .iter()
                 .find(|edge| {
                     !dispatch_loop_guard_can_emit(edge)
+                        && !fallback_expression_guard_can_emit(edge)
                         && !decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge)
                 })
                 .map(|edge| edge.guard_lowering)
@@ -218,4 +221,48 @@ fn decomposed_guard_can_emit(
             }
             _ => false,
         })
+}
+
+fn fallback_expression_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
+    matches!(
+        edge.guard_lowering,
+        StateGuardLowering::CompareStaticValue | StateGuardLowering::CompareRuntimeValue
+    ) && guard_expression_can_emit(&edge.guard)
+}
+
+fn guard_expression_can_emit(guard: &TransitionGuard) -> bool {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+        return false;
+    };
+
+    match binary.operator {
+        omega_typed_trees::expression::BinaryOperator::Equal
+        | omega_typed_trees::expression::BinaryOperator::NotEqual => {
+            let left_place = is_place_like(&binary.left);
+            let right_place = is_place_like(&binary.right);
+            let left_static = is_static_like(&binary.left);
+            let right_static = is_static_like(&binary.right);
+
+            (left_place && (right_static || right_place))
+                || (right_place && left_static)
+        }
+        _ => false,
+    }
+}
+
+fn is_place_like(expression: &Expression) -> bool {
+    match expression {
+        Expression::Name(_)
+        | Expression::Member(_)
+        | Expression::Indexed(_)
+        | Expression::Mutable(_) => true,
+        _ => false,
+    }
+}
+
+fn is_static_like(expression: &Expression) -> bool {
+    match expression {
+        Expression::Boolean(_) | Expression::Integer(_) | Expression::Name(_) => true,
+        _ => false,
+    }
 }

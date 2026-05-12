@@ -66,6 +66,22 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     })
 }
 
+pub(super) fn select_runtime_dispatch_expression_guard(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    guard: &omega_typed_trees::statement::TransitionGuard,
+) -> Option<SelectedInstructionKind> {
+    if let Some((buffer, literal)) =
+        runtime_text_literal_guard(input, dispatch_index, source_key, guard)
+    {
+        return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
+    }
+
+    runtime_text_storage_guard(input, dispatch_index, source_key, guard)
+        .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, guard))
+}
+
 fn runtime_text_literal_guard(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -205,7 +221,8 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = left
-        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.right)
+        && let Some(expected_value) =
+            enum_variant_value(&input.layouts, &binary.right).or_else(|| static_guard_value(&binary.right))
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -217,7 +234,8 @@ fn runtime_storage_guard(
     }
 
     if let Some(place) = right
-        && let Some(expected_value) = enum_variant_value(&input.layouts, &binary.left)
+        && let Some(expected_value) =
+            enum_variant_value(&input.layouts, &binary.left).or_else(|| static_guard_value(&binary.left))
     {
         return Some(SelectedInstructionKind::CompareRuntimeStorageValue {
             region: place.region,
@@ -229,6 +247,14 @@ fn runtime_storage_guard(
     }
 
     None
+}
+
+fn static_guard_value(expression: &Expression) -> Option<i64> {
+    match expression {
+        Expression::Boolean(value) => Some(i64::from(*value)),
+        Expression::Integer(value) => Some(*value),
+        _ => None,
+    }
 }
 
 fn runtime_text_input_buffer_data_for_text_place_in_state(

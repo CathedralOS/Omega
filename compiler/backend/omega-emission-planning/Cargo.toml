@@ -32,3 +32,4 @@ omega-state-storage = { path = "../omega-state-storage" }
 omega-state-values = { path = "../omega-state-values" }
 omega-target = { path = "../omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-typed-trees = { path = "../../representations/omega-typed-trees" }

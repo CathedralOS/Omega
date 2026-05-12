@@ -296,6 +296,7 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
+ "omega-typed-trees",
 ]
 
 [[package]]
