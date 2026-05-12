@@ -1,8 +1,9 @@
 use omega_control_flow::{
-    ContainedFlow, ControlFlowPlan, MachineFlow, Operation, OperationExpressionRefs,
-    OperationKind, PlannedTransitionTarget, StateBorrowAccessKind, StateBorrowArgumentAccess,
-    StateBorrowCall, StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow,
-    StateKey, StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
+    ContainedFlow, ControlFlowPlan, InvariantFact, MachineFlow, Operation,
+    OperationExpressionRefs, OperationKind, PlannedTransitionTarget, ProofFactKind,
+    ProofObligationFact, StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall,
+    StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow, StateKey,
+    StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -15,6 +16,8 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
         expressions: state_graph.expressions.clone(),
         machines: remap_machines(state_graph),
         states: remap_states(state_graph),
+        proof_obligations: remap_proof_obligations(state_graph),
+        invariants: remap_invariants(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
         borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
         borrow_calls: remap_borrow_calls(state_graph),
@@ -59,6 +62,53 @@ fn remap_states(state_graph: &StateGraph) -> Arena<StateFlow> {
     }
 
     states
+}
+
+fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFact> {
+    let mut obligations = Arena::default();
+
+    for (_, obligation) in state_graph.proof_obligations.iter() {
+        obligations.append(ProofObligationFact {
+            kind: match obligation.kind {
+                omega_state_graph::ProofFactKind::BoundedAssignment => {
+                    ProofFactKind::BoundedAssignment
+                }
+                omega_state_graph::ProofFactKind::BoundedCallArgument => {
+                    ProofFactKind::BoundedCallArgument
+                }
+                omega_state_graph::ProofFactKind::BoundedInitializer => {
+                    ProofFactKind::BoundedInitializer
+                }
+                omega_state_graph::ProofFactKind::BoundedStateReturn => {
+                    ProofFactKind::BoundedStateReturn
+                }
+                omega_state_graph::ProofFactKind::BoundedValue => ProofFactKind::BoundedValue,
+                omega_state_graph::ProofFactKind::BoundedTransitionArgument => {
+                    ProofFactKind::BoundedTransitionArgument
+                }
+                omega_state_graph::ProofFactKind::GuardedTransition => {
+                    ProofFactKind::GuardedTransition
+                }
+            },
+            owner: obligation.owner.clone(),
+        });
+    }
+
+    obligations
+}
+
+fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
+    let mut invariants = Arena::default();
+
+    for (_, invariant) in state_graph.invariants.iter() {
+        invariants.append(InvariantFact {
+            symbol: invariant.symbol,
+            name: invariant.name.clone(),
+            constraint_count: invariant.constraint_count,
+        });
+    }
+
+    invariants
 }
 
 fn remap_state(state: &StateNode) -> StateFlow {
