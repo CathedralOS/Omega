@@ -103,6 +103,7 @@ pub fn backend_report_text(
 
     stats::write_backend_phase_timings(&mut output, backend_plan);
     stats::write_backend_string_storage(&mut output, backend_plan);
+    write_checked_semantics_section(&mut output, backend_plan);
 
     host::write_host_sections(&mut output, backend_plan);
 
@@ -1099,6 +1100,37 @@ pub fn backend_report_text(
 
     object::write_layout_object_sections(&mut output, backend_plan);
     output
+}
+
+fn write_checked_semantics_section(output: &mut String, backend_plan: &BackendReportInput<'_>) {
+    output.push_str("## Checked Semantics\n");
+    output.push_str(&format!(
+        "proof obligations: {}\n",
+        backend_plan.control_flow.proof_obligations.len()
+    ));
+    if backend_plan.control_flow.proof_obligations.is_empty() {
+        output.push_str("none\n");
+    } else {
+        for (_, obligation) in backend_plan.control_flow.proof_obligations.iter() {
+            output.push_str(&format!("- {:?}: {}\n", obligation.kind, obligation.owner));
+        }
+    }
+
+    output.push_str(&format!(
+        "invariants: {}\n",
+        backend_plan.control_flow.invariants.len()
+    ));
+    if backend_plan.control_flow.invariants.is_empty() {
+        output.push_str("none\n");
+    } else {
+        for (_, invariant) in backend_plan.control_flow.invariants.iter() {
+            output.push_str(&format!(
+                "- `{}` constraints {}\n",
+                invariant.name, invariant.constraint_count
+            ));
+        }
+    }
+    output.push('\n');
 }
 
 fn write_runtime_leaf_branch_operation(
