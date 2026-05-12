@@ -11,3 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
 omega-tokens = { path = "../../representations/omega-tokens" }
+unicode-ident = "1"

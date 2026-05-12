@@ -8,6 +8,7 @@ use omega_tokens::{
     NumericLiteralKind, PunctuationKind, Token, TokenKind, TokenStream, TokenText,
     WhitespaceKind,
 };
+use unicode_ident::{is_xid_continue, is_xid_start};
 
 pub struct Lexer<'source> {
     source: &'source str,
@@ -727,11 +728,11 @@ impl<'source> Lexer<'source> {
 }
 
 fn is_identifier_start(character: char) -> bool {
-    character.is_ascii_alphabetic() || character == '_'
+    character == '_' || is_xid_start(character)
 }
 
 fn is_identifier_continue(character: char) -> bool {
-    character.is_ascii_alphanumeric() || character == '_'
+    character == '_' || is_xid_continue(character)
 }
 
 #[cfg(test)]
@@ -766,6 +767,24 @@ mod tests {
                 TokenKind::Identifier,
             ]
         );
+    }
+
+    #[test]
+    fn tokenizes_unicode_identifiers() {
+        let tokens = Lexer::new("变量 café μέτρο")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        let semantic: Vec<_> = tokens
+            .iter()
+            .filter(|token| !token.is_non_semantic())
+            .collect();
+
+        assert_eq!(semantic.len(), 3);
+        assert!(semantic.iter().all(|token| token.kind == TokenKind::Identifier));
+        assert_eq!(semantic[0].lexeme.as_str(), "变量");
+        assert_eq!(semantic[1].lexeme.as_str(), "café");
+        assert_eq!(semantic[2].lexeme.as_str(), "μέτρο");
     }
 
     #[test]
