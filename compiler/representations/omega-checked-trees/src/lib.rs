@@ -4,10 +4,39 @@ pub use omega_typed_trees::{
 };
 
 use omega_core::arena::Arena;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct BorrowFacts {}
+pub enum BorrowRootKind {
+    #[default]
+    OwnedData,
+    LocalData,
+    MutableParameter,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowWritableRootFact {
+    pub symbol: SymbolHandle,
+    pub name: name::ProgramName,
+    pub kind: BorrowRootKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowFact {
+    pub machine_symbol: SymbolHandle,
+    pub machine_name: name::ProgramName,
+    pub state_symbol: SymbolHandle,
+    pub state_name: name::ProgramName,
+    pub writable_roots: HandleSpan<BorrowWritableRootFact>,
+    pub mutable_parameter_count: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowFacts {
+    pub writable_roots: Arena<BorrowWritableRootFact>,
+    pub states: Arena<StateBorrowFact>,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum ProofFactKind {

@@ -1,6 +1,6 @@
 use omega_checked_trees::{
-    CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind, ProofFacts,
-    ProofObligationFact,
+    BorrowFacts, BorrowRootKind, BorrowWritableRootFact, CheckFacts, InvariantFact,
+    InvariantFacts, Program, ProofFactKind, ProofFacts, ProofObligationFact, StateBorrowFact,
 };
 
 pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
@@ -12,7 +12,7 @@ pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program
     Ok(Program {
         typed: program.clone(),
         facts: CheckFacts {
-            borrow: Default::default(),
+            borrow: build_borrow_facts(program),
             proof: build_proof_facts(&proof_plan),
             invariants: build_invariant_facts(program),
         },
@@ -105,5 +105,66 @@ fn build_invariant_facts(program: &omega_typed_trees::Program) -> InvariantFacts
 
     InvariantFacts {
         definitions: stored,
+    }
+}
+
+fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
+    let mut writable_roots = omega_core::arena::Arena::new();
+    let mut states = omega_core::arena::Arena::new();
+
+    for machine in &program.machines {
+        for state in &machine.states {
+            let state_writable_roots = machine
+                .owned_data
+                .iter()
+                .map(|owned| BorrowWritableRootFact {
+                    symbol: owned.symbol,
+                    name: owned.name.clone(),
+                    kind: BorrowRootKind::OwnedData,
+                })
+                .chain(state.statements.iter().filter_map(|statement| {
+                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement else {
+                        return None;
+                    };
+                    Some(BorrowWritableRootFact {
+                        symbol: local_data.symbol,
+                        name: local_data.name.clone(),
+                        kind: BorrowRootKind::LocalData,
+                    })
+                }))
+                .chain(
+                    state
+                        .parameters
+                        .iter()
+                        .filter(|parameter| parameter.is_mutable)
+                        .map(|parameter| BorrowWritableRootFact {
+                            symbol: parameter.symbol,
+                            name: parameter.name.clone(),
+                            kind: BorrowRootKind::MutableParameter,
+                        }),
+                )
+                .collect::<Vec<_>>();
+
+            let writable_roots_span = writable_roots.insert_many(state_writable_roots);
+            let mutable_parameter_count = state
+                .parameters
+                .iter()
+                .filter(|parameter| parameter.is_mutable)
+                .count();
+
+            states.append(StateBorrowFact {
+                machine_symbol: machine.symbol,
+                machine_name: machine.name.clone(),
+                state_symbol: state.symbol,
+                state_name: state.name.clone(),
+                writable_roots: writable_roots_span,
+                mutable_parameter_count,
+            });
+        }
+    }
+
+    BorrowFacts {
+        writable_roots,
+        states,
     }
 }
