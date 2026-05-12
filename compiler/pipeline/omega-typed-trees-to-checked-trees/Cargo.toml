@@ -1,14 +1,14 @@
 [package]
-name = "omega-typed-trees-to-state-graph"
+name = "omega-typed-trees-to-checked-trees"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_typed_trees_to_state_graph"
+name = "omega_typed_trees_to_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }

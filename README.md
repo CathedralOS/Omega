@@ -190,6 +190,7 @@ Omega/
 |   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
 |   |   |-- [CRATE] omega-resolved-trees/               # Syntax trees with names, imports, and symbol references resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Resolved trees with type/effect information attached.
+|   |   |-- [CRATE] omega-checked-trees/                # Typed trees after borrow/contract/proof-facing checks have been applied.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-target-operations/            # Target-aware operations before instruction selection.
@@ -201,7 +202,8 @@ Omega/
 |   |   |-- [CRATE] omega-tokens-to-syntax-trees/               # Token streams to parsed syntax trees.
 |   |   |-- [CRATE] omega-syntax-trees-to-resolved-trees/       # Syntax trees to resolved trees with symbol/name meaning attached.
 |   |   |-- [CRATE] omega-resolved-trees-to-typed-trees/        # Resolved trees to typed/effect-annotated trees.
-|   |   |-- [CRATE] omega-typed-trees-to-state-graph/           # Typed trees to explicit machine/state graph.
+|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/         # Typed trees to borrow/contract/proof-checked trees.
+|   |   |-- [CRATE] omega-checked-trees-to-state-graph/         # Checked trees to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/          # State graph to control-flow/data-flow graph.
 |   |   |-- [CRATE] omega-control-flow-to-target-operations/    # Control flow to target-aware operations.
 |   |   `-- [CRATE] omega-target-operations-to-machine-program/ # Target-aware operations to symbolic machine program, before bytes.

@@ -26,10 +26,13 @@ omega-backend-plan = { path = "../../representations/omega-backend-plan" }
 omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-artifacts = { path = "../omega-artifacts" }
 omega-object = { path = "../../backend/object/omega-object" }
+omega-checked-trees = { path = "../../representations/omega-checked-trees" }
+omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 omega-resolved-trees = { path = "../../representations/omega-resolved-trees" }
 omega-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-resolved-trees-to-typed-trees" }
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
+omega-typed-trees-to-checked-trees = { path = "../../pipeline/omega-typed-trees-to-checked-trees" }
 omega-platform-interface = { path = "../../backend/omega-platform-interface" }
 omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
 omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
@@ -43,6 +46,5 @@ omega-state-storage = { path = "../../backend/omega-state-storage" }
 omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../backend/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-omega-typed-trees-to-state-graph = { path = "../../pipeline/omega-typed-trees-to-state-graph" }
 omega-typed-trees = { path = "../../representations/omega-typed-trees" }
 omega-validation = { path = "../../semantics/omega-validation" }

@@ -5,10 +5,10 @@ use omega_state_graph::{
     ContainedGraph, MachineGraph, Operation, OperationExpressionRefs, PlannedTransitionTarget,
     StateGraph, StateKey, StateNode, TransitionEdge, TransitionExpressionRefs,
 };
-use omega_typed_trees::expression::ExpressionHandle;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::TransitionGuard;
-use omega_typed_trees::Program;
+use omega_checked_trees::expression::ExpressionHandle;
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::statement::TransitionGuard;
+use omega_checked_trees::Program;
 use std::sync::Arc;
 
 mod segments;
@@ -204,7 +204,7 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
     };
 
     for member in &data_definition.members {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
+        let omega_checked_trees::data::DataMember::Field(field) = member else {
             continue;
         };
 
@@ -233,25 +233,25 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
 }
 
 fn type_reference_name(
-    type_reference: &omega_typed_trees::types::TypeReference,
-) -> omega_typed_trees::name::ProgramName {
+    type_reference: &omega_checked_trees::types::TypeReference,
+) -> omega_checked_trees::name::ProgramName {
     match type_reference {
-        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_name(referee)
         }
-        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
             type_reference_name(base_type)
         }
-        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_name(element_type)
         }
-        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+        omega_checked_trees::types::TypeReference::Slice { element_type } => {
             type_reference_name(element_type)
         }
-        omega_typed_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
-        omega_typed_trees::types::TypeReference::Named { name, .. } => name.clone(),
-        omega_typed_trees::types::TypeReference::Unit => {
-            omega_typed_trees::name::ProgramName::default()
+        omega_checked_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_checked_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_checked_trees::types::TypeReference::Unit => {
+            omega_checked_trees::name::ProgramName::default()
         }
     }
 }
@@ -260,7 +260,7 @@ fn append_machine_states(
     state_graph: &mut StateGraph,
     program: &Program,
     segments: &[Vec<crate::segments::StateSegment<'_>>],
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
 ) -> Result<HandleSpan<StateNode>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
@@ -302,7 +302,7 @@ fn append_segment_transitions(
     state_graph: &mut StateGraph,
     program: &Program,
     segment: &crate::segments::StateSegment<'_>,
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
 ) -> Result<HandleSpan<TransitionEdge>, Diagnostic> {
     let mut start = Handle::invalid();
     let mut count = 0u32;

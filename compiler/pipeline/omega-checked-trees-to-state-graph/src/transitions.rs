@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::Program;
-use omega_typed_trees::expression::display_name_path;
-use omega_typed_trees::statement::{Call, TransitionTarget};
+use omega_checked_trees::Program;
+use omega_checked_trees::expression::display_name_path;
+use omega_checked_trees::statement::{Call, TransitionTarget};
 
 use crate::segments::{
     SegmentTransition, copy_statement_expression_span, table_transition_guard_expression,
@@ -12,7 +12,7 @@ use omega_state_graph::{
 
 pub(super) fn plan_transition(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     transition: &SegmentTransition<'_>,
     program: &Program,
     state_graph: &mut StateGraph,
@@ -66,7 +66,7 @@ pub(super) fn plan_transition(
             continuation: has_continuation_segment
                 .then(|| next_segment_target(source_key, state_indexes))
                 .transpose()?,
-            guard: omega_typed_trees::statement::TransitionGuard::Always,
+            guard: omega_checked_trees::statement::TransitionGuard::Always,
             expressions: TransitionExpressionRefs {
                 target_arguments: copy_statement_expression_span(
                     state_graph,
@@ -84,16 +84,16 @@ pub(super) fn plan_transition(
 }
 
 fn table_transition_target_arguments(
-    target: omega_typed_trees::statement::TransitionTargetHandle,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
     program: &Program,
     state_graph: &mut StateGraph,
-) -> omega_core::arena::HandleSpan<omega_typed_trees::expression::ExpressionHandle> {
+) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
         return omega_core::arena::HandleSpan::empty();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        omega_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             copy_statement_expression_span(
                 state_graph,
                 &program.expression_table,
@@ -101,25 +101,25 @@ fn table_transition_target_arguments(
                 *arguments,
             )
         }
-        omega_typed_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_typed_trees::statement::TransitionTargetNode::Terminal
-        | omega_typed_trees::statement::TransitionTargetNode::Value(_) => {
+        omega_checked_trees::statement::TransitionTargetNode::SelfTarget
+        | omega_checked_trees::statement::TransitionTargetNode::Terminal
+        | omega_checked_trees::statement::TransitionTargetNode::Value(_) => {
             omega_core::arena::HandleSpan::empty()
         }
     }
 }
 
 fn table_transition_target_value(
-    target: omega_typed_trees::statement::TransitionTargetHandle,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
     program: &Program,
     state_graph: &mut StateGraph,
-) -> Option<omega_typed_trees::expression::ExpressionHandle> {
+) -> Option<omega_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
         return None;
     }
 
     match program.statement_table.transition_target(target) {
-        omega_typed_trees::statement::TransitionTargetNode::Value(expression) => Some(
+        omega_checked_trees::statement::TransitionTargetNode::Value(expression) => Some(
             state_graph
                 .expressions
                 .copy_from(&program.expression_table, *expression),
@@ -129,7 +129,7 @@ fn table_transition_target_value(
 }
 
 fn plan_transition_target(
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     target: &TransitionTarget,
     _state_graph: &StateGraph,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
@@ -176,7 +176,7 @@ fn plan_transition_target(
 }
 
 fn plan_call_target(
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     call: &Call,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     if call.receiver.is_none()
@@ -226,7 +226,7 @@ fn plan_call_target(
 
 fn next_segment_target(
     source_key: StateKey,
-    state_indexes: &[(StateKey, usize, omega_typed_trees::name::ProgramName)],
+    state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     let next_key = StateKey {
         segment_index: source_key.segment_index + 1,
