@@ -1,7 +1,7 @@
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::Program;
-use omega_typed_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, StructLiteral, StructLiteralField};
+use omega_typed_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{Statement, TransitionGuard, TransitionTarget};
@@ -142,6 +142,43 @@ fn simplify_call_expression(
         .iter()
         .map(|argument| simplify_expression_with_bindings(program, machine, argument, bindings))
         .collect();
+
+    if let Some(receiver) = receiver.as_ref()
+        && call.arguments.is_empty()
+    {
+        match call.target.as_str() {
+            "is_some" => {
+                if let Some(is_none) =
+                    expression_match_condition(program, machine, receiver, &none_expression())
+                {
+                    return simplify_expression_with_bindings(
+                        program,
+                        machine,
+                        &boolean_not(is_none),
+                        bindings,
+                    );
+                }
+                return Expression::Binary(Box::new(BinaryExpression {
+                    left: receiver.clone(),
+                    operator: omega_typed_trees::expression::BinaryOperator::NotEqual,
+                    right: none_expression(),
+                }));
+            }
+            "is_none" => {
+                if let Some(is_none) =
+                    expression_match_condition(program, machine, receiver, &none_expression())
+                {
+                    return simplify_expression_with_bindings(program, machine, &is_none, bindings);
+                }
+                return Expression::Binary(Box::new(BinaryExpression {
+                    left: receiver.clone(),
+                    operator: omega_typed_trees::expression::BinaryOperator::Equal,
+                    right: none_expression(),
+                }));
+            }
+            _ => {}
+        }
+    }
 
     if let Some(target_machine) = resolve_call_target_machine(
         program,
@@ -334,19 +371,103 @@ fn helper_state_match_condition(
     bindings: &[Binding],
     expected: &Expression,
 ) -> Option<Expression> {
-    let helper = helper_state_model(state, program, machine, bindings)?;
+    helper_state_match_condition_with_stack(state, program, machine, bindings, expected, &mut Vec::new())
+}
+
+fn helper_state_match_condition_with_stack(
+    state: &State,
+    program: &Program,
+    machine: &Machine,
+    bindings: &[Binding],
+    expected: &Expression,
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Expression> {
+    if state.symbol.is_valid() && stack.contains(&state.symbol) {
+        return None;
+    }
+    let pushed = state.symbol.is_valid();
+    if pushed {
+        stack.push(state.symbol);
+    }
+
+    let helper = match helper_state_model(state, program, machine, bindings) {
+        Some(helper) => helper,
+        None => {
+            if pushed {
+                stack.pop();
+            }
+            return None;
+        }
+    };
     let mut covered = Expression::Boolean(false);
     let mut matched = Expression::Boolean(false);
 
     for transition in &helper.transitions {
         let effective_guard = boolean_and(boolean_not(covered.clone()), transition.guard.clone());
-        if expressions_equivalent(&transition.value, expected) {
-            matched = boolean_or(matched, effective_guard.clone());
+        if let Some(value_matches) =
+            expression_match_condition_with_stack(program, machine, &transition.value, expected, stack)
+        {
+            matched = boolean_or(matched, boolean_and(effective_guard.clone(), value_matches));
         }
         covered = boolean_or(covered, effective_guard);
     }
 
+    if pushed {
+        stack.pop();
+    }
     Some(matched)
+}
+
+fn expression_match_condition(
+    program: &Program,
+    machine: &Machine,
+    expression: &Expression,
+    expected: &Expression,
+) -> Option<Expression> {
+    expression_match_condition_with_stack(program, machine, expression, expected, &mut Vec::new())
+}
+
+fn expression_match_condition_with_stack(
+    program: &Program,
+    machine: &Machine,
+    expression: &Expression,
+    expected: &Expression,
+    stack: &mut Vec<SymbolHandle>,
+) -> Option<Expression> {
+    if expressions_equivalent(expression, expected) {
+        return Some(Expression::Boolean(true));
+    }
+
+    let Expression::Call(call) = expression else {
+        return None;
+    };
+
+    let receiver = call.receiver.as_deref();
+    let target_machine = resolve_call_target_machine(program, machine, receiver)?;
+    let state = resolve_call_target_state(target_machine, call)?;
+    let argument_bindings: Vec<_> = state
+        .parameters
+        .iter()
+        .zip(call.arguments.iter())
+        .map(|(parameter, argument)| Binding {
+            symbol: parameter.symbol,
+            name: Some(parameter.name.clone()),
+            value: argument.clone(),
+        })
+        .collect();
+
+    helper_state_match_condition_with_stack(
+        state,
+        program,
+        target_machine,
+        &argument_bindings,
+        expected,
+        stack,
+    )
+}
+
+fn none_expression() -> Expression {
+    Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]))
 }
 
 fn helper_state_model(
@@ -1090,6 +1211,76 @@ mod tests {
         assert_eq!(
             simplify_expression(&program, &machine, &expression),
             Expression::Boolean(false)
+        );
+    }
+
+    #[test]
+    fn simplifies_option_is_some_over_non_recursive_helper() {
+        let machine_symbol = SymbolHandle::from_arena_index(20);
+        let find_symbol = SymbolHandle::from_arena_index(21);
+        let found_symbol = SymbolHandle::from_arena_index(22);
+
+        let find = State {
+            symbol: find_symbol,
+            name: "find_item".into(),
+            parameters: vec![StateParameter {
+                symbol: found_symbol,
+                name: "found".into(),
+                type_reference: TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: "bool".into(),
+                },
+                is_const: true,
+                is_mutable: false,
+                is_self: false,
+            }],
+            return_type: None,
+            statements: vec![
+                Statement::Transition(Transition {
+                    target: TransitionTarget::Value(Expression::Integer(1)),
+                    continuation: None,
+                    guard: TransitionGuard::When(name("found", found_symbol)),
+                }),
+                Statement::Transition(Transition {
+                    target: TransitionTarget::Value(path_expression(&["None"])),
+                    continuation: None,
+                    guard: TransitionGuard::Always,
+                }),
+            ],
+            statement_nodes: Default::default(),
+        };
+
+        let machine = Machine {
+            symbol: machine_symbol,
+            name: "InventorySystem".into(),
+            contains: vec![],
+            owned_data: vec![],
+            states: vec![find],
+        };
+        let program = Program {
+            machines: vec![machine.clone()],
+            ..Program::default()
+        };
+
+        let is_some_guard = Expression::Call(Box::new(CallExpression {
+            receiver: Some(Box::new(Expression::Call(Box::new(CallExpression {
+                receiver: None,
+                target_symbol: find_symbol,
+                target: "find_item".into(),
+                arguments: vec![name("found", found_symbol)],
+            })))),
+            target_symbol: SymbolHandle::invalid(),
+            target: "is_some".into(),
+            arguments: vec![],
+        }));
+
+        assert_eq!(
+            simplify_expression(&program, &machine, &is_some_guard),
+            Expression::Binary(Box::new(BinaryExpression {
+                left: name("found", found_symbol),
+                operator: BinaryOperator::NotEqual,
+                right: Expression::Boolean(false),
+            }))
         );
     }
 
