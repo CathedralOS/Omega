@@ -7,11 +7,11 @@ pub use model::{StateValueKind, StateValuePlan, StateValueRole, StateValueUse};
 pub use simplify::simplify_expression;
 
 use collection::build_machine_state_value_plan;
+use omega_checked_trees::Program;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_calls::StateCallPlan;
 use omega_state_graph::RuntimeFlowPlan;
-use omega_typed_trees::Program;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -52,7 +52,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
     });
-    let typed_program = Arc::new(program.typed.clone());
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
     let host_call_abi = Arc::new(host_abi.clone());
@@ -112,8 +111,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.alias_flow = record_backend_phase(&mut phase_timings, "alias flow", || {
         build_alias_flow_plan(&backend_plan.state_calls)
     });
-    let state_storage_program = Arc::clone(&typed_program);
-    let state_values_program = Arc::clone(&typed_program);
+    let state_storage_program = Arc::clone(&program);
+    let state_values_program = Arc::clone(&program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
         control_flow: backend_plan.control_flow.clone(),
         runtime_flow: backend_plan.runtime_flow.clone(),
@@ -183,7 +182,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         });
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
-            &typed_program,
+            &program,
             &backend_plan.state_dispatch,
             &backend_plan.control_flow,
             &backend_plan.layouts,
