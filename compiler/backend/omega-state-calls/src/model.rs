@@ -11,6 +11,23 @@ pub struct StateCallPlan {
     pub arguments: Arena<StateCallArgument>,
 }
 
+impl StateCallPlan {
+    pub fn statement_call(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&StateCall> {
+        self.calls
+            .iter()
+            .find(|(_, state_call)| {
+                state_call.source_key == source_key
+                    && state_call.statement_index == statement_index
+                    && state_call.role == StateCallRole::Statement
+            })
+            .map(|(_, state_call)| state_call)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCall {
     pub source_key: StateKey,

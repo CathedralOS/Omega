@@ -1,7 +1,7 @@
 use super::context::RuntimeDispatchBodyContext;
 use omega_control_flow::{Operation, StateKey};
 use omega_platform_interface::HostCall;
-use omega_state_calls::{StateCall, StateCallRole};
+use omega_state_calls::StateCall;
 use omega_state_storage::{StateLocalStorage, StateMutation};
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
@@ -58,16 +58,7 @@ pub(super) fn state_call_for_statement(
     state_key: StateKey,
     statement_index: usize,
 ) -> Option<&StateCall> {
-    context
-        .state_calls
-        .calls
-        .iter()
-        .find(|(_, state_call)| {
-            state_call.source_key == state_key
-                && state_call.statement_index == statement_index
-                && state_call.role == StateCallRole::Statement
-        })
-        .map(|(_, state_call)| state_call)
+    context.state_calls.statement_call(state_key, statement_index)
 }
 
 pub(super) fn local_storage_for_statement(
