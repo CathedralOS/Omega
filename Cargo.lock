@@ -185,6 +185,7 @@ dependencies = [
 name = "omega-checked-trees"
 version = "0.1.0"
 dependencies = [
+ "omega-core",
  "omega-typed-trees",
 ]
 
@@ -661,6 +662,7 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
+ "omega-state-calls",
  "omega-typed-trees",
 ]
 

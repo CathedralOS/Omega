@@ -17,6 +17,8 @@ pub struct StateGraph {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineGraph>,
     pub states: Arena<StateNode>,
+    pub proof_obligations: Arena<ProofObligationFact>,
+    pub invariants: Arena<InvariantFact>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
     pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
     pub borrow_calls: Arena<StateBorrowCall>,
@@ -148,6 +150,31 @@ impl Default for StateNode {
             transitions: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ProofFactKind {
+    #[default]
+    BoundedAssignment,
+    BoundedCallArgument,
+    BoundedInitializer,
+    BoundedStateReturn,
+    BoundedValue,
+    BoundedTransitionArgument,
+    GuardedTransition,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProofObligationFact {
+    pub kind: ProofFactKind,
+    pub owner: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct InvariantFact {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub constraint_count: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

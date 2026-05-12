@@ -2,9 +2,10 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{
-    ContainedGraph, MachineGraph, Operation, OperationExpressionRefs, PlannedTransitionTarget,
-    StateBorrowAccessKind, StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind,
-    StateBorrowSummary, StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
+    ContainedGraph, InvariantFact, MachineGraph, Operation, OperationExpressionRefs,
+    PlannedTransitionTarget, ProofFactKind, ProofObligationFact, StateBorrowAccessKind,
+    StateBorrowArgumentAccess, StateBorrowCall, StateBorrowRootKind, StateBorrowSummary,
+    StateBorrowWritableRoot, StateGraph, StateKey, StateNode, TransitionEdge,
     TransitionExpressionRefs,
 };
 use omega_checked_trees::expression::ExpressionHandle;
@@ -34,13 +35,15 @@ pub fn build_state_graph_with_workers(
     }
 
     let machine_count = program.machines.len();
+    let program_for_machines = Arc::clone(&program);
     let machine_graphs = workers.map_ordered(machine_count, move |index| {
-        let machine = program
+        let machine = program_for_machines
             .machines
             .get(index)
             .expect("state-graph worker index should be in range");
         let mut local_state_graph = StateGraph::default();
-        let machine_graph = build_machine_graph(machine, &program, &mut local_state_graph)?;
+        let machine_graph =
+            build_machine_graph(machine, &program_for_machines, &mut local_state_graph)?;
 
         Ok((local_state_graph, machine_graph))
     });
@@ -51,7 +54,65 @@ pub fn build_state_graph_with_workers(
         merge_machine_graph(&mut state_graph, &local_state_graph, &machine_graph);
     }
 
+    state_graph.proof_obligations =
+        remap_proof_obligations(program.facts.proof.obligations.iter().map(|(_, fact)| fact));
+    state_graph.invariants =
+        remap_invariants(program.facts.invariants.definitions.iter().map(|(_, fact)| fact));
+
     Ok(state_graph)
+}
+
+fn remap_proof_obligations<'a>(
+    facts: impl Iterator<Item = &'a omega_checked_trees::ProofObligationFact>,
+) -> omega_core::arena::Arena<ProofObligationFact> {
+    let mut obligations = omega_core::arena::Arena::new();
+
+    for fact in facts {
+        obligations.append(ProofObligationFact {
+            kind: match fact.kind {
+                omega_checked_trees::ProofFactKind::BoundedAssignment => {
+                    ProofFactKind::BoundedAssignment
+                }
+                omega_checked_trees::ProofFactKind::BoundedCallArgument => {
+                    ProofFactKind::BoundedCallArgument
+                }
+                omega_checked_trees::ProofFactKind::BoundedInitializer => {
+                    ProofFactKind::BoundedInitializer
+                }
+                omega_checked_trees::ProofFactKind::BoundedStateReturn => {
+                    ProofFactKind::BoundedStateReturn
+                }
+                omega_checked_trees::ProofFactKind::BoundedValue => {
+                    ProofFactKind::BoundedValue
+                }
+                omega_checked_trees::ProofFactKind::BoundedTransitionArgument => {
+                    ProofFactKind::BoundedTransitionArgument
+                }
+                omega_checked_trees::ProofFactKind::GuardedTransition => {
+                    ProofFactKind::GuardedTransition
+                }
+            },
+            owner: fact.owner.clone(),
+        });
+    }
+
+    obligations
+}
+
+fn remap_invariants<'a>(
+    facts: impl Iterator<Item = &'a omega_checked_trees::InvariantFact>,
+) -> omega_core::arena::Arena<InvariantFact> {
+    let mut invariants = omega_core::arena::Arena::new();
+
+    for fact in facts {
+        invariants.append(InvariantFact {
+            symbol: fact.symbol,
+            name: fact.name.clone(),
+            constraint_count: fact.constraint_count,
+        });
+    }
+
+    invariants
 }
 
 fn merge_machine_graph(
