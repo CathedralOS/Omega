@@ -182,6 +182,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-checked-trees"
+version = "0.1.0"
+dependencies = [
+ "omega-typed-trees",
+]
+
+[[package]]
+name = "omega-checked-trees-to-state-graph"
+version = "0.1.0"
+dependencies = [
+ "omega-checked-trees",
+ "omega-core",
+ "omega-state-graph",
+]
+
+[[package]]
 name = "omega-cli"
 version = "0.1.0"
 dependencies = [
@@ -198,6 +214,8 @@ dependencies = [
  "omega-backend-plan",
  "omega-backend-report",
  "omega-calling-conventions",
+ "omega-checked-trees",
+ "omega-checked-trees-to-state-graph",
  "omega-control-flow",
  "omega-core",
  "omega-emission-planning",
@@ -228,7 +246,7 @@ dependencies = [
  "omega-tokens",
  "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
- "omega-typed-trees-to-state-graph",
+ "omega-typed-trees-to-checked-trees",
  "omega-validation",
 ]
 
@@ -739,11 +757,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-typed-trees-to-state-graph"
+name = "omega-typed-trees-to-checked-trees"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-core",
- "omega-state-graph",
  "omega-typed-trees",
 ]
 

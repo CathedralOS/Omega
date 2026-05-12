@@ -1,0 +1,12 @@
+[package]
+name = "omega-checked-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_checked_trees"
+path = "src/lib.rs"
+
+[dependencies]
+omega-typed-trees = { path = "../omega-typed-trees" }

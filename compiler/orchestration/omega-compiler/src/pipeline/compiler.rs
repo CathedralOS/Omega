@@ -6,6 +6,7 @@ use crate::pipeline::frontend::{
 use crate::pipeline::source::{ImportQueue, SourceStorage};
 use omega_artifacts::{ArtifactWriter, build_backend_surface_report};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};
+use omega_checked_trees::Program as CheckedProgram;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
@@ -57,8 +58,14 @@ impl Compiler {
         let resolved = resolve_program(syntax)?;
         let typed = typecheck_program(resolved)?;
         let validated = validate_program(typed)?;
+        let checked = check_program(&validated.program)?;
         let backend_surface = build_backend_surface_report(&validated.program);
-        let planned = plan_backend(validated, self.options.target_name.as_deref(), workers.handle())?;
+        let planned = plan_backend(
+            validated,
+            checked,
+            self.options.target_name.as_deref(),
+            workers.handle(),
+        )?;
         let emission_plan = plan_emission(&planned);
         if self.options.write_output {
             write_backend_report(&self.options, &backend_surface, &planned)?;
@@ -137,6 +144,10 @@ struct ValidatedProgram {
     program: TypedProgram,
 }
 
+struct CheckedProgramSurface {
+    program: CheckedProgram,
+}
+
 struct EmittedProgram {
     target: NativeTarget,
     planned_text_bytes: usize,
@@ -173,16 +184,24 @@ fn validate_program(typed: TypedProgram) -> Result<ValidatedProgram, Vec<Diagnos
     Ok(ValidatedProgram { program: typed })
 }
 
+fn check_program(typed: &TypedProgram) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
+    let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(CheckedProgramSurface { program })
+}
+
 fn plan_backend(
     validated: ValidatedProgram,
+    checked: CheckedProgramSurface,
     target_name: Option<&str>,
     workers: omega_core::parallel::WorkerPoolHandle,
 ) -> Result<omega_backend_plan::BackendPlan, Vec<Diagnostic>> {
     let target =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
     let program = std::sync::Arc::new(validated.program);
-    let state_graph = omega_typed_trees_to_state_graph::build_state_graph_with_workers(
-        std::sync::Arc::clone(&program),
+    let checked_program = std::sync::Arc::new(checked.program);
+    let state_graph = omega_checked_trees_to_state_graph::build_state_graph_with_workers(
+        checked_program,
         workers.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;

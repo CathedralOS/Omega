@@ -1,14 +1,14 @@
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::Program;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::name::ProgramName;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{
+use omega_checked_trees::Program;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::state::State;
+use omega_checked_trees::statement::{
     Assignment, Call, Statement, StatementNode, TableCall, TableTransition, Transition,
     TransitionGuard, TransitionGuardNode,
 };
-use omega_typed_trees::types::TypeReference;
+use omega_checked_trees::types::TypeReference;
 
 use omega_state_graph::{
     Operation, OperationExpressionRefs, OperationKind, StateGraph, StateKey, StateParameterNode,
@@ -218,7 +218,7 @@ fn operation_expression_refs(
     statement: &StatementNode,
     source_expressions: &ExpressionTable,
     state_graph: &mut StateGraph,
-    statement_table: &omega_typed_trees::statement::StatementTable,
+    statement_table: &omega_checked_trees::statement::StatementTable,
 ) -> OperationExpressionRefs {
     match statement {
         StatementNode::Assignment(assignment) => OperationExpressionRefs::Assignment {
@@ -249,7 +249,7 @@ fn operation_expression_refs(
 pub(super) fn copy_statement_expression_span(
     state_graph: &mut StateGraph,
     source_expressions: &ExpressionTable,
-    statement_table: &omega_typed_trees::statement::StatementTable,
+    statement_table: &omega_checked_trees::statement::StatementTable,
     expressions: omega_core::arena::HandleSpan<ExpressionHandle>,
 ) -> omega_core::arena::HandleSpan<ExpressionHandle> {
     state_graph.expressions.copy_expression_handles_from_slice(
@@ -259,7 +259,7 @@ pub(super) fn copy_statement_expression_span(
 }
 
 fn is_static_assignment(assignment: &Assignment) -> bool {
-    use omega_typed_trees::expression::Expression;
+    use omega_checked_trees::expression::Expression;
 
     let target_is_place = matches!(
         assignment.target,
@@ -287,7 +287,7 @@ pub(super) fn table_transition_guard_expression(
 fn is_constant_integer_assignment(assignment: &Assignment) -> bool {
     matches!(
         (&assignment.target, &assignment.value),
-        (omega_typed_trees::expression::Expression::Name(path), omega_typed_trees::expression::Expression::Integer(_))
+        (omega_checked_trees::expression::Expression::Name(path), omega_checked_trees::expression::Expression::Integer(_))
             if path.len() == 1
     )
 }
@@ -330,7 +330,7 @@ fn branch_call_target_with_visited<'program>(
                     .find(|data_definition| data_definition.name == current_machine.name)
                     .and_then(|data_definition| {
                         data_definition.members.iter().find_map(|member| {
-                            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                            let omega_checked_trees::data::DataMember::Field(field) = member else {
                                 return None;
                             };
                             let matches_receiver = field.symbol == call.receiver_symbol
@@ -369,48 +369,48 @@ fn branch_call_target_with_visited<'program>(
 }
 
 fn type_reference_name(
-    type_reference: &omega_typed_trees::types::TypeReference,
-) -> omega_typed_trees::name::ProgramName {
+    type_reference: &omega_checked_trees::types::TypeReference,
+) -> omega_checked_trees::name::ProgramName {
     match type_reference {
-        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_name(referee)
         }
-        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
             type_reference_name(base_type)
         }
-        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_name(element_type)
         }
-        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+        omega_checked_trees::types::TypeReference::Slice { element_type } => {
             type_reference_name(element_type)
         }
-        omega_typed_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
-        omega_typed_trees::types::TypeReference::Named { name, .. } => name.clone(),
-        omega_typed_trees::types::TypeReference::Unit => {
-            omega_typed_trees::name::ProgramName::default()
+        omega_checked_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_checked_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_checked_trees::types::TypeReference::Unit => {
+            omega_checked_trees::name::ProgramName::default()
         }
     }
 }
 
 fn type_reference_symbol(
-    type_reference: &omega_typed_trees::types::TypeReference,
+    type_reference: &omega_checked_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
-        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_symbol(referee)
         }
-        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
             type_reference_symbol(base_type)
         }
-        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_symbol(element_type)
         }
-        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+        omega_checked_trees::types::TypeReference::Slice { element_type } => {
             type_reference_symbol(element_type)
         }
-        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
-        omega_typed_trees::types::TypeReference::Named { symbol, .. } => *symbol,
-        omega_typed_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
+        omega_checked_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
+        omega_checked_trees::types::TypeReference::Named { symbol, .. } => *symbol,
+        omega_checked_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
 }
 
