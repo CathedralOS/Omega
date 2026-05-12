@@ -1,5 +1,6 @@
 mod input;
 mod context;
+mod diagnostics;
 mod capability;
 mod data;
 mod expression;

@@ -42,7 +42,13 @@ pub(super) fn parse_machine<'tokens, 'source>(
             let (_, rest) = skip_machine_invariant(input2)?;
             input = rest;
         } else {
-            return Err(input.error_here("expected machine item"));
+            return Err(input.expected_one_of_here(&[
+                "`pub entry`",
+                "`entry`",
+                "`state`",
+                "`fn`",
+                "`invariant`",
+            ]));
         }
     }
 

@@ -1,3 +1,4 @@
+use crate::parser::diagnostics;
 use crate::parse_error::ParseError;
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
@@ -39,7 +40,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
         match self.tokens.split_first() {
             Some((token, rest)) => Ok((token, Self::new(self.source_id, rest))),
-            None => Err(self.error_here("unexpected EOF")),
+            None => Err(diagnostics::unexpected_eof(self, "token")),
         }
     }
 
@@ -52,10 +53,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if token.keyword() == Some(keyword) {
             Ok(rest)
         } else {
-            Err(ParseError::at_source_span(
-                format!("expected `{label}`"),
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, format!("`{label}`")))
         }
     }
 
@@ -68,10 +66,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if token.punctuation() == Some(punctuation) {
             Ok(rest)
         } else {
-            Err(ParseError::at_source_span(
-                format!("expected `{label}`"),
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, format!("`{label}`")))
         }
     }
 
@@ -82,10 +77,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         {
             Ok(rest)
         } else {
-            Err(ParseError::at_source_span(
-                format!("expected `{name}`"),
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, format!("`{name}`")))
         }
     }
 
@@ -97,10 +89,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
                 rest,
             ))
         } else {
-            Err(ParseError::at_source_span(
-                "expected identifier",
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, "identifier"))
         }
     }
 
@@ -112,10 +101,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             })?;
             Ok((value, rest))
         } else {
-            Err(ParseError::at_source_span(
-                "expected integer literal",
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, "integer literal"))
         }
     }
 
@@ -124,10 +110,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         if token.is_string_literal() {
             Ok((token.lexeme.as_str().trim_matches('"').to_owned(), rest))
         } else {
-            Err(ParseError::at_source_span(
-                "expected string literal",
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, "string literal"))
         }
     }
 
@@ -139,11 +122,12 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             })?;
             Ok((SourceText::new(token.lexeme.as_str(), self.source_span(token)), rest))
         } else {
-            Err(ParseError::at_source_span(
-                "expected float literal",
-                self.source_span(token),
-            ))
+            Err(diagnostics::expected(self, token, "float literal"))
         }
+    }
+
+    pub(super) fn expected_one_of_here(self, expected: &[&str]) -> ParseError {
+        diagnostics::expected_one_of_here(self, expected)
     }
 
     pub(super) fn at_keyword(&self, keyword: KeywordKind) -> bool {
