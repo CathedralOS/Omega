@@ -1,0 +1,11 @@
+use omega::language::std::option;
+
+data main {
+    value: Option<usize>;
+}
+
+machine main {
+    pub entry(&mut self, value: Option<usize>) {
+        self.value = value;
+    }
+}

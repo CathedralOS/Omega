@@ -86,10 +86,12 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "mutable_output_host_call",
     "nested_machine_continuation",
     "runtime_text_storage",
+    "std_option_surface",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_mut_literal",
+    "std_option_layout_missing",
 ];

@@ -1,0 +1,6 @@
+use omega::language::std::option;
+
+machine main {
+    pub entry(&mut self) {
+    }
+}

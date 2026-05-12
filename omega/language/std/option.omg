@@ -1,0 +1,13 @@
+// Standard optional-value surface.
+//
+// This is the source home for Option<T>. The current compiler still carries
+// transitional knowledge about optional-value behavior, but the type itself
+// should live in std rather than existing as a nameless builtin.
+//
+// Variant payloads and fully source-defined Some/None behavior are still
+// evolving. This definition gives Option<T> a real bundled module path today.
+
+enum Option<T> {
+    None,
+    Some,
+}
