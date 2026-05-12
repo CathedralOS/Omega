@@ -1,0 +1,32 @@
+data Counter {
+    calls: u32;
+}
+
+data Random {
+}
+
+machine Random::chance -> bool {
+    pub entry(
+        &mut self,
+        state: &mut Counter
+    ) {
+        state.calls = state.calls + 1;
+        -> state.calls > 0;
+    }
+}
+
+data main {
+    rng: Random;
+    counter: Counter;
+}
+
+machine main {
+    pub entry(&mut self) {
+        -> success() when self.rng.chance(&mut self.counter) == true;
+        -> failure();
+    }
+
+    state success(&mut self) {}
+
+    state failure(&mut self) {}
+}
