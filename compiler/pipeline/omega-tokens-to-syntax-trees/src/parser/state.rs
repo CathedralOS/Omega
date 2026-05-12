@@ -1,3 +1,4 @@
+use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::statement::parse_statement;
 use crate::parser::transition::{parse_transition_block, parse_transition_statement};
@@ -26,9 +27,9 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
 
 pub(super) fn parse_state<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-    allow_unnamed_entry: bool,
+    kind: StateKind,
 ) -> ParseResult<'tokens, 'source, State> {
-    let (name, input) = if allow_unnamed_entry && input.at_punctuation(PunctuationKind::LeftParen) {
+    let (name, input) = if kind.allows_implicit_entry_name() && input.at_punctuation(PunctuationKind::LeftParen) {
         (Identifier::generated("entry"), input)
     } else {
         input.take_identifier()?
