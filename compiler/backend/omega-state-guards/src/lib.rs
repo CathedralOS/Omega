@@ -23,6 +23,20 @@ use omega_typed_trees::statement::TransitionGuard;
 use normalize::normalize_guard_expression;
 use operands::{GuardOperands, guard_operands};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StateGuardClause {
+    pub lowering: StateGuardLowering,
+    pub operator: StateGuardOperator,
+    pub storage: StateGuardOperandStorage,
+    pub byte_offset: usize,
+    pub right_storage: StateGuardOperandStorage,
+    pub right_byte_offset: usize,
+    pub byte_size: usize,
+    pub expected_value: i64,
+    pub has_storage: bool,
+    pub has_right_storage: bool,
+}
+
 pub fn build_state_guard_plan(
     program: &Program,
     state_dispatch: &StateDispatchPlan,
@@ -265,5 +279,118 @@ fn guard_operator(table: &ExpressionTable, expression: ExpressionHandle) -> Stat
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight
         | BinaryOperator::Subtract => StateGuardOperator::None,
+    }
+}
+
+pub fn lower_guard_conjunction(
+    plan: &StateGuardPlan,
+    layouts: &LayoutPlan,
+    runtime_storage: &RuntimeStoragePlan,
+    entry_machine: SymbolHandle,
+    source_key: StateKey,
+    source_machine: SymbolHandle,
+    source_dispatch_index: u32,
+    statement_order: usize,
+) -> Option<Vec<StateGuardClause>> {
+    let guard = plan
+        .guards
+        .iter()
+        .find(|(_, guard)| {
+            guard.source_dispatch_index == source_dispatch_index
+                && guard.statement_order == statement_order
+        })
+        .map(|(_, guard)| guard)?;
+    let expression = guard.expression;
+    if !expression.is_valid() {
+        return None;
+    }
+
+    let mut leaves = Vec::new();
+    flatten_guard_conjunction(&plan.expressions, expression, &mut leaves)?;
+
+    let mut clauses = Vec::with_capacity(leaves.len());
+    for leaf in leaves {
+        let kind = classify_transition_guard_expression(&plan.expressions, Some(leaf));
+        let operator = guard_operator(&plan.expressions, leaf);
+        let mut scratch = ExpressionTable::new();
+        let operands = guard_operands(
+            &plan.expressions,
+            &mut scratch,
+            layouts,
+            runtime_storage,
+            entry_machine,
+            source_key,
+            source_machine,
+            source_dispatch_index,
+            Some(leaf),
+        )?;
+        let lowering = guard_lowering(kind, operator, Some(&operands));
+        if matches!(lowering, StateGuardLowering::NeedsRuntimeExpression | StateGuardLowering::NoOp)
+        {
+            return None;
+        }
+
+        let place_operands: Vec<_> = [&operands.left, &operands.right]
+            .into_iter()
+            .filter(|operand| {
+                operand.kind == StateGuardOperandKind::Place
+                    && operand.storage != StateGuardOperandStorage::Unknown
+            })
+            .collect();
+        let place_operand = *place_operands.first()?;
+        let right_place_operand = place_operands.get(1).copied();
+        let expected_value = [&operands.left, &operands.right]
+            .into_iter()
+            .find(|operand| operand.has_resolved_value)
+            .map(|operand| operand.resolved_value)
+            .unwrap_or(0);
+
+        clauses.push(StateGuardClause {
+            lowering,
+            operator,
+            storage: place_operand.storage,
+            byte_offset: place_operand.byte_offset,
+            right_storage: right_place_operand
+                .map(|operand| operand.storage)
+                .unwrap_or(StateGuardOperandStorage::Unknown),
+            right_byte_offset: right_place_operand
+                .map(|operand| operand.byte_offset)
+                .unwrap_or(0),
+            byte_size: place_operand.byte_size,
+            expected_value,
+            has_storage: true,
+            has_right_storage: right_place_operand.is_some(),
+        });
+    }
+
+    Some(clauses)
+}
+
+fn flatten_guard_conjunction(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+    leaves: &mut Vec<ExpressionHandle>,
+) -> Option<()> {
+    match table.expression(expression) {
+        ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
+            flatten_guard_conjunction(table, binary.left, leaves)?;
+            flatten_guard_conjunction(table, binary.right, leaves)?;
+            Some(())
+        }
+        ExpressionNode::Binary(binary)
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+            ) =>
+        {
+            leaves.push(expression);
+            Some(())
+        }
+        _ => None,
     }
 }

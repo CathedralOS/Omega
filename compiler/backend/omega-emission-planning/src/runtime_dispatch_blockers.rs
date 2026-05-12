@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use omega_state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_state_guards::{StateGuardLowering, StateGuardOperator, lower_guard_conjunction};
 use omega_state_schedule::ScheduledState;
 
 use super::{EmissionBlocker, blocker};
@@ -97,8 +97,18 @@ pub(super) fn runtime_dispatch_loop_blocker(input: &EmissionPlanningInput<'_>) -
 }
 
 pub(super) fn runtime_dispatch_loop_can_emit(input: &EmissionPlanningInput<'_>) -> bool {
-    input.runtime_dispatch_loop.edges.iter().all(|(_, edge)| {
-        dispatch_loop_guard_can_emit(edge) && edge.action != RuntimeDispatchLoopAction::Unknown
+    input.runtime_dispatch_loop.cases.iter().all(|(_, case)| {
+        input
+            .runtime_dispatch_loop
+            .edges
+            .span(case.edges)
+            .unwrap_or(&[])
+            .iter()
+            .all(|edge| {
+                (dispatch_loop_guard_can_emit(edge)
+                    || decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge))
+                    && edge.action != RuntimeDispatchLoopAction::Unknown
+            })
     })
 }
 
@@ -107,10 +117,21 @@ fn first_unsupported_dispatch_guard(
 ) -> Option<StateGuardLowering> {
     input
         .runtime_dispatch_loop
-        .edges
+        .cases
         .iter()
-        .find(|(_, edge)| !dispatch_loop_guard_can_emit(edge))
-        .map(|(_, edge)| edge.guard_lowering)
+        .find_map(|(_, case)| {
+            input
+                .runtime_dispatch_loop
+                .edges
+                .span(case.edges)
+                .unwrap_or(&[])
+                .iter()
+                .find(|edge| {
+                    !dispatch_loop_guard_can_emit(edge)
+                        && !decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge)
+                })
+                .map(|edge| edge.guard_lowering)
+        })
 }
 
 fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
@@ -145,4 +166,56 @@ fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
         }
         StateGuardLowering::NeedsRuntimeExpression => false,
     }
+}
+
+fn decomposed_guard_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    edge: &RuntimeDispatchLoopEdge,
+) -> bool {
+    let Some(clauses) = lower_guard_conjunction(
+        input.state_guards,
+        input.layouts,
+        input.runtime_storage,
+        input.entry_key.machine,
+        source_key,
+        source_key.machine,
+        source_dispatch_index,
+        edge.order,
+    ) else {
+        return false;
+    };
+
+    !clauses.is_empty()
+        && clauses.iter().all(|clause| match clause.lowering {
+            StateGuardLowering::CompareStaticValue => {
+                clause.has_storage
+                    && matches!(
+                        clause.operator,
+                        StateGuardOperator::Equal
+                            | StateGuardOperator::NotEqual
+                            | StateGuardOperator::Greater
+                            | StateGuardOperator::GreaterOrEqual
+                            | StateGuardOperator::Less
+                            | StateGuardOperator::LessOrEqual
+                    )
+                    && matches!(clause.byte_size, 1 | 4 | 8)
+            }
+            StateGuardLowering::CompareRuntimeValue => {
+                clause.has_storage
+                    && clause.has_right_storage
+                    && matches!(
+                        clause.operator,
+                        StateGuardOperator::Equal
+                            | StateGuardOperator::NotEqual
+                            | StateGuardOperator::Greater
+                            | StateGuardOperator::GreaterOrEqual
+                            | StateGuardOperator::Less
+                            | StateGuardOperator::LessOrEqual
+                    )
+                    && matches!(clause.byte_size, 1 | 4 | 8)
+            }
+            _ => false,
+        })
 }

@@ -5,7 +5,7 @@ use crate::selection::storage_places::{
 use omega_control_flow::StateParameterFlow;
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
-use omega_state_guards::StateGuardOperandStorage;
+use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 use omega_typed_trees::expression::ExpressionNode;
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -17,32 +17,7 @@ pub(super) fn select_runtime_dispatch_edge(
     source_key: StateKey,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let guard_instruction = match edge.guard_lowering {
-        StateGuardLowering::CompareRuntimeValue if edge.guard_has_storage && edge.guard_has_right_storage => {
-            SelectedInstructionKind::CompareRuntimeStorage {
-                left_region: guard_storage_region(edge.guard_storage),
-                left_offset: edge.guard_byte_offset,
-                right_region: guard_storage_region(edge.guard_right_storage),
-                right_offset: edge.guard_right_byte_offset,
-                byte_size: edge.guard_byte_size,
-                operator: edge.guard_operator,
-            }
-        }
-        _ => SelectedInstructionKind::EvaluateDispatchGuard {
-            guard_lowering: edge.guard_lowering,
-            operator: edge.guard_operator,
-            storage_region: guard_storage_region(edge.guard_storage),
-            byte_offset: edge.guard_byte_offset,
-            byte_size: edge.guard_byte_size,
-            expected_value: edge.guard_expected_value,
-            has_storage: edge.guard_has_storage,
-        },
-    };
-    selected_instructions.push(SelectedInstruction {
-        kind: guard_instruction,
-        source_key,
-        source_statement: edge.order,
-    });
+    select_dispatch_guard_instructions(input, edge, source_key, selected_instructions);
 
     match edge.action {
         RuntimeDispatchLoopAction::EnterState => {
@@ -71,6 +46,123 @@ pub(super) fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Unknown => {}
+    }
+}
+
+fn select_dispatch_guard_instructions(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
+
+    if !guard_can_emit_directly(edge)
+        && let Some(clauses) = lower_guard_conjunction(
+            input.state_guards,
+            input.layouts,
+            input.runtime_storage,
+            input.entry_key.machine,
+            source_key,
+            source_key.machine,
+            source_dispatch_index,
+            edge.order,
+        )
+    {
+        for clause in clauses {
+            let kind = if matches!(
+                clause.lowering,
+                StateGuardLowering::CompareRuntimeValue
+            ) && clause.has_storage
+                && clause.has_right_storage
+            {
+                SelectedInstructionKind::CompareRuntimeStorage {
+                    left_region: guard_storage_region(clause.storage),
+                    left_offset: clause.byte_offset,
+                    right_region: guard_storage_region(clause.right_storage),
+                    right_offset: clause.right_byte_offset,
+                    byte_size: clause.byte_size,
+                    operator: clause.operator,
+                }
+            } else {
+                SelectedInstructionKind::EvaluateDispatchGuard {
+                    guard_lowering: clause.lowering,
+                    operator: clause.operator,
+                    storage_region: guard_storage_region(clause.storage),
+                    byte_offset: clause.byte_offset,
+                    byte_size: clause.byte_size,
+                    expected_value: clause.expected_value,
+                    has_storage: clause.has_storage,
+                }
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: edge.order,
+            });
+        }
+        return;
+    }
+
+    let guard_instruction = match edge.guard_lowering {
+        StateGuardLowering::CompareRuntimeValue if edge.guard_has_storage && edge.guard_has_right_storage => {
+            SelectedInstructionKind::CompareRuntimeStorage {
+                left_region: guard_storage_region(edge.guard_storage),
+                left_offset: edge.guard_byte_offset,
+                right_region: guard_storage_region(edge.guard_right_storage),
+                right_offset: edge.guard_right_byte_offset,
+                byte_size: edge.guard_byte_size,
+                operator: edge.guard_operator,
+            }
+        }
+        _ => SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering: edge.guard_lowering,
+            operator: edge.guard_operator,
+            storage_region: guard_storage_region(edge.guard_storage),
+            byte_offset: edge.guard_byte_offset,
+            byte_size: edge.guard_byte_size,
+            expected_value: edge.guard_expected_value,
+            has_storage: edge.guard_has_storage,
+        },
+    };
+    selected_instructions.push(SelectedInstruction {
+        kind: guard_instruction,
+        source_key,
+        source_statement: edge.order,
+    });
+}
+
+fn guard_can_emit_directly(edge: &RuntimeDispatchLoopEdge) -> bool {
+    match edge.guard_lowering {
+        StateGuardLowering::NoOp => true,
+        StateGuardLowering::CompareStaticValue => {
+            edge.guard_has_storage
+                && matches!(
+                    edge.guard_operator,
+                    omega_target_operations::StateGuardOperator::Equal
+                        | omega_target_operations::StateGuardOperator::NotEqual
+                        | omega_target_operations::StateGuardOperator::Greater
+                        | omega_target_operations::StateGuardOperator::GreaterOrEqual
+                        | omega_target_operations::StateGuardOperator::Less
+                        | omega_target_operations::StateGuardOperator::LessOrEqual
+                )
+                && matches!(edge.guard_byte_size, 1 | 4 | 8)
+        }
+        StateGuardLowering::CompareRuntimeValue => {
+            edge.guard_has_storage
+                && edge.guard_has_right_storage
+                && matches!(
+                    edge.guard_operator,
+                    omega_target_operations::StateGuardOperator::Equal
+                        | omega_target_operations::StateGuardOperator::NotEqual
+                        | omega_target_operations::StateGuardOperator::Greater
+                        | omega_target_operations::StateGuardOperator::GreaterOrEqual
+                        | omega_target_operations::StateGuardOperator::Less
+                        | omega_target_operations::StateGuardOperator::LessOrEqual
+                )
+                && matches!(edge.guard_byte_size, 1 | 4 | 8)
+        }
+        StateGuardLowering::NeedsRuntimeExpression => false,
     }
 }
 

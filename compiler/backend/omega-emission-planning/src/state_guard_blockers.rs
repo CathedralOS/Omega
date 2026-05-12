@@ -1,7 +1,7 @@
 use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_state_guards::StateGuardLowering;
+use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
 
 use super::{EmissionBlocker, blocker};
 
@@ -16,6 +16,21 @@ pub(super) fn collect_state_guard_blockers(
                 | StateGuardLowering::CompareStaticValue
                 | StateGuardLowering::CompareRuntimeValue
         ) {
+            continue;
+        }
+
+        if lower_guard_conjunction(
+            input.state_guards,
+            input.layouts,
+            input.runtime_storage,
+            input.entry_key.machine,
+            guard.source,
+            guard.source.machine,
+            guard.source_dispatch_index,
+            guard.statement_order,
+        )
+        .is_some()
+        {
             continue;
         }
 

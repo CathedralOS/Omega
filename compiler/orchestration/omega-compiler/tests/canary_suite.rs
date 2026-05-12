@@ -80,6 +80,8 @@ fn repo_root() -> PathBuf {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "composite_field_guard_dispatch",
+    "composite_range_guard_dispatch",
     "entry_surface_receiver_paths",
     "mutable_output_host_call",
     "nested_machine_continuation",
@@ -90,6 +92,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_mut_literal",
-    "composite_field_guard_dispatch",
-    "composite_range_guard_dispatch",
 ];

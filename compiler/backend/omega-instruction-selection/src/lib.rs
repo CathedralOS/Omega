@@ -19,6 +19,7 @@ use omega_runtime_storage::RuntimeStoragePlan;
 use omega_runtime_text::RuntimeTextPlan;
 use omega_state_calls::{AliasFlowPlan, StateCallPlan};
 use omega_state_graph::RuntimeFlowPlan;
+use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::TargetDataPlan;
@@ -40,6 +41,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub runtime_dispatch_loop: &'plan RuntimeDispatchLoopPlan,
     pub runtime_storage: &'plan RuntimeStoragePlan,
     pub runtime_text: &'plan RuntimeTextPlan,
+    pub state_guards: &'plan StateGuardPlan,
     pub layouts: &'plan LayoutPlan,
     pub data: &'plan TargetDataPlan,
 }

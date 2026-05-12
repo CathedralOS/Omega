@@ -515,6 +515,24 @@ fn fold_integer_compare(
 }
 
 fn boolean_and(left: Expression, right: Expression) -> Expression {
+    if let Expression::Binary(binary) = &left
+        && binary.operator == omega_typed_trees::expression::BinaryOperator::Or
+    {
+        return boolean_or(
+            boolean_and(binary.left.clone(), right.clone()),
+            boolean_and(binary.right.clone(), right),
+        );
+    }
+
+    if let Expression::Binary(binary) = &right
+        && binary.operator == omega_typed_trees::expression::BinaryOperator::Or
+    {
+        return boolean_or(
+            boolean_and(left.clone(), binary.left.clone()),
+            boolean_and(left, binary.right.clone()),
+        );
+    }
+
     if let Some(simplified) = simplify_comparison_conjunction(&left, &right) {
         return simplified;
     }
@@ -587,6 +605,32 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
         if impossible {
             return Some(Expression::Boolean(false));
         }
+    }
+
+    if lower_bound.is_some() && upper_bound.is_none() {
+        let (value, inclusive) = lower_bound?;
+        return Some(Expression::Binary(Box::new(BinaryExpression {
+            left: left_compare.subject.clone(),
+            operator: if inclusive {
+                omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+            } else {
+                omega_typed_trees::expression::BinaryOperator::Greater
+            },
+            right: Expression::Integer(value),
+        })));
+    }
+
+    if upper_bound.is_some() && lower_bound.is_none() {
+        let (value, inclusive) = upper_bound?;
+        return Some(Expression::Binary(Box::new(BinaryExpression {
+            left: left_compare.subject.clone(),
+            operator: if inclusive {
+                omega_typed_trees::expression::BinaryOperator::LessOrEqual
+            } else {
+                omega_typed_trees::expression::BinaryOperator::Less
+            },
+            right: Expression::Integer(value),
+        })));
     }
 
     None
@@ -827,6 +871,7 @@ mod tests {
         let roll_symbol = SymbolHandle::from_arena_index(3);
         let is_quiet_symbol = SymbolHandle::from_arena_index(4);
         let is_fountain_symbol = SymbolHandle::from_arena_index(5);
+        let is_reward_symbol = SymbolHandle::from_arena_index(6);
 
         let helper = State {
             symbol: helper_symbol,
@@ -870,6 +915,19 @@ mod tests {
                         right: Expression::Integer(30),
                     }))),
                 }),
+                Statement::LocalData(LocalData {
+                    symbol: is_reward_symbol,
+                    name: "is_reward".into(),
+                    type_reference: TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: "bool".into(),
+                    },
+                    initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
+                        left: name("roll", roll_symbol),
+                        operator: BinaryOperator::Less,
+                        right: Expression::Integer(60),
+                    }))),
+                }),
                 Statement::Transition(Transition {
                     target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Quiet"])),
                     continuation: None,
@@ -879,6 +937,11 @@ mod tests {
                     target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Fountain"])),
                     continuation: None,
                     guard: TransitionGuard::When(name("is_fountain", is_fountain_symbol)),
+                }),
+                Statement::Transition(Transition {
+                    target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Reward"])),
+                    continuation: None,
+                    guard: TransitionGuard::When(name("is_reward", is_reward_symbol)),
                 }),
                 Statement::Transition(Transition {
                     target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Enemy"])),
@@ -932,6 +995,28 @@ mod tests {
             }))
         );
 
+        let reward_guard = Expression::Binary(Box::new(BinaryExpression {
+            left: Expression::Call(Box::new(CallExpression {
+                receiver: None,
+                target_symbol: helper_symbol,
+                target: "event_action".into(),
+                arguments: vec![name("roll", roll_symbol)],
+            })),
+            operator: BinaryOperator::Equal,
+            right: path_expression(&["RoomEventAction", "Reward"]),
+        }));
+
+        let enemy_guard = Expression::Binary(Box::new(BinaryExpression {
+            left: Expression::Call(Box::new(CallExpression {
+                receiver: None,
+                target_symbol: helper_symbol,
+                target: "event_action".into(),
+                arguments: vec![name("roll", roll_symbol)],
+            })),
+            operator: BinaryOperator::Equal,
+            right: path_expression(&["RoomEventAction", "Enemy"]),
+        }));
+
         assert_eq!(
             simplify_expression(&program, &machine, &fountain_guard),
             Expression::Binary(Box::new(BinaryExpression {
@@ -948,11 +1033,43 @@ mod tests {
                 })),
             }))
         );
+
+        assert_eq!(
+            simplify_expression(&program, &machine, &reward_guard),
+            Expression::Binary(Box::new(BinaryExpression {
+                left: Expression::Binary(Box::new(BinaryExpression {
+                    left: name("roll", roll_symbol),
+                    operator: BinaryOperator::GreaterOrEqual,
+                    right: Expression::Integer(30),
+                })),
+                operator: BinaryOperator::And,
+                right: Expression::Binary(Box::new(BinaryExpression {
+                    left: name("roll", roll_symbol),
+                    operator: BinaryOperator::Less,
+                    right: Expression::Integer(60),
+                })),
+            }))
+        );
+
+        assert_eq!(
+            simplify_expression(&program, &machine, &enemy_guard),
+            Expression::Binary(Box::new(BinaryExpression {
+                left: name("roll", roll_symbol),
+                operator: BinaryOperator::GreaterOrEqual,
+                right: Expression::Integer(60),
+            }))
+        );
     }
 
     #[test]
     fn simplifies_impossible_integer_range_conjunction_to_false() {
-        let machine = Machine::default();
+        let machine = Machine {
+            symbol: SymbolHandle::invalid(),
+            name: "main".into(),
+            contains: vec![],
+            owned_data: vec![],
+            states: vec![],
+        };
         let program = Program::default();
         let roll_symbol = SymbolHandle::from_arena_index(99);
 
