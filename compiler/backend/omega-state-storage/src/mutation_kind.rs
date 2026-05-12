@@ -5,8 +5,6 @@ use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::StatementNode;
 
 pub(super) fn mutation_lowering(
     context: &StateStoragePlanningContext,
@@ -27,78 +25,76 @@ pub(super) fn mutation_lowering(
 }
 
 pub(super) fn mutation_kind(
-    machine: &Machine,
-    state: &omega_typed_trees::state::State,
-    statements: &[StatementNode],
+    context: &StateStoragePlanningContext,
+    source_key: StateKey,
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) -> StateMutationKind {
+    let state_flow = context.state_flow_by_key(source_key);
+
     let Some(place) = place_symbols(expressions, target) else {
         if let Some(root_name) = root_place_name(expressions, target) {
-            if state.parameters.iter().any(|parameter| {
-                parameter.is_self && parameter.name.as_str() == root_name
-            }) {
-                return StateMutationKind::MachineOwned;
-            }
-
-            if state.parameters.iter().any(|parameter| {
-                !parameter.is_self && parameter.name.as_str() == root_name
-            }) {
-                return StateMutationKind::ParameterOrAlias;
-            }
-
-            if statements.iter().any(|statement| {
-                matches!(statement, StatementNode::LocalData(local_data) if local_data.name.as_str() == root_name)
-            }) {
-                return StateMutationKind::Local;
-            }
-
-            if machine
-                .owned_data
-                .iter()
-                .any(|owned_data| owned_data.name.as_str() == root_name)
-            {
-                return StateMutationKind::MachineOwned;
+            if let Some(kind) = state_borrow_root_kind_by_name(context, state_flow, root_name) {
+                return mutation_kind_for_borrow_root(kind);
             }
         }
 
         return StateMutationKind::Unknown;
     };
 
-    if state
-        .parameters
-        .iter()
-        .any(|parameter| {
-            parameter.is_self
-                && (parameter.symbol == place.head_symbol || machine.symbol == place.head_symbol)
-        })
+    if let Some(kind) = state_borrow_root_kind_by_symbol(context, state_flow, place.head_symbol)
+        .or_else(|| state_borrow_root_kind_by_symbol(context, state_flow, place.symbol))
     {
-        return StateMutationKind::MachineOwned;
-    }
-
-    if state
-        .parameters
-        .iter()
-        .any(|parameter| !parameter.is_self && parameter.symbol == place.head_symbol)
-    {
-        return StateMutationKind::ParameterOrAlias;
-    }
-
-    if statements.iter().any(|statement| {
-        matches!(statement, StatementNode::LocalData(local_data) if local_data.symbol == place.head_symbol)
-    }) {
-        return StateMutationKind::Local;
-    }
-
-    if machine
-        .owned_data
-        .iter()
-        .any(|owned_data| owned_data.symbol == place.head_symbol || owned_data.symbol == place.symbol)
-    {
-        return StateMutationKind::MachineOwned;
+        return mutation_kind_for_borrow_root(kind);
     }
 
     StateMutationKind::Unknown
+}
+
+fn state_borrow_root_kind_by_name<'a>(
+    context: &'a StateStoragePlanningContext,
+    state_flow: Option<&'a omega_control_flow::StateFlow>,
+    root_name: &str,
+) -> Option<omega_control_flow::StateBorrowRootKind> {
+    let state_flow = state_flow?;
+    context
+        .control_flow
+        .borrow_writable_roots
+        .span(state_flow.borrow.writable_roots)?
+        .iter()
+        .find(|root| root.name.as_str() == root_name)
+        .map(|root| root.kind.clone())
+}
+
+fn state_borrow_root_kind_by_symbol<'a>(
+    context: &'a StateStoragePlanningContext,
+    state_flow: Option<&'a omega_control_flow::StateFlow>,
+    symbol: SymbolHandle,
+) -> Option<omega_control_flow::StateBorrowRootKind> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    let state_flow = state_flow?;
+    context
+        .control_flow
+        .borrow_writable_roots
+        .span(state_flow.borrow.writable_roots)?
+        .iter()
+        .find(|root| root.symbol == symbol)
+        .map(|root| root.kind.clone())
+}
+
+fn mutation_kind_for_borrow_root(
+    kind: omega_control_flow::StateBorrowRootKind,
+) -> StateMutationKind {
+    match kind {
+        omega_control_flow::StateBorrowRootKind::OwnedData => StateMutationKind::MachineOwned,
+        omega_control_flow::StateBorrowRootKind::LocalData => StateMutationKind::Local,
+        omega_control_flow::StateBorrowRootKind::MutableParameter => {
+            StateMutationKind::ParameterOrAlias
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

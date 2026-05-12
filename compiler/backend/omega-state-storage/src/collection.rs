@@ -102,13 +102,8 @@ fn build_machine_state_storage_plan(
                     let simplified_value =
                         simplify_expression(program, machine, &program.expression_table.to_tree(assignment.value));
                     let value = plan.expressions.insert_tree(&simplified_value);
-                    let mutation_kind = mutation_kind(
-                        machine,
-                        state,
-                        statements,
-                        &program.expression_table,
-                        assignment.target,
-                    );
+                    let mutation_kind =
+                        mutation_kind(context, source_key, &program.expression_table, assignment.target);
                     plan.mutations.insert(StateMutation {
                         source_key,
                         statement_index,
