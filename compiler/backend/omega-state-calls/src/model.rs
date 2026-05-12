@@ -26,6 +26,22 @@ impl StateCallPlan {
             })
             .map(|(_, state_call)| state_call)
     }
+
+    pub fn required_source_or_target(&self, state_key: StateKey) -> bool {
+        self.calls.iter().any(|(_, state_call)| {
+            state_call.required
+                && (state_call.source_key == state_key || state_call.target_key == state_key)
+        })
+    }
+
+    pub fn required_source_or_statement_target(&self, state_key: StateKey) -> bool {
+        self.calls.iter().any(|(_, state_call)| {
+            state_call.required
+                && (state_call.source_key == state_key
+                    || (state_call.role == StateCallRole::Statement
+                        && state_call.target_key == state_key))
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
