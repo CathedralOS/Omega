@@ -1,10 +1,10 @@
+use omega_checked_trees::Program;
+use omega_checked_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField};
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::state::State;
+use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::ProgramName;
-use omega_typed_trees::Program;
-use omega_typed_trees::expression::{BinaryExpression, CallExpression, Expression, IndexedExpression, MemberExpression, NamePath, StructLiteral, StructLiteralField};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::state::State;
-use omega_typed_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 
 pub fn simplify_expression(
     program: &Program,
@@ -46,7 +46,7 @@ fn simplify_expression_with_bindings(
         | Expression::String(_) => expression.clone(),
         Expression::Call(call) => simplify_call_expression(program, machine, call, bindings),
         Expression::Cast(cast) => Expression::Cast(Box::new(
-            omega_typed_trees::expression::CastExpression {
+            omega_checked_trees::expression::CastExpression {
                 value: simplify_expression_with_bindings(program, machine, &cast.value, bindings),
                 target_type: cast.target_type.clone(),
             },
@@ -160,7 +160,7 @@ fn simplify_call_expression(
                 }
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
-                    operator: omega_typed_trees::expression::BinaryOperator::NotEqual,
+                    operator: omega_checked_trees::expression::BinaryOperator::NotEqual,
                     right: none_expression(program),
                 }));
             }
@@ -172,7 +172,7 @@ fn simplify_call_expression(
                 }
                 return Expression::Binary(Box::new(BinaryExpression {
                     left: receiver.clone(),
-                    operator: omega_typed_trees::expression::BinaryOperator::Equal,
+                    operator: omega_checked_trees::expression::BinaryOperator::Equal,
                     right: none_expression(program),
                 }));
             }
@@ -213,12 +213,12 @@ fn simplify_call_expression(
 fn simplify_guarded_helper_comparison(
     program: &Program,
     machine: &Machine,
-    operator: omega_typed_trees::expression::BinaryOperator,
+    operator: omega_checked_trees::expression::BinaryOperator,
     left: &Expression,
     right: &Expression,
     bindings: &[Binding],
 ) -> Option<Expression> {
-    use omega_typed_trees::expression::BinaryOperator::{Equal, NotEqual};
+    use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
 
     if !matches!(operator, Equal | NotEqual) {
         return None;
@@ -329,7 +329,7 @@ fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
 fn resolve_call_target_state<'machine>(
     machine: &'machine Machine,
     call: &CallExpression,
-) -> Option<&'machine omega_typed_trees::state::State> {
+) -> Option<&'machine omega_checked_trees::state::State> {
     machine.states.iter().find(|state| {
         (call.target_symbol.is_valid() && state.symbol == call.target_symbol)
             || state.name == call.target
@@ -476,7 +476,7 @@ fn none_expression(program: &Program) -> Expression {
     };
 
     let Some(variant) = option.members.iter().find_map(|member| match member {
-        omega_typed_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "None" => {
+        omega_checked_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "None" => {
             Some(variant)
         }
         _ => None,
@@ -557,7 +557,7 @@ fn helper_state_model(
     Some(HelperStateModel { transitions })
 }
 
-fn append_name_suffix(base: &Expression, suffix: &[omega_typed_trees::name::ProgramName]) -> Expression {
+fn append_name_suffix(base: &Expression, suffix: &[omega_checked_trees::name::ProgramName]) -> Expression {
     let mut expression = base.clone();
 
     for member in suffix {
@@ -583,11 +583,11 @@ struct HelperTransition {
 }
 
 fn fold_binary_expression(
-    operator: omega_typed_trees::expression::BinaryOperator,
+    operator: omega_checked_trees::expression::BinaryOperator,
     left: Expression,
     right: Expression,
 ) -> Expression {
-    use omega_typed_trees::expression::BinaryOperator as Op;
+    use omega_checked_trees::expression::BinaryOperator as Op;
 
     match operator {
         Op::And => boolean_and(left, right),
@@ -636,7 +636,7 @@ fn fold_integer_math(
     left: Expression,
     right: Expression,
     operation: impl FnOnce(i64, i64) -> i64,
-    operator: omega_typed_trees::expression::BinaryOperator,
+    operator: omega_checked_trees::expression::BinaryOperator,
 ) -> Expression {
     match (&left, &right) {
         (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(operation(*a, *b)),
@@ -648,7 +648,7 @@ fn fold_integer_compare(
     left: Expression,
     right: Expression,
     comparison: impl FnOnce(i64, i64) -> bool,
-    operator: omega_typed_trees::expression::BinaryOperator,
+    operator: omega_checked_trees::expression::BinaryOperator,
 ) -> Expression {
     match (&left, &right) {
         (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(comparison(*a, *b)),
@@ -658,7 +658,7 @@ fn fold_integer_compare(
 
 fn boolean_and(left: Expression, right: Expression) -> Expression {
     if let Expression::Binary(binary) = &left
-        && binary.operator == omega_typed_trees::expression::BinaryOperator::Or
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Or
     {
         return boolean_or(
             boolean_and(binary.left.clone(), right.clone()),
@@ -667,7 +667,7 @@ fn boolean_and(left: Expression, right: Expression) -> Expression {
     }
 
     if let Expression::Binary(binary) = &right
-        && binary.operator == omega_typed_trees::expression::BinaryOperator::Or
+        && binary.operator == omega_checked_trees::expression::BinaryOperator::Or
     {
         return boolean_or(
             boolean_and(left.clone(), binary.left.clone()),
@@ -686,7 +686,7 @@ fn boolean_and(left: Expression, right: Expression) -> Expression {
         _ if left == right => left,
         _ => Expression::Binary(Box::new(BinaryExpression {
             left,
-            operator: omega_typed_trees::expression::BinaryOperator::And,
+            operator: omega_checked_trees::expression::BinaryOperator::And,
             right,
         })),
     }
@@ -700,7 +700,7 @@ fn boolean_or(left: Expression, right: Expression) -> Expression {
         _ if left == right => left,
         _ => Expression::Binary(Box::new(BinaryExpression {
             left,
-            operator: omega_typed_trees::expression::BinaryOperator::Or,
+            operator: omega_checked_trees::expression::BinaryOperator::Or,
             right,
         })),
     }
@@ -723,16 +723,16 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
 
     for comparison in [left_compare, right_compare] {
         match comparison.operator {
-            omega_typed_trees::expression::BinaryOperator::Greater => {
+            omega_checked_trees::expression::BinaryOperator::Greater => {
                 lower_bound = tighten_lower_bound(lower_bound, comparison.value, false);
             }
-            omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
+            omega_checked_trees::expression::BinaryOperator::GreaterOrEqual => {
                 lower_bound = tighten_lower_bound(lower_bound, comparison.value, true);
             }
-            omega_typed_trees::expression::BinaryOperator::Less => {
+            omega_checked_trees::expression::BinaryOperator::Less => {
                 upper_bound = tighten_upper_bound(upper_bound, comparison.value, false);
             }
-            omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+            omega_checked_trees::expression::BinaryOperator::LessOrEqual => {
                 upper_bound = tighten_upper_bound(upper_bound, comparison.value, true);
             }
             _ => return None,
@@ -754,9 +754,9 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
         return Some(Expression::Binary(Box::new(BinaryExpression {
             left: left_compare.subject.clone(),
             operator: if inclusive {
-                omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+                omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
             } else {
-                omega_typed_trees::expression::BinaryOperator::Greater
+                omega_checked_trees::expression::BinaryOperator::Greater
             },
             right: Expression::Integer(value),
         })));
@@ -767,9 +767,9 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
         return Some(Expression::Binary(Box::new(BinaryExpression {
             left: left_compare.subject.clone(),
             operator: if inclusive {
-                omega_typed_trees::expression::BinaryOperator::LessOrEqual
+                omega_checked_trees::expression::BinaryOperator::LessOrEqual
             } else {
-                omega_typed_trees::expression::BinaryOperator::Less
+                omega_checked_trees::expression::BinaryOperator::Less
             },
             right: Expression::Integer(value),
         })));
@@ -781,7 +781,7 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
 #[derive(Clone, Copy)]
 struct IntegerComparison<'expression> {
     subject: &'expression Expression,
-    operator: omega_typed_trees::expression::BinaryOperator,
+    operator: omega_checked_trees::expression::BinaryOperator,
     value: i64,
 }
 
@@ -791,10 +791,10 @@ fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison
     };
 
     let operator = match binary.operator {
-        omega_typed_trees::expression::BinaryOperator::Greater
-        | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
-        | omega_typed_trees::expression::BinaryOperator::Less
-        | omega_typed_trees::expression::BinaryOperator::LessOrEqual => binary.operator,
+        omega_checked_trees::expression::BinaryOperator::Greater
+        | omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
+        | omega_checked_trees::expression::BinaryOperator::Less
+        | omega_checked_trees::expression::BinaryOperator::LessOrEqual => binary.operator,
         _ => return None,
     };
 
@@ -809,16 +809,16 @@ fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison
     if let Expression::Integer(value) = &binary.left {
         let flipped_operator = match binary.operator {
             omega_typed_trees::expression::BinaryOperator::Greater => {
-                omega_typed_trees::expression::BinaryOperator::Less
+                omega_checked_trees::expression::BinaryOperator::Less
             }
             omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
-                omega_typed_trees::expression::BinaryOperator::LessOrEqual
+                omega_checked_trees::expression::BinaryOperator::LessOrEqual
             }
             omega_typed_trees::expression::BinaryOperator::Less => {
-                omega_typed_trees::expression::BinaryOperator::Greater
+                omega_checked_trees::expression::BinaryOperator::Greater
             }
             omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
-                omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+                omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
             }
             _ => unreachable!(),
         };
@@ -872,7 +872,7 @@ fn tighten_upper_bound(
 }
 
 fn boolean_not(expression: Expression) -> Expression {
-    use omega_typed_trees::expression::BinaryOperator as Op;
+    use omega_checked_trees::expression::BinaryOperator as Op;
 
     match expression {
         Expression::Boolean(value) => Expression::Boolean(!value),
@@ -909,7 +909,7 @@ fn boolean_not(expression: Expression) -> Expression {
         }
         other => Expression::Binary(Box::new(BinaryExpression {
             left: other,
-            operator: omega_typed_trees::expression::BinaryOperator::Equal,
+            operator: omega_checked_trees::expression::BinaryOperator::Equal,
             right: Expression::Boolean(false),
         })),
     }
@@ -997,14 +997,14 @@ fn expression_path_segments(expression: &Expression) -> Option<Vec<String>> {
 mod tests {
     use super::simplify_expression;
     use omega_core::symbols::SymbolHandle;
-    use omega_typed_trees::expression::{BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath};
-    use omega_typed_trees::machine::Machine;
-    use omega_typed_trees::name::ProgramName;
-    use omega_typed_trees::signature::StateParameter;
-    use omega_typed_trees::state::State;
-    use omega_typed_trees::statement::{LocalData, Statement, Transition, TransitionGuard, TransitionTarget};
-    use omega_typed_trees::types::TypeReference;
-    use omega_typed_trees::Program;
+    use omega_checked_trees::Program;
+    use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, CallExpression, Expression, NamePath};
+    use omega_checked_trees::machine::Machine;
+    use omega_checked_trees::name::ProgramName;
+    use omega_checked_trees::signature::StateParameter;
+    use omega_checked_trees::state::State;
+    use omega_checked_trees::statement::{LocalData, Statement, Transition, TransitionGuard, TransitionTarget};
+    use omega_checked_trees::types::TypeReference;
 
     #[test]
     fn simplifies_guarded_helper_call_comparison_to_guard_expression() {
@@ -1101,10 +1101,7 @@ mod tests {
             owned_data: vec![],
             states: vec![helper],
         };
-        let program = Program {
-            machines: vec![machine.clone()],
-            ..Program::default()
-        };
+        let program = checked_program_with_machines(vec![machine.clone()]);
 
         let quiet_guard = Expression::Binary(Box::new(BinaryExpression {
             left: Expression::Call(Box::new(CallExpression {
@@ -1278,10 +1275,7 @@ mod tests {
             owned_data: vec![],
             states: vec![find],
         };
-        let program = Program {
-            machines: vec![machine.clone()],
-            ..Program::default()
-        };
+        let program = checked_program_with_machines(vec![machine.clone()]);
 
         let is_some_guard = Expression::Call(Box::new(CallExpression {
             receiver: Some(Box::new(Expression::Call(Box::new(CallExpression {
@@ -1320,5 +1314,11 @@ mod tests {
                 .map(|segment| ProgramName::from(*segment))
                 .collect(),
         )
+    }
+
+    fn checked_program_with_machines(machines: Vec<Machine>) -> Program {
+        let mut program = Program::default();
+        program.typed.machines = machines;
+        program
     }
 }
