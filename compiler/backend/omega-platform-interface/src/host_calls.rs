@@ -1,8 +1,8 @@
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::Program;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_target::NativeTarget;
-use omega_typed_trees::Program;
 use std::sync::Arc;
 
 mod collection;

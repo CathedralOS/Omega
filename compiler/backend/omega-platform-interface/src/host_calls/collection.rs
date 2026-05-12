@@ -7,11 +7,11 @@ use crate::host_calls::static_values::{
 };
 use crate::{HostCall, HostCallPlan, PlaceKey, UnsupportedHostCall};
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::Program;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_target::NativeTarget;
-use omega_typed_trees::Program;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{Call, Statement};
