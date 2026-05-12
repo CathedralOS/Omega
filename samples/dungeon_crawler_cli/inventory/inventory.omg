@@ -1,5 +1,6 @@
 use inventory::items;
 use rewards::rewards;
+use omega::language::std::option;
 
 data InventorySystem {
 }
