@@ -29,6 +29,7 @@ pub(super) fn resolve_guard_operand_layout(
 ) -> Option<ResolvedOperandLayout> {
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
+    let root_name = path.first()?.clone();
     let suffix = path.as_slice().get(1..).unwrap_or(&[]);
 
     if let Some(slot_layout) = runtime_frame_operand_layout(
@@ -37,6 +38,7 @@ pub(super) fn resolve_guard_operand_layout(
         source_key,
         source_dispatch_index,
         root_symbol,
+        &root_name,
         suffix,
     ) {
         return Some(slot_layout);
@@ -48,7 +50,12 @@ pub(super) fn resolve_guard_operand_layout(
         .iter()
         .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
         .map(|(_, machine_layout)| machine_layout)?;
-    let root_field = field_layout_by_symbol(layouts, machine_layout.fields, root_symbol)?;
+    let root_field = field_layout_by_symbol_or_name(
+        layouts,
+        machine_layout.fields,
+        root_symbol,
+        root_name.as_str(),
+    )?;
 
     resolve_nested_field_layout(layouts, root_field, suffix).map(|(byte_offset, layout)| {
         ResolvedOperandLayout {
@@ -65,12 +72,14 @@ fn runtime_frame_operand_layout(
     source_key: StateKey,
     source_dispatch_index: u32,
     root_symbol: SymbolHandle,
+    root_name: &ProgramName,
     suffix: &[ProgramName],
 ) -> Option<ResolvedOperandLayout> {
     let slot = runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
         (slot.dispatch_index == source_dispatch_index
             && slot.source_key == source_key
-            && slot.symbol == root_symbol)
+            && ((root_symbol.is_valid() && slot.symbol == root_symbol)
+                || slot.name == *root_name))
             .then_some(slot)
     })?;
 
@@ -325,18 +334,13 @@ fn field_layout<'plan>(
         .find(|field| field.name == field_name)
 }
 
-fn field_layout_by_symbol(
-    layouts: &LayoutPlan,
+fn field_layout_by_symbol_or_name<'plan>(
+    layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
     field_symbol: SymbolHandle,
-) -> Option<&FieldLayout> {
-    if !field_symbol.is_valid() {
-        return None;
-    }
-
-    layouts
-        .fields
-        .span(fields)?
-        .iter()
-        .find(|field| field.symbol == field_symbol)
+    field_name: &str,
+) -> Option<&'plan FieldLayout> {
+    layouts.fields.span(fields)?.iter().find(|field| {
+        (field_symbol.is_valid() && field.symbol == field_symbol) || field.name == field_name
+    })
 }

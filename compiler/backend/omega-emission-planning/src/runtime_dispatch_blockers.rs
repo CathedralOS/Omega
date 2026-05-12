@@ -127,7 +127,7 @@ fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
                         | StateGuardOperator::Less
                         | StateGuardOperator::LessOrEqual
                 )
-                && matches!(edge.guard_byte_size, 1 | 4)
+                && matches!(edge.guard_byte_size, 1 | 4 | 8)
         }
         StateGuardLowering::CompareRuntimeValue => {
             edge.guard_has_storage
@@ -141,7 +141,7 @@ fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
                         | StateGuardOperator::Less
                         | StateGuardOperator::LessOrEqual
                 )
-                && matches!(edge.guard_byte_size, 1 | 4)
+                && matches!(edge.guard_byte_size, 1 | 4 | 8)
         }
         StateGuardLowering::NeedsRuntimeExpression => false,
     }

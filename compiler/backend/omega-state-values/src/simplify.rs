@@ -357,10 +357,14 @@ fn helper_state_model(
 ) -> Option<HelperStateModel> {
     let mut bindings = bindings.to_vec();
     let mut transitions = Vec::new();
+    let mut saw_terminal_expression = false;
 
     for statement in &state.statements {
         match statement {
             Statement::LocalData(local) => {
+                if saw_terminal_expression {
+                    return None;
+                }
                 let initial_value = local.initial_value.as_ref()?;
                 let value =
                     simplify_expression_with_bindings(program, machine, initial_value, &bindings);
@@ -371,6 +375,9 @@ fn helper_state_model(
                 });
             }
             Statement::Transition(transition) => {
+                if saw_terminal_expression {
+                    return None;
+                }
                 if transition.continuation.is_some() {
                     return None;
                 }
@@ -386,7 +393,16 @@ fn helper_state_model(
                 let value = simplify_expression_with_bindings(program, machine, value, &bindings);
                 transitions.push(HelperTransition { guard, value });
             }
-            Statement::Assignment(_) | Statement::Call(_) | Statement::Expression(_) => {
+            Statement::Expression(expression) => {
+                let value =
+                    simplify_expression_with_bindings(program, machine, expression, &bindings);
+                transitions.push(HelperTransition {
+                    guard: Expression::Boolean(true),
+                    value,
+                });
+                saw_terminal_expression = true;
+            }
+            Statement::Assignment(_) | Statement::Call(_) => {
                 return None;
             }
         }
