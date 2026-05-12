@@ -515,6 +515,10 @@ fn fold_integer_compare(
 }
 
 fn boolean_and(left: Expression, right: Expression) -> Expression {
+    if let Some(simplified) = simplify_comparison_conjunction(&left, &right) {
+        return simplified;
+    }
+
     match (&left, &right) {
         (Expression::Boolean(false), _) | (_, Expression::Boolean(false)) => Expression::Boolean(false),
         (Expression::Boolean(true), _) => right,
@@ -539,6 +543,145 @@ fn boolean_or(left: Expression, right: Expression) -> Expression {
             operator: omega_typed_trees::expression::BinaryOperator::Or,
             right,
         })),
+    }
+}
+
+fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Option<Expression> {
+    let left_compare = parse_integer_comparison(left)?;
+    let right_compare = parse_integer_comparison(right)?;
+
+    if !expressions_equivalent(left_compare.subject, right_compare.subject) {
+        return None;
+    }
+
+    if left_compare.operator == right_compare.operator && left_compare.value == right_compare.value {
+        return Some(left.clone());
+    }
+
+    let mut lower_bound = None;
+    let mut upper_bound = None;
+
+    for comparison in [left_compare, right_compare] {
+        match comparison.operator {
+            omega_typed_trees::expression::BinaryOperator::Greater => {
+                lower_bound = tighten_lower_bound(lower_bound, comparison.value, false);
+            }
+            omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
+                lower_bound = tighten_lower_bound(lower_bound, comparison.value, true);
+            }
+            omega_typed_trees::expression::BinaryOperator::Less => {
+                upper_bound = tighten_upper_bound(upper_bound, comparison.value, false);
+            }
+            omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+                upper_bound = tighten_upper_bound(upper_bound, comparison.value, true);
+            }
+            _ => return None,
+        }
+    }
+
+    if let (Some((lower, lower_inclusive)), Some((upper, upper_inclusive))) =
+        (lower_bound, upper_bound)
+    {
+        let impossible = lower > upper
+            || (lower == upper && (!lower_inclusive || !upper_inclusive));
+        if impossible {
+            return Some(Expression::Boolean(false));
+        }
+    }
+
+    None
+}
+
+#[derive(Clone, Copy)]
+struct IntegerComparison<'expression> {
+    subject: &'expression Expression,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    value: i64,
+}
+
+fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison<'_>> {
+    let Expression::Binary(binary) = expression else {
+        return None;
+    };
+
+    let operator = match binary.operator {
+        omega_typed_trees::expression::BinaryOperator::Greater
+        | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+        | omega_typed_trees::expression::BinaryOperator::Less
+        | omega_typed_trees::expression::BinaryOperator::LessOrEqual => binary.operator,
+        _ => return None,
+    };
+
+    if let Expression::Integer(value) = &binary.right {
+        return Some(IntegerComparison {
+            subject: &binary.left,
+            operator,
+            value: *value,
+        });
+    }
+
+    if let Expression::Integer(value) = &binary.left {
+        let flipped_operator = match binary.operator {
+            omega_typed_trees::expression::BinaryOperator::Greater => {
+                omega_typed_trees::expression::BinaryOperator::Less
+            }
+            omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
+                omega_typed_trees::expression::BinaryOperator::LessOrEqual
+            }
+            omega_typed_trees::expression::BinaryOperator::Less => {
+                omega_typed_trees::expression::BinaryOperator::Greater
+            }
+            omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+                omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
+            }
+            _ => unreachable!(),
+        };
+
+        return Some(IntegerComparison {
+            subject: &binary.right,
+            operator: flipped_operator,
+            value: *value,
+        });
+    }
+
+    None
+}
+
+fn tighten_lower_bound(
+    current: Option<(i64, bool)>,
+    candidate_value: i64,
+    candidate_inclusive: bool,
+) -> Option<(i64, bool)> {
+    match current {
+        None => Some((candidate_value, candidate_inclusive)),
+        Some((current_value, current_inclusive)) => {
+            if candidate_value > current_value {
+                Some((candidate_value, candidate_inclusive))
+            } else if candidate_value < current_value {
+                Some((current_value, current_inclusive))
+            } else {
+                Some((current_value, current_inclusive && candidate_inclusive))
+            }
+        }
+    }
+}
+
+fn tighten_upper_bound(
+    current: Option<(i64, bool)>,
+    candidate_value: i64,
+    candidate_inclusive: bool,
+) -> Option<(i64, bool)> {
+    match current {
+        None => Some((candidate_value, candidate_inclusive)),
+        Some((current_value, current_inclusive)) => {
+            if candidate_value < current_value {
+                Some((candidate_value, candidate_inclusive))
+            } else if candidate_value > current_value {
+                Some((current_value, current_inclusive))
+            } else {
+                Some((current_value, current_inclusive && candidate_inclusive))
+            }
+        }
     }
 }
 
@@ -804,6 +947,32 @@ mod tests {
                     right: Expression::Integer(30),
                 })),
             }))
+        );
+    }
+
+    #[test]
+    fn simplifies_impossible_integer_range_conjunction_to_false() {
+        let machine = Machine::default();
+        let program = Program::default();
+        let roll_symbol = SymbolHandle::from_arena_index(99);
+
+        let expression = Expression::Binary(Box::new(BinaryExpression {
+            left: Expression::Binary(Box::new(BinaryExpression {
+                left: name("roll", roll_symbol),
+                operator: BinaryOperator::GreaterOrEqual,
+                right: Expression::Integer(20),
+            })),
+            operator: BinaryOperator::And,
+            right: Expression::Binary(Box::new(BinaryExpression {
+                left: name("roll", roll_symbol),
+                operator: BinaryOperator::Less,
+                right: Expression::Integer(20),
+            })),
+        }));
+
+        assert_eq!(
+            simplify_expression(&program, &machine, &expression),
+            Expression::Boolean(false)
         );
     }
 
