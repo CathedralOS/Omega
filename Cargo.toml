@@ -15,7 +15,6 @@ members = [
     "compiler/pipeline/omega-syntax-trees-to-resolved-trees",
     "compiler/pipeline/omega-resolved-trees-to-typed-trees",
     "compiler/pipeline/omega-typed-trees-to-state-graph",
-    "compiler/pipeline/omega-typed-trees-to-control-flow",
     "compiler/pipeline/omega-state-graph-to-control-flow",
     "compiler/representations/omega-resolved-trees",
     "compiler/representations/omega-typed-trees",

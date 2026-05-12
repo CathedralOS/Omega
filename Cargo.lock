@@ -739,15 +739,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-typed-trees-to-control-flow"
-version = "0.1.0"
-dependencies = [
- "omega-control-flow",
- "omega-core",
- "omega-typed-trees",
-]
-
-[[package]]
 name = "omega-typed-trees-to-state-graph"
 version = "0.1.0"
 dependencies = [
