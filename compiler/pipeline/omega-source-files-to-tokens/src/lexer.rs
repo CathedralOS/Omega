@@ -12,6 +12,12 @@ pub struct Lexer<'source> {
     chars: Peekable<CharIndices<'source>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LexedToken {
+    kind: TokenKind,
+    span: Span,
+}
+
 impl<'source> Lexer<'source> {
     pub fn new(source: &'source str) -> Self {
         Self {
@@ -22,73 +28,78 @@ impl<'source> Lexer<'source> {
 
     pub fn tokenize(mut self) -> Result<TokenStream<'source>, LexError> {
         let mut tokens = Vec::new();
-        let source = self.source;
 
-        while let Some((start, character)) = self.chars.next() {
+        while let Some(token) = self.lex_next_token()? {
+            tokens.push(self.build_token(token));
+        }
+
+        Ok(TokenStream::new(tokens))
+    }
+
+    fn lex_next_token(&mut self) -> Result<Option<LexedToken>, LexError> {
+        self.skip_trivia()?;
+
+        let Some((start, character)) = self.chars.next() else {
+            return Ok(None);
+        };
+
+        let token = if character.is_ascii_alphabetic() || character == '_' {
+            self.lex_identifier_or_keyword(start, character)
+        } else if character.is_ascii_digit() {
+            self.lex_number(start, character)
+        } else if character == '"' {
+            self.lex_string_token(start)?
+        } else {
+            self.lex_punctuation(start, character)?
+        };
+
+        Ok(Some(token))
+    }
+
+    fn build_token(&self, token: LexedToken) -> Token<'source> {
+        let lexeme = match token.kind {
+            TokenKind::StringLiteral => {
+                let raw = &self.source[token.span.start..token.span.end];
+                let value = self
+                    .decode_string_literal(raw)
+                    .expect("string literal token should already be validated");
+                TokenText::owned(value)
+            }
+            _ => TokenText::source(&self.source[token.span.start..token.span.end]),
+        };
+
+        Token {
+            kind: token.kind,
+            lexeme,
+            span: token.span,
+        }
+    }
+
+    fn skip_trivia(&mut self) -> Result<(), LexError> {
+        loop {
+            let Some((start, character)) = self.chars.peek().copied() else {
+                return Ok(());
+            };
+
             if character.is_whitespace() {
+                self.chars.next();
                 continue;
             }
 
-            if character == '/' && self.peek_character() == Some('/') {
+            if character == '/' && self.peek_second_character() == Some('/') {
+                self.chars.next();
                 self.skip_line_comment();
                 continue;
             }
 
-            if character == '/' && self.peek_character() == Some('*') {
+            if character == '/' && self.peek_second_character() == Some('*') {
+                self.chars.next();
                 self.skip_block_comment(start)?;
                 continue;
             }
 
-            if character.is_ascii_alphabetic() || character == '_' {
-                let end = self.lex_identifier_end(start, character);
-                let lexeme = &source[start..end];
-                let kind = KeywordKind::from_lexeme(lexeme)
-                    .map(TokenKind::Keyword)
-                    .unwrap_or(TokenKind::Identifier);
-                tokens.push(Token {
-                    kind,
-                    lexeme: TokenText::source(lexeme),
-                    span: Span::new(start, end),
-                });
-                continue;
-            }
-
-            if character.is_ascii_digit() {
-                let (kind, end) = self.lex_number(start, character);
-                tokens.push(Token {
-                    kind,
-                    lexeme: TokenText::source(&source[start..end]),
-                    span: Span::new(start, end),
-                });
-                continue;
-            }
-
-            if character == '"' {
-                let (lexeme, span) = self.lex_string(start)?;
-                tokens.push(Token {
-                    kind: TokenKind::StringLiteral,
-                    lexeme: TokenText::owned(lexeme),
-                    span,
-                });
-                continue;
-            }
-
-            let end = self.lex_symbol_end(start, character);
-            let lexeme = &source[start..end];
-            let Some(kind) = PunctuationKind::from_lexeme(lexeme).map(TokenKind::Punctuation) else {
-                return Err(LexError::new(
-                    format!("unsupported punctuation `{lexeme}`"),
-                    Span::new(start, end),
-                ));
-            };
-            tokens.push(Token {
-                kind,
-                lexeme: TokenText::source(lexeme),
-                span: Span::new(start, end),
-            });
+            return Ok(());
         }
-
-        Ok(TokenStream::new(tokens))
     }
 
     fn skip_line_comment(&mut self) {
@@ -126,7 +137,7 @@ impl<'source> Lexer<'source> {
         ))
     }
 
-    fn lex_identifier_end(&mut self, start: usize, first: char) -> usize {
+    fn lex_identifier_or_keyword(&mut self, start: usize, first: char) -> LexedToken {
         let mut end = start + first.len_utf8();
 
         while let Some((next_index, next)) = self.chars.peek().copied() {
@@ -138,10 +149,18 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        end
+        let lexeme = &self.source[start..end];
+        let kind = KeywordKind::from_lexeme(lexeme)
+            .map(TokenKind::Keyword)
+            .unwrap_or(TokenKind::Identifier);
+
+        LexedToken {
+            kind,
+            span: Span::new(start, end),
+        }
     }
 
-    fn lex_number(&mut self, start: usize, first: char) -> (TokenKind, usize) {
+    fn lex_number(&mut self, start: usize, first: char) -> LexedToken {
         let mut end = start + first.len_utf8();
         let mut is_float = false;
 
@@ -182,22 +201,29 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        (
-            if is_float {
+        LexedToken {
+            kind: if is_float {
                 TokenKind::FloatLiteral
             } else {
                 TokenKind::IntegerLiteral
             },
-            end,
-        )
+            span: Span::new(start, end),
+        }
     }
 
-    fn lex_string(&mut self, start: usize) -> Result<(String, Span), LexError> {
-        let mut lexeme = String::new();
+    fn lex_string_token(&mut self, start: usize) -> Result<LexedToken, LexError> {
+        let end = self.lex_string_end(start)?;
+        self.decode_string_literal(&self.source[start..end])?;
+        Ok(LexedToken {
+            kind: TokenKind::StringLiteral,
+            span: Span::new(start, end),
+        })
+    }
 
+    fn lex_string_end(&mut self, start: usize) -> Result<usize, LexError> {
         while let Some((index, character)) = self.chars.next() {
             if character == '"' {
-                return Ok((lexeme, Span::new(start, index + character.len_utf8())));
+                return Ok(index + character.len_utf8());
             }
 
             if character == '\\' {
@@ -205,6 +231,46 @@ impl<'source> Lexer<'source> {
                     return Err(LexError::new(
                         "unterminated string escape",
                         Span::new(start, self.source.len()),
+                    ));
+                };
+
+                match escaped {
+                    '"' | '\\' | 'n' | 't' => {}
+                    other => {
+                        return Err(LexError::new(
+                            format!("unsupported escape sequence `\\{other}`"),
+                            Span::new(index, index + other.len_utf8()),
+                        ));
+                    }
+                }
+            }
+        }
+
+        Err(LexError::new(
+            "unterminated string literal",
+            Span::new(start, self.source.len()),
+        ))
+    }
+
+    fn decode_string_literal(&self, raw: &str) -> Result<String, LexError> {
+        let mut lexeme = String::new();
+        let mut chars = raw.char_indices();
+
+        let Some((_, opening_quote)) = chars.next() else {
+            return Ok(lexeme);
+        };
+        debug_assert_eq!(opening_quote, '"');
+
+        while let Some((index, character)) = chars.next() {
+            if character == '"' {
+                return Ok(lexeme);
+            }
+
+            if character == '\\' {
+                let Some((_, escaped)) = chars.next() else {
+                    return Err(LexError::new(
+                        "unterminated string escape",
+                        Span::new(0, raw.len()),
                     ));
                 };
 
@@ -227,11 +293,11 @@ impl<'source> Lexer<'source> {
 
         Err(LexError::new(
             "unterminated string literal",
-            Span::new(start, self.source.len()),
+            Span::new(0, raw.len()),
         ))
     }
 
-    fn lex_symbol_end(&mut self, start: usize, first: char) -> usize {
+    fn lex_punctuation(&mut self, start: usize, first: char) -> Result<LexedToken, LexError> {
         let mut end = start + first.len_utf8();
 
         if matches!(
@@ -252,11 +318,28 @@ impl<'source> Lexer<'source> {
             }
         }
 
-        end
+        let lexeme = &self.source[start..end];
+        let Some(kind) = PunctuationKind::from_lexeme(lexeme).map(TokenKind::Punctuation) else {
+            return Err(LexError::new(
+                format!("unsupported punctuation `{lexeme}`"),
+                Span::new(start, end),
+            ));
+        };
+
+        Ok(LexedToken {
+            kind,
+            span: Span::new(start, end),
+        })
     }
 
     fn peek_character(&mut self) -> Option<char> {
         self.chars.peek().map(|(_, character)| *character)
+    }
+
+    fn peek_second_character(&self) -> Option<char> {
+        let mut chars = self.chars.clone();
+        chars.next()?;
+        chars.next().map(|(_, character)| character)
     }
 }
 
