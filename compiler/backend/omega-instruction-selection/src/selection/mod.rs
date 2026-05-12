@@ -57,7 +57,8 @@ fn select_entry_instructions(
         return selected_instructions.finish();
     }
 
-    let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
+    let schedule_context =
+        StateScheduleContext::new(&input.control_flow, &input.host_calls, &input.state_calls);
     let _state_schedule =
         build_entry_state_schedule(&schedule_context, input.entry_key)
             .unwrap_or_else(|_| runtime_reachable_states(input));

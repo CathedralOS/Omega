@@ -72,7 +72,8 @@ pub struct EmissionPlanningInput<'plan> {
 
 pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     let mut blockers = Arena::new();
-    let schedule_context = StateScheduleContext::new(&input.control_flow, &input.host_calls);
+    let schedule_context =
+        StateScheduleContext::new(&input.control_flow, &input.host_calls, input.state_calls);
     let (state_schedule, needs_runtime_dispatch) =
         match build_entry_state_schedule(&schedule_context, input.entry_key) {
             Ok(state_schedule) => (state_schedule, false),
