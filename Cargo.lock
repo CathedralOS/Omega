@@ -75,10 +75,10 @@ checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
 name = "omega-artifacts"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-core",
  "omega-image",
  "omega-target",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -87,6 +87,7 @@ version = "0.1.0"
 dependencies = [
  "omega-backend-plan",
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-data-planning",
@@ -113,7 +114,6 @@ dependencies = [
  "omega-target",
  "omega-target-operations",
  "omega-target-operations-to-machine-program",
- "omega-typed-trees",
 ]
 
 [[package]]

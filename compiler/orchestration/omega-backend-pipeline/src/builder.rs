@@ -38,7 +38,7 @@ use omega_state_storage::{StateStoragePlanningContext, build_state_storage_plan_
 use omega_state_values::{StateValuePlanningContext, build_state_value_plan_with_workers};
 use omega_target::NativeTarget;
 use omega_target_operations_to_machine_program::build_machine_program;
-use omega_typed_trees::Program;
+use omega_checked_trees::Program;
 use std::sync::Arc;
 
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
@@ -52,8 +52,9 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         build_host_abi_plan(target)
     });
-    let host_call_program = Arc::clone(&program);
-    let layout_program = Arc::clone(&program);
+    let typed_program = Arc::new(program.typed.clone());
+    let host_call_program = Arc::clone(&typed_program);
+    let layout_program = Arc::clone(&typed_program);
     let host_call_abi = Arc::new(host_abi.clone());
     let host_call_workers = workers.clone();
     let (layouts, host_calls) =
@@ -111,8 +112,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     backend_plan.alias_flow = record_backend_phase(&mut phase_timings, "alias flow", || {
         build_alias_flow_plan(&backend_plan.state_calls)
     });
-    let state_storage_program = Arc::clone(&program);
-    let state_values_program = Arc::clone(&program);
+    let state_storage_program = Arc::clone(&typed_program);
+    let state_values_program = Arc::clone(&typed_program);
     let state_storage_context = Arc::new(StateStoragePlanningContext {
         control_flow: backend_plan.control_flow.clone(),
         runtime_flow: backend_plan.runtime_flow.clone(),
@@ -182,7 +183,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         });
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
-            &program,
+            &typed_program,
             &backend_plan.state_dispatch,
             &backend_plan.control_flow,
             &backend_plan.layouts,

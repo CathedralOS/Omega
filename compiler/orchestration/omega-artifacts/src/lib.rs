@@ -6,7 +6,7 @@ use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{EmittedImageOutput, ImageOutputKind};
 use omega_target::{NativeTarget, ObjectFormat};
-use omega_typed_trees::{Program, machine::Machine, platform::Platform};
+use omega_checked_trees::{Program, machine::Machine, platform::Platform};
 
 pub struct ArtifactWriter {
     root: PathBuf,
@@ -908,44 +908,46 @@ fn mark_executable_if_needed(_path: &Path) -> Result<(), Diagnostic> {
 
 #[cfg(test)]
 mod tests {
+    use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
-    use omega_typed_trees::Program;
-    use omega_typed_trees::machine::Machine;
-    use omega_typed_trees::name::ProgramName;
-    use omega_typed_trees::platform::Platform;
-    use omega_typed_trees::signature::StateSignature;
-    use omega_typed_trees::state::State;
+    use omega_checked_trees::Program;
+    use omega_checked_trees::machine::Machine;
+    use omega_checked_trees::name::ProgramName;
+    use omega_checked_trees::platform::Platform;
+    use omega_checked_trees::signature::StateSignature;
+    use omega_checked_trees::state::State;
 
     use super::build_backend_surface_report;
 
     #[test]
     fn collects_entry_machine_and_platforms() {
-        let report = build_backend_surface_report(&Program {
-            platforms: vec![Platform {
+        let mut program = Program::default();
+        program.typed.platforms = vec![Platform {
+            symbol: SymbolHandle::default(),
+            name: ProgramName::generated("Console"),
+            states: vec![StateSignature {
                 symbol: SymbolHandle::default(),
-                name: ProgramName::generated("Console"),
-                states: vec![StateSignature {
-                    symbol: SymbolHandle::default(),
-                    name: ProgramName::generated("write_line"),
-                    parameters: Vec::new(),
-                    return_type: None,
-                }],
+                name: ProgramName::generated("write_line"),
+                parameters: Vec::new(),
+                return_type: None,
             }],
-            machines: vec![Machine {
+        }];
+        program.typed.machines = vec![Machine {
+            symbol: SymbolHandle::default(),
+            name: ProgramName::generated("main"),
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states: vec![State {
                 symbol: SymbolHandle::default(),
-                name: ProgramName::generated("main"),
-                contains: Vec::new(),
-                owned_data: Vec::new(),
-                states: vec![State {
-                    symbol: SymbolHandle::default(),
-                    name: ProgramName::generated("entry"),
-                    parameters: Vec::new(),
-                    return_type: None,
-                    statements: Vec::new(),
-                }],
+                name: ProgramName::generated("entry"),
+                parameters: Vec::new(),
+                return_type: None,
+                statements: Vec::new(),
+                statement_nodes: HandleSpan::empty(),
             }],
-            ..Program::default()
-        });
+        }];
+
+        let report = build_backend_surface_report(&program);
 
         assert_eq!(report.entry_points.len(), 1);
         assert_eq!(report.platforms.len(), 1);
