@@ -15,6 +15,7 @@ pub struct StateCallPlan {
 pub struct StateCall {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub role: StateCallRole,
     pub receiver_display: ProgramName,
     pub target_key: StateKey,
     pub argument_count: usize,
@@ -30,6 +31,7 @@ impl Default for StateCall {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
+            role: StateCallRole::Statement,
             receiver_display: ProgramName::default(),
             target_key: StateKey::default(),
             argument_count: 0,
@@ -40,6 +42,16 @@ impl Default for StateCall {
             lowering: StateCallLowering::Unresolved,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StateCallRole {
+    #[default]
+    Statement,
+    AssignmentValue,
+    CallArgument,
+    TransitionArgument,
+    TransitionGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

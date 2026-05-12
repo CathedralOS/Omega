@@ -19,6 +19,7 @@ use std::sync::Arc;
 pub use alias_flow::{AliasBinding, AliasFlowPlan, build_alias_flow_plan};
 pub use model::{
     StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
+    StateCallRole,
     StateCallResolution,
 };
 
@@ -151,6 +152,7 @@ pub fn build_state_call_plan_with_workers(
         plan.calls.insert(StateCall {
             source_key: call.source_key,
             statement_index: call.statement_index,
+            role: call.role,
             receiver_display: call.receiver,
             target_key: call.target_key,
             argument_count: arguments.len(),
