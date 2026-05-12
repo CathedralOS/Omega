@@ -74,5 +74,16 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::Platform(item), rest));
     }
 
-    Err(input.error_here("expected top-level item"))
+    Err(input.expected_one_of_here(&[
+        "`use`",
+        "`data`",
+        "`enum`",
+        "`machine`",
+        "`target`",
+        "`trust`",
+        "`capability`",
+        "`invariant`",
+        "`library`",
+        "`platform`",
+    ]))
 }
