@@ -6,21 +6,6 @@ The central bet is simple: state machines should not be a framework pattern hidd
 
 Current status: Omega is very early, but no longer purely theoretical. The compiler can parse/check all current samples, emit small native macOS ARM64 CLI programs as direct executable images, and writes phase artifacts for every compiler stage. The native path is still intentionally narrow; when a feature is not supported, the compiler should say so instead of pretending.
 
-Tiny current program:
-
-```omega
-use platform::console;
-
-machine main {
-    contains console: Console;
-
-    fn entry() {
-        console.write_line("Hello, Omega.");
-        console.exit_process(0);
-    }
-}
-```
-
 ## Language Direction
 
 Omega is exploring these core ideas:
