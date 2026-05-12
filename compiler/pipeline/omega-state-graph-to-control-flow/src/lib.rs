@@ -1,7 +1,8 @@
 use omega_control_flow::{
     ContainedFlow, ControlFlowPlan, MachineFlow, Operation, OperationExpressionRefs,
-    OperationKind, PlannedTransitionTarget, StateFlow, StateKey, StateParameterFlow,
-    TransitionExpressionRefs, TransitionFlow,
+    OperationKind, PlannedTransitionTarget, StateBorrowAccessKind, StateBorrowArgumentAccess,
+    StateBorrowCall, StateBorrowRootKind, StateBorrowSummary, StateBorrowWritableRoot, StateFlow,
+    StateKey, StateParameterFlow, TransitionExpressionRefs, TransitionFlow,
 };
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -14,6 +15,9 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
         expressions: state_graph.expressions.clone(),
         machines: remap_machines(state_graph),
         states: remap_states(state_graph),
+        borrow_writable_roots: remap_borrow_writable_roots(state_graph),
+        borrow_argument_accesses: remap_borrow_argument_accesses(state_graph),
+        borrow_calls: remap_borrow_calls(state_graph),
         operations: remap_operations(state_graph),
         transitions: remap_transitions(state_graph),
     })
@@ -63,8 +67,71 @@ fn remap_state(state: &StateNode) -> StateFlow {
         name: state.name.clone(),
         index: state.index,
         parameters: state.parameters.iter().map(remap_parameter).collect(),
+        borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
+    }
+}
+
+fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWritableRoot> {
+    let mut writable_roots = Arena::default();
+
+    for (_, root) in state_graph.borrow_writable_roots.iter() {
+        writable_roots.append(StateBorrowWritableRoot {
+            symbol: root.symbol,
+            name: root.name.clone(),
+            kind: match root.kind {
+                omega_state_graph::StateBorrowRootKind::OwnedData => StateBorrowRootKind::OwnedData,
+                omega_state_graph::StateBorrowRootKind::LocalData => StateBorrowRootKind::LocalData,
+                omega_state_graph::StateBorrowRootKind::MutableParameter => {
+                    StateBorrowRootKind::MutableParameter
+                }
+            },
+        });
+    }
+
+    writable_roots
+}
+
+fn remap_borrow_argument_accesses(state_graph: &StateGraph) -> Arena<StateBorrowArgumentAccess> {
+    let mut accesses = Arena::default();
+
+    for (_, access) in state_graph.borrow_argument_accesses.iter() {
+        accesses.append(StateBorrowArgumentAccess {
+            root_name: access.root_name.clone(),
+            kind: match access.kind {
+                omega_state_graph::StateBorrowAccessKind::Read => StateBorrowAccessKind::Read,
+                omega_state_graph::StateBorrowAccessKind::Mutable => {
+                    StateBorrowAccessKind::Mutable
+                }
+            },
+        });
+    }
+
+    accesses
+}
+
+fn remap_borrow_calls(state_graph: &StateGraph) -> Arena<StateBorrowCall> {
+    let mut calls = Arena::default();
+
+    for (_, call) in state_graph.borrow_calls.iter() {
+        calls.append(StateBorrowCall {
+            receiver_symbol: call.receiver_symbol,
+            target_symbol: call.target_symbol,
+            receiver: call.receiver.clone(),
+            target: call.target.clone(),
+            accesses: remap_borrow_argument_access_span(call.accesses),
+        });
+    }
+
+    calls
+}
+
+fn remap_borrow_summary(summary: &omega_state_graph::StateBorrowSummary) -> StateBorrowSummary {
+    StateBorrowSummary {
+        writable_roots: remap_borrow_writable_root_span(summary.writable_roots),
+        mutable_parameter_count: summary.mutable_parameter_count,
+        calls: remap_borrow_call_span(summary.calls),
     }
 }
 
@@ -185,6 +252,42 @@ fn remap_transition_span(
     transitions: HandleSpan<omega_state_graph::TransitionEdge>,
 ) -> HandleSpan<TransitionFlow> {
     HandleSpan::from_parts(remap_transition_handle(transitions.start()), transitions.count())
+}
+
+fn remap_borrow_writable_root_span(
+    roots: HandleSpan<omega_state_graph::StateBorrowWritableRoot>,
+) -> HandleSpan<StateBorrowWritableRoot> {
+    HandleSpan::from_parts(remap_borrow_writable_root_handle(roots.start()), roots.count())
+}
+
+fn remap_borrow_writable_root_handle(
+    handle: Handle<omega_state_graph::StateBorrowWritableRoot>,
+) -> Handle<StateBorrowWritableRoot> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_borrow_argument_access_span(
+    accesses: HandleSpan<omega_state_graph::StateBorrowArgumentAccess>,
+) -> HandleSpan<StateBorrowArgumentAccess> {
+    HandleSpan::from_parts(remap_borrow_argument_access_handle(accesses.start()), accesses.count())
+}
+
+fn remap_borrow_argument_access_handle(
+    handle: Handle<omega_state_graph::StateBorrowArgumentAccess>,
+) -> Handle<StateBorrowArgumentAccess> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
+}
+
+fn remap_borrow_call_span(
+    calls: HandleSpan<omega_state_graph::StateBorrowCall>,
+) -> HandleSpan<StateBorrowCall> {
+    HandleSpan::from_parts(remap_borrow_call_handle(calls.start()), calls.count())
+}
+
+fn remap_borrow_call_handle(
+    handle: Handle<omega_state_graph::StateBorrowCall>,
+) -> Handle<StateBorrowCall> {
+    Handle::from_parts(handle.arena_index(), handle.generation())
 }
 
 fn remap_transition_handle(

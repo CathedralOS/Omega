@@ -10,6 +10,9 @@ pub struct ControlFlowPlan {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineFlow>,
     pub states: Arena<StateFlow>,
+    pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
+    pub borrow_argument_accesses: Arena<StateBorrowArgumentAccess>,
+    pub borrow_calls: Arena<StateBorrowCall>,
     pub operations: Arena<Operation>,
     pub transitions: Arena<TransitionFlow>,
 }
@@ -121,6 +124,7 @@ pub struct StateFlow {
     pub name: ProgramName,
     pub index: usize,
     pub parameters: Vec<StateParameterFlow>,
+    pub borrow: StateBorrowSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
 }
@@ -132,10 +136,55 @@ impl Default for StateFlow {
             name: ProgramName::default(),
             index: 0,
             parameters: Vec::new(),
+            borrow: StateBorrowSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum StateBorrowRootKind {
+    #[default]
+    OwnedData,
+    LocalData,
+    MutableParameter,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowWritableRoot {
+    pub symbol: SymbolHandle,
+    pub name: ProgramName,
+    pub kind: StateBorrowRootKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum StateBorrowAccessKind {
+    #[default]
+    Read,
+    Mutable,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowArgumentAccess {
+    pub root_name: ProgramName,
+    pub kind: StateBorrowAccessKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowCall {
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
+    pub receiver: Option<NamePath>,
+    pub target: ProgramName,
+    pub accesses: HandleSpan<StateBorrowArgumentAccess>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StateBorrowSummary {
+    pub writable_roots: HandleSpan<StateBorrowWritableRoot>,
+    pub mutable_parameter_count: usize,
+    pub calls: HandleSpan<StateBorrowCall>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
