@@ -9,4 +9,5 @@ name = "omega_checked_trees"
 path = "src/lib.rs"
 
 [dependencies]
+omega-core = { path = "../../foundation/omega-core" }
 omega-typed-trees = { path = "../omega-typed-trees" }
