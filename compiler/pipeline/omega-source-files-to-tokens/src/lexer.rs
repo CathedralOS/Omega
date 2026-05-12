@@ -34,6 +34,11 @@ impl<'source> Lexer<'source> {
                 continue;
             }
 
+            if character == '/' && self.peek_character() == Some('*') {
+                self.skip_block_comment(start)?;
+                continue;
+            }
+
             if character.is_ascii_alphabetic() || character == '_' {
                 let end = self.lex_identifier_end(start, character);
                 let lexeme = &source[start..end];
@@ -92,6 +97,33 @@ impl<'source> Lexer<'source> {
                 break;
             }
         }
+    }
+
+    fn skip_block_comment(&mut self, start: usize) -> Result<(), LexError> {
+        self.chars.next();
+        let mut depth = 1usize;
+
+        while let Some((_, character)) = self.chars.next() {
+            match (character, self.peek_character()) {
+                ('/', Some('*')) => {
+                    self.chars.next();
+                    depth += 1;
+                }
+                ('*', Some('/')) => {
+                    self.chars.next();
+                    depth -= 1;
+                    if depth == 0 {
+                        return Ok(());
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Err(LexError::new(
+            "unterminated block comment",
+            Span::new(start, self.source.len()),
+        ))
     }
 
     fn lex_identifier_end(&mut self, start: usize, first: char) -> usize {
@@ -282,6 +314,39 @@ mod tests {
         assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
         assert_eq!(tokens[1].lexeme.as_str(), "value");
+    }
+
+    #[test]
+    fn skips_block_comments_and_whitespace() {
+        let tokens = Lexer::new("let /* comment */ value")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
+        assert_eq!(tokens[1].kind, TokenKind::Identifier);
+        assert_eq!(tokens[1].lexeme.as_str(), "value");
+    }
+
+    #[test]
+    fn skips_nested_block_comments() {
+        let tokens = Lexer::new("let /* outer /* inner */ still outer */ value")
+            .tokenize()
+            .expect("tokenization should succeed");
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].kind, TokenKind::Keyword(KeywordKind::Let));
+        assert_eq!(tokens[1].kind, TokenKind::Identifier);
+        assert_eq!(tokens[1].lexeme.as_str(), "value");
+    }
+
+    #[test]
+    fn errors_on_unterminated_block_comment() {
+        let error = Lexer::new("let /* comment")
+            .tokenize()
+            .expect_err("tokenization should fail");
+
+        assert_eq!(error.message, "unterminated block comment");
     }
 
     #[test]
