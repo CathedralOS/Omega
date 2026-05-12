@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::{Operation, StateKey, StateParameterFlow};
 use omega_platform_interface::HostCall;
-use omega_state_calls::StateCall;
+use omega_state_calls::{StateCall, StateCallRole};
 use omega_state_storage::StateMutation;
 
 fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
@@ -34,7 +34,9 @@ pub(super) fn state_call_for_statement<'plan>(
         .calls
         .iter()
         .find(|(_, state_call)| {
-            state_call.source_key == source_key && state_call.statement_index == statement_index
+            state_call.source_key == source_key
+                && state_call.statement_index == statement_index
+                && state_call.role == StateCallRole::Statement
         })
         .map(|(_, state_call)| state_call)
 }
