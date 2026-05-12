@@ -12,7 +12,9 @@ pub(super) fn collect_state_guard_blockers(
     for (_, guard) in input.state_guards.guards.iter() {
         if matches!(
             guard.lowering,
-            StateGuardLowering::NoOp | StateGuardLowering::CompareStaticValue
+            StateGuardLowering::NoOp
+                | StateGuardLowering::CompareStaticValue
+                | StateGuardLowering::CompareRuntimeValue
         ) {
             continue;
         }

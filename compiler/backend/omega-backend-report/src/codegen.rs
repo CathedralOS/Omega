@@ -154,6 +154,7 @@ fn selected_instruction_name(
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering,
             operator,
+            storage_region,
             byte_offset,
             byte_size,
             expected_value,
@@ -161,7 +162,7 @@ fn selected_instruction_name(
         } => {
             if *has_storage {
                 format!(
-                    "evaluate dispatch guard {guard_lowering:?}/{operator:?} offset {byte_offset} bytes {byte_size} expected {expected_value}"
+                    "evaluate dispatch guard {guard_lowering:?}/{operator:?} {storage_region:?} offset {byte_offset} bytes {byte_size} expected {expected_value}"
                 )
             } else {
                 format!("evaluate dispatch guard {guard_lowering:?}/{operator:?}")

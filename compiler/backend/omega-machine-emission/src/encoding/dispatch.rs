@@ -43,7 +43,7 @@ pub(super) fn encode_dispatch_guard_compare_static(
         byte_size,
         expected_value,
         byte_distance_to_next_state_write_end(machine_instructions, machine_instruction_index)?,
-        operator == StateGuardOperator::NotEqual,
+        operator,
     )
 }
 

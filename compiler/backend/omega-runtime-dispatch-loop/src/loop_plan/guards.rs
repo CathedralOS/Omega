@@ -7,10 +7,14 @@ use omega_state_guards::{
 pub(super) struct DispatchGuardComparison {
     pub lowering: StateGuardLowering,
     pub operator: StateGuardOperator,
+    pub storage: StateGuardOperandStorage,
     pub byte_offset: usize,
+    pub right_storage: StateGuardOperandStorage,
+    pub right_byte_offset: usize,
     pub byte_size: usize,
     pub expected_value: i64,
     pub has_storage: bool,
+    pub has_right_storage: bool,
 }
 
 pub(super) fn dispatch_guard_comparison(
@@ -41,16 +45,21 @@ pub(super) fn dispatch_guard_comparison(
             ..DispatchGuardComparison::default()
         };
     };
-    let Some(place_operand) = operands.iter().find(|operand| {
-        operand.kind == StateGuardOperandKind::Place
-            && operand.storage == StateGuardOperandStorage::MachineOwned
-    }) else {
+    let place_operands: Vec<_> = operands
+        .iter()
+        .filter(|operand| {
+            operand.kind == StateGuardOperandKind::Place
+                && operand.storage != StateGuardOperandStorage::Unknown
+        })
+        .collect();
+    let Some(place_operand) = place_operands.first() else {
         return DispatchGuardComparison {
             lowering: guard.lowering,
             operator: guard.operator,
             ..DispatchGuardComparison::default()
         };
     };
+    let right_place_operand = place_operands.get(1).copied();
     let expected_value = operands
         .iter()
         .find(|operand| operand.has_resolved_value)
@@ -60,9 +69,17 @@ pub(super) fn dispatch_guard_comparison(
     DispatchGuardComparison {
         lowering: guard.lowering,
         operator: guard.operator,
+        storage: place_operand.storage,
         byte_offset: place_operand.byte_offset,
+        right_storage: right_place_operand
+            .map(|operand| operand.storage)
+            .unwrap_or(StateGuardOperandStorage::Unknown),
+        right_byte_offset: right_place_operand
+            .map(|operand| operand.byte_offset)
+            .unwrap_or(0),
         byte_size: place_operand.byte_size,
         expected_value,
         has_storage: true,
+        has_right_storage: right_place_operand.is_some(),
     }
 }

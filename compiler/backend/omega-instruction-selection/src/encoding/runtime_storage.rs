@@ -9,7 +9,7 @@ pub fn encode_runtime_storage_compare(
     right_offset: usize,
     byte_size: usize,
     failure_branch_distance: isize,
-    branch_when_equal: bool,
+    operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_compare(
@@ -17,7 +17,7 @@ pub fn encode_runtime_storage_compare(
             right_offset,
             byte_size,
             failure_branch_distance,
-            branch_when_equal,
+            operator,
         ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
@@ -29,7 +29,7 @@ pub fn encode_runtime_storage_value_compare(
     byte_size: usize,
     expected_value: i64,
     failure_branch_distance: isize,
-    branch_when_equal: bool,
+    operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_storage_value_compare(
@@ -37,7 +37,7 @@ pub fn encode_runtime_storage_value_compare(
             byte_size,
             expected_value,
             failure_branch_distance,
-            branch_when_equal,
+            operator,
         ),
         Architecture::X86_64 => Ok(Vec::new()),
     }

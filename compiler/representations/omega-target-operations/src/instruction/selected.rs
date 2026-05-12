@@ -44,6 +44,7 @@ pub enum SelectedInstructionKind {
     EvaluateDispatchGuard {
         guard_lowering: StateGuardLowering,
         operator: StateGuardOperator,
+        storage_region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_size: usize,
         expected_value: i64,

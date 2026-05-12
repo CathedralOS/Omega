@@ -1,8 +1,11 @@
 use omega_core::diagnostics::Diagnostic;
+use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w17_immediate,
     encode_compare_w19_immediate, encode_conditional_branch_equal,
+    encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
+    encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_not_equal, encode_load_w17_from_x16, encode_movz_w,
     encode_unconditional_branch,
 };
@@ -48,7 +51,7 @@ pub fn encode_dispatch_guard_compare_static(
     byte_size: usize,
     expected_value: i64,
     skip_byte_distance: isize,
-    branch_when_equal: bool,
+    operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     let expected_value = u32::try_from(expected_value).map_err(|_| {
         Diagnostic::error(format!(
@@ -60,10 +63,22 @@ pub fn encode_dispatch_guard_compare_static(
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_w17_from_x16(byte_offset, byte_size)?);
     bytes.extend(encode_compare_w17_immediate(expected_value)?);
-    bytes.extend(if branch_when_equal {
-        encode_conditional_branch_equal(skip_byte_distance)?
-    } else {
-        encode_conditional_branch_not_equal(skip_byte_distance)?
+    bytes.extend(match operator {
+        StateGuardOperator::Equal => encode_conditional_branch_equal(skip_byte_distance)?,
+        StateGuardOperator::NotEqual => encode_conditional_branch_not_equal(skip_byte_distance)?,
+        StateGuardOperator::Greater => encode_conditional_branch_greater(skip_byte_distance)?,
+        StateGuardOperator::GreaterOrEqual => {
+            encode_conditional_branch_greater_or_equal(skip_byte_distance)?
+        }
+        StateGuardOperator::Less => encode_conditional_branch_less(skip_byte_distance)?,
+        StateGuardOperator::LessOrEqual => {
+            encode_conditional_branch_less_or_equal(skip_byte_distance)?
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot lower dispatch guard operator `{operator:?}` yet"
+            )));
+        }
     });
     Ok(bytes)
 }

@@ -4,7 +4,7 @@ use omega_typed_trees::expression::{BinaryExpression, CallExpression, Expression
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 
-pub(super) fn simplify_expression(
+pub fn simplify_expression(
     program: &Program,
     machine: &Machine,
     expression: &Expression,
@@ -107,16 +107,12 @@ fn simplify_call_expression(
         .map(|argument| simplify_expression_with_arguments(program, machine, argument, arguments))
         .collect();
 
-    let receiver_is_self = receiver.as_ref().is_none_or(|receiver| {
-        expression_is_self_reference(receiver)
-    });
-
-    if receiver_is_self
-        && call.target_symbol.is_valid()
-        && let Some(state) = machine
-            .states
-            .iter()
-            .find(|state| state.symbol == call.target_symbol)
+    if let Some(target_machine) = resolve_call_target_machine(
+        program,
+        machine,
+        receiver.as_ref(),
+    )
+        && let Some(state) = resolve_call_target_state(target_machine, call)
         && let Some(value) = unconditional_terminal_value(state)
     {
         let argument_bindings: Vec<_> = state
@@ -134,6 +130,55 @@ fn simplify_call_expression(
         target: call.target.clone(),
         arguments: simplified_arguments,
     }))
+}
+
+fn resolve_call_target_machine<'program>(
+    program: &'program Program,
+    current_machine: &'program Machine,
+    receiver: Option<&Expression>,
+) -> Option<&'program Machine> {
+    let Some(receiver) = receiver else {
+        return Some(current_machine);
+    };
+    let receiver = strip_mutable_expression_ref(receiver);
+    if expression_is_self_reference(receiver) {
+        return Some(current_machine);
+    }
+
+    let (contained_symbol, contained_name) = match receiver {
+        Expression::Member(member) if expression_is_self_reference(&member.receiver) => {
+            (member.member_symbol, Some(member.member.as_str()))
+        }
+        Expression::Name(path) => (path.symbol(), path.last().map(|name| name.as_str())),
+        _ => return None,
+    };
+
+    let contained = current_machine.contains.iter().find(|contained| {
+        (contained_symbol.is_valid() && contained.symbol == contained_symbol)
+            || contained_name.is_some_and(|name| contained.name.as_str() == name)
+    })?;
+
+    program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == contained.type_symbol || machine.name == contained.type_name)
+}
+
+fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
+    while let Expression::Mutable(inner) = expression {
+        expression = inner.as_ref();
+    }
+    expression
+}
+
+fn resolve_call_target_state<'machine>(
+    machine: &'machine Machine,
+    call: &CallExpression,
+) -> Option<&'machine omega_typed_trees::state::State> {
+    machine.states.iter().find(|state| {
+        (call.target_symbol.is_valid() && state.symbol == call.target_symbol)
+            || state.name == call.target
+    })
 }
 
 fn expression_is_self_reference(expression: &Expression) -> bool {

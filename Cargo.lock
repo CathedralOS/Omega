@@ -627,8 +627,10 @@ dependencies = [
  "omega-control-flow",
  "omega-core",
  "omega-layout",
+ "omega-runtime-storage",
  "omega-state-dispatch",
  "omega-state-graph",
+ "omega-state-values",
  "omega-target-operations",
  "omega-typed-trees",
 ]

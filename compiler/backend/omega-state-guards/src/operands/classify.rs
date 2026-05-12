@@ -8,7 +8,10 @@ pub(super) fn classify_guard_operand(
 ) -> StateGuardOperandKind {
     match table.expression(expression) {
         ExpressionNode::Name(_) if has_resolved_value => StateGuardOperandKind::StaticSymbol,
-        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) => StateGuardOperandKind::Place,
+        ExpressionNode::Name(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Mutable(_) => StateGuardOperandKind::Place,
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
@@ -17,8 +20,6 @@ pub(super) fn classify_guard_operand(
         | ExpressionNode::Binary(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
-        | ExpressionNode::Member(_)
-        | ExpressionNode::Mutable(_)
         | ExpressionNode::StructLiteral(_) => StateGuardOperandKind::OtherExpression,
     }
 }

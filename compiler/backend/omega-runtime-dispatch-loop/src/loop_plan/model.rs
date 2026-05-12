@@ -1,7 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_state_guards::{StateGuardLowering, StateGuardOperator};
+use omega_state_guards::{StateGuardLowering, StateGuardOperandStorage, StateGuardOperator};
 use omega_typed_trees::expression::ExpressionHandle;
 use omega_typed_trees::statement::TransitionGuard;
 
@@ -49,10 +49,14 @@ pub struct RuntimeDispatchLoopEdge {
     pub guard: TransitionGuard,
     pub guard_lowering: StateGuardLowering,
     pub guard_operator: StateGuardOperator,
+    pub guard_storage: StateGuardOperandStorage,
     pub guard_byte_offset: usize,
+    pub guard_right_storage: StateGuardOperandStorage,
+    pub guard_right_byte_offset: usize,
     pub guard_byte_size: usize,
     pub guard_expected_value: i64,
     pub guard_has_storage: bool,
+    pub guard_has_right_storage: bool,
     pub action: RuntimeDispatchLoopAction,
     pub forms_cycle: bool,
 }
@@ -70,10 +74,14 @@ impl Default for RuntimeDispatchLoopEdge {
             guard: TransitionGuard::Always,
             guard_lowering: StateGuardLowering::NoOp,
             guard_operator: StateGuardOperator::None,
+            guard_storage: StateGuardOperandStorage::Unknown,
             guard_byte_offset: 0,
+            guard_right_storage: StateGuardOperandStorage::Unknown,
+            guard_right_byte_offset: 0,
             guard_byte_size: 0,
             guard_expected_value: 0,
             guard_has_storage: false,
+            guard_has_right_storage: false,
             action: RuntimeDispatchLoopAction::Unknown,
             forms_cycle: false,
         }

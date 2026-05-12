@@ -45,11 +45,19 @@ pub(super) fn collect_instruction_relocations(
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::CompareStaticValue,
-            operator: StateGuardOperator::Equal | StateGuardOperator::NotEqual,
+            operator:
+                StateGuardOperator::Equal
+                | StateGuardOperator::NotEqual
+                | StateGuardOperator::Greater
+                | StateGuardOperator::GreaterOrEqual
+                | StateGuardOperator::Less
+                | StateGuardOperator::LessOrEqual,
+            storage_region,
             has_storage: true,
             ..
         } => {
-            context.insert_data_address_at_instruction_start(&machine_storage_symbol_name(
+            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+                *storage_region,
                 input.entry_machine_name,
             ));
         }

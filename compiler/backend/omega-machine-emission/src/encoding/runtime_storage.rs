@@ -24,7 +24,7 @@ pub(super) fn encode_runtime_storage_compare(
             machine_instructions,
             machine_instruction_index,
         )?,
-        operator == StateGuardOperator::NotEqual,
+        operator,
     )
 }
 
@@ -47,7 +47,7 @@ pub(super) fn encode_runtime_storage_value_compare(
             machine_instructions,
             machine_instruction_index,
         )?,
-        operator == StateGuardOperator::NotEqual,
+        operator,
     )
 }
 

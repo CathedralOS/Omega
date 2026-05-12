@@ -1,4 +1,5 @@
 mod model;
+mod normalize;
 mod operands;
 
 pub use model::{
@@ -9,23 +10,33 @@ use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
+use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
+use omega_state_values::simplify_expression;
 pub use omega_target_operations::{StateGuardLowering, StateGuardOperator};
 use omega_typed_trees::expression::{
     BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use omega_typed_trees::Program;
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::statement::TransitionGuard;
+use normalize::normalize_guard_expression;
 use operands::{GuardOperands, guard_operands};
 
 pub fn build_state_guard_plan(
+    program: &Program,
     state_dispatch: &StateDispatchPlan,
     control_flow: &ControlFlowPlan,
     layouts: &LayoutPlan,
+    runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
 ) -> StateGuardPlan {
     let mut plan = StateGuardPlan::default();
 
     for (_, state) in state_dispatch.states.iter() {
+        let Some(machine) = machine_by_symbol(program, state.key.machine) else {
+            continue;
+        };
         let Some(edges) = state_dispatch.edges.span(state.edges) else {
             continue;
         };
@@ -35,11 +46,14 @@ pub fn build_state_guard_plan(
                 continue;
             }
             plan.guards.insert(build_state_guard(
+                program,
                 &control_flow.expressions,
                 &mut plan.expressions,
                 &mut plan.operands,
                 layouts,
+                runtime_storage,
                 entry_machine,
+                machine,
                 state.key,
                 state.dispatch_index,
                 statement_order,
@@ -112,32 +126,52 @@ pub fn classify_transition_guard_expression(
 }
 
 fn build_state_guard(
+    program: &Program,
     source_expressions: &ExpressionTable,
     guard_expressions: &mut ExpressionTable,
     operand_arena: &mut Arena<StateGuardOperand>,
     layouts: &LayoutPlan,
+    runtime_storage: &RuntimeStoragePlan,
     entry_machine: SymbolHandle,
+    source_machine: &Machine,
     source: StateKey,
     source_dispatch_index: u32,
     statement_order: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
     let source_guard = edge.expressions.guard;
-    let kind = classify_transition_guard_expression(source_expressions, source_guard);
-    let operator = source_guard
-        .map(|guard| guard_operator(source_expressions, guard))
-        .unwrap_or(StateGuardOperator::None);
-    let expression = source_guard
-        .map(|guard| guard_expressions.copy_from(source_expressions, guard))
-        .unwrap_or_else(ExpressionHandle::invalid);
-    let has_expression = source_guard.is_some();
-    let guard_operands = guard_operands(
+    let simplified_guard = source_guard.map(|guard| {
+        simplify_expression(
+            program,
+            source_machine,
+            &source_expressions.to_tree(guard),
+        )
+    });
+    let mut normalized_expressions = ExpressionTable::new();
+    let normalized_guard = normalize_guard_expression(
         source_expressions,
+        simplified_guard.as_ref(),
+        source_guard,
+    )
+        .map(|guard| normalized_expressions.insert_tree(&guard));
+    let kind = classify_transition_guard_expression(&normalized_expressions, normalized_guard);
+    let operator = normalized_guard
+        .map(|guard| guard_operator(&normalized_expressions, guard))
+        .unwrap_or(StateGuardOperator::None);
+    let expression = normalized_guard
+        .map(|guard| guard_expressions.copy_from(&normalized_expressions, guard))
+        .unwrap_or_else(ExpressionHandle::invalid);
+    let has_expression = normalized_guard.is_some();
+    let guard_operands = guard_operands(
+        &normalized_expressions,
         guard_expressions,
         layouts,
+        runtime_storage,
         entry_machine,
-        source.machine,
-        source_guard,
+        source,
+        source_machine.symbol,
+        source_dispatch_index,
+        normalized_guard,
     );
     let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
     let operands = guard_operands
@@ -162,6 +196,16 @@ fn build_state_guard(
     }
 }
 
+fn machine_by_symbol<'program>(
+    program: &'program Program,
+    machine_symbol: SymbolHandle,
+) -> Option<&'program Machine> {
+    program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+}
+
 fn guard_lowering(
     kind: StateGuardKind,
     operator: StateGuardOperator,
@@ -173,7 +217,12 @@ fn guard_lowering(
 
     if !matches!(
         operator,
-        StateGuardOperator::Equal | StateGuardOperator::NotEqual
+        StateGuardOperator::Equal
+            | StateGuardOperator::NotEqual
+            | StateGuardOperator::Greater
+            | StateGuardOperator::GreaterOrEqual
+            | StateGuardOperator::Less
+            | StateGuardOperator::LessOrEqual
     ) {
         return StateGuardLowering::NeedsRuntimeExpression;
     }

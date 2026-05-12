@@ -97,6 +97,7 @@ pub enum StateGuardOperandKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StateGuardOperandStorage {
     MachineOwned,
+    RuntimeFrame,
     #[default]
     Unknown,
 }

@@ -85,10 +85,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             workers.clone(),
         )
     });
-    let state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
-        build_state_guard_plan(&state_dispatch, &control_flow, &layouts, entry_key.machine)
-    });
-
     let mut backend_plan = build_backend_plan_skeleton(BackendPlanSkeletonInput {
         target,
         host_abi,
@@ -96,7 +92,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         control_flow: (*control_flow).clone(),
         runtime_flow,
         state_dispatch,
-        state_guards,
+        state_guards: Default::default(),
         layouts,
         entry_key,
         phase_timings,
@@ -167,15 +163,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 workers.clone(),
             )
         });
-    let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
-        !backend_plan.state_dispatch.states.is_empty(),
-        &backend_plan.state_dispatch,
-        backend_plan.entry_key,
-        backend_plan.state_guards.clone(),
-        backend_plan.runtime_bodies.clone(),
-    ));
-    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&backend_plan.state_dispatch);
-    let runtime_loop_workers = workers.clone();
     let runtime_storage_context = Arc::new(RuntimeStorageContext::new(
         &backend_plan.control_flow,
         &backend_plan.layouts,
@@ -185,23 +172,39 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     ));
     let runtime_storage_inputs = runtime_storage_body_inputs(&backend_plan.runtime_bodies);
     let runtime_storage_workers = workers.clone();
-    let (runtime_dispatch_loop, runtime_storage) =
-        record_backend_phase(&mut phase_timings, "runtime loop/storage", || {
-            workers.join2(
-                move || {
-                    build_runtime_dispatch_loop_plan_with_workers(
-                        runtime_loop_context,
-                        runtime_loop_inputs,
-                        runtime_loop_workers,
-                    )
-                },
-                move || {
-                    build_runtime_storage_plan_with_workers(
-                        runtime_storage_context,
-                        runtime_storage_inputs,
-                        runtime_storage_workers,
-                    )
-                },
+    backend_plan.runtime_storage =
+        record_backend_phase(&mut phase_timings, "runtime storage", || {
+            build_runtime_storage_plan_with_workers(
+                runtime_storage_context,
+                runtime_storage_inputs,
+                runtime_storage_workers,
+            )
+        });
+    backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
+        build_state_guard_plan(
+            &program,
+            &backend_plan.state_dispatch,
+            &backend_plan.control_flow,
+            &backend_plan.layouts,
+            &backend_plan.runtime_storage,
+            backend_plan.entry_key.machine,
+        )
+    });
+    let runtime_loop_context = Arc::new(RuntimeDispatchLoopContext::from_parts(
+        !backend_plan.state_dispatch.states.is_empty(),
+        &backend_plan.state_dispatch,
+        backend_plan.entry_key,
+        backend_plan.state_guards.clone(),
+        backend_plan.runtime_bodies.clone(),
+    ));
+    let runtime_loop_inputs = runtime_dispatch_loop_inputs(&backend_plan.state_dispatch);
+    let runtime_loop_workers = workers.clone();
+    backend_plan.runtime_dispatch_loop =
+        record_backend_phase(&mut phase_timings, "runtime loop", || {
+            build_runtime_dispatch_loop_plan_with_workers(
+                runtime_loop_context,
+                runtime_loop_inputs,
+                runtime_loop_workers,
             )
         });
     backend_plan.runtime_branching_calls =
@@ -214,8 +217,6 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 state_storage: &backend_plan.state_storage,
             })
         });
-    backend_plan.runtime_dispatch_loop = runtime_dispatch_loop;
-    backend_plan.runtime_storage = runtime_storage;
     backend_plan.runtime_text = record_backend_phase(&mut phase_timings, "runtime text", || {
         build_runtime_text_plan(&backend_plan.host_calls, &backend_plan.state_storage)
     });

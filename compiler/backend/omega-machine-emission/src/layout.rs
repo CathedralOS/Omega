@@ -78,7 +78,13 @@ fn machine_instruction_width(
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::CompareStaticValue,
-            operator: StateGuardOperator::Equal | StateGuardOperator::NotEqual,
+            operator:
+                StateGuardOperator::Equal
+                | StateGuardOperator::NotEqual
+                | StateGuardOperator::Greater
+                | StateGuardOperator::GreaterOrEqual
+                | StateGuardOperator::Less
+                | StateGuardOperator::LessOrEqual,
             has_storage: true,
             ..
         } => dispatch_guard_compare_static_width(input.target.architecture),

@@ -120,12 +120,29 @@ fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
             edge.guard_has_storage
                 && matches!(
                     edge.guard_operator,
-                    StateGuardOperator::Equal | StateGuardOperator::NotEqual
+                    StateGuardOperator::Equal
+                        | StateGuardOperator::NotEqual
+                        | StateGuardOperator::Greater
+                        | StateGuardOperator::GreaterOrEqual
+                        | StateGuardOperator::Less
+                        | StateGuardOperator::LessOrEqual
                 )
                 && matches!(edge.guard_byte_size, 1 | 4)
         }
-        StateGuardLowering::CompareRuntimeValue | StateGuardLowering::NeedsRuntimeExpression => {
-            false
+        StateGuardLowering::CompareRuntimeValue => {
+            edge.guard_has_storage
+                && edge.guard_has_right_storage
+                && matches!(
+                    edge.guard_operator,
+                    StateGuardOperator::Equal
+                        | StateGuardOperator::NotEqual
+                        | StateGuardOperator::Greater
+                        | StateGuardOperator::GreaterOrEqual
+                        | StateGuardOperator::Less
+                        | StateGuardOperator::LessOrEqual
+                )
+                && matches!(edge.guard_byte_size, 1 | 4)
         }
+        StateGuardLowering::NeedsRuntimeExpression => false,
     }
 }

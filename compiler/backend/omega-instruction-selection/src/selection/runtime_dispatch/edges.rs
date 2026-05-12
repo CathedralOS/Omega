@@ -5,10 +5,11 @@ use crate::selection::storage_places::{
 use omega_control_flow::StateParameterFlow;
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
+use omega_state_guards::StateGuardOperandStorage;
 use omega_typed_trees::expression::ExpressionNode;
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
+use omega_target_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardLowering};
 
 pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
@@ -16,15 +17,29 @@ pub(super) fn select_runtime_dispatch_edge(
     source_key: StateKey,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    selected_instructions.push(SelectedInstruction {
-        kind: SelectedInstructionKind::EvaluateDispatchGuard {
+    let guard_instruction = match edge.guard_lowering {
+        StateGuardLowering::CompareRuntimeValue if edge.guard_has_storage && edge.guard_has_right_storage => {
+            SelectedInstructionKind::CompareRuntimeStorage {
+                left_region: guard_storage_region(edge.guard_storage),
+                left_offset: edge.guard_byte_offset,
+                right_region: guard_storage_region(edge.guard_right_storage),
+                right_offset: edge.guard_right_byte_offset,
+                byte_size: edge.guard_byte_size,
+                operator: edge.guard_operator,
+            }
+        }
+        _ => SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: edge.guard_lowering,
             operator: edge.guard_operator,
+            storage_region: guard_storage_region(edge.guard_storage),
             byte_offset: edge.guard_byte_offset,
             byte_size: edge.guard_byte_size,
             expected_value: edge.guard_expected_value,
             has_storage: edge.guard_has_storage,
         },
+    };
+    selected_instructions.push(SelectedInstruction {
+        kind: guard_instruction,
         source_key,
         source_statement: edge.order,
     });
@@ -56,6 +71,15 @@ pub(super) fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Unknown => {}
+    }
+}
+
+fn guard_storage_region(storage: StateGuardOperandStorage) -> RuntimeStorageRegion {
+    match storage {
+        StateGuardOperandStorage::MachineOwned | StateGuardOperandStorage::Unknown => {
+            RuntimeStorageRegion::Machine
+        }
+        StateGuardOperandStorage::RuntimeFrame => RuntimeStorageRegion::RuntimeFrame,
     }
 }
 

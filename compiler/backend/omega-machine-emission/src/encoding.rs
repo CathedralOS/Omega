@@ -40,7 +40,14 @@ pub(super) fn encode_machine_instruction(
         }
         SelectedInstructionKind::EvaluateDispatchGuard {
             guard_lowering: StateGuardLowering::CompareStaticValue,
-            operator: operator @ (StateGuardOperator::Equal | StateGuardOperator::NotEqual),
+            operator: operator @ (
+                StateGuardOperator::Equal
+                    | StateGuardOperator::NotEqual
+                    | StateGuardOperator::Greater
+                    | StateGuardOperator::GreaterOrEqual
+                    | StateGuardOperator::Less
+                    | StateGuardOperator::LessOrEqual
+            ),
             byte_offset,
             byte_size,
             expected_value,

@@ -1,6 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_isa_aarch64::aarch64;
 use omega_target::Architecture;
+use omega_target_operations::StateGuardOperator;
 
 pub fn encode_dispatch_loop_enter(
     architecture: Architecture,
@@ -54,7 +55,7 @@ pub fn encode_dispatch_guard_compare_static(
     byte_size: usize,
     expected_value: i64,
     skip_byte_distance: isize,
-    branch_when_equal: bool,
+    operator: StateGuardOperator,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_dispatch_guard_compare_static(
@@ -62,7 +63,7 @@ pub fn encode_dispatch_guard_compare_static(
             byte_size,
             expected_value,
             skip_byte_distance,
-            branch_when_equal,
+            operator,
         ),
         Architecture::X86_64 => Ok(Vec::new()),
     }
