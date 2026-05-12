@@ -1,8 +1,9 @@
 use crate::EmissionPlanningInput;
-use omega_control_flow::{OperationKind, StateKey};
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextWrite, RuntimeTextWriteKind};
+use omega_state_storage::StateMutationLowering;
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 use omega_target_operations::SelectedInstructionKind;
 
@@ -165,16 +166,11 @@ fn state_value_is_static_assignment(
     if value.role != StateValueRole::AssignmentValue {
         return false;
     }
-    let Some(state) = input.control_flow.state_by_key(value.source_key) else {
-        return false;
-    };
-    let Some(operations) = input.control_flow.operations.span(state.operations) else {
-        return false;
-    };
 
-    operations.iter().any(|operation| {
-        operation.statement_index == value.statement_index
-            && matches!(operation.kind, OperationKind::StaticAssignment { .. })
+    input.state_storage.mutations.iter().any(|(_, mutation)| {
+        mutation.source_key == value.source_key
+            && mutation.statement_index == value.statement_index
+            && mutation.lowering == StateMutationLowering::AlreadyLowered
     })
 }
 

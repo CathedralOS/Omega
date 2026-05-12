@@ -139,10 +139,10 @@ fn state_statement_has_state_call(
     source_key: StateKey,
     statement_index: usize,
 ) -> bool {
-    input.state_calls.calls.iter().any(|(_, state_call)| {
-        state_key_matches_statement_source(state_call.source_key, source_key)
-            && state_call.statement_index == statement_index
-    })
+    input
+        .state_calls
+        .statement_call(source_key, statement_index)
+        .is_some()
 }
 
 fn machine_name_for_state<'plan>(
