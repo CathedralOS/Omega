@@ -58,9 +58,8 @@ impl Compiler {
         let resolved = resolve_program(syntax)?;
         let typed = typecheck_program(resolved)?;
         let checked = check_program(&typed)?;
-        let backend_surface = build_backend_surface_report(&typed);
+        let backend_surface = build_backend_surface_report(&checked.program);
         let planned = plan_backend(
-            typed,
             checked,
             self.options.target_name.as_deref(),
             workers.handle(),
@@ -180,17 +179,15 @@ fn check_program(typed: &TypedProgram) -> Result<CheckedProgramSurface, Vec<Diag
 }
 
 fn plan_backend(
-    typed: TypedProgram,
     checked: CheckedProgramSurface,
     target_name: Option<&str>,
     workers: omega_core::parallel::WorkerPoolHandle,
 ) -> Result<omega_backend_plan::BackendPlan, Vec<Diagnostic>> {
     let target =
         NativeTarget::from_omega_target_name(target_name).map_err(|diagnostic| vec![diagnostic])?;
-    let program = std::sync::Arc::new(typed);
     let checked_program = std::sync::Arc::new(checked.program);
     let state_graph = omega_checked_trees_to_state_graph::build_state_graph_with_workers(
-        checked_program,
+        std::sync::Arc::clone(&checked_program),
         workers.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
@@ -199,7 +196,7 @@ fn plan_backend(
             .map_err(|diagnostic| vec![diagnostic])?;
 
     omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
-        program,
+        checked_program,
         target,
         std::sync::Arc::new(control_flow),
         workers,

@@ -1,6 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_typed_trees::Program;
+use omega_checked_trees::Program;
 
 pub(super) const ENTRY_MACHINE_NAME: &str = "main";
 pub(super) const ENTRY_STATE_NAME: &str = "entry";
