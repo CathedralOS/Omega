@@ -30,11 +30,36 @@ pub struct StateBorrowFact {
     pub state_name: name::ProgramName,
     pub writable_roots: HandleSpan<BorrowWritableRootFact>,
     pub mutable_parameter_count: usize,
+    pub calls: HandleSpan<BorrowCallFact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum BorrowAccessKind {
+    #[default]
+    Read,
+    Mutable,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowArgumentAccessFact {
+    pub root_name: name::ProgramName,
+    pub kind: BorrowAccessKind,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BorrowCallFact {
+    pub receiver_symbol: SymbolHandle,
+    pub target_symbol: SymbolHandle,
+    pub receiver: Option<expression::NamePath>,
+    pub target: name::ProgramName,
+    pub accesses: HandleSpan<BorrowArgumentAccessFact>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BorrowFacts {
     pub writable_roots: Arena<BorrowWritableRootFact>,
+    pub argument_accesses: Arena<BorrowArgumentAccessFact>,
+    pub calls: Arena<BorrowCallFact>,
     pub states: Arena<StateBorrowFact>,
 }
 
