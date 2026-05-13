@@ -6,6 +6,11 @@ pub use model::{
     StateGuard, StateGuardKind, StateGuardOperand, StateGuardOperandKind, StateGuardOperandStorage,
     StateGuardPlan,
 };
+use omega_checked_trees::expression::{
+    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_checked_trees::Program;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::arena::Arena;
@@ -15,11 +20,6 @@ use omega_runtime_storage::RuntimeStoragePlan;
 use omega_state_dispatch::{DispatchEdge, StateDispatchPlan};
 use omega_state_values::simplify_expression;
 pub use omega_target_operations::{StateGuardLowering, StateGuardOperator};
-use omega_typed_trees::expression::{
-    BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
-};
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::TransitionGuard;
 use normalize::normalize_guard_expression;
 use operands::{GuardOperands, guard_operands};
 

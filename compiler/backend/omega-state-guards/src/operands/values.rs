@@ -1,5 +1,5 @@
 use omega_layout::{DataShape, LayoutPlan};
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn resolved_guard_operand_value(
     layouts: &LayoutPlan,
