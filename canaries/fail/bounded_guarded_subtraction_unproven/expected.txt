@@ -1,0 +1,1 @@
+cannot prove return value `xp - cost(level)` satisfies `non_negative`

@@ -1,0 +1,24 @@
+machine main {
+    pub entry(
+        level: u32[exact, positive],
+        xp: u32[exact, non_negative]
+    ) {
+        transition xp >= cost(level) {
+            true -> spend(level, xp)
+            false -> {}
+        }
+    }
+
+    state spend(
+        level: u32[exact, positive],
+        xp: u32[exact, non_negative]
+    ) -> u32[exact, non_negative] {
+        -> xp - cost(level);
+    }
+
+    fn cost(
+        level: u32[exact, positive]
+    ) -> u32[exact, positive] {
+        -> 10 + level * 5;
+    }
+}
