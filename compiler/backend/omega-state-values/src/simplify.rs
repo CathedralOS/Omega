@@ -3,7 +3,7 @@ use omega_checked_trees::expression::{BinaryExpression, CallExpression, Expressi
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
-use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
+use omega_checked_trees::statement::{Statement, StatementNode, TransitionGuard, TransitionTarget};
 use omega_core::symbols::SymbolHandle;
 
 pub fn simplify_expression(
@@ -14,11 +14,67 @@ pub fn simplify_expression(
     simplify_expression_with_bindings(program, machine, expression, &[])
 }
 
+pub fn simplify_state_expression(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    expression: &Expression,
+) -> Expression {
+    let bindings = simple_local_bindings(program, state, statement_index);
+    simplify_expression_with_bindings(program, machine, expression, &bindings)
+}
+
 #[derive(Debug, Clone)]
 struct Binding {
     symbol: SymbolHandle,
     name: Option<ProgramName>,
     value: Expression,
+}
+
+fn simple_local_bindings(
+    program: &Program,
+    state: &State,
+    statement_index: usize,
+) -> Vec<Binding> {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(statement_index)
+        .filter_map(|statement| {
+            let StatementNode::LocalData(local_data) = statement else {
+                return None;
+            };
+            if !local_data.initial_value.is_valid() {
+                return None;
+            }
+            let value = program.expression_table.to_tree(local_data.initial_value);
+            simple_local_binding_value(&value).map(|value| Binding {
+                symbol: local_data.symbol,
+                name: Some(local_data.name.clone()),
+                value,
+            })
+        })
+        .collect()
+}
+
+fn simple_local_binding_value(expression: &Expression) -> Option<Expression> {
+    match expression {
+        Expression::Mutable(inner) => {
+            simple_local_binding_value(inner).map(|value| Expression::Mutable(Box::new(value)))
+        }
+        Expression::Name(_) => Some(expression.clone()),
+        Expression::Member(member) => {
+            let receiver = simple_local_binding_value(&member.receiver)?;
+            Some(Expression::Member(Box::new(MemberExpression {
+                receiver,
+                member_symbol: member.member_symbol,
+                member: member.member.clone(),
+            })))
+        }
+        _ => None,
+    }
 }
 
 fn simplify_expression_with_bindings(

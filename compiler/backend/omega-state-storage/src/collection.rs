@@ -8,7 +8,7 @@ use omega_checked_trees::Program;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_core::symbols::SymbolHandle;
-use omega_state_values::simplify_expression;
+use omega_state_values::simplify_state_expression;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -124,7 +124,13 @@ fn build_machine_state_storage_plan(
                         .expressions
                         .copy_from(&program.expression_table, assignment.target);
                     let simplified_value =
-                        simplify_expression(program, machine, &program.expression_table.to_tree(assignment.value));
+                        simplify_state_expression(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            &program.expression_table.to_tree(assignment.value),
+                        );
                     let value = plan.expressions.insert_tree(&simplified_value);
                     let mutation_kind =
                         mutation_kind(context, source_key, &program.expression_table, assignment.target);

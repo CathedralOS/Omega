@@ -1,0 +1,38 @@
+data Exit {
+    destination: u32;
+}
+
+data Room {
+    exits: [Exit; 4];
+    exit_count: u32;
+}
+
+machine main {
+    pub entry(&mut self) {
+        let rooms: [Room; 1] = [Room {
+            exits: [
+                Exit { destination: 0 },
+                Exit { destination: 0 },
+                Exit { destination: 0 },
+                Exit { destination: 0 }
+            ],
+            exit_count: 0
+        }];
+        let from_index: IndexOf<rooms> = 0;
+
+        self.append_exit(&mut rooms[from_index], 1);
+        -> entry() when true;
+    }
+
+    fn append_exit(
+        &mut self,
+        room: &mut Room,
+        destination: u32
+    ) {
+        let exits: &mut [Exit] = room.exits.as_mut_slice();
+        let index: IndexOf<exits> = room.exit_count;
+
+        exits[index] = Exit { destination: destination };
+        room.exit_count = index + 1;
+    }
+}
