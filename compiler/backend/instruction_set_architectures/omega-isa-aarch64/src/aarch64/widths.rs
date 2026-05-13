@@ -220,6 +220,15 @@ fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
             8 => 20,
             _ => 0,
         },
+        RuntimeValueOperand::FrameIndexed {
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            ..
+        } => {
+            runtime_frame_index_setup_width(*element_byte_size, *field_byte_offset)
+                + runtime_store_data_width(*byte_size)
+        }
         RuntimeValueOperand::Binary { left, right, .. } => {
             runtime_value_operand_width(left) + runtime_value_operand_width(right) + 4
         }

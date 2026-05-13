@@ -29,6 +29,13 @@ pub enum RuntimeValueOperand {
         byte_offset: usize,
         byte_size: usize,
     },
+    FrameIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     Binary {
         left: Box<RuntimeValueOperand>,
         operator: StateGuardOperator,

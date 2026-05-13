@@ -340,6 +340,18 @@ fn resolve_runtime_value_operand(
         });
     }
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
+    {
+        return Some(RuntimeValueOperand::FrameIndexed {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+        });
+    }
+
     let place = resolve_runtime_storage_place(
         input,
         dispatch_index,

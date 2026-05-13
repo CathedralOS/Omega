@@ -510,6 +510,15 @@ fn runtime_value_operand_name(
             let symbol = storage_region_symbol_name(*region, entry_machine_name);
             format!("{symbol}@{byte_offset}/{}", byte_size)
         }
+        omega_target_operations::RuntimeValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "frame_indexed(descriptor@{descriptor_offset}, index@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+        ),
         omega_target_operations::RuntimeValueOperand::Binary {
             left,
             operator,

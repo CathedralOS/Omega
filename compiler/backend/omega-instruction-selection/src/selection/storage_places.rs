@@ -393,12 +393,27 @@ fn indexed_element_layout(
 
 fn indexed_element_type_name(type_name: &str) -> Option<&str> {
     type_name
-        .strip_prefix("&mut [")
-        .and_then(|inner| inner.strip_suffix(']'))
+        .strip_prefix('[')
+        .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim()))
+        .or_else(|| {
+            type_name
+                .strip_prefix("&mut [")
+                .and_then(|inner| inner.strip_suffix(']'))
+        })
         .or_else(|| {
             type_name
                 .strip_prefix("&[")
                 .and_then(|inner| inner.strip_suffix(']'))
+        })
+        .or_else(|| {
+            type_name
+                .strip_prefix("&mut [")
+                .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim_end_matches(']').trim()))
+        })
+        .or_else(|| {
+            type_name
+                .strip_prefix("&[")
+                .and_then(|inner| inner.split_once(';').map(|(element, _)| element.trim_end_matches(']').trim()))
         })
 }
 
