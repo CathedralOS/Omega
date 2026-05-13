@@ -220,6 +220,14 @@ fn runtime_value_operand_width(operand: &RuntimeValueOperand) -> usize {
             8 => 20,
             _ => 0,
         },
+        RuntimeValueOperand::Pointee {
+            field_byte_offset,
+            byte_size,
+            ..
+        } => {
+            20 + add_constant_width(*field_byte_offset)
+                + runtime_store_data_width(*byte_size)
+        }
         RuntimeValueOperand::FrameIndexed {
             element_byte_size,
             field_byte_offset,
