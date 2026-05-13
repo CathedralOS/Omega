@@ -83,6 +83,7 @@ pub fn classify_transition_guard(guard: &TransitionGuard) -> StateGuardKind {
     match guard {
         TransitionGuard::Always => StateGuardKind::Always,
         TransitionGuard::When(expression) => match expression {
+            Expression::Boolean(true) => StateGuardKind::Always,
             Expression::Binary(binary) => match binary.operator {
                 BinaryOperator::Equal => StateGuardKind::RuntimeEquality,
                 BinaryOperator::NotEqual => StateGuardKind::RuntimeInequality,
@@ -116,6 +117,7 @@ pub fn classify_transition_guard_expression(
     };
 
     match table.expression(guard) {
+        ExpressionNode::Boolean(true) => StateGuardKind::Always,
         ExpressionNode::Binary(binary) => match binary.operator {
             BinaryOperator::Equal => StateGuardKind::RuntimeEquality,
             BinaryOperator::NotEqual => StateGuardKind::RuntimeInequality,
