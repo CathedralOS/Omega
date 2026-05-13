@@ -1,8 +1,8 @@
 use omega_control_flow::StateKey;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
-use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlan {

@@ -1,6 +1,6 @@
 use crate::{FieldLayout, TypeLayout};
+use omega_checked_trees::name::ProgramName;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::ProgramName;
 
 #[derive(Debug)]
 pub(super) struct PlannedField {

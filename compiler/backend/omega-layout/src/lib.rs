@@ -1,6 +1,6 @@
+use omega_checked_trees::name::ProgramName;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::name::ProgramName;
 
 mod builder;
 mod packing;

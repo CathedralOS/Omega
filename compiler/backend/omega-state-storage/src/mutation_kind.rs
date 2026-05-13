@@ -1,10 +1,10 @@
 use super::{StateMutationKind, StateMutationLowering};
 use crate::StateStoragePlanningContext;
 use omega_control_flow::StateKey;
-use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{
+use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableMemberExpression, TableNamePath,
 };
+use omega_core::symbols::SymbolHandle;
 
 pub(super) fn mutation_lowering(
     context: &StateStoragePlanningContext,

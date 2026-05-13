@@ -348,8 +348,8 @@ fn remap_transition_handle(
 }
 
 fn remap_expression_span(
-    expressions: HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
-) -> HandleSpan<omega_typed_trees::expression::ExpressionHandle> {
+    expressions: HandleSpan<omega_checked_trees::expression::ExpressionHandle>,
+) -> HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
     HandleSpan::from_parts(expressions.start(), expressions.count())
 }
 

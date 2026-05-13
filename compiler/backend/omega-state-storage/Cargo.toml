@@ -15,4 +15,3 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-state-calls = { path = "../omega-state-calls" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-values = { path = "../omega-state-values" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
