@@ -1,0 +1,12 @@
+machine main {
+    pub entry(&mut self, flag: bool, out: &mut String) {
+        out = self.pick(flag);
+    }
+
+    fn pick(&mut self, flag: bool) -> String {
+        transition flag {
+            true -> "Gate"
+            false -> "Branch Room"
+        }
+    }
+}
