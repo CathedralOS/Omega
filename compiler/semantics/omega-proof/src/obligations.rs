@@ -58,6 +58,7 @@ pub struct BoundedAssignmentObligation {
     pub machine: String,
     pub state_symbol: SymbolHandle,
     pub state: String,
+    pub state_guard: Option<TransitionGuard>,
     pub target: Expression,
     pub value: Expression,
     pub value_constraints: HandleSpan<TypeConstraint>,
@@ -348,6 +349,7 @@ fn collect_bounded_assignment_obligation(
     let value_constraints = expression_constraints(program, machine, state, &assignment.value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
     let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
+    let state_guard = incoming_state_guard(program, machine, state);
 
     proof_plan
         .obligations
@@ -357,6 +359,7 @@ fn collect_bounded_assignment_obligation(
                 machine: machine.name.to_string(),
                 state_symbol: state.symbol,
                 state: state.name.to_string(),
+                state_guard,
                 target: assignment.target.clone(),
                 value: assignment.value.clone(),
                 value_constraints,
@@ -619,6 +622,99 @@ fn transition_target_state_and_arguments<'program>(
             }
         })
         .map(|target_state| (target_state, arguments.as_slice()))
+}
+
+fn incoming_state_guard(
+    program: &Program,
+    machine: &Machine,
+    target_state: &State,
+) -> Option<TransitionGuard> {
+    let mut guard: Option<TransitionGuard> = None;
+
+    for source_state in &machine.states {
+        for statement in &source_state.statements {
+            let omega_typed_trees::statement::Statement::Transition(transition) = statement else {
+                continue;
+            };
+
+            let Some((resolved_target, _)) = transition_target_state_and_arguments(
+                program,
+                machine,
+                source_state,
+                &transition.target,
+            ) else {
+                continue;
+            };
+
+            if resolved_target.symbol != target_state.symbol {
+                continue;
+            }
+
+            let TransitionGuard::When(_) = &transition.guard else {
+                return None;
+            };
+
+            match &guard {
+                Some(existing) if !guards_equivalent_for_precondition(existing, &transition.guard) => {
+                    return None;
+                }
+                Some(_) => {}
+                None => guard = Some(transition.guard.clone()),
+            }
+        }
+    }
+
+    guard
+}
+
+fn guards_equivalent_for_precondition(left: &TransitionGuard, right: &TransitionGuard) -> bool {
+    match (left, right) {
+        (TransitionGuard::Always, TransitionGuard::Always) => true,
+        (TransitionGuard::When(left), TransitionGuard::When(right)) => {
+            expressions_equivalent_for_precondition(left, right)
+        }
+        _ => false,
+    }
+}
+
+fn expressions_equivalent_for_precondition(left: &Expression, right: &Expression) -> bool {
+    if left == right {
+        return true;
+    }
+
+    match (left, right) {
+        (Expression::Mutable(left), _) => expressions_equivalent_for_precondition(left, right),
+        (_, Expression::Mutable(right)) => expressions_equivalent_for_precondition(left, right),
+        (Expression::Name(left), Expression::Name(right)) => left.as_slice() == right.as_slice(),
+        (Expression::Call(left), Expression::Call(right)) => {
+            left.target == right.target
+                && left.arguments.len() == right.arguments.len()
+                && match (left.receiver.as_deref(), right.receiver.as_deref()) {
+                    (Some(left_receiver), Some(right_receiver)) => {
+                        expressions_equivalent_for_precondition(left_receiver, right_receiver)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+                && left
+                    .arguments
+                    .iter()
+                    .zip(&right.arguments)
+                    .all(|(left_argument, right_argument)| {
+                        expressions_equivalent_for_precondition(left_argument, right_argument)
+                    })
+        }
+        (Expression::Member(left), Expression::Member(right)) => {
+            left.member == right.member
+                && expressions_equivalent_for_precondition(&left.receiver, &right.receiver)
+        }
+        (Expression::Binary(left), Expression::Binary(right)) => {
+            left.operator == right.operator
+                && expressions_equivalent_for_precondition(&left.left, &right.left)
+                && expressions_equivalent_for_precondition(&left.right, &right.right)
+        }
+        _ => false,
+    }
 }
 
 fn contained_machine<'program>(
