@@ -276,10 +276,19 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
-    let [_root_name, suffix @ ..] = path.as_slice() else {
+    let [root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
-    let place = resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", target)?;
+    let root_path = NamePath::unresolved(vec![root_name.clone()]);
+    let root_expression = Expression::Name(root_path);
+    let place = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        source_key,
+        "",
+        "",
+        &root_expression,
+    )?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
         || place.byte_count != input.target.pointer_size
     {
