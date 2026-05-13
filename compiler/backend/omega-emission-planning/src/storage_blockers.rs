@@ -51,6 +51,10 @@ pub(super) fn collect_state_storage_blockers(
             continue;
         }
 
+        if state_mutation_is_planned(input, mutation.source_key, mutation.statement_index) {
+            continue;
+        }
+
         let source_name = state_name(input, mutation.source_key);
         blockers.insert(blocker(
             "state mutation",
@@ -140,25 +144,33 @@ fn runtime_storage_write_is_planned(
     write: &RuntimeStorageWrite,
 ) -> bool {
     runtime_storage_write_has_planned_text_write(input, write)
-        || input.instructions.instructions.iter().any(|(_, instruction)| {
-            if !state_key_matches_statement_source(instruction.source_key, write.source_key)
-                || instruction.source_statement != write.statement_index
-            {
-                return false;
-            }
+        || state_mutation_is_planned(input, write.source_key, write.statement_index)
+}
 
-            matches!(
-                instruction.kind,
-                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                    | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
-                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-            )
-        })
+fn state_mutation_is_planned(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input.instructions.instructions.iter().any(|(_, instruction)| {
+        if !state_key_matches_statement_source(instruction.source_key, source_key)
+            || instruction.source_statement != statement_index
+        {
+            return false;
+        }
+
+        matches!(
+            instruction.kind,
+            SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
+                | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+        )
+    })
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {

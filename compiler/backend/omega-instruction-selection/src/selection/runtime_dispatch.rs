@@ -26,6 +26,8 @@ use omega_target_operations::{InstructionOperand, SelectedInstruction, SelectedI
 use operation_aliases::bind_runtime_operation_aliases;
 use writes::select_runtime_storage_write_for_operation;
 
+pub(crate) use branches::select_runtime_resolved_mutation_write;
+
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,

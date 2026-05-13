@@ -1,0 +1,5 @@
+machine main {
+    pub entry(&mut self, health: &mut i32) {
+        health = 1;
+    }
+}
