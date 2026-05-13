@@ -64,6 +64,13 @@ impl StateStoragePlanningContext {
             || self.state_calls.required_source_or_target(state_key)
     }
 
+    pub fn state_uses_runtime_flow_by_key(&self, state_key: StateKey) -> bool {
+        self.runtime_flow
+            .states
+            .iter()
+            .any(|(_, state)| state.key == state_key)
+    }
+
     pub fn state_mutation_is_already_lowered_by_key(
         &self,
         state_key: StateKey,

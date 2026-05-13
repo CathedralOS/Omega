@@ -73,7 +73,8 @@ pub(super) fn state_mutation_for_statement<'plan>(
         .mutations
         .iter()
         .find(|(_, mutation)| {
-            mutation.source_key == source_key && mutation.statement_index == statement_index
+            state_key_matches_statement_source(mutation.source_key, source_key)
+                && mutation.statement_index == statement_index
         })
         .map(|(_, mutation)| mutation)
 }

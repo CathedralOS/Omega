@@ -45,9 +45,10 @@ pub(super) fn resolve_runtime_storage_place(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
-    let [_root_name, suffix @ ..] = path.as_slice() else {
+    if path.is_empty() {
         return None;
-    };
+    }
+    let suffix = &path.as_slice()[1..];
     let slot = input
         .runtime_storage
         .frame_slots
@@ -168,9 +169,10 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     }
 
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
-    let [_root_name, suffix @ ..] = path.as_slice() else {
+    if path.is_empty() {
         return None;
-    };
+    }
+    let suffix = &path.as_slice()[1..];
     let slot = input
         .runtime_storage
         .frame_slots
