@@ -838,3 +838,100 @@ fn expression_root_name(
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::build_borrow_facts;
+    use omega_checked_trees::expression::{CallExpression, Expression, NamePath};
+    use omega_checked_trees::machine::Machine;
+    use omega_checked_trees::name::ProgramName;
+    use omega_checked_trees::signature::StateParameter;
+    use omega_checked_trees::state::State;
+    use omega_checked_trees::statement::{Call, Statement};
+    use omega_checked_trees::types::TypeReference;
+    use omega_core::symbols::SymbolHandle;
+
+    #[test]
+    fn collects_nested_state_call_ordinals_for_checked_borrow_facts() {
+        let entry_symbol = SymbolHandle::from_arena_index(1);
+        let outer_symbol = SymbolHandle::from_arena_index(2);
+        let inner_symbol = SymbolHandle::from_arena_index(3);
+        let item_symbol = SymbolHandle::from_arena_index(4);
+        let machine_symbol = SymbolHandle::from_arena_index(5);
+
+        let item_argument = Expression::Mutable(Box::new(Expression::Name(NamePath::resolved(
+            vec![ProgramName::generated("item")],
+            item_symbol,
+            item_symbol,
+        ))));
+
+        let nested_call = Expression::Call(Box::new(CallExpression {
+            receiver: None,
+            target_symbol: inner_symbol,
+            target: ProgramName::generated("inner"),
+            arguments: vec![item_argument],
+        }));
+
+        let mut program = omega_typed_trees::Program {
+            machines: vec![Machine {
+                symbol: machine_symbol,
+                name: ProgramName::generated("Game"),
+                contains: Vec::new(),
+                owned_data: Vec::new(),
+                states: vec![
+                    State {
+                        symbol: entry_symbol,
+                        name: ProgramName::generated("entry"),
+                        parameters: vec![StateParameter {
+                            symbol: item_symbol,
+                            name: ProgramName::generated("item"),
+                            type_reference: TypeReference::Unit,
+                            is_const: false,
+                            is_mutable: true,
+                            is_self: false,
+                        }],
+                        return_type: None,
+                        statements: vec![Statement::Call(Call {
+                            receiver_symbol: SymbolHandle::invalid(),
+                            target_symbol: outer_symbol,
+                            receiver: None,
+                            target: ProgramName::generated("outer"),
+                            arguments: vec![nested_call],
+                        })],
+                        statement_nodes: Default::default(),
+                    },
+                    State {
+                        symbol: outer_symbol,
+                        name: ProgramName::generated("outer"),
+                        parameters: Vec::new(),
+                        return_type: None,
+                        statements: Vec::new(),
+                        statement_nodes: Default::default(),
+                    },
+                    State {
+                        symbol: inner_symbol,
+                        name: ProgramName::generated("inner"),
+                        parameters: Vec::new(),
+                        return_type: None,
+                        statements: Vec::new(),
+                        statement_nodes: Default::default(),
+                    },
+                ],
+            }],
+            ..Default::default()
+        };
+        program.rebuild_tables();
+
+        let facts = build_borrow_facts(&program);
+        let state = facts.states.iter().next().map(|(_, state)| state).unwrap();
+        let calls = facts.calls.span(state.calls).unwrap();
+
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].statement_index, 0);
+        assert_eq!(calls[0].call_ordinal, 0);
+        assert_eq!(calls[0].target, ProgramName::generated("outer"));
+        assert_eq!(calls[1].statement_index, 0);
+        assert_eq!(calls[1].call_ordinal, 1);
+        assert_eq!(calls[1].target, ProgramName::generated("inner"));
+    }
+}
