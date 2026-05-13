@@ -1,7 +1,7 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_checked_trees::Program;
-use omega_typed_trees::expression::display_name_path;
-use omega_typed_trees::statement::TransitionTarget;
+use omega_checked_trees::expression::display_name_path;
+use omega_checked_trees::statement::TransitionTarget;
 
 use crate::segments::{
     SegmentTransition, copy_statement_expression_span, table_transition_guard_expression,
@@ -50,16 +50,16 @@ pub(super) fn plan_transition(
 }
 
 fn table_transition_target_arguments(
-    target: omega_typed_trees::statement::TransitionTargetHandle,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
     program: &Program,
     control_flow: &mut ControlFlowPlan,
-) -> omega_core::arena::HandleSpan<omega_typed_trees::expression::ExpressionHandle> {
+) -> omega_core::arena::HandleSpan<omega_checked_trees::expression::ExpressionHandle> {
     if !target.is_valid() {
         return omega_core::arena::HandleSpan::empty();
     }
 
     match program.statement_table.transition_target(target) {
-        omega_typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
+        omega_checked_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
             copy_statement_expression_span(
                 control_flow,
                 &program.expression_table,
@@ -67,9 +67,9 @@ fn table_transition_target_arguments(
                 *arguments,
             )
         }
-        omega_typed_trees::statement::TransitionTargetNode::SelfTarget
-        | omega_typed_trees::statement::TransitionTargetNode::Terminal
-        | omega_typed_trees::statement::TransitionTargetNode::Value(_) => {
+        omega_checked_trees::statement::TransitionTargetNode::SelfTarget
+        | omega_checked_trees::statement::TransitionTargetNode::Terminal
+        | omega_checked_trees::statement::TransitionTargetNode::Value(_) => {
             omega_core::arena::HandleSpan::empty()
         }
     }
