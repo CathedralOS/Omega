@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::Program;
 use omega_typed_trees::expression::Expression;
 use omega_typed_trees::machine::Machine;
@@ -42,7 +43,9 @@ pub struct BoundedValueObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuardedTransitionObligation {
+    pub machine_symbol: SymbolHandle,
     pub machine: String,
+    pub state_symbol: SymbolHandle,
     pub state: String,
     pub target: TransitionTarget,
     pub guard: TransitionGuard,
@@ -50,7 +53,9 @@ pub struct GuardedTransitionObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedAssignmentObligation {
+    pub machine_symbol: SymbolHandle,
     pub machine: String,
+    pub state_symbol: SymbolHandle,
     pub state: String,
     pub target: Expression,
     pub value: Expression,
@@ -61,7 +66,9 @@ pub struct BoundedAssignmentObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedCallArgumentObligation {
+    pub machine_symbol: SymbolHandle,
     pub machine: String,
+    pub state_symbol: SymbolHandle,
     pub state: String,
     pub receiver: Option<String>,
     pub target: String,
@@ -82,7 +89,9 @@ pub struct BoundedInitializerObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedStateReturnObligation {
+    pub machine_symbol: SymbolHandle,
     pub machine: String,
+    pub state_symbol: SymbolHandle,
     pub state: String,
     pub value: Expression,
     pub value_constraints: HandleSpan<TypeConstraint>,
@@ -92,7 +101,9 @@ pub struct BoundedStateReturnObligation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedTransitionArgumentObligation {
+    pub machine_symbol: SymbolHandle,
     pub machine: String,
+    pub state_symbol: SymbolHandle,
     pub state: String,
     pub target: TransitionTarget,
     pub parameter: String,
@@ -194,7 +205,9 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
                         .obligations
                         .push(ProofObligation::GuardedTransition(
                             GuardedTransitionObligation {
+                                machine_symbol: machine.symbol,
                                 machine: machine.name.to_string(),
+                                state_symbol: state.symbol,
                                 state: state.name.to_string(),
                                 target: transition.target.clone(),
                                 guard: transition.guard.clone(),
@@ -327,7 +340,9 @@ fn collect_bounded_assignment_obligation(
         .obligations
         .push(ProofObligation::BoundedAssignment(
             BoundedAssignmentObligation {
+                machine_symbol: machine.symbol,
                 machine: machine.name.to_string(),
+                state_symbol: state.symbol,
                 state: state.name.to_string(),
                 target: assignment.target.clone(),
                 value: assignment.value.clone(),
@@ -368,7 +383,9 @@ fn collect_bounded_transition_argument_obligations(
             .obligations
             .push(ProofObligation::BoundedTransitionArgument(
                 BoundedTransitionArgumentObligation {
+                    machine_symbol: machine.symbol,
                     machine: machine.name.to_string(),
+                    state_symbol: state.symbol,
                     state: state.name.to_string(),
                     target: transition.target.clone(),
                     parameter: parameter.name.to_string(),
@@ -414,7 +431,9 @@ fn collect_bounded_call_argument_obligations(
             .obligations
             .push(ProofObligation::BoundedCallArgument(
                 BoundedCallArgumentObligation {
+                    machine_symbol: machine.symbol,
                     machine: machine.name.to_string(),
+                    state_symbol: state.symbol,
                     state: state.name.to_string(),
                     receiver: call.receiver.as_ref().map(display_name_path),
                     target: call.target.to_string(),
@@ -456,7 +475,9 @@ fn collect_bounded_state_return_obligation(
         .obligations
         .push(ProofObligation::BoundedStateReturn(
             BoundedStateReturnObligation {
+                machine_symbol: machine.symbol,
                 machine: machine.name.to_string(),
+                state_symbol: state.symbol,
                 state: state.name.to_string(),
                 value: value.clone(),
                 value_constraints,
