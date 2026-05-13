@@ -5,8 +5,8 @@ use omega_state_schedule::ScheduledState;
 use omega_checked_trees::expression::ExpressionTable;
 
 use super::bindings::{
-    RuntimeAliasBinding, RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,
-    set_runtime_alias, strip_mutable_expression_handle,
+    RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
+    resolve_runtime_alias_binding_handle, strip_mutable_expression_handle,
 };
 use super::host_operations::select_host_call;
 use super::instruction_sink::SelectedInstructionSink;
@@ -18,7 +18,7 @@ pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,
     state_key: StateKey,
     dispatch_index: Option<u32>,
-    aliases: &[RuntimeAliasBinding],
+    aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     operands: &mut Arena<InstructionOperand>,
     selected_instructions: &mut SelectedInstructionSink,
@@ -49,7 +49,7 @@ pub(super) fn select_state_body_instructions(
                 host_call,
                 dispatch_index,
                 Some(RuntimeAliasResolutionContext {
-                    aliases,
+                    aliases: aliases.bindings(),
                     alias_expressions,
                 }),
                 operands,
@@ -71,7 +71,7 @@ pub(super) fn select_state_body_instructions(
             continue;
         }
 
-        let mut child_aliases = aliases.to_vec();
+        let mut child_aliases = RuntimeAliasBuffer::from_bindings(aliases.bindings());
         let mut child_alias_expressions = alias_expressions.clone();
         bind_state_call_aliases(
             input,
@@ -122,7 +122,7 @@ pub(super) fn select_state_body_instructions(
 fn follow_transition_target(
     input: &InstructionSelectionInput<'_>,
     current_dispatch_index: Option<u32>,
-    aliases: &[RuntimeAliasBinding],
+    aliases: &RuntimeAliasBuffer,
     alias_expressions: &ExpressionTable,
     target: &PlannedTransitionTarget,
     operands: &mut Arena<InstructionOperand>,
@@ -187,7 +187,7 @@ fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control
 fn bind_state_call_aliases(
     input: &InstructionSelectionInput<'_>,
     state_call: &StateCall,
-    aliases: &mut Vec<RuntimeAliasBinding>,
+    aliases: &mut RuntimeAliasBuffer,
     alias_expressions: &mut ExpressionTable,
 ) {
     let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
@@ -200,13 +200,12 @@ fn bind_state_call_aliases(
         let resolved_expression = resolve_runtime_alias_binding_handle(
             argument_expression,
             state_call.source_key,
-            aliases,
+            aliases.bindings(),
             alias_expressions,
         );
         let expression =
             strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
-        set_runtime_alias(
-            aliases,
+        aliases.set_alias(
             RuntimeAliasBinding {
                 source_key: state_call.target_key,
                 parameter_symbol: argument.parameter_symbol,

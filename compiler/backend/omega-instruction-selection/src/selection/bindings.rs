@@ -1,4 +1,5 @@
 use omega_control_flow::StateKey;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
@@ -13,13 +14,60 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchBindingKind,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct RuntimeAliasBinding {
     pub(super) source_key: StateKey,
     pub(super) parameter_symbol: SymbolHandle,
     pub(super) parameter_name: ProgramName,
     pub(super) expression_source_key: StateKey,
     pub(super) expression: ExpressionHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) struct RuntimeAliasBuffer {
+    aliases: Arena<RuntimeAliasBinding>,
+    scope: HandleSpan<RuntimeAliasBinding>,
+}
+
+impl RuntimeAliasBuffer {
+    pub(super) fn clear(&mut self) {
+        self.aliases.reset_retain_capacity();
+        self.scope = HandleSpan::empty();
+    }
+
+    pub(super) fn from_bindings(bindings: &[RuntimeAliasBinding]) -> Self {
+        let mut buffer = Self::default();
+        buffer.scope = buffer.aliases.insert_many(bindings.iter().cloned());
+        buffer
+    }
+
+    pub(super) fn bindings(&self) -> &[RuntimeAliasBinding] {
+        self.aliases.span_or_empty(self.scope)
+    }
+
+    pub(super) fn set_alias(&mut self, alias: RuntimeAliasBinding) {
+        let existing_handle = self
+            .aliases
+            .iter()
+            .find(|(_, existing_alias)| {
+                self.bindings().iter().any(|binding| {
+                    binding.source_key == existing_alias.source_key
+                        && binding.parameter_symbol == existing_alias.parameter_symbol
+                }) && existing_alias.source_key == alias.source_key
+                    && existing_alias.parameter_symbol == alias.parameter_symbol
+            })
+            .map(|(handle, _)| handle);
+
+        if let Some(handle) = existing_handle {
+            *self.aliases.get_mut(handle) = alias;
+            return;
+        }
+
+        let existing = self.bindings().to_vec();
+        self.scope = self
+            .aliases
+            .insert_many(existing.into_iter().chain([alias]));
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -38,20 +86,6 @@ pub(super) struct RuntimeResolvedExpression {
 pub(super) struct RuntimeResolvedExpressionHandle {
     pub(super) source_key: StateKey,
     pub(super) expression: ExpressionHandle,
-}
-
-pub(super) fn set_runtime_alias(
-    aliases: &mut Vec<RuntimeAliasBinding>,
-    alias: RuntimeAliasBinding,
-) {
-    if let Some(existing_alias) = aliases.iter_mut().find(|existing_alias| {
-        existing_alias.source_key == alias.source_key
-            && existing_alias.parameter_symbol == alias.parameter_symbol
-    }) {
-        *existing_alias = alias;
-    } else {
-        aliases.push(alias);
-    }
 }
 
 pub(super) fn strip_mutable_expression(expression: Expression) -> Expression {

@@ -3,7 +3,7 @@ use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOper
 use omega_checked_trees::expression::ExpressionTable;
 
 use super::super::bindings::{
-    RuntimeAliasBinding, resolve_runtime_alias_binding_handle, set_runtime_alias,
+    RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
     strip_mutable_expression_handle,
 };
 use super::super::lookups::state_call_for_statement;
@@ -11,7 +11,7 @@ use super::super::lookups::state_call_for_statement;
 pub(super) fn bind_runtime_operation_aliases(
     input: &InstructionSelectionInput<'_>,
     operation: &RuntimeDispatchBodyOperation,
-    aliases: &mut Vec<RuntimeAliasBinding>,
+    aliases: &mut RuntimeAliasBuffer,
     alias_expressions: &mut ExpressionTable,
 ) {
     match &operation.kind {
@@ -39,13 +39,12 @@ pub(super) fn bind_runtime_operation_aliases(
         let resolved_expression = resolve_runtime_alias_binding_handle(
             argument_expression,
             state_call.source_key,
-            aliases,
+            aliases.bindings(),
             alias_expressions,
         );
         let expression =
             strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
-        set_runtime_alias(
-            aliases,
+        aliases.set_alias(
             RuntimeAliasBinding {
                 source_key: state_call.target_key,
                 parameter_symbol: argument.parameter_symbol,

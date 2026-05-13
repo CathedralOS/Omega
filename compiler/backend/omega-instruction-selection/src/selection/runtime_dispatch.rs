@@ -15,7 +15,7 @@ use super::host_operations::{
 };
 use super::instruction_sink::SelectedInstructionSink;
 use super::lookups::host_call_for_statement;
-use crate::selection::bindings::RuntimeAliasResolutionContext;
+use crate::selection::bindings::{RuntimeAliasBuffer, RuntimeAliasResolutionContext};
 use branches::{
     select_runtime_branch_preludes_for_operation,
     select_runtime_leaf_branch_expansions_for_operation,
@@ -40,7 +40,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
         source_statement: 0,
     });
 
-    let mut runtime_aliases = Vec::new();
+    let mut runtime_aliases = RuntimeAliasBuffer::default();
     let mut runtime_alias_expressions = ExpressionTable::new();
     let mut runtime_static_values = Vec::new();
 
@@ -80,7 +80,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     input,
                     dispatch_case.dispatch_index,
                     operation,
-                    &runtime_aliases,
+                    runtime_aliases.bindings(),
                     &runtime_alias_expressions,
                     &mut runtime_static_values,
                     selected_instructions,
@@ -110,7 +110,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     host_call_for_statement(input, operation.source_key, operation.statement_index)
                 {
                     let alias_context = Some(RuntimeAliasResolutionContext {
-                        aliases: &runtime_aliases,
+                        aliases: runtime_aliases.bindings(),
                         alias_expressions: &runtime_alias_expressions,
                     });
 
