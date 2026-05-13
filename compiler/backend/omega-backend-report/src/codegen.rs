@@ -449,6 +449,19 @@ fn selected_instruction_name(
                 "copy runtime storage {source_symbol}@{source_offset} -> runtime-frame indexed descriptor@{descriptor_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+            source_region,
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_count,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime storage {source_symbol}@{source_offset} -> runtime pointee runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             format!("set dispatch state #{dispatch_index}")
         }

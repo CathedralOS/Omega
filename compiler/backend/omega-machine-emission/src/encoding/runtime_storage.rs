@@ -245,3 +245,19 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         byte_count,
     )
 }
+
+pub(super) fn encode_runtime_storage_copy_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_to_runtime_pointee(
+        input.target.architecture,
+        source_offset,
+        pointer_byte_offset,
+        field_byte_offset,
+        byte_count,
+    )
+}

@@ -78,6 +78,7 @@ fn state_value_has_planned_storage_write(
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
                     | SelectedInstructionKind::CopyRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
     })
 }

@@ -1,2 +1,0 @@
-error: state mutation: #1 main.entry statement 0 ParameterOrAlias/NeedsAliasWrite `out` = `self.pick(flag)` needs runtime storage write lowering
-error: state values: main.entry statement 0 AssignmentValue binary expression `self.pick(flag)` needs runtime value lowering

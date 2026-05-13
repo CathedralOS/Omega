@@ -97,6 +97,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_alias_string_write",
     "runtime_arithmetic_value",
     "runtime_branching_helper_guard",
+    "runtime_branching_helper_string",
     "runtime_branching_helper_value",
     "runtime_call_value",
     "runtime_contained_call_value",
@@ -116,6 +117,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
-    "runtime_branching_helper_string",
     "runtime_call_guard",
 ];

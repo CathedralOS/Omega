@@ -219,6 +219,13 @@ pub enum SelectedInstructionKind {
         field_byte_offset: usize,
         byte_count: usize,
     },
+    CopyRuntimeStorageToRuntimePointee {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        byte_count: usize,
+    },
     SetDispatchState {
         dispatch_index: u32,
     },

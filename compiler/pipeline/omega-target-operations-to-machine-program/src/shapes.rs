@@ -236,6 +236,18 @@ pub(super) fn lower_machine_instruction_kind(
             *field_byte_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_count,
+            ..
+        } => runtime_storage::runtime_storage_copy_to_runtime_pointee_kind(
+            *source_offset,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::SetDispatchState { dispatch_index } => {
             dispatch::dispatch_state_write_kind(*dispatch_index)
         }
