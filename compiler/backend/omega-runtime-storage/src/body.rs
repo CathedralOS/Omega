@@ -161,7 +161,10 @@ fn append_state_call_result_slot(
     role: StateCallRole,
     target_key: StateKey,
 ) {
-    if role != StateCallRole::AssignmentValue {
+    if !matches!(
+        role,
+        StateCallRole::AssignmentValue | StateCallRole::TransitionGuard
+    ) {
         return;
     }
 
