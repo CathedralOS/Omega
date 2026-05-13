@@ -155,7 +155,7 @@ machine MazeBuilder::build {
         let exits: &mut [Exit] = room.exits.as_mut_slice();
         let index: IndexOf<exits> = room.exit_count;
         exits[index] = Exit { command: command, direction: direction, destination: destination };
-        room.exit_count = room.exit_count + 1;
+        room.exit_count = index + 1;
     }
 
     fn next_unused_cell(
