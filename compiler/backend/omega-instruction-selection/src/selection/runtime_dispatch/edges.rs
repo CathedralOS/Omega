@@ -3,11 +3,11 @@ use super::guards::select_runtime_dispatch_expression_guard;
 use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table,
 };
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_control_flow::StateParameterFlow;
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
-use omega_typed_trees::expression::ExpressionNode;
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardLowering};
@@ -197,7 +197,7 @@ fn select_runtime_dispatch_argument_materialization(
     source_key: StateKey,
     statement_index: usize,
     target_dispatch_index: u32,
-    arguments: omega_core::arena::HandleSpan<omega_typed_trees::expression::ExpressionHandle>,
+    arguments: omega_core::arena::HandleSpan<ExpressionHandle>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(target_key) = dispatch_key_for_index(input, target_dispatch_index) else {

@@ -2,7 +2,7 @@ use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
 use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
 use omega_state_schedule::ScheduledState;
-use omega_typed_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::ExpressionTable;
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasResolutionContext, resolve_runtime_alias_binding_handle,

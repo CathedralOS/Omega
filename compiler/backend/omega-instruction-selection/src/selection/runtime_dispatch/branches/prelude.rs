@@ -10,7 +10,7 @@ use omega_runtime_branching::{
     RuntimeBranchPreludeBinding, RuntimeBranchPreludeExpansion, RuntimeBranchPreludeOperationKind,
 };
 use omega_target_operations::InstructionOperand;
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::name::ProgramName;
 
 use super::super::super::lookups::host_call_for_statement;
 use super::mutation::select_runtime_resolved_mutation_write;

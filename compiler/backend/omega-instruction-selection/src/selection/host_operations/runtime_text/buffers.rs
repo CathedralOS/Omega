@@ -6,7 +6,7 @@ use omega_runtime_text::places::{
     expression_place_eq_in_table,
 };
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
-use omega_typed_trees::expression::Expression;
+use omega_checked_trees::expression::Expression;
 
 pub(in crate::selection::host_operations) fn find_runtime_text_input_buffer_data<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,

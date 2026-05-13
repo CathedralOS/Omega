@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_core::arena::Arena;
-use omega_typed_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::ExpressionTable;
 use omega_state_schedule::{StateScheduleContext, build_entry_state_schedule};
 
 mod bindings;

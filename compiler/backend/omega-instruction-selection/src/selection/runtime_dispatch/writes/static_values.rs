@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
-use omega_typed_trees::expression::{Expression, ExpressionTable};
+use omega_checked_trees::expression::{Expression, ExpressionTable};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,

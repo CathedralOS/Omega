@@ -5,8 +5,8 @@ use omega_runtime_branching::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
-use omega_typed_trees::expression::{Expression, NamePath};
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::name::ProgramName;
 
 use super::super::super::bindings::{
     append_place_suffix, resolve_straight_line_binding_expression,
