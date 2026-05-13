@@ -45,21 +45,18 @@ pub(super) fn dispatch_guard_comparison(
             ..DispatchGuardComparison::default()
         };
     };
-    let place_operands: Vec<_> = operands
-        .iter()
-        .filter(|operand| {
-            operand.kind == StateGuardOperandKind::Place
-                && operand.storage != StateGuardOperandStorage::Unknown
-        })
-        .collect();
-    let Some(place_operand) = place_operands.first() else {
+    let mut place_operands = operands.iter().filter(|operand| {
+        operand.kind == StateGuardOperandKind::Place
+            && operand.storage != StateGuardOperandStorage::Unknown
+    });
+    let Some(place_operand) = place_operands.next() else {
         return DispatchGuardComparison {
             lowering: guard.lowering,
             operator: guard.operator,
             ..DispatchGuardComparison::default()
         };
     };
-    let right_place_operand = place_operands.get(1).copied();
+    let right_place_operand = place_operands.next();
     let expected_value = operands
         .iter()
         .find(|operand| operand.has_resolved_value)
