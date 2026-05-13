@@ -52,7 +52,10 @@ machine RoomLookup::find_room_mut -> &mut Room {
     ) {
         let rooms: &mut [Room] = level.rooms.as_mut_slice();
 
-        -> self.find_room_mut_at(rooms, level.room_count, cell, 0);
+        transition level.room_count > 0 {
+            true -> self.find_room_mut_at(rooms, level.room_count, cell, 0)
+            false -> &mut rooms[0]
+        }
     }
 
     fn find_room_mut_at(

@@ -21,7 +21,7 @@ data Room {
 
 data Level {
     rooms: [Room; 16];
-    room_count: u32[exact, range<1, 16>];
+    room_count: u32[exact, range<0, 16>];
     start_cell: CellId;
     deepest_depth: u32[exact, non_negative];
 }
