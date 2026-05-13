@@ -1,7 +1,7 @@
 use omega_calling_conventions::PlatformCallData;
 use omega_platform_interface::{HostCall, HostCallArgumentKind, HostCallPlan};
-use omega_typed_trees::expression::{Expression, NamePath};
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::name::ProgramName;
 
 use super::{RuntimeTextBuffer, RuntimeTextPlan, RuntimeTextSource, RuntimeTextUse};
 

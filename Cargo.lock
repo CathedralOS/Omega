@@ -587,11 +587,11 @@ name = "omega-runtime-text"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-storage",
- "omega-typed-trees",
 ]
 
 [[package]]
