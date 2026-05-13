@@ -1,7 +1,8 @@
 use crate::RuntimeBranchingContext;
 use omega_control_flow::{StateKey, StateParameterFlow};
 use omega_platform_interface::HostCall;
-use omega_state_calls::StateCall;
+use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
+use omega_state_calls::{StateCall, StateCallRole};
 
 pub(super) fn host_call_for_statement<'plan>(
     context: &RuntimeBranchingContext<'plan>,
@@ -39,6 +40,22 @@ pub(super) fn state_call_for_operation<'plan>(
     statement_index: usize,
 ) -> Option<&'plan StateCall> {
     context.state_calls.statement_call(source_key, statement_index)
+}
+
+pub(super) fn state_call_for_runtime_operation<'plan>(
+    context: &RuntimeBranchingContext<'plan>,
+    operation: &RuntimeDispatchBodyOperation,
+) -> Option<&'plan StateCall> {
+    let role = match &operation.kind {
+        RuntimeDispatchBodyOperationKind::InlineLeafStateCall { role, .. }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall { role, .. }
+        | RuntimeDispatchBodyOperationKind::StateCall { role, .. } => *role,
+        _ => StateCallRole::Statement,
+    };
+
+    context
+        .state_calls
+        .call_for_role(operation.source_key, operation.statement_index, role)
 }
 
 pub(super) fn state_parameters<'plan>(
