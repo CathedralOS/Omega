@@ -2,7 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::name::ProgramName;
-use omega_state_calls::StateCallLowering;
+use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -52,15 +52,18 @@ pub enum RuntimeDispatchBodyOperationKind {
         platform_call: String,
     },
     InlineLeafStateCall {
+        role: StateCallRole,
         target_key: StateKey,
         argument_count: usize,
     },
     InlineStateCall {
+        role: StateCallRole,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     StateCall {
+        role: StateCallRole,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,

@@ -41,16 +41,6 @@ pub(super) fn state_call_for_operation<'plan>(
     context.state_calls.statement_call(source_key, statement_index)
 }
 
-pub(super) fn state_assignment_value_call<'plan>(
-    context: &RuntimeBranchingContext<'plan>,
-    source_key: StateKey,
-    statement_index: usize,
-) -> Option<&'plan StateCall> {
-    context
-        .state_calls
-        .assignment_value_call(source_key, statement_index)
-}
-
 pub(super) fn state_parameters<'plan>(
     context: &RuntimeBranchingContext<'plan>,
     state_key: StateKey,

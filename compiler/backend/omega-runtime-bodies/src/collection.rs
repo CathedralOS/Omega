@@ -1,7 +1,8 @@
 use super::context::RuntimeDispatchBodyContext;
 use super::lookups::{
     host_call_for_statement, local_storage_for_statement, mutation_for_statement,
-    state_call_for_statement, state_has_no_transitions, state_operations,
+    state_assignment_value_call, state_call_for_statement, state_has_no_transitions,
+    state_operations,
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_control_flow::{OperationKind, StateKey};
@@ -84,6 +85,18 @@ fn append_state_body_operations(
             continue;
         }
 
+        if let Some(state_call) =
+            state_assignment_value_call(context, state_key, operation.statement_index)
+        {
+            append_state_call_body_operation(
+                context,
+                state_call,
+                operations,
+                invariant_names,
+                visiting,
+            );
+        }
+
         if let Some(local_storage) =
             local_storage_for_statement(context, state_key, operation.statement_index)
         {
@@ -146,6 +159,7 @@ fn append_state_call_body_operation(
             state_call.source_key,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                role: state_call.role,
                 target_key: state_call.target_key,
                 argument_count: state_call.argument_count,
             },
@@ -165,6 +179,7 @@ fn append_state_call_body_operation(
             state_call.source_key,
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
+                role: state_call.role,
                 target_key: state_call.target_key,
                 argument_count: state_call.argument_count,
                 lowering: state_call.lowering,
@@ -184,6 +199,7 @@ fn append_state_call_body_operation(
         state_call.source_key,
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
+            role: state_call.role,
             target_key: state_call.target_key,
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,

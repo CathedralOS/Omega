@@ -1,12 +1,13 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_checked_trees::expression::ExpressionTable;
+use omega_state_calls::StateCallRole;
 
 use super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
     strip_mutable_expression_handle,
 };
-use super::super::lookups::state_call_for_statement;
+use super::super::lookups::{state_assignment_value_call, state_call_for_statement};
 
 pub(super) fn bind_runtime_operation_aliases(
     input: &InstructionSelectionInput<'_>,
@@ -24,9 +25,23 @@ pub(super) fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::Other => return,
     }
 
-    let Some(state_call) =
-        state_call_for_statement(input, operation.source_key, operation.statement_index)
-    else {
+    let role = match &operation.kind {
+        RuntimeDispatchBodyOperationKind::InlineLeafStateCall { role, .. }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall { role, .. }
+        | RuntimeDispatchBodyOperationKind::StateCall { role, .. } => *role,
+        _ => unreachable!(),
+    };
+
+    let state_call = match role {
+        StateCallRole::Statement => {
+            state_call_for_statement(input, operation.source_key, operation.statement_index)
+        }
+        StateCallRole::AssignmentValue => {
+            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+        }
+        _ => None,
+    };
+    let Some(state_call) = state_call else {
         return;
     };
     let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {

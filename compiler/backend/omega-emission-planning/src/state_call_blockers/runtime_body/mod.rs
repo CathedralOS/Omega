@@ -40,6 +40,7 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                 target_key,
                 argument_count,
                 lowering,
+                ..
             } = &operation.kind
             else {
                 continue;
