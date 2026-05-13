@@ -45,6 +45,7 @@ use state_call_blockers::collect_state_call_blockers;
 use state_codegen_blockers::collect_state_codegen_blockers;
 use state_guard_blockers::collect_state_guard_blockers;
 use storage_blockers::collect_state_storage_blockers;
+use semantic_scope::{proof_scope_suffix, state_name};
 
 pub struct EmissionPlanningInput<'plan> {
     pub target: NativeTarget,
@@ -106,11 +107,12 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
         blockers.insert(emission_blocker(
             "host lowering",
             &format!(
-                "{} statement {} platform call `{}`: {}",
+                "{} statement {} platform call `{}`: {}{}",
                 state_name(input, unsupported_call.source_key),
                 unsupported_call.statement_index,
                 unsupported_call.platform_call,
-                unsupported_call.reason
+                unsupported_call.reason,
+                proof_scope_suffix(input, unsupported_call.source_key)
             ),
         ));
     }
@@ -167,12 +169,4 @@ fn can_emit_direct_image(input: &EmissionPlanningInput<'_>) -> bool {
 
 fn blocker(stage: &str, reason: &str) -> EmissionBlocker {
     emission_blocker(stage, reason)
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }
