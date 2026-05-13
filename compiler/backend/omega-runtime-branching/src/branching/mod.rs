@@ -18,7 +18,7 @@ use expansions::{
     append_branch_prelude_expansion, append_leaf_branch_expansions,
     append_straight_line_branch_expansions,
 };
-use lookups::state_call_for_operation;
+use lookups::state_call_for_runtime_operation;
 pub use model::{
     RuntimeBranchCallExpansion, RuntimeBranchTargetLowering, RuntimeBranchingCall,
     RuntimeBranchingCallEdge, RuntimeBranchingCallPlan, RuntimeLeafBranchBinding,
@@ -46,8 +46,7 @@ pub fn build_runtime_branching_call_plan(
         let mut aliases = Vec::new();
 
         for operation in operations.iter() {
-            let state_call =
-                state_call_for_operation(context, operation.source_key, operation.statement_index);
+            let state_call = state_call_for_runtime_operation(context, operation);
             let RuntimeDispatchBodyOperationKind::StateCall {
                 target_key,
                 argument_count,
