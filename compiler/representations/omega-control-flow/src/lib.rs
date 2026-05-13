@@ -203,6 +203,7 @@ pub struct StateBorrowArgumentAccess {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateBorrowCall {
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub receiver: Option<NamePath>,

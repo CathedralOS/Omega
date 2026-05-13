@@ -48,6 +48,7 @@ impl StateCallPlan {
 pub struct StateCall {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub role: StateCallRole,
     pub receiver_display: ProgramName,
     pub target_key: StateKey,
@@ -64,6 +65,7 @@ impl Default for StateCall {
         Self {
             source_key: StateKey::default(),
             statement_index: 0,
+            call_ordinal: 0,
             role: StateCallRole::Statement,
             receiver_display: ProgramName::default(),
             target_key: StateKey::default(),

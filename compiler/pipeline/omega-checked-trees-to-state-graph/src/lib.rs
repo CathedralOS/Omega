@@ -488,6 +488,7 @@ fn state_borrow_summary(
 
                 StateBorrowCall {
                     statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
                     receiver: call.receiver.clone(),
