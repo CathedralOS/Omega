@@ -1,0 +1,23 @@
+enum ItemKind {
+    RustedDagger
+    DeepKey
+}
+
+data Reward {
+    item: ItemKind
+}
+
+machine main {
+    pub entry(
+        &mut self,
+        reward: &mut Reward
+    ) {
+        reward.item = self.pick();
+    }
+
+    fn pick(
+        &mut self
+    ) -> ItemKind {
+        -> ItemKind::DeepKey;
+    }
+}
