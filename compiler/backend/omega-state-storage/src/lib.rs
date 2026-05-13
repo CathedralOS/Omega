@@ -22,6 +22,40 @@ impl StateStoragePlanningContext {
         self.control_flow.state_by_key(state_key)
     }
 
+    pub fn borrow_root_kind_by_symbol(
+        &self,
+        state_key: StateKey,
+        symbol: omega_core::symbols::SymbolHandle,
+    ) -> Option<omega_control_flow::StateBorrowRootKind> {
+        if !symbol.is_valid() {
+            return None;
+        }
+
+        self.state_flow_by_key(state_key)
+            .and_then(|state| {
+                self.control_flow
+                    .borrow_writable_roots
+                    .span(state.borrow.writable_roots)
+            })
+            .and_then(|roots| roots.iter().find(|root| root.symbol == symbol))
+            .map(|root| root.kind.clone())
+    }
+
+    pub fn borrow_root_kind_by_name(
+        &self,
+        state_key: StateKey,
+        root_name: &str,
+    ) -> Option<omega_control_flow::StateBorrowRootKind> {
+        self.state_flow_by_key(state_key)
+            .and_then(|state| {
+                self.control_flow
+                    .borrow_writable_roots
+                    .span(state.borrow.writable_roots)
+            })
+            .and_then(|roots| roots.iter().find(|root| root.name.as_str() == root_name))
+            .map(|root| root.kind.clone())
+    }
+
     pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states

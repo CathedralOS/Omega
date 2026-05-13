@@ -30,11 +30,9 @@ pub(super) fn mutation_kind(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) -> StateMutationKind {
-    let state_flow = context.state_flow_by_key(source_key);
-
     let Some(place) = place_symbols(expressions, target) else {
         if let Some(root_name) = root_place_name(expressions, target) {
-            if let Some(kind) = state_borrow_root_kind_by_name(context, state_flow, root_name) {
+            if let Some(kind) = context.borrow_root_kind_by_name(source_key, root_name) {
                 return mutation_kind_for_borrow_root(kind);
             }
         }
@@ -42,47 +40,14 @@ pub(super) fn mutation_kind(
         return StateMutationKind::Unknown;
     };
 
-    if let Some(kind) = state_borrow_root_kind_by_symbol(context, state_flow, place.head_symbol)
-        .or_else(|| state_borrow_root_kind_by_symbol(context, state_flow, place.symbol))
+    if let Some(kind) = context
+        .borrow_root_kind_by_symbol(source_key, place.head_symbol)
+        .or_else(|| context.borrow_root_kind_by_symbol(source_key, place.symbol))
     {
         return mutation_kind_for_borrow_root(kind);
     }
 
     StateMutationKind::Unknown
-}
-
-fn state_borrow_root_kind_by_name<'a>(
-    context: &'a StateStoragePlanningContext,
-    state_flow: Option<&'a omega_control_flow::StateFlow>,
-    root_name: &str,
-) -> Option<omega_control_flow::StateBorrowRootKind> {
-    let state_flow = state_flow?;
-    context
-        .control_flow
-        .borrow_writable_roots
-        .span(state_flow.borrow.writable_roots)?
-        .iter()
-        .find(|root| root.name.as_str() == root_name)
-        .map(|root| root.kind.clone())
-}
-
-fn state_borrow_root_kind_by_symbol<'a>(
-    context: &'a StateStoragePlanningContext,
-    state_flow: Option<&'a omega_control_flow::StateFlow>,
-    symbol: SymbolHandle,
-) -> Option<omega_control_flow::StateBorrowRootKind> {
-    if !symbol.is_valid() {
-        return None;
-    }
-
-    let state_flow = state_flow?;
-    context
-        .control_flow
-        .borrow_writable_roots
-        .span(state_flow.borrow.writable_roots)?
-        .iter()
-        .find(|root| root.symbol == symbol)
-        .map(|root| root.kind.clone())
 }
 
 fn mutation_kind_for_borrow_root(
