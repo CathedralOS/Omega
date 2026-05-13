@@ -448,16 +448,30 @@ fn integer_range_for_initializer(
 }
 
 fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
-    let mut range = constraints.iter().find_map(|constraint| {
+    let mut range: Option<IntegerRange> = None;
+
+    for constraint in constraints {
         let TypeConstraint::Range { minimum, maximum } = constraint else {
-            return None;
+            continue;
         };
 
-        Some(IntegerRange {
-            minimum: integer_literal(minimum)?,
-            maximum: integer_literal(maximum)?,
-        })
-    });
+        let Some(candidate) = (|| {
+            Some(IntegerRange {
+                minimum: integer_literal(minimum)?,
+                maximum: integer_literal(maximum)?,
+            })
+        })() else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => IntegerRange {
+                minimum: existing.minimum.max(candidate.minimum),
+                maximum: existing.maximum.min(candidate.maximum),
+            },
+            None => candidate,
+        });
+    }
 
     for constraint in constraints {
         let TypeConstraint::Named(name) = constraint else {
@@ -500,19 +514,35 @@ fn type_constraints(
 }
 
 fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
-    constraints.iter().find_map(|constraint| {
+    let mut range: Option<FloatRange> = None;
+
+    for constraint in constraints {
         let TypeConstraint::Range { minimum, maximum } = constraint else {
-            return None;
+            continue;
         };
         if !matches!(minimum, Expression::Float(_)) && !matches!(maximum, Expression::Float(_)) {
-            return None;
+            continue;
         }
 
-        Some(FloatRange {
-            minimum: float_literal_expression(minimum)?,
-            maximum: float_literal_expression(maximum)?,
-        })
-    })
+        let Some(candidate) = (|| {
+            Some(FloatRange {
+                minimum: float_literal_expression(minimum)?,
+                maximum: float_literal_expression(maximum)?,
+            })
+        })() else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => FloatRange {
+                minimum: existing.minimum.max(candidate.minimum),
+                maximum: existing.maximum.min(candidate.maximum),
+            },
+            None => candidate,
+        });
+    }
+
+    range
 }
 
 fn integer_literal(expression: &Expression) -> Option<i64> {
