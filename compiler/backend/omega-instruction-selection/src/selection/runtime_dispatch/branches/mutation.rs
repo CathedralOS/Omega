@@ -267,6 +267,21 @@ fn select_runtime_resolved_binary_mutation_write(
         });
     }
 
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        operation_key,
+        resolved_target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            left,
+            operator,
+            right,
+        });
+    }
+
     let target_place = resolve_runtime_storage_place(
         input,
         dispatch_index,

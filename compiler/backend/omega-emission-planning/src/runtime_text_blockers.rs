@@ -71,6 +71,7 @@ fn state_value_has_planned_storage_write(
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimePointeeBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }

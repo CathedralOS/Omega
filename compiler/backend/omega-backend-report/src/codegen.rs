@@ -340,6 +340,19 @@ fn selected_instruction_name(
                 runtime_value_operand_name(right, backend_plan.entry_machine_name()),
             )
         }
+        SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            format!(
+                "write runtime pointee binary runtime_frame@{pointer_byte_offset} bytes {byte_size} {} {operator:?} {}",
+                runtime_value_operand_name(left, backend_plan.entry_machine_name()),
+                runtime_value_operand_name(right, backend_plan.entry_machine_name()),
+            )
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,

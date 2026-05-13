@@ -146,6 +146,13 @@ pub enum SelectedInstructionKind {
         operator: StateGuardOperator,
         right: RuntimeValueOperand,
     },
+    WriteRuntimePointeeBinary {
+        pointer_byte_offset: usize,
+        byte_size: usize,
+        left: RuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: RuntimeValueOperand,
+    },
     WriteRuntimeFrameIndexedInteger {
         descriptor_offset: usize,
         index_offset: usize,

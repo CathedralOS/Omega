@@ -142,6 +142,19 @@ pub(super) fn lower_machine_instruction_kind(
             *operator,
             right.clone(),
         ),
+        SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_storage::runtime_pointee_binary_write_kind(
+            *pointer_byte_offset,
+            *byte_size,
+            left.clone(),
+            *operator,
+            right.clone(),
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,

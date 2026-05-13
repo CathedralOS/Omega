@@ -93,6 +93,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "nested_machine_continuation",
     "runtime_alias_integer_write",
     "runtime_alias_string_write",
+    "runtime_call_value",
     "runtime_text_storage",
     "std_option_storage_write",
     "std_option_surface",
@@ -109,5 +110,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "runtime_arithmetic_guard",
     "runtime_arithmetic_value",
     "runtime_call_guard",
-    "runtime_call_value",
 ];

@@ -9,9 +9,12 @@ use super::super::super::bindings::{
     strip_mutable_expression,
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
-use super::super::super::storage_places::resolve_runtime_frame_indexed_target;
+use super::super::super::storage_places::{
+    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
+};
 use super::super::text_writes::{
     runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
+    string_literal_data_handle,
 };
 use super::static_values::{
     RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
@@ -100,6 +103,27 @@ fn select_runtime_resolved_target_mutation_writes(
     }
 
     if let Expression::String(value) = value {
+        if let Some((pointer_byte_offset, data)) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ).and_then(|target| {
+            string_literal_data_handle(input, operation_source_key, statement_index, value).map(
+                |data| (target.pointer_byte_offset, data),
+            )
+        }) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimePointeeString {
+                    pointer_byte_offset,
+                    data,
+                    byte_length: value.len(),
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
         select_runtime_string_descriptor_write(
             input,
             operation_source_key,
@@ -259,6 +283,28 @@ fn select_runtime_resolved_target_mutation_writes(
     ) else {
         return;
     };
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        set_runtime_static_value(
+            static_values,
+            strip_mutable_expression(resolved_target.clone()),
+            value,
+        );
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimePointeeInteger {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                byte_size: pointer_target.pointee_byte_size,
+                value,
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
     let Some(target_place) = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -343,6 +389,21 @@ fn select_runtime_binary_mutation_write(
             element_byte_size: indexed_target.element_byte_size,
             field_byte_offset: indexed_target.field_byte_offset,
             byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
             left,
             operator,
             right,

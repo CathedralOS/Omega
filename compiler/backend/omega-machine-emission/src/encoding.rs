@@ -209,6 +209,20 @@ pub(super) fn encode_machine_instruction(
             *operator,
             right,
         ),
+        SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_storage::encode_runtime_pointee_binary_write(
+            input,
+            *pointer_byte_offset,
+            *byte_size,
+            left,
+            *operator,
+            right,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger {
             descriptor_offset,
             index_offset,

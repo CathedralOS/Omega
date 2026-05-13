@@ -120,6 +120,24 @@ pub(super) fn encode_runtime_storage_binary_write(
     )
 }
 
+pub(super) fn encode_runtime_pointee_binary_write(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_pointee_binary_write(
+        input.target.architecture,
+        pointer_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub(super) fn encode_runtime_frame_indexed_integer_write(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,

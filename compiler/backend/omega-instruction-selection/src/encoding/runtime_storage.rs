@@ -113,6 +113,26 @@ pub fn encode_runtime_storage_binary_write(
     }
 }
 
+pub fn encode_runtime_pointee_binary_write(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_pointee_binary_write(
+            pointer_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_frame_indexed_integer_write(
     architecture: Architecture,
     descriptor_offset: usize,
