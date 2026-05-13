@@ -1,5 +1,5 @@
 use crate::StateGuardOperandKind;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 
 pub(super) fn classify_guard_operand(
     table: &ExpressionTable,

@@ -1,4 +1,6 @@
-use omega_typed_trees::expression::{BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{
+    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionTable,
+};
 
 pub(super) fn normalize_guard_expression(
     table: &ExpressionTable,

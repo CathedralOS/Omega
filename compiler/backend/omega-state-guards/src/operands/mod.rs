@@ -10,7 +10,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_layout::LayoutPlan;
 use omega_runtime_storage::RuntimeStoragePlan;
 use omega_control_flow::StateKey;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use values::resolved_guard_operand_value;
 
 pub(crate) struct GuardOperands {
