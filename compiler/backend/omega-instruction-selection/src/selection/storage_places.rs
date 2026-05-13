@@ -14,7 +14,7 @@ use crate::InstructionSelectionInput;
 use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
-use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_checked_trees::expression::{CallExpression, Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::types::PrimitiveType;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
@@ -80,6 +80,37 @@ pub(super) fn resolve_runtime_storage_place(
         region: RuntimeStorageRegion::RuntimeFrame,
         byte_offset,
         byte_count: layout.size,
+    })
+}
+
+pub(super) fn resolve_runtime_assignment_value_call_result_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    _expression: &CallExpression,
+) -> Option<RuntimeStoragePlace> {
+    let slot = input.runtime_storage.assignment_value_result_slot(
+        dispatch_index,
+        source_key,
+        statement_index,
+    )?;
+    let target_key = match slot.kind {
+        omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult { target_key, .. } => {
+            target_key
+        }
+        _ => return None,
+    };
+    let state_call = input
+        .state_calls
+        .assignment_value_call(source_key, statement_index)?;
+    if state_call.target_key != target_key {
+        return None;
+    }
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: slot.byte_offset,
+        byte_count: slot.byte_size,
     })
 }
 
