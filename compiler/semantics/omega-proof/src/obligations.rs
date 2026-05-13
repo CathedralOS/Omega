@@ -667,7 +667,9 @@ fn expression_constraints(
                 && let [argument] = call.arguments.as_slice()
             {
                 let mut constraints = call_expression_return_type(program, machine, state, call)
-                    .map(|return_type| collect_constraints(program, return_type))
+                    .map(|return_type| {
+                        collect_constraints_in_state(program, machine, state, return_type)
+                    })
                     .unwrap_or_default();
                 let argument_constraints = expression_constraints(program, machine, state, argument);
                 constraints.extend(derived_real_from_constraints(&argument_constraints));
@@ -678,7 +680,7 @@ fn expression_constraints(
             }
 
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
-                return collect_constraints(program, return_type);
+                return collect_constraints_in_state(program, machine, state, return_type);
             }
 
             Vec::new()
@@ -691,7 +693,9 @@ fn expression_constraints(
         }
         Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
             expression_type_reference(program, machine, state, expression)
-                .map(|type_reference| collect_constraints(program, type_reference))
+                .map(|type_reference| {
+                    collect_constraints_in_state(program, machine, state, type_reference)
+                })
                 .unwrap_or_default()
         }
         Expression::ArrayLiteral(_)
@@ -788,6 +792,165 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
         TypeReference::Slice { element_type } => collect_constraints(program, element_type),
         TypeReference::Named { name, .. } => primitive_constraints(name),
         TypeReference::Unit => Vec::new(),
+    }
+}
+
+fn collect_constraints_in_state(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    type_reference: &TypeReference,
+) -> Vec<TypeConstraint> {
+    if let Some(constraints) = index_of_constraints(program, machine, state, type_reference) {
+        return constraints;
+    }
+
+    collect_constraints(program, type_reference)
+}
+
+fn index_of_constraints(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    type_reference: &TypeReference,
+) -> Option<Vec<TypeConstraint>> {
+    let TypeReference::Generic {
+        base_name,
+        arguments,
+        ..
+    } = type_reference
+    else {
+        return None;
+    };
+
+    if base_name != "IndexOf" {
+        return None;
+    }
+
+    let [collection] = arguments.as_slice() else {
+        return None;
+    };
+
+    let collection_name = match collection {
+        TypeReference::Named { name, .. } => name,
+        _ => return None,
+    };
+
+    let length = collection_length_for_binding(program, machine, state, collection_name)?;
+    if length == 0 {
+        return None;
+    }
+
+    let mut constraints = vec![TypeConstraint::Range {
+        minimum: Expression::Integer(0),
+        maximum: Expression::Integer((length - 1) as i64),
+    }];
+    augment_constraints_with_named_facts(&mut constraints);
+    Some(constraints)
+}
+
+fn collection_length_for_binding(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    name: &ProgramName,
+) -> Option<usize> {
+    state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.name == *name)
+        .and_then(|parameter| {
+            collection_length_from_type_reference(
+                program,
+                machine,
+                state,
+                &parameter.type_reference,
+            )
+        })
+        .or_else(|| {
+            state.statements.iter().find_map(|statement| {
+                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement else {
+                    return None;
+                };
+
+                if local_data.name != *name {
+                    return None;
+                }
+
+                local_data
+                    .initial_value
+                    .as_ref()
+                    .and_then(|value| collection_length_from_expression(program, machine, state, value))
+                    .or_else(|| {
+                        collection_length_from_type_reference(
+                            program,
+                            machine,
+                            state,
+                            &local_data.type_reference,
+                        )
+                    })
+            })
+        })
+        .or_else(|| {
+            machine
+                .owned_data
+                .iter()
+                .find(|owned_data| owned_data.name == *name)
+                .and_then(|owned_data| {
+                    collection_length_from_type_reference(
+                        program,
+                        machine,
+                        state,
+                        &owned_data.type_reference,
+                    )
+                })
+        })
+}
+
+fn collection_length_from_expression(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    expression: &Expression,
+) -> Option<usize> {
+    match expression {
+        Expression::Mutable(inner) => {
+            collection_length_from_expression(program, machine, state, inner)
+        }
+        Expression::Call(call)
+            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
+        {
+            let receiver = call.receiver.as_deref()?;
+            collection_length_from_expression(program, machine, state, receiver).or_else(|| {
+                expression_type_reference(program, machine, state, receiver).and_then(|type_reference| {
+                    collection_length_from_type_reference(program, machine, state, type_reference)
+                })
+            })
+        }
+        _ => expression_type_reference(program, machine, state, expression).and_then(
+            |type_reference| {
+                collection_length_from_type_reference(program, machine, state, type_reference)
+            },
+        ),
+    }
+}
+
+fn collection_length_from_type_reference(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    type_reference: &TypeReference,
+) -> Option<usize> {
+    match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            collection_length_from_type_reference(program, machine, state, referee)
+        }
+        TypeReference::Constrained { base_type, .. } => {
+            collection_length_from_type_reference(program, machine, state, base_type)
+        }
+        TypeReference::FixedArray { length, .. } => Some(*length),
+        TypeReference::Slice { .. } => None,
+        TypeReference::Generic { .. } | TypeReference::Named { .. } | TypeReference::Unit => None,
     }
 }
 
