@@ -85,7 +85,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "bounded_index_of_max",
     "bounded_literal_named_constraints",
     "bounded_max_call",
-    "bounded_member_guard_transition",
     "composite_field_guard_dispatch",
     "composite_range_guard_dispatch",
     "entry_surface_receiver_paths",
@@ -110,8 +109,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_guarded_increment_unproven",
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
+    "bounded_member_guard_transition",
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
     "runtime_call_guard",
-    "runtime_contained_range_write",
 ];
