@@ -61,7 +61,7 @@ fn check_bounded_assignment(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = integer_range_for_assignment(proof_plan, obligation) else {
+        let Some(value_range) = guarded_integer_range_for_assignment(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_assignment_integer(
                 obligation,
                 target_range,
@@ -419,6 +419,19 @@ fn integer_range_for_assignment(
     }
 }
 
+fn guarded_integer_range_for_assignment(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+) -> Option<IntegerRange> {
+    let mut range = integer_range_for_assignment(proof_plan, obligation)?;
+
+    if let Some(guard) = &obligation.state_guard {
+        range = apply_assignment_guard(range, &obligation.value, guard);
+    }
+
+    Some(range)
+}
+
 fn integer_range_for_return_value(
     proof_plan: &ProofPlan,
     obligation: &BoundedStateReturnObligation,
@@ -578,6 +591,76 @@ fn apply_guard(
     }
 }
 
+fn apply_assignment_guard(
+    range: IntegerRange,
+    value: &Expression,
+    guard: &TransitionGuard,
+) -> IntegerRange {
+    let range = apply_guard(range, value, guard);
+
+    let Expression::Binary(value_binary) = value else {
+        return range;
+    };
+    if value_binary.operator != BinaryOperator::Subtract {
+        return range;
+    }
+
+    let TransitionGuard::When(condition) = guard else {
+        return range;
+    };
+    let condition = unwrap_true_guard_condition(condition);
+    let Expression::Binary(condition_binary) = condition else {
+        return range;
+    };
+
+    let lower_bound = if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.left)
+        && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.right)
+    {
+        match condition_binary.operator {
+            BinaryOperator::Greater => Some(1),
+            BinaryOperator::GreaterOrEqual => Some(0),
+            _ => None,
+        }
+    } else if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.right)
+        && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.left)
+    {
+        match condition_binary.operator {
+            BinaryOperator::Less => Some(1),
+            BinaryOperator::LessOrEqual => Some(0),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let Some(lower_bound) = lower_bound else {
+        return range;
+    };
+
+    IntegerRange {
+        minimum: range.minimum.max(lower_bound),
+        maximum: range.maximum,
+    }
+}
+
+fn unwrap_true_guard_condition<'a>(condition: &'a Expression) -> &'a Expression {
+    let Expression::Binary(binary) = condition else {
+        return condition;
+    };
+
+    if binary.operator == BinaryOperator::Equal {
+        if matches!(binary.right, Expression::Boolean(true)) {
+            return &binary.left;
+        }
+
+        if matches!(binary.left, Expression::Boolean(true)) {
+            return &binary.right;
+        }
+    }
+
+    condition
+}
+
 fn apply_condition(
     range: IntegerRange,
     argument: &Expression,
@@ -622,6 +705,24 @@ fn expressions_equivalent_for_proof(left: &Expression, right: &Expression) -> bo
         (Expression::Mutable(left), _) => expressions_equivalent_for_proof(left, right),
         (_, Expression::Mutable(right)) => expressions_equivalent_for_proof(left, right),
         (Expression::Name(left), Expression::Name(right)) => left.as_slice() == right.as_slice(),
+        (Expression::Call(left), Expression::Call(right)) => {
+            left.target == right.target
+                && left.arguments.len() == right.arguments.len()
+                && match (left.receiver.as_deref(), right.receiver.as_deref()) {
+                    (Some(left_receiver), Some(right_receiver)) => {
+                        expressions_equivalent_for_proof(left_receiver, right_receiver)
+                    }
+                    (None, None) => true,
+                    _ => false,
+                }
+                && left
+                    .arguments
+                    .iter()
+                    .zip(&right.arguments)
+                    .all(|(left_argument, right_argument)| {
+                        expressions_equivalent_for_proof(left_argument, right_argument)
+                    })
+        }
         (Expression::Member(left), Expression::Member(right)) => {
             left.member == right.member
                 && expressions_equivalent_for_proof(&left.receiver, &right.receiver)
@@ -719,10 +820,9 @@ fn check_assignment_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !argument_satisfies_named_constraint(
+        if !assignment_satisfies_named_constraint(
             proof_plan,
-            &obligation.value,
-            obligation.value_constraints,
+            obligation,
             constraint,
         ) {
             diagnostics.push(cannot_prove_assignment_named_constraint(
@@ -841,6 +941,42 @@ fn transition_argument_satisfies_named_constraint(
         proof_plan,
         &obligation.argument,
         obligation.argument_constraints,
+        constraint,
+    )
+}
+
+fn assignment_satisfies_named_constraint(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    constraint: &str,
+) -> bool {
+    let constraints = type_constraints(proof_plan, obligation.value_constraints);
+
+    if constraints_satisfy_named_constraint(constraints, constraint) {
+        return true;
+    }
+
+    if matches!(constraint, "positive" | "non_negative")
+        && let Some(range) = guarded_integer_range_for_assignment(proof_plan, obligation)
+    {
+        return match constraint {
+            "positive" => range.minimum > 0,
+            "non_negative" => range.minimum >= 0,
+            _ => false,
+        };
+    }
+
+    if matches!(constraint, "exact")
+        && guarded_integer_range_for_assignment(proof_plan, obligation)
+            .is_some_and(|range| range.minimum == range.maximum)
+    {
+        return true;
+    }
+
+    argument_satisfies_named_constraint(
+        proof_plan,
+        &obligation.value,
+        obligation.value_constraints,
         constraint,
     )
 }
