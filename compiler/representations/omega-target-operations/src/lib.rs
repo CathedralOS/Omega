@@ -23,6 +23,7 @@ mod guard {
         Add,
         Subtract,
         Multiply,
+        Modulo,
         Max,
         Min,
         And,
