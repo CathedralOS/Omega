@@ -17,6 +17,7 @@ use omega_target_operations::{
     SelectedInstructionKind,
 };
 use runtime_dispatch::select_runtime_dispatch_loop_instructions;
+use self::bindings::RuntimeAliasBuffer;
 use state_bodies::{runtime_reachable_states, select_state_body_instructions};
 
 pub fn build_instruction_plan(input: &InstructionSelectionInput<'_>) -> InstructionPlan {
@@ -63,6 +64,7 @@ fn select_entry_instructions(
         build_entry_state_schedule(&schedule_context, input.entry_key)
             .unwrap_or_else(|_| runtime_reachable_states(input));
 
+    let empty_aliases = RuntimeAliasBuffer::default();
     select_state_body_instructions(
         input,
         input.entry_key,
@@ -72,7 +74,7 @@ fn select_entry_instructions(
             .iter()
             .find(|(_, body)| body.key == input.entry_key)
             .map(|(_, body)| body.dispatch_index),
-        &[],
+        &empty_aliases,
         &ExpressionTable::new(),
         operands,
         &mut selected_instructions,
