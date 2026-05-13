@@ -22,6 +22,7 @@ pub struct RuntimeFrameSlot {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: String,
+    pub invariant_names: Vec<ProgramName>,
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,

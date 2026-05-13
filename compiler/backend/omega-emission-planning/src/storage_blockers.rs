@@ -96,8 +96,13 @@ fn collect_runtime_body_storage_blockers(
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "#{} {} statement {} local `{}`: {} needs runtime frame slot layout",
-                slot.dispatch_index, source_name, slot.statement_index, slot.name, slot.type_name
+                "#{} {} statement {} local `{}`: {}{} needs runtime frame slot layout",
+                slot.dispatch_index,
+                source_name,
+                slot.statement_index,
+                slot.name,
+                slot.type_name,
+                invariant_suffix(&slot.invariant_names)
             ),
         ));
     }

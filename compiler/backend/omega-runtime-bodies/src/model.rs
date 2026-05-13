@@ -69,6 +69,7 @@ pub enum RuntimeDispatchBodyOperationKind {
         name: ProgramName,
         type_symbol: SymbolHandle,
         type_name: String,
+        invariant_names: Vec<ProgramName>,
     },
     Mutation {
         mutation_kind: StateMutationKind,
