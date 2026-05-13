@@ -311,3 +311,19 @@ pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
         Architecture::X86_64 => 0,
     }
 }
+
+pub fn runtime_storage_copy_to_runtime_pointee_width(
+    architecture: Architecture,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_pointee_width(
+                field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => 0,
+    }
+}

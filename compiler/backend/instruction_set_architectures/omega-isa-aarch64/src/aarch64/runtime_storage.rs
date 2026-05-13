@@ -374,6 +374,38 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     Ok(bytes)
 }
 
+pub fn encode_runtime_storage_copy_to_runtime_pointee(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(20);
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    if field_byte_offset > 0 {
+        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+    }
+
+    for (offset, chunk_size) in runtime_copy_chunks(source_offset, field_byte_offset, byte_count)? {
+        match chunk_size {
+            1 | 4 => {
+                bytes.extend(encode_load_w_from_x(17, 20, source_offset + offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 16, offset, chunk_size)?);
+            }
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 20, source_offset + offset)?);
+                bytes.extend(encode_store_x_to_x(17, 16, offset)?);
+            }
+            _ => unreachable!("runtime_copy_chunks only yields 1, 4, or 8 byte chunks"),
+        }
+    }
+
+    Ok(bytes)
+}
+
 fn runtime_copy_chunks(
     source_base_offset: usize,
     target_base_offset: usize,

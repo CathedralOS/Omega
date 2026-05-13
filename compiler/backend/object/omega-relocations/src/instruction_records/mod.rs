@@ -145,6 +145,18 @@ pub(super) fn collect_instruction_relocations(
                 input.entry_machine_name,
             ));
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, input.entry_machine_name);
+            context.insert_data_address_at_instruction_start(&source_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_storage_copy_target_address_offset(input.target.architecture),
+                &storage_region_symbol_name(
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    input.entry_machine_name,
+                ),
+            );
+        }
         _ => runtime_text::collect_runtime_text_relocations(&mut context, &instruction.kind),
     }
 }

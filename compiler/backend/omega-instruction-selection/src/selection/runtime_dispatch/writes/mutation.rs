@@ -242,6 +242,33 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) && let Some(source_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        resolved_value.source_key,
+        source_machine,
+        source_state,
+        &resolved_value.expression,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                source_region: source_place.region,
+                source_offset: source_place.byte_offset,
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                byte_count: source_place.byte_count,
+            },
+            source_key: operation_source_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     if let Expression::Call(call) = &resolved_value.expression
         && let Some(source_place) = resolve_runtime_assignment_value_call_result_place(
             input,
@@ -251,6 +278,27 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
             call,
         )
     {
+        if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ) && source_place.byte_count > 0
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    pointer_byte_offset: pointer_target.pointer_byte_offset,
+                    field_byte_offset: pointer_target.field_byte_offset,
+                    byte_count: source_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
             input,
             dispatch_index,

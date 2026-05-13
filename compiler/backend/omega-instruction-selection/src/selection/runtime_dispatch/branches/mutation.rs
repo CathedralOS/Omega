@@ -154,6 +154,33 @@ pub(crate) fn select_runtime_resolved_mutation_write(
         return;
     }
 
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        operation_key,
+        resolved_target,
+    ) && let Some(source_place) = resolve_runtime_storage_place(
+        input,
+        dispatch_index,
+        operation_key,
+        operation_machine,
+        operation_state,
+        resolved_value,
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
+                source_region: source_place.region,
+                source_offset: source_place.byte_offset,
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
+                byte_count: source_place.byte_count,
+            },
+            source_key: operation_key,
+            source_statement: statement_index,
+        });
+        return;
+    }
+
     if let Some(kind) = select_runtime_resolved_binary_mutation_write(
         input,
         dispatch_index,

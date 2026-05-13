@@ -193,6 +193,20 @@ pub(super) fn runtime_storage_copy_to_runtime_frame_indexed_kind(
     }
 }
 
+pub(super) fn runtime_storage_copy_to_runtime_pointee_kind(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeStorageCopyToRuntimePointee {
+        source_offset,
+        pointer_byte_offset,
+        field_byte_offset,
+        byte_count,
+    }
+}
+
 fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeValueOperand {
     match operand {
         RuntimeValueOperand::Immediate(value) => MachineRuntimeValueOperand::Immediate(value),

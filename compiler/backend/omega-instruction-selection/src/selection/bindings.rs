@@ -127,6 +127,22 @@ pub(super) fn resolve_runtime_alias_binding(
     alias_expressions: &ExpressionTable,
 ) -> RuntimeResolvedExpression {
     match expression {
+        Expression::ArrayLiteral(values) => {
+            let mut resolved_source_key = source_key;
+            let values = values
+                .iter()
+                .map(|value| {
+                    let resolved =
+                        resolve_runtime_alias_binding(value, source_key, aliases, alias_expressions);
+                    resolved_source_key = resolved.source_key;
+                    resolved.expression
+                })
+                .collect();
+            RuntimeResolvedExpression {
+                source_key: resolved_source_key,
+                expression: Expression::ArrayLiteral(values),
+            }
+        }
         Expression::Binary(binary) => {
             let left =
                 resolve_runtime_alias_binding(&binary.left, source_key, aliases, alias_expressions);
@@ -143,6 +159,53 @@ pub(super) fn resolve_runtime_alias_binding(
                         left: left.expression,
                         operator: binary.operator,
                         right: right.expression,
+                    },
+                )),
+            }
+        }
+        Expression::Cast(cast) => {
+            let resolved =
+                resolve_runtime_alias_binding(&cast.value, source_key, aliases, alias_expressions);
+            RuntimeResolvedExpression {
+                source_key: resolved.source_key,
+                expression: Expression::Cast(Box::new(
+                    omega_checked_trees::expression::CastExpression {
+                        value: resolved.expression,
+                        target_type: cast.target_type.clone(),
+                    },
+                )),
+            }
+        }
+        Expression::Call(call) => {
+            let receiver = call.receiver.as_ref().map(|receiver| {
+                resolve_runtime_alias_binding(receiver, source_key, aliases, alias_expressions)
+            });
+            let mut resolved_source_key = receiver
+                .as_ref()
+                .map(|resolved| resolved.source_key)
+                .unwrap_or(source_key);
+            let arguments = call
+                .arguments
+                .iter()
+                .map(|argument| {
+                    let resolved = resolve_runtime_alias_binding(
+                        argument,
+                        source_key,
+                        aliases,
+                        alias_expressions,
+                    );
+                    resolved_source_key = resolved.source_key;
+                    resolved.expression
+                })
+                .collect();
+            RuntimeResolvedExpression {
+                source_key: resolved_source_key,
+                expression: Expression::Call(Box::new(
+                    omega_checked_trees::expression::CallExpression {
+                        receiver: receiver.map(|resolved| Box::new(resolved.expression)),
+                        target_symbol: call.target_symbol,
+                        target: call.target.clone(),
+                        arguments,
                     },
                 )),
             }
@@ -192,6 +255,32 @@ pub(super) fn resolve_runtime_alias_binding(
                 )),
             }
         }
+        Expression::StructLiteral(struct_literal) => {
+            let mut resolved_source_key = source_key;
+            RuntimeResolvedExpression {
+                source_key: resolved_source_key,
+                expression: Expression::StructLiteral(omega_checked_trees::expression::StructLiteral {
+                    type_name: struct_literal.type_name.clone(),
+                    fields: struct_literal
+                        .fields
+                        .iter()
+                        .map(|field| {
+                            let resolved = resolve_runtime_alias_binding(
+                                &field.value,
+                                source_key,
+                                aliases,
+                                alias_expressions,
+                            );
+                            resolved_source_key = resolved.source_key;
+                            omega_checked_trees::expression::StructLiteralField {
+                                name: field.name.clone(),
+                                value: resolved.expression,
+                            }
+                        })
+                        .collect(),
+                }),
+            }
+        }
         Expression::Name(path) if !path.is_empty() => aliases
             .iter()
             .rev()
@@ -224,6 +313,26 @@ pub(super) fn resolve_runtime_alias_binding_handle(
     alias_expressions: &mut ExpressionTable,
 ) -> RuntimeResolvedExpressionHandle {
     match alias_expressions.expression(expression).clone() {
+        ExpressionNode::ArrayLiteral(values) => {
+            let mut resolved_source_key = source_key;
+            let expressions = alias_expressions.expression_handles(values).to_vec();
+            let mut copied_values = Vec::with_capacity(expressions.len());
+            for value in expressions {
+                let resolved = resolve_runtime_alias_binding_handle(
+                    value,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                );
+                resolved_source_key = resolved.source_key;
+                copied_values.push(resolved.expression);
+            }
+            let copied_values = alias_expressions.insert_expression_handles(copied_values);
+            RuntimeResolvedExpressionHandle {
+                source_key: resolved_source_key,
+                expression: alias_expressions.insert(ExpressionNode::ArrayLiteral(copied_values)),
+            }
+        }
         ExpressionNode::Binary(binary) => {
             let left = resolve_runtime_alias_binding_handle(
                 binary.left,
@@ -244,6 +353,63 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         left: left.expression,
                         operator: binary.operator,
                         right: right.expression,
+                    },
+                )),
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            let resolved = resolve_runtime_alias_binding_handle(
+                cast.value,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            RuntimeResolvedExpressionHandle {
+                source_key: resolved.source_key,
+                expression: alias_expressions.insert(ExpressionNode::Cast(
+                    omega_checked_trees::expression::TableCastExpression {
+                        value: resolved.expression,
+                        target_type: cast.target_type,
+                    },
+                )),
+            }
+        }
+        ExpressionNode::Call(call) => {
+            let receiver = call.receiver.is_valid().then(|| {
+                resolve_runtime_alias_binding_handle(
+                    call.receiver,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                )
+            });
+            let mut resolved_source_key = receiver
+                .as_ref()
+                .map(|resolved| resolved.source_key)
+                .unwrap_or(source_key);
+            let arguments = alias_expressions.expression_handles(call.arguments).to_vec();
+            let mut copied_arguments = Vec::with_capacity(arguments.len());
+            for argument in arguments {
+                let resolved = resolve_runtime_alias_binding_handle(
+                    argument,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                );
+                resolved_source_key = resolved.source_key;
+                copied_arguments.push(resolved.expression);
+            }
+            let copied_arguments = alias_expressions.insert_expression_handles(copied_arguments);
+            RuntimeResolvedExpressionHandle {
+                source_key: resolved_source_key,
+                expression: alias_expressions.insert(ExpressionNode::Call(
+                    omega_checked_trees::expression::TableCallExpression {
+                        receiver: receiver
+                            .map(|resolved| resolved.expression)
+                            .unwrap_or_else(ExpressionHandle::invalid),
+                        target_symbol: call.target_symbol,
+                        target: call.target.clone(),
+                        arguments: copied_arguments,
                     },
                 )),
             }
@@ -293,6 +459,34 @@ pub(super) fn resolve_runtime_alias_binding_handle(
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
+                    },
+                )),
+            }
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            let fields = alias_expressions.struct_fields(struct_literal.fields).to_vec();
+            let mut resolved_source_key = source_key;
+            let mut copied_fields = Vec::with_capacity(fields.len());
+            for field in fields {
+                let resolved = resolve_runtime_alias_binding_handle(
+                    field.value,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                );
+                resolved_source_key = resolved.source_key;
+                copied_fields.push(omega_checked_trees::expression::TableStructLiteralField {
+                    name: field.name.clone(),
+                    value: resolved.expression,
+                });
+            }
+            let copied_fields = alias_expressions.insert_struct_fields(copied_fields);
+            RuntimeResolvedExpressionHandle {
+                source_key: resolved_source_key,
+                expression: alias_expressions.insert(ExpressionNode::StructLiteral(
+                    omega_checked_trees::expression::TableStructLiteral {
+                        type_name: struct_literal.type_name.clone(),
+                        fields: copied_fields,
                     },
                 )),
             }

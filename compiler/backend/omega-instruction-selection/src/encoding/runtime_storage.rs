@@ -255,3 +255,21 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
+
+pub fn encode_runtime_storage_copy_to_runtime_pointee(
+    architecture: Architecture,
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_storage_copy_to_runtime_pointee(
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_count,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}

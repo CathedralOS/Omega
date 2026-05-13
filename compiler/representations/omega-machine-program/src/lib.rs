@@ -208,6 +208,12 @@ pub enum MachineInstructionKind {
         field_byte_offset: usize,
         byte_count: usize,
     },
+    RuntimeStorageCopyToRuntimePointee {
+        source_offset: usize,
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        byte_count: usize,
+    },
     DispatchStateWrite {
         dispatch_index: u32,
     },

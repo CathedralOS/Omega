@@ -180,6 +180,13 @@ pub fn runtime_storage_copy_to_runtime_frame_indexed_width(
         + runtime_storage_copy_data_width(byte_count)
 }
 
+pub fn runtime_storage_copy_to_runtime_pointee_width(
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    20 + add_constant_width(field_byte_offset) + runtime_storage_copy_data_width(byte_count)
+}
+
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
