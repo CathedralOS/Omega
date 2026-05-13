@@ -130,6 +130,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
+    "runtime_nested_branch_assignment_prelude_value",
     "runtime_nested_branch_value",
     "runtime_nested_branch_prelude_value",
 ];
