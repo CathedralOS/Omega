@@ -16,6 +16,7 @@ pub(super) fn normalize_guard_expression(
 fn normalize_top_level_guard_expression(expression: Expression) -> Expression {
     let normalized = normalize_guard_expression_tree(expression);
     match normalized {
+        Expression::Boolean(value) => Expression::Boolean(value),
         Expression::Binary(binary) => Expression::Binary(binary),
         other => boolean_compare(other, true),
     }
