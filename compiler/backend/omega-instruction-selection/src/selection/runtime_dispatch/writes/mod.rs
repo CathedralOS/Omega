@@ -23,9 +23,25 @@ pub(super) fn select_runtime_storage_write_for_operation(
     static_values: &mut RuntimeStaticValues,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let RuntimeDispatchBodyOperationKind::Mutation { .. } = &operation.kind else {
-        return;
-    };
+    match &operation.kind {
+        RuntimeDispatchBodyOperationKind::Mutation { .. } => {}
+        RuntimeDispatchBodyOperationKind::StateCallResult { target_key, value, .. } => {
+            mutation::select_runtime_state_call_result_write(
+                input,
+                dispatch_index,
+                operation.source_key,
+                operation.statement_index,
+                *target_key,
+                *value,
+                aliases,
+                alias_expressions,
+                static_values,
+                selected_instructions,
+            );
+            return;
+        }
+        _ => return,
+    }
     let Some(mutation) =
         state_mutation_for_statement(input, operation.source_key, operation.statement_index)
     else {

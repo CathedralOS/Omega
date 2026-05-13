@@ -2,7 +2,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_control_flow::StateKey;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
-use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionTable};
+use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
@@ -47,11 +47,12 @@ pub(super) fn select_runtime_mutation_writes(
 ) {
     let resolved_target =
         resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
-    select_runtime_resolved_target_mutation_writes(
+    select_runtime_resolved_target_value_source_mutation_writes(
         input,
         dispatch_index,
         source_key,
         resolved_target.source_key,
+        source_key,
         source_machine,
         source_state,
         statement_index,
@@ -65,11 +66,53 @@ pub(super) fn select_runtime_mutation_writes(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn select_runtime_resolved_target_mutation_writes(
+pub(super) fn select_runtime_state_call_result_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation_source_key: StateKey,
+    statement_index: usize,
+    value_source_key: StateKey,
+    value: ExpressionHandle,
+    aliases: &[RuntimeAliasBinding],
+    alias_expressions: &ExpressionTable,
+    static_values: &mut RuntimeStaticValues,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(slot) = input
+        .runtime_storage
+        .assignment_value_result_slot(dispatch_index, operation_source_key, statement_index)
+    else {
+        return;
+    };
+    let (value_machine, value_state) = input.control_flow.state_names_by_key_cloned(value_source_key);
+    let target = Expression::Name(NamePath::unresolved(vec![slot.name.clone()]));
+    let value = input.runtime_bodies.expressions.to_tree(value);
+
+    select_runtime_resolved_target_value_source_mutation_writes(
+        input,
+        dispatch_index,
+        operation_source_key,
+        operation_source_key,
+        value_source_key,
+        &value_machine,
+        &value_state,
+        statement_index,
+        &target,
+        &value,
+        aliases,
+        alias_expressions,
+        static_values,
+        selected_instructions,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_resolved_target_value_source_mutation_writes(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_source_key: StateKey,
     target_source_key: StateKey,
+    value_source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -84,11 +127,12 @@ fn select_runtime_resolved_target_mutation_writes(
         for field in &struct_literal.fields {
             let field_target =
                 append_place_suffix(resolved_target, std::slice::from_ref(&field.name));
-            select_runtime_resolved_target_mutation_writes(
+            select_runtime_resolved_target_value_source_mutation_writes(
                 input,
                 dispatch_index,
                 operation_source_key,
                 target_source_key,
+                value_source_key,
                 source_machine,
                 source_state,
                 statement_index,
@@ -162,7 +206,7 @@ fn select_runtime_resolved_target_mutation_writes(
     }
 
     let resolved_value =
-        resolve_runtime_alias_binding(value, operation_source_key, aliases, alias_expressions);
+        resolve_runtime_alias_binding(value, value_source_key, aliases, alias_expressions);
     if let Expression::String(value) = &resolved_value.expression {
         select_runtime_string_descriptor_write(
             input,
