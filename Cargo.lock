@@ -369,6 +369,7 @@ name = "omega-instruction-selection"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-isa-aarch64",
@@ -388,7 +389,6 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
- "omega-typed-trees",
 ]
 
 [[package]]

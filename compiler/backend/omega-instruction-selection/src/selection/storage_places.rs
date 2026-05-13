@@ -14,10 +14,10 @@ use crate::InstructionSelectionInput;
 use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_checked_trees::types::PrimitiveType;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
-use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
-use omega_typed_trees::types::PrimitiveType;
 
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,

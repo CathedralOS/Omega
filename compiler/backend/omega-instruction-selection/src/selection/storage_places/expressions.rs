@@ -1,8 +1,8 @@
-use omega_typed_trees::expression::{
+use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, IndexedExpression,
     MemberExpression, NamePath, TableIndexedExpression, TableMemberExpression,
 };
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::name::ProgramName;
 
 pub(in crate::selection) fn normalized_storage_expression(
     expression: &Expression,

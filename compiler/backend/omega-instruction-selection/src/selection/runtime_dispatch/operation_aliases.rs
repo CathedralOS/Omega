@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
-use omega_typed_trees::expression::ExpressionTable;
+use omega_checked_trees::expression::ExpressionTable;
 
 use super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_binding_handle, set_runtime_alias,

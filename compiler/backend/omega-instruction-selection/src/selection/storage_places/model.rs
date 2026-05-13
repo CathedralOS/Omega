@@ -1,6 +1,6 @@
 use omega_target_operations::RuntimeStorageRegion;
-use omega_typed_trees::expression::Expression;
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::Expression;
+use omega_checked_trees::name::ProgramName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::selection) struct RuntimeStoragePlace {

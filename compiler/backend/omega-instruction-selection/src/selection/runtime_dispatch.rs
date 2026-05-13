@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
+use omega_checked_trees::expression::ExpressionTable;
 use omega_core::arena::Arena;
-use omega_typed_trees::expression::ExpressionTable;
 
 mod branches;
 mod edges;

@@ -1,7 +1,7 @@
 use crate::InstructionSelectionInput;
 use omega_control_flow::StateKey;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
-use omega_typed_trees::expression::{BinaryOperator, Expression};
+use omega_checked_trees::expression::{BinaryOperator, Expression};
 
 use super::super::super::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_storage_place, static_integer_value,

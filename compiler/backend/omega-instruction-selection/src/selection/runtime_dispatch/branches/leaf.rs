@@ -1,8 +1,8 @@
 use crate::InstructionSelectionInput;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
-use omega_typed_trees::expression::Expression;
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::Expression;
+use omega_checked_trees::name::ProgramName;
 
 use super::super::super::bindings::resolve_leaf_binding_expression;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};

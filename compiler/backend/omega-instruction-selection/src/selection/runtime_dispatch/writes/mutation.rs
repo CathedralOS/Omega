@@ -2,7 +2,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_control_flow::StateKey;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
-use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionTable};
+use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionTable};
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,

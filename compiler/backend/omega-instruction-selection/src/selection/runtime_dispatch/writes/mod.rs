@@ -8,8 +8,8 @@ use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_target_operations::SelectedInstruction;
-use omega_typed_trees::expression::ExpressionTable;
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::ExpressionTable;
+use omega_checked_trees::name::ProgramName;
 use static_values::RuntimeStaticValues;
 
 pub(super) use storage_copy::runtime_storage_copy;

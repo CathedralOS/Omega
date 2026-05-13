@@ -9,7 +9,7 @@ use crate::selection::storage_places::{
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
 use omega_target_operations::{RuntimeStorageRegion, SelectedInstructionKind, TargetDataObjectHandle};
-use omega_typed_trees::expression::{Expression, ExpressionTable};
+use omega_checked_trees::expression::{Expression, ExpressionTable};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::selection) fn runtime_text_builder_write_emit(

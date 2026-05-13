@@ -7,8 +7,8 @@ use omega_calling_conventions::{
 };
 use omega_platform_interface::HostCall;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
-use omega_typed_trees::expression::{Expression, NamePath};
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::name::ProgramName;
 
 pub(in crate::selection::host_operations) fn runtime_text_line_read(
     input: &InstructionSelectionInput<'_>,
@@ -164,7 +164,7 @@ fn resolve_host_call_alias_expression(
                 resolve_host_call_alias_expression(input, source_key, &indexed.index);
             (
                 resolved_source_key,
-                Expression::Indexed(Box::new(omega_typed_trees::expression::IndexedExpression {
+                Expression::Indexed(Box::new(omega_checked_trees::expression::IndexedExpression {
                     collection: resolved_collection,
                     index: resolved_index,
                 })),
@@ -175,7 +175,7 @@ fn resolve_host_call_alias_expression(
                 resolve_host_call_alias_expression(input, source_key, &member.receiver);
             (
                 resolved_source_key,
-                Expression::Member(Box::new(omega_typed_trees::expression::MemberExpression {
+                Expression::Member(Box::new(omega_checked_trees::expression::MemberExpression {
                     receiver: resolved_receiver,
                     member_symbol: member.member_symbol,
                     member: member.member.clone(),

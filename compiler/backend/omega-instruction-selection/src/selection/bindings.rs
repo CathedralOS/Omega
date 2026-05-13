@@ -1,10 +1,10 @@
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{
+use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
     TableIndexedExpression, TableNamePath,
 };
-use omega_typed_trees::name::ProgramName;
+use omega_checked_trees::name::ProgramName;
 
 use super::storage_places::indexed_expression_path;
 use omega_runtime_branching::{
@@ -111,7 +111,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: collection.source_key,
                 expression: Expression::Indexed(Box::new(
-                    omega_typed_trees::expression::IndexedExpression {
+                    omega_checked_trees::expression::IndexedExpression {
                         collection: collection.expression,
                         index: index.expression,
                     },
@@ -124,7 +124,7 @@ pub(super) fn resolve_runtime_alias_binding(
             RuntimeResolvedExpression {
                 source_key: receiver.source_key,
                 expression: Expression::Member(Box::new(
-                    omega_typed_trees::expression::MemberExpression {
+                    omega_checked_trees::expression::MemberExpression {
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),
@@ -205,7 +205,7 @@ pub(super) fn resolve_runtime_alias_binding_handle(
             RuntimeResolvedExpressionHandle {
                 source_key: receiver.source_key,
                 expression: alias_expressions.insert(ExpressionNode::Member(
-                    omega_typed_trees::expression::TableMemberExpression {
+                    omega_checked_trees::expression::TableMemberExpression {
                         receiver: receiver.expression,
                         member_symbol: member.member_symbol,
                         member: member.member.clone(),

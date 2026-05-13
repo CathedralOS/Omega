@@ -2,7 +2,8 @@ use super::expressions::{normalized_storage_expression, normalized_storage_name_
 use super::nested_fields::resolve_nested_field_layout;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, LayoutPlan};
-use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionTable};
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_checked_trees::name::ProgramName;
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
@@ -40,8 +41,8 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
-    path: &'path omega_typed_trees::expression::NamePath,
-) -> Option<(usize, &'layout FieldLayout, &'path [omega_typed_trees::name::ProgramName])> {
+    path: &'path NamePath,
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
     let [root_name, suffix @ ..] = path.as_slice() else {
         return None;
     };
