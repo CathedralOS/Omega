@@ -16,11 +16,12 @@ pub struct RuntimeStoragePlan {
 }
 
 impl RuntimeStoragePlan {
-    pub fn assignment_value_result_slot(
+    pub fn call_result_slot(
         &self,
         dispatch_index: u32,
         source_key: StateKey,
         statement_index: usize,
+        role: StateCallRole,
     ) -> Option<&RuntimeFrameSlot> {
         self.frame_slots.iter().find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
@@ -29,12 +30,40 @@ impl RuntimeStoragePlan {
                 && matches!(
                     slot.kind,
                     RuntimeFrameSlotKind::StateCallResult {
-                        role: StateCallRole::AssignmentValue,
+                        role: slot_role,
                         ..
-                    }
+                    } if slot_role == role
                 ))
             .then_some(slot)
         })
+    }
+
+    pub fn assignment_value_result_slot(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.call_result_slot(
+            dispatch_index,
+            source_key,
+            statement_index,
+            StateCallRole::AssignmentValue,
+        )
+    }
+
+    pub fn transition_guard_result_slot(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.call_result_slot(
+            dispatch_index,
+            source_key,
+            statement_index,
+            StateCallRole::TransitionGuard,
+        )
     }
 }
 

@@ -110,6 +110,7 @@ fn select_dispatch_guard_instructions(
             input,
             source_dispatch_index,
             source_key,
+            edge.order,
             &edge.guard,
         )
     {

@@ -18,6 +18,7 @@ use omega_checked_trees::expression::{CallExpression, Expression, ExpressionHand
 use omega_checked_trees::types::PrimitiveType;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
+use omega_state_calls::StateCallRole;
 
 pub(super) fn resolve_runtime_storage_place(
     input: &InstructionSelectionInput<'_>,
@@ -90,10 +91,43 @@ pub(super) fn resolve_runtime_assignment_value_call_result_place(
     statement_index: usize,
     _expression: &CallExpression,
 ) -> Option<RuntimeStoragePlace> {
-    let slot = input.runtime_storage.assignment_value_result_slot(
+    resolve_runtime_call_result_place(
+        input,
         dispatch_index,
         source_key,
         statement_index,
+        StateCallRole::AssignmentValue,
+    )
+}
+
+pub(super) fn resolve_runtime_transition_guard_call_result_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    _expression: &CallExpression,
+) -> Option<RuntimeStoragePlace> {
+    resolve_runtime_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        StateCallRole::TransitionGuard,
+    )
+}
+
+fn resolve_runtime_call_result_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    role: StateCallRole,
+) -> Option<RuntimeStoragePlace> {
+    let slot = input.runtime_storage.call_result_slot(
+        dispatch_index,
+        source_key,
+        statement_index,
+        role,
     )?;
     let target_key = match slot.kind {
         omega_runtime_storage::RuntimeFrameSlotKind::StateCallResult { target_key, .. } => {
@@ -101,9 +135,7 @@ pub(super) fn resolve_runtime_assignment_value_call_result_place(
         }
         _ => return None,
     };
-    let state_call = input
-        .state_calls
-        .assignment_value_call(source_key, statement_index)?;
+    let state_call = input.state_calls.call_for_role(source_key, statement_index, role)?;
     if state_call.target_key != target_key {
         return None;
     }

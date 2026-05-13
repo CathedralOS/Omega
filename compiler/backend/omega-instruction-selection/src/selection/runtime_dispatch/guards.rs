@@ -6,7 +6,10 @@ use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeStraightLineBra
 use omega_state_guards::StateGuardOperator;
 
 use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
-use super::super::storage_places::{enum_variant_value, resolve_runtime_storage_place};
+use super::super::storage_places::{
+    enum_variant_value, resolve_runtime_storage_place,
+    resolve_runtime_transition_guard_call_result_place,
+};
 use omega_target_operations::{RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle};
 
 pub(super) fn select_runtime_leaf_branch_guard(
@@ -33,6 +36,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
             input,
             expansion.dispatch_index,
             expansion.source_key,
+            expansion.statement_index,
             &expansion.resolved_guard,
         )
     })
@@ -70,6 +74,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
             input,
             expansion.dispatch_index,
             expansion.source_key,
+            expansion.statement_index,
             &expansion.resolved_guard,
         )
     })
@@ -87,6 +92,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    statement_index: usize,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
     if let Some((buffer, literal)) =
@@ -96,7 +102,7 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     }
 
     runtime_text_storage_guard(input, dispatch_index, source_key, guard)
-        .or_else(|| runtime_value_guard(input, dispatch_index, source_key, guard))
+        .or_else(|| runtime_value_guard(input, dispatch_index, source_key, statement_index, guard))
         .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, guard))
 }
 
@@ -271,6 +277,7 @@ fn runtime_value_guard(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    statement_index: usize,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
     let TransitionGuard::When(Expression::Binary(binary)) = guard
@@ -280,21 +287,23 @@ fn runtime_value_guard(
     let operator = runtime_compare_operator(binary.operator)?;
     let source_machine = source_machine_name(input, source_key);
     let source_state = source_state_name(input, source_key);
-    let left = resolve_runtime_value_operand(
-        input,
-        dispatch_index,
-        source_key,
-        &source_machine,
-        &source_state,
-        &binary.left,
+        let left = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            &source_machine,
+            &source_state,
+            &binary.left,
     )?;
-    let right = resolve_runtime_value_operand(
-        input,
-        dispatch_index,
-        source_key,
-        &source_machine,
-        &source_state,
-        &binary.right,
+        let right = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            &source_machine,
+            &source_state,
+            &binary.right,
     )?;
     let byte_size = runtime_value_operand_byte_size(&left)
         .max(runtime_value_operand_byte_size(&right));
@@ -321,6 +330,7 @@ fn resolve_runtime_value_operand(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    statement_index: usize,
     source_machine: &str,
     source_state: &str,
     expression: &Expression,
@@ -337,6 +347,7 @@ fn resolve_runtime_value_operand(
             input,
             dispatch_index,
             source_key,
+            statement_index,
             source_machine,
             source_state,
             &binary.left,
@@ -345,6 +356,7 @@ fn resolve_runtime_value_operand(
             input,
             dispatch_index,
             source_key,
+            statement_index,
             source_machine,
             source_state,
             &binary.right,
@@ -353,6 +365,22 @@ fn resolve_runtime_value_operand(
             left: Box::new(left),
             operator,
             right: Box::new(right),
+        });
+    }
+
+    if let Expression::Call(call) = expression
+        && let Some(place) = resolve_runtime_transition_guard_call_result_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            call,
+        )
+    {
+        return Some(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
         });
     }
 
