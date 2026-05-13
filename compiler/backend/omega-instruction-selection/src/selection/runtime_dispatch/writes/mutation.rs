@@ -247,6 +247,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         dispatch_index,
         operation_source_key,
         target_source_key,
+        resolved_value.source_key,
         source_machine,
         source_state,
         statement_index,
@@ -388,8 +389,9 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
 fn select_runtime_binary_mutation_write(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
-    operation_source_key: StateKey,
+    _operation_source_key: StateKey,
     target_source_key: StateKey,
+    value_source_key: StateKey,
     source_machine: &str,
     source_state: &str,
     statement_index: usize,
@@ -417,7 +419,7 @@ fn select_runtime_binary_mutation_write(
     let left = resolve_runtime_value_operand(
         input,
         dispatch_index,
-        operation_source_key,
+        value_source_key,
         source_machine,
         source_state,
         statement_index,
@@ -429,7 +431,7 @@ fn select_runtime_binary_mutation_write(
     let right = resolve_runtime_value_operand(
         input,
         dispatch_index,
-        operation_source_key,
+        value_source_key,
         source_machine,
         source_state,
         statement_index,
