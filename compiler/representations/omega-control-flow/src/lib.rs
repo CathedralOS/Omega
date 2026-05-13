@@ -160,6 +160,8 @@ pub enum ProofFactKind {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProofObligationFact {
     pub kind: ProofFactKind,
+    pub machine_symbol: SymbolHandle,
+    pub state_symbol: SymbolHandle,
     pub owner: String,
 }
 

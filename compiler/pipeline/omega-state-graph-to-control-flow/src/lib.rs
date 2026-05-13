@@ -90,6 +90,8 @@ fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFac
                     ProofFactKind::GuardedTransition
                 }
             },
+            machine_symbol: obligation.machine_symbol,
+            state_symbol: obligation.state_symbol,
             owner: obligation.owner.clone(),
         });
     }
