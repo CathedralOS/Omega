@@ -8,10 +8,11 @@ use super::primitives::{
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
     encode_conditional_branch_less, encode_conditional_branch_less_or_equal,
     encode_conditional_branch_not_equal, encode_load_w_from_x, encode_load_x_from_x,
-    encode_move_x_register, encode_movz_w, encode_mul_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
+    encode_move_x_register, encode_movz_w, encode_msub_x_register, encode_mul_x_register,
+    encode_store_w_to_x, encode_store_w17_to_x16,
     encode_store_x_to_x, encode_store_x17_to_x16, encode_unsigned_immediate,
     encode_unsigned_immediate_padded, encode_add_x_immediate, encode_add_x_register,
-    encode_sub_x_register,
+    encode_sub_x_register, encode_udiv_x_register,
 };
 
 pub fn encode_runtime_storage_compare(
@@ -517,6 +518,15 @@ fn encode_runtime_binary_operation(
                 destination_register,
                 destination_register,
                 right_register,
+            ));
+        }
+        StateGuardOperator::Modulo => {
+            bytes.extend(encode_udiv_x_register(19, destination_register, right_register));
+            bytes.extend(encode_msub_x_register(
+                destination_register,
+                19,
+                right_register,
+                destination_register,
             ));
         }
         StateGuardOperator::Max | StateGuardOperator::Min => {

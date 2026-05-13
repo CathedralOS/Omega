@@ -364,6 +364,7 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
+        BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::And
         | BinaryOperator::Divide
@@ -371,7 +372,6 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual
-        | BinaryOperator::Modulo
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

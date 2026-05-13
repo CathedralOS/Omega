@@ -626,12 +626,19 @@ fn resolve_state_key_in_machine(
     state_symbol: SymbolHandle,
     state_name: &ProgramName,
 ) -> Option<StateKey> {
-    if state_symbol.is_valid() {
-        control_flow.state_key_by_symbols(machine_symbol, state_symbol)
-    } else {
-        let _ = (control_flow, machine_symbol, state_name);
-        None
+    if state_symbol.is_valid()
+        && let Some(key) = control_flow.state_key_by_symbols(machine_symbol, state_symbol)
+    {
+        return Some(key);
     }
+
+    let machine = control_flow.machine_by_symbol(machine_symbol)?;
+    control_flow
+        .states
+        .span(machine.states)?
+        .iter()
+        .find(|state| state.key.machine == machine_symbol && state.name == *state_name)
+        .map(|state| state.key)
 }
 
 fn receiver_can_dispatch_to_machine(
@@ -646,13 +653,21 @@ fn receiver_can_dispatch_to_machine(
     }
 
     if !receiver_symbol.is_valid() {
-        return false;
+        let receiver_name = receiver.and_then(|receiver| receiver.last());
+        return machine
+            .contains
+            .iter()
+            .any(|contained| receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name));
     }
 
+    let receiver_name = receiver.and_then(|receiver| receiver.last());
     if machine
         .contains
         .iter()
-        .any(|contained| contained.symbol == receiver_symbol)
+        .any(|contained| {
+            contained.symbol == receiver_symbol
+                || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+        })
     {
         return true;
     }

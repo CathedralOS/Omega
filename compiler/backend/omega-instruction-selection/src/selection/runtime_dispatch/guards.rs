@@ -436,6 +436,7 @@ fn runtime_arithmetic_operator(
 ) -> Option<StateGuardOperator> {
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::And
@@ -445,7 +446,6 @@ fn runtime_arithmetic_operator(
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual
-        | BinaryOperator::Modulo
         | BinaryOperator::NotEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
