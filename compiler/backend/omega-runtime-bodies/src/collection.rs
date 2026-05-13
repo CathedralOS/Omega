@@ -5,13 +5,16 @@ use super::lookups::{
 };
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_control_flow::{OperationKind, StateKey};
+use omega_core::arena::Arena;
 use omega_state_calls::{StateCall, StateCallLowering};
 use omega_state_dispatch::DispatchState;
+use omega_checked_trees::name::ProgramName;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
     pub key: StateKey,
     pub dispatch_index: u32,
+    pub invariant_names: Arena<ProgramName>,
     pub operations: Vec<RuntimeDispatchBodyOperation>,
 }
 
@@ -20,16 +23,19 @@ pub(super) fn build_dispatch_body(
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
     let mut operations = Vec::new();
+    let mut invariant_names = Arena::new();
     append_state_body_operations(
         context,
         dispatch_state.key,
         &mut operations,
+        &mut invariant_names,
         &mut Vec::new(),
     );
 
     CollectedRuntimeDispatchBody {
         key: dispatch_state.key,
         dispatch_index: dispatch_state.dispatch_index,
+        invariant_names,
         operations,
     }
 }
@@ -38,6 +44,7 @@ fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
 ) {
     if visiting.contains(&state_key) {
@@ -67,7 +74,13 @@ fn append_state_body_operations(
         if let Some(state_call) =
             state_call_for_statement(context, state_key, operation.statement_index)
         {
-            append_state_call_body_operation(context, state_call, operations, visiting);
+            append_state_call_body_operation(
+                context,
+                state_call,
+                operations,
+                invariant_names,
+                visiting,
+            );
             continue;
         }
 
@@ -82,7 +95,14 @@ fn append_state_body_operations(
                     name: local_storage.name.clone(),
                     type_symbol: local_storage.type_symbol,
                     type_name: local_storage.type_name.clone(),
-                    invariant_names: local_storage.invariant_names.clone(),
+                    invariant_names: invariant_names.insert_many(
+                        context
+                            .state_storage
+                            .invariant_names
+                            .span_or_empty(local_storage.invariant_names)
+                            .iter()
+                            .cloned(),
+                    ),
                 },
             ));
             continue;
@@ -118,6 +138,7 @@ fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
 ) {
     if state_call.lowering == StateCallLowering::InlineLeaf {
@@ -129,7 +150,13 @@ fn append_state_call_body_operation(
                 argument_count: state_call.argument_count,
             },
         ));
-        append_state_body_operations(context, state_call.target_key, operations, visiting);
+        append_state_body_operations(
+            context,
+            state_call.target_key,
+            operations,
+            invariant_names,
+            visiting,
+        );
         return;
     }
 
@@ -143,7 +170,13 @@ fn append_state_call_body_operation(
                 lowering: state_call.lowering,
             },
         ));
-        append_state_body_operations(context, state_call.target_key, operations, visiting);
+        append_state_body_operations(
+            context,
+            state_call.target_key,
+            operations,
+            invariant_names,
+            visiting,
+        );
         return;
     }
 

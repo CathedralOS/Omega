@@ -49,7 +49,33 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
     let mut plan = RuntimeDispatchBodyPlan::default();
 
     for collected_body in collected_bodies {
-        let operations = plan.operations.insert_many(collected_body.operations);
+        let operations = plan.operations.insert_many(collected_body.operations.into_iter().map(
+            |operation| RuntimeDispatchBodyOperation {
+                kind: match operation.kind {
+                    RuntimeDispatchBodyOperationKind::LocalStorage {
+                        symbol,
+                        name,
+                        type_symbol,
+                        type_name,
+                        invariant_names,
+                    } => RuntimeDispatchBodyOperationKind::LocalStorage {
+                        symbol,
+                        name,
+                        type_symbol,
+                        type_name,
+                        invariant_names: plan.invariant_names.insert_many(
+                            collected_body
+                                .invariant_names
+                                .span_or_empty(invariant_names)
+                                .iter()
+                                .cloned(),
+                        ),
+                    },
+                    kind => kind,
+                },
+                ..operation
+            },
+        ));
 
         plan.bodies.insert(RuntimeDispatchBody {
             key: collected_body.key,

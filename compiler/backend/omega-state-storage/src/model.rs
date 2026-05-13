@@ -1,12 +1,13 @@
 use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStoragePlan {
     pub expressions: ExpressionTable,
+    pub invariant_names: Arena<ProgramName>,
     pub locals: Arena<StateLocalStorage>,
     pub mutations: Arena<StateMutation>,
 }
@@ -19,7 +20,7 @@ pub struct StateLocalStorage {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: String,
-    pub invariant_names: Vec<ProgramName>,
+    pub invariant_names: HandleSpan<ProgramName>,
     pub required: bool,
 }
 

@@ -1,5 +1,5 @@
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::RuntimeDispatchBody;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
@@ -9,6 +9,7 @@ use omega_checked_trees::name::ProgramName;
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
     pub expressions: ExpressionTable,
+    pub invariant_names: Arena<ProgramName>,
     pub frame_slots: Arena<RuntimeFrameSlot>,
     pub writes: Arena<RuntimeStorageWrite>,
 }
@@ -22,7 +23,7 @@ pub struct RuntimeFrameSlot {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: String,
-    pub invariant_names: Vec<ProgramName>,
+    pub invariant_names: HandleSpan<ProgramName>,
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,

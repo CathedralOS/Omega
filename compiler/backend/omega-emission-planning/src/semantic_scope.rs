@@ -1,6 +1,7 @@
 use crate::EmissionPlanningInput;
-use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
+use omega_core::arena::{Arena, HandleSpan};
+use omega_checked_trees::name::ProgramName;
 
 pub(super) fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
     input
@@ -41,13 +42,17 @@ pub(super) fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKe
     }
 }
 
-pub(super) fn invariant_suffix(invariant_names: &[ProgramName]) -> String {
-    match invariant_names {
+pub(super) fn invariant_suffix(
+    invariant_names: &Arena<ProgramName>,
+    names: HandleSpan<ProgramName>,
+) -> String {
+    match invariant_names.span_or_empty(names) {
         [] => String::new(),
         [name] => format!(" (checked invariant `{}`)", name),
         _ => format!(
             " (checked invariants: {})",
             invariant_names
+                .span_or_empty(names)
                 .iter()
                 .map(|name| name.as_str())
                 .collect::<Vec<_>>()
