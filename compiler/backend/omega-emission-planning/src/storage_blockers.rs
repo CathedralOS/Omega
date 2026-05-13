@@ -6,6 +6,7 @@ use omega_runtime_text::places::expression_place_eq_across_tables;
 use omega_state_storage::StateMutationLowering;
 use omega_target_operations::SelectedInstructionKind;
 
+use super::semantic_scope::{invariant_suffix, proof_scope_suffix, state_name};
 use super::runtime_text_blockers::{
     runtime_text_write_for_statement, runtime_text_write_is_planned,
 };
@@ -30,12 +31,13 @@ pub(super) fn collect_state_storage_blockers(
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "{} statement {} local `{}`: {}{} needs stack/local storage lowering",
+                "{} statement {} local `{}`: {}{}{} needs stack/local storage lowering",
                 source_name,
                 local.statement_index,
                 local.name,
                 local.type_name,
-                invariant_suffix(&local.invariant_names)
+                invariant_suffix(&local.invariant_names),
+                proof_scope_suffix(input, local.source_key)
             ),
         ));
     }
@@ -53,7 +55,7 @@ pub(super) fn collect_state_storage_blockers(
         blockers.insert(blocker(
             "state mutation",
             &format!(
-                "{} statement {} {:?}/{:?} `{}` = `{}` needs mutation lowering",
+                "{} statement {} {:?}/{:?} `{}` = `{}`{} needs mutation lowering",
                 source_name,
                 mutation.statement_index,
                 mutation.mutation_kind,
@@ -62,24 +64,10 @@ pub(super) fn collect_state_storage_blockers(
                     .state_storage
                     .expressions
                     .display_name(mutation.target),
-                input.state_storage.expressions.display_name(mutation.value)
+                input.state_storage.expressions.display_name(mutation.value),
+                proof_scope_suffix(input, mutation.source_key)
             ),
         ));
-    }
-}
-
-fn invariant_suffix(invariant_names: &[omega_checked_trees::name::ProgramName]) -> String {
-    match invariant_names {
-        [] => String::new(),
-        [name] => format!(" (checked invariant `{}`)", name),
-        _ => format!(
-            " (checked invariants: {})",
-            invariant_names
-                .iter()
-                .map(|name| name.as_str())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
     }
 }
 
@@ -96,13 +84,14 @@ fn collect_runtime_body_storage_blockers(
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "#{} {} statement {} local `{}`: {}{} needs runtime frame slot layout",
+                "#{} {} statement {} local `{}`: {}{}{} needs runtime frame slot layout",
                 slot.dispatch_index,
                 source_name,
                 slot.statement_index,
                 slot.name,
                 slot.type_name,
-                invariant_suffix(&slot.invariant_names)
+                invariant_suffix(&slot.invariant_names),
+                proof_scope_suffix(input, slot.source_key)
             ),
         ));
     }
@@ -116,14 +105,15 @@ fn collect_runtime_body_storage_blockers(
         blockers.insert(blocker(
             "state mutation",
             &format!(
-                "#{} {} statement {} {:?}/{:?} `{}` = `{}` needs runtime storage write lowering",
+                "#{} {} statement {} {:?}/{:?} `{}` = `{}`{} needs runtime storage write lowering",
                 write.dispatch_index,
                 source_name,
                 write.statement_index,
                 write.mutation_kind,
                 write.lowering,
                 input.runtime_storage.expressions.display_name(write.target),
-                input.runtime_storage.expressions.display_name(write.value)
+                input.runtime_storage.expressions.display_name(write.value),
+                proof_scope_suffix(input, write.source_key)
             ),
         ));
     }
@@ -174,12 +164,4 @@ fn runtime_storage_write_is_planned(
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
     actual == expected
         || (actual.machine == expected.machine && actual.state == expected.state)
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

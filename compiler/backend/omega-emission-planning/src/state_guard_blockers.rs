@@ -4,6 +4,7 @@ use omega_checked_trees::expression::{BinaryOperator, Expression};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
 
+use super::semantic_scope::proof_scope_suffix;
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_guard_blockers(
@@ -121,39 +122,5 @@ fn runtime_transition_target_name(
         RuntimeTransitionTarget::Terminal => "terminal".to_owned(),
         RuntimeTransitionTarget::None => "none".to_owned(),
         RuntimeTransitionTarget::Unknown { name } => format!("unknown {name}"),
-    }
-}
-
-fn proof_scope_suffix(
-    input: &EmissionPlanningInput<'_>,
-    key: omega_control_flow::StateKey,
-) -> String {
-    let obligation_count = input
-        .control_flow
-        .proof_obligations
-        .iter()
-        .filter(|(_, obligation)| {
-            obligation.machine_symbol == key.machine && obligation.state_symbol == key.state
-        })
-        .count();
-    let guarded_count = input
-        .control_flow
-        .proof_obligations
-        .iter()
-        .filter(|(_, obligation)| {
-            obligation.machine_symbol == key.machine
-                && obligation.state_symbol == key.state
-                && obligation.kind == omega_control_flow::ProofFactKind::GuardedTransition
-        })
-        .count();
-
-    if obligation_count == 0 {
-        String::new()
-    } else if guarded_count == 0 {
-        format!(" ({obligation_count} checked proof obligation(s))")
-    } else {
-        format!(
-            " ({obligation_count} checked proof obligation(s), {guarded_count} guarded-transition)"
-        )
     }
 }

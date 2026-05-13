@@ -6,6 +6,7 @@ use omega_runtime_text::places::expression_place_eq_in_table;
 use omega_runtime_text::{RuntimeTextSource, RuntimeTextUse};
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 
+use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_host_argument_blockers(
@@ -58,10 +59,11 @@ pub(super) fn collect_host_argument_blockers(
                     .unwrap_or_else(|| {
                         let source_name = state_name(input, host_call.source_key);
                         format!(
-                            "{} statement {} text argument `{}` needs runtime text lowering",
+                            "{} statement {} text argument `{}`{} needs runtime text lowering",
                             source_name,
                             host_call.statement_index,
-                            expression.display_name()
+                            expression.display_name(),
+                            proof_scope_suffix(input, host_call.source_key)
                         )
                     }),
             ));
@@ -111,20 +113,13 @@ fn host_text_argument_blocker_reason(
 
     let source_name = state_name(input, text_use.source_key);
     format!(
-        "{} statement {} text argument `{}` needs {lowering_need}",
+        "{} statement {} text argument `{}`{} needs {lowering_need}",
         source_name,
         text_use.statement_index,
         input
             .runtime_text
             .expressions
-            .display_name(text_use.expression)
+            .display_name(text_use.expression),
+        proof_scope_suffix(input, text_use.source_key)
     )
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

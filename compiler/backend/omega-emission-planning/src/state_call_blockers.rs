@@ -4,6 +4,7 @@ use omega_core::arena::Arena;
 use omega_state_calls::StateCallLowering;
 use omega_state_schedule::{ScheduledState, scheduled_state_contains_key};
 
+use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
 
 mod runtime_body;
@@ -116,44 +117,5 @@ fn collect_unresolved_state_call_blockers(
                 source_name, state_call.statement_index, state_call.receiver_display
             ),
         ));
-    }
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
-}
-
-fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    let obligation_count = input
-        .control_flow
-        .proof_obligations
-        .iter()
-        .filter(|(_, obligation)| {
-            obligation.machine_symbol == key.machine && obligation.state_symbol == key.state
-        })
-        .count();
-    let guarded_count = input
-        .control_flow
-        .proof_obligations
-        .iter()
-        .filter(|(_, obligation)| {
-            obligation.machine_symbol == key.machine
-                && obligation.state_symbol == key.state
-                && obligation.kind == omega_control_flow::ProofFactKind::GuardedTransition
-        })
-        .count();
-
-    if obligation_count == 0 {
-        String::new()
-    } else if guarded_count == 0 {
-        format!(" ({obligation_count} checked proof obligation(s))")
-    } else {
-        format!(
-            " ({obligation_count} checked proof obligation(s), {guarded_count} guarded-transition)"
-        )
     }
 }

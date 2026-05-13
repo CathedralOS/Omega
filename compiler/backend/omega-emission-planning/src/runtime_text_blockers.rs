@@ -7,6 +7,7 @@ use omega_state_storage::StateMutationLowering;
 use omega_state_values::{StateValueKind, StateValueRole, StateValueUse};
 use omega_target_operations::SelectedInstructionKind;
 
+use super::semantic_scope::{proof_scope_suffix, state_name};
 use super::{EmissionBlocker, blocker};
 
 pub(super) fn collect_state_value_blockers(
@@ -87,7 +88,7 @@ fn runtime_value_blocker_reason(
     {
         let source_name = state_name(input, text_write.source_key);
         return format!(
-            "{} statement {} text write `{}` = `{}` needs {}",
+            "{} statement {} text write `{}` = `{}`{} needs {}",
             source_name,
             text_write.statement_index,
             input
@@ -98,20 +99,22 @@ fn runtime_value_blocker_reason(
                 .runtime_text
                 .expressions
                 .display_name(text_write.value),
+            proof_scope_suffix(input, text_write.source_key),
             runtime_text_write_lowering_name(text_write)
         );
     }
 
     let source_name = state_name(input, value.source_key);
     format!(
-        "{} statement {} {:?} binary expression `{}` needs runtime value lowering",
+        "{} statement {} {:?} binary expression `{}`{} needs runtime value lowering",
         source_name,
         value.statement_index,
         value.role,
         input
             .state_values
             .expressions
-            .display_name(value.expression)
+            .display_name(value.expression),
+        proof_scope_suffix(input, value.source_key)
     )
 }
 
@@ -185,14 +188,6 @@ pub(super) fn runtime_text_write_is_planned(
         }
         RuntimeTextWriteKind::OtherExpression => false,
     }
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
