@@ -1,3 +1,4 @@
+use omega_checked_trees::Program;
 use omega_control_flow::ControlFlowPlan;
 use omega_layout::LayoutPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
@@ -6,6 +7,7 @@ use omega_target::NativeTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeStorageContext {
+    pub program: Program,
     pub control_flow: ControlFlowPlan,
     pub layouts: LayoutPlan,
     pub runtime_bodies: RuntimeDispatchBodyPlan,
@@ -15,6 +17,7 @@ pub struct RuntimeStorageContext {
 
 impl RuntimeStorageContext {
     pub fn new(
+        program: &Program,
         control_flow: &ControlFlowPlan,
         layouts: &LayoutPlan,
         runtime_bodies: &RuntimeDispatchBodyPlan,
@@ -22,6 +25,7 @@ impl RuntimeStorageContext {
         target: NativeTarget,
     ) -> Self {
         Self {
+            program: program.clone(),
             control_flow: control_flow.clone(),
             layouts: layouts.clone(),
             runtime_bodies: runtime_bodies.clone(),

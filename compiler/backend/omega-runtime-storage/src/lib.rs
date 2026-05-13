@@ -5,7 +5,8 @@ mod model;
 
 pub use context::RuntimeStorageContext;
 pub use model::{
-    RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStoragePlan, RuntimeStorageWrite,
+    RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStorageBodyInput, RuntimeStoragePlan,
+    RuntimeStorageWrite,
 };
 
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
