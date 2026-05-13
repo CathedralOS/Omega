@@ -91,7 +91,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "entry_surface_receiver_paths",
     "mutable_output_host_call",
     "nested_machine_continuation",
-    "runtime_alias_integer_write",
     "runtime_text_storage",
     "std_option_storage_write",
     "std_option_surface",
