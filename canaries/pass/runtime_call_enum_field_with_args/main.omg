@@ -1,0 +1,28 @@
+enum ItemKind {
+    RustedDagger
+    DeepKey
+}
+
+data Reward {
+    item: ItemKind
+}
+
+machine main {
+    pub entry(
+        &mut self,
+        depth: u32,
+        reward: &mut Reward
+    ) {
+        reward.item = self.pick(depth);
+    }
+
+    fn pick(
+        &mut self,
+        depth: u32
+    ) -> ItemKind {
+        transition depth > 3 {
+            true -> ItemKind::DeepKey
+            false -> ItemKind::RustedDagger
+        }
+    }
+}
