@@ -1,0 +1,13 @@
+machine main -> i32[exact, non_negative] {
+    pub entry(
+        &mut self
+    ) {
+    }
+
+    state answer(
+        &mut self,
+        amount: i32[exact, non_negative]
+    ) {
+        max(0, amount)
+    }
+}

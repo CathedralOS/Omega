@@ -1,0 +1,1 @@
+cannot prove transition argument `room.exit_count` satisfies `positive`

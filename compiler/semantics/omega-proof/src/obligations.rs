@@ -1,8 +1,9 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::Program;
-use omega_typed_trees::expression::Expression;
+use omega_typed_trees::expression::{BinaryOperator, Expression, FloatLiteral};
 use omega_typed_trees::machine::Machine;
+use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
@@ -112,6 +113,18 @@ pub struct BoundedTransitionArgumentObligation {
     pub base_type: TypeReference,
     pub constraints: HandleSpan<TypeConstraint>,
     pub guard: TransitionGuard,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IntegerRange {
+    minimum: i64,
+    maximum: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FloatRange {
+    minimum: f64,
+    maximum: f64,
 }
 
 pub fn build_proof_plan(program: &Program) -> ProofPlan {
@@ -327,7 +340,7 @@ fn collect_bounded_assignment_obligation(
     let Some(TypeReference::Constrained {
         base_type,
         constraints,
-    }) = expression_type_reference(machine, state, &assignment.target)
+    }) = expression_type_reference(program, machine, state, &assignment.target)
     else {
         return;
     };
@@ -637,54 +650,114 @@ fn expression_constraints(
     state: &State,
     expression: &Expression,
 ) -> Vec<TypeConstraint> {
-    expression_type_reference(machine, state, expression)
-        .map(|type_reference| collect_constraints(program, type_reference))
-        .unwrap_or_default()
+    match expression {
+        Expression::Binary(binary) => {
+            let left = expression_constraints(program, machine, state, &binary.left);
+            let right = expression_constraints(program, machine, state, &binary.right);
+            derived_binary_constraints(binary.operator, &left, &right)
+        }
+        Expression::Call(call) => {
+            if is_real_from_call(call.receiver.as_deref(), &call.target)
+                && let [argument] = call.arguments.as_slice()
+            {
+                let argument_constraints =
+                    expression_constraints(program, machine, state, argument);
+                return derived_real_from_constraints(&argument_constraints);
+            }
+
+            Vec::new()
+        }
+        Expression::Cast(cast) => expression_constraints(program, machine, state, &cast.value),
+        Expression::Float(value) => float_literal_constraints(*value),
+        Expression::Integer(value) => integer_literal_constraints(*value),
+        Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
+            expression_type_reference(program, machine, state, expression)
+                .map(|type_reference| collect_constraints(program, type_reference))
+                .unwrap_or_default()
+        }
+        Expression::ArrayLiteral(_)
+        | Expression::Boolean(_)
+        | Expression::Indexed(_)
+        | Expression::String(_)
+        | Expression::StructLiteral(_) => Vec::new(),
+    }
 }
 
 fn expression_type_reference<'program>(
+    program: &'program Program,
     machine: &'program Machine,
     state: &'program State,
     expression: &Expression,
 ) -> Option<&'program TypeReference> {
-    let Expression::Name(path) = expression else {
-        return None;
-    };
-    let name = match path.as_slice() {
-        [name] => name,
-        [receiver, name] if receiver == "self" => name,
-        _ => return None,
-    };
+    match expression {
+        Expression::Mutable(inner) => expression_type_reference(program, machine, state, inner),
+        Expression::Name(path) => {
+            if path.symbol().is_valid() {
+                return type_reference_for_symbol(program, machine, state, path.symbol());
+            }
 
-    state
-        .parameters
-        .iter()
-        .find(|parameter| parameter.name == *name)
-        .map(|parameter| &parameter.type_reference)
-        .or_else(|| {
-            state.statements.iter().find_map(|statement| {
-                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
-                else {
-                    return None;
-                };
+            let name = match path.as_slice() {
+                [name] => name,
+                [receiver, name] if receiver == "self" => name,
+                _ => return None,
+            };
 
-                (local_data.name == *name).then_some(&local_data.type_reference)
-            })
-        })
-        .or_else(|| {
-            machine
-                .owned_data
+            state
+                .parameters
                 .iter()
-                .find(|owned_data| owned_data.name == *name)
-                .map(|owned_data| &owned_data.type_reference)
-        })
+                .find(|parameter| parameter.name == *name)
+                .map(|parameter| &parameter.type_reference)
+                .or_else(|| {
+                    state.statements.iter().find_map(|statement| {
+                        let omega_typed_trees::statement::Statement::LocalData(local_data) =
+                            statement
+                        else {
+                            return None;
+                        };
+
+                        (local_data.name == *name).then_some(&local_data.type_reference)
+                    })
+                })
+                .or_else(|| {
+                    machine
+                        .owned_data
+                        .iter()
+                        .find(|owned_data| owned_data.name == *name)
+                        .map(|owned_data| &owned_data.type_reference)
+                })
+        }
+        Expression::Member(member) => type_reference_for_symbol(
+            program,
+            machine,
+            state,
+            member.member_symbol,
+        )
+        .or_else(|| {
+            expression_type_reference(program, machine, state, &member.receiver).and_then(
+                |receiver_type| {
+                    data_field_type_reference(
+                        program,
+                        receiver_type,
+                        member.member_symbol,
+                        &member.member,
+                    )
+                },
+            )
+        }),
+        _ => None,
+    }
 }
 
 fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec<TypeConstraint> {
     match type_reference {
         TypeReference::Reference { referee, .. } => collect_constraints(program, referee),
-        TypeReference::Constrained { constraints, .. } => {
-            type_constraints(program, *constraints).to_vec()
+        TypeReference::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let mut derived = collect_constraints(program, base_type);
+            derived.extend(type_constraints(program, *constraints).iter().cloned());
+            derived
         }
         TypeReference::FixedArray { element_type, .. } => {
             collect_constraints(program, element_type)
@@ -694,8 +767,451 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
             .flat_map(|argument| collect_constraints(program, argument))
             .collect(),
         TypeReference::Slice { element_type } => collect_constraints(program, element_type),
-        TypeReference::Named { name: _, .. } => Vec::new(),
+        TypeReference::Named { name, .. } => primitive_constraints(name),
         TypeReference::Unit => Vec::new(),
+    }
+}
+
+fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
+    match name.as_str() {
+        "u32" => vec![TypeConstraint::Range {
+            minimum: Expression::Integer(0),
+            maximum: Expression::Integer(u32::MAX as i64),
+        }],
+        "usize" => vec![TypeConstraint::Range {
+            minimum: Expression::Integer(0),
+            maximum: Expression::Integer(i64::MAX),
+        }],
+        _ => Vec::new(),
+    }
+}
+
+fn type_reference_for_symbol<'program>(
+    program: &'program Program,
+    machine: &'program Machine,
+    state: &'program State,
+    symbol: SymbolHandle,
+) -> Option<&'program TypeReference> {
+    state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.symbol == symbol)
+        .map(|parameter| &parameter.type_reference)
+        .or_else(|| {
+            state.statements.iter().find_map(|statement| {
+                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
+                else {
+                    return None;
+                };
+
+                (local_data.symbol == symbol).then_some(&local_data.type_reference)
+            })
+        })
+        .or_else(|| {
+            machine
+                .owned_data
+                .iter()
+                .find(|owned_data| owned_data.symbol == symbol)
+                .map(|owned_data| &owned_data.type_reference)
+        })
+        .or_else(|| {
+            program.data_definitions.iter().find_map(|data_definition| {
+                data_definition.members.iter().find_map(|member| {
+                    let omega_typed_trees::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+
+                    (field.symbol == symbol).then_some(&field.type_reference)
+                })
+            })
+        })
+}
+
+fn data_field_type_reference<'program>(
+    program: &'program Program,
+    type_reference: &'program TypeReference,
+    member_symbol: SymbolHandle,
+    member_name: &ProgramName,
+) -> Option<&'program TypeReference> {
+    match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            data_field_type_reference(program, referee, member_symbol, member_name)
+        }
+        TypeReference::Constrained { base_type, .. } => {
+            data_field_type_reference(program, base_type, member_symbol, member_name)
+        }
+        TypeReference::Generic {
+            base_symbol,
+            base_name,
+            ..
+        } => {
+            data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
+                |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
+            )
+        }
+        TypeReference::Named { symbol, name } => {
+            data_definition_by_symbol_or_name(program, *symbol, name).and_then(
+                |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
+            )
+        }
+        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => None,
+    }
+}
+
+fn data_definition_by_symbol_or_name<'program>(
+    program: &'program Program,
+    symbol: SymbolHandle,
+    name: &ProgramName,
+) -> Option<&'program omega_typed_trees::data::DataDefinition> {
+    program.data_definitions.iter().find(|data_definition| {
+        (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
+    })
+}
+
+fn data_field_in_definition<'program>(
+    data_definition: &'program omega_typed_trees::data::DataDefinition,
+    member_symbol: SymbolHandle,
+    member_name: &ProgramName,
+) -> Option<&'program TypeReference> {
+    data_definition.members.iter().find_map(|member| {
+        let omega_typed_trees::data::DataMember::Field(field) = member else {
+            return None;
+        };
+
+        ((member_symbol.is_valid() && field.symbol == member_symbol) || field.name == *member_name)
+            .then_some(&field.type_reference)
+    })
+}
+
+fn integer_literal_constraints(value: i64) -> Vec<TypeConstraint> {
+    let mut constraints = vec![
+        TypeConstraint::Named(ProgramName::generated("exact")),
+        TypeConstraint::Range {
+            minimum: Expression::Integer(value),
+            maximum: Expression::Integer(value),
+        },
+    ];
+
+    if value >= 0 {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+    }
+
+    if value > 0 {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+    }
+
+    constraints
+}
+
+fn float_literal_constraints(value: FloatLiteral) -> Vec<TypeConstraint> {
+    let value = value.value();
+    if !value.is_finite() {
+        return Vec::new();
+    }
+
+    vec![
+        TypeConstraint::Named(ProgramName::generated("finite")),
+        TypeConstraint::Range {
+            minimum: Expression::Float(FloatLiteral::new(value)),
+            maximum: Expression::Float(FloatLiteral::new(value)),
+        },
+    ]
+}
+
+fn derived_binary_constraints(
+    operator: BinaryOperator,
+    left_constraints: &[TypeConstraint],
+    right_constraints: &[TypeConstraint],
+) -> Vec<TypeConstraint> {
+    let mut constraints = Vec::new();
+
+    if integer_constraints_are_exact(left_constraints)
+        && integer_constraints_are_exact(right_constraints)
+        && matches!(
+            operator,
+            BinaryOperator::Add
+                | BinaryOperator::Modulo
+                | BinaryOperator::Multiply
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::Subtract
+        )
+    {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+    }
+
+    if integer_constraints_are_wrapping(left_constraints)
+        && matches!(
+            operator,
+            BinaryOperator::Add
+                | BinaryOperator::Modulo
+                | BinaryOperator::Multiply
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::Subtract
+        )
+    {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("wrapping")));
+    }
+
+    if let (Some(left_range), Some(right_range)) = (
+        integer_range_from_constraints(left_constraints),
+        integer_range_from_constraints(right_constraints),
+    ) && let Some(range) = integer_binary_range(operator, left_range, right_range)
+    {
+        constraints.push(TypeConstraint::Range {
+            minimum: Expression::Integer(range.minimum),
+            maximum: Expression::Integer(range.maximum),
+        });
+        if range.minimum >= 0 {
+            constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+        }
+        if range.minimum > 0 {
+            constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+        }
+    }
+
+    if let (Some(left_range), Some(right_range)) = (
+        float_range_from_constraints(left_constraints),
+        float_range_from_constraints(right_constraints),
+    ) && let Some(range) = float_binary_range(operator, left_range, right_range)
+    {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("finite")));
+        constraints.push(TypeConstraint::Range {
+            minimum: Expression::Float(FloatLiteral::new(range.minimum)),
+            maximum: Expression::Float(FloatLiteral::new(range.maximum)),
+        });
+    }
+
+    constraints
+}
+
+fn derived_real_from_constraints(argument_constraints: &[TypeConstraint]) -> Vec<TypeConstraint> {
+    let Some(range) = integer_range_from_constraints(argument_constraints) else {
+        return Vec::new();
+    };
+
+    vec![
+        TypeConstraint::Named(ProgramName::generated("finite")),
+        TypeConstraint::Range {
+            minimum: Expression::Float(FloatLiteral::new(range.minimum as f64)),
+            maximum: Expression::Float(FloatLiteral::new(range.maximum as f64)),
+        },
+    ]
+}
+
+fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> bool {
+    target == "from"
+        && matches!(
+            receiver,
+            Some(Expression::Name(path)) if path.as_slice() == ["Real"]
+        )
+}
+
+fn integer_constraints_are_exact(constraints: &[TypeConstraint]) -> bool {
+    has_named_constraint(constraints, "exact") || integer_range_from_constraints(constraints).is_some()
+}
+
+fn integer_constraints_are_wrapping(constraints: &[TypeConstraint]) -> bool {
+    has_named_constraint(constraints, "wrapping")
+}
+
+fn has_named_constraint(constraints: &[TypeConstraint], name: &str) -> bool {
+    constraints.iter().any(|constraint| {
+        matches!(constraint, TypeConstraint::Named(constraint_name) if constraint_name == name)
+    })
+}
+
+fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
+    let mut range = constraints.iter().find_map(|constraint| {
+        let TypeConstraint::Range { minimum, maximum } = constraint else {
+            return None;
+        };
+
+        Some(IntegerRange {
+            minimum: integer_constant_value(minimum)?,
+            maximum: integer_constant_value(maximum)?,
+        })
+    });
+
+    for constraint in constraints {
+        let TypeConstraint::Named(name) = constraint else {
+            continue;
+        };
+
+        let implied = match name.as_str() {
+            "non_negative" => Some(IntegerRange {
+                minimum: 0,
+                maximum: i64::MAX,
+            }),
+            "positive" => Some(IntegerRange {
+                minimum: 1,
+                maximum: i64::MAX,
+            }),
+            _ => None,
+        };
+
+        let Some(implied) = implied else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => IntegerRange {
+                minimum: existing.minimum.max(implied.minimum),
+                maximum: existing.maximum.min(implied.maximum),
+            },
+            None => implied,
+        });
+    }
+
+    range
+}
+
+fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
+    constraints.iter().find_map(|constraint| {
+        let TypeConstraint::Range { minimum, maximum } = constraint else {
+            return None;
+        };
+
+        Some(FloatRange {
+            minimum: float_constant_value(minimum)?,
+            maximum: float_constant_value(maximum)?,
+        })
+    })
+}
+
+fn integer_binary_range(
+    operator: BinaryOperator,
+    left: IntegerRange,
+    right: IntegerRange,
+) -> Option<IntegerRange> {
+    match operator {
+        BinaryOperator::Add => Some(IntegerRange {
+            minimum: left.minimum.saturating_add(right.minimum),
+            maximum: left.maximum.saturating_add(right.maximum),
+        }),
+        BinaryOperator::Subtract => Some(IntegerRange {
+            minimum: left.minimum.saturating_sub(right.maximum),
+            maximum: left.maximum.saturating_sub(right.minimum),
+        }),
+        BinaryOperator::Multiply => {
+            let products = [
+                left.minimum.saturating_mul(right.minimum),
+                left.minimum.saturating_mul(right.maximum),
+                left.maximum.saturating_mul(right.minimum),
+                left.maximum.saturating_mul(right.maximum),
+            ];
+            Some(IntegerRange {
+                minimum: *products.iter().min()?,
+                maximum: *products.iter().max()?,
+            })
+        }
+        BinaryOperator::Modulo => {
+            if right.minimum <= 0 {
+                return None;
+            }
+
+            Some(IntegerRange {
+                minimum: 0,
+                maximum: right.maximum.saturating_sub(1),
+            })
+        }
+        BinaryOperator::ShiftRight => {
+            if right.minimum < 0 {
+                return None;
+            }
+
+            Some(IntegerRange {
+                minimum: 0.max(left.minimum),
+                maximum: left.maximum.max(0),
+            })
+        }
+        BinaryOperator::And
+        | BinaryOperator::Divide
+        | BinaryOperator::Equal
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft => None,
+    }
+}
+
+fn float_binary_range(
+    operator: BinaryOperator,
+    left: FloatRange,
+    right: FloatRange,
+) -> Option<FloatRange> {
+    match operator {
+        BinaryOperator::Add => Some(FloatRange {
+            minimum: left.minimum + right.minimum,
+            maximum: left.maximum + right.maximum,
+        }),
+        BinaryOperator::Subtract => Some(FloatRange {
+            minimum: left.minimum - right.maximum,
+            maximum: left.maximum - right.minimum,
+        }),
+        BinaryOperator::Multiply => {
+            let products = [
+                left.minimum * right.minimum,
+                left.minimum * right.maximum,
+                left.maximum * right.minimum,
+                left.maximum * right.maximum,
+            ];
+            Some(FloatRange {
+                minimum: products.iter().copied().fold(f64::INFINITY, f64::min),
+                maximum: products.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            })
+        }
+        BinaryOperator::Divide => {
+            if right.minimum <= 0.0 && right.maximum >= 0.0 {
+                return None;
+            }
+
+            let quotients = [
+                left.minimum / right.minimum,
+                left.minimum / right.maximum,
+                left.maximum / right.minimum,
+                left.maximum / right.maximum,
+            ];
+            Some(FloatRange {
+                minimum: quotients.iter().copied().fold(f64::INFINITY, f64::min),
+                maximum: quotients
+                    .iter()
+                    .copied()
+                    .fold(f64::NEG_INFINITY, f64::max),
+            })
+        }
+        BinaryOperator::And
+        | BinaryOperator::Equal
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Modulo
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Or
+        | BinaryOperator::ShiftLeft
+        | BinaryOperator::ShiftRight => None,
+    }
+}
+
+fn integer_constant_value(expression: &Expression) -> Option<i64> {
+    match expression {
+        Expression::Integer(value) => Some(*value),
+        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as i64),
+        _ => None,
+    }
+}
+
+fn float_constant_value(expression: &Expression) -> Option<f64> {
+    match expression {
+        Expression::Float(value) => Some(value.value()),
+        Expression::Integer(value) => Some(*value as f64),
+        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as f64),
+        _ => None,
     }
 }
 

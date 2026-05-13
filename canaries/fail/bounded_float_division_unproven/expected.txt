@@ -1,0 +1,1 @@
+cannot prove return value `Real.from(raw) / Real.from(u32::MAX)` satisfies `finite` for bounded return type
