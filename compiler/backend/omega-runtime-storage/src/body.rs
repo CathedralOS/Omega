@@ -32,6 +32,7 @@ pub(super) fn build_runtime_storage_body_plan(
                 name,
                 type_symbol,
                 type_name,
+                invariant_names,
             } => {
                 let layout = layout_for_type(context, *type_symbol, type_name);
                 let byte_offset = align_to(next_frame_offset, layout.alignment);
@@ -47,6 +48,7 @@ pub(super) fn build_runtime_storage_body_plan(
                     name: name.clone(),
                     type_symbol: *type_symbol,
                     type_name: type_name.clone(),
+                    invariant_names: invariant_names.clone(),
                     byte_offset,
                     byte_size: layout.size,
                     alignment: layout.alignment,
@@ -105,6 +107,7 @@ fn append_parameter_slots(
             name: parameter.name.clone(),
             type_symbol: parameter.type_symbol,
             type_name: parameter.type_name.to_string(),
+            invariant_names: Vec::new(),
             byte_offset,
             byte_size: layout.size,
             alignment: layout.alignment,

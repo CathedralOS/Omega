@@ -82,6 +82,7 @@ fn append_state_body_operations(
                     name: local_storage.name.clone(),
                     type_symbol: local_storage.type_symbol,
                     type_name: local_storage.type_name.clone(),
+                    invariant_names: local_storage.invariant_names.clone(),
                 },
             ));
             continue;
