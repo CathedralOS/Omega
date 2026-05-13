@@ -89,6 +89,7 @@ fn build_machine_state_storage_plan(
             segment_index: 0,
         };
         let required = context.state_is_required_by_key(source_key);
+        let uses_runtime_flow = context.state_uses_runtime_flow_by_key(source_key);
 
         let statements = program.statement_table.statements(state.statement_nodes);
 
@@ -101,6 +102,7 @@ fn build_machine_state_storage_plan(
                         statement_index,
                         local_data.symbol,
                         local_data.initial_value.is_valid(),
+                        uses_runtime_flow,
                     ) {
                         continue;
                     }
@@ -155,8 +157,13 @@ fn local_data_requires_storage(
     local_statement_index: usize,
     local_symbol: SymbolHandle,
     has_initial_value: bool,
+    uses_runtime_flow: bool,
 ) -> bool {
     if !has_initial_value {
+        return true;
+    }
+
+    if uses_runtime_flow {
         return true;
     }
 
