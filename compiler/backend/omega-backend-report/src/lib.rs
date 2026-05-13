@@ -7,6 +7,7 @@ mod stats;
 
 use omega_artifacts::BackendSurfaceReport;
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_core::allocations::AllocationDelta;
 use omega_layout::LayoutPlan;
@@ -34,7 +35,6 @@ use omega_state_storage::StateStoragePlan;
 use omega_state_values::StateValuePlan;
 use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
-use omega_typed_trees::statement::TransitionGuard;
 
 pub struct BackendReportPhaseTiming {
     pub phase: String,

@@ -149,6 +149,7 @@ version = "0.1.0"
 dependencies = [
  "omega-artifacts",
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-layout",
@@ -170,7 +171,6 @@ dependencies = [
  "omega-state-values",
  "omega-target",
  "omega-target-operations",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -544,6 +544,7 @@ dependencies = [
 name = "omega-runtime-branching"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
@@ -552,7 +553,6 @@ dependencies = [
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-storage",
- "omega-typed-trees",
 ]
 
 [[package]]

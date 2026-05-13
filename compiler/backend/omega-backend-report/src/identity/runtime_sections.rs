@@ -4,8 +4,8 @@ use crate::identity::expressions::{
     count_control_flow_expression_strings, count_expression_strings,
 };
 use crate::identity::targets::count_runtime_target_strings;
+use omega_checked_trees::statement::TransitionGuard;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
-use omega_typed_trees::statement::TransitionGuard;
 
 pub(in crate::identity) fn count_runtime_flow_strings(
     backend_plan: &BackendReportInput<'_>,
