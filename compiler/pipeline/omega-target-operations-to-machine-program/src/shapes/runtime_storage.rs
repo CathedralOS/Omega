@@ -55,11 +55,13 @@ pub(super) fn runtime_storage_integer_write_kind(
 
 pub(super) fn runtime_pointee_integer_write_kind(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     value: i64,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeIntegerWrite {
         pointer_byte_offset,
+        field_byte_offset,
         byte_size,
         value,
     }
@@ -83,6 +85,7 @@ pub(super) fn runtime_storage_binary_write_kind(
 
 pub(super) fn runtime_pointee_binary_write_kind(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     left: RuntimeValueOperand,
     operator: StateGuardOperator,
@@ -90,6 +93,7 @@ pub(super) fn runtime_pointee_binary_write_kind(
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeBinaryWrite {
         pointer_byte_offset,
+        field_byte_offset,
         byte_size,
         left: lower_runtime_value_operand(left),
         operator,
@@ -149,10 +153,12 @@ pub(super) fn runtime_machine_string_write_kind(
 
 pub(super) fn runtime_pointee_string_write_kind(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_length: usize,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimePointeeStringWrite {
         pointer_byte_offset,
+        field_byte_offset,
         byte_length,
     }
 }

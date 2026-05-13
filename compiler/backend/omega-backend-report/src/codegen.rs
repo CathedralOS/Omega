@@ -319,10 +319,11 @@ fn selected_instruction_name(
         }
         SelectedInstructionKind::WriteRuntimePointeeInteger {
             pointer_byte_offset,
+            field_byte_offset,
             byte_size,
             value,
         } => format!(
-            "write runtime pointee integer runtime_frame@{pointer_byte_offset} bytes {byte_size} value {value}"
+            "write runtime pointee integer runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} value {value}"
         ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_region,
@@ -342,13 +343,14 @@ fn selected_instruction_name(
         }
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
+            field_byte_offset,
             byte_size,
             left,
             operator,
             right,
         } => {
             format!(
-                "write runtime pointee binary runtime_frame@{pointer_byte_offset} bytes {byte_size} {} {operator:?} {}",
+                "write runtime pointee binary runtime_frame@{pointer_byte_offset} +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
                 runtime_value_operand_name(left, backend_plan.entry_machine_name()),
                 runtime_value_operand_name(right, backend_plan.entry_machine_name()),
             )
@@ -393,12 +395,13 @@ fn selected_instruction_name(
         }
         SelectedInstructionKind::WriteRuntimePointeeString {
             pointer_byte_offset,
+            field_byte_offset,
             data,
             byte_length,
         } => {
             let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
             format!(
-                "write runtime pointee string runtime_frame@{pointer_byte_offset} data `{data_symbol}` len {byte_length}"
+                "write runtime pointee string runtime_frame@{pointer_byte_offset} +{field_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
         SelectedInstructionKind::ReadRuntimeTextLine {

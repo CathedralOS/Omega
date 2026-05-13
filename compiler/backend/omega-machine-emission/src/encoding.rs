@@ -186,11 +186,13 @@ pub(super) fn encode_machine_instruction(
         ),
         SelectedInstructionKind::WriteRuntimePointeeInteger {
             pointer_byte_offset,
+            field_byte_offset,
             byte_size,
             value,
         } => runtime_storage::encode_runtime_pointee_integer_write(
             input,
             *pointer_byte_offset,
+            *field_byte_offset,
             *byte_size,
             *value,
         ),
@@ -211,6 +213,7 @@ pub(super) fn encode_machine_instruction(
         ),
         SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset,
+            field_byte_offset,
             byte_size,
             left,
             operator,
@@ -218,6 +221,7 @@ pub(super) fn encode_machine_instruction(
         } => runtime_storage::encode_runtime_pointee_binary_write(
             input,
             *pointer_byte_offset,
+            *field_byte_offset,
             *byte_size,
             left,
             *operator,
@@ -268,11 +272,13 @@ pub(super) fn encode_machine_instruction(
         }
         SelectedInstructionKind::WriteRuntimePointeeString {
             pointer_byte_offset,
+            field_byte_offset,
             byte_length,
             ..
         } => runtime_storage::encode_runtime_pointee_string_write(
             input,
             *pointer_byte_offset,
+            *field_byte_offset,
             *byte_length,
         ),
         SelectedInstructionKind::ReadRuntimeTextLine {
