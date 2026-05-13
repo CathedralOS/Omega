@@ -1,0 +1,17 @@
+enum RewardItem {
+    None
+    Gold
+}
+
+machine main {
+    pub entry(&mut self, flag: bool, out: &mut RewardItem) {
+        out = self.pick(flag);
+    }
+
+    fn pick(&mut self, flag: bool) -> RewardItem {
+        transition flag {
+            true -> RewardItem::Gold
+            false -> RewardItem::None
+        }
+    }
+}
