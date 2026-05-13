@@ -2,6 +2,7 @@ use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_runtime_bodies::RuntimeDispatchBody;
+use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
@@ -19,6 +20,7 @@ pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub kind: RuntimeFrameSlotKind,
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
@@ -27,6 +29,22 @@ pub struct RuntimeFrameSlot {
     pub byte_offset: usize,
     pub byte_size: usize,
     pub alignment: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeFrameSlotKind {
+    Parameter,
+    LocalStorage,
+    StateCallResult {
+        role: StateCallRole,
+        target_key: StateKey,
+    },
+}
+
+impl Default for RuntimeFrameSlotKind {
+    fn default() -> Self {
+        Self::LocalStorage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
