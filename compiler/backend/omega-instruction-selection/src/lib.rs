@@ -9,6 +9,7 @@ pub use selection::build_instruction_plan;
 pub use widths::*;
 
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::Program;
 use omega_control_flow::{ControlFlowPlan, StateKey};
 use omega_layout::LayoutPlan;
 use omega_platform_interface::HostCallPlan;
@@ -29,6 +30,7 @@ pub struct InstructionSelectionInput<'plan> {
     pub target: NativeTarget,
     pub entry_key: StateKey,
     pub entry_symbol: String,
+    pub program: &'plan Program,
     pub host_abi: &'plan HostAbiPlan,
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
