@@ -127,6 +127,26 @@ pub(super) fn resolve_runtime_alias_binding(
     alias_expressions: &ExpressionTable,
 ) -> RuntimeResolvedExpression {
     match expression {
+        Expression::Binary(binary) => {
+            let left =
+                resolve_runtime_alias_binding(&binary.left, source_key, aliases, alias_expressions);
+            let right = resolve_runtime_alias_binding(
+                &binary.right,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            RuntimeResolvedExpression {
+                source_key: left.source_key,
+                expression: Expression::Binary(Box::new(
+                    omega_checked_trees::expression::BinaryExpression {
+                        left: left.expression,
+                        operator: binary.operator,
+                        right: right.expression,
+                    },
+                )),
+            }
+        }
         Expression::Mutable(target) => {
             let resolved =
                 resolve_runtime_alias_binding(target, source_key, aliases, alias_expressions);
@@ -204,6 +224,30 @@ pub(super) fn resolve_runtime_alias_binding_handle(
     alias_expressions: &mut ExpressionTable,
 ) -> RuntimeResolvedExpressionHandle {
     match alias_expressions.expression(expression).clone() {
+        ExpressionNode::Binary(binary) => {
+            let left = resolve_runtime_alias_binding_handle(
+                binary.left,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            let right = resolve_runtime_alias_binding_handle(
+                binary.right,
+                source_key,
+                aliases,
+                alias_expressions,
+            );
+            RuntimeResolvedExpressionHandle {
+                source_key: left.source_key,
+                expression: alias_expressions.insert(ExpressionNode::Binary(
+                    omega_checked_trees::expression::TableBinaryExpression {
+                        left: left.expression,
+                        operator: binary.operator,
+                        right: right.expression,
+                    },
+                )),
+            }
+        }
         ExpressionNode::Mutable(target) => {
             let resolved = resolve_runtime_alias_binding_handle(
                 target,
