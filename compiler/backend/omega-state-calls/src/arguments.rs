@@ -15,6 +15,7 @@ pub(crate) fn build_call_arguments(
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
+    call_ordinal: usize,
     target_key: StateKey,
     required: bool,
     raw_arguments: HandleSpan<ExpressionHandle>,
@@ -44,6 +45,7 @@ pub(crate) fn build_call_arguments(
                     source_key,
                     statement_index,
                     role,
+                    call_ordinal,
                     index,
                     *expression,
                 ) || parameters
@@ -74,11 +76,11 @@ fn argument_is_mutable_alias(
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
+    call_ordinal: usize,
     index: usize,
     expression: ExpressionHandle,
 ) -> bool {
-    if role == StateCallRole::Statement
-        && let Some(call) = context.borrow_call_by_key(source_key, statement_index)
+    if let Some(call) = context.borrow_call_by_key(source_key, statement_index, call_ordinal)
         && let Some(access) = context
             .control_flow
             .borrow_argument_accesses
@@ -88,6 +90,7 @@ fn argument_is_mutable_alias(
         return access.kind == omega_control_flow::StateBorrowAccessKind::Mutable;
     }
 
+    let _ = role;
     matches!(
         context.control_flow.expressions.expression(expression),
         ExpressionNode::Mutable(_)

@@ -14,6 +14,7 @@ use super::{StateCallResolution, StateCallRole};
 pub(crate) struct CollectedStateCall {
     pub source_key: StateKey,
     pub statement_index: usize,
+    pub call_ordinal: usize,
     pub role: StateCallRole,
     pub receiver: ProgramName,
     pub target_key: StateKey,
@@ -39,6 +40,7 @@ pub(crate) fn collect_machine_state_calls(
         };
 
         for operation in operations {
+            let mut call_ordinal = 0usize;
             let OperationKind::Call {
                 receiver_symbol,
                 target_symbol,
@@ -66,6 +68,7 @@ pub(crate) fn collect_machine_state_calls(
             calls.push(CollectedStateCall {
                 source_key: state.key,
                 statement_index: operation.statement_index,
+                call_ordinal,
                 role: StateCallRole::Statement,
                 receiver: receiver
                     .as_ref()
@@ -87,12 +90,14 @@ pub(crate) fn collect_machine_state_calls(
                     .map(|target| target.resolution)
                     .unwrap_or(StateCallResolution::Unresolved),
             });
+            call_ordinal += 1;
 
             collect_expression_state_calls_for_operation(
                 context,
                 machine,
                 state.key,
                 operation.statement_index,
+                &mut call_ordinal,
                 operation.expressions,
                 &mut calls,
             );
@@ -103,11 +108,13 @@ pub(crate) fn collect_machine_state_calls(
         };
 
         for (statement_index, transition) in transitions.iter().enumerate() {
+            let mut call_ordinal = 0usize;
             collect_expression_state_calls_for_transition(
                 context,
                 machine,
                 state.key,
                 statement_index,
+                &mut call_ordinal,
                 transition.expressions,
                 &mut calls,
             );
@@ -122,6 +129,7 @@ fn collect_expression_state_calls_for_operation(
     machine: &MachineFlow,
     source_key: StateKey,
     statement_index: usize,
+    call_ordinal: &mut usize,
     expressions: OperationExpressionRefs,
     calls: &mut Vec<CollectedStateCall>,
 ) {
@@ -131,6 +139,7 @@ fn collect_expression_state_calls_for_operation(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::AssignmentValue,
             value,
             calls,
@@ -142,6 +151,7 @@ fn collect_expression_state_calls_for_operation(
                     machine,
                     source_key,
                     statement_index,
+                    call_ordinal,
                     StateCallRole::CallArgument,
                     *argument,
                     calls,
@@ -153,6 +163,7 @@ fn collect_expression_state_calls_for_operation(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::AssignmentValue,
             expression,
             calls,
@@ -166,6 +177,7 @@ fn collect_expression_state_calls_for_transition(
     machine: &MachineFlow,
     source_key: StateKey,
     statement_index: usize,
+    call_ordinal: &mut usize,
     expressions: TransitionExpressionRefs,
     calls: &mut Vec<CollectedStateCall>,
 ) {
@@ -175,6 +187,7 @@ fn collect_expression_state_calls_for_transition(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::TransitionGuard,
             guard,
             calls,
@@ -191,6 +204,7 @@ fn collect_expression_state_calls_for_transition(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::TransitionArgument,
             *argument,
             calls,
@@ -203,6 +217,7 @@ fn collect_expression_state_calls_for_transition(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::TransitionArgument,
             value,
             calls,
@@ -219,6 +234,7 @@ fn collect_expression_state_calls_for_transition(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::TransitionArgument,
             *argument,
             calls,
@@ -231,6 +247,7 @@ fn collect_expression_state_calls_for_transition(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             StateCallRole::TransitionArgument,
             value,
             calls,
@@ -243,6 +260,7 @@ fn collect_expression_state_calls(
     machine: &MachineFlow,
     source_key: StateKey,
     statement_index: usize,
+    call_ordinal: &mut usize,
     role: StateCallRole,
     expression: ExpressionHandle,
     calls: &mut Vec<CollectedStateCall>,
@@ -252,6 +270,7 @@ fn collect_expression_state_calls(
         machine,
         source_key,
         statement_index,
+        call_ordinal,
         role,
         expression,
         calls,
@@ -263,6 +282,7 @@ fn collect_expression_state_calls_in_table(
     machine: &MachineFlow,
     source_key: StateKey,
     statement_index: usize,
+    call_ordinal: &mut usize,
     role: StateCallRole,
     expression: ExpressionHandle,
     calls: &mut Vec<CollectedStateCall>,
@@ -275,6 +295,7 @@ fn collect_expression_state_calls_in_table(
                     machine,
                     source_key,
                     statement_index,
+                    call_ordinal,
                     role,
                     *value,
                     calls,
@@ -287,6 +308,7 @@ fn collect_expression_state_calls_in_table(
                 machine,
                 source_key,
                 statement_index,
+                call_ordinal,
                 role,
                 binary.left,
                 calls,
@@ -296,6 +318,7 @@ fn collect_expression_state_calls_in_table(
                 machine,
                 source_key,
                 statement_index,
+                call_ordinal,
                 role,
                 binary.right,
                 calls,
@@ -328,6 +351,7 @@ fn collect_expression_state_calls_in_table(
                         machine,
                         source_key,
                         statement_index,
+                        call_ordinal,
                         role,
                         call.receiver,
                         calls,
@@ -339,6 +363,7 @@ fn collect_expression_state_calls_in_table(
                         machine,
                         source_key,
                         statement_index,
+                        call_ordinal,
                         role,
                         *argument,
                         calls,
@@ -349,6 +374,7 @@ fn collect_expression_state_calls_in_table(
             calls.push(CollectedStateCall {
                 source_key,
                 statement_index,
+                call_ordinal: *call_ordinal,
                 role,
                 receiver: receiver_path
                     .as_ref()
@@ -365,6 +391,7 @@ fn collect_expression_state_calls_in_table(
                     .map(|target| target.resolution)
                     .unwrap_or(StateCallResolution::Unresolved),
             });
+            *call_ordinal += 1;
 
             if call.receiver.is_valid() {
                 collect_expression_state_calls_in_table(
@@ -372,6 +399,7 @@ fn collect_expression_state_calls_in_table(
                     machine,
                     source_key,
                     statement_index,
+                    call_ordinal,
                     role,
                     call.receiver,
                     calls,
@@ -383,6 +411,7 @@ fn collect_expression_state_calls_in_table(
                     machine,
                     source_key,
                     statement_index,
+                    call_ordinal,
                     role,
                     *argument,
                     calls,
@@ -394,6 +423,7 @@ fn collect_expression_state_calls_in_table(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             role,
             cast.value,
             calls,
@@ -404,6 +434,7 @@ fn collect_expression_state_calls_in_table(
                 machine,
                 source_key,
                 statement_index,
+                call_ordinal,
                 role,
                 indexed.collection,
                 calls,
@@ -413,6 +444,7 @@ fn collect_expression_state_calls_in_table(
                 machine,
                 source_key,
                 statement_index,
+                call_ordinal,
                 role,
                 indexed.index,
                 calls,
@@ -423,6 +455,7 @@ fn collect_expression_state_calls_in_table(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             role,
             member.receiver,
             calls,
@@ -432,6 +465,7 @@ fn collect_expression_state_calls_in_table(
             machine,
             source_key,
             statement_index,
+            call_ordinal,
             role,
             inner,
             calls,
@@ -447,6 +481,7 @@ fn collect_expression_state_calls_in_table(
                     machine,
                     source_key,
                     statement_index,
+                    call_ordinal,
                     role,
                     field.value,
                     calls,

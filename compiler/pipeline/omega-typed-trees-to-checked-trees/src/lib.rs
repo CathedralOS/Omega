@@ -5,7 +5,8 @@ use omega_checked_trees::{
 };
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::name::ProgramName;
-use omega_checked_trees::statement::Statement;
+use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
+use omega_core::symbols::SymbolHandle;
 
 pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(program)?;
@@ -168,26 +169,34 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
                 )
                 .collect::<Vec<_>>();
 
-            let state_calls = state
-                .statements
-                .iter()
-                .enumerate()
-                .filter_map(|(statement_index, statement)| {
-                    let Statement::Call(call) = statement else {
-                        return None;
-                    };
+            let mut state_calls = Vec::new();
+            for (statement_index, statement) in state.statements.iter().enumerate() {
+                let mut call_ordinal = 0usize;
+                collect_statement_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    statement,
+                    &mut call_ordinal,
+                    &mut state_calls,
+                );
+            }
 
-                    let accesses = collect_call_argument_accesses(&call.arguments);
-                    let accesses = argument_accesses.insert_many(accesses);
+            let state_calls = state_calls
+                .into_iter()
+                .map(|call| {
+                    let accesses = argument_accesses.insert_many(call.accesses);
 
-                    Some(BorrowCallFact {
-                        statement_index,
+                    BorrowCallFact {
+                        statement_index: call.statement_index,
+                        call_ordinal: call.call_ordinal,
                         receiver_symbol: call.receiver_symbol,
                         target_symbol: call.target_symbol,
-                        receiver: call.receiver.clone(),
-                        target: call.target.clone(),
+                        receiver: call.receiver,
+                        target: call.target,
                         accesses,
-                    })
+                    }
                 })
                 .collect::<Vec<_>>();
 
@@ -216,6 +225,507 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
         argument_accesses,
         calls,
         states,
+    }
+}
+
+#[derive(Debug, Clone)]
+struct BorrowCallDraft {
+    statement_index: usize,
+    call_ordinal: usize,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    receiver: Option<omega_checked_trees::expression::NamePath>,
+    target: ProgramName,
+    accesses: Vec<BorrowArgumentAccessFact>,
+}
+
+fn collect_statement_borrow_calls(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    statement: &Statement,
+    call_ordinal: &mut usize,
+    calls: &mut Vec<BorrowCallDraft>,
+) {
+    match statement {
+        Statement::Assignment(assignment) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            &assignment.value,
+            calls,
+        ),
+        Statement::Call(call) => {
+            if statement_call_can_dispatch_to_machine(program, machine, state, call) {
+                calls.push(BorrowCallDraft {
+                    statement_index,
+                    call_ordinal: *call_ordinal,
+                    receiver_symbol: call.receiver_symbol,
+                    target_symbol: call.target_symbol,
+                    receiver: call.receiver.clone(),
+                    target: call.target.clone(),
+                    accesses: collect_call_argument_accesses(&call.arguments),
+                });
+                *call_ordinal += 1;
+            }
+
+            for argument in &call.arguments {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    argument,
+                    calls,
+                );
+            }
+        }
+        Statement::Expression(expression) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            expression,
+            calls,
+        ),
+        Statement::LocalData(local_data) => {
+            if let Some(initial_value) = &local_data.initial_value {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    initial_value,
+                    calls,
+                );
+            }
+        }
+        Statement::Transition(transition) => {
+            if let TransitionGuard::When(expression) = &transition.guard {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    expression,
+                    calls,
+                );
+            }
+
+            collect_transition_target_borrow_calls(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+                &transition.target,
+                calls,
+            );
+
+            if let Some(continuation) = &transition.continuation {
+                collect_transition_target_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    continuation,
+                    calls,
+                );
+            }
+        }
+    }
+}
+
+fn collect_transition_target_borrow_calls(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: &mut usize,
+    target: &TransitionTarget,
+    calls: &mut Vec<BorrowCallDraft>,
+) {
+    match target {
+        TransitionTarget::Named { arguments, .. } => {
+            for argument in arguments {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    argument,
+                    calls,
+                );
+            }
+        }
+        TransitionTarget::Value(expression) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            expression,
+            calls,
+        ),
+        TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
+    }
+}
+
+fn collect_expression_borrow_calls(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    statement_index: usize,
+    call_ordinal: &mut usize,
+    expression: &Expression,
+    calls: &mut Vec<BorrowCallDraft>,
+) {
+    match expression {
+        Expression::ArrayLiteral(values) => {
+            for value in values {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    value,
+                    calls,
+                );
+            }
+        }
+        Expression::Binary(binary) => {
+            collect_expression_borrow_calls(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+                &binary.left,
+                calls,
+            );
+            collect_expression_borrow_calls(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+                &binary.right,
+                calls,
+            );
+        }
+        Expression::Call(call) => {
+            let (receiver_symbol, receiver_path) = call_receiver_parts(call.receiver.as_deref());
+            let is_machine_call = resolve_state_call_target(
+                program,
+                machine,
+                state,
+                receiver_symbol,
+                call.target_symbol,
+                receiver_path.as_deref(),
+                &call.target,
+            )
+            .is_some()
+                || receiver_can_dispatch_to_machine(
+                    program,
+                    machine,
+                    state,
+                    receiver_symbol,
+                    receiver_path.as_deref(),
+                );
+
+            if is_machine_call {
+                calls.push(BorrowCallDraft {
+                    statement_index,
+                    call_ordinal: *call_ordinal,
+                    receiver_symbol,
+                    target_symbol: call.target_symbol,
+                    receiver: receiver_path,
+                    target: call.target.clone(),
+                    accesses: collect_call_argument_accesses(&call.arguments),
+                });
+                *call_ordinal += 1;
+            }
+
+            if let Some(receiver) = &call.receiver {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    receiver,
+                    calls,
+                );
+            }
+            for argument in &call.arguments {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    argument,
+                    calls,
+                );
+            }
+        }
+        Expression::Cast(cast) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            &cast.value,
+            calls,
+        ),
+        Expression::Indexed(indexed) => {
+            collect_expression_borrow_calls(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+                &indexed.collection,
+                calls,
+            );
+            collect_expression_borrow_calls(
+                program,
+                machine,
+                state,
+                statement_index,
+                call_ordinal,
+                &indexed.index,
+                calls,
+            );
+        }
+        Expression::Member(member) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            &member.receiver,
+            calls,
+        ),
+        Expression::Mutable(inner_expression) => collect_expression_borrow_calls(
+            program,
+            machine,
+            state,
+            statement_index,
+            call_ordinal,
+            inner_expression,
+            calls,
+        ),
+        Expression::StructLiteral(struct_literal) => {
+            for field in &struct_literal.fields {
+                collect_expression_borrow_calls(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    call_ordinal,
+                    &field.value,
+                    calls,
+                );
+            }
+        }
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::Name(_)
+        | Expression::String(_) => {}
+    }
+}
+
+fn statement_call_can_dispatch_to_machine(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    call: &omega_checked_trees::statement::Call,
+) -> bool {
+    resolve_state_call_target(
+        program,
+        machine,
+        state,
+        call.receiver_symbol,
+        call.target_symbol,
+        call.receiver.as_ref().map(|receiver| receiver.as_slice()),
+        &call.target,
+    )
+    .is_some()
+        || receiver_can_dispatch_to_machine(
+            program,
+            machine,
+            state,
+            call.receiver_symbol,
+            call.receiver.as_ref().map(|receiver| receiver.as_slice()),
+        )
+}
+
+fn call_receiver_parts(
+    receiver: Option<&Expression>,
+) -> (SymbolHandle, Option<omega_checked_trees::expression::NamePath>) {
+    let Some(receiver) = receiver else {
+        return (SymbolHandle::invalid(), None);
+    };
+
+    match receiver {
+        Expression::Mutable(inner) => call_receiver_parts(Some(inner)),
+        Expression::Name(path) => (path.symbol(), Some(path.clone())),
+        Expression::Member(member) => {
+            let (_, path) = call_receiver_parts(Some(&member.receiver));
+            let mut path = path.unwrap_or_default();
+            path.push(member.member.clone());
+            (member.member_symbol, Some(path))
+        }
+        _ => (SymbolHandle::invalid(), None),
+    }
+}
+
+fn resolve_state_call_target(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    receiver_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
+    receiver: Option<&[ProgramName]>,
+    target_state: &ProgramName,
+) -> Option<SymbolHandle> {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+        return resolve_state_symbol_in_machine(machine, target_symbol, target_state);
+    }
+
+    if !receiver_symbol.is_valid() {
+        let _ = target_state;
+        return None;
+    }
+
+    let receiver_name = receiver.and_then(|receiver| receiver.last());
+
+    if let Some(contained) = machine.contains.iter().find(|contained| {
+        contained.symbol == receiver_symbol
+            || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+    }) {
+        return machine_by_symbol(program, contained.type_symbol)
+            .and_then(|target_machine| {
+                resolve_state_symbol_in_machine(target_machine, target_symbol, target_state)
+            });
+    }
+
+    if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
+        return resolve_state_symbol_in_machine(target_machine, target_symbol, target_state);
+    }
+
+    if let Some(type_symbol) = state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+        .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
+        && let Some(target_machine) = machine_by_symbol(program, type_symbol)
+    {
+        return resolve_state_symbol_in_machine(target_machine, target_symbol, target_state);
+    }
+
+    if target_symbol.is_valid()
+        && program
+            .machines
+            .iter()
+            .flat_map(|machine| machine.states.iter())
+            .any(|state| state.symbol == target_symbol)
+    {
+        return Some(target_symbol);
+    }
+
+    None
+}
+
+fn receiver_can_dispatch_to_machine(
+    program: &omega_typed_trees::Program,
+    machine: &omega_typed_trees::machine::Machine,
+    state: &omega_typed_trees::state::State,
+    receiver_symbol: SymbolHandle,
+    receiver: Option<&[ProgramName]>,
+) -> bool {
+    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+        return true;
+    }
+
+    if !receiver_symbol.is_valid() {
+        return false;
+    }
+
+    if machine
+        .contains
+        .iter()
+        .any(|contained| contained.symbol == receiver_symbol)
+    {
+        return true;
+    }
+
+    machine_by_symbol(program, receiver_symbol).is_some()
+        || state
+            .parameters
+            .iter()
+            .find(|parameter| parameter.symbol == receiver_symbol)
+            .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
+            .and_then(|type_symbol| machine_by_symbol(program, type_symbol))
+            .is_some()
+}
+
+fn resolve_state_symbol_in_machine(
+    machine: &omega_typed_trees::machine::Machine,
+    state_symbol: SymbolHandle,
+    state_name: &ProgramName,
+) -> Option<SymbolHandle> {
+    if state_symbol.is_valid() {
+        machine
+            .states
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+            .map(|state| state.symbol)
+    } else {
+        machine
+            .states
+            .iter()
+            .find(|state| state.name == *state_name)
+            .map(|state| state.symbol)
+    }
+}
+
+fn machine_by_symbol(
+    program: &omega_typed_trees::Program,
+    symbol: SymbolHandle,
+) -> Option<&omega_typed_trees::machine::Machine> {
+    program.machines.iter().find(|machine| machine.symbol == symbol)
+}
+
+fn machine_symbol_from_type_reference(
+    type_reference: &omega_typed_trees::types::TypeReference,
+) -> Option<SymbolHandle> {
+    match type_reference {
+        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+            machine_symbol_from_type_reference(referee)
+        }
+        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+            machine_symbol_from_type_reference(base_type)
+        }
+        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. }
+        | omega_typed_trees::types::TypeReference::Named {
+            symbol: base_symbol, ..
+        } => Some(*base_symbol),
+        omega_typed_trees::types::TypeReference::FixedArray { .. }
+        | omega_typed_trees::types::TypeReference::Slice { .. }
+        | omega_typed_trees::types::TypeReference::Unit => None,
     }
 }
 
