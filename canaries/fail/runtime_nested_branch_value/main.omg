@@ -1,0 +1,15 @@
+machine main {
+    pub entry(&mut self, flag: bool, out: &mut u32) {
+        out = self.pick(flag);
+    }
+
+    fn pick(&mut self, flag: bool) -> u32 {
+        -> self.branch(flag) when flag;
+        -> 0;
+    }
+
+    fn branch(&mut self, flag: bool) -> u32 {
+        -> 1 when flag;
+        -> 2;
+    }
+}
