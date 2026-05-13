@@ -663,18 +663,22 @@ fn expression_constraints(
                 return constraints;
             }
 
-            if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
-                let mut constraints = collect_constraints(program, return_type);
+            if is_real_from_call(call.receiver.as_deref(), &call.target)
+                && let [argument] = call.arguments.as_slice()
+            {
+                let mut constraints = call_expression_return_type(program, machine, state, call)
+                    .map(|return_type| collect_constraints(program, return_type))
+                    .unwrap_or_default();
+                let argument_constraints = expression_constraints(program, machine, state, argument);
+                constraints.extend(derived_real_from_constraints(&argument_constraints));
 
-                if is_real_from_call(call.receiver.as_deref(), &call.target)
-                    && let [argument] = call.arguments.as_slice()
-                {
-                    let argument_constraints =
-                        expression_constraints(program, machine, state, argument);
-                    constraints.extend(derived_real_from_constraints(&argument_constraints));
+                if !constraints.is_empty() {
+                    return constraints;
                 }
+            }
 
-                return constraints;
+            if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
+                return collect_constraints(program, return_type);
             }
 
             Vec::new()
@@ -682,6 +686,9 @@ fn expression_constraints(
         Expression::Cast(cast) => expression_constraints(program, machine, state, &cast.value),
         Expression::Float(value) => float_literal_constraints(*value),
         Expression::Integer(value) => integer_literal_constraints(*value),
+        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => {
+            integer_literal_constraints(u32::MAX as i64)
+        }
         Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
             expression_type_reference(program, machine, state, expression)
                 .map(|type_reference| collect_constraints(program, type_reference))
