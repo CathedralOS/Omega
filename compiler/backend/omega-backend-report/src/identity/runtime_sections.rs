@@ -49,6 +49,7 @@ pub(in crate::identity) fn count_runtime_body_strings(
                 storage.count_identity(type_name);
             }
             RuntimeDispatchBodyOperationKind::Mutation { .. }
+            | RuntimeDispatchBodyOperationKind::StateCallResult { .. }
             | RuntimeDispatchBodyOperationKind::Other => {}
         }
     }
