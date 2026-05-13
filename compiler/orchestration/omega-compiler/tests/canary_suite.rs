@@ -111,6 +111,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_call_enum_value",
     "runtime_contained_call_value",
     "runtime_contained_reward_table_roll_item",
+    "runtime_nested_branch_assignment_prelude_value",
+    "runtime_nested_branch_prelude_value",
+    "runtime_nested_branch_value",
     "runtime_dispatch_helper_local_alias_add",
     "runtime_dispatch_local_index_binary_write",
     "runtime_indexed_alias_field_binary",
@@ -130,7 +133,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
-    "runtime_nested_branch_assignment_prelude_value",
-    "runtime_nested_branch_value",
-    "runtime_nested_branch_prelude_value",
 ];
