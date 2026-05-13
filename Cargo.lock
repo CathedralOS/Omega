@@ -270,13 +270,13 @@ name = "omega-data-planning"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-platform-interface",
  "omega-runtime-text",
  "omega-state-storage",
  "omega-state-values",
  "omega-target-operations",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -406,7 +406,6 @@ dependencies = [
  "omega-checked-trees",
  "omega-core",
  "omega-target",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -637,10 +636,10 @@ dependencies = [
 name = "omega-state-graph-to-control-flow"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-state-graph",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -663,11 +662,11 @@ dependencies = [
 name = "omega-state-schedule"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-calls",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -680,7 +679,6 @@ dependencies = [
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-values",
- "omega-typed-trees",
 ]
 
 [[package]]

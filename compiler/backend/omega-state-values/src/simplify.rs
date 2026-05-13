@@ -808,16 +808,16 @@ fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison
 
     if let Expression::Integer(value) = &binary.left {
         let flipped_operator = match binary.operator {
-            omega_typed_trees::expression::BinaryOperator::Greater => {
+            omega_checked_trees::expression::BinaryOperator::Greater => {
                 omega_checked_trees::expression::BinaryOperator::Less
             }
-            omega_typed_trees::expression::BinaryOperator::GreaterOrEqual => {
+            omega_checked_trees::expression::BinaryOperator::GreaterOrEqual => {
                 omega_checked_trees::expression::BinaryOperator::LessOrEqual
             }
-            omega_typed_trees::expression::BinaryOperator::Less => {
+            omega_checked_trees::expression::BinaryOperator::Less => {
                 omega_checked_trees::expression::BinaryOperator::Greater
             }
-            omega_typed_trees::expression::BinaryOperator::LessOrEqual => {
+            omega_checked_trees::expression::BinaryOperator::LessOrEqual => {
                 omega_checked_trees::expression::BinaryOperator::GreaterOrEqual
             }
             _ => unreachable!(),
