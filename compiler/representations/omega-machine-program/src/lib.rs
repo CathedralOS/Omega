@@ -60,6 +60,11 @@ pub enum MachineRuntimeValueOperand {
         byte_offset: usize,
         byte_size: usize,
     },
+    Pointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     FrameIndexed {
         descriptor_offset: usize,
         index_offset: usize,

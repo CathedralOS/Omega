@@ -206,6 +206,15 @@ fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeVa
                 byte_size,
             }
         }
+        RuntimeValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => MachineRuntimeValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        },
         RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
             index_offset,

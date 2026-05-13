@@ -93,6 +93,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "nested_machine_continuation",
     "runtime_alias_integer_write",
     "runtime_alias_field_integer",
+    "runtime_alias_field_binary",
     "runtime_alias_string_write",
     "runtime_arithmetic_value",
     "runtime_call_value",

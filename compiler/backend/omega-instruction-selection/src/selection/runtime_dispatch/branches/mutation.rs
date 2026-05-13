@@ -352,6 +352,17 @@ fn resolve_runtime_value_operand(
         });
     }
 
+    if let Some(pointer_target) =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, expression)
+        && supports_runtime_value_operand(pointer_target.pointee_byte_size)
+    {
+        return Some(RuntimeValueOperand::Pointee {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+        });
+    }
+
     let place = resolve_runtime_storage_place(
         input,
         dispatch_index,

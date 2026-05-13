@@ -467,6 +467,33 @@ fn encode_runtime_value_operand(
             }
             Ok(bytes)
         }
+        RuntimeValueOperand::Pointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            byte_size,
+        } => {
+            let mut bytes = encode_adrp_placeholder(19);
+            bytes.extend(encode_add_page_offset_placeholder(19));
+            bytes.extend(encode_load_x_from_x(19, 19, *pointer_byte_offset)?);
+            if *field_byte_offset > 0 {
+                bytes.extend(encode_add_x_immediate(19, 19, *field_byte_offset)?);
+            }
+            match byte_size {
+                1 | 4 => bytes.extend(encode_load_w_from_x(
+                    destination_register,
+                    19,
+                    0,
+                    *byte_size,
+                )?),
+                8 => bytes.extend(encode_load_x_from_x(destination_register, 19, 0)?),
+                _ => {
+                    return Err(Diagnostic::error(format!(
+                        "AArch64 MVP encoder cannot load runtime pointee operand width `{byte_size}` yet"
+                    )));
+                }
+            }
+            Ok(bytes)
+        }
         RuntimeValueOperand::FrameIndexed {
             descriptor_offset,
             index_offset,
