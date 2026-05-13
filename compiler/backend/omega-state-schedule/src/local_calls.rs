@@ -8,7 +8,6 @@ use crate::StateScheduleContext;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_control_flow::{MachineFlow, StateFlow, StateKey};
 use omega_core::arena::HandleSpan;
-use omega_state_calls::StateCallRole;
 
 pub(super) fn append_local_state_calls(
     context: &StateScheduleContext,
@@ -20,7 +19,7 @@ pub(super) fn append_local_state_calls(
     aliases: &mut Vec<(PlaceKey, PlaceKey)>,
 ) -> Result<(), String> {
     for (_, state_call) in context.state_calls.calls.iter().filter(|(_, state_call)| {
-        state_call.source_key == state.key && state_call.role == StateCallRole::Statement
+        state_call.source_key == state.key && state_call.target_key.is_valid()
     }) {
         let target_state_key = state_call.target_key;
         let saved_alias_count = aliases.len();

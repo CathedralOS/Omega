@@ -41,56 +41,54 @@ pub(crate) fn collect_machine_state_calls(
 
         for operation in operations {
             let mut call_ordinal = 0usize;
-            let OperationKind::Call {
+            if let OperationKind::Call {
                 receiver_symbol,
                 target_symbol,
                 receiver,
                 target,
             } = &operation.kind
-            else {
-                continue;
-            };
+            {
+                if context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
+                    continue;
+                }
 
-            if context.state_statement_has_host_call_by_key(state.key, operation.statement_index) {
-                continue;
+                let resolved_target = resolve_state_call_target(
+                    &context.control_flow,
+                    machine,
+                    state.key,
+                    *receiver_symbol,
+                    *target_symbol,
+                    receiver.as_ref().map(|receiver| receiver.as_slice()),
+                    target,
+                );
+
+                calls.push(CollectedStateCall {
+                    source_key: state.key,
+                    statement_index: operation.statement_index,
+                    call_ordinal,
+                    role: StateCallRole::Statement,
+                    receiver: receiver
+                        .as_ref()
+                        .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
+                            receiver.as_slice().last().cloned()
+                        })
+                        .unwrap_or_else(|| ProgramName::generated("self")),
+                    target_key: resolved_target
+                        .as_ref()
+                        .map(|target| target.key)
+                        .unwrap_or_default(),
+                    raw_arguments: match operation.expressions {
+                        OperationExpressionRefs::Call { arguments } => arguments,
+                        _ => HandleSpan::empty(),
+                    },
+                    reachable: context.runtime_state_is_reachable_by_key(state.key),
+                    required: false,
+                    resolution: resolved_target
+                        .map(|target| target.resolution)
+                        .unwrap_or(StateCallResolution::Unresolved),
+                });
+                call_ordinal += 1;
             }
-
-            let resolved_target = resolve_state_call_target(
-                &context.control_flow,
-                machine,
-                state.key,
-                *receiver_symbol,
-                *target_symbol,
-                receiver.as_ref().map(|receiver| receiver.as_slice()),
-                target,
-            );
-
-            calls.push(CollectedStateCall {
-                source_key: state.key,
-                statement_index: operation.statement_index,
-                call_ordinal,
-                role: StateCallRole::Statement,
-                receiver: receiver
-                    .as_ref()
-                    .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
-                        receiver.as_slice().last().cloned()
-                    })
-                    .unwrap_or_else(|| ProgramName::generated("self")),
-                target_key: resolved_target
-                    .as_ref()
-                    .map(|target| target.key)
-                    .unwrap_or_default(),
-                raw_arguments: match operation.expressions {
-                    OperationExpressionRefs::Call { arguments } => arguments,
-                    _ => HandleSpan::empty(),
-                },
-                reachable: context.runtime_state_is_reachable_by_key(state.key),
-                required: false,
-                resolution: resolved_target
-                    .map(|target| target.resolution)
-                    .unwrap_or(StateCallResolution::Unresolved),
-            });
-            call_ordinal += 1;
 
             collect_expression_state_calls_for_operation(
                 context,
@@ -547,29 +545,24 @@ fn resolve_state_call_target(
         });
     }
 
+    let receiver_name = receiver.and_then(|receiver| receiver.last());
+    if let Some(contained) = machine.contains.iter().find(|contained| {
+        (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
+            || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
+    }) {
+        return resolve_state_key_in_machine(
+            control_flow,
+            contained.type_symbol,
+            target_symbol,
+            target_state,
+        )
+        .map(|key| ResolvedStateCall {
+            key,
+            resolution: StateCallResolution::ContainedMachine,
+        });
+    }
+
     if receiver_symbol.is_valid() {
-        let receiver_name = receiver.and_then(|receiver| receiver.last());
-
-        if let Some(contained) = machine
-            .contains
-            .iter()
-            .find(|contained| {
-                contained.symbol == receiver_symbol
-                    || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-            })
-        {
-            return resolve_state_key_in_machine(
-                control_flow,
-                contained.type_symbol,
-                target_symbol,
-                target_state,
-            )
-            .map(|key| ResolvedStateCall {
-                key,
-                resolution: StateCallResolution::ContainedMachine,
-            });
-        }
-
         if let Some(target_machine) = control_flow.machine_by_symbol(receiver_symbol) {
             return resolve_state_key_in_machine(
                 control_flow,
@@ -649,7 +642,7 @@ fn receiver_can_dispatch_to_machine(
     receiver: Option<&[ProgramName]>,
 ) -> bool {
     if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
-        return true;
+        return false;
     }
 
     if !receiver_symbol.is_valid() {
@@ -691,4 +684,88 @@ fn source_state_parameter_machine_symbol(
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
         .map(|parameter| parameter.type_symbol)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::StateCallPlanningContext;
+    use omega_calling_conventions::build_host_abi_plan;
+    use omega_platform_interface::build_host_call_plan;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_state_graph::build_runtime_flow_plan;
+    use omega_state_graph_to_control_flow::build_control_flow_plan;
+    use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
+    use omega_resolved_trees_to_typed_trees::lower_resolved_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use omega_typed_trees_to_checked_trees::lower_typed_trees;
+
+    #[test]
+    fn collects_contained_assignment_value_call() {
+        let source = r#"
+            data Reward { gold: i32; }
+            data Random {}
+            data main { rng: Random; }
+
+            machine Random::one -> i32 {
+                pub entry(&mut self) {
+                    -> 1;
+                }
+            }
+
+            machine main {
+                pub entry(&mut self, reward: &mut Reward) {
+                    reward.gold = 1 + self.rng.one();
+                }
+            }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = lower_syntax_trees(&syntax).expect("resolve");
+        let typed = lower_resolved_trees(&resolved).expect("type");
+        let checked = lower_typed_trees(&typed).expect("check");
+        let state_graph =
+            omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");
+        let control_flow = build_control_flow_plan(&state_graph).expect("control flow");
+        let entry_machine_symbol = control_flow
+            .machines
+            .iter()
+            .find(|(_, machine)| machine.name.as_str() == "main")
+            .map(|(_, machine)| machine.symbol)
+            .expect("main machine");
+        let entry_key = control_flow
+            .states
+            .iter()
+            .find(|(_, state)| {
+                state.key.machine == entry_machine_symbol && state.name.as_str() == "entry"
+            })
+            .map(|(_, state)| state.key)
+            .expect("entry state");
+        let runtime_flow = build_runtime_flow_plan(&control_flow, entry_key).expect("runtime flow");
+        let target = omega_target::NativeTarget::linux_arm64();
+        let host_abi = build_host_abi_plan(target);
+        let host_calls = build_host_call_plan(&checked, target, &host_abi).expect("host calls");
+        let context = StateCallPlanningContext {
+            control_flow: control_flow.clone(),
+            host_calls,
+            runtime_flow,
+        };
+        let machine = control_flow
+            .machine_by_symbol(entry_machine_symbol)
+            .expect("machine flow");
+
+        let calls = collect_machine_state_calls(&context, machine);
+        assert!(
+            calls.iter().any(|call| {
+                call.role == StateCallRole::AssignmentValue
+                    && call.source_key.machine == entry_key.machine
+                    && call.source_key.state == entry_key.state
+                    && call.statement_index == 0
+                    && call.receiver.as_str() == "rng"
+                    && call.resolution == StateCallResolution::ContainedMachine
+            }),
+            "expected contained assignment-value call, got {calls:?}"
+        );
+    }
 }

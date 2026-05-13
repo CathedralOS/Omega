@@ -96,6 +96,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_alias_string_write",
     "runtime_arithmetic_value",
     "runtime_call_value",
+    "runtime_contained_call_value",
     "runtime_modulo_value",
     "runtime_text_storage",
     "std_option_storage_write",
@@ -112,6 +113,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
     "runtime_call_guard",
-    "runtime_contained_call_value",
     "runtime_contained_range_write",
 ];

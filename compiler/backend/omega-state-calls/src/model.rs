@@ -12,13 +12,18 @@ pub struct StateCallPlan {
 }
 
 impl StateCallPlan {
+    fn source_matches(expected: StateKey, actual: StateKey) -> bool {
+        expected == actual
+            || (expected.machine == actual.machine && expected.state == actual.state)
+    }
+
     pub fn calls_for_statement(
         &self,
         source_key: StateKey,
         statement_index: usize,
     ) -> impl Iterator<Item = &StateCall> {
         self.calls.iter().filter_map(move |(_, state_call)| {
-            (state_call.source_key == source_key
+            (Self::source_matches(state_call.source_key, source_key)
                 && state_call.statement_index == statement_index)
                 .then_some(state_call)
         })

@@ -607,11 +607,20 @@ dependencies = [
 name = "omega-state-calls"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-checked-trees",
+ "omega-checked-trees-to-state-graph",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
+ "omega-resolved-trees-to-typed-trees",
+ "omega-source-files-to-tokens",
  "omega-state-graph",
+ "omega-state-graph-to-control-flow",
+ "omega-syntax-trees-to-resolved-trees",
+ "omega-target",
+ "omega-tokens-to-syntax-trees",
+ "omega-typed-trees-to-checked-trees",
 ]
 
 [[package]]
