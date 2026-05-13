@@ -4,8 +4,8 @@ use super::{
     RuntimeLeafBranchExpansion, RuntimeLeafBranchOperation, RuntimeStraightLineBranchBinding,
     RuntimeStraightLineBranchExpansion, RuntimeStraightLineBranchOperation,
 };
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_core::arena::Arena;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeBranchingCallPlan {

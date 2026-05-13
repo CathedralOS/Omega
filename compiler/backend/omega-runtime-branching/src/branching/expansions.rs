@@ -14,9 +14,9 @@ use super::{
 use crate::RuntimeBranchingContext;
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_state_calls::StateCall;
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 
 pub(super) fn append_branch_prelude_expansion(
     context: &RuntimeBranchingContext,

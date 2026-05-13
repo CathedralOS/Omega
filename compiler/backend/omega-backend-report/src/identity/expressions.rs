@@ -1,10 +1,10 @@
 use crate::BackendReportInput;
 use crate::identity::BackendStringStorage;
-use omega_core::arena::HandleSpan;
-use omega_typed_trees::expression::{
+use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_typed_trees::statement::TransitionGuard;
+use omega_checked_trees::statement::TransitionGuard;
+use omega_core::arena::HandleSpan;
 
 pub(in crate::identity) fn count_expression_span_strings(
     span: omega_core::arena::HandleSpan<ExpressionHandle>,
