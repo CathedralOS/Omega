@@ -242,6 +242,63 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    if let Expression::Call(call) = &resolved_value.expression
+        && let Some(source_place) = resolve_runtime_assignment_value_call_result_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            statement_index,
+            call,
+        )
+    {
+        if let Some(indexed_target) = resolve_runtime_frame_indexed_target(
+            input,
+            dispatch_index,
+            target_source_key,
+            resolved_target,
+        ) && source_place.region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            && source_place.byte_count == indexed_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    descriptor_offset: indexed_target.descriptor_offset,
+                    index_offset: indexed_target.index_offset,
+                    element_byte_size: indexed_target.element_byte_size,
+                    field_byte_offset: indexed_target.field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
+        if let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        ) && target_place.byte_count == source_place.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorage {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    target_region: target_place.region,
+                    target_offset: target_place.byte_offset,
+                    byte_count: target_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+    }
+
     if let Some(kind) = select_runtime_binary_mutation_write(
         input,
         dispatch_index,
