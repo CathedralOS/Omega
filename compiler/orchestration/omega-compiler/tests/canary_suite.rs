@@ -104,6 +104,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
+    "runtime_arithmetic_value",
     "runtime_call_guard",
+    "runtime_call_value",
     "std_option_storage_write_missing",
 ];
