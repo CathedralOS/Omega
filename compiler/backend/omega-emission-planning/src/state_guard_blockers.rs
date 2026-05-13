@@ -1,8 +1,8 @@
 use crate::EmissionPlanningInput;
 use omega_core::arena::Arena;
+use omega_checked_trees::expression::{BinaryOperator, Expression};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_state_guards::{StateGuardLowering, lower_guard_conjunction};
-use omega_typed_trees::expression::Expression;
 
 use super::{EmissionBlocker, blocker};
 
@@ -80,12 +80,12 @@ fn guard_expression_can_emit(expression: &Expression) -> bool {
 
     matches!(
         binary.operator,
-        omega_typed_trees::expression::BinaryOperator::Equal
-            | omega_typed_trees::expression::BinaryOperator::NotEqual
-            | omega_typed_trees::expression::BinaryOperator::Greater
-            | omega_typed_trees::expression::BinaryOperator::GreaterOrEqual
-            | omega_typed_trees::expression::BinaryOperator::Less
-            | omega_typed_trees::expression::BinaryOperator::LessOrEqual
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
     ) && runtime_value_expression_can_emit(&binary.left)
         && runtime_value_expression_can_emit(&binary.right)
 }
@@ -94,9 +94,7 @@ fn runtime_value_expression_can_emit(expression: &Expression) -> bool {
     match expression {
         Expression::Binary(binary) => matches!(
             binary.operator,
-            omega_typed_trees::expression::BinaryOperator::Add
-                | omega_typed_trees::expression::BinaryOperator::Multiply
-                | omega_typed_trees::expression::BinaryOperator::Subtract
+            BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
         ) && runtime_value_expression_can_emit(&binary.left)
             && runtime_value_expression_can_emit(&binary.right),
         Expression::Name(_)
