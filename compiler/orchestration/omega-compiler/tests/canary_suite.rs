@@ -97,6 +97,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_alias_string_write",
     "runtime_arithmetic_value",
     "runtime_branching_helper_guard",
+    "runtime_branching_helper_local_guard_value",
     "runtime_branching_helper_string",
     "runtime_branching_helper_struct",
     "runtime_branching_helper_value",
