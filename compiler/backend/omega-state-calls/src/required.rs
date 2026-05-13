@@ -4,7 +4,6 @@ use omega_state_graph::RuntimeTransitionTarget;
 
 use super::collection::CollectedStateCall;
 use super::lookups::state_key_is_valid;
-use super::StateCallRole;
 
 pub(crate) fn mark_required_state_calls(
     context: &StateCallPlanningContext,
@@ -37,9 +36,7 @@ pub(crate) fn mark_required_state_calls(
                 continue;
             }
 
-            if call.role == StateCallRole::Statement {
-                changed |= push_required_state(&mut required_states, call.target_key);
-            }
+            changed |= push_required_state(&mut required_states, call.target_key);
         }
 
         let mut required_index = 0;

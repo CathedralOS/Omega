@@ -16,6 +16,11 @@ pub struct RuntimeStoragePlan {
 }
 
 impl RuntimeStoragePlan {
+    fn source_matches(expected: StateKey, actual: StateKey) -> bool {
+        expected == actual
+            || (expected.machine == actual.machine && expected.state == actual.state)
+    }
+
     pub fn call_result_slot(
         &self,
         dispatch_index: u32,
@@ -25,7 +30,7 @@ impl RuntimeStoragePlan {
     ) -> Option<&RuntimeFrameSlot> {
         self.frame_slots.iter().find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
-                && slot.source_key == source_key
+                && Self::source_matches(slot.source_key, source_key)
                 && slot.statement_index == statement_index
                 && matches!(
                     slot.kind,
