@@ -446,7 +446,7 @@ fn integer_range_for_initializer(
 }
 
 fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
-    constraints.iter().find_map(|constraint| {
+    let mut range = constraints.iter().find_map(|constraint| {
         let TypeConstraint::Range { minimum, maximum } = constraint else {
             return None;
         };
@@ -455,7 +455,39 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
             minimum: integer_literal(minimum)?,
             maximum: integer_literal(maximum)?,
         })
-    })
+    });
+
+    for constraint in constraints {
+        let TypeConstraint::Named(name) = constraint else {
+            continue;
+        };
+
+        let implied = match name.as_str() {
+            "non_negative" => Some(IntegerRange {
+                minimum: 0,
+                maximum: i64::MAX,
+            }),
+            "positive" => Some(IntegerRange {
+                minimum: 1,
+                maximum: i64::MAX,
+            }),
+            _ => None,
+        };
+
+        let Some(implied) = implied else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => IntegerRange {
+                minimum: existing.minimum.max(implied.minimum),
+                maximum: existing.maximum.min(implied.maximum),
+            },
+            None => implied,
+        });
+    }
+
+    range
 }
 
 fn type_constraints(
@@ -484,6 +516,7 @@ fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatR
 fn integer_literal(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
+        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as i64),
         _ => None,
     }
 }
@@ -492,6 +525,7 @@ fn float_literal_expression(expression: &Expression) -> Option<f64> {
     match expression {
         Expression::Float(value) => finite_float_literal(*value),
         Expression::Integer(value) => Some(*value as f64),
+        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as f64),
         _ => None,
     }
 }
@@ -645,10 +679,9 @@ fn check_transition_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !argument_satisfies_named_constraint(
+        if !transition_argument_satisfies_named_constraint(
             proof_plan,
-            &obligation.argument,
-            obligation.argument_constraints,
+            obligation,
             constraint,
         ) {
             diagnostics.push(cannot_prove_transition_named_constraint(
@@ -681,7 +714,7 @@ fn check_initializer_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !expression_is_finite_literal(&obligation.value) || constraint != "finite" {
+        if !initializer_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_initializer_named_constraint(
                 obligation, constraint,
             ));
@@ -705,15 +738,111 @@ fn argument_satisfies_named_constraint(
     argument_constraints: HandleSpan<TypeConstraint>,
     constraint: &str,
 ) -> bool {
-    type_constraints(proof_plan, argument_constraints)
-        .iter()
-        .any(|argument_constraint| {
-            matches!(
-                argument_constraint,
-                TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
-            )
-        })
-        || (constraint == "finite" && expression_is_finite_literal(argument))
+    let constraints = type_constraints(proof_plan, argument_constraints);
+
+    constraints_satisfy_named_constraint(constraints, constraint)
+        || match constraint {
+            "exact" => matches!(argument, Expression::Integer(_)),
+            "finite" => expression_is_finite_literal(argument),
+            "non_negative" => matches!(argument, Expression::Integer(value) if *value >= 0),
+            "positive" => matches!(argument, Expression::Integer(value) if *value > 0),
+            _ => false,
+        }
+}
+
+fn transition_argument_satisfies_named_constraint(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+    constraint: &str,
+) -> bool {
+    let constraints = type_constraints(proof_plan, obligation.argument_constraints);
+
+    if constraints_satisfy_named_constraint(constraints, constraint) {
+        return true;
+    }
+
+    if matches!(constraint, "positive" | "non_negative")
+        && let Some(range) = integer_range_for_transition_argument(proof_plan, obligation)
+    {
+        let range = apply_guard(range, &obligation.argument, &obligation.guard);
+        return match constraint {
+            "positive" => range.minimum > 0,
+            "non_negative" => range.minimum >= 0,
+            _ => false,
+        };
+    }
+
+    argument_satisfies_named_constraint(
+        proof_plan,
+        &obligation.argument,
+        obligation.argument_constraints,
+        constraint,
+    )
+}
+
+fn initializer_satisfies_named_constraint(
+    _proof_plan: &ProofPlan,
+    obligation: &BoundedInitializerObligation,
+    constraint: &str,
+) -> bool {
+    let derived_constraints = match &obligation.value {
+        Expression::Float(value) => vec![
+            TypeConstraint::Named("finite".into()),
+            TypeConstraint::Range {
+                minimum: Expression::Float(*value),
+                maximum: Expression::Float(*value),
+            },
+        ],
+        Expression::Integer(value) => {
+            let mut constraints = vec![
+                TypeConstraint::Named("exact".into()),
+                TypeConstraint::Range {
+                    minimum: Expression::Integer(*value),
+                    maximum: Expression::Integer(*value),
+                },
+            ];
+
+            if *value >= 0 {
+                constraints.push(TypeConstraint::Named("non_negative".into()));
+            }
+            if *value > 0 {
+                constraints.push(TypeConstraint::Named("positive".into()));
+            }
+
+            constraints
+        }
+        _ => Vec::new(),
+    };
+
+    constraints_satisfy_named_constraint(&derived_constraints, constraint)
+}
+
+fn constraints_satisfy_named_constraint(
+    constraints: &[TypeConstraint],
+    constraint: &str,
+) -> bool {
+    if constraints.iter().any(|argument_constraint| {
+        matches!(
+            argument_constraint,
+            TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
+        )
+    }) {
+        return true;
+    }
+
+    match constraint {
+        "exact" => integer_range_from_constraints(constraints).is_some(),
+        "finite" => {
+            integer_range_from_constraints(constraints).is_some()
+                || float_range_from_constraints(constraints).is_some()
+        }
+        "non_negative" => integer_range_from_constraints(constraints)
+            .is_some_and(|range| range.minimum >= 0),
+        "positive" => integer_range_from_constraints(constraints)
+            .is_some_and(|range| range.minimum > 0),
+        "wrapping" => false,
+        _ => false,
+    }
 }
 
 fn expression_is_finite_literal(expression: &Expression) -> bool {

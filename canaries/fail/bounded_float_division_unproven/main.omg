@@ -1,0 +1,13 @@
+machine main -> Real[finite, range<0.0, 1.0>] {
+    pub entry(
+        &mut self
+    ) {
+    }
+
+    state answer(
+        &mut self,
+        raw: u32[wrapping]
+    ) {
+        -> Real::from(raw) / Real::from(u32::MAX);
+    }
+}

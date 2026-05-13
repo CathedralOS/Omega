@@ -1,0 +1,20 @@
+machine main {
+    pub entry(
+        &mut self
+    ) {
+        self.take_non_negative(0);
+        self.take_positive(1);
+    }
+
+    state take_non_negative(
+        &mut self,
+        value: u32[exact, non_negative]
+    ) {
+    }
+
+    state take_positive(
+        &mut self,
+        value: u32[exact, positive]
+    ) {
+    }
+}
