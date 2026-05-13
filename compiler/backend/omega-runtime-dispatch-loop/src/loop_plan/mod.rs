@@ -6,7 +6,7 @@ mod model;
 
 use collection::build_runtime_dispatch_loop_case;
 pub use context::RuntimeDispatchLoopContext;
-pub use inputs::{RuntimeDispatchLoopCaseInput, runtime_dispatch_loop_inputs};
+pub use inputs::{RuntimeDispatchLoopCaseInput, RuntimeDispatchLoopInputs, runtime_dispatch_loop_inputs};
 pub use model::{
     RuntimeDispatchLoopAction, RuntimeDispatchLoopCase, RuntimeDispatchLoopEdge,
     RuntimeDispatchLoopPlan,
@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 pub fn build_runtime_dispatch_loop_plan(
     context: RuntimeDispatchLoopContext,
-    case_inputs: Vec<RuntimeDispatchLoopCaseInput>,
+    case_inputs: RuntimeDispatchLoopInputs,
 ) -> RuntimeDispatchLoopPlan {
     let workers = WorkerPool::with_available_parallelism();
 
@@ -26,7 +26,7 @@ pub fn build_runtime_dispatch_loop_plan(
 
 pub fn build_runtime_dispatch_loop_plan_with_workers(
     context: Arc<RuntimeDispatchLoopContext>,
-    case_inputs: Vec<RuntimeDispatchLoopCaseInput>,
+    case_inputs: RuntimeDispatchLoopInputs,
     workers: WorkerPoolHandle,
 ) -> RuntimeDispatchLoopPlan {
     let mut plan = RuntimeDispatchLoopPlan {
