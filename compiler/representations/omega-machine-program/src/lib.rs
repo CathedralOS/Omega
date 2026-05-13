@@ -132,6 +132,7 @@ pub enum MachineInstructionKind {
     },
     RuntimePointeeIntegerWrite {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         byte_size: usize,
         value: i64,
     },
@@ -144,6 +145,7 @@ pub enum MachineInstructionKind {
     },
     RuntimePointeeBinaryWrite {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         byte_size: usize,
         left: MachineRuntimeValueOperand,
         operator: StateGuardOperator,
@@ -173,6 +175,7 @@ pub enum MachineInstructionKind {
     },
     RuntimePointeeStringWrite {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         byte_length: usize,
     },
     RuntimeTextLineRead {

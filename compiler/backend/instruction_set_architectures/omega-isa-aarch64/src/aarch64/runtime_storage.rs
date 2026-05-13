@@ -148,6 +148,7 @@ pub fn encode_runtime_machine_integer_write(
 
 pub fn encode_runtime_pointee_integer_write(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
@@ -160,6 +161,9 @@ pub fn encode_runtime_pointee_integer_write(
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    if field_byte_offset > 0 {
+        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+    }
     match byte_size {
         1 | 4 => {
             bytes.extend(encode_movz_w(17, value as u16));
@@ -196,6 +200,7 @@ pub fn encode_runtime_storage_binary_write(
 
 pub fn encode_runtime_pointee_binary_write(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     left: &RuntimeValueOperand,
     operator: StateGuardOperator,
@@ -204,6 +209,9 @@ pub fn encode_runtime_pointee_binary_write(
     let mut bytes = encode_adrp_placeholder(16);
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    if field_byte_offset > 0 {
+        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+    }
     bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
     bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
     bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
@@ -227,6 +235,7 @@ pub fn encode_runtime_machine_string_write(
 
 pub fn encode_runtime_pointee_string_write(
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = encode_adrp_placeholder(17);
@@ -234,6 +243,9 @@ pub fn encode_runtime_pointee_string_write(
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
     bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    if field_byte_offset > 0 {
+        bytes.extend(encode_add_x_immediate(16, 16, field_byte_offset)?);
+    }
     bytes.extend(encode_store_x_to_x(17, 16, 0)?);
     bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
     bytes.extend(encode_store_x_to_x(17, 16, 8)?);

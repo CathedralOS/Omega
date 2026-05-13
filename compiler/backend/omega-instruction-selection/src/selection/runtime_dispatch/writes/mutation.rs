@@ -148,19 +148,20 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     }
 
     if let Expression::String(value) = value {
-        if let Some((pointer_byte_offset, data)) = resolve_runtime_pointee_slot_offset(
+        if let Some((pointer_byte_offset, field_byte_offset, data)) = resolve_runtime_pointee_slot_offset(
             input,
             dispatch_index,
             target_source_key,
             resolved_target,
         ).and_then(|target| {
             string_literal_data_handle(input, operation_source_key, statement_index, value).map(
-                |data| (target.pointer_byte_offset, data),
+                |data| (target.pointer_byte_offset, target.field_byte_offset, data),
             )
         }) {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::WriteRuntimePointeeString {
                     pointer_byte_offset,
+                    field_byte_offset,
                     data,
                     byte_length: value.len(),
                 },
@@ -343,6 +344,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimePointeeInteger {
                 pointer_byte_offset: pointer_target.pointer_byte_offset,
+                field_byte_offset: pointer_target.field_byte_offset,
                 byte_size: pointer_target.pointee_byte_size,
                 value,
             },
@@ -463,6 +465,7 @@ fn select_runtime_binary_mutation_write(
     ) {
         return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
             pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
             byte_size: pointer_target.pointee_byte_size,
             left,
             operator,

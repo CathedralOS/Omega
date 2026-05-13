@@ -267,6 +267,13 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
         Expression::Mutable(target) => target.as_ref(),
         _ => expression,
     };
+    let normalized_expression = normalized_storage_expression(target)?;
+    let Expression::Name(path) = &normalized_expression else {
+        return None;
+    };
+    let [_root_name, suffix @ ..] = path.as_slice() else {
+        return None;
+    };
     let place = resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", target)?;
     if place.region != RuntimeStorageRegion::RuntimeFrame
         || place.byte_count != input.target.pointer_size
@@ -279,16 +286,31 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
         .type_name
         .strip_prefix("&mut ")
         .or_else(|| slot.type_name.strip_prefix('&'))?;
-    let pointee_byte_size = pointee_type_layout(input, slot.type_symbol, pointee_type_name).size;
-    (pointee_byte_size > 0).then_some(RuntimePointeeTarget {
+    let pointee_layout = pointee_type_layout(input, slot.type_symbol, pointee_type_name);
+    let (field_byte_offset, field_layout) = if suffix.is_empty() {
+        (0, pointee_layout)
+    } else {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: 0,
+            type_symbol: slot.type_symbol,
+            type_name: pointee_type_name.to_owned(),
+            layout: pointee_layout,
+        };
+        resolve_nested_field_layout(&input.layouts, &root_field, suffix)?
+    };
+    (field_layout.size > 0).then_some(RuntimePointeeTarget {
         pointer_byte_offset: place.byte_offset,
-        pointee_byte_size,
+        field_byte_offset,
+        pointee_byte_size: field_layout.size,
     })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimePointeeTarget {
     pub(super) pointer_byte_offset: usize,
+    pub(super) field_byte_offset: usize,
     pub(super) pointee_byte_size: usize,
 }
 

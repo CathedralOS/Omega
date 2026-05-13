@@ -80,12 +80,18 @@ pub fn encode_runtime_machine_integer_write(
 pub fn encode_runtime_pointee_integer_write(
     architecture: Architecture,
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::encode_runtime_pointee_integer_write(pointer_byte_offset, byte_size, value)
+            aarch64::encode_runtime_pointee_integer_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_size,
+                value,
+            )
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }
@@ -116,6 +122,7 @@ pub fn encode_runtime_storage_binary_write(
 pub fn encode_runtime_pointee_binary_write(
     architecture: Architecture,
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_size: usize,
     left: &RuntimeValueOperand,
     operator: StateGuardOperator,
@@ -124,6 +131,7 @@ pub fn encode_runtime_pointee_binary_write(
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_pointee_binary_write(
             pointer_byte_offset,
+            field_byte_offset,
             byte_size,
             left,
             operator,
@@ -197,11 +205,16 @@ pub fn encode_runtime_machine_string_write(
 pub fn encode_runtime_pointee_string_write(
     architecture: Architecture,
     pointer_byte_offset: usize,
+    field_byte_offset: usize,
     byte_length: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::encode_runtime_pointee_string_write(pointer_byte_offset, byte_length)
+            aarch64::encode_runtime_pointee_string_write(
+                pointer_byte_offset,
+                field_byte_offset,
+                byte_length,
+            )
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }

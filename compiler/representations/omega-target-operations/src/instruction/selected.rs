@@ -135,6 +135,7 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         byte_size: usize,
         value: i64,
     },
@@ -148,6 +149,7 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimePointeeBinary {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         byte_size: usize,
         left: RuntimeValueOperand,
         operator: StateGuardOperator,
@@ -178,6 +180,7 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimePointeeString {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
         data: TargetDataObjectHandle,
         byte_length: usize,
     },
