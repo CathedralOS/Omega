@@ -149,6 +149,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         record_backend_phase(&mut phase_timings, "runtime bodies", || {
             build_runtime_dispatch_body_plan_with_workers(
                 Arc::new(RuntimeDispatchBodyContext::new(
+                    &program,
                     &backend_plan.control_flow,
                     &backend_plan.host_calls,
                     &backend_plan.state_calls,

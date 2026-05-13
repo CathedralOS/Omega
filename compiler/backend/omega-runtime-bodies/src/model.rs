@@ -1,6 +1,7 @@
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan, PagedArena};
 use omega_core::symbols::SymbolHandle;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
 use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
@@ -8,6 +9,7 @@ use omega_state_storage::{StateMutationKind, StateMutationLowering};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyPlan {
     pub bodies: Arena<RuntimeDispatchBody>,
+    pub expressions: ExpressionTable,
     pub invariant_names: Arena<ProgramName>,
     pub operations: PagedArena<RuntimeDispatchBodyOperation>,
 }
@@ -78,6 +80,11 @@ pub enum RuntimeDispatchBodyOperationKind {
     Mutation {
         mutation_kind: StateMutationKind,
         lowering: StateMutationLowering,
+    },
+    StateCallResult {
+        role: StateCallRole,
+        target_key: StateKey,
+        value: ExpressionHandle,
     },
     #[default]
     Other,

@@ -69,7 +69,16 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
                                 .span_or_empty(invariant_names)
                                 .iter()
                                 .cloned(),
-                        ),
+                            ),
+                    },
+                    RuntimeDispatchBodyOperationKind::StateCallResult {
+                        role,
+                        target_key,
+                        value,
+                    } => RuntimeDispatchBodyOperationKind::StateCallResult {
+                        role,
+                        target_key,
+                        value: plan.expressions.copy_from(&collected_body.expressions, value),
                     },
                     kind => kind,
                 },

@@ -7,14 +7,17 @@ use super::lookups::{
 use super::model::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_control_flow::{OperationKind, StateKey};
 use omega_core::arena::Arena;
+use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_state_calls::{StateCall, StateCallLowering};
 use omega_state_dispatch::DispatchState;
 use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::expression::ExpressionTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct CollectedRuntimeDispatchBody {
     pub key: StateKey,
     pub dispatch_index: u32,
+    pub expressions: ExpressionTable,
     pub invariant_names: Arena<ProgramName>,
     pub operations: Vec<RuntimeDispatchBodyOperation>,
 }
@@ -24,11 +27,13 @@ pub(super) fn build_dispatch_body(
     dispatch_state: &DispatchState,
 ) -> CollectedRuntimeDispatchBody {
     let mut operations = Vec::new();
+    let mut expressions = ExpressionTable::new();
     let mut invariant_names = Arena::new();
     append_state_body_operations(
         context,
         dispatch_state.key,
         &mut operations,
+        &mut expressions,
         &mut invariant_names,
         &mut Vec::new(),
     );
@@ -36,6 +41,7 @@ pub(super) fn build_dispatch_body(
     CollectedRuntimeDispatchBody {
         key: dispatch_state.key,
         dispatch_index: dispatch_state.dispatch_index,
+        expressions,
         invariant_names,
         operations,
     }
@@ -45,6 +51,7 @@ fn append_state_body_operations(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
 ) {
@@ -79,6 +86,7 @@ fn append_state_body_operations(
                 context,
                 state_call,
                 operations,
+                expressions,
                 invariant_names,
                 visiting,
             );
@@ -92,6 +100,7 @@ fn append_state_body_operations(
                 context,
                 state_call,
                 operations,
+                expressions,
                 invariant_names,
                 visiting,
             );
@@ -151,6 +160,7 @@ fn append_state_call_body_operation(
     context: &RuntimeDispatchBodyContext,
     state_call: &StateCall,
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    expressions: &mut ExpressionTable,
     invariant_names: &mut Arena<ProgramName>,
     visiting: &mut Vec<StateKey>,
 ) {
@@ -168,9 +178,11 @@ fn append_state_call_body_operation(
             context,
             state_call.target_key,
             operations,
+            expressions,
             invariant_names,
             visiting,
         );
+        append_state_call_result_operation(context, state_call, operations, expressions);
         return;
     }
 
@@ -189,9 +201,11 @@ fn append_state_call_body_operation(
             context,
             state_call.target_key,
             operations,
+            expressions,
             invariant_names,
             visiting,
         );
+        append_state_call_result_operation(context, state_call, operations, expressions);
         return;
     }
 
@@ -205,6 +219,62 @@ fn append_state_call_body_operation(
             lowering: state_call.lowering,
         },
     ));
+}
+
+fn append_state_call_result_operation(
+    context: &RuntimeDispatchBodyContext,
+    state_call: &StateCall,
+    operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    expressions: &mut ExpressionTable,
+) {
+    if state_call.role != omega_state_calls::StateCallRole::AssignmentValue {
+        return;
+    }
+
+    let Some(value) = terminal_state_value_expression(context, state_call.target_key) else {
+        return;
+    };
+    let value = expressions.copy_from(&context.program.expression_table, value);
+
+    operations.push(body_operation(
+        state_call.source_key,
+        state_call.statement_index,
+        RuntimeDispatchBodyOperationKind::StateCallResult {
+            role: state_call.role,
+            target_key: state_call.target_key,
+            value,
+        },
+    ));
+}
+
+fn terminal_state_value_expression(
+    context: &RuntimeDispatchBodyContext,
+    target_key: StateKey,
+) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+    let machine = context
+        .program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == target_key.machine)?;
+    let state = machine
+        .states
+        .iter()
+        .find(|state| state.symbol == target_key.state)?;
+    let statements = context.program.statement_table.statements(state.statement_nodes);
+    let statement = statements.last()?;
+    match statement {
+        StatementNode::Expression(expression) => Some(*expression),
+        StatementNode::Transition(transition)
+            if !transition.continuation.is_valid()
+                && matches!(transition.guard, TransitionGuardNode::Always) =>
+        {
+            match context.program.statement_table.transition_target(transition.target) {
+                TransitionTargetNode::Value(expression) => Some(*expression),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn body_operation(

@@ -22,6 +22,7 @@ pub(super) fn bind_runtime_operation_aliases(
         RuntimeDispatchBodyOperationKind::HostCall { .. }
         | RuntimeDispatchBodyOperationKind::LocalStorage { .. }
         | RuntimeDispatchBodyOperationKind::Mutation { .. }
+        | RuntimeDispatchBodyOperationKind::StateCallResult { .. }
         | RuntimeDispatchBodyOperationKind::Other => return,
     }
 
