@@ -81,6 +81,7 @@ fn repo_root() -> PathBuf {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "bounded_arithmetic_return",
+    "bounded_float_division",
     "bounded_literal_named_constraints",
     "bounded_max_call",
     "bounded_member_guard_transition",
@@ -97,7 +98,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "assign_immutable_parameter",
     "borrow_duplicate_mut",
     "borrow_mut_literal",
-    "bounded_float_division_unproven",
     "bounded_guarded_increment_unproven",
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
