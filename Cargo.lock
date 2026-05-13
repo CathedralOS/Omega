@@ -532,13 +532,13 @@ dependencies = [
 name = "omega-runtime-bodies"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-calls",
  "omega-state-dispatch",
  "omega-state-storage",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -560,26 +560,26 @@ dependencies = [
 name = "omega-runtime-dispatch-loop"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-runtime-bodies",
  "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-guards",
- "omega-typed-trees",
 ]
 
 [[package]]
 name = "omega-runtime-storage"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-layout",
  "omega-runtime-bodies",
  "omega-state-storage",
  "omega-target",
- "omega-typed-trees",
 ]
 
 [[package]]
@@ -607,21 +607,21 @@ dependencies = [
 name = "omega-state-calls"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-platform-interface",
  "omega-state-graph",
- "omega-typed-trees",
 ]
 
 [[package]]
 name = "omega-state-dispatch"
 version = "0.1.0"
 dependencies = [
+ "omega-checked-trees",
  "omega-control-flow",
  "omega-core",
  "omega-state-graph",
- "omega-typed-trees",
 ]
 
 [[package]]

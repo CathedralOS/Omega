@@ -6,10 +6,10 @@ pub use context::StateDispatchContext;
 pub use input::{RuntimeStateInput, runtime_state_inputs};
 pub use model::{DispatchEdge, DispatchState, StateDispatchPlan};
 
+use omega_checked_trees::statement::TransitionGuard;
 use omega_control_flow::StateKey;
 use omega_core::parallel::{WorkerPool, WorkerPoolHandle};
 use omega_state_graph::{RuntimeFlowPlan, RuntimeTransitionTarget};
-use omega_typed_trees::statement::TransitionGuard;
 use std::sync::Arc;
 
 pub fn build_state_dispatch_plan(runtime_flow: &RuntimeFlowPlan) -> StateDispatchPlan {

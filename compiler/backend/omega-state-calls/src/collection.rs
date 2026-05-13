@@ -3,10 +3,10 @@ use omega_control_flow::{
     ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
     TransitionExpressionRefs,
 };
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::name::ProgramName;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
-use omega_typed_trees::name::ProgramName;
 
 use super::{StateCallResolution, StateCallRole};
 
@@ -69,7 +69,9 @@ pub(crate) fn collect_machine_state_calls(
                 role: StateCallRole::Statement,
                 receiver: receiver
                     .as_ref()
-                    .and_then(|receiver| receiver.as_slice().last().cloned())
+                    .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
+                        receiver.as_slice().last().cloned()
+                    })
                     .unwrap_or_else(|| ProgramName::generated("self")),
                 target_key: resolved_target
                     .as_ref()
@@ -350,7 +352,7 @@ fn collect_expression_state_calls_in_table(
                 role,
                 receiver: receiver_path
                     .as_ref()
-                    .and_then(|receiver| receiver.last().cloned())
+                    .and_then(|receiver: &Vec<ProgramName>| receiver.last().cloned())
                     .unwrap_or_else(|| ProgramName::generated("self")),
                 target_key: resolved_target
                     .as_ref()
