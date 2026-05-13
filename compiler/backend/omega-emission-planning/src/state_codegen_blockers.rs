@@ -72,12 +72,7 @@ pub(super) fn collect_state_codegen_blockers(
                         ),
                     ));
                 }
-                OperationKind::LocalData
-                    if state_statement_has_local_storage(
-                        input,
-                        state_flow.key,
-                        operation.statement_index,
-                    ) => {}
+                OperationKind::LocalData => {}
                 OperationKind::Expression
                     if state_statement_has_expression_lowering(
                         input,
@@ -96,17 +91,6 @@ pub(super) fn collect_state_codegen_blockers(
             };
         }
     }
-}
-
-fn state_statement_has_local_storage(
-    input: &EmissionPlanningInput<'_>,
-    source_key: StateKey,
-    statement_index: usize,
-) -> bool {
-    input.state_storage.locals.iter().any(|(_, local)| {
-        state_key_matches_statement_source(local.source_key, source_key)
-            && local.statement_index == statement_index
-    })
 }
 
 fn state_statement_has_storage_mutation(

@@ -95,6 +95,15 @@ fn build_machine_state_storage_plan(
         for (statement_index, statement) in statements.iter().enumerate() {
             match statement {
                 StatementNode::LocalData(local_data) => {
+                    if !local_data_requires_storage(
+                        &program.expression_table,
+                        statements,
+                        statement_index,
+                        local_data.symbol,
+                        local_data.initial_value.is_valid(),
+                    ) {
+                        continue;
+                    }
                     plan.locals.insert(StateLocalStorage {
                         source_key,
                         statement_index,
@@ -138,6 +147,55 @@ fn build_machine_state_storage_plan(
     }
 
     plan
+}
+
+fn local_data_requires_storage(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    local_symbol: SymbolHandle,
+    has_initial_value: bool,
+) -> bool {
+    if !has_initial_value {
+        return true;
+    }
+
+    statements
+        .iter()
+        .skip(local_statement_index + 1)
+        .any(|statement| assignment_targets_symbol(expressions, statement, local_symbol))
+}
+
+fn assignment_targets_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+) -> bool {
+    let StatementNode::Assignment(assignment) = statement else {
+        return false;
+    };
+
+    assignment_target_head_symbol(expressions, assignment.target) == Some(symbol)
+}
+
+fn assignment_target_head_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+) -> Option<SymbolHandle> {
+    use omega_checked_trees::expression::ExpressionNode;
+
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => {
+            let head_symbol = path.head_symbol;
+            head_symbol.is_valid().then_some(head_symbol)
+        }
+        ExpressionNode::Member(member) => assignment_target_head_symbol(expressions, member.receiver),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_target_head_symbol(expressions, indexed.collection)
+        }
+        ExpressionNode::Mutable(inner) => assignment_target_head_symbol(expressions, *inner),
+        _ => None,
+    }
 }
 
 fn type_reference_symbol(program: &Program, type_reference: TypeReferenceHandle) -> SymbolHandle {
