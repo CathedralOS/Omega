@@ -88,6 +88,14 @@ pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {
     }
 }
 
+pub fn runtime_pointee_integer_write_width(byte_size: usize) -> usize {
+    match byte_size {
+        1 | 4 => 20,
+        8 => 32,
+        _ => 0,
+    }
+}
+
 pub fn runtime_storage_binary_write_width(
     byte_size: usize,
     left: &RuntimeValueOperand,
@@ -122,6 +130,10 @@ pub fn runtime_frame_indexed_binary_write_width(
 
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
+}
+
+pub fn runtime_pointee_string_write_width(byte_length: usize) -> usize {
+    28 + unsigned_immediate_width(byte_length as u64)
 }
 
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {

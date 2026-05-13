@@ -150,6 +150,13 @@ pub fn runtime_machine_integer_write_width(architecture: Architecture, byte_size
     }
 }
 
+pub fn runtime_pointee_integer_write_width(architecture: Architecture, byte_size: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_pointee_integer_write_width(byte_size),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,
     byte_size: usize,
@@ -215,6 +222,13 @@ pub fn runtime_frame_indexed_binary_write_width(
 pub fn runtime_machine_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_machine_string_write_width(byte_length),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_pointee_string_write_width(architecture: Architecture, byte_length: usize) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_pointee_string_write_width(byte_length),
         Architecture::X86_64 => 0,
     }
 }

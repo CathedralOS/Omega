@@ -130,6 +130,11 @@ pub enum MachineInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    RuntimePointeeIntegerWrite {
+        pointer_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     RuntimeStorageBinaryWrite {
         target_offset: usize,
         byte_size: usize,
@@ -157,6 +162,10 @@ pub enum MachineInstructionKind {
     },
     RuntimeMachineStringWrite {
         byte_offset: usize,
+        byte_length: usize,
+    },
+    RuntimePointeeStringWrite {
+        pointer_byte_offset: usize,
         byte_length: usize,
     },
     RuntimeTextLineRead {

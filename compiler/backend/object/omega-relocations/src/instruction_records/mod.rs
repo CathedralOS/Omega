@@ -5,7 +5,7 @@ mod runtime_text;
 use super::data_addresses::collect_data_address_relocations;
 use super::offsets::{
     runtime_storage_compare_right_address_offset, runtime_storage_copy_target_address_offset,
-    string_descriptor_machine_address_offset,
+    string_descriptor_machine_address_offset, string_descriptor_pointee_address_offset,
 };
 use crate::RelocationPlanningInput;
 use context::InstructionRelocationContext;
@@ -87,6 +87,12 @@ pub(super) fn collect_instruction_relocations(
             let symbol = storage_region_symbol_name(*target_region, input.entry_machine_name);
             context.insert_data_address_at_instruction_start(&symbol);
         }
+        SelectedInstructionKind::WriteRuntimePointeeInteger { .. } => {
+            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                input.entry_machine_name,
+            ));
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. } => {
             context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
@@ -99,6 +105,17 @@ pub(super) fn collect_instruction_relocations(
             context.insert_data_address_at_relative_offset(
                 string_descriptor_machine_address_offset(input.target.architecture),
                 &machine_storage_symbol_name(input.entry_machine_name),
+            );
+        }
+        SelectedInstructionKind::WriteRuntimePointeeString { data, .. } => {
+            let data_symbol = &input.data.objects.get(*data).symbol;
+            context.insert_data_address_at_instruction_start(data_symbol);
+            context.insert_data_address_at_relative_offset(
+                string_descriptor_pointee_address_offset(input.target.architecture),
+                &storage_region_symbol_name(
+                    omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    input.entry_machine_name,
+                ),
             );
         }
         SelectedInstructionKind::CopyRuntimeStorage {

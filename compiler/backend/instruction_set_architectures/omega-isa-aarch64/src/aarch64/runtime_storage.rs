@@ -146,6 +146,38 @@ pub fn encode_runtime_machine_integer_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_pointee_integer_write(
+    pointer_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    let value = u64::try_from(value).map_err(|_| {
+        Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot store runtime integer value `{value}` yet"
+        ))
+    })?;
+
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    match byte_size {
+        1 | 4 => {
+            bytes.extend(encode_movz_w(17, value as u16));
+            bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?);
+        }
+        8 => {
+            bytes.extend(encode_unsigned_immediate_padded(17, value));
+            bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+        }
+        _ => {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot store {byte_size}-byte runtime pointee integers yet"
+            )));
+        }
+    }
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_binary_write(
     target_offset: usize,
     byte_size: usize,
@@ -173,6 +205,21 @@ pub fn encode_runtime_machine_string_write(
     bytes.extend(encode_store_x17_to_x16(byte_offset)?);
     bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
     bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    Ok(bytes)
+}
+
+pub fn encode_runtime_pointee_string_write(
+    pointer_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(17);
+    bytes.extend(encode_add_page_offset_placeholder(17));
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?);
+    bytes.extend(encode_unsigned_immediate(17, byte_length as u64));
+    bytes.extend(encode_store_x_to_x(17, 16, 8)?);
     Ok(bytes)
 }
 

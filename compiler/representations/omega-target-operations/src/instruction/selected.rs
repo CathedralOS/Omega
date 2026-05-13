@@ -133,6 +133,11 @@ pub enum SelectedInstructionKind {
         byte_size: usize,
         value: i64,
     },
+    WriteRuntimePointeeInteger {
+        pointer_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     WriteRuntimeStorageBinary {
         target_region: RuntimeStorageRegion,
         target_offset: usize,
@@ -161,6 +166,11 @@ pub enum SelectedInstructionKind {
     },
     WriteRuntimeMachineString {
         byte_offset: usize,
+        data: TargetDataObjectHandle,
+        byte_length: usize,
+    },
+    WriteRuntimePointeeString {
+        pointer_byte_offset: usize,
         data: TargetDataObjectHandle,
         byte_length: usize,
     },

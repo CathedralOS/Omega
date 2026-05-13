@@ -49,6 +49,15 @@ pub(in crate::selection) fn select_runtime_string_descriptor_write(
     });
 }
 
+pub(in crate::selection) fn string_literal_data_handle(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+    value: &str,
+) -> Option<TargetDataObjectHandle> {
+    string_literal_data_object(input, source_key, statement_index, value).map(|(handle, _)| handle)
+}
+
 fn string_literal_data_object<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     source_key: StateKey,

@@ -159,18 +159,20 @@ fn state_mutation_is_planned(
             return false;
         }
 
-        matches!(
-            instruction.kind,
-            SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
-                | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
-                | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
-                | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
-                | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
-                | SelectedInstructionKind::WriteRuntimeMachineString { .. }
-                | SelectedInstructionKind::CopyRuntimeStorage { .. }
-                | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
-        )
-    })
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimePointeeInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. }
+                    | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineString { .. }
+                    | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
+            )
+        })
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {
