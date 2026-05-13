@@ -1,0 +1,9 @@
+machine main -> u32[exact, range<1, 16>] {
+    pub entry(
+        room_count: u32[exact, range<1, 16>],
+        rooms: [u32; 16],
+        index: IndexOf<rooms>
+    ) {
+        max(room_count, index + 1)
+    }
+}
