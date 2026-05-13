@@ -577,6 +577,7 @@ dependencies = [
  "omega-core",
  "omega-layout",
  "omega-runtime-bodies",
+ "omega-state-calls",
  "omega-state-storage",
  "omega-target",
 ]
