@@ -1,7 +1,7 @@
 use omega_control_flow::{StateKey, TransitionExpressionRefs};
+use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
-use omega_typed_trees::statement::TransitionGuard;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateDispatchPlan {

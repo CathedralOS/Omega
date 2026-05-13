@@ -1,7 +1,7 @@
 use super::RuntimeStorageContext;
 use omega_core::symbols::SymbolHandle;
+use omega_checked_trees::types::PrimitiveType;
 use omega_layout::TypeLayout;
-use omega_typed_trees::types::PrimitiveType;
 
 pub(super) fn layout_for_type(
     context: &RuntimeStorageContext,

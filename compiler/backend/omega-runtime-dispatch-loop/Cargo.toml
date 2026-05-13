@@ -8,10 +8,10 @@ name = "omega_runtime_dispatch_loop"
 path = "src/lib.rs"
 
 [dependencies]
+omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../omega-state-guards" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
