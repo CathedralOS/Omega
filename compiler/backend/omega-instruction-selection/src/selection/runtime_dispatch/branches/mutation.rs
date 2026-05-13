@@ -6,6 +6,9 @@ use omega_checked_trees::expression::{BinaryOperator, Expression};
 use super::super::super::storage_places::{
     resolve_runtime_frame_indexed_target, resolve_runtime_storage_place, static_integer_value,
 };
+use super::super::text_writes::{
+    runtime_text_builder_write_with_resolver_emit, select_runtime_string_descriptor_write,
+};
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -18,7 +21,7 @@ fn supports_runtime_value_operand(byte_size: usize) -> bool {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn select_runtime_resolved_mutation_write(
+pub(crate) fn select_runtime_resolved_mutation_write(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     operation_key: StateKey,
@@ -30,6 +33,42 @@ pub(super) fn select_runtime_resolved_mutation_write(
     resolved_value: &Expression,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    if let Expression::String(value) = resolved_value {
+        select_runtime_string_descriptor_write(
+            input,
+            operation_key,
+            operation_key,
+            operation_machine,
+            operation_state,
+            dispatch_index,
+            statement_index,
+            resolved_target,
+            value,
+            selected_instructions,
+        );
+        return;
+    }
+
+    if runtime_text_builder_write_with_resolver_emit(
+        input,
+        dispatch_index,
+        operation_key,
+        operation_machine,
+        operation_state,
+        statement_index,
+        resolved_target,
+        &|expression| expression.clone(),
+        &mut |kind| {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key: operation_key,
+                source_statement: statement_index,
+            });
+        },
+    ) {
+        return;
+    }
+
     if let Some(target_place) = resolve_runtime_storage_place(
         input,
         dispatch_index,

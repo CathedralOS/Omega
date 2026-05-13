@@ -6,11 +6,13 @@ use omega_checked_trees::expression::ExpressionTable;
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
-    resolve_runtime_alias_binding_handle, strip_mutable_expression_handle,
+    resolve_runtime_alias_binding, resolve_runtime_alias_binding_handle,
+    strip_mutable_expression_handle,
 };
 use super::host_operations::select_host_call;
 use super::instruction_sink::SelectedInstructionSink;
-use super::lookups::{host_call_for_statement, state_call_for_statement};
+use super::lookups::{host_call_for_statement, state_call_for_statement, state_mutation_for_statement};
+use super::runtime_dispatch::select_runtime_resolved_mutation_write;
 use omega_target_operations::InstructionOperand;
 use omega_state_calls::StateCall;
 
@@ -55,6 +57,42 @@ pub(super) fn select_state_body_instructions(
                 operands,
                 selected_instructions,
             );
+            continue;
+        }
+
+        if let Some(mutation) =
+            state_mutation_for_statement(input, state.key, operation.statement_index)
+        {
+            let target = input.state_storage.expressions.to_tree(mutation.target);
+            let value = input.state_storage.expressions.to_tree(mutation.value);
+            let resolved_target = resolve_runtime_alias_binding(
+                &target,
+                state.key,
+                aliases.bindings(),
+                alias_expressions,
+            );
+            let resolved_value = resolve_runtime_alias_binding(
+                &value,
+                state.key,
+                aliases.bindings(),
+                alias_expressions,
+            );
+            if let Some(dispatch_index) = dispatch_index_for_state(input, state.key).or(dispatch_index)
+            {
+                let (machine_name, state_name) = input.control_flow.state_names_by_key_cloned(state.key);
+                select_runtime_resolved_mutation_write(
+                    input,
+                    dispatch_index,
+                    state.key,
+                    &machine_name,
+                    &machine_name,
+                    &state_name,
+                    operation.statement_index,
+                    &resolved_target.expression,
+                    &resolved_value.expression,
+                    selected_instructions,
+                );
+            }
             continue;
         }
 
