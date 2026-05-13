@@ -738,23 +738,22 @@ fn expression_type_reference<'program>(
                         .map(|owned_data| &owned_data.type_reference)
                 })
         }
-        Expression::Member(member) => type_reference_for_symbol(
+        Expression::Member(member) => expression_type_reference(
             program,
             machine,
             state,
-            member.member_symbol,
+            &member.receiver,
         )
-        .or_else(|| {
-            expression_type_reference(program, machine, state, &member.receiver).and_then(
-                |receiver_type| {
-                    data_field_type_reference(
-                        program,
-                        receiver_type,
-                        member.member_symbol,
-                        &member.member,
-                    )
-                },
+        .and_then(|receiver_type| {
+            data_field_type_reference(
+                program,
+                receiver_type,
+                member.member_symbol,
+                &member.member,
             )
+        })
+        .or_else(|| {
+            type_reference_for_symbol(program, machine, state, member.member_symbol)
         }),
         _ => None,
     }
@@ -1285,16 +1284,30 @@ fn has_named_constraint(constraints: &[TypeConstraint], name: &str) -> bool {
 }
 
 fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
-    let mut range = constraints.iter().find_map(|constraint| {
+    let mut range: Option<IntegerRange> = None;
+
+    for constraint in constraints {
         let TypeConstraint::Range { minimum, maximum } = constraint else {
-            return None;
+            continue;
         };
 
-        Some(IntegerRange {
-            minimum: integer_constant_value(minimum)?,
-            maximum: integer_constant_value(maximum)?,
-        })
-    });
+        let Some(candidate) = (|| {
+            Some(IntegerRange {
+                minimum: integer_constant_value(minimum)?,
+                maximum: integer_constant_value(maximum)?,
+            })
+        })() else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => IntegerRange {
+                minimum: existing.minimum.max(candidate.minimum),
+                maximum: existing.maximum.min(candidate.maximum),
+            },
+            None => candidate,
+        });
+    }
 
     for constraint in constraints {
         let TypeConstraint::Named(name) = constraint else {
@@ -1330,16 +1343,32 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
 }
 
 fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
-    constraints.iter().find_map(|constraint| {
+    let mut range: Option<FloatRange> = None;
+
+    for constraint in constraints {
         let TypeConstraint::Range { minimum, maximum } = constraint else {
-            return None;
+            continue;
         };
 
-        Some(FloatRange {
-            minimum: float_constant_value(minimum)?,
-            maximum: float_constant_value(maximum)?,
-        })
-    })
+        let Some(candidate) = (|| {
+            Some(FloatRange {
+                minimum: float_constant_value(minimum)?,
+                maximum: float_constant_value(maximum)?,
+            })
+        })() else {
+            continue;
+        };
+
+        range = Some(match range {
+            Some(existing) => FloatRange {
+                minimum: existing.minimum.max(candidate.minimum),
+                maximum: existing.maximum.min(candidate.maximum),
+            },
+            None => candidate,
+        });
+    }
+
+    range
 }
 
 fn integer_binary_range(
