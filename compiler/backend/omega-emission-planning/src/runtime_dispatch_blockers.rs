@@ -105,6 +105,12 @@ pub(super) fn runtime_dispatch_loop_can_emit(input: &EmissionPlanningInput<'_>) 
             .iter()
             .all(|edge| {
                 (dispatch_loop_guard_can_emit(edge)
+                    || fallback_expression_guard_can_emit(
+                        input,
+                        case.key,
+                        case.dispatch_index,
+                        edge,
+                    )
                     || decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge))
                     && edge.action != RuntimeDispatchLoopAction::Unknown
             })
@@ -252,6 +258,16 @@ fn guard_expression_can_emit(
     statement_order: usize,
     guard: &TransitionGuard,
 ) -> bool {
+    if let Some(normalized) = normalized_boolean_wrapped_guard(guard) {
+        return guard_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &normalized,
+        );
+    }
+
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return false;
     };
@@ -317,4 +333,42 @@ fn runtime_value_expression_can_emit(
             .is_some(),
         _ => false,
     }
+}
+
+fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<TransitionGuard> {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+        return None;
+    };
+    let (inner, expected_true) = match (&binary.left, &binary.right) {
+        (inner, Expression::Boolean(value)) => (inner, *value),
+        (Expression::Boolean(value), inner) => (inner, *value),
+        _ => return None,
+    };
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return None,
+    };
+    if expected_true {
+        return Some(TransitionGuard::When(inner.clone()));
+    }
+    let Expression::Binary(inner_binary) = inner else {
+        return None;
+    };
+    let inverted = match inner_binary.operator {
+        BinaryOperator::Equal => BinaryOperator::NotEqual,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        _ => return None,
+    };
+    Some(TransitionGuard::When(Expression::Binary(Box::new(
+        omega_checked_trees::expression::BinaryExpression {
+            left: inner_binary.left.clone(),
+            operator: inverted,
+            right: inner_binary.right.clone(),
+        },
+    ))))
 }
