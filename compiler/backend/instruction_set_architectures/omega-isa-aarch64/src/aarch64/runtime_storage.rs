@@ -507,6 +507,17 @@ fn encode_runtime_binary_operation(
                 right_register,
             ));
         }
+        StateGuardOperator::Max | StateGuardOperator::Min => {
+            bytes.extend(encode_compare_x_register(destination_register, right_register));
+            bytes.extend(match operator {
+                StateGuardOperator::Max => {
+                    encode_conditional_branch_greater_or_equal(8)?
+                }
+                StateGuardOperator::Min => encode_conditional_branch_less_or_equal(8)?,
+                _ => unreachable!(),
+            });
+            bytes.extend(encode_move_x_register(destination_register, right_register));
+        }
         StateGuardOperator::Equal | StateGuardOperator::NotEqual => {
             bytes.extend(encode_compare_w_register(destination_register, right_register));
             bytes.extend(encode_movz_w(destination_register, 0));

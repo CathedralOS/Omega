@@ -397,10 +397,21 @@ fn select_runtime_binary_mutation_write(
     alias_expressions: &ExpressionTable,
     static_values: &RuntimeStaticValues,
 ) -> Option<SelectedInstructionKind> {
-    let Expression::Binary(binary) = value else {
-        return None;
+    let (operator, left_expression, right_expression) = match value {
+        Expression::Binary(binary) => (
+            runtime_binary_operator(binary.operator)?,
+            &binary.left,
+            &binary.right,
+        ),
+        Expression::Call(call) => {
+            let operator = builtin_runtime_call_operator(call)?;
+            let [left, right] = call.arguments.as_slice() else {
+                return None;
+            };
+            (operator, left, right)
+        }
+        _ => return None,
     };
-    let operator = runtime_binary_operator(binary.operator)?;
     let left = resolve_runtime_value_operand(
         input,
         dispatch_index,
@@ -408,7 +419,7 @@ fn select_runtime_binary_mutation_write(
         source_machine,
         source_state,
         statement_index,
-        &binary.left,
+        left_expression,
         aliases,
         alias_expressions,
         static_values,
@@ -420,7 +431,7 @@ fn select_runtime_binary_mutation_write(
         source_machine,
         source_state,
         statement_index,
-        &binary.right,
+        right_expression,
         aliases,
         alias_expressions,
         static_values,
@@ -536,6 +547,43 @@ fn resolve_runtime_value_operand(
     }
 
     if let Expression::Call(call) = expression
+        && let Some(operator) = builtin_runtime_call_operator(call)
+    {
+        let [left, right] = call.arguments.as_slice() else {
+            return None;
+        };
+        let left = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            statement_index,
+            left,
+            aliases,
+            alias_expressions,
+            static_values,
+        )?;
+        let right = resolve_runtime_value_operand(
+            input,
+            dispatch_index,
+            source_key,
+            source_machine,
+            source_state,
+            statement_index,
+            right,
+            aliases,
+            alias_expressions,
+            static_values,
+        )?;
+        return Some(RuntimeValueOperand::Binary {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        });
+    }
+
+    if let Expression::Call(call) = expression
         && let Some(place) = resolve_runtime_assignment_value_call_result_place(
             input,
             dispatch_index,
@@ -588,5 +636,19 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,
+    }
+}
+
+fn builtin_runtime_call_operator(
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<StateGuardOperator> {
+    if call.receiver.is_some() || call.arguments.len() != 2 {
+        return None;
+    }
+
+    match call.target.as_str() {
+        "max" => Some(StateGuardOperator::Max),
+        "min" => Some(StateGuardOperator::Min),
+        _ => None,
     }
 }
