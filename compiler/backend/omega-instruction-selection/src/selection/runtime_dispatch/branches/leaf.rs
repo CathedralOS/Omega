@@ -2,7 +2,9 @@ use crate::InstructionSelectionInput;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_checked_trees::expression::Expression;
+use omega_checked_trees::expression::NamePath;
 use omega_checked_trees::name::ProgramName;
+use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::resolve_leaf_binding_expression;
 use super::super::super::storage_places::{resolve_machine_owned_place, static_integer_value};
@@ -10,6 +12,7 @@ use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use super::mutation::select_runtime_resolved_mutation_write;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
@@ -53,10 +56,59 @@ fn select_runtime_leaf_branch_expansion(
     }
 
     let write_start = selected_instructions.len();
+    select_runtime_leaf_branch_terminal_value_write(input, expansion, selected_instructions);
     select_runtime_leaf_branch_mutation_writes(input, expansion, selected_instructions);
     if selected_instructions.len() == write_start {
         selected_instructions.pop();
     }
+}
+
+fn select_runtime_leaf_branch_terminal_value_write(
+    input: &InstructionSelectionInput<'_>,
+    expansion: &RuntimeLeafBranchExpansion,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let Some(value) = expansion.target_value else {
+        return;
+    };
+    if !matches!(
+        expansion.role,
+        StateCallRole::AssignmentValue | StateCallRole::TransitionGuard
+    ) {
+        return;
+    }
+    let Some(slot) = input.runtime_storage.call_result_slot(
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        expansion.role,
+    ) else {
+        return;
+    };
+    let bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    let resolved_value = resolve_leaf_binding_expression(
+        &input.runtime_branching_calls.expressions,
+        &input.runtime_branching_calls.expressions.to_tree(value),
+        bindings,
+    );
+    let target = Expression::Name(NamePath::unresolved(vec![slot.name.clone()]));
+    let (source_machine, source_state) = state_names(input, expansion.source_key);
+    select_runtime_resolved_mutation_write(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        &source_machine,
+        &source_machine,
+        &source_state,
+        expansion.statement_index,
+        &target,
+        &resolved_value,
+        selected_instructions,
+    );
 }
 
 fn select_runtime_leaf_branch_mutation_writes(

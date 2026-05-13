@@ -76,24 +76,37 @@ pub(super) fn append_leaf_branch_expansions(
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
 
     for edge in edges {
-        if edge.lowering != RuntimeBranchTargetLowering::InlineLeaf {
-            continue;
-        }
-
-        let RuntimeTransitionTarget::State { key: leaf_key, .. } = &edge.target else {
-            continue;
+        let (leaf_key, bindings, operations) = match &edge.target {
+            RuntimeTransitionTarget::State { key: leaf_key, .. }
+                if edge.lowering == RuntimeBranchTargetLowering::InlineLeaf =>
+            {
+                let leaf_arguments = target_arguments.span_or_empty(edge.target_arguments);
+                let bindings = leaf_branch_bindings(
+                    &branch_bindings,
+                    context,
+                    *leaf_key,
+                    expressions,
+                    leaf_bindings,
+                    leaf_arguments,
+                );
+                let operations =
+                    leaf_operations(context, expressions, leaf_operations_arena, *leaf_key);
+                (*leaf_key, bindings, operations)
+            }
+            RuntimeTransitionTarget::Terminal if edge.target_value.is_some() => (
+                StateKey::default(),
+                leaf_bindings.insert_many(branch_bindings.iter().map(|binding| {
+                    RuntimeLeafBranchBinding {
+                        parameter_symbol: binding.parameter_symbol,
+                        parameter_name: binding.parameter_name.clone(),
+                        expression: binding.expression,
+                        kind: RuntimeLeafBranchBindingKind::BranchParameter,
+                    }
+                })),
+                HandleSpan::empty(),
+            ),
+            _ => continue,
         };
-
-        let leaf_arguments = target_arguments.span_or_empty(edge.target_arguments);
-        let bindings = leaf_branch_bindings(
-            &branch_bindings,
-            context,
-            *leaf_key,
-            expressions,
-            leaf_bindings,
-            leaf_arguments,
-        );
-        let operations = leaf_operations(context, expressions, leaf_operations_arena, *leaf_key);
 
         leaf_expansions.insert(RuntimeLeafBranchExpansion {
             dispatch_index,
@@ -104,7 +117,9 @@ pub(super) fn append_leaf_branch_expansions(
             guard: edge.guard.clone(),
             resolved_guard: resolve_branch_guard(&edge.guard, &branch_bindings, expressions),
             guard_kind: edge.guard_kind,
-            leaf_key: *leaf_key,
+            role: state_call.role,
+            leaf_key,
+            target_value: edge.target_value,
             bindings,
             operations,
         });

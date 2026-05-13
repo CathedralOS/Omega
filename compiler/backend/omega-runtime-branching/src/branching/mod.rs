@@ -73,6 +73,7 @@ pub fn build_runtime_branching_call_plan(
                 state_call.target_key,
                 &mut plan.expressions,
                 &mut plan.target_arguments,
+                &mut plan.target_values,
                 &mut plan.edges,
             );
             let branch_edges_slice = plan.edges.span_or_empty(branch_edges);

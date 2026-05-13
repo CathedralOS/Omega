@@ -4,6 +4,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::TransitionGuard;
+use omega_state_calls::StateCallRole;
 use omega_state_guards::StateGuardKind;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 
@@ -17,7 +18,9 @@ pub struct RuntimeLeafBranchExpansion {
     pub guard: TransitionGuard,
     pub resolved_guard: TransitionGuard,
     pub guard_kind: StateGuardKind,
+    pub role: StateCallRole,
     pub leaf_key: StateKey,
+    pub target_value: Option<ExpressionHandle>,
     pub bindings: HandleSpan<RuntimeLeafBranchBinding>,
     pub operations: HandleSpan<RuntimeLeafBranchOperation>,
 }
@@ -33,7 +36,9 @@ impl Default for RuntimeLeafBranchExpansion {
             guard: TransitionGuard::Always,
             resolved_guard: TransitionGuard::Always,
             guard_kind: StateGuardKind::Always,
+            role: StateCallRole::Statement,
             leaf_key: StateKey::default(),
+            target_value: None,
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }

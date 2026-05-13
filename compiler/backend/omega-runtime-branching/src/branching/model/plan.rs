@@ -13,6 +13,7 @@ pub struct RuntimeBranchingCallPlan {
     pub calls: Arena<RuntimeBranchingCall>,
     pub edges: Arena<RuntimeBranchingCallEdge>,
     pub target_arguments: Arena<ExpressionHandle>,
+    pub target_values: Arena<ExpressionHandle>,
     pub prelude_expansions: Arena<RuntimeBranchPreludeExpansion>,
     pub prelude_operations: Arena<RuntimeBranchPreludeOperation>,
     pub prelude_bindings: Arena<RuntimeBranchPreludeBinding>,

@@ -14,6 +14,7 @@ pub(super) fn build_branch_edges(
     state_key: StateKey,
     expressions: &mut ExpressionTable,
     target_arguments: &mut Arena<ExpressionHandle>,
+    target_values: &mut Arena<ExpressionHandle>,
     output_edges: &mut Arena<RuntimeBranchingCallEdge>,
 ) -> HandleSpan<RuntimeBranchingCallEdge> {
     let Some(machine) = context.control_flow.machine_by_symbol(state_key.machine) else {
@@ -48,6 +49,14 @@ pub(super) fn build_branch_edges(
                 expressions,
                 target_arguments,
             ),
+            target_value: transition
+                .expressions
+                .target_value
+                .map(|value| {
+                    let copied = expressions.copy_from(&context.control_flow.expressions, value);
+                    target_values.append(copied);
+                    copied
+                }),
             guard_kind: classify_transition_guard(&transition.guard),
             guard: transition.guard.clone(),
         });
