@@ -237,17 +237,7 @@ fn check_bounded_transition_argument(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(mut argument_range) =
-            integer_range_for_transition_argument(proof_plan, obligation)
-        else {
-            diagnostics.push(cannot_prove_bounded_transition_integer(
-                obligation,
-                target_range,
-            ));
-            return;
-        };
-
-        argument_range = apply_guard(argument_range, &obligation.argument, &obligation.guard);
+        let argument_range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
 
         if argument_range.minimum < target_range.minimum
             || argument_range.maximum > target_range.maximum
@@ -296,6 +286,18 @@ fn integer_range_for_transition_argument(
             obligation.argument_constraints,
         )),
     }
+}
+
+fn guarded_integer_range_for_transition_argument(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedTransitionArgumentObligation,
+) -> IntegerRange {
+    let base = integer_range_for_transition_argument(proof_plan, obligation).unwrap_or(IntegerRange {
+        minimum: i64::MIN,
+        maximum: i64::MAX,
+    });
+
+    apply_guard(base, &obligation.argument, &obligation.guard)
 }
 
 fn float_range_for_transition_argument(
@@ -570,15 +572,32 @@ fn apply_condition(
         return apply_condition(range, argument, &binary.right);
     }
 
-    if binary.left == *argument {
+    if expressions_equivalent_for_proof(&binary.left, argument) {
         return apply_right_literal_guard(range, binary.operator, &binary.right);
     }
 
-    if binary.right == *argument {
+    if expressions_equivalent_for_proof(&binary.right, argument) {
         return apply_left_literal_guard(range, &binary.left, binary.operator);
     }
 
     range
+}
+
+fn expressions_equivalent_for_proof(left: &Expression, right: &Expression) -> bool {
+    if left == right {
+        return true;
+    }
+
+    match (left, right) {
+        (Expression::Mutable(left), _) => expressions_equivalent_for_proof(left, right),
+        (_, Expression::Mutable(right)) => expressions_equivalent_for_proof(left, right),
+        (Expression::Name(left), Expression::Name(right)) => left.as_slice() == right.as_slice(),
+        (Expression::Member(left), Expression::Member(right)) => {
+            left.member == right.member
+                && expressions_equivalent_for_proof(&left.receiver, &right.receiver)
+        }
+        _ => false,
+    }
 }
 
 fn apply_right_literal_guard(
@@ -772,14 +791,20 @@ fn transition_argument_satisfies_named_constraint(
     }
 
     if matches!(constraint, "positive" | "non_negative")
-        && let Some(range) = integer_range_for_transition_argument(proof_plan, obligation)
     {
-        let range = apply_guard(range, &obligation.argument, &obligation.guard);
+        let range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
         return match constraint {
             "positive" => range.minimum > 0,
             "non_negative" => range.minimum >= 0,
             _ => false,
         };
+    }
+
+    if matches!(constraint, "exact")
+        && integer_range_for_transition_argument(proof_plan, obligation)
+            .is_some_and(|range| range.minimum == range.maximum)
+    {
+        return true;
     }
 
     argument_satisfies_named_constraint(
