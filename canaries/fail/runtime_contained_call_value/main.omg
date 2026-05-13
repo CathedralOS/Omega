@@ -1,0 +1,25 @@
+data Reward {
+    gold: i32;
+}
+
+data Random {
+}
+
+data main {
+    rng: Random;
+}
+
+machine Random::one -> i32 {
+    pub entry(&mut self) {
+        -> 1;
+    }
+}
+
+machine main {
+    pub entry(
+        &mut self,
+        reward: &mut Reward
+    ) {
+        reward.gold = 1 + self.rng.one();
+    }
+}
