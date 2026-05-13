@@ -36,7 +36,7 @@ pub(super) fn collect_state_storage_blockers(
                 local.statement_index,
                 local.name,
                 local.type_name,
-                invariant_suffix(&local.invariant_names),
+                invariant_suffix(&input.state_storage.invariant_names, local.invariant_names),
                 proof_scope_suffix(input, local.source_key)
             ),
         ));
@@ -90,7 +90,7 @@ fn collect_runtime_body_storage_blockers(
                 slot.statement_index,
                 slot.name,
                 slot.type_name,
-                invariant_suffix(&slot.invariant_names),
+                invariant_suffix(&input.runtime_storage.invariant_names, slot.invariant_names),
                 proof_scope_suffix(input, slot.source_key)
             ),
         ));

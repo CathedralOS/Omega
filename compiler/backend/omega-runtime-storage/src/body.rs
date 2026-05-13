@@ -1,5 +1,6 @@
 use super::{RuntimeFrameSlot, RuntimeStorageBodyInput, RuntimeStorageContext, RuntimeStoragePlan};
 use omega_control_flow::StateKey;
+use omega_core::arena::HandleSpan;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 use omega_state_storage::{StateMutation, StateMutationLowering};
 
@@ -48,7 +49,14 @@ pub(super) fn build_runtime_storage_body_plan(
                     name: name.clone(),
                     type_symbol: *type_symbol,
                     type_name: type_name.clone(),
-                    invariant_names: invariant_names.clone(),
+                    invariant_names: plan.invariant_names.insert_many(
+                        context
+                            .runtime_bodies
+                            .invariant_names
+                            .span_or_empty(*invariant_names)
+                            .iter()
+                            .cloned(),
+                    ),
                     byte_offset,
                     byte_size: layout.size,
                     alignment: layout.alignment,
@@ -107,7 +115,7 @@ fn append_parameter_slots(
             name: parameter.name.clone(),
             type_symbol: parameter.type_symbol,
             type_name: parameter.type_name.to_string(),
-            invariant_names: Vec::new(),
+            invariant_names: HandleSpan::empty(),
             byte_offset,
             byte_size: layout.size,
             alignment: layout.alignment,

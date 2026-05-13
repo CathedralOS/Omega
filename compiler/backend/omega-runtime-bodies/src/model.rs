@@ -8,6 +8,7 @@ use omega_state_storage::{StateMutationKind, StateMutationLowering};
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeDispatchBodyPlan {
     pub bodies: Arena<RuntimeDispatchBody>,
+    pub invariant_names: Arena<ProgramName>,
     pub operations: PagedArena<RuntimeDispatchBodyOperation>,
 }
 
@@ -69,7 +70,7 @@ pub enum RuntimeDispatchBodyOperationKind {
         name: ProgramName,
         type_symbol: SymbolHandle,
         type_name: String,
-        invariant_names: Vec<ProgramName>,
+        invariant_names: HandleSpan<ProgramName>,
     },
     Mutation {
         mutation_kind: StateMutationKind,
