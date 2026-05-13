@@ -3,6 +3,9 @@ use omega_checked_trees::{
     BorrowWritableRootFact, CheckFacts, InvariantFact, InvariantFacts, Program, ProofFactKind,
     ProofFacts, ProofObligationFact, StateBorrowFact,
 };
+use omega_checked_trees::expression::Expression;
+use omega_checked_trees::name::ProgramName;
+use omega_checked_trees::statement::Statement;
 
 pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(program)?;
@@ -126,7 +129,7 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
                     kind: BorrowRootKind::OwnedData,
                 })
                 .chain(state.statements.iter().filter_map(|statement| {
-                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement else {
+                    let Statement::LocalData(local_data) = statement else {
                         return None;
                     };
                     Some(BorrowWritableRootFact {
@@ -153,7 +156,7 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
                 .iter()
                 .enumerate()
                 .filter_map(|(statement_index, statement)| {
-                    let omega_typed_trees::statement::Statement::Call(call) = statement else {
+                    let Statement::Call(call) = statement else {
                         return None;
                     };
 
@@ -200,7 +203,7 @@ fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
 }
 
 fn collect_call_argument_accesses(
-    arguments: &[omega_typed_trees::expression::Expression],
+    arguments: &[Expression],
 ) -> Vec<BorrowArgumentAccessFact> {
     let mut accesses = Vec::new();
 
@@ -212,11 +215,11 @@ fn collect_call_argument_accesses(
 }
 
 fn collect_argument_accesses(
-    expression: &omega_typed_trees::expression::Expression,
+    expression: &Expression,
     accesses: &mut Vec<BorrowArgumentAccessFact>,
 ) {
     match expression {
-        omega_typed_trees::expression::Expression::Mutable(inner_expression) => {
+        Expression::Mutable(inner_expression) => {
             if let Some(root_name) = expression_root_name(inner_expression) {
                 accesses.push(BorrowArgumentAccessFact {
                     root_name,
@@ -229,20 +232,20 @@ fn collect_argument_accesses(
 }
 
 fn collect_read_accesses(
-    expression: &omega_typed_trees::expression::Expression,
+    expression: &Expression,
     accesses: &mut Vec<BorrowArgumentAccessFact>,
 ) {
     match expression {
-        omega_typed_trees::expression::Expression::ArrayLiteral(values) => {
+        Expression::ArrayLiteral(values) => {
             for value in values {
                 collect_read_accesses(value, accesses);
             }
         }
-        omega_typed_trees::expression::Expression::Binary(binary) => {
+        Expression::Binary(binary) => {
             collect_read_accesses(&binary.left, accesses);
             collect_read_accesses(&binary.right, accesses);
         }
-        omega_typed_trees::expression::Expression::Call(call) => {
+        Expression::Call(call) => {
             if let Some(receiver) = &call.receiver {
                 collect_read_accesses(receiver, accesses);
             }
@@ -251,10 +254,10 @@ fn collect_read_accesses(
                 collect_read_accesses(argument, accesses);
             }
         }
-        omega_typed_trees::expression::Expression::Cast(cast) => {
+        Expression::Cast(cast) => {
             collect_read_accesses(&cast.value, accesses)
         }
-        omega_typed_trees::expression::Expression::Indexed(indexed) => {
+        Expression::Indexed(indexed) => {
             if let Some(root_name) = expression_root_name(&indexed.collection) {
                 accesses.push(BorrowArgumentAccessFact {
                     root_name,
@@ -264,10 +267,10 @@ fn collect_read_accesses(
 
             collect_read_accesses(&indexed.index, accesses);
         }
-        omega_typed_trees::expression::Expression::Member(member) => {
+        Expression::Member(member) => {
             collect_read_accesses(&member.receiver, accesses)
         }
-        omega_typed_trees::expression::Expression::Name(path) => {
+        Expression::Name(path) => {
             if let Some(root_name) = path.first() {
                 accesses.push(BorrowArgumentAccessFact {
                     root_name: root_name.clone(),
@@ -275,30 +278,28 @@ fn collect_read_accesses(
                 });
             }
         }
-        omega_typed_trees::expression::Expression::Mutable(inner_expression) => {
+        Expression::Mutable(inner_expression) => {
             collect_read_accesses(inner_expression, accesses)
         }
-        omega_typed_trees::expression::Expression::StructLiteral(struct_literal) => {
+        Expression::StructLiteral(struct_literal) => {
             for field in &struct_literal.fields {
                 collect_read_accesses(&field.value, accesses);
             }
         }
-        omega_typed_trees::expression::Expression::Boolean(_)
-        | omega_typed_trees::expression::Expression::Float(_)
-        | omega_typed_trees::expression::Expression::Integer(_)
-        | omega_typed_trees::expression::Expression::String(_) => {}
+        Expression::Boolean(_)
+        | Expression::Float(_)
+        | Expression::Integer(_)
+        | Expression::String(_) => {}
     }
 }
 
 fn expression_root_name(
-    expression: &omega_typed_trees::expression::Expression,
-) -> Option<omega_typed_trees::name::ProgramName> {
+    expression: &Expression,
+) -> Option<ProgramName> {
     match expression {
-        omega_typed_trees::expression::Expression::Indexed(indexed) => {
-            expression_root_name(&indexed.collection)
-        }
-        omega_typed_trees::expression::Expression::Member(member) => match &member.receiver {
-            omega_typed_trees::expression::Expression::Name(path)
+        Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
+        Expression::Member(member) => match &member.receiver {
+            Expression::Name(path)
                 if path.len() == 1
                     && path.first().is_some_and(|name| name.as_str() == "self") =>
             {
@@ -306,7 +307,7 @@ fn expression_root_name(
             }
             other => expression_root_name(other),
         },
-        omega_typed_trees::expression::Expression::Name(path) => path.first().cloned(),
+        Expression::Name(path) => path.first().cloned(),
         _ => None,
     }
 }
