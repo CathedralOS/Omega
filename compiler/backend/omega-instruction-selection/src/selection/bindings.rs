@@ -35,10 +35,16 @@ impl RuntimeAliasBuffer {
         self.scope = HandleSpan::empty();
     }
 
-    pub(super) fn from_bindings(bindings: &[RuntimeAliasBinding]) -> Self {
+    pub(super) fn from_iter(
+        bindings: impl IntoIterator<Item = RuntimeAliasBinding>,
+    ) -> Self {
         let mut buffer = Self::default();
-        buffer.scope = buffer.aliases.insert_many(bindings.iter().cloned());
+        buffer.scope = buffer.aliases.insert_many(bindings);
         buffer
+    }
+
+    pub(super) fn from_bindings(bindings: &[RuntimeAliasBinding]) -> Self {
+        Self::from_iter(bindings.iter().cloned())
     }
 
     pub(super) fn bindings(&self) -> &[RuntimeAliasBinding] {

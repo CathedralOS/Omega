@@ -1,6 +1,7 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{
-    RuntimeAliasBinding, RuntimeAliasResolutionContext, resolve_branch_prelude_binding_expression,
+    RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
+    resolve_branch_prelude_binding_expression,
 };
 use crate::selection::host_operations::select_host_call;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -69,7 +70,7 @@ fn select_runtime_branch_prelude(
                     host_call,
                     Some(expansion.dispatch_index),
                     Some(RuntimeAliasResolutionContext {
-                        aliases: &alias_bindings,
+                        aliases: alias_bindings.bindings(),
                         alias_expressions: &input.runtime_branching_calls.expressions,
                     }),
                     operands,
@@ -113,17 +114,16 @@ fn select_runtime_branch_prelude(
 fn prelude_alias_bindings(
     target_key: omega_control_flow::StateKey,
     bindings: &[RuntimeBranchPreludeBinding],
-) -> Vec<RuntimeAliasBinding> {
-    bindings
-        .iter()
-        .map(|binding| RuntimeAliasBinding {
+) -> RuntimeAliasBuffer {
+    RuntimeAliasBuffer::from_iter(
+        bindings.iter().map(|binding| RuntimeAliasBinding {
             source_key: target_key,
             parameter_symbol: binding.parameter_symbol,
             parameter_name: binding.parameter_name.clone(),
             expression_source_key: target_key,
             expression: binding.expression,
         })
-        .collect()
+    )
 }
 
 fn state_names(
