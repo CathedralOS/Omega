@@ -127,4 +127,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
     "runtime_call_guard",
+    "runtime_contained_reward_table_roll_item",
 ];
