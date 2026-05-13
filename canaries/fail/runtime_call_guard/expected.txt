@@ -1,1 +1,1 @@
-native emission needs dispatch loop byte emission
+needs runtime state comparison byte emission
