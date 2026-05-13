@@ -657,12 +657,24 @@ fn expression_constraints(
             derived_binary_constraints(binary.operator, &left, &right)
         }
         Expression::Call(call) => {
-            if is_real_from_call(call.receiver.as_deref(), &call.target)
-                && let [argument] = call.arguments.as_slice()
+            if let Some(constraints) =
+                derived_builtin_call_constraints(program, machine, state, call)
             {
-                let argument_constraints =
-                    expression_constraints(program, machine, state, argument);
-                return derived_real_from_constraints(&argument_constraints);
+                return constraints;
+            }
+
+            if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
+                let mut constraints = collect_constraints(program, return_type);
+
+                if is_real_from_call(call.receiver.as_deref(), &call.target)
+                    && let [argument] = call.arguments.as_slice()
+                {
+                    let argument_constraints =
+                        expression_constraints(program, machine, state, argument);
+                    constraints.extend(derived_real_from_constraints(&argument_constraints));
+                }
+
+                return constraints;
             }
 
             Vec::new()
@@ -757,6 +769,7 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
         } => {
             let mut derived = collect_constraints(program, base_type);
             derived.extend(type_constraints(program, *constraints).iter().cloned());
+            augment_constraints_with_named_facts(&mut derived);
             derived
         }
         TypeReference::FixedArray { element_type, .. } => {
@@ -773,7 +786,7 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
 }
 
 fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
-    match name.as_str() {
+    let mut constraints = match name.as_str() {
         "u32" => vec![TypeConstraint::Range {
             minimum: Expression::Integer(0),
             maximum: Expression::Integer(u32::MAX as i64),
@@ -783,7 +796,9 @@ fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
             maximum: Expression::Integer(i64::MAX),
         }],
         _ => Vec::new(),
-    }
+    };
+    augment_constraints_with_named_facts(&mut constraints);
+    constraints
 }
 
 fn type_reference_for_symbol<'program>(
@@ -1000,12 +1015,259 @@ fn derived_real_from_constraints(argument_constraints: &[TypeConstraint]) -> Vec
     ]
 }
 
+fn derived_builtin_call_constraints(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    call: &omega_typed_trees::expression::CallExpression,
+) -> Option<Vec<TypeConstraint>> {
+    match call.target.as_str() {
+        "max" => derived_extrema_call_constraints(program, machine, state, call, true),
+        "min" => derived_extrema_call_constraints(program, machine, state, call, false),
+        "range" => derived_range_call_constraints(program, machine, state, call),
+        _ => None,
+    }
+}
+
+fn derived_extrema_call_constraints(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    call: &omega_typed_trees::expression::CallExpression,
+    is_max: bool,
+) -> Option<Vec<TypeConstraint>> {
+    let [left, right] = call.arguments.as_slice() else {
+        return None;
+    };
+
+    let left_constraints = expression_constraints(program, machine, state, left);
+    let right_constraints = expression_constraints(program, machine, state, right);
+    let mut constraints = Vec::new();
+
+    if integer_constraints_are_exact(&left_constraints)
+        && integer_constraints_are_exact(&right_constraints)
+    {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+    }
+
+    if let (Some(left_range), Some(right_range)) = (
+        integer_range_from_constraints(&left_constraints),
+        integer_range_from_constraints(&right_constraints),
+    ) {
+        let range = if is_max {
+            IntegerRange {
+                minimum: left_range.minimum.max(right_range.minimum),
+                maximum: left_range.maximum.max(right_range.maximum),
+            }
+        } else {
+            IntegerRange {
+                minimum: left_range.minimum.min(right_range.minimum),
+                maximum: left_range.maximum.min(right_range.maximum),
+            }
+        };
+
+        constraints.push(TypeConstraint::Range {
+            minimum: Expression::Integer(range.minimum),
+            maximum: Expression::Integer(range.maximum),
+        });
+    }
+
+    if constraints.is_empty() {
+        return None;
+    }
+
+    augment_constraints_with_named_facts(&mut constraints);
+    Some(constraints)
+}
+
+fn derived_range_call_constraints(
+    program: &Program,
+    machine: &Machine,
+    state: &State,
+    call: &omega_typed_trees::expression::CallExpression,
+) -> Option<Vec<TypeConstraint>> {
+    let [_, exclusive_max] = call.arguments.as_slice() else {
+        return None;
+    };
+
+    let upper_constraints = expression_constraints(program, machine, state, exclusive_max);
+    let mut constraints = vec![TypeConstraint::Named(ProgramName::generated("exact"))];
+
+    if let Some(upper_range) = integer_range_from_constraints(&upper_constraints) {
+        constraints.push(TypeConstraint::Range {
+            minimum: Expression::Integer(0),
+            maximum: Expression::Integer(upper_range.maximum),
+        });
+    }
+
+    augment_constraints_with_named_facts(&mut constraints);
+    Some(constraints)
+}
+
+fn call_expression_return_type<'program>(
+    program: &'program Program,
+    machine: &'program Machine,
+    state: &'program State,
+    call: &'program omega_typed_trees::expression::CallExpression,
+) -> Option<&'program TypeReference> {
+    let receiver_path = call.receiver.as_deref().and_then(expression_name_path);
+
+    if receiver_path.is_none() || receiver_path.as_deref().is_some_and(|path| path == ["self"]) {
+        return machine
+            .states
+            .iter()
+            .find(|candidate| {
+                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
+                    || candidate.name == call.target
+            })
+            .and_then(|candidate| candidate.return_type.as_ref());
+    }
+
+    let receiver_path = receiver_path?;
+    let receiver_symbol = receiver_symbol(call.receiver.as_deref())?;
+
+    if let Some(contained) = machine.contains.iter().find(|contained| {
+        contained.symbol == receiver_symbol
+            || receiver_path
+                .last()
+                .is_some_and(|receiver_name| contained.name == *receiver_name)
+    }) {
+        if let Some(target_machine) = program
+            .machines
+            .iter()
+            .find(|candidate| candidate.symbol == contained.type_symbol)
+        {
+            return target_machine
+                .states
+                .iter()
+                .find(|candidate| {
+                    (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
+                        || candidate.name == call.target
+                })
+                .and_then(|candidate| candidate.return_type.as_ref());
+        }
+    }
+
+    if let Some(target_machine) = program
+        .machines
+        .iter()
+        .find(|candidate| candidate.symbol == receiver_symbol)
+    {
+        return target_machine
+            .states
+            .iter()
+            .find(|candidate| {
+                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
+                    || candidate.name == call.target
+            })
+            .and_then(|candidate| candidate.return_type.as_ref());
+    }
+
+    if let Some(target_platform) = program
+        .platforms
+        .iter()
+        .find(|candidate| candidate.symbol == receiver_symbol)
+    {
+        return target_platform
+            .states
+            .iter()
+            .find(|candidate| {
+                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
+                    || candidate.name == call.target
+            })
+            .and_then(|candidate| candidate.return_type.as_ref());
+    }
+
+    if let Some(parameter_machine_symbol) = state
+        .parameters
+        .iter()
+        .find(|parameter| parameter.symbol == receiver_symbol)
+        .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
+        && let Some(target_machine) = program
+            .machines
+            .iter()
+            .find(|candidate| candidate.symbol == parameter_machine_symbol)
+    {
+        return target_machine
+            .states
+            .iter()
+            .find(|candidate| {
+                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
+                    || candidate.name == call.target
+            })
+            .and_then(|candidate| candidate.return_type.as_ref());
+    }
+
+    None
+}
+
 fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> bool {
     target == "from"
         && matches!(
             receiver,
             Some(Expression::Name(path)) if path.as_slice() == ["Real"]
         )
+}
+
+fn expression_name_path(expression: &Expression) -> Option<Vec<ProgramName>> {
+    expression_name_path_owned(expression)
+}
+
+fn receiver_symbol(receiver: Option<&Expression>) -> Option<SymbolHandle> {
+    match receiver? {
+        Expression::Name(path) => Some(path.symbol()),
+        Expression::Member(member) => Some(member.member_symbol),
+        Expression::Mutable(inner) => receiver_symbol(Some(inner)),
+        _ => None,
+    }
+}
+
+fn expression_name_path_owned(expression: &Expression) -> Option<Vec<ProgramName>> {
+    match expression {
+        Expression::Name(path) => Some(path.as_slice().to_vec()),
+        Expression::Member(member) => {
+            let mut path = expression_name_path_owned(&member.receiver)?;
+            path.push(member.member.clone());
+            Some(path)
+        }
+        Expression::Mutable(inner) => expression_name_path_owned(inner),
+        _ => None,
+    }
+}
+
+fn machine_symbol_from_type_reference(type_reference: &TypeReference) -> Option<SymbolHandle> {
+    match type_reference {
+        TypeReference::Reference { referee, .. } => machine_symbol_from_type_reference(referee),
+        TypeReference::Constrained { base_type, .. } => {
+            machine_symbol_from_type_reference(base_type)
+        }
+        TypeReference::Generic { base_symbol, .. } | TypeReference::Named { symbol: base_symbol, .. } => {
+            base_symbol.is_valid().then_some(*base_symbol)
+        }
+        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => None,
+    }
+}
+
+fn augment_constraints_with_named_facts(constraints: &mut Vec<TypeConstraint>) {
+    if constraints.iter().any(|constraint| {
+        matches!(constraint, TypeConstraint::Range { minimum, maximum } if minimum == maximum)
+    }) && !has_named_constraint(constraints, "exact")
+    {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("exact")));
+    }
+
+    if let Some(range) = integer_range_from_constraints(constraints) {
+        if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
+            constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+        }
+        if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
+            constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
+        }
+    }
+
+    if float_range_from_constraints(constraints).is_some() && !has_named_constraint(constraints, "finite") {
+        constraints.push(TypeConstraint::Named(ProgramName::generated("finite")));
+    }
 }
 
 fn integer_constraints_are_exact(constraints: &[TypeConstraint]) -> bool {

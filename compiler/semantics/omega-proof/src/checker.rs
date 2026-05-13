@@ -555,6 +555,16 @@ fn apply_condition(
         return range;
     };
 
+    if binary.operator == BinaryOperator::Equal {
+        if matches!(binary.right, Expression::Boolean(true)) {
+            return apply_condition(range, argument, &binary.left);
+        }
+
+        if matches!(binary.left, Expression::Boolean(true)) {
+            return apply_condition(range, argument, &binary.right);
+        }
+    }
+
     if binary.operator == BinaryOperator::And {
         let range = apply_condition(range, argument, &binary.left);
         return apply_condition(range, argument, &binary.right);
