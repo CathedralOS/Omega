@@ -6,6 +6,7 @@ use omega_checked_trees::{
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::Statement;
+use omega_core::symbols::SymbolHandle;
 
 pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(program)?;
@@ -17,7 +18,7 @@ pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program
         typed: program.clone(),
         facts: CheckFacts {
             borrow: build_borrow_facts(program),
-            proof: build_proof_facts(&proof_plan),
+            proof: build_proof_facts(program, &proof_plan),
             invariants: build_invariant_facts(program),
         },
     })
@@ -29,20 +30,31 @@ pub fn lower_typed_program(
     lower_typed_trees(program)
 }
 
-fn build_proof_facts(proof_plan: &omega_proof::obligations::ProofPlan) -> ProofFacts {
+fn build_proof_facts(
+    program: &omega_typed_trees::Program,
+    proof_plan: &omega_proof::obligations::ProofPlan,
+) -> ProofFacts {
     let obligations = proof_plan
         .obligations
         .iter()
         .map(|obligation| match obligation {
             omega_proof::obligations::ProofObligation::BoundedAssignment(obligation) => {
+                let (machine_symbol, state_symbol) =
+                    proof_scope_symbols(program, &obligation.machine, &obligation.state);
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedAssignment,
+                    machine_symbol,
+                    state_symbol,
                     owner: format!("machine `{}` state `{}`", obligation.machine, obligation.state),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedCallArgument(obligation) => {
+                let (machine_symbol, state_symbol) =
+                    proof_scope_symbols(program, &obligation.machine, &obligation.state);
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedCallArgument,
+                    machine_symbol,
+                    state_symbol,
                     owner: format!(
                         "machine `{}` state `{}` call `{}` parameter `{}`",
                         obligation.machine, obligation.state, obligation.target, obligation.parameter
@@ -52,24 +64,36 @@ fn build_proof_facts(proof_plan: &omega_proof::obligations::ProofPlan) -> ProofF
             omega_proof::obligations::ProofObligation::BoundedInitializer(obligation) => {
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedInitializer,
+                    machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    state_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     owner: obligation.owner.clone(),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedStateReturn(obligation) => {
+                let (machine_symbol, state_symbol) =
+                    proof_scope_symbols(program, &obligation.machine, &obligation.state);
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedStateReturn,
+                    machine_symbol,
+                    state_symbol,
                     owner: format!("machine `{}` state `{}` return", obligation.machine, obligation.state),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedValue(obligation) => {
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedValue,
+                    machine_symbol: omega_core::symbols::SymbolHandle::invalid(),
+                    state_symbol: omega_core::symbols::SymbolHandle::invalid(),
                     owner: obligation.owner.clone(),
                 }
             }
             omega_proof::obligations::ProofObligation::BoundedTransitionArgument(obligation) => {
+                let (machine_symbol, state_symbol) =
+                    proof_scope_symbols(program, &obligation.machine, &obligation.state);
                 ProofObligationFact {
                     kind: ProofFactKind::BoundedTransitionArgument,
+                    machine_symbol,
+                    state_symbol,
                     owner: format!(
                         "machine `{}` state `{}` transition parameter `{}`",
                         obligation.machine, obligation.state, obligation.parameter
@@ -77,8 +101,12 @@ fn build_proof_facts(proof_plan: &omega_proof::obligations::ProofPlan) -> ProofF
                 }
             }
             omega_proof::obligations::ProofObligation::GuardedTransition(obligation) => {
+                let (machine_symbol, state_symbol) =
+                    proof_scope_symbols(program, &obligation.machine, &obligation.state);
                 ProofObligationFact {
                     kind: ProofFactKind::GuardedTransition,
+                    machine_symbol,
+                    state_symbol,
                     owner: format!("machine `{}` state `{}` guard", obligation.machine, obligation.state),
                 }
             }
@@ -91,6 +119,29 @@ fn build_proof_facts(proof_plan: &omega_proof::obligations::ProofPlan) -> ProofF
     ProofFacts {
         obligations: stored,
     }
+}
+
+fn proof_scope_symbols(
+    program: &omega_typed_trees::Program,
+    machine_name: &str,
+    state_name: &str,
+) -> (SymbolHandle, SymbolHandle) {
+    let Some(machine) = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == machine_name)
+    else {
+        return (SymbolHandle::invalid(), SymbolHandle::invalid());
+    };
+
+    let state_symbol = machine
+        .states
+        .iter()
+        .find(|state| state.name.as_str() == state_name)
+        .map(|state| state.symbol)
+        .unwrap_or_else(SymbolHandle::invalid);
+
+    (machine.symbol, state_symbol)
 }
 
 fn build_invariant_facts(program: &omega_typed_trees::Program) -> InvariantFacts {

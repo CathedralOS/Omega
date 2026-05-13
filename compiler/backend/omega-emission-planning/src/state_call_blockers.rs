@@ -56,31 +56,34 @@ pub(super) fn collect_state_call_blockers(
             StateCallLowering::InlineLeaf => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls leaf state {} with {} argument(s); native emission needs leaf state-call inlining",
+                    "{} statement {} calls leaf state {} with {} argument(s){}; native emission needs leaf state-call inlining",
                     source_name,
                     state_call.statement_index,
                     target_name,
-                    state_call.argument_count
+                    state_call.argument_count,
+                    proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
             StateCallLowering::InlineBranching => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls branching state {} with {} argument(s); native emission needs guarded state-call expansion",
+                    "{} statement {} calls branching state {} with {} argument(s){}; native emission needs guarded state-call expansion",
                     source_name,
                     state_call.statement_index,
                     target_name,
-                    state_call.argument_count
+                    state_call.argument_count,
+                    proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
             StateCallLowering::InlineExpansion => blockers.insert(blocker(
                 "state calls",
                 &format!(
-                    "{} statement {} calls {} with {} argument(s); native emission needs inline state-call expansion",
+                    "{} statement {} calls {} with {} argument(s){}; native emission needs inline state-call expansion",
                     source_name,
                     state_call.statement_index,
                     target_name,
-                    state_call.argument_count
+                    state_call.argument_count,
+                    proof_scope_suffix(input, state_call.source_key)
                 ),
             )),
             StateCallLowering::Unresolved => blockers.insert(blocker(
@@ -122,4 +125,35 @@ fn state_name(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
         .state_names_by_key(key)
         .map(|(machine, state)| format!("{machine}.{state}"))
         .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
+}
+
+fn proof_scope_suffix(input: &EmissionPlanningInput<'_>, key: StateKey) -> String {
+    let obligation_count = input
+        .control_flow
+        .proof_obligations
+        .iter()
+        .filter(|(_, obligation)| {
+            obligation.machine_symbol == key.machine && obligation.state_symbol == key.state
+        })
+        .count();
+    let guarded_count = input
+        .control_flow
+        .proof_obligations
+        .iter()
+        .filter(|(_, obligation)| {
+            obligation.machine_symbol == key.machine
+                && obligation.state_symbol == key.state
+                && obligation.kind == omega_control_flow::ProofFactKind::GuardedTransition
+        })
+        .count();
+
+    if obligation_count == 0 {
+        String::new()
+    } else if guarded_count == 0 {
+        format!(" ({obligation_count} checked proof obligation(s))")
+    } else {
+        format!(
+            " ({obligation_count} checked proof obligation(s), {guarded_count} guarded-transition)"
+        )
+    }
 }

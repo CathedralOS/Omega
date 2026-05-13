@@ -92,6 +92,8 @@ fn remap_proof_obligations<'a>(
                     ProofFactKind::GuardedTransition
                 }
             },
+            machine_symbol: fact.machine_symbol,
+            state_symbol: fact.state_symbol,
             owner: fact.owner.clone(),
         });
     }
