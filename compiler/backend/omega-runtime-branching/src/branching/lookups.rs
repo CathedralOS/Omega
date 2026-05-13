@@ -46,16 +46,42 @@ pub(super) fn state_call_for_runtime_operation<'plan>(
     context: &RuntimeBranchingContext<'plan>,
     operation: &RuntimeDispatchBodyOperation,
 ) -> Option<&'plan StateCall> {
-    let role = match &operation.kind {
-        RuntimeDispatchBodyOperationKind::InlineLeafStateCall { role, .. }
-        | RuntimeDispatchBodyOperationKind::InlineStateCall { role, .. }
-        | RuntimeDispatchBodyOperationKind::StateCall { role, .. } => *role,
-        _ => StateCallRole::Statement,
+    let (role, call_ordinal) = match &operation.kind {
+        RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+            role,
+            call_ordinal,
+            ..
+        }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall {
+            role,
+            call_ordinal,
+            ..
+        }
+        | RuntimeDispatchBodyOperationKind::StateCall {
+            role,
+            call_ordinal,
+            ..
+        } => (*role, Some(*call_ordinal)),
+        _ => (StateCallRole::Statement, None),
     };
 
-    context
-        .state_calls
-        .call_for_role(operation.source_key, operation.statement_index, role)
+    match (role, call_ordinal) {
+        (StateCallRole::AssignmentValue, Some(call_ordinal)) => context
+            .state_calls
+            .assignment_value_call_by_ordinal(
+                operation.source_key,
+                operation.statement_index,
+                call_ordinal,
+            )
+            .or_else(|| {
+                context
+                    .state_calls
+                    .call_for_role(operation.source_key, operation.statement_index, role)
+            }),
+        _ => context
+            .state_calls
+            .call_for_role(operation.source_key, operation.statement_index, role),
+    }
 }
 
 pub(super) fn state_parameters<'plan>(

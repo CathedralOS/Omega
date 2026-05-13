@@ -71,6 +71,7 @@ pub(super) fn select_runtime_state_call_result_write(
     dispatch_index: u32,
     operation_source_key: StateKey,
     statement_index: usize,
+    call_ordinal: usize,
     value_source_key: StateKey,
     value: ExpressionHandle,
     aliases: &[RuntimeAliasBinding],
@@ -80,7 +81,12 @@ pub(super) fn select_runtime_state_call_result_write(
 ) {
     let Some(slot) = input
         .runtime_storage
-        .assignment_value_result_slot(dispatch_index, operation_source_key, statement_index)
+        .assignment_value_result_slot_by_ordinal(
+            dispatch_index,
+            operation_source_key,
+            statement_index,
+            call_ordinal,
+        )
     else {
         return;
     };

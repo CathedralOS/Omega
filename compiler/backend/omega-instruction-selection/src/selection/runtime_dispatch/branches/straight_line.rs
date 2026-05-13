@@ -12,8 +12,8 @@ use super::super::super::bindings::{
     append_place_suffix, resolve_straight_line_binding_expression,
 };
 use super::super::super::lookups::{
-    state_assignment_value_call, state_call_for_statement, state_mutation_for_statement,
-    state_operations, state_parameters,
+    state_assignment_value_call, state_assignment_value_call_by_ordinal,
+    state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
@@ -110,6 +110,7 @@ fn select_runtime_straight_line_branch_writes(
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
                 role,
+                call_ordinal,
                 target_key,
                 lowering: omega_state_calls::StateCallLowering::InlineLeaf,
                 ..
@@ -118,6 +119,7 @@ fn select_runtime_straight_line_branch_writes(
                 expansion,
                 operation,
                 *role,
+                *call_ordinal,
                 bindings,
                 *target_key,
                 selected_instructions,
@@ -137,6 +139,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     expansion: &RuntimeStraightLineBranchExpansion,
     operation: &RuntimeStraightLineBranchOperation,
     role: StateCallRole,
+    call_ordinal: usize,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
     selected_instructions: &mut SelectedInstructionSink,
@@ -146,7 +149,14 @@ fn select_runtime_straight_line_leaf_state_call_writes(
             state_call_for_statement(input, operation.source_key, operation.statement_index)
         }
         StateCallRole::AssignmentValue => {
-            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+            state_assignment_value_call_by_ordinal(
+                input,
+                operation.source_key,
+                operation.statement_index,
+                call_ordinal,
+            ).or_else(|| {
+                state_assignment_value_call(input, operation.source_key, operation.statement_index)
+            })
         }
         _ => None,
     };

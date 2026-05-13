@@ -42,6 +42,17 @@ pub(super) fn state_assignment_value_call<'plan>(
         .assignment_value_call(source_key, statement_index)
 }
 
+pub(super) fn state_assignment_value_call_by_ordinal<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    source_key: StateKey,
+    statement_index: usize,
+    call_ordinal: usize,
+) -> Option<&'plan StateCall> {
+    input
+        .state_calls
+        .assignment_value_call_by_ordinal(source_key, statement_index, call_ordinal)
+}
+
 pub(super) fn state_parameters<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     state_key: StateKey,

@@ -71,13 +71,22 @@ pub(super) fn build_runtime_storage_body_plan(
                 });
             }
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
-                role, target_key, ..
+                role,
+                call_ordinal,
+                target_key,
+                ..
             }
             | RuntimeDispatchBodyOperationKind::InlineStateCall {
-                role, target_key, ..
+                role,
+                call_ordinal,
+                target_key,
+                ..
             }
             | RuntimeDispatchBodyOperationKind::StateCall {
-                role, target_key, ..
+                role,
+                call_ordinal,
+                target_key,
+                ..
             } => append_state_call_result_slot(
                 context,
                 body_input,
@@ -86,6 +95,7 @@ pub(super) fn build_runtime_storage_body_plan(
                 operation.source_key,
                 operation.statement_index,
                 *role,
+                *call_ordinal,
                 *target_key,
             ),
             RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
@@ -159,6 +169,7 @@ fn append_state_call_result_slot(
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
+    call_ordinal: usize,
     target_key: StateKey,
 ) {
     if !matches!(
@@ -185,12 +196,15 @@ fn append_state_call_result_slot(
         dispatch_index: body_input.body.dispatch_index,
         source_key,
         statement_index,
-        kind: RuntimeFrameSlotKind::StateCallResult { role, target_key },
+        kind: RuntimeFrameSlotKind::StateCallResult {
+            role,
+            call_ordinal,
+            target_key,
+        },
         symbol: SymbolHandle::invalid(),
         name: ProgramName::generated(&format!(
             "__call_result_{}_{}",
-            statement_index,
-            plan.frame_slots.len()
+            statement_index, call_ordinal
         )),
         type_symbol,
         type_name,

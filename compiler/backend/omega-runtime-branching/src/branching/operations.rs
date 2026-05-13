@@ -182,6 +182,7 @@ fn straight_line_operation_kind(
     if let Some(state_call) = state_call_for_operation(context, source_key, statement_index) {
         return RuntimeStraightLineBranchOperationKind::StateCall {
             role: state_call.role,
+            call_ordinal: state_call.call_ordinal,
             target_key: state_call.target_key,
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,

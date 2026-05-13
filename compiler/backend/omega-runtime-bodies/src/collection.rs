@@ -170,6 +170,7 @@ fn append_state_call_body_operation(
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
                 role: state_call.role,
+                call_ordinal: state_call.call_ordinal,
                 target_key: state_call.target_key,
                 argument_count: state_call.argument_count,
             },
@@ -192,6 +193,7 @@ fn append_state_call_body_operation(
             state_call.statement_index,
             RuntimeDispatchBodyOperationKind::InlineStateCall {
                 role: state_call.role,
+                call_ordinal: state_call.call_ordinal,
                 target_key: state_call.target_key,
                 argument_count: state_call.argument_count,
                 lowering: state_call.lowering,
@@ -214,6 +216,7 @@ fn append_state_call_body_operation(
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCall {
             role: state_call.role,
+            call_ordinal: state_call.call_ordinal,
             target_key: state_call.target_key,
             argument_count: state_call.argument_count,
             lowering: state_call.lowering,
@@ -241,6 +244,7 @@ fn append_state_call_result_operation(
         state_call.statement_index,
         RuntimeDispatchBodyOperationKind::StateCallResult {
             role: state_call.role,
+            call_ordinal: state_call.call_ordinal,
             target_key: state_call.target_key,
             value,
         },
