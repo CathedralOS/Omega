@@ -30,8 +30,12 @@ pub(super) fn collect_state_storage_blockers(
         blockers.insert(blocker(
             "state storage",
             &format!(
-                "{} statement {} local `{}`: {} needs stack/local storage lowering",
-                source_name, local.statement_index, local.name, local.type_name
+                "{} statement {} local `{}`: {}{} needs stack/local storage lowering",
+                source_name,
+                local.statement_index,
+                local.name,
+                local.type_name,
+                invariant_suffix(&local.invariant_names)
             ),
         ));
     }
@@ -61,6 +65,21 @@ pub(super) fn collect_state_storage_blockers(
                 input.state_storage.expressions.display_name(mutation.value)
             ),
         ));
+    }
+}
+
+fn invariant_suffix(invariant_names: &[omega_checked_trees::name::ProgramName]) -> String {
+    match invariant_names {
+        [] => String::new(),
+        [name] => format!(" (checked invariant `{}`)", name),
+        _ => format!(
+            " (checked invariants: {})",
+            invariant_names
+                .iter()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 
