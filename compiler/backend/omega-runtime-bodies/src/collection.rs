@@ -153,6 +153,21 @@ fn append_state_body_operations(
         }
     }
 
+    for (_, state_call) in context.state_calls.calls.iter() {
+        if state_call.source_key == state_key
+            && state_call.role == omega_state_calls::StateCallRole::TransitionGuard
+        {
+            append_state_call_body_operation(
+                context,
+                state_call,
+                operations,
+                expressions,
+                invariant_names,
+                visiting,
+            );
+        }
+    }
+
     visiting.pop();
 }
 
@@ -230,7 +245,11 @@ fn append_state_call_result_operation(
     operations: &mut Vec<RuntimeDispatchBodyOperation>,
     expressions: &mut ExpressionTable,
 ) {
-    if state_call.role != omega_state_calls::StateCallRole::AssignmentValue {
+    if !matches!(
+        state_call.role,
+        omega_state_calls::StateCallRole::AssignmentValue
+            | omega_state_calls::StateCallRole::TransitionGuard
+    ) {
         return;
     }
 

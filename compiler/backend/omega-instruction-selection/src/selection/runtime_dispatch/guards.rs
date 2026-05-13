@@ -16,6 +16,16 @@ pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_boolean_condition_guard(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+
     if let Some((buffer, literal)) = runtime_text_literal_guard(
         input,
         expansion.dispatch_index,
@@ -54,6 +64,16 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_boolean_condition_guard(
+        input,
+        expansion.dispatch_index,
+        expansion.source_key,
+        expansion.statement_index,
+        &expansion.resolved_guard,
+    ) {
+        return Some(guard);
+    }
+
     if let Some((buffer, literal)) = runtime_text_literal_guard(
         input,
         expansion.dispatch_index,
@@ -95,6 +115,16 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     statement_index: usize,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
+    if let Some(guard) = runtime_boolean_condition_guard(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        guard,
+    ) {
+        return Some(guard);
+    }
+
     if let Some((buffer, literal)) =
         runtime_text_literal_guard(input, dispatch_index, source_key, guard)
     {
@@ -104,6 +134,44 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     runtime_text_storage_guard(input, dispatch_index, source_key, guard)
         .or_else(|| runtime_value_guard(input, dispatch_index, source_key, statement_index, guard))
         .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, guard))
+}
+
+fn runtime_boolean_condition_guard(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    statement_index: usize,
+    guard: &TransitionGuard,
+) -> Option<SelectedInstructionKind> {
+    let TransitionGuard::When(expression) = guard else {
+        return None;
+    };
+    if matches!(expression, Expression::Binary(_)) {
+        return None;
+    }
+
+    let source_machine = source_machine_name(input, source_key);
+    let source_state = source_state_name(input, source_key);
+    let operand = resolve_runtime_value_operand(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        &source_machine,
+        &source_state,
+        expression,
+    )?;
+    let byte_size = runtime_value_operand_byte_size(&operand);
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return None;
+    }
+
+    Some(SelectedInstructionKind::CompareRuntimeValues {
+        left: operand,
+        right: RuntimeValueOperand::Immediate(1),
+        byte_size,
+        operator: StateGuardOperator::Equal,
+    })
 }
 
 fn runtime_text_literal_guard(

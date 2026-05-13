@@ -117,6 +117,16 @@ pub(super) fn resolve_runtime_transition_guard_call_result_place(
         StateCallRole::TransitionGuard,
         None,
     )
+    .or_else(|| {
+        input
+            .runtime_storage
+            .transition_guard_result_slot(dispatch_index, source_key, statement_index)
+            .map(|slot| RuntimeStoragePlace {
+                region: RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset,
+                byte_count: slot.byte_size,
+            })
+    })
 }
 
 fn resolve_runtime_call_result_place(
