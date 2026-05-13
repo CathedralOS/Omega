@@ -268,7 +268,21 @@ fn guard_expression_can_emit(
         );
     }
 
-    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+    let TransitionGuard::When(expression) = guard else {
+        return false;
+    };
+
+    if let Some(expression) = boolean_condition_expression(expression) {
+        return runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            expression,
+        );
+    }
+
+    let Expression::Binary(binary) = expression else {
         return false;
     };
 
@@ -294,6 +308,20 @@ fn guard_expression_can_emit(
             )
         }
         _ => false,
+    }
+}
+
+fn boolean_condition_expression(expression: &Expression) -> Option<&Expression> {
+    let Expression::Binary(binary) = expression else {
+        return None;
+    };
+
+    match (&binary.left, &binary.right, binary.operator) {
+        (inner, Expression::Boolean(_), BinaryOperator::Equal | BinaryOperator::NotEqual)
+        | (Expression::Boolean(_), inner, BinaryOperator::Equal | BinaryOperator::NotEqual) => {
+            (!matches!(inner, Expression::Binary(_))).then_some(inner)
+        }
+        _ => None,
     }
 }
 

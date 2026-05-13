@@ -24,9 +24,27 @@ pub(super) fn resolve_guard_operand_layout(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
+    statement_order: usize,
     table: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<ResolvedOperandLayout> {
+    if matches!(table.expression(expression), ExpressionNode::Call(_))
+        && let Some(slot) = runtime_storage.transition_guard_result_slot(
+            source_dispatch_index,
+            source_key,
+            statement_order,
+        )
+    {
+        return Some(ResolvedOperandLayout {
+            storage: StateGuardOperandStorage::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            layout: TypeLayout {
+                size: slot.byte_size,
+                alignment: slot.alignment,
+            },
+        });
+    }
+
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
     let root_name = path.first()?.clone();

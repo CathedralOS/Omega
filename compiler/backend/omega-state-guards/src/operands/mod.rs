@@ -36,6 +36,7 @@ pub(crate) fn guard_operands(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
+    statement_order: usize,
     guard: Option<ExpressionHandle>,
 ) -> Option<GuardOperands> {
     let ExpressionNode::Binary(binary) = source_expressions.expression(guard?) else {
@@ -52,6 +53,7 @@ pub(crate) fn guard_operands(
             source_key,
             source_machine,
             source_dispatch_index,
+            statement_order,
             binary.left,
         ),
         right: guard_operand(
@@ -63,6 +65,7 @@ pub(crate) fn guard_operands(
             source_key,
             source_machine,
             source_dispatch_index,
+            statement_order,
             binary.right,
         ),
     })
@@ -77,6 +80,7 @@ fn guard_operand(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
+    statement_order: usize,
     expression: ExpressionHandle,
 ) -> StateGuardOperand {
     let resolved_value = resolved_guard_operand_value(layouts, source_expressions, expression);
@@ -87,12 +91,19 @@ fn guard_operand(
         source_key,
         source_machine,
         source_dispatch_index,
+        statement_order,
         source_expressions,
         expression,
     );
+    let has_storage_layout = operand_layout.is_some();
     StateGuardOperand {
         expression: guard_expressions.copy_from(source_expressions, expression),
-        kind: classify_guard_operand(source_expressions, expression, resolved_value.is_some()),
+        kind: classify_guard_operand(
+            source_expressions,
+            expression,
+            resolved_value.is_some(),
+            has_storage_layout,
+        ),
         storage: operand_layout
             .as_ref()
             .map(|layout| layout.storage)
