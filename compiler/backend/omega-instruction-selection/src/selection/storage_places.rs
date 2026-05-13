@@ -14,7 +14,10 @@ use crate::InstructionSelectionInput;
 use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use nested_fields::resolve_nested_field_layout;
 use omega_control_flow::StateKey;
-use omega_checked_trees::expression::{CallExpression, Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_checked_trees::expression::{
+    CallExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+};
+use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::types::PrimitiveType;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{FieldLayout, TypeLayout};
@@ -28,6 +31,12 @@ pub(super) fn resolve_runtime_storage_place(
     _source_state: &str,
     expression: &Expression,
 ) -> Option<RuntimeStoragePlace> {
+    if let Some(place) =
+        resolve_runtime_fixed_indexed_place(input, dispatch_index, source_key, expression)
+    {
+        return Some(place);
+    }
+
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place(
         &input.layouts,
         input.entry_key.machine,
@@ -167,6 +176,16 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeStoragePlace> {
+    if let Some(place) = resolve_runtime_fixed_indexed_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(place);
+    }
+
     if let Some((byte_offset, byte_count)) = resolve_machine_owned_place_in_table(
         &input.layouts,
         input.entry_key.machine,
@@ -364,6 +383,143 @@ fn runtime_frame_slot_for_expression<'plan>(
             && slot_matches_path(slot.symbol, path, slot.name.as_str()))
         .then_some(slot)
     })
+}
+
+fn resolve_runtime_fixed_indexed_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeStoragePlace> {
+    let fixed = fixed_indexed_target_path(expression)?;
+    let slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &fixed.collection)?;
+    let element_layout = indexed_element_layout(input, slot.type_symbol)?;
+    let element_type_name = indexed_element_type_name(&slot.type_name)?;
+    let index = usize::try_from(fixed.index).ok()?;
+    let element_offset = index.checked_mul(element_layout.size)?;
+    let (field_byte_offset, field_layout) = if fixed.suffix.is_empty() {
+        (0, element_layout)
+    } else {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: 0,
+            type_symbol: slot.type_symbol,
+            type_name: element_type_name.to_owned(),
+            layout: element_layout,
+        };
+        resolve_nested_field_layout(&input.layouts, &root_field, &fixed.suffix)?
+    };
+
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: slot
+            .byte_offset
+            .checked_add(element_offset)?
+            .checked_add(field_byte_offset)?,
+        byte_count: field_layout.size,
+    })
+}
+
+fn resolve_runtime_fixed_indexed_place_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoragePlace> {
+    let fixed = fixed_indexed_target_path_in_table(expressions, expression)?;
+    let collection = expressions.to_tree(fixed.collection);
+    let slot =
+        runtime_frame_slot_for_expression(input, dispatch_index, source_key, &collection)?;
+    let element_layout = indexed_element_layout(input, slot.type_symbol)?;
+    let element_type_name = indexed_element_type_name(&slot.type_name)?;
+    let index = usize::try_from(fixed.index).ok()?;
+    let element_offset = index.checked_mul(element_layout.size)?;
+    let (field_byte_offset, field_layout) = if fixed.suffix.is_empty() {
+        (0, element_layout)
+    } else {
+        let root_field = FieldLayout {
+            symbol: slot.symbol,
+            name: slot.name.clone(),
+            offset: 0,
+            type_symbol: slot.type_symbol,
+            type_name: element_type_name.to_owned(),
+            layout: element_layout,
+        };
+        resolve_nested_field_layout(&input.layouts, &root_field, &fixed.suffix)?
+    };
+
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::RuntimeFrame,
+        byte_offset: slot
+            .byte_offset
+            .checked_add(element_offset)?
+            .checked_add(field_byte_offset)?,
+        byte_count: field_layout.size,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct FixedIndexedTargetPath {
+    collection: Expression,
+    index: i64,
+    suffix: Vec<ProgramName>,
+}
+
+#[derive(Debug, Clone)]
+struct TableFixedIndexedTargetPath {
+    collection: ExpressionHandle,
+    index: i64,
+    suffix: Vec<ProgramName>,
+}
+
+fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath> {
+    match expression {
+        Expression::Mutable(target) => fixed_indexed_target_path(target),
+        Expression::Member(member) => {
+            let mut path = fixed_indexed_target_path(&member.receiver)?;
+            path.suffix.push(member.member.clone());
+            Some(path)
+        }
+        Expression::Indexed(indexed) => {
+            let Expression::Integer(index) = &indexed.index else {
+                return None;
+            };
+            Some(FixedIndexedTargetPath {
+                collection: indexed.collection.clone(),
+                index: *index,
+                suffix: Vec::new(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn fixed_indexed_target_path_in_table(
+    table: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<TableFixedIndexedTargetPath> {
+    match table.expression(expression) {
+        ExpressionNode::Mutable(target) => fixed_indexed_target_path_in_table(table, *target),
+        ExpressionNode::Member(member) => {
+            let mut path = fixed_indexed_target_path_in_table(table, member.receiver)?;
+            path.suffix.push(member.member.clone());
+            Some(path)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
+                return None;
+            };
+            Some(TableFixedIndexedTargetPath {
+                collection: indexed.collection,
+                index: *index,
+                suffix: Vec::new(),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath> {

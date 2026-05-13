@@ -1,1 +1,1 @@
-rooms[index].exit_count + 1
+native emission needs dispatch loop byte emission
