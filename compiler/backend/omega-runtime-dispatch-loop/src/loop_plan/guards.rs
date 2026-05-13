@@ -24,13 +24,7 @@ pub(super) fn dispatch_guard_comparison(
 ) -> DispatchGuardComparison {
     let Some(guard) = context
         .state_guards
-        .guards
-        .iter()
-        .find(|(_, guard)| {
-            guard.source_dispatch_index == source_dispatch_index
-                && guard.statement_order == statement_order
-        })
-        .map(|(_, guard)| guard)
+        .guard_for_dispatch(source_dispatch_index, statement_order)
     else {
         return DispatchGuardComparison {
             lowering: StateGuardLowering::NeedsRuntimeExpression,
@@ -38,7 +32,7 @@ pub(super) fn dispatch_guard_comparison(
         };
     };
 
-    let Some(operands) = context.state_guards.operands.span(guard.operands) else {
+    let Some(operands) = context.state_guards.operand_span(guard.operands) else {
         return DispatchGuardComparison {
             lowering: guard.lowering,
             operator: guard.operator,

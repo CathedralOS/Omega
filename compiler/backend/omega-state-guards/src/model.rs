@@ -11,6 +11,29 @@ pub struct StateGuardPlan {
     pub operands: Arena<StateGuardOperand>,
 }
 
+impl StateGuardPlan {
+    pub fn guard_for_dispatch(
+        &self,
+        source_dispatch_index: u32,
+        statement_order: usize,
+    ) -> Option<&StateGuard> {
+        self.guards
+            .iter()
+            .find(|(_, guard)| {
+                guard.source_dispatch_index == source_dispatch_index
+                    && guard.statement_order == statement_order
+            })
+            .map(|(_, guard)| guard)
+    }
+
+    pub fn operand_span(
+        &self,
+        operands: HandleSpan<StateGuardOperand>,
+    ) -> Option<&[StateGuardOperand]> {
+        self.operands.span(operands)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateGuard {
     pub source: StateKey,

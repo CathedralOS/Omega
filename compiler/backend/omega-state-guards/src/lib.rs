@@ -292,14 +292,7 @@ pub fn lower_guard_conjunction(
     source_dispatch_index: u32,
     statement_order: usize,
 ) -> Option<Vec<StateGuardClause>> {
-    let guard = plan
-        .guards
-        .iter()
-        .find(|(_, guard)| {
-            guard.source_dispatch_index == source_dispatch_index
-                && guard.statement_order == statement_order
-        })
-        .map(|(_, guard)| guard)?;
+    let guard = plan.guard_for_dispatch(source_dispatch_index, statement_order)?;
     let expression = guard.expression;
     if !expression.is_valid() {
         return None;
@@ -330,15 +323,14 @@ pub fn lower_guard_conjunction(
             return None;
         }
 
-        let place_operands: Vec<_> = [&operands.left, &operands.right]
+        let mut place_operands = [&operands.left, &operands.right]
             .into_iter()
             .filter(|operand| {
                 operand.kind == StateGuardOperandKind::Place
                     && operand.storage != StateGuardOperandStorage::Unknown
-            })
-            .collect();
-        let place_operand = *place_operands.first()?;
-        let right_place_operand = place_operands.get(1).copied();
+            });
+        let place_operand = place_operands.next()?;
+        let right_place_operand = place_operands.next();
         let expected_value = [&operands.left, &operands.right]
             .into_iter()
             .find(|operand| operand.has_resolved_value)
