@@ -9,9 +9,9 @@ name = "omega_runtime_text"
 path = "src/lib.rs"
 
 [dependencies]
+omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-state-storage = { path = "../omega-state-storage" }
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
