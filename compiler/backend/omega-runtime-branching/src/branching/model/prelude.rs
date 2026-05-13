@@ -3,7 +3,7 @@ use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_checked_trees::expression::ExpressionHandle;
 use omega_checked_trees::name::ProgramName;
-use omega_state_calls::StateCallLowering;
+use omega_state_calls::{StateCallLowering, StateCallRole};
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +77,7 @@ pub enum RuntimeBranchPreludeOperationKind {
         value: ExpressionHandle,
     },
     StateCall {
+        role: StateCallRole,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,

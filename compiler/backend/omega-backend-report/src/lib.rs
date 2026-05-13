@@ -1213,6 +1213,7 @@ fn write_runtime_straight_line_branch_operation(
             ));
         }
         RuntimeStraightLineBranchOperationKind::StateCall {
+            role,
             target_key,
             argument_count,
             lowering,
@@ -1220,8 +1221,8 @@ fn write_runtime_straight_line_branch_operation(
         } => {
             let target_name = backend_state_name(backend_plan, *target_key);
             output.push_str(&format!(
-                "    - {} statement {} state call {} args {} {:?}\n",
-                source_name, operation.statement_index, target_name, argument_count, lowering
+                "    - {} statement {} {:?} state call {} args {} {:?}\n",
+                source_name, operation.statement_index, role, target_name, argument_count, lowering
             ));
         }
         RuntimeStraightLineBranchOperationKind::LocalData => {

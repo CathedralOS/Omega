@@ -12,11 +12,13 @@ use super::super::super::bindings::{
     append_place_suffix, resolve_straight_line_binding_expression,
 };
 use super::super::super::lookups::{
-    state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
+    state_assignment_value_call, state_call_for_statement, state_mutation_for_statement,
+    state_operations, state_parameters,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_state_calls::StateCallRole;
 
 pub(in crate::selection::runtime_dispatch) fn select_runtime_straight_line_branch_expansions_for_operation(
     input: &InstructionSelectionInput<'_>,
@@ -107,6 +109,7 @@ fn select_runtime_straight_line_branch_writes(
                 );
             }
             RuntimeStraightLineBranchOperationKind::StateCall {
+                role,
                 target_key,
                 lowering: omega_state_calls::StateCallLowering::InlineLeaf,
                 ..
@@ -114,6 +117,7 @@ fn select_runtime_straight_line_branch_writes(
                 input,
                 expansion,
                 operation,
+                *role,
                 bindings,
                 *target_key,
                 selected_instructions,
@@ -132,12 +136,21 @@ fn select_runtime_straight_line_leaf_state_call_writes(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
     operation: &RuntimeStraightLineBranchOperation,
+    role: StateCallRole,
     straight_line_bindings: &[RuntimeStraightLineBranchBinding],
     target_key: StateKey,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
-    let Some(state_call) =
-        state_call_for_statement(input, operation.source_key, operation.statement_index)
+    let state_call = match role {
+        StateCallRole::Statement => {
+            state_call_for_statement(input, operation.source_key, operation.statement_index)
+        }
+        StateCallRole::AssignmentValue => {
+            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+        }
+        _ => None,
+    };
+    let Some(state_call) = state_call
     else {
         return;
     };
