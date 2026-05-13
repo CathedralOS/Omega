@@ -1,10 +1,10 @@
 use crate::host_calls::static_values::{StaticValue, resolve_static_value};
 use crate::{HostCallArgument, HostCallArgumentKind, LoweredHostOperation, PlaceKey};
 use omega_calling_conventions::{HostAbiPlan, HostOperationKey, PlatformCallLowering};
+use omega_checked_trees::expression::Expression;
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::statement::Call;
 use omega_checked_trees::Program;
-use omega_typed_trees::expression::Expression;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::Call;
 
 pub(crate) fn platform_call_receiver_type(
     program: &Program,
@@ -29,7 +29,7 @@ pub(crate) fn platform_call_receiver_type(
                 .find(|data_definition| data_definition.name == machine.name)
                 .and_then(|data_definition| {
                     data_definition.members.iter().find_map(|member| match member {
-                        omega_typed_trees::data::DataMember::Field(field)
+                        omega_checked_trees::data::DataMember::Field(field)
                             if field.symbol == call.receiver_symbol =>
                         {
                             type_reference_symbol(&field.type_reference)
@@ -63,28 +63,28 @@ pub(crate) fn platform_call_receiver_type(
 }
 
 fn type_reference_symbol(
-    type_reference: &omega_typed_trees::types::TypeReference,
+    type_reference: &omega_checked_trees::types::TypeReference,
 ) -> Option<omega_core::symbols::SymbolHandle> {
     match type_reference {
-        omega_typed_trees::types::TypeReference::Reference { referee, .. } => {
+        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_symbol(referee)
         }
-        omega_typed_trees::types::TypeReference::Constrained { base_type, .. } => {
+        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
             type_reference_symbol(base_type)
         }
-        omega_typed_trees::types::TypeReference::FixedArray { element_type, .. } => {
+        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_symbol(element_type)
         }
-        omega_typed_trees::types::TypeReference::Slice { element_type } => {
+        omega_checked_trees::types::TypeReference::Slice { element_type } => {
             type_reference_symbol(element_type)
         }
-        omega_typed_trees::types::TypeReference::Generic { base_symbol, .. } => {
+        omega_checked_trees::types::TypeReference::Generic { base_symbol, .. } => {
             base_symbol.is_valid().then_some(*base_symbol)
         }
-        omega_typed_trees::types::TypeReference::Named { symbol, .. } => {
+        omega_checked_trees::types::TypeReference::Named { symbol, .. } => {
             symbol.is_valid().then_some(*symbol)
         }
-        omega_typed_trees::types::TypeReference::Unit => None,
+        omega_checked_trees::types::TypeReference::Unit => None,
     }
 }
 

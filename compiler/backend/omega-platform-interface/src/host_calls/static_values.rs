@@ -1,7 +1,7 @@
 use crate::place_keys::PlaceKey;
-use omega_typed_trees::expression::Expression;
-use omega_typed_trees::machine::Machine;
-use omega_typed_trees::statement::Call;
+use omega_checked_trees::expression::Expression;
+use omega_checked_trees::machine::Machine;
+use omega_checked_trees::statement::Call;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StaticValue {
@@ -115,7 +115,7 @@ fn static_place_key(expression: &Expression) -> Option<PlaceKey> {
     }
 }
 
-fn is_static_symbol_path(path: &omega_typed_trees::expression::NamePath) -> bool {
+fn is_static_symbol_path(path: &omega_checked_trees::expression::NamePath) -> bool {
     path.symbol().is_valid()
 }
 
