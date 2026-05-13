@@ -279,7 +279,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
         && let Some(source_place) = resolve_runtime_assignment_value_call_result_place(
             input,
             dispatch_index,
-            resolved_value.source_key,
+            value_source_key,
             statement_index,
             call,
         )

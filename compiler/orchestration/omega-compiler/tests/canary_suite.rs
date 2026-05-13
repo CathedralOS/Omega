@@ -108,6 +108,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_call_enum_sequence",
     "runtime_call_enum_value",
     "runtime_contained_call_value",
+    "runtime_contained_reward_table_roll_item",
     "runtime_indexed_alias_field_binary",
     "runtime_modulo_value",
     "runtime_multi_assignment_value_calls",
@@ -127,5 +128,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
     "runtime_call_guard",
-    "runtime_contained_reward_table_roll_item",
 ];
