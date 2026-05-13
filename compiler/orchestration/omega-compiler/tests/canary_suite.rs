@@ -98,6 +98,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_arithmetic_value",
     "runtime_branching_helper_guard",
     "runtime_branching_helper_string",
+    "runtime_branching_helper_struct",
     "runtime_branching_helper_value",
     "runtime_call_value",
     "runtime_contained_call_value",
