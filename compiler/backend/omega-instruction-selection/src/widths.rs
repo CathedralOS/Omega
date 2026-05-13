@@ -171,6 +171,20 @@ pub fn runtime_storage_binary_write_width(
     }
 }
 
+pub fn runtime_pointee_binary_write_width(
+    architecture: Architecture,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_pointee_binary_write_width(byte_size, left, right)
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_value_compare_width(
     architecture: Architecture,
     byte_size: usize,

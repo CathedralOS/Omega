@@ -142,6 +142,13 @@ pub enum MachineInstructionKind {
         operator: StateGuardOperator,
         right: MachineRuntimeValueOperand,
     },
+    RuntimePointeeBinaryWrite {
+        pointer_byte_offset: usize,
+        byte_size: usize,
+        left: MachineRuntimeValueOperand,
+        operator: StateGuardOperator,
+        right: MachineRuntimeValueOperand,
+    },
     RuntimeFrameIndexedIntegerWrite {
         descriptor_offset: usize,
         index_offset: usize,

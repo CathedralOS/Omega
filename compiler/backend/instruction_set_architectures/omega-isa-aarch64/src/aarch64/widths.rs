@@ -106,6 +106,16 @@ pub fn runtime_storage_binary_write_width(
         + runtime_binary_operation_width(byte_size)
 }
 
+pub fn runtime_pointee_binary_write_width(
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    right: &RuntimeValueOperand,
+) -> usize {
+    12 + runtime_value_operand_width(left)
+        + runtime_value_operand_width(right)
+        + runtime_binary_operation_width(byte_size)
+}
+
 pub fn runtime_frame_indexed_integer_write_width(
     element_byte_size: usize,
     field_byte_offset: usize,

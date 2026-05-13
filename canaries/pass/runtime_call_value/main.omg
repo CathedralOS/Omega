@@ -1,0 +1,14 @@
+machine main {
+    pub entry(
+        &mut self,
+        label: &mut String
+    ) {
+        label = self.name();
+    }
+
+    fn name(
+        &mut self
+    ) -> String {
+        -> "hello";
+    }
+}

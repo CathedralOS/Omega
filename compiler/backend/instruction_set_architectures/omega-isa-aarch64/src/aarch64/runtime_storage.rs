@@ -194,6 +194,23 @@ pub fn encode_runtime_storage_binary_write(
     Ok(bytes)
 }
 
+pub fn encode_runtime_pointee_binary_write(
+    pointer_byte_offset: usize,
+    byte_size: usize,
+    left: &RuntimeValueOperand,
+    operator: StateGuardOperator,
+    right: &RuntimeValueOperand,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = encode_adrp_placeholder(16);
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(16, 16, pointer_byte_offset)?);
+    bytes.extend(encode_runtime_value_operand(17, &[18, 15, 14], left)?);
+    bytes.extend(encode_runtime_value_operand(18, &[15, 14], right)?);
+    bytes.extend(encode_runtime_binary_operation(17, operator, 18)?);
+    bytes.extend(encode_runtime_storage_result_write(0, byte_size));
+    Ok(bytes)
+}
+
 pub fn encode_runtime_machine_string_write(
     byte_offset: usize,
     byte_length: usize,

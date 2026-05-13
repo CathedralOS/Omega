@@ -93,6 +93,12 @@ pub(super) fn collect_instruction_relocations(
                 input.entry_machine_name,
             ));
         }
+        SelectedInstructionKind::WriteRuntimePointeeBinary { .. } => {
+            context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
+                omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                input.entry_machine_name,
+            ));
+        }
         SelectedInstructionKind::WriteRuntimeFrameIndexedInteger { .. } => {
             context.insert_data_address_at_instruction_start(&storage_region_symbol_name(
                 omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
