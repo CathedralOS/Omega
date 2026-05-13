@@ -8,6 +8,7 @@ use omega_core::arena::Arena;
 use omega_runtime_bodies::RuntimeDispatchBodyOperationKind;
 
 use super::super::{EmissionBlocker, blocker};
+use crate::semantic_scope::{proof_scope_suffix, state_name};
 use grouping::{push_runtime_body_state_call_blocker, repeated_count_suffix};
 use model::RuntimeBodyStateCallBlocker;
 use planned::runtime_body_state_call_has_planned_expansion;
@@ -25,8 +26,10 @@ pub(super) fn collect_runtime_body_state_call_blockers(
             blockers.insert(blocker(
                 "runtime bodies",
                 &format!(
-                    "#{} {} has an invalid runtime body operation span",
-                    body.dispatch_index, source_name
+                    "#{} {} has an invalid runtime body operation span{}",
+                    body.dispatch_index,
+                    source_name,
+                    proof_scope_suffix(input, body.key)
                 ),
             ));
             continue;
@@ -72,7 +75,7 @@ pub(super) fn collect_runtime_body_state_call_blockers(
         blockers.insert(blocker(
             "state calls",
             &format!(
-                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {expansion_reason}",
+                "#{} {}.{} statement {} calls {}.{} with {} argument(s){}; runtime dispatch body needs {expansion_reason}{}",
                 grouped_blocker.dispatch_index,
                 grouped_blocker.source_machine,
                 grouped_blocker.source_state,
@@ -81,6 +84,7 @@ pub(super) fn collect_runtime_body_state_call_blockers(
                 grouped_blocker.target_state,
                 grouped_blocker.argument_count,
                 repeated_count_suffix(grouped_blocker.count),
+                proof_scope_suffix(input, grouped_blocker.source_key)
             ),
         ));
     }
@@ -90,17 +94,8 @@ fn state_names(
     input: &EmissionPlanningInput<'_>,
     key: omega_control_flow::StateKey,
 ) -> (String, String) {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| (machine.to_string(), state.to_string()))
+    state_name(input, key)
+        .split_once('.')
+        .map(|(machine, state)| (machine.to_owned(), state.to_owned()))
         .unwrap_or_default()
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }

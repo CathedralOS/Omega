@@ -6,7 +6,10 @@ use omega_checked_trees::expression::{BinaryOperator, Expression};
 use omega_checked_trees::statement::TransitionGuard;
 use omega_state_schedule::ScheduledState;
 
-use super::{EmissionBlocker, blocker};
+use super::{
+    EmissionBlocker, blocker,
+    semantic_scope::{proof_scope_suffix, state_name},
+};
 
 pub(super) fn runtime_and_required_states(
     input: &EmissionPlanningInput<'_>,
@@ -41,14 +44,6 @@ fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control
     states.push(ScheduledState { key });
 }
 
-fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
-}
-
 pub(super) fn collect_runtime_dispatch_blockers(
     input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
@@ -75,14 +70,16 @@ pub(super) fn collect_runtime_dispatch_blockers(
 }
 
 pub(super) fn runtime_dispatch_loop_blocker(input: &EmissionPlanningInput<'_>) -> EmissionBlocker {
-    if let Some(guard_lowering) = first_unsupported_dispatch_guard(input) {
+    if let Some((source_key, guard_lowering)) = first_unsupported_dispatch_guard(input) {
         return blocker(
             "runtime dispatch",
             &format!(
-                "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); guard lowering {guard_lowering:?} needs runtime state comparison byte emission",
+                "dispatch loop planned with {} case(s), {} edge(s), and {} cycle(s); {} guard lowering {guard_lowering:?} needs runtime state comparison byte emission{}",
                 input.runtime_dispatch_loop.cases.len(),
                 input.runtime_dispatch_loop.edges.len(),
-                input.runtime_flow.cycles.len()
+                input.runtime_flow.cycles.len(),
+                state_name(input, source_key),
+                proof_scope_suffix(input, source_key)
             ),
         );
     }
@@ -116,7 +113,7 @@ pub(super) fn runtime_dispatch_loop_can_emit(input: &EmissionPlanningInput<'_>) 
 
 fn first_unsupported_dispatch_guard(
     input: &EmissionPlanningInput<'_>,
-) -> Option<StateGuardLowering> {
+) -> Option<(omega_control_flow::StateKey, StateGuardLowering)> {
     input
         .runtime_dispatch_loop
         .cases
@@ -133,7 +130,7 @@ fn first_unsupported_dispatch_guard(
                         && !fallback_expression_guard_can_emit(edge)
                         && !decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge)
                 })
-                .map(|edge| edge.guard_lowering)
+                .map(|edge| (case.key, edge.guard_lowering))
         })
 }
 

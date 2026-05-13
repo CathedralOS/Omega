@@ -3,7 +3,10 @@ use omega_core::arena::Arena;
 use omega_target::ObjectFormat;
 use omega_target_operations::{RuntimeTextReadSource, SelectedInstructionKind};
 
-use super::{EmissionBlocker, blocker};
+use super::{
+    EmissionBlocker, blocker,
+    semantic_scope::{proof_scope_suffix, state_name},
+};
 
 pub(super) fn collect_host_binding_blockers(
     input: &EmissionPlanningInput<'_>,
@@ -27,18 +30,11 @@ pub(super) fn collect_host_binding_blockers(
         blockers.insert(blocker(
             "host binding",
             &format!(
-                "{} statement {} uses direct Darwin stdin reads; route this through libSystem or compiler-owned line buffering before emitting a Mach-O executable",
+                "{} statement {} uses direct Darwin stdin reads; route this through libSystem or compiler-owned line buffering before emitting a Mach-O executable{}",
                 state_name(input, instruction.source_key),
-                instruction.source_statement
+                instruction.source_statement,
+                proof_scope_suffix(input, instruction.source_key)
             ),
         ));
     }
-}
-
-fn state_name(input: &EmissionPlanningInput<'_>, key: omega_control_flow::StateKey) -> String {
-    input
-        .control_flow
-        .state_names_by_key(key)
-        .map(|(machine, state)| format!("{machine}.{state}"))
-        .unwrap_or_else(|| "<unknown>.<unknown>".to_owned())
 }
