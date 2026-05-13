@@ -71,6 +71,7 @@ pub(super) fn state_assignment_value_call(
         .assignment_value_call(state_key, statement_index)
 }
 
+
 pub(super) fn local_storage_for_statement(
     context: &RuntimeDispatchBodyContext,
     state_key: StateKey,
