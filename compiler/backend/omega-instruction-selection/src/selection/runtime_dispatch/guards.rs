@@ -16,12 +16,16 @@ pub(super) fn select_runtime_leaf_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeLeafBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
+    let normalized_guard =
+        normalized_boolean_wrapped_guard(&expansion.resolved_guard).unwrap_or_else(|| {
+            expansion.resolved_guard.clone()
+        });
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
         expansion.statement_index,
-        &expansion.resolved_guard,
+        &normalized_guard,
     ) {
         return Some(guard);
     }
@@ -30,7 +34,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.resolved_guard,
+        &normalized_guard,
     ) {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
     }
@@ -39,7 +43,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.resolved_guard,
+        &normalized_guard,
     )
     .or_else(|| {
         runtime_value_guard(
@@ -47,7 +51,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
             expansion.dispatch_index,
             expansion.source_key,
             expansion.statement_index,
-            &expansion.resolved_guard,
+            &normalized_guard,
         )
     })
     .or_else(|| {
@@ -55,7 +59,7 @@ pub(super) fn select_runtime_leaf_branch_guard(
             input,
             expansion.dispatch_index,
             expansion.source_key,
-            &expansion.resolved_guard,
+            &normalized_guard,
         )
     })
 }
@@ -64,12 +68,16 @@ pub(super) fn select_runtime_straight_line_branch_guard(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
 ) -> Option<SelectedInstructionKind> {
+    let normalized_guard =
+        normalized_boolean_wrapped_guard(&expansion.resolved_guard).unwrap_or_else(|| {
+            expansion.resolved_guard.clone()
+        });
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
         expansion.statement_index,
-        &expansion.resolved_guard,
+        &normalized_guard,
     ) {
         return Some(guard);
     }
@@ -78,7 +86,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.resolved_guard,
+        &normalized_guard,
     ) {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
     }
@@ -87,7 +95,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
         input,
         expansion.dispatch_index,
         expansion.source_key,
-        &expansion.resolved_guard,
+        &normalized_guard,
     )
     .or_else(|| {
         runtime_value_guard(
@@ -95,7 +103,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
             expansion.dispatch_index,
             expansion.source_key,
             expansion.statement_index,
-            &expansion.resolved_guard,
+            &normalized_guard,
         )
     })
     .or_else(|| {
@@ -103,7 +111,7 @@ pub(super) fn select_runtime_straight_line_branch_guard(
             input,
             expansion.dispatch_index,
             expansion.source_key,
-            &expansion.resolved_guard,
+            &normalized_guard,
         )
     })
 }
@@ -115,25 +123,77 @@ pub(super) fn select_runtime_dispatch_expression_guard(
     statement_index: usize,
     guard: &TransitionGuard,
 ) -> Option<SelectedInstructionKind> {
+    let normalized_guard = normalized_boolean_wrapped_guard(guard).unwrap_or_else(|| guard.clone());
     if let Some(guard) = runtime_boolean_condition_guard(
         input,
         dispatch_index,
         source_key,
         statement_index,
-        guard,
+        &normalized_guard,
     ) {
         return Some(guard);
     }
 
     if let Some((buffer, literal)) =
-        runtime_text_literal_guard(input, dispatch_index, source_key, guard)
+        runtime_text_literal_guard(input, dispatch_index, source_key, &normalized_guard)
     {
         return Some(SelectedInstructionKind::CompareRuntimeTextLiteral { buffer, literal });
     }
 
-    runtime_text_storage_guard(input, dispatch_index, source_key, guard)
-        .or_else(|| runtime_value_guard(input, dispatch_index, source_key, statement_index, guard))
-        .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, guard))
+    runtime_text_storage_guard(input, dispatch_index, source_key, &normalized_guard)
+        .or_else(|| {
+            runtime_value_guard(
+                input,
+                dispatch_index,
+                source_key,
+                statement_index,
+                &normalized_guard,
+            )
+        })
+        .or_else(|| runtime_storage_guard(input, dispatch_index, source_key, &normalized_guard))
+}
+
+fn normalized_boolean_wrapped_guard(guard: &TransitionGuard) -> Option<TransitionGuard> {
+    let TransitionGuard::When(Expression::Binary(binary)) = guard else {
+        return None;
+    };
+
+    let (inner, expected_true) = match (&binary.left, &binary.right) {
+        (inner, Expression::Boolean(value)) => (inner, *value),
+        (Expression::Boolean(value), inner) => (inner, *value),
+        _ => return None,
+    };
+
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return None,
+    };
+
+    if expected_true {
+        return Some(TransitionGuard::When(inner.clone()));
+    }
+
+    let Expression::Binary(inner_binary) = inner else {
+        return None;
+    };
+    let inverted = match inner_binary.operator {
+        BinaryOperator::Equal => BinaryOperator::NotEqual,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        _ => return None,
+    };
+
+    Some(TransitionGuard::When(Expression::Binary(Box::new(
+        omega_checked_trees::expression::BinaryExpression {
+            left: inner_binary.left.clone(),
+            operator: inverted,
+            right: inner_binary.right.clone(),
+        },
+    ))))
 }
 
 fn runtime_boolean_condition_guard(
@@ -146,6 +206,7 @@ fn runtime_boolean_condition_guard(
     let TransitionGuard::When(expression) = guard else {
         return None;
     };
+    let (expression, expected_true) = boolean_condition_expression(expression)?;
     if matches!(expression, Expression::Binary(_)) {
         return None;
     }
@@ -168,10 +229,30 @@ fn runtime_boolean_condition_guard(
 
     Some(SelectedInstructionKind::CompareRuntimeValues {
         left: operand,
-        right: RuntimeValueOperand::Immediate(1),
+        right: RuntimeValueOperand::Immediate(i64::from(expected_true)),
         byte_size,
         operator: StateGuardOperator::Equal,
     })
+}
+
+fn boolean_condition_expression(expression: &Expression) -> Option<(&Expression, bool)> {
+    let Expression::Binary(binary) = expression else {
+        return Some((expression, true));
+    };
+
+    let (inner, expected_true) = match (&binary.left, &binary.right) {
+        (inner, Expression::Boolean(value)) => (inner, *value),
+        (Expression::Boolean(value), inner) => (inner, *value),
+        _ => return Some((expression, true)),
+    };
+
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return Some((expression, true)),
+    };
+
+    Some((inner, expected_true))
 }
 
 fn runtime_text_literal_guard(

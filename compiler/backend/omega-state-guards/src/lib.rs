@@ -185,6 +185,7 @@ fn build_state_guard(
         source,
         source_machine.symbol,
         source_dispatch_index,
+        statement_order,
         normalized_guard,
     );
     let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
@@ -315,6 +316,7 @@ pub fn lower_guard_conjunction(
             source_key,
             source_machine,
             source_dispatch_index,
+            statement_order,
             Some(leaf),
         )?;
         let lowering = guard_lowering(kind, operator, Some(&operands));

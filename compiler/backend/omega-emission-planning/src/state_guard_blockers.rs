@@ -88,6 +88,26 @@ fn guard_expression_can_emit(
     statement_order: usize,
     expression: &Expression,
 ) -> bool {
+    if let Some(normalized) = normalized_boolean_wrapped_expression(expression) {
+        return guard_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &normalized,
+        );
+    }
+
+    if let Some(expression) = boolean_condition_expression(expression) {
+        return runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            expression,
+        );
+    }
+
     let Expression::Binary(binary) = expression else {
         return false;
     };
@@ -113,6 +133,20 @@ fn guard_expression_can_emit(
         statement_order,
         &binary.right,
     )
+}
+
+fn boolean_condition_expression(expression: &Expression) -> Option<&Expression> {
+    let Expression::Binary(binary) = expression else {
+        return None;
+    };
+
+    match (&binary.left, &binary.right, binary.operator) {
+        (inner, Expression::Boolean(_), BinaryOperator::Equal | BinaryOperator::NotEqual)
+        | (Expression::Boolean(_), inner, BinaryOperator::Equal | BinaryOperator::NotEqual) => {
+            (!matches!(inner, Expression::Binary(_))).then_some(inner)
+        }
+        _ => None,
+    }
 }
 
 fn runtime_value_expression_can_emit(
@@ -151,6 +185,44 @@ fn runtime_value_expression_can_emit(
             .is_some(),
         _ => false,
     }
+}
+
+fn normalized_boolean_wrapped_expression(expression: &Expression) -> Option<Expression> {
+    let Expression::Binary(binary) = expression else {
+        return None;
+    };
+    let (inner, expected_true) = match (&binary.left, &binary.right) {
+        (inner, Expression::Boolean(value)) => (inner, *value),
+        (Expression::Boolean(value), inner) => (inner, *value),
+        _ => return None,
+    };
+    let expected_true = match binary.operator {
+        BinaryOperator::Equal => expected_true,
+        BinaryOperator::NotEqual => !expected_true,
+        _ => return None,
+    };
+    if expected_true {
+        return Some(inner.clone());
+    }
+    let Expression::Binary(inner_binary) = inner else {
+        return None;
+    };
+    let inverted = match inner_binary.operator {
+        BinaryOperator::Equal => BinaryOperator::NotEqual,
+        BinaryOperator::NotEqual => BinaryOperator::Equal,
+        BinaryOperator::Greater => BinaryOperator::LessOrEqual,
+        BinaryOperator::GreaterOrEqual => BinaryOperator::Less,
+        BinaryOperator::Less => BinaryOperator::GreaterOrEqual,
+        BinaryOperator::LessOrEqual => BinaryOperator::Greater,
+        _ => return None,
+    };
+    Some(Expression::Binary(Box::new(
+        omega_checked_trees::expression::BinaryExpression {
+            left: inner_binary.left.clone(),
+            operator: inverted,
+            right: inner_binary.right.clone(),
+        },
+    )))
 }
 
 fn runtime_transition_target_name(
