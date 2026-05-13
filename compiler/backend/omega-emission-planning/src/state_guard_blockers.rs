@@ -37,7 +37,13 @@ pub(super) fn collect_state_guard_blockers(
         }
 
         if guard.has_expression
-            && guard_expression_can_emit(&input.state_guards.expressions.to_tree(guard.expression))
+            && guard_expression_can_emit(
+                input,
+                guard.source,
+                guard.source_dispatch_index,
+                guard.statement_order,
+                &input.state_guards.expressions.to_tree(guard.expression),
+            )
         {
             continue;
         }
@@ -75,7 +81,13 @@ pub(super) fn collect_state_guard_blockers(
     }
 }
 
-fn guard_expression_can_emit(expression: &Expression) -> bool {
+fn guard_expression_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    statement_order: usize,
+    expression: &Expression,
+) -> bool {
     let Expression::Binary(binary) = expression else {
         return false;
     };
@@ -88,23 +100,55 @@ fn guard_expression_can_emit(expression: &Expression) -> bool {
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::Less
             | BinaryOperator::LessOrEqual
-    ) && runtime_value_expression_can_emit(&binary.left)
-        && runtime_value_expression_can_emit(&binary.right)
+    ) && runtime_value_expression_can_emit(
+        input,
+        source_key,
+        source_dispatch_index,
+        statement_order,
+        &binary.left,
+    ) && runtime_value_expression_can_emit(
+        input,
+        source_key,
+        source_dispatch_index,
+        statement_order,
+        &binary.right,
+    )
 }
 
-fn runtime_value_expression_can_emit(expression: &Expression) -> bool {
+fn runtime_value_expression_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    statement_order: usize,
+    expression: &Expression,
+) -> bool {
     match expression {
         Expression::Binary(binary) => matches!(
             binary.operator,
             BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
-        ) && runtime_value_expression_can_emit(&binary.left)
-            && runtime_value_expression_can_emit(&binary.right),
+        ) && runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &binary.left,
+        ) && runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &binary.right,
+        ),
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)
         | Expression::Mutable(_)
         | Expression::Boolean(_)
         | Expression::Integer(_) => true,
+        Expression::Call(_) => input
+            .runtime_storage
+            .transition_guard_result_slot(source_dispatch_index, source_key, statement_order)
+            .is_some(),
         _ => false,
     }
 }

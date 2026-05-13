@@ -127,7 +127,12 @@ fn first_unsupported_dispatch_guard(
                 .iter()
                 .find(|edge| {
                     !dispatch_loop_guard_can_emit(edge)
-                        && !fallback_expression_guard_can_emit(edge)
+                        && !fallback_expression_guard_can_emit(
+                            input,
+                            case.key,
+                            case.dispatch_index,
+                            edge,
+                        )
                         && !decomposed_guard_can_emit(input, case.key, case.dispatch_index, edge)
                 })
                 .map(|edge| (case.key, edge.guard_lowering))
@@ -220,16 +225,33 @@ fn decomposed_guard_can_emit(
         })
 }
 
-fn fallback_expression_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
+fn fallback_expression_guard_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    edge: &RuntimeDispatchLoopEdge,
+) -> bool {
     matches!(
         edge.guard_lowering,
         StateGuardLowering::CompareStaticValue
             | StateGuardLowering::CompareRuntimeValue
             | StateGuardLowering::NeedsRuntimeExpression
-    ) && guard_expression_can_emit(&edge.guard)
+    ) && guard_expression_can_emit(
+        input,
+        source_key,
+        source_dispatch_index,
+        edge.order,
+        &edge.guard,
+    )
 }
 
-fn guard_expression_can_emit(guard: &TransitionGuard) -> bool {
+fn guard_expression_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    statement_order: usize,
+    guard: &TransitionGuard,
+) -> bool {
     let TransitionGuard::When(Expression::Binary(binary)) = guard else {
         return false;
     };
@@ -241,26 +263,58 @@ fn guard_expression_can_emit(guard: &TransitionGuard) -> bool {
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual => {
-            runtime_value_expression_can_emit(&binary.left)
-                && runtime_value_expression_can_emit(&binary.right)
+            runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_order,
+                &binary.left,
+            ) && runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_order,
+                &binary.right,
+            )
         }
         _ => false,
     }
 }
 
-fn runtime_value_expression_can_emit(expression: &Expression) -> bool {
+fn runtime_value_expression_can_emit(
+    input: &EmissionPlanningInput<'_>,
+    source_key: omega_control_flow::StateKey,
+    source_dispatch_index: u32,
+    statement_order: usize,
+    expression: &Expression,
+) -> bool {
     match expression {
         Expression::Binary(binary) => matches!(
             binary.operator,
             BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
-        ) && runtime_value_expression_can_emit(&binary.left)
-            && runtime_value_expression_can_emit(&binary.right),
+        ) && runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &binary.left,
+        ) && runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_order,
+            &binary.right,
+        ),
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)
         | Expression::Mutable(_)
         | Expression::Boolean(_)
         | Expression::Integer(_) => true,
+        Expression::Call(_) => input
+            .runtime_storage
+            .transition_guard_result_slot(source_dispatch_index, source_key, statement_order)
+            .is_some(),
         _ => false,
     }
 }
