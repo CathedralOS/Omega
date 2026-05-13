@@ -10,7 +10,8 @@ use super::super::super::bindings::{
 };
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_indexed_target,
+    resolve_runtime_pointee_slot_offset,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
@@ -203,6 +204,7 @@ fn select_runtime_resolved_target_mutation_writes(
         target_source_key,
         source_machine,
         source_state,
+        statement_index,
         resolved_target,
         &resolved_value.expression,
         aliases,
@@ -344,6 +346,7 @@ fn select_runtime_binary_mutation_write(
     target_source_key: StateKey,
     source_machine: &str,
     source_state: &str,
+    statement_index: usize,
     resolved_target: &Expression,
     value: &Expression,
     aliases: &[RuntimeAliasBinding],
@@ -360,6 +363,7 @@ fn select_runtime_binary_mutation_write(
         operation_source_key,
         source_machine,
         source_state,
+        statement_index,
         &binary.left,
         aliases,
         alias_expressions,
@@ -371,6 +375,7 @@ fn select_runtime_binary_mutation_write(
         operation_source_key,
         source_machine,
         source_state,
+        statement_index,
         &binary.right,
         aliases,
         alias_expressions,
@@ -436,6 +441,7 @@ fn resolve_runtime_value_operand(
     source_key: StateKey,
     source_machine: &str,
     source_state: &str,
+    statement_index: usize,
     expression: &Expression,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
@@ -460,6 +466,7 @@ fn resolve_runtime_value_operand(
             source_key,
             source_machine,
             source_state,
+            statement_index,
             &binary.left,
             aliases,
             alias_expressions,
@@ -471,6 +478,7 @@ fn resolve_runtime_value_operand(
             source_key,
             source_machine,
             source_state,
+            statement_index,
             &binary.right,
             aliases,
             alias_expressions,
@@ -480,6 +488,22 @@ fn resolve_runtime_value_operand(
             left: Box::new(left),
             operator,
             right: Box::new(right),
+        });
+    }
+
+    if let Expression::Call(call) = expression
+        && let Some(place) = resolve_runtime_assignment_value_call_result_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            call,
+        )
+    {
+        return Some(RuntimeValueOperand::Storage {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_size: place.byte_count,
         });
     }
 

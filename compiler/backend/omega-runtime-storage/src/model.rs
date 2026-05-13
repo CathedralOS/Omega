@@ -15,6 +15,29 @@ pub struct RuntimeStoragePlan {
     pub writes: Arena<RuntimeStorageWrite>,
 }
 
+impl RuntimeStoragePlan {
+    pub fn assignment_value_result_slot(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots.iter().find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    RuntimeFrameSlotKind::StateCallResult {
+                        role: StateCallRole::AssignmentValue,
+                        ..
+                    }
+                ))
+            .then_some(slot)
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct RuntimeFrameSlot {
     pub dispatch_index: u32,
