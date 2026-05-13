@@ -7,7 +7,7 @@ use omega_state_guards::StateGuardOperator;
 
 use omega_runtime_text::places::expression_name_with_suffix_eq_tree;
 use super::super::storage_places::{
-    enum_variant_value, resolve_runtime_storage_place,
+    enum_variant_value, resolve_runtime_frame_indexed_target, resolve_runtime_storage_place,
     resolve_runtime_transition_guard_call_result_place,
 };
 use omega_target_operations::{RuntimeValueOperand, SelectedInstructionKind, TargetDataObjectHandle};
@@ -384,6 +384,18 @@ fn resolve_runtime_value_operand(
         });
     }
 
+    if let Some(indexed_target) =
+        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, expression)
+    {
+        return Some(RuntimeValueOperand::FrameIndexed {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+        });
+    }
+
     let place = resolve_runtime_storage_place(
         input,
         dispatch_index,
@@ -403,6 +415,7 @@ fn runtime_value_operand_byte_size(operand: &RuntimeValueOperand) -> usize {
     match operand {
         RuntimeValueOperand::Immediate(_) => 8,
         RuntimeValueOperand::Storage { byte_size, .. } => *byte_size,
+        RuntimeValueOperand::FrameIndexed { byte_size, .. } => *byte_size,
         RuntimeValueOperand::Binary { left, right, .. } => {
             runtime_value_operand_byte_size(left).max(runtime_value_operand_byte_size(right))
         }

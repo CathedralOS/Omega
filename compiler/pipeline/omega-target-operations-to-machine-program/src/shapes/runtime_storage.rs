@@ -206,6 +206,19 @@ fn lower_runtime_value_operand(operand: RuntimeValueOperand) -> MachineRuntimeVa
                 byte_size,
             }
         }
+        RuntimeValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => MachineRuntimeValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        },
         RuntimeValueOperand::Binary {
             left,
             operator,

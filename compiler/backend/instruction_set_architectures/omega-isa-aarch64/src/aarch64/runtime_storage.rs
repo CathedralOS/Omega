@@ -467,6 +467,35 @@ fn encode_runtime_value_operand(
             }
             Ok(bytes)
         }
+        RuntimeValueOperand::FrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => {
+            let mut bytes = encode_runtime_frame_index_target_address(
+                *descriptor_offset,
+                *index_offset,
+                *element_byte_size,
+                *field_byte_offset,
+            )?;
+            match byte_size {
+                1 | 4 => bytes.extend(encode_load_w_from_x(
+                    destination_register,
+                    16,
+                    0,
+                    *byte_size,
+                )?),
+                8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+                _ => {
+                    return Err(Diagnostic::error(format!(
+                        "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
+                    )));
+                }
+            }
+            Ok(bytes)
+        }
         RuntimeValueOperand::Binary {
             left,
             operator,
@@ -480,7 +509,11 @@ fn encode_runtime_value_operand(
 
             let mut bytes =
                 encode_runtime_value_operand(destination_register, scratch_registers, left)?;
-            bytes.extend(encode_runtime_value_operand(rhs_register, remaining_scratch, right)?);
+            bytes.extend(encode_runtime_value_operand(
+                rhs_register,
+                remaining_scratch,
+                right,
+            )?);
             bytes.extend(encode_runtime_binary_operation(
                 destination_register,
                 *operator,
