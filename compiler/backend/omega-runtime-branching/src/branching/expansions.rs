@@ -145,16 +145,20 @@ pub(super) fn append_straight_line_branch_expansions(
     let branch_bindings = branch_parameter_bindings(context, state_call, aliases, expressions);
 
     for edge in edges {
-        if edge.lowering != RuntimeBranchTargetLowering::InlineStraightLine {
-            continue;
-        }
-
         let RuntimeTransitionTarget::State {
             key: target_key, ..
         } = &edge.target
         else {
             continue;
         };
+
+        if !matches!(
+            edge.lowering,
+            RuntimeBranchTargetLowering::InlineStraightLine
+                | RuntimeBranchTargetLowering::InlineBranching
+        ) {
+            continue;
+        }
 
         let target_arguments = target_arguments.span_or_empty(edge.target_arguments);
         let bindings = straight_line_branch_bindings(

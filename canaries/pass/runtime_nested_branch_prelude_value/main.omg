@@ -1,0 +1,21 @@
+machine main {
+    pub entry(&mut self, flag: bool, out: &mut u32) {
+        out = self.pick(flag);
+    }
+
+    fn pick(&mut self, flag: bool) -> u32 {
+        let choice: bool;
+        self.copy(flag, &mut choice);
+        -> self.branch(choice) when choice;
+        -> 0;
+    }
+
+    fn copy(&mut self, flag: bool, out: &mut bool) {
+        out = flag;
+    }
+
+    fn branch(&mut self, flag: bool) -> u32 {
+        -> 1 when flag;
+        -> 2;
+    }
+}
