@@ -1,0 +1,8 @@
+machine main {
+    pub entry(
+        &mut self,
+        label: &mut String
+    ) {
+        label = "hello";
+    }
+}

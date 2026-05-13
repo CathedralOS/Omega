@@ -4,10 +4,12 @@ use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, Selected
 use omega_checked_trees::expression::{BinaryOperator, Expression};
 
 use super::super::super::storage_places::{
-    resolve_runtime_frame_indexed_target, resolve_runtime_storage_place, static_integer_value,
+    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset,
+    resolve_runtime_storage_place, static_integer_value,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_with_resolver_emit, select_runtime_string_descriptor_write,
+    string_literal_data_handle,
 };
 use super::super::writes::runtime_storage_copy;
 use crate::selection::instruction_sink::SelectedInstructionSink;
@@ -34,6 +36,27 @@ pub(crate) fn select_runtime_resolved_mutation_write(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     if let Expression::String(value) = resolved_value {
+        if let Some((pointer_byte_offset, data)) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            operation_key,
+            resolved_target,
+        ).and_then(|target| {
+            string_literal_data_handle(input, operation_key, statement_index, value).map(|data| {
+                (target.pointer_byte_offset, data)
+            })
+        }) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimePointeeString {
+                    pointer_byte_offset,
+                    data,
+                    byte_length: value.len(),
+                },
+                source_key: operation_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
         select_runtime_string_descriptor_write(
             input,
             operation_key,
@@ -66,6 +89,25 @@ pub(crate) fn select_runtime_resolved_mutation_write(
             });
         },
     ) {
+        return;
+    }
+
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        operation_key,
+        resolved_target,
+    ) && let Some(value) = static_integer_value(&input.layouts, resolved_value)
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimePointeeInteger {
+                pointer_byte_offset: pointer_target.pointer_byte_offset,
+                byte_size: pointer_target.pointee_byte_size,
+                value,
+            },
+            source_key: operation_key,
+            source_statement: statement_index,
+        });
         return;
     }
 

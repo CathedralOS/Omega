@@ -7,7 +7,8 @@ use omega_instruction_selection::{
     dispatch_loop_enter_width, dispatch_state_write_width, host_call_sequence_width, return_width,
     runtime_frame_indexed_binary_write_width,
     runtime_frame_indexed_integer_write_width, runtime_machine_integer_write_width,
-    runtime_machine_string_write_width,
+    runtime_machine_string_write_width, runtime_pointee_integer_write_width,
+    runtime_pointee_string_write_width,
     runtime_value_compare_width,
     runtime_storage_binary_write_width,
     runtime_storage_compare_width, runtime_storage_copy_width, runtime_storage_value_compare_width,
@@ -136,6 +137,9 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeStorageInteger { byte_size, .. } => {
             runtime_machine_integer_write_width(input.target.architecture, *byte_size)
         }
+        SelectedInstructionKind::WriteRuntimePointeeInteger { byte_size, .. } => {
+            runtime_pointee_integer_write_width(input.target.architecture, *byte_size)
+        }
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             byte_size,
             left,
@@ -175,6 +179,9 @@ fn machine_instruction_width(
         ),
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)
+        }
+        SelectedInstructionKind::WriteRuntimePointeeString { byte_length, .. } => {
+            runtime_pointee_string_write_width(input.target.architecture, *byte_length)
         }
         SelectedInstructionKind::ReadRuntimeTextLine {
             byte_capacity,

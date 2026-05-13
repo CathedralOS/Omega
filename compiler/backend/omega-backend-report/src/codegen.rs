@@ -317,6 +317,13 @@ fn selected_instruction_name(
                 "write runtime storage integer {target_symbol}@{byte_offset} bytes {byte_size} value {value}"
             )
         }
+        SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset,
+            byte_size,
+            value,
+        } => format!(
+            "write runtime pointee integer runtime_frame@{pointer_byte_offset} bytes {byte_size} value {value}"
+        ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_region,
             target_offset,
@@ -369,6 +376,16 @@ fn selected_instruction_name(
             let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
             format!(
                 "write runtime machine string offset {byte_offset} data `{data_symbol}` len {byte_length}"
+            )
+        }
+        SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset,
+            data,
+            byte_length,
+        } => {
+            let data_symbol = backend_plan.data.objects.get(*data).symbol.as_str();
+            format!(
+                "write runtime pointee string runtime_frame@{pointer_byte_offset} data `{data_symbol}` len {byte_length}"
             )
         }
         SelectedInstructionKind::ReadRuntimeTextLine {

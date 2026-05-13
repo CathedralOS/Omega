@@ -77,6 +77,20 @@ pub fn encode_runtime_machine_integer_write(
     }
 }
 
+pub fn encode_runtime_pointee_integer_write(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_pointee_integer_write(pointer_byte_offset, byte_size, value)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_storage_binary_write(
     architecture: Architecture,
     target_offset: usize,
@@ -155,6 +169,19 @@ pub fn encode_runtime_machine_string_write(
     match architecture {
         Architecture::Aarch64 => {
             aarch64::encode_runtime_machine_string_write(byte_offset, byte_length)
+        }
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_pointee_string_write(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_pointee_string_write(pointer_byte_offset, byte_length)
         }
         Architecture::X86_64 => Ok(Vec::new()),
     }

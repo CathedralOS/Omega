@@ -194,6 +194,41 @@ pub(super) fn resolve_runtime_frame_indexed_target(
     })
 }
 
+pub(super) fn resolve_runtime_pointee_slot_offset(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimePointeeTarget> {
+    let target = match expression {
+        Expression::Mutable(target) => target.as_ref(),
+        _ => expression,
+    };
+    let place = resolve_runtime_storage_place(input, dispatch_index, source_key, "", "", target)?;
+    if place.region != RuntimeStorageRegion::RuntimeFrame
+        || place.byte_count != input.target.pointer_size
+    {
+        return None;
+    }
+
+    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, target)?;
+    let pointee_type_name = slot
+        .type_name
+        .strip_prefix("&mut ")
+        .or_else(|| slot.type_name.strip_prefix('&'))?;
+    let pointee_byte_size = pointee_type_layout(input, slot.type_symbol, pointee_type_name).size;
+    (pointee_byte_size > 0).then_some(RuntimePointeeTarget {
+        pointer_byte_offset: place.byte_offset,
+        pointee_byte_size,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimePointeeTarget {
+    pub(super) pointer_byte_offset: usize,
+    pub(super) pointee_byte_size: usize,
+}
+
 fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str) -> bool {
     if slot_symbol.is_valid() && path.head_symbol().is_valid() {
         return slot_symbol == path.head_symbol();
@@ -278,4 +313,80 @@ fn indexed_element_type_name(type_name: &str) -> Option<&str> {
                 .strip_prefix("&[")
                 .and_then(|inner| inner.strip_suffix(']'))
         })
+}
+
+fn pointee_type_layout(
+    input: &InstructionSelectionInput<'_>,
+    type_symbol: SymbolHandle,
+    type_name: &str,
+) -> TypeLayout {
+    if type_symbol.is_valid() {
+        if let Some(layout) = input
+            .layouts
+            .data_layouts
+            .iter()
+            .find(|(_, layout)| layout.symbol == type_symbol)
+            .map(|(_, layout)| layout.layout)
+        {
+            return layout;
+        }
+
+        if let Some(layout) = input
+            .layouts
+            .machine_layouts
+            .iter()
+            .find(|(_, layout)| layout.symbol == type_symbol)
+            .map(|(_, layout)| layout.layout)
+        {
+            return layout;
+        }
+    }
+
+    if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+        return match primitive_type {
+            PrimitiveType::Bool => TypeLayout {
+                size: 1,
+                alignment: 1,
+            },
+            PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
+                size: 4,
+                alignment: 4,
+            },
+            PrimitiveType::F64 | PrimitiveType::U64 => TypeLayout {
+                size: 8,
+                alignment: 8,
+            },
+            PrimitiveType::Usize => TypeLayout {
+                size: input.target.pointer_size,
+                alignment: input.target.pointer_alignment,
+            },
+            PrimitiveType::String => TypeLayout {
+                size: input.target.pointer_size * 2,
+                alignment: input.target.pointer_alignment,
+            },
+        };
+    }
+
+    if type_name == "Option" || type_name.starts_with("Option<") {
+        return TypeLayout {
+            size: input.target.pointer_size * 2,
+            alignment: input.target.pointer_alignment,
+        };
+    }
+
+    if type_name == "Uint" {
+        return TypeLayout {
+            size: input.target.pointer_size,
+            alignment: input.target.pointer_alignment,
+        };
+    }
+
+    if type_name == "Real" {
+        return TypeLayout {
+            size: 8,
+            alignment: 8,
+        };
+    }
+
+    TypeLayout::default()
 }

@@ -119,6 +119,15 @@ pub(super) fn lower_machine_instruction_kind(
             value,
             ..
         } => runtime_storage::runtime_storage_integer_write_kind(*byte_offset, *byte_size, *value),
+        SelectedInstructionKind::WriteRuntimePointeeInteger {
+            pointer_byte_offset,
+            byte_size,
+            value,
+        } => runtime_storage::runtime_pointee_integer_write_kind(
+            *pointer_byte_offset,
+            *byte_size,
+            *value,
+        ),
         SelectedInstructionKind::WriteRuntimeStorageBinary {
             target_offset,
             byte_size,
@@ -172,6 +181,14 @@ pub(super) fn lower_machine_instruction_kind(
             byte_length,
             ..
         } => runtime_storage::runtime_machine_string_write_kind(*byte_offset, *byte_length),
+        SelectedInstructionKind::WriteRuntimePointeeString {
+            pointer_byte_offset,
+            byte_length,
+            ..
+        } => runtime_storage::runtime_pointee_string_write_kind(
+            *pointer_byte_offset,
+            *byte_length,
+        ),
         SelectedInstructionKind::ReadRuntimeTextLine {
             target_offset,
             byte_capacity,

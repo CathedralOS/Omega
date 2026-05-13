@@ -27,6 +27,13 @@ pub(super) fn string_descriptor_machine_address_offset(architecture: Architectur
     }
 }
 
+pub(super) fn string_descriptor_pointee_address_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 8,
+    }
+}
+
 pub(super) fn runtime_storage_copy_target_address_offset(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => 8,
