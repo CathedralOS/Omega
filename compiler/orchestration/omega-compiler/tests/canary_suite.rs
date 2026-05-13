@@ -113,5 +113,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_match_guard_unproven",
     "runtime_arithmetic_guard",
     "runtime_call_guard",
+    "runtime_dispatch_helper_local_alias_add",
     "runtime_dispatch_local_index_slot_write",
 ];

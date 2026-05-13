@@ -4,7 +4,7 @@ mod model;
 mod simplify;
 
 pub use model::{StateValueKind, StateValuePlan, StateValueRole, StateValueUse};
-pub use simplify::simplify_expression;
+pub use simplify::{simplify_expression, simplify_state_expression};
 
 use collection::build_machine_state_value_plan;
 use omega_checked_trees::Program;
