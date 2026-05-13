@@ -92,6 +92,10 @@ fn build_machine_state_storage_plan(
                         name: local_data.name.clone(),
                         type_symbol: type_reference_symbol(program, local_data.type_reference),
                         type_name: type_reference_display_name(program, local_data.type_reference),
+                        invariant_names: type_reference_invariant_names(
+                            program,
+                            local_data.type_reference,
+                        ),
                         required,
                     });
                 }
@@ -227,5 +231,61 @@ fn type_reference_display_name(program: &Program, type_reference: TypeReferenceH
         }
         TypeReferenceNode::Named { name, .. } => name.to_string(),
         TypeReferenceNode::Unit => "()".to_owned(),
+    }
+}
+
+fn type_reference_invariant_names(
+    program: &Program,
+    type_reference: TypeReferenceHandle,
+) -> Vec<omega_checked_trees::name::ProgramName> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_invariant_names(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let mut names = type_reference_invariant_names(program, *base_type);
+
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let omega_checked_trees::types::TypeConstraintNode::Named(name) = constraint else {
+                    continue;
+                };
+
+                if program
+                    .facts
+                    .invariants
+                    .definitions
+                    .iter()
+                    .any(|(_, invariant)| invariant.name == *name)
+                    && !names.iter().any(|existing| existing == name)
+                {
+                    names.push(name.clone());
+                }
+            }
+
+            names
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_reference_invariant_names(program, *element_type)
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            type_reference_invariant_names(program, *element_type)
+        }
+        TypeReferenceNode::Generic { arguments, .. } => {
+            let mut names = Vec::new();
+
+            for argument in program.type_reference_table.type_reference_handles(*arguments) {
+                for name in type_reference_invariant_names(program, *argument) {
+                    if !names.iter().any(|existing| existing == &name) {
+                        names.push(name);
+                    }
+                }
+            }
+
+            names
+        }
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Unit => Vec::new(),
     }
 }

@@ -19,6 +19,7 @@ pub struct StateLocalStorage {
     pub name: ProgramName,
     pub type_symbol: SymbolHandle,
     pub type_name: String,
+    pub invariant_names: Vec<ProgramName>,
     pub required: bool,
 }
 
