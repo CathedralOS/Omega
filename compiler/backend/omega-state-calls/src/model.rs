@@ -12,19 +12,50 @@ pub struct StateCallPlan {
 }
 
 impl StateCallPlan {
+    pub fn calls_for_statement(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> impl Iterator<Item = &StateCall> {
+        self.calls.iter().filter_map(move |(_, state_call)| {
+            (state_call.source_key == source_key
+                && state_call.statement_index == statement_index)
+                .then_some(state_call)
+        })
+    }
+
+    pub fn call_for_role(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+        role: StateCallRole,
+    ) -> Option<&StateCall> {
+        self.calls_for_statement(source_key, statement_index)
+            .find(|state_call| state_call.role == role)
+    }
+
     pub fn statement_call(
         &self,
         source_key: StateKey,
         statement_index: usize,
     ) -> Option<&StateCall> {
-        self.calls
-            .iter()
-            .find(|(_, state_call)| {
-                state_call.source_key == source_key
-                    && state_call.statement_index == statement_index
-                    && state_call.role == StateCallRole::Statement
-            })
-            .map(|(_, state_call)| state_call)
+        self.call_for_role(source_key, statement_index, StateCallRole::Statement)
+    }
+
+    pub fn assignment_value_call(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&StateCall> {
+        self.call_for_role(source_key, statement_index, StateCallRole::AssignmentValue)
+    }
+
+    pub fn transition_guard_call(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&StateCall> {
+        self.call_for_role(source_key, statement_index, StateCallRole::TransitionGuard)
     }
 
     pub fn required_source_or_target(&self, state_key: StateKey) -> bool {
