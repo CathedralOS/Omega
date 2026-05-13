@@ -57,6 +57,29 @@ impl RuntimeStoragePlan {
         )
     }
 
+    pub fn assignment_value_result_slot_by_ordinal(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&RuntimeFrameSlot> {
+        self.frame_slots.iter().find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && Self::source_matches(slot.source_key, source_key)
+                && slot.statement_index == statement_index
+                && matches!(
+                    slot.kind,
+                    RuntimeFrameSlotKind::StateCallResult {
+                        role: StateCallRole::AssignmentValue,
+                        call_ordinal: slot_call_ordinal,
+                        ..
+                    } if slot_call_ordinal == call_ordinal
+                ))
+            .then_some(slot)
+        })
+    }
+
     pub fn transition_guard_result_slot(
         &self,
         dispatch_index: u32,
@@ -94,6 +117,7 @@ pub enum RuntimeFrameSlotKind {
     LocalStorage,
     StateCallResult {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
     },
 }

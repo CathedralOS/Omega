@@ -73,10 +73,12 @@ pub fn build_runtime_dispatch_body_plan_with_workers(
                     },
                     RuntimeDispatchBodyOperationKind::StateCallResult {
                         role,
+                        call_ordinal,
                         target_key,
                         value,
                     } => RuntimeDispatchBodyOperationKind::StateCallResult {
                         role,
+                        call_ordinal,
                         target_key,
                         value: plan.expressions.copy_from(&collected_body.expressions, value),
                     },

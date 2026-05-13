@@ -7,7 +7,9 @@ use super::super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, resolve_runtime_alias_binding_handle,
     strip_mutable_expression_handle,
 };
-use super::super::lookups::{state_assignment_value_call, state_call_for_statement};
+use super::super::lookups::{
+    state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
+};
 
 pub(super) fn bind_runtime_operation_aliases(
     input: &InstructionSelectionInput<'_>,
@@ -26,10 +28,22 @@ pub(super) fn bind_runtime_operation_aliases(
         | RuntimeDispatchBodyOperationKind::Other => return,
     }
 
-    let role = match &operation.kind {
-        RuntimeDispatchBodyOperationKind::InlineLeafStateCall { role, .. }
-        | RuntimeDispatchBodyOperationKind::InlineStateCall { role, .. }
-        | RuntimeDispatchBodyOperationKind::StateCall { role, .. } => *role,
+    let (role, call_ordinal) = match &operation.kind {
+        RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+            role,
+            call_ordinal,
+            ..
+        }
+        | RuntimeDispatchBodyOperationKind::InlineStateCall {
+            role,
+            call_ordinal,
+            ..
+        }
+        | RuntimeDispatchBodyOperationKind::StateCall {
+            role,
+            call_ordinal,
+            ..
+        } => (*role, *call_ordinal),
         _ => unreachable!(),
     };
 
@@ -38,7 +52,14 @@ pub(super) fn bind_runtime_operation_aliases(
             state_call_for_statement(input, operation.source_key, operation.statement_index)
         }
         StateCallRole::AssignmentValue => {
-            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+            state_assignment_value_call_by_ordinal(
+                input,
+                operation.source_key,
+                operation.statement_index,
+                call_ordinal,
+            ).or_else(|| {
+                state_assignment_value_call(input, operation.source_key, operation.statement_index)
+            })
         }
         _ => None,
     };

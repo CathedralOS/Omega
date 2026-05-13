@@ -55,6 +55,18 @@ impl StateCallPlan {
         self.call_for_role(source_key, statement_index, StateCallRole::AssignmentValue)
     }
 
+    pub fn assignment_value_call_by_ordinal(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&StateCall> {
+        self.calls_for_statement(source_key, statement_index).find(|state_call| {
+            state_call.role == StateCallRole::AssignmentValue
+                && state_call.call_ordinal == call_ordinal
+        })
+    }
+
     pub fn transition_guard_call(
         &self,
         source_key: StateKey,

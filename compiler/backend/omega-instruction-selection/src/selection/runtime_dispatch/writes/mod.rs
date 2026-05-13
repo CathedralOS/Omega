@@ -25,12 +25,18 @@ pub(super) fn select_runtime_storage_write_for_operation(
 ) {
     match &operation.kind {
         RuntimeDispatchBodyOperationKind::Mutation { .. } => {}
-        RuntimeDispatchBodyOperationKind::StateCallResult { target_key, value, .. } => {
+        RuntimeDispatchBodyOperationKind::StateCallResult {
+            call_ordinal,
+            target_key,
+            value,
+            ..
+        } => {
             mutation::select_runtime_state_call_result_write(
                 input,
                 dispatch_index,
                 operation.source_key,
                 operation.statement_index,
+                *call_ordinal,
                 *target_key,
                 *value,
                 aliases,

@@ -97,6 +97,7 @@ pub enum RuntimeStraightLineBranchOperationKind {
     },
     StateCall {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,

@@ -55,17 +55,20 @@ pub enum RuntimeDispatchBodyOperationKind {
     },
     InlineLeafStateCall {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         argument_count: usize,
     },
     InlineStateCall {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,
     },
     StateCall {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         argument_count: usize,
         lowering: StateCallLowering,
@@ -83,6 +86,7 @@ pub enum RuntimeDispatchBodyOperationKind {
     },
     StateCallResult {
         role: StateCallRole,
+        call_ordinal: usize,
         target_key: StateKey,
         value: ExpressionHandle,
     },

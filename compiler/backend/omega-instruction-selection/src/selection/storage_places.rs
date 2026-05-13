@@ -98,6 +98,7 @@ pub(super) fn resolve_runtime_assignment_value_call_result_place(
         source_key,
         statement_index,
         StateCallRole::AssignmentValue,
+        None,
     )
 }
 
@@ -114,6 +115,7 @@ pub(super) fn resolve_runtime_transition_guard_call_result_place(
         source_key,
         statement_index,
         StateCallRole::TransitionGuard,
+        None,
     )
 }
 
@@ -123,6 +125,7 @@ fn resolve_runtime_call_result_place(
     source_key: StateKey,
     statement_index: usize,
     role: StateCallRole,
+    _call_ordinal: Option<usize>,
 ) -> Option<RuntimeStoragePlace> {
     let slot = input.runtime_storage.call_result_slot(
         dispatch_index,
