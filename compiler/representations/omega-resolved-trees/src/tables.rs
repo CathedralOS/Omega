@@ -5,7 +5,7 @@ use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
 use crate::signature::StateSignature;
 use crate::state::State;
-use crate::statement::{Statement, StatementTable};
+use crate::statement::StatementTable;
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
@@ -17,31 +17,6 @@ pub struct ResolvedProgramTables {
 }
 
 impl ResolvedProgramTables {
-    pub fn from_program(program: &Program) -> Self {
-        let mut tables = Self::default();
-
-        for invariant in &program.invariant_definitions {
-            tables.insert_type_constraints(
-                invariant.constraints,
-                &program.tables.types.constraints,
-            );
-        }
-
-        for data_definition in &program.data_definitions {
-            tables.insert_data_definition(data_definition, &program.tables.types.constraints);
-        }
-
-        for platform in &program.platforms {
-            tables.insert_platform(platform, &program.tables.types.constraints);
-        }
-
-        for machine in &program.machines {
-            tables.insert_machine(machine, &program.tables.types.constraints);
-        }
-
-        tables
-    }
-
     pub fn from_program_with_state_spans(program: &mut Program) -> Self {
         let mut tables = Self::default();
         let type_constraints = program.tables.types.constraints.clone();
@@ -83,16 +58,6 @@ impl ResolvedProgramTables {
         }
     }
 
-    fn insert_machine(&mut self, machine: &Machine, type_constraints: &Arena<TypeConstraint>) {
-        for owned_data in &machine.owned_data {
-            self.insert_owned_data(owned_data, type_constraints);
-        }
-
-        for state in &machine.states {
-            self.insert_state(state, type_constraints);
-        }
-    }
-
     fn insert_machine_with_state_spans(
         &mut self,
         machine: &mut Machine,
@@ -116,20 +81,6 @@ impl ResolvedProgramTables {
 
         if let Some(initial_value) = &owned_data.initial_value {
             self.insert_expression(initial_value);
-        }
-    }
-
-    fn insert_state(&mut self, state: &State, type_constraints: &Arena<TypeConstraint>) {
-        for parameter in &state.parameters {
-            self.insert_type_reference(&parameter.type_reference, type_constraints);
-        }
-
-        if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type, type_constraints);
-        }
-
-        for statement in &state.statements {
-            self.insert_statement(statement, type_constraints);
         }
     }
 
@@ -180,19 +131,6 @@ impl ResolvedProgramTables {
         if let Some(return_type) = &signature.return_type {
             self.insert_type_reference(return_type, type_constraints);
         }
-    }
-
-    fn insert_statement(
-        &mut self,
-        statement: &Statement,
-        type_constraints: &Arena<TypeConstraint>,
-    ) {
-        self.statements.insert_tree(
-            statement,
-            &mut self.expressions,
-            &mut self.type_references,
-            type_constraints,
-        );
     }
 
     fn insert_type_reference(
