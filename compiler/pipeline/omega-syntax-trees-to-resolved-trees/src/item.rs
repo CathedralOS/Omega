@@ -13,7 +13,7 @@ pub(crate) fn lower_item(
 ) -> Result<(), Diagnostic> {
     match item {
         syntax::item::Item::Data(data_definition) => {
-            let data_definition = lower_data_definition(lowerer, data_definition)?;
+            let data_definition = lower_data_definition(lowerer, syntax_trees, data_definition)?;
             lowerer.program.data_definitions.push(data_definition);
         }
         syntax::item::Item::Invariant(invariant_definition) => {

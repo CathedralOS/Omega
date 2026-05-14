@@ -83,7 +83,7 @@ pub enum CapabilityMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityField {
     pub name: Identifier,
-    pub type_reference: crate::types::TypeReference,
+    pub type_reference: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -172,8 +172,8 @@ pub enum DataMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
     pub name: Identifier,
-    pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<crate::expression::Expression>,
+    pub type_reference: crate::types::TypeReferenceHandle,
+    pub initial_value: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

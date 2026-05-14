@@ -1,7 +1,7 @@
 use crate::expression::{Expression, ExpressionTable};
-use crate::item::{CapabilityMember, DataMember, Item, ItemHandle, ItemTable, Machine, Platform};
+use crate::item::{CapabilityMember, Item, ItemHandle, ItemTable, Machine, Platform};
 use crate::statement::StatementTable;
-use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
+use crate::types::{TypeConstraint, TypeReferenceTable};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::SourceId;
 
@@ -84,9 +84,7 @@ impl SyntaxTrees {
             Item::Capability(capability) => {
                 for member in &capability.members {
                     match member {
-                        CapabilityMember::Field(field) => {
-                            self.insert_type_reference(&field.type_reference);
-                        }
+                        CapabilityMember::Field(_) => {}
                         CapabilityMember::State(state) => {
                             self.items.insert_state_signature_tree(
                                 &state.signature,
@@ -98,15 +96,7 @@ impl SyntaxTrees {
                 }
             }
             Item::Data(data_definition) => {
-                for member in &data_definition.members {
-                    if let DataMember::Field(field) = member {
-                        self.insert_type_reference(&field.type_reference);
-
-                        if let Some(initial_value) = &field.initial_value {
-                            self.insert_expression(initial_value);
-                        }
-                    }
-                }
+                let _ = data_definition;
             }
             Item::Invariant(invariant) => {
                 for constraint in &invariant.constraints {
@@ -141,12 +131,6 @@ impl SyntaxTrees {
         self.items
             .insert_platform_tree(platform, &mut self.type_references, &mut self.expressions);
     }
-
-    fn insert_type_reference(&mut self, type_reference: &TypeReference) {
-        self.type_references
-            .insert_tree(type_reference, &mut self.expressions);
-    }
-
     fn insert_type_constraint_expressions(&mut self, constraint: &TypeConstraint) {
         match constraint {
             TypeConstraint::Named(_) => {}

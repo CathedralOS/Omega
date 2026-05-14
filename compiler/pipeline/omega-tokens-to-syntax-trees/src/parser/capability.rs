@@ -1,6 +1,6 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
-use crate::parser::type_reference::parse_type_reference;
+use crate::parser::type_reference::parse_type_reference_handle;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
@@ -29,7 +29,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
         } else {
             let (field_name, rest) = input.take_identifier()?;
             let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (type_reference, rest) = parse_type_reference(rest)?;
+            let (type_reference, rest) = parse_type_reference_handle(syntax_trees, rest)?;
             input = if rest.at_punctuation(PunctuationKind::Semicolon) {
                 rest.take_punctuation(PunctuationKind::Semicolon, ";")?
             } else {

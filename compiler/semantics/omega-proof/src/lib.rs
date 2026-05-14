@@ -4,7 +4,7 @@ use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, State, StateSignature};
 use omega_syntax_trees::types::{
-    TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceHandle, TypeReferenceNode,
+    TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub mod checker;
@@ -40,7 +40,8 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                     if let DataMember::Field(field) = member {
                         collect_bounded_type_site_tree(
                             &mut report,
-                            &field.type_reference,
+                            syntax_trees,
+                            field.type_reference,
                             &format!("data `{}` field `{}`", data_definition.name, field.name),
                         );
                     }
@@ -218,36 +219,37 @@ fn collect_bounded_type_site(
 
 fn collect_bounded_type_site_tree(
     report: &mut ProofSurfaceReport,
-    type_reference: &TypeReference,
+    syntax_trees: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
     owner: &str,
 ) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            collect_bounded_type_site_tree(report, referee, owner);
+    match syntax_trees.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_bounded_type_site_tree(report, syntax_trees, *referee, owner);
         }
-        TypeReference::Constrained {
+        TypeReferenceNode::Constrained {
             base_type,
             constraints,
         } => {
             report.bounded_sites.insert(BoundedTypeSite {
                 owner: owner.to_owned(),
-                base_type: type_reference_name_tree(base_type),
-                constraints: constraints_name(constraints),
+                base_type: type_reference_name(syntax_trees, *base_type),
+                constraints: constraint_handle_name(syntax_trees, *constraints),
             });
-            collect_bounded_type_site_tree(report, base_type, owner);
+            collect_bounded_type_site_tree(report, syntax_trees, *base_type, owner);
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_bounded_type_site_tree(report, element_type, owner);
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_bounded_type_site_tree(report, syntax_trees, *element_type, owner);
         }
-        TypeReference::Slice { element_type } => {
-            collect_bounded_type_site_tree(report, element_type, owner);
+        TypeReferenceNode::Slice { element_type } => {
+            collect_bounded_type_site_tree(report, syntax_trees, *element_type, owner);
         }
-        TypeReference::Generic { arguments, .. } => {
-            for argument in arguments {
-                collect_bounded_type_site_tree(report, argument, owner);
+        TypeReferenceNode::Generic { arguments, .. } => {
+            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+                collect_bounded_type_site_tree(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReference::Named(_) | TypeReference::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -296,40 +298,6 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
     }
 }
 
-fn type_reference_name_tree(type_reference: &TypeReference) -> String {
-    match type_reference {
-        TypeReference::Reference {
-            referee,
-            is_mutable,
-        } => {
-            let qualifier = if *is_mutable { "mut " } else { "" };
-            format!("&{qualifier}{}", type_reference_name_tree(referee))
-        }
-        TypeReference::Constrained { base_type, .. } => type_reference_name_tree(base_type),
-        TypeReference::FixedArray {
-            element_type,
-            length,
-        } => {
-            format!("[{}; {length}]", type_reference_name_tree(element_type))
-        }
-        TypeReference::Slice { element_type } => {
-            format!("[{}]", type_reference_name_tree(element_type))
-        }
-        TypeReference::Generic {
-            base_name,
-            arguments,
-        } => {
-            let arguments = arguments
-                .iter()
-                .map(type_reference_name_tree)
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("{base_name}<{arguments}>")
-        }
-        TypeReference::Named(name) => name.to_string(),
-        TypeReference::Unit => "()".to_owned(),
-    }
-}
 
 fn constraint_handle_name(
     syntax_trees: &SyntaxTrees,
