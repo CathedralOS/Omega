@@ -299,12 +299,15 @@ impl TableCastExpression {
 
 impl TableCallExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let arguments = table
-            .expression_handles(self.arguments)
-            .iter()
-            .map(|argument| table.display_name(*argument))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let mut arguments = String::new();
+
+        for (index, argument) in table.expression_handles(self.arguments).iter().enumerate() {
+            if index > 0 {
+                arguments.push_str(", ");
+            }
+
+            arguments.push_str(&table.display_name(*argument));
+        }
 
         if self.receiver.is_valid() {
             format!(

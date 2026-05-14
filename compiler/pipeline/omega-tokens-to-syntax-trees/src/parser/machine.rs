@@ -99,15 +99,17 @@ fn split_machine_path(
         );
     }
 
-    let name = Identifier::generated(
-        members[..members.len() - 1]
-            .iter()
-            .map(|member| member.as_str())
-            .collect::<Vec<_>>()
-            .join("::"),
-    );
+    let mut name = String::new();
 
-    (name, members.last().cloned())
+    for (index, member) in members[..members.len() - 1].iter().enumerate() {
+        if index > 0 {
+            name.push_str("::");
+        }
+
+        name.push_str(member.as_str());
+    }
+
+    (Identifier::generated(name), members.last().cloned())
 }
 
 fn skip_machine_invariant<'tokens, 'source>(
