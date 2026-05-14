@@ -64,55 +64,69 @@ pub enum TransitionTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {
+    nodes: StatementNodeStorage,
+    paths: StatementPathStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StatementNodeStorage {
     statements: Arena<StatementNode>,
+    transition_targets: Arena<TransitionTargetNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StatementPathStorage {
     expression_handles: Arena<crate::expression::ExpressionHandle>,
     name_path_members: Arena<ProgramName>,
-    transition_targets: Arena<TransitionTargetNode>,
 }
 
 impl StatementTable {
     pub fn new() -> Self {
         Self {
-            statements: Arena::new(),
-            expression_handles: Arena::new(),
-            name_path_members: Arena::new(),
-            transition_targets: Arena::new(),
+            nodes: StatementNodeStorage {
+                statements: Arena::new(),
+                transition_targets: Arena::new(),
+            },
+            paths: StatementPathStorage {
+                expression_handles: Arena::new(),
+                name_path_members: Arena::new(),
+            },
         }
     }
 
     pub fn insert(&mut self, statement: StatementNode) -> StatementHandle {
-        self.statements.append(statement)
+        self.nodes.statements.append(statement)
     }
 
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
-        self.statements.get(handle)
+        self.nodes.statements.get(handle)
     }
 
     pub fn statements(&self, span: HandleSpan<StatementNode>) -> &[StatementNode] {
-        self.statements.span_or_empty(span)
+        self.nodes.statements.span_or_empty(span)
     }
 
     pub fn expression_handles(
         &self,
         span: HandleSpan<crate::expression::ExpressionHandle>,
     ) -> &[crate::expression::ExpressionHandle] {
-        self.expression_handles.span_or_empty(span)
+        self.paths.expression_handles.span_or_empty(span)
     }
 
     pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
-        self.name_path_members.span_or_empty(span)
+        self.paths.name_path_members.span_or_empty(span)
     }
 
     pub fn transition_target(&self, handle: TransitionTargetHandle) -> &TransitionTargetNode {
-        self.transition_targets.get(handle)
+        self.nodes.transition_targets.get(handle)
     }
 
     pub fn statement_count(&self) -> usize {
-        self.statements.len()
+        self.nodes.statements.len()
     }
 
     pub fn transition_target_count(&self) -> usize {
-        self.transition_targets.len()
+        self.nodes.transition_targets.len()
     }
 
     pub fn insert_tree(
@@ -198,7 +212,7 @@ impl StatementTable {
 
         for argument in arguments {
             let argument = expressions.insert_tree(argument);
-            let handle = self.expression_handles.append(argument);
+            let handle = self.paths.expression_handles.append(argument);
             if count == 0 {
                 start = handle;
             }
@@ -219,7 +233,7 @@ impl StatementTable {
         let mut count = 0u32;
 
         for member in path.members() {
-            let handle = self.name_path_members.append(member.clone());
+            let handle = self.paths.name_path_members.append(member.clone());
             if count == 0 {
                 start = handle;
             }
@@ -256,7 +270,7 @@ impl StatementTable {
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
 
-        self.transition_targets.insert(target)
+        self.nodes.transition_targets.insert(target)
     }
 }
 
