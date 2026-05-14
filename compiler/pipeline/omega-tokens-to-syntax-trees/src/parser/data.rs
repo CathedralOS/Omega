@@ -1,10 +1,12 @@
-use crate::parser::expression::parse_expression;
+use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::type_reference::parse_type_reference;
+use crate::parser::type_reference::parse_type_reference_handle;
 use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
+use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
@@ -19,14 +21,14 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
 
         if input.at_punctuation(PunctuationKind::Colon) {
             input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (type_reference, next) = parse_type_reference(input)?;
+            let (type_reference, next) = parse_type_reference_handle(syntax_trees, input)?;
             input = next;
             let (initial_value, next) = if input.at_punctuation(PunctuationKind::Equal) {
                 let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-                let (expression, input) = parse_expression(input)?;
-                (Some(expression), input)
+                let (expression, input) = parse_expression_handle(syntax_trees, input)?;
+                (expression, input)
             } else {
-                (None, input)
+                (omega_syntax_trees::expression::ExpressionHandle::invalid(), input)
             };
             input = if next.at_punctuation(PunctuationKind::Semicolon) {
                 next.take_punctuation(PunctuationKind::Semicolon, ";")?

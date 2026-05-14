@@ -24,7 +24,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;
-        let (item, rest) = parse_data_definition(input)?;
+        let (item, rest) = parse_data_definition(syntax_trees, input)?;
         return Ok((Item::Data(item), rest));
     }
 

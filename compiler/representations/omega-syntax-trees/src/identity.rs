@@ -4,7 +4,7 @@ use crate::identifier::{Identifier, IdentifierPath};
 use crate::item::{
     CapabilityContractKind, CapabilityMember, Item, TargetHostSettingValue, TrustLevel,
 };
-use crate::types::{TypeConstraint, TypeReference};
+use crate::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AstIdentityStorageCounts {
@@ -42,7 +42,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 match member {
                     CapabilityMember::Field(field) => {
                         count_identifier(&field.name, counts);
-                        count_type_reference(&field.type_reference, counts);
+                        count_type_reference_handle(syntax_trees, field.type_reference, counts);
                     }
                     CapabilityMember::State(state) => {
                         count_state_signature(syntax_trees, &state.signature, counts);
@@ -63,7 +63,10 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 match member {
                     crate::item::DataMember::Field(field) => {
                         count_identifier(&field.name, counts);
-                        count_type_reference(&field.type_reference, counts);
+                        count_type_reference_handle(syntax_trees, field.type_reference, counts);
+                        if field.initial_value.is_valid() {
+                            count_expression_handle(syntax_trees, field.initial_value, counts);
+                        }
                     }
                     crate::item::DataMember::Variant(variant) => {
                         count_identifier(&variant.name, counts);
@@ -327,40 +330,6 @@ fn count_expression_handle(
             }
         }
         crate::expression::ExpressionNode::String(_) => counts.string_literals += 1,
-    }
-}
-
-fn count_type_reference(type_reference: &TypeReference, counts: &mut AstIdentityStorageCounts) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            count_type_reference(referee, counts);
-        }
-        TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => {
-            count_type_reference(base_type, counts);
-            for constraint in constraints {
-                count_type_constraint(constraint, counts);
-            }
-        }
-        TypeReference::FixedArray { element_type, .. } => {
-            count_type_reference(element_type, counts);
-        }
-        TypeReference::Slice { element_type } => {
-            count_type_reference(element_type, counts);
-        }
-        TypeReference::Generic {
-            base_name,
-            arguments,
-        } => {
-            count_identifier(base_name, counts);
-            for argument in arguments {
-                count_type_reference(argument, counts);
-            }
-        }
-        TypeReference::Named(name) => count_identifier(name, counts),
-        TypeReference::Unit => {}
     }
 }
 
