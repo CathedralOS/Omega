@@ -1181,30 +1181,20 @@ mod tests {
             }));
         let transition = syntax_trees.items.append_statement_handle(transition);
 
-        let entry_state = syntax_trees.items.insert_state_tree(
-            &omega_syntax_trees::item::State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::from_parts(parameter, 1),
-                return_type: TypeReferenceHandle::invalid(),
-                statements: HandleSpan::from_parts(transition, 1),
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let entry_state = syntax_trees.items.insert_state(&omega_syntax_trees::item::State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::from_parts(parameter, 1),
+            return_type: TypeReferenceHandle::invalid(),
+            statements: HandleSpan::from_parts(transition, 1),
+        });
         let entry_state = syntax_trees.items.append_state_handle(entry_state);
 
-        let finish_state = syntax_trees.items.insert_state_tree(
-            &omega_syntax_trees::item::State {
-                name: Identifier::generated("finish"),
-                parameters: HandleSpan::empty(),
-                return_type: TypeReferenceHandle::invalid(),
-                statements: HandleSpan::empty(),
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let finish_state = syntax_trees.items.insert_state(&omega_syntax_trees::item::State {
+            name: Identifier::generated("finish"),
+            parameters: HandleSpan::empty(),
+            return_type: TypeReferenceHandle::invalid(),
+            statements: HandleSpan::empty(),
+        });
         let _finish_state = syntax_trees.items.append_state_handle(finish_state);
 
         syntax_trees.push_root_item(Item::Machine(Machine {

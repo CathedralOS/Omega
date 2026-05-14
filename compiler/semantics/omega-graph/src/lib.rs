@@ -172,17 +172,12 @@ mod tests {
                 guard: TransitionGuardNode::Always,
             }));
         let transition = syntax_trees.items.append_statement_handle(transition);
-        let state = syntax_trees.items.insert_state_tree(
-            &State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::empty(),
-                return_type: TypeReferenceHandle::invalid(),
-                statements: HandleSpan::from_parts(transition, 1),
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let state = syntax_trees.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::empty(),
+            return_type: TypeReferenceHandle::invalid(),
+            statements: HandleSpan::from_parts(transition, 1),
+        });
         let state = syntax_trees.items.append_state_handle(state);
 
         syntax_trees.push_root_item(Item::Machine(Machine {

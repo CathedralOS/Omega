@@ -78,17 +78,11 @@ impl SyntaxTrees {
     }
 
     fn insert_machine(&mut self, machine: &Machine) {
-        self.items.insert_machine_tree(
-            machine,
-            &mut self.statements,
-            &mut self.type_references,
-            &mut self.expressions,
-        );
+        self.items.insert_machine(machine);
     }
 
     fn insert_platform(&mut self, platform: &Platform) {
-        self.items
-            .insert_platform_tree(platform, &mut self.type_references, &mut self.expressions);
+        self.items.insert_platform(platform);
     }
 }
 
@@ -131,17 +125,12 @@ mod tests {
         let return_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-        let state = syntax_trees.items.insert_state_tree(
-            &State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::empty(),
-                return_type,
-                statements,
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let state = syntax_trees.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::empty(),
+            return_type,
+            statements,
+        });
         let state_handle = syntax_trees.items.append_state_handle(state);
 
         syntax_trees.push_root_item(Item::Machine(Machine {

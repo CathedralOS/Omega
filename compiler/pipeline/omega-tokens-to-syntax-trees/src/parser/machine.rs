@@ -60,12 +60,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
             state.return_type = machine_return_type;
         }
 
-        let handle = syntax_trees.items.insert_state_tree(
-            &state,
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let handle = syntax_trees.items.insert_state(&state);
         let handle = syntax_trees.items.append_state_handle(handle);
         if state_count == 0 {
             state_start = handle;
