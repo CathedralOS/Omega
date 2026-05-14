@@ -189,7 +189,7 @@ mod tests {
         let argument_one = expressions.insert(ExpressionNode::Integer(1));
         let argument_one = statements.append_expression_handle(argument_one);
         let argument_two = expressions.insert(ExpressionNode::Integer(2));
-        let argument_two = statements.append_expression_handle(argument_two);
+        let _argument_two = statements.append_expression_handle(argument_two);
         let arguments = HandleSpan::from_parts(argument_one, 2);
         let target = statements.insert_transition_target(TransitionTargetNode::Named { path, arguments });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
