@@ -359,19 +359,22 @@ mod tests {
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, State, StateParameterNode};
-    use omega_syntax_trees::types::{TypeConstraint, TypeConstraintNode, TypeReference};
+    use omega_syntax_trees::types::TypeConstraintNode;
 
     use super::build_proof_surface_report;
 
     #[test]
     fn collects_invariants_and_bounded_type_sites() {
         let mut syntax_trees = SyntaxTrees::new(Default::default());
-        let parameter_type = syntax_trees.type_references.insert_tree(
-            &TypeReference::Constrained {
-                base_type: Box::new(TypeReference::named("f32")),
-                constraints: vec![TypeConstraint::Named(Identifier::generated("speed_range"))],
-            },
-            &mut syntax_trees.expressions,
+        let base_type = syntax_trees
+            .type_references
+            .insert_named(Identifier::generated("f32"));
+        let constraint = syntax_trees
+            .type_references
+            .append_constraint(TypeConstraintNode::Named(Identifier::generated("speed_range")));
+        let parameter_type = syntax_trees.type_references.insert_constrained(
+            base_type,
+            HandleSpan::from_parts(constraint, 1),
         );
         let parameter = syntax_trees
             .items
