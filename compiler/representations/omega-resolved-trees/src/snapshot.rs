@@ -43,8 +43,8 @@ impl ResolvedProgramSnapshot {
             },
             tables: ResolvedTableSnapshot {
                 type_constraint_count: program.tables.types.constraints.len(),
-                expression_count: program.tables.expression_table.expression_count(),
-                statement_count: program.tables.statement_table.statement_count(),
+                expression_count: program.tables.bodies.expressions.expression_count(),
+                statement_count: program.tables.bodies.statements.statement_count(),
                 type_reference_count: program.tables.types.references.type_reference_count(),
             },
         }
