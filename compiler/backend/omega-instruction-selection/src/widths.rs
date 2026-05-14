@@ -129,6 +129,20 @@ pub fn runtime_text_stored_place_append_width(architecture: Architecture) -> usi
     }
 }
 
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        ),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_literal_append_width(architecture: Architecture, literal: &str) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_literal_append_width(literal),
@@ -136,9 +150,39 @@ pub fn runtime_text_literal_append_width(architecture: Architecture, literal: &s
     }
 }
 
+pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_literal_append_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        ),
+        Architecture::X86_64 => 0,
+    }
+}
+
 pub fn runtime_text_buffer_materialize_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::runtime_text_buffer_materialize_width(),
+        Architecture::X86_64 => 0,
+    }
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+    architecture: Architecture,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+            element_byte_size,
+            field_byte_offset,
+        ),
         Architecture::X86_64 => 0,
     }
 }

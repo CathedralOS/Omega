@@ -118,6 +118,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_dispatch_helper_local_alias_add",
     "runtime_dispatch_local_index_binary_write",
     "runtime_indexed_alias_field_binary",
+    "runtime_indexed_text_builder_write",
     "runtime_modulo_value",
     "runtime_multi_assignment_value_calls",
     "runtime_reward_table_roll_item_shape",
@@ -134,5 +135,4 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
-    "runtime_indexed_text_builder_write",
 ];

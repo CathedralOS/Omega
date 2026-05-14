@@ -123,6 +123,25 @@ pub(super) fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     )
 }
 
+pub(super) fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+    input: MachineEmissionContext<'_>,
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+        input.target.architecture,
+        0,
+        source_offset,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
 pub(super) fn encode_runtime_text_literal_append(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
@@ -151,6 +170,25 @@ pub(super) fn encode_runtime_text_literal_append_to_runtime_pointee(
     )
 }
 
+pub(super) fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_literal_append_to_runtime_frame_indexed(
+        input.target.architecture,
+        0,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        literal,
+    )
+}
+
 pub(super) fn encode_runtime_text_buffer_materialize(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
@@ -166,6 +204,22 @@ pub(super) fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
     architecture::encode_runtime_text_buffer_materialize_to_runtime_pointee(
         input.target.architecture,
         pointer_byte_offset,
+        field_byte_offset,
+    )
+}
+
+pub(super) fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+    input: MachineEmissionContext<'_>,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+        input.target.architecture,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
         field_byte_offset,
     )
 }

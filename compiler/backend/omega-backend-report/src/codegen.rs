@@ -277,6 +277,18 @@ fn selected_instruction_name(
                 "materialize runtime text buffer `{buffer_symbol}` for runtime_frame@{pointer_byte_offset} +{field_byte_offset}"
             )
         }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            buffer,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            format!(
+                "materialize runtime text buffer `{buffer_symbol}` for runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset}"
+            )
+        }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
             buffer,
             source_region,
@@ -307,6 +319,22 @@ fn selected_instruction_name(
                 "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor runtime_frame@{pointer_byte_offset} +{field_byte_offset}"
             )
         }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            buffer,
+            source_region,
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+        } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "append runtime text stored place {source_symbol}@{source_offset} -> `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset}"
+            )
+        }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             buffer,
             target_region,
@@ -329,6 +357,19 @@ fn selected_instruction_name(
             let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
             format!(
                 "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame@{pointer_byte_offset} +{field_byte_offset} += {literal:?}"
+            )
+        }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            buffer,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+        } => {
+            let buffer_symbol = backend_plan.data.objects.get(*buffer).symbol.as_str();
+            format!(
+                "append runtime text literal `{buffer_symbol}`, descriptor runtime_frame[{descriptor_offset}; index @{index_offset}; elem {element_byte_size}] +{field_byte_offset} += {literal:?}"
             )
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger {

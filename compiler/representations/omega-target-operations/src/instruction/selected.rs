@@ -126,6 +126,13 @@ pub enum SelectedInstructionKind {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
+    MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+        buffer: TargetDataObjectHandle,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     AppendRuntimeTextStoredPlace {
         buffer: TargetDataObjectHandle,
         source_region: RuntimeStorageRegion,
@@ -140,6 +147,15 @@ pub enum SelectedInstructionKind {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
+    AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+        buffer: TargetDataObjectHandle,
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     AppendRuntimeTextLiteral {
         buffer: TargetDataObjectHandle,
         target_region: RuntimeStorageRegion,
@@ -149,6 +165,14 @@ pub enum SelectedInstructionKind {
     AppendRuntimeTextLiteralToRuntimePointee {
         buffer: TargetDataObjectHandle,
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: String,
+    },
+    AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+        buffer: TargetDataObjectHandle,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
         field_byte_offset: usize,
         literal: String,
     },

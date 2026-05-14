@@ -4,7 +4,7 @@ use crate::selection::bindings::{
 };
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::storage_places::{
-    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_frame_indexed_target, resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
     resolve_runtime_storage_place_in_table,
 };
 use omega_control_flow::StateKey;
@@ -93,9 +93,11 @@ fn runtime_text_builder_write_without_aliases_emit(
         source_state,
         &resolved_target,
     );
+    let target_indexed =
+        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, &resolved_target);
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
-    if target_place.is_none() && target_pointee.is_none() {
+    if target_place.is_none() && target_pointee.is_none() && target_indexed.is_none() {
         return false;
     }
     if target_place
@@ -107,6 +109,12 @@ fn runtime_text_builder_write_without_aliases_emit(
     if target_pointee
         .as_ref()
         .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+    {
+        return false;
+    }
+    if target_indexed
+        .as_ref()
+        .is_some_and(|target| target.byte_count != input.target.pointer_size * 2)
     {
         return false;
     }
@@ -172,6 +180,16 @@ fn runtime_text_builder_write_without_aliases_emit(
                         pointer_byte_offset: target.pointer_byte_offset,
                         field_byte_offset: target.field_byte_offset,
                     });
+                } else if let Some(target) = target_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        descriptor_offset: target.descriptor_offset,
+                        index_offset: target.index_offset,
+                        element_byte_size: target.element_byte_size,
+                        field_byte_offset: target.field_byte_offset,
+                    });
                 } else {
                     return false;
                 }
@@ -197,6 +215,15 @@ fn runtime_text_builder_write_without_aliases_emit(
                     emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
                         buffer,
                         pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                        literal,
+                    });
+                } else if let Some(target) = target_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+                        buffer,
+                        descriptor_offset: target.descriptor_offset,
+                        index_offset: target.index_offset,
+                        element_byte_size: target.element_byte_size,
                         field_byte_offset: target.field_byte_offset,
                         literal,
                     });
@@ -251,9 +278,11 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
         source_state,
         &resolved_target,
     );
+    let target_indexed =
+        resolve_runtime_frame_indexed_target(input, dispatch_index, source_key, &resolved_target);
     let target_pointee =
         resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
-    if target_place.is_none() && target_pointee.is_none() {
+    if target_place.is_none() && target_pointee.is_none() && target_indexed.is_none() {
         return false;
     }
     if target_place
@@ -265,6 +294,12 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
     if target_pointee
         .as_ref()
         .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+    {
+        return false;
+    }
+    if target_indexed
+        .as_ref()
+        .is_some_and(|target| target.byte_count != input.target.pointer_size * 2)
     {
         return false;
     }
@@ -336,6 +371,16 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                         pointer_byte_offset: target.pointer_byte_offset,
                         field_byte_offset: target.field_byte_offset,
                     });
+                } else if let Some(target) = target_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        descriptor_offset: target.descriptor_offset,
+                        index_offset: target.index_offset,
+                        element_byte_size: target.element_byte_size,
+                        field_byte_offset: target.field_byte_offset,
+                    });
                 } else {
                     return false;
                 }
@@ -361,6 +406,15 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                     emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
                         buffer,
                         pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                        literal,
+                    });
+                } else if let Some(target) = target_indexed.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+                        buffer,
+                        descriptor_offset: target.descriptor_offset,
+                        index_offset: target.index_offset,
+                        element_byte_size: target.element_byte_size,
                         field_byte_offset: target.field_byte_offset,
                         literal,
                     });

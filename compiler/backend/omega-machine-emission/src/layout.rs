@@ -130,18 +130,47 @@ fn machine_instruction_width(
         SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. } => {
             runtime_text_buffer_materialize_width(input.target.architecture)
         }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => omega_instruction_selection::runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+            input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. } => {
             runtime_text_stored_place_append_width(input.target.architecture)
         }
         SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. } => {
             runtime_text_stored_place_append_width(input.target.architecture)
         }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => omega_instruction_selection::runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+            input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteral { literal, .. } => {
             runtime_text_literal_append_width(input.target.architecture, literal)
         }
         SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { literal, .. } => {
             runtime_text_literal_append_width(input.target.architecture, literal)
         }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            element_byte_size,
+            field_byte_offset,
+            literal,
+            ..
+        } => omega_instruction_selection::runtime_text_literal_append_to_runtime_frame_indexed_width(
+            input.target.architecture,
+            *element_byte_size,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger { byte_size, .. } => {
             runtime_machine_integer_write_width(input.target.architecture, *byte_size)
         }

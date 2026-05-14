@@ -133,6 +133,12 @@ pub enum MachineInstructionKind {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
+    RuntimeTextBufferMaterializeToRuntimeFrameIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     RuntimeTextStoredPlaceAppend {
         source_offset: usize,
         target_offset: usize,
@@ -142,12 +148,26 @@ pub enum MachineInstructionKind {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
     },
+    RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed {
+        source_offset: usize,
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+    },
     RuntimeTextLiteralAppend {
         target_offset: usize,
         literal: String,
     },
     RuntimeTextLiteralAppendToRuntimePointee {
         pointer_byte_offset: usize,
+        field_byte_offset: usize,
+        literal: String,
+    },
+    RuntimeTextLiteralAppendToRuntimeFrameIndexed {
+        descriptor_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
         field_byte_offset: usize,
         literal: String,
     },

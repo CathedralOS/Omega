@@ -61,6 +61,20 @@ pub(super) fn runtime_text_buffer_materialize_to_runtime_pointee_kind(
     }
 }
 
+pub(super) fn runtime_text_buffer_materialize_to_runtime_frame_indexed_kind(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed {
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    }
+}
+
 pub(super) fn runtime_text_stored_place_append_kind(
     source_offset: usize,
     target_offset: usize,
@@ -83,6 +97,22 @@ pub(super) fn runtime_text_stored_place_append_to_runtime_pointee_kind(
     }
 }
 
+pub(super) fn runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
+    source_offset: usize,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed {
+        source_offset,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    }
+}
+
 pub(super) fn runtime_text_literal_append_kind(
     target_offset: usize,
     literal: &str,
@@ -100,6 +130,22 @@ pub(super) fn runtime_text_literal_append_to_runtime_pointee_kind(
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee {
         pointer_byte_offset,
+        field_byte_offset,
+        literal: literal.to_owned(),
+    }
+}
+
+pub(super) fn runtime_text_literal_append_to_runtime_frame_indexed_kind(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed {
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
         field_byte_offset,
         literal: literal.to_owned(),
     }

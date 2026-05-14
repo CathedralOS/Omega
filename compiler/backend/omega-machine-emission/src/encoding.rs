@@ -166,6 +166,21 @@ pub(super) fn encode_machine_instruction(
             *pointer_byte_offset,
             *field_byte_offset,
         ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+            input,
+            *source_offset,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             target_offset,
             literal,
@@ -182,6 +197,21 @@ pub(super) fn encode_machine_instruction(
             *field_byte_offset,
             literal,
         ),
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+            ..
+        } => runtime_text::encode_runtime_text_literal_append_to_runtime_frame_indexed(
+            input,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
             runtime_text::encode_runtime_text_buffer_materialize(input, *target_offset)
         }
@@ -192,6 +222,19 @@ pub(super) fn encode_machine_instruction(
         } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_pointee(
             input,
             *pointer_byte_offset,
+            *field_byte_offset,
+        ),
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+            input,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
             *field_byte_offset,
         ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
