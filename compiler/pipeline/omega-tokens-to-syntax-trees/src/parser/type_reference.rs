@@ -13,10 +13,7 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-        return Ok((
-            syntax_trees.type_references.insert(TypeReferenceNode::Unit),
-            input,
-        ));
+        return Ok((syntax_trees.type_references.insert_unit(), input));
     }
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
@@ -88,9 +85,7 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
                 arguments,
             })
     } else {
-        syntax_trees
-            .type_references
-            .insert(TypeReferenceNode::Named(base_name))
+        syntax_trees.type_references.insert_named(base_name)
     };
 
     if input.at_punctuation(PunctuationKind::LeftBracket) {
