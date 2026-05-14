@@ -60,7 +60,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Invariant) {
         let input = input.take_keyword(KeywordKind::Invariant, "invariant")?;
-        let (item, rest) = parse_invariant_definition(input)?;
+        let (item, rest) = parse_invariant_definition(syntax_trees, input)?;
         return Ok((Item::Invariant(item), rest));
     }
 

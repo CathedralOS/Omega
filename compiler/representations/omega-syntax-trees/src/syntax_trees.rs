@@ -1,7 +1,7 @@
-use crate::expression::{Expression, ExpressionTable};
+use crate::expression::ExpressionTable;
 use crate::item::{CapabilityMember, Item, ItemHandle, ItemTable, Machine, Platform};
 use crate::statement::StatementTable;
-use crate::types::{TypeConstraint, TypeReferenceTable};
+use crate::types::TypeReferenceTable;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::SourceId;
 
@@ -98,11 +98,7 @@ impl SyntaxTrees {
             Item::Data(data_definition) => {
                 let _ = data_definition;
             }
-            Item::Invariant(invariant) => {
-                for constraint in &invariant.constraints {
-                    self.insert_type_constraint_expressions(constraint);
-                }
-            }
+            Item::Invariant(_) => {}
             Item::Library(library) => {
                 for function in &library.functions {
                     self.items.insert_state_signature_tree(
@@ -130,19 +126,6 @@ impl SyntaxTrees {
     fn insert_platform(&mut self, platform: &Platform) {
         self.items
             .insert_platform_tree(platform, &mut self.type_references, &mut self.expressions);
-    }
-    fn insert_type_constraint_expressions(&mut self, constraint: &TypeConstraint) {
-        match constraint {
-            TypeConstraint::Named(_) => {}
-            TypeConstraint::Range { minimum, maximum } => {
-                self.insert_expression(minimum);
-                self.insert_expression(maximum);
-            }
-        }
-    }
-
-    fn insert_expression(&mut self, expression: &Expression) {
-        self.expressions.insert_tree(expression);
     }
 }
 

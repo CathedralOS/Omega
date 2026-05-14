@@ -43,7 +43,7 @@ impl Default for UseItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvariantDefinition {
     pub name: Identifier,
-    pub constraints: Vec<crate::types::TypeConstraint>,
+    pub constraints: HandleSpan<crate::types::TypeConstraintNode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,10 +1,8 @@
 use crate::SyntaxTrees;
-use crate::expression::Expression;
 use crate::identifier::{Identifier, IdentifierPath};
 use crate::item::{
     CapabilityContractKind, CapabilityMember, Item, TargetHostSettingValue, TrustLevel,
 };
-use crate::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AstIdentityStorageCounts {
@@ -76,8 +74,8 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Invariant(invariant) => {
             count_identifier(&invariant.name, counts);
-            for constraint in &invariant.constraints {
-                count_type_constraint(constraint, counts);
+            for constraint in syntax_trees.type_references.constraints(invariant.constraints) {
+                count_type_constraint_handle(syntax_trees, constraint, counts);
             }
         }
         Item::Library(library) => {
@@ -229,60 +227,6 @@ fn count_state_parameter(
     count_type_reference_handle(syntax_trees, parameter.type_reference, counts);
 }
 
-fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCounts) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                count_expression(value, counts);
-            }
-        }
-        Expression::Binary(binary) => {
-            count_expression(&binary.left, counts);
-            count_expression(&binary.right, counts);
-        }
-        Expression::Cast(cast) => {
-            count_expression(&cast.value, counts);
-            count_identifier_path(&cast.target_type, counts);
-        }
-        Expression::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                count_expression(receiver, counts);
-            }
-            count_identifier(&call.target, counts);
-            for argument in &call.arguments {
-                count_expression(argument, counts);
-            }
-        }
-        Expression::Boolean(_) | Expression::Integer(_) => {}
-        Expression::Float(value) => {
-            counts.float_literals += 1;
-            if value.is_source_backed() {
-                counts.source_float_literals += 1;
-            } else {
-                counts.generated_float_literals += 1;
-            }
-        }
-        Expression::Indexed(indexed) => {
-            count_expression(&indexed.collection, counts);
-            count_expression(&indexed.index, counts);
-        }
-        Expression::Mutable(expression) => count_expression(expression, counts),
-        Expression::Member(member) => {
-            count_expression(&member.receiver, counts);
-            count_identifier(&member.member, counts);
-        }
-        Expression::Name(path) => count_identifier_path(path, counts),
-        Expression::StructLiteral(struct_literal) => {
-            count_identifier(&struct_literal.type_name, counts);
-            for field in &struct_literal.fields {
-                count_identifier(&field.name, counts);
-                count_expression(&field.value, counts);
-            }
-        }
-        Expression::String(_) => counts.string_literals += 1,
-    }
-}
-
 fn count_expression_handle(
     syntax_trees: &SyntaxTrees,
     expression: crate::expression::ExpressionHandle,
@@ -410,12 +354,16 @@ fn count_type_reference_handle(
     }
 }
 
-fn count_type_constraint(constraint: &TypeConstraint, counts: &mut AstIdentityStorageCounts) {
+fn count_type_constraint_handle(
+    syntax_trees: &SyntaxTrees,
+    constraint: &crate::types::TypeConstraintNode,
+    counts: &mut AstIdentityStorageCounts,
+) {
     match constraint {
-        TypeConstraint::Named(name) => count_identifier(name, counts),
-        TypeConstraint::Range { minimum, maximum } => {
-            count_expression(minimum, counts);
-            count_expression(maximum, counts);
+        crate::types::TypeConstraintNode::Named(name) => count_identifier(name, counts),
+        crate::types::TypeConstraintNode::Range { minimum, maximum } => {
+            count_expression_handle(syntax_trees, *minimum, counts);
+            count_expression_handle(syntax_trees, *maximum, counts);
         }
     }
 }
