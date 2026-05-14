@@ -1,4 +1,5 @@
 use crate::parser::input::{parse_path, Input, ParseResult};
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
     TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TrustMode,
@@ -7,6 +8,7 @@ use omega_syntax_trees::item::{
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_target_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TargetDefinition> {
     let (name, mut input) = input.take_identifier()?;
@@ -17,7 +19,7 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_keyword(KeywordKind::Host) {
             input = input.take_keyword(KeywordKind::Host, "host")?;
-            let (value, rest) = parse_target_host(input)?;
+            let (value, rest) = parse_target_host(syntax_trees, input)?;
             host = Some(value);
             input = rest;
         } else if input.at_keyword(KeywordKind::Trust) {
@@ -35,13 +37,14 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
         TargetDefinition {
             name,
             host,
-            trust_policies,
+            trust_policies: syntax_trees.items.insert_trust_policies(trust_policies),
         },
         input,
     ))
 }
 
 fn parse_target_host<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TargetHost> {
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
@@ -72,7 +75,13 @@ fn parse_target_host<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-    Ok((TargetHost { provider, settings }, input))
+    Ok((
+        TargetHost {
+            provider,
+            settings: syntax_trees.items.insert_target_host_settings(settings),
+        },
+        input,
+    ))
 }
 
 fn parse_trust_policy<'tokens, 'source>(

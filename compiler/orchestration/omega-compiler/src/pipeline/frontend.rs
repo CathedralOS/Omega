@@ -195,7 +195,11 @@ pub fn discover_imports(
                         }
                     }
 
-                    for trust_policy in &target.trust_policies {
+                    for trust_policy in parsed_source
+                        .syntax_trees
+                        .items
+                        .trust_policies(target.trust_policies)
+                    {
                         if is_bundled_omega_path(&trust_policy.path) {
                             imports.push(normalize_path(&resolve_source_path(
                                 &root_dir,
