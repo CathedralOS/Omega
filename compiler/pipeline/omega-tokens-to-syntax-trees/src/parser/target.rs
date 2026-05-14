@@ -1,4 +1,5 @@
 use crate::parser::input::{parse_path, Input, ParseResult};
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
@@ -14,7 +15,8 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut host = None;
-    let mut trust_policies = Vec::new();
+    let mut trust_policy_start = Handle::invalid();
+    let mut trust_policy_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_keyword(KeywordKind::Host) {
@@ -25,7 +27,13 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
         } else if input.at_keyword(KeywordKind::Trust) {
             input = input.take_keyword(KeywordKind::Trust, "trust")?;
             let (value, rest) = parse_trust_policy(input)?;
-            trust_policies.push(value);
+            let handle = syntax_trees.items.append_trust_policy(value);
+            if trust_policy_count == 0 {
+                trust_policy_start = handle;
+            }
+            trust_policy_count = trust_policy_count
+                .checked_add(1)
+                .expect("target trust policy span count overflow");
             input = rest;
         } else {
             return Err(input.error_here("expected target item"));
@@ -33,11 +41,16 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let trust_policies = if trust_policy_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(trust_policy_start, trust_policy_count)
+    };
     Ok((
         TargetDefinition {
             name,
             host,
-            trust_policies: syntax_trees.items.insert_trust_policies(trust_policies),
+            trust_policies,
         },
         input,
     ))
@@ -50,7 +63,8 @@ fn parse_target_host<'tokens, 'source>(
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (provider, mut input) = parse_path(input)?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut settings = Vec::new();
+    let mut setting_start = Handle::invalid();
+    let mut setting_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (name, rest) = input.take_identifier()?;
@@ -70,15 +84,28 @@ fn parse_target_host<'tokens, 'source>(
             (TargetHostSettingValue::Named(value_name), rest)
         };
 
-        settings.push(TargetHostSetting { name, value });
+        let handle = syntax_trees
+            .items
+            .append_target_host_setting(TargetHostSetting { name, value });
+        if setting_count == 0 {
+            setting_start = handle;
+        }
+        setting_count = setting_count
+            .checked_add(1)
+            .expect("target host setting span count overflow");
         input = rest;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let settings = if setting_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(setting_start, setting_count)
+    };
     Ok((
         TargetHost {
             provider,
-            settings: syntax_trees.items.insert_target_host_settings(settings),
+            settings,
         },
         input,
     ))

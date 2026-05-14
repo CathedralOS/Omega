@@ -378,11 +378,26 @@ impl ItemTable {
         self.trust_policies.insert_many(policies)
     }
 
+    pub fn append_trust_policy(&mut self, policy: TrustPolicy) -> Handle<TrustPolicy> {
+        self.trust_policies.append(policy)
+    }
+
     pub fn insert_type_parameters(
         &mut self,
         type_parameters: impl IntoIterator<Item = TypeParameter>,
     ) -> HandleSpan<TypeParameter> {
         self.type_parameters.insert_many(type_parameters)
+    }
+
+    pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
+        self.type_parameters.append(type_parameter)
+    }
+
+    pub fn append_target_host_setting(
+        &mut self,
+        setting: TargetHostSetting,
+    ) -> Handle<TargetHostSetting> {
+        self.target_host_settings.append(setting)
     }
 
     pub fn state_parameter_count(&self) -> usize {
