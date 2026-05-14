@@ -42,10 +42,10 @@ impl ResolvedProgramSnapshot {
                     .collect(),
             },
             tables: ResolvedTableSnapshot {
-                type_constraint_count: program.tables.type_constraints.len(),
+                type_constraint_count: program.tables.types.constraints.len(),
                 expression_count: program.tables.expression_table.expression_count(),
                 statement_count: program.tables.statement_table.statement_count(),
-                type_reference_count: program.tables.type_reference_table.type_reference_count(),
+                type_reference_count: program.tables.types.references.type_reference_count(),
             },
         }
     }
@@ -317,7 +317,8 @@ fn invariant_definition_snapshot(
         name: invariant.name.to_string(),
         constraints: program
             .tables
-            .type_constraints
+            .types
+            .constraints
             .span_or_empty(invariant.constraints)
             .iter()
             .map(type_constraint_snapshot)
@@ -525,7 +526,8 @@ fn type_reference_snapshot(program: &Program, type_reference: &TypeReference) ->
     type_reference_snapshot_from_constraints(type_reference, |constraints| {
         program
             .tables
-            .type_constraints
+            .types
+            .constraints
             .span_or_empty(*constraints)
             .iter()
             .map(type_constraint_snapshot)

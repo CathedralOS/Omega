@@ -97,7 +97,7 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
                 count_statement_node(
                     &program.tables.statement_table,
                     &program.tables.expression_table,
-                    &program.tables.type_reference_table,
+                    &program.tables.types.references,
                     statement,
                     &mut counts,
                 );
@@ -105,7 +105,7 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
         }
     }
 
-    for (_, constraint) in program.tables.type_constraints.iter() {
+    for (_, constraint) in program.tables.types.constraints.iter() {
         count_type_constraint(constraint, &mut counts);
     }
 
