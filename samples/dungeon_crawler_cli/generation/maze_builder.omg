@@ -26,7 +26,7 @@ machine MazeBuilder::build {
         self.branch(level, &mut random, CellId::R00, 0, 0);
     }
 
-    fn branch(
+    entry branch(
         &mut self,
         level: &mut Level,
         random: &mut RandomState,
@@ -98,7 +98,7 @@ machine MazeBuilder::build {
         }
     }
 
-    fn should_carve(
+    entry should_carve(
         &mut self,
         random: &mut RandomState,
         depth: u32[exact, non_negative]
@@ -108,7 +108,7 @@ machine MazeBuilder::build {
         -> self.rng.chance(random, chance, 100);
     }
 
-    fn carve_room(
+    entry carve_room(
         &mut self,
         level: &mut Level,
         random: &mut RandomState,
@@ -130,7 +130,7 @@ machine MazeBuilder::build {
         level.deepest_depth = max(level.deepest_depth, depth);
     }
 
-    fn connect(
+    entry connect(
         &mut self,
         level: &mut Level,
         from: CellId,
@@ -145,7 +145,7 @@ machine MazeBuilder::build {
         self.append_exit(&mut rooms[to_index], self.direction_command(self.opposite(direction)), self.opposite(direction), from);
     }
 
-    fn append_exit(
+    entry append_exit(
         &mut self,
         room: &mut Room,
         command: String,
@@ -158,7 +158,7 @@ machine MazeBuilder::build {
         room.exit_count = index + 1;
     }
 
-    fn next_unused_cell(
+    entry next_unused_cell(
         &mut self,
         level: Level
     ) -> CellId {
@@ -179,7 +179,7 @@ machine MazeBuilder::build {
         -> CellId::R15;
     }
 
-    fn cell_index(
+    entry cell_index(
         &mut self,
         cell: CellId
     ) -> usize {
@@ -201,7 +201,7 @@ machine MazeBuilder::build {
         -> 15;
     }
 
-    fn room_label(
+    entry room_label(
         &mut self,
         cell: CellId
     ) -> String {
@@ -209,7 +209,7 @@ machine MazeBuilder::build {
         -> "Branch Room";
     }
 
-    fn room_description(
+    entry room_description(
         &mut self,
         depth: u32[exact, non_negative],
         branch_id: u32[exact, non_negative]
@@ -217,7 +217,7 @@ machine MazeBuilder::build {
         -> "A cracked limestone room at depth " + depth.to_string() + ", branch " + branch_id.to_string() + ".";
     }
 
-    fn direction_command(
+    entry direction_command(
         &mut self,
         direction: Direction
     ) -> String {
@@ -227,7 +227,7 @@ machine MazeBuilder::build {
         -> "west";
     }
 
-    fn opposite(
+    entry opposite(
         &mut self,
         direction: Direction
     ) -> Direction {

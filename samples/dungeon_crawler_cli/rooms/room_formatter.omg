@@ -61,7 +61,7 @@ machine RoomFormatter::write_adjacent_rooms {
         self.format_exits(room, out_line);
     }
 
-    fn format_exits(
+    entry format_exits(
         &mut self,
         room: Room,
         out_line: &mut ConsoleLine

@@ -19,11 +19,13 @@ pub(super) fn parse_platform<'tokens, 'source>(
             input = input.take_keyword(KeywordKind::Pub, "pub")?;
             if input.at_keyword(KeywordKind::Entry) {
                 input = input.take_keyword(KeywordKind::Entry, "entry")?;
+            } else {
+                return Err(input.expected_one_of_here(&["`entry`"]));
             }
         } else if input.at_keyword(KeywordKind::Entry) {
             input = input.take_keyword(KeywordKind::Entry, "entry")?;
         } else {
-            input = input.take_keyword(KeywordKind::Fn, "fn")?;
+            return Err(input.expected_one_of_here(&["`pub entry`", "`entry`"]));
         }
 
         let (signature, rest) = parse_state_signature(syntax_trees, input)?;

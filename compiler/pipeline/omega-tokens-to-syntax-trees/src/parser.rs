@@ -88,4 +88,28 @@ mod tests {
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         assert_eq!(parsed.root_item_count(), 1);
     }
+
+    #[test]
+    fn parses_main_entry_state_name_as_entry() {
+        let source = r#"
+        machine main {
+            pub entry(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = match parsed.root_items().next().expect("root item") {
+            omega_syntax_trees::item::Item::Machine(machine) => machine,
+            _ => panic!("expected machine root item"),
+        };
+        let state_handle = parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .copied()
+            .expect("entry state");
+        let state = parsed.items.state(state_handle);
+        assert_eq!(state.name.as_str(), "entry");
+    }
 }

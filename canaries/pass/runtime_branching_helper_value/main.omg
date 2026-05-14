@@ -3,7 +3,7 @@ machine main {
         out = self.pick(flag);
     }
 
-    fn pick(&mut self, flag: bool) -> i32 {
+    entry pick(&mut self, flag: bool) -> i32 {
         transition flag {
             true -> 1
             false -> 2

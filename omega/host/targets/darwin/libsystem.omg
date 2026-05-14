@@ -1,7 +1,7 @@
 use omega::host::targets::darwin::types;
 
 capability DarwinLibSystem {
-    fn read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> where {
+    entry read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> where {
         requires fd == 0
         requires buffer.writable
         requires byte_count <= buffer.len
@@ -11,7 +11,7 @@ capability DarwinLibSystem {
         trust host
     }
 
-    fn write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> where {
+    entry write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, DarwinErrno> where {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
@@ -21,7 +21,7 @@ capability DarwinLibSystem {
         trust host
     }
 
-    fn exit(return_code: i32) -> Terminal where {
+    entry exit(return_code: i32) -> Terminal where {
         requires darwin_accepts_exit_code(return_code)
         ensures process_terminated
         trust darwin_libsystem_abi

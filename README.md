@@ -32,7 +32,7 @@ Omega is exploring these core ideas:
 - Transition rows use `_ -> target()` for unconditional/default flow and `condition -> target()` for guarded flow.
 - `-> expr;` is the expression-style terminal return form used by helper machines and value-returning states.
 - Nested machine flow can be expressed as machine calls in straight-line code or as continuation-style transition handoff.
-- Callable machine entries and helper `fn ...` items create frame/return semantics; `state ...` stays graph handoff.
+- Callable machine entries like `entry helper(...)` create frame/return semantics; `state ...` stays graph handoff.
 - Data flow should prefer explicit owned data and `&mut` parameters over ambient state.
 - Platform boundaries are explicit, trusted, and auditable.
 

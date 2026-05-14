@@ -55,7 +55,7 @@ machine main {
         reward.item = self.pick(depth, random);
     }
 
-    fn pick(
+    entry pick(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState

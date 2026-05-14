@@ -23,7 +23,7 @@ machine EnemyTables::roll_enemy {
         }
     }
 
-    fn tier_for_depth(
+    entry tier_for_depth(
         &mut self,
         depth: u32[exact, non_negative]
     ) -> EnemyTier {

@@ -6,7 +6,7 @@ machine main {
         label = self.name();
     }
 
-    fn name(
+    entry name(
         &mut self
     ) -> String {
         -> "hello";

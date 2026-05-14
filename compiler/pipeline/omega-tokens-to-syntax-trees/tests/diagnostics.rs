@@ -30,6 +30,6 @@ fn machine_item_error_lists_expected_members() {
     let message = parse_error_message("machine main { let value: i32; }");
     assert_eq!(
         message,
-        "expected one of `pub entry`, `entry`, `state`, `fn`, `invariant`, found keyword `let`"
+        "expected one of `pub entry`, `entry`, `state`, `invariant`, found keyword `let`"
     );
 }

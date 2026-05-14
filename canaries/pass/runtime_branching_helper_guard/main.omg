@@ -6,7 +6,7 @@ machine main {
         }
     }
 
-    fn pick(&mut self, flag: bool) -> bool {
+    entry pick(&mut self, flag: bool) -> bool {
         transition flag {
             true -> true
             false -> false

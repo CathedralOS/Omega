@@ -55,7 +55,7 @@ machine RewardTables::roll_room_treasure {
         reward.item = self.roll_item(depth, random);
     }
 
-    fn roll_item(
+    entry roll_item(
         &mut self,
         depth: u32[exact, non_negative],
         random: &mut RandomState

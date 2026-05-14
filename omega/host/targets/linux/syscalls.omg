@@ -1,7 +1,7 @@
 use omega::host::targets::linux::types;
 
 capability LinuxSyscalls {
-    fn read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+    entry read(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
         requires fd == 0
         requires buffer.writable
         requires byte_count <= buffer.len
@@ -11,7 +11,7 @@ capability LinuxSyscalls {
         trust host
     }
 
-    fn write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
+    entry write(fd: i32, buffer: Slice<u8>, byte_count: usize) -> SyscallResult<usize, LinuxErrno> where {
         requires fd == 1
         requires buffer.initialized
         requires byte_count <= buffer.len
@@ -21,7 +21,7 @@ capability LinuxSyscalls {
         trust host
     }
 
-    fn exit_group(return_code: i32) -> Terminal where {
+    entry exit_group(return_code: i32) -> Terminal where {
         requires linux_accepts_exit_code(return_code)
         ensures process_terminated
         trust linux_syscall_abi

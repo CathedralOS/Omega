@@ -5,7 +5,7 @@ use omega::host::targets::linux::types;
 capability LinuxStdin {
     syscalls: LinuxSyscalls
 
-    fn read_line(mut out_text: String) -> Result<(), IOError> where {
+    entry read_line(mut out_text: String) -> Result<(), IOError> where {
         requires out_text.writable
         ensures result.Ok => out_text.utf8
         ensures result.Err(e) => e is IOError

@@ -3,17 +3,17 @@ machine main {
         out = self.pick(flag);
     }
 
-    fn pick(&mut self, flag: bool) -> u32 {
+    entry pick(&mut self, flag: bool) -> u32 {
         let choice: bool = self.identity(flag);
         -> self.branch(choice) when choice;
         -> 0;
     }
 
-    fn identity(&mut self, flag: bool) -> bool {
+    entry identity(&mut self, flag: bool) -> bool {
         -> flag;
     }
 
-    fn branch(&mut self, flag: bool) -> u32 {
+    entry branch(&mut self, flag: bool) -> u32 {
         -> 1 when flag;
         -> 2;
     }
