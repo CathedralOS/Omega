@@ -1,13 +1,9 @@
 use crate::parse_error::ParseError;
-use crate::parser::expression::{
-    parse_expression_handle_without_struct_literals, parse_expression_without_struct_literals,
-};
+use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::expression::Expression;
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use omega_syntax_trees::types::TypeConstraint;
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
@@ -141,43 +137,6 @@ pub(super) fn parse_type_reference_handle_allowing_borrow<'tokens, 'source>(
     Ok((type_reference, input))
 }
 
-pub(super) fn parse_type_constraints<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<TypeConstraint>> {
-    let mut input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-    let mut constraints = Vec::new();
-
-    if !input.at_punctuation(PunctuationKind::RightBracket) {
-        loop {
-            if input.at_contextual("range") {
-                input = input.take_contextual("range")?;
-                input = input.take_punctuation(PunctuationKind::Less, "<")?;
-                let (minimum, rest) =
-                    parse_expression_until_punctuation(input, PunctuationKind::Comma)?;
-                input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
-                let (maximum, rest) =
-                    parse_expression_until_punctuation(input, PunctuationKind::Greater)?;
-                input = rest.take_punctuation(PunctuationKind::Greater, ">")?;
-                constraints.push(TypeConstraint::Range { minimum, maximum });
-            } else {
-                let (name, rest) = input.take_identifier()?;
-                input = rest;
-                constraints.push(TypeConstraint::Named(name));
-            }
-
-            if input.at_punctuation(PunctuationKind::Comma) {
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
-            }
-
-            break;
-        }
-    }
-
-    input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
-    Ok((constraints, input))
-}
-
 pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -234,22 +193,6 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
         HandleSpan::from_parts(constraint_start, constraint_count)
     };
     Ok((constraints, input))
-}
-
-fn parse_expression_until_punctuation<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-    delimiter: PunctuationKind,
-) -> Result<(Expression, Input<'tokens, 'source>), ParseError> {
-    let (expression_input, rest) =
-        input.split_at_top_level_punctuation(delimiter, "expected constrained type delimiter")?;
-    let (expression, rest_after_expression) =
-        parse_expression_without_struct_literals(expression_input)?;
-
-    if !rest_after_expression.tokens.is_empty() {
-        return Err(rest_after_expression.error_here("expected constrained type expression"));
-    }
-
-    Ok((expression, rest))
 }
 
 fn parse_expression_handle_until_punctuation<'tokens, 'source>(

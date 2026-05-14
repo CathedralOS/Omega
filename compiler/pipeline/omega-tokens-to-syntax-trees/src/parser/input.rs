@@ -212,6 +212,29 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Ok((token_count, input))
     }
 
+    pub(super) fn skip_bracketed_block(self) -> Result<(usize, Self), ParseError> {
+        let mut input = self.take_punctuation(PunctuationKind::LeftBracket, "[")?;
+        let mut depth = 1usize;
+        let mut token_count = 0usize;
+
+        while depth > 0 {
+            let (token, rest) = input.expect_token()?;
+            input = rest;
+
+            match token.punctuation() {
+                Some(PunctuationKind::LeftBracket) => depth += 1,
+                Some(PunctuationKind::RightBracket) => depth -= 1,
+                _ => {}
+            }
+
+            if depth > 0 {
+                token_count += 1;
+            }
+        }
+
+        Ok((token_count, input))
+    }
+
     fn find_top_level_punctuation(self, delimiter: PunctuationKind) -> Option<usize> {
         let mut paren_depth = 0usize;
         let mut bracket_depth = 0usize;
