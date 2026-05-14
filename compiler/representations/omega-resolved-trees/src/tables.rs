@@ -11,9 +11,19 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ResolvedProgramTables {
+    pub bodies: ResolvedBodyTables,
+    pub types: ResolvedTypeTables,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedBodyTables {
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
-    pub type_references: TypeReferenceTable,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedTypeTables {
+    pub references: TypeReferenceTable,
 }
 
 impl ResolvedProgramTables {
@@ -100,10 +110,10 @@ impl ResolvedProgramTables {
         let mut start = Handle::invalid();
         let mut count = 0u32;
         for statement in &state.statements {
-            let handle = self.statements.insert_tree(
+            let handle = self.bodies.statements.insert_tree(
                 statement,
-                &mut self.expressions,
-                &mut self.type_references,
+                &mut self.bodies.expressions,
+                &mut self.types.references,
                 type_constraints,
             );
             if count == 0 {
@@ -138,8 +148,9 @@ impl ResolvedProgramTables {
         type_reference: &TypeReference,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        self.type_references
-            .insert_tree(type_reference, &mut self.expressions, type_constraints);
+        self.types
+            .references
+            .insert_tree(type_reference, &mut self.bodies.expressions, type_constraints);
     }
 
     fn insert_type_constraints(
@@ -156,7 +167,7 @@ impl ResolvedProgramTables {
     }
 
     fn insert_expression(&mut self, expression: &Expression) {
-        self.expressions.insert_tree(expression);
+        self.bodies.expressions.insert_tree(expression);
     }
 }
 

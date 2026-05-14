@@ -57,9 +57,9 @@ pub struct ResolvedBodyStorage {
 impl Program {
     pub fn rebuild_tables(&mut self) {
         let tables = tables::ResolvedProgramTables::from_program_with_state_spans(self);
-        self.tables.bodies.expressions = tables.expressions;
-        self.tables.bodies.statements = tables.statements;
-        self.tables.types.references = tables.type_references;
+        self.tables.bodies.expressions = tables.bodies.expressions;
+        self.tables.bodies.statements = tables.bodies.statements;
+        self.tables.types.references = tables.types.references;
     }
 
     pub fn snapshot(&self) -> snapshot::ResolvedProgramSnapshot {
