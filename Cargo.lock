@@ -810,6 +810,10 @@ name = "omega-validation"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "omega-resolved-trees-to-typed-trees",
+ "omega-source-files-to-tokens",
+ "omega-syntax-trees-to-resolved-trees",
+ "omega-tokens-to-syntax-trees",
  "omega-typed-trees",
 ]
 

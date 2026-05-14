@@ -100,7 +100,7 @@ fn expression_handle_to_statement_call(
     Some(TableCall {
         receiver,
         target,
-        arguments: call.arguments,
+        arguments: copy_expression_handles_to_statement_table(syntax_trees, call.arguments),
     })
 }
 
@@ -182,5 +182,29 @@ fn append_statement_identifier_path_member(
                 .checked_add(1)
                 .expect("statement identifier path span count overflow"),
         )
+    }
+}
+
+fn copy_expression_handles_to_statement_table(
+    syntax_trees: &mut SyntaxTrees,
+    arguments: HandleSpan<ExpressionHandle>,
+) -> HandleSpan<ExpressionHandle> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for argument in syntax_trees.expressions.expression_handles(arguments) {
+        let handle = syntax_trees.statements.append_expression_handle(*argument);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("statement call argument span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
     }
 }
