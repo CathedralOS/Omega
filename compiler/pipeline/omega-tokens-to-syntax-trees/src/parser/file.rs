@@ -8,7 +8,7 @@ pub(super) fn parse_file<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ()> {
 
     while !input.tokens.is_empty() {
-        let (item, rest) = parse_item(input)?;
+        let (item, rest) = parse_item(syntax_trees, input)?;
         syntax_trees.push_root_item(item);
         input = rest;
     }

@@ -43,6 +43,13 @@ impl ExpressionTable {
         self.expressions.insert(expression)
     }
 
+    pub fn append_expression_handle(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> Handle<ExpressionHandle> {
+        self.expression_handles.append(expression)
+    }
+
     pub fn insert_expression_handles(
         &mut self,
         expressions: impl IntoIterator<Item = ExpressionHandle>,
@@ -55,6 +62,17 @@ impl ExpressionTable {
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         self.struct_fields.insert_many(fields)
+    }
+
+    pub fn append_struct_field(
+        &mut self,
+        field: TableStructLiteralField,
+    ) -> Handle<TableStructLiteralField> {
+        self.struct_fields.append(field)
+    }
+
+    pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
+        self.identifier_path_members.append(member)
     }
 
     fn insert_identifier_path_members(&mut self, path: &IdentifierPath) -> HandleSpan<Identifier> {

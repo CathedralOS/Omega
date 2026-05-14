@@ -1,23 +1,34 @@
-use crate::parser::expression::{parse_expression, parse_expression_without_struct_literals};
+use crate::parser::expression::{
+    parse_expression_handle, parse_expression_handle_without_struct_literals,
+};
 use crate::parser::input::{Input, ParseResult};
 use crate::parse_error::ParseError;
-use omega_syntax_trees::expression::{BinaryExpression, BinaryOperator, CallExpression, Expression, MemberExpression};
+use omega_core::arena::{Handle, HandleSpan};
+use omega_syntax_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    TableCallExpression,
+};
 use omega_syntax_trees::identifier::IdentifierPath;
-use omega_syntax_trees::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+use omega_syntax_trees::statement::{
+    StatementHandle, StatementNode, TableTransition, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
+};
+use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
-pub(super) fn parse_transition_statement<'tokens, 'source>(
+pub(super) fn parse_transition_statement_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Statement> {
-    let (target, mut input) = parse_transition_target(input)?;
+) -> ParseResult<'tokens, 'source, StatementHandle> {
+    let (target, mut input) = parse_transition_target_handle(syntax_trees, input)?;
     let continuation;
     if input.at_punctuation(PunctuationKind::Arrow) {
         input = input.take_punctuation(PunctuationKind::Arrow, "->")?;
-        let (next_target, rest) = parse_transition_target(input)?;
-        continuation = Some(next_target);
+        let (next_target, rest) = parse_transition_target_handle(syntax_trees, input)?;
+        continuation = next_target;
         input = rest;
     } else {
-        continuation = None;
+        continuation = TransitionTargetHandle::invalid();
     }
 
     let guard;
@@ -27,70 +38,90 @@ pub(super) fn parse_transition_statement<'tokens, 'source>(
         } else {
             input.take_contextual("when")?
         };
-        let (expression, rest) = parse_expression_without_struct_literals(input)?;
+        let (expression, rest) =
+            parse_expression_handle_without_struct_literals(syntax_trees, input)?;
         let input = if rest.at_punctuation(PunctuationKind::Semicolon) {
             rest.take_punctuation(PunctuationKind::Semicolon, ";")?
         } else {
             rest
         };
-        guard = TransitionGuard::When(expression);
+        guard = TransitionGuardNode::When(expression);
         return Ok((
-            Statement::Transition(Transition {
-                target,
-                continuation,
-                guard,
-            }),
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation,
+                    guard,
+                })),
             input,
         ));
     }
 
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    if continuation.is_none() {
-        if let TransitionTarget::Value(expression) = target {
-            return Ok((Statement::Expression(expression), input));
+    if continuation == TransitionTargetHandle::invalid() {
+        if let TransitionTargetNode::Value(expression) =
+            syntax_trees.statements.transition_target(target).clone()
+        {
+            return Ok((
+                syntax_trees
+                    .statements
+                    .insert(StatementNode::Expression(expression)),
+                input,
+            ));
         }
     }
-    guard = TransitionGuard::Always;
+
     Ok((
-        Statement::Transition(Transition {
-            target,
-            continuation,
-            guard,
-        }),
+        syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation,
+                guard: TransitionGuardNode::Always,
+            })),
         input,
     ))
 }
 
-pub(super) fn parse_transition_block<'tokens, 'source>(
+pub(super) fn parse_transition_block_handles<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<Statement>> {
+) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let (subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
-        (None, input.take_punctuation(PunctuationKind::LeftBrace, "{")?)
+        (ExpressionHandle::invalid(), input.take_punctuation(PunctuationKind::LeftBrace, "{")?)
     } else {
-        let (expression, rest) =
-            parse_expression_until_punctuation(input, PunctuationKind::LeftBrace)?;
+        let (expression, rest) = parse_expression_handle_until_punctuation(
+            syntax_trees,
+            input,
+            PunctuationKind::LeftBrace,
+        )?;
         let input = rest.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-        (Some(expression), input)
+        (expression, input)
     };
 
-    let mut statements = Vec::new();
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (guard, rest) = if input.at_contextual("_") {
-            (TransitionGuard::Always, input.take_contextual("_")?)
+            (TransitionGuardNode::Always, input.take_contextual("_")?)
         } else {
-            let (pattern, rest) = parse_expression_without_struct_literals(input)?;
-            if let Some(subject) = &subject {
+            let (pattern, rest) =
+                parse_expression_handle_without_struct_literals(syntax_trees, input)?;
+            if subject.is_valid() {
                 (
-                    TransitionGuard::When(Expression::Binary(Box::new(BinaryExpression {
-                        left: subject.clone(),
-                        operator: BinaryOperator::Equal,
-                        right: pattern,
-                    }))),
+                    TransitionGuardNode::When(syntax_trees.expressions.insert(
+                        ExpressionNode::Binary(TableBinaryExpression {
+                            left: subject,
+                            operator: BinaryOperator::Equal,
+                            right: pattern,
+                        }),
+                    )),
                     rest,
                 )
             } else {
-                (TransitionGuard::When(pattern), rest)
+                (TransitionGuardNode::When(pattern), rest)
             }
         };
         input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
@@ -98,38 +129,59 @@ pub(super) fn parse_transition_block<'tokens, 'source>(
         let (target, rest) = if input.at_punctuation(PunctuationKind::LeftBrace) {
             let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-            (TransitionTarget::Terminal, input)
+            (
+                syntax_trees
+                    .statements
+                    .insert_transition_target(TransitionTargetNode::Terminal),
+                input,
+            )
         } else {
-            parse_transition_target(input)?
+            parse_transition_target_handle(syntax_trees, input)?
         };
         input = rest;
 
-        statements.push(Statement::Transition(Transition {
-            target,
-            continuation: None,
-            guard,
-        }));
+        let statement = syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: TransitionTargetHandle::invalid(),
+                guard,
+            }));
+        let handle = syntax_trees.items.append_statement_handle(statement);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition block statement span count overflow");
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let statements = if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    };
     Ok((statements, input))
 }
 
-pub(super) fn parse_transition_target<'tokens, 'source>(
+pub(super) fn parse_transition_target_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TransitionTarget> {
-    let (expression, rest) = parse_expression(input)?;
-    Ok((classify_transition_target(expression), rest))
+) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
+    let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
+    Ok((classify_transition_target_handle(syntax_trees, expression)?, rest))
 }
 
-fn parse_expression_until_punctuation<'tokens, 'source>(
+fn parse_expression_handle_until_punctuation<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     delimiter: PunctuationKind,
-) -> Result<(Expression, Input<'tokens, 'source>), ParseError> {
+) -> Result<(ExpressionHandle, Input<'tokens, 'source>), ParseError> {
     let (expression_input, rest) =
         input.split_at_top_level_punctuation(delimiter, "expected transition block delimiter")?;
     let (expression, rest_after_expression) =
-        parse_expression_without_struct_literals(expression_input)?;
+        parse_expression_handle_without_struct_literals(syntax_trees, expression_input)?;
 
     if !rest_after_expression.tokens.is_empty() {
         return Err(rest_after_expression.error_here("expected transition subject expression"));
@@ -138,28 +190,40 @@ fn parse_expression_until_punctuation<'tokens, 'source>(
     Ok((expression, rest))
 }
 
-fn classify_transition_target(expression: Expression) -> TransitionTarget {
-    match expression {
-        Expression::Call(call) => classify_call_target(*call),
-        Expression::Name(path) if path.len() == 1 && path.as_slice()[0].as_str() == "self" => {
-            TransitionTarget::SelfTarget
+fn classify_transition_target_handle(
+    syntax_trees: &mut SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Result<TransitionTargetHandle, ParseError> {
+    let node = syntax_trees.expressions.expression(expression).clone();
+    let target = match node {
+        ExpressionNode::Call(call) => classify_call_target_handle(syntax_trees, call)?,
+        ExpressionNode::Name(path) => {
+            let members = syntax_trees.expressions.identifier_path_members(path);
+            if members.len() == 1 && members[0].as_str() == "self" {
+                TransitionTargetNode::SelfTarget
+            } else {
+                TransitionTargetNode::Value(expression)
+            }
         }
-        value => TransitionTarget::Value(value),
-    }
+        _ => TransitionTargetNode::Value(expression),
+    };
+
+    Ok(syntax_trees.statements.insert_transition_target(target))
 }
 
-fn classify_call_target(call: CallExpression) -> TransitionTarget {
-    let receiver_path = match call.receiver.as_deref() {
-        None => None,
-        Some(receiver) => {
-            let Some(path) = expression_to_identifier_path(receiver) else {
-                return TransitionTarget::Value(Expression::Call(Box::new(call)));
-            };
-            Some(path)
-        }
+fn classify_call_target_handle(
+    syntax_trees: &mut SyntaxTrees,
+    call: TableCallExpression,
+) -> Result<TransitionTargetNode, ParseError> {
+    let receiver_path = if call.receiver.is_valid() {
+        expression_handle_to_identifier_path(syntax_trees, call.receiver)
+    } else {
+        None
     };
     if receiver_path.as_ref().is_some_and(|path| path.len() > 1) {
-        return TransitionTarget::Value(Expression::Call(Box::new(call)));
+        return Ok(TransitionTargetNode::Value(
+            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
+        ));
     }
     let path = match receiver_path {
         None => IdentifierPath::from(vec![call.target.clone()]),
@@ -170,24 +234,79 @@ fn classify_call_target(call: CallExpression) -> TransitionTarget {
     };
 
     if path.len() == 1 && path.as_slice()[0].as_str() == "self" {
-        TransitionTarget::SelfTarget
+        Ok(TransitionTargetNode::SelfTarget)
     } else {
-        TransitionTarget::Named {
-            path,
-            arguments: call.arguments,
-        }
+        let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
+        Ok(TransitionTargetNode::Named {
+            path: copy_identifier_path_to_statement_table(syntax_trees, &path),
+            arguments,
+        })
     }
 }
 
-fn expression_to_identifier_path(expression: &Expression) -> Option<IdentifierPath> {
-    match expression {
-        Expression::Name(path) => Some(path.clone()),
-        Expression::Member(member) => {
-            let MemberExpression { receiver, member } = member.as_ref();
-            let mut path = expression_to_identifier_path(receiver)?;
-            path.push(member.clone());
+fn expression_handle_to_identifier_path(
+    syntax_trees: &SyntaxTrees,
+    expression: ExpressionHandle,
+) -> Option<IdentifierPath> {
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::Name(path) => Some(IdentifierPath::from(
+            syntax_trees.expressions.identifier_path_members(*path).to_vec(),
+        )),
+        ExpressionNode::Member(member) => {
+            let mut path = expression_handle_to_identifier_path(syntax_trees, member.receiver)?;
+            path.push(member.member.clone());
             Some(path)
         }
         _ => None,
+    }
+}
+
+fn copy_identifier_path_to_statement_table(
+    syntax_trees: &mut SyntaxTrees,
+    path: &IdentifierPath,
+) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for member in path.iter() {
+        let handle = syntax_trees
+            .statements
+            .append_identifier_path_member(member.clone());
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition target path span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
+    }
+}
+
+fn copy_expression_handles_to_statement_table(
+    syntax_trees: &mut SyntaxTrees,
+    arguments: HandleSpan<ExpressionHandle>,
+) -> HandleSpan<ExpressionHandle> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for argument in syntax_trees.expressions.expression_handles(arguments) {
+        let handle = syntax_trees.statements.append_expression_handle(*argument);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("transition target argument span count overflow");
+    }
+
+    if count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(start, count)
     }
 }

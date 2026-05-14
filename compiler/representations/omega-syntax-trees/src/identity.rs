@@ -3,8 +3,8 @@ use crate::identifier::{Identifier, IdentifierPath};
 use crate::item::{
     CapabilityContractKind, CapabilityMember, Item, TargetHostSettingValue, TrustLevel,
 };
-use crate::statement::{Statement, TransitionGuard, TransitionTarget};
 use crate::types::{TypeConstraint, TypeReference};
+use crate::SyntaxTrees;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AstIdentityStorageCounts {
@@ -24,17 +24,17 @@ impl AstIdentityStorageCounts {
     }
 }
 
-pub fn count_ast_identity_storage(items: &[Item]) -> AstIdentityStorageCounts {
+pub fn count_ast_identity_storage(syntax_trees: &SyntaxTrees) -> AstIdentityStorageCounts {
     let mut counts = AstIdentityStorageCounts::default();
 
-    for item in items {
-        count_item(item, &mut counts);
+    for item in syntax_trees.root_items() {
+        count_item(syntax_trees, item, &mut counts);
     }
 
     counts
 }
 
-fn count_item(item: &Item, counts: &mut AstIdentityStorageCounts) {
+fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityStorageCounts) {
     match item {
         Item::Capability(capability) => {
             count_identifier(&capability.name, counts);
@@ -112,8 +112,8 @@ fn count_item(item: &Item, counts: &mut AstIdentityStorageCounts) {
                 if let Some(return_type) = &state.return_type {
                     count_type_reference(return_type, counts);
                 }
-                for statement in &state.statements {
-                    count_statement(statement, counts);
+                for statement in syntax_trees.items.statements(state.statements) {
+                    count_statement_node(syntax_trees, *statement, counts);
                 }
             }
         }
@@ -142,6 +142,47 @@ fn count_item(item: &Item, counts: &mut AstIdentityStorageCounts) {
     }
 }
 
+fn count_statement_node(
+    syntax_trees: &SyntaxTrees,
+    statement: crate::statement::StatementHandle,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    match syntax_trees.statements.statement(statement) {
+        crate::statement::StatementNode::Assignment(assignment) => {
+            count_expression_handle(syntax_trees, assignment.target, counts);
+            count_expression_handle(syntax_trees, assignment.value, counts);
+        }
+        crate::statement::StatementNode::Call(call) => {
+            for member in syntax_trees.statements.identifier_path_members(call.receiver) {
+                count_identifier(member, counts);
+            }
+            count_identifier(&call.target, counts);
+            for argument in syntax_trees.statements.expression_handles(call.arguments) {
+                count_expression_handle(syntax_trees, *argument, counts);
+            }
+        }
+        crate::statement::StatementNode::Expression(expression) => {
+            count_expression_handle(syntax_trees, *expression, counts)
+        }
+        crate::statement::StatementNode::LocalData(local_data) => {
+            count_identifier(&local_data.name, counts);
+            count_type_reference_handle(syntax_trees, local_data.type_reference, counts);
+            if local_data.initial_value.is_valid() {
+                count_expression_handle(syntax_trees, local_data.initial_value, counts);
+            }
+        }
+        crate::statement::StatementNode::Transition(transition) => {
+            count_transition_target_node(syntax_trees, transition.target, counts);
+            if transition.continuation.is_valid() {
+                count_transition_target_node(syntax_trees, transition.continuation, counts);
+            }
+            if let crate::statement::TransitionGuardNode::When(expression) = transition.guard {
+                count_expression_handle(syntax_trees, expression, counts);
+            }
+        }
+    }
+}
+
 fn count_state_signature(
     signature: &crate::item::StateSignature,
     counts: &mut AstIdentityStorageCounts,
@@ -161,56 +202,6 @@ fn count_state_parameter(
 ) {
     count_identifier(&parameter.name, counts);
     count_type_reference(&parameter.type_reference, counts);
-}
-
-fn count_statement(statement: &Statement, counts: &mut AstIdentityStorageCounts) {
-    match statement {
-        Statement::Assignment(assignment) => {
-            count_expression(&assignment.target, counts);
-            count_expression(&assignment.value, counts);
-        }
-        Statement::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                for member in receiver.iter() {
-                    count_identifier(member, counts);
-                }
-            }
-            count_identifier(&call.target, counts);
-            for argument in &call.arguments {
-                count_expression(argument, counts);
-            }
-        }
-        Statement::Expression(expression) => count_expression(expression, counts),
-        Statement::LocalData(local_data) => {
-            count_identifier(&local_data.name, counts);
-            count_type_reference(&local_data.type_reference, counts);
-            if let Some(initial_value) = &local_data.initial_value {
-                count_expression(initial_value, counts);
-            }
-        }
-        Statement::Transition(transition) => {
-            count_transition_target(&transition.target, counts);
-            if let Some(continuation) = &transition.continuation {
-                count_transition_target(continuation, counts);
-            }
-            if let TransitionGuard::When(expression) = &transition.guard {
-                count_expression(expression, counts);
-            }
-        }
-    }
-}
-
-fn count_transition_target(target: &TransitionTarget, counts: &mut AstIdentityStorageCounts) {
-    match target {
-        TransitionTarget::Named { path, arguments } => {
-            count_identifier_path(path, counts);
-            for argument in arguments {
-                count_expression(argument, counts);
-            }
-        }
-        TransitionTarget::Value(expression) => count_expression(expression, counts),
-        TransitionTarget::SelfTarget | TransitionTarget::Terminal => {}
-    }
 }
 
 fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCounts) {
@@ -267,6 +258,65 @@ fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCoun
     }
 }
 
+fn count_expression_handle(
+    syntax_trees: &SyntaxTrees,
+    expression: crate::expression::ExpressionHandle,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    match syntax_trees.expressions.expression(expression) {
+        crate::expression::ExpressionNode::ArrayLiteral(values) => {
+            for value in syntax_trees.expressions.expression_handles(*values) {
+                count_expression_handle(syntax_trees, *value, counts);
+            }
+        }
+        crate::expression::ExpressionNode::Binary(binary) => {
+            count_expression_handle(syntax_trees, binary.left, counts);
+            count_expression_handle(syntax_trees, binary.right, counts);
+        }
+        crate::expression::ExpressionNode::Boolean(_) | crate::expression::ExpressionNode::Integer(_) => {}
+        crate::expression::ExpressionNode::Cast(cast) => {
+            count_expression_handle(syntax_trees, cast.value, counts);
+            for member in syntax_trees.expressions.identifier_path_members(cast.target_type) {
+                count_identifier(member, counts);
+            }
+        }
+        crate::expression::ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                count_expression_handle(syntax_trees, call.receiver, counts);
+            }
+            count_identifier(&call.target, counts);
+            for argument in syntax_trees.expressions.expression_handles(call.arguments) {
+                count_expression_handle(syntax_trees, *argument, counts);
+            }
+        }
+        crate::expression::ExpressionNode::Float(value) => count_source_text_float(value, counts),
+        crate::expression::ExpressionNode::Indexed(indexed) => {
+            count_expression_handle(syntax_trees, indexed.collection, counts);
+            count_expression_handle(syntax_trees, indexed.index, counts);
+        }
+        crate::expression::ExpressionNode::Member(member) => {
+            count_expression_handle(syntax_trees, member.receiver, counts);
+            count_identifier(&member.member, counts);
+        }
+        crate::expression::ExpressionNode::Mutable(expression) => {
+            count_expression_handle(syntax_trees, *expression, counts)
+        }
+        crate::expression::ExpressionNode::Name(path) => {
+            for member in syntax_trees.expressions.identifier_path_members(*path) {
+                count_identifier(member, counts);
+            }
+        }
+        crate::expression::ExpressionNode::StructLiteral(struct_literal) => {
+            count_identifier(&struct_literal.type_name, counts);
+            for field in syntax_trees.expressions.struct_fields(struct_literal.fields) {
+                count_identifier(&field.name, counts);
+                count_expression_handle(syntax_trees, field.value, counts);
+            }
+        }
+        crate::expression::ExpressionNode::String(_) => counts.string_literals += 1,
+    }
+}
+
 fn count_type_reference(type_reference: &TypeReference, counts: &mut AstIdentityStorageCounts) {
     match type_reference {
         TypeReference::Reference { referee, .. } => {
@@ -301,6 +351,64 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut AstIdentity
     }
 }
 
+fn count_source_text_float(
+    value: &omega_core::source::SourceText,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    counts.float_literals += 1;
+    if value.is_source_backed() {
+        counts.source_float_literals += 1;
+    } else {
+        counts.generated_float_literals += 1;
+    }
+}
+
+fn count_type_reference_handle(
+    syntax_trees: &SyntaxTrees,
+    type_reference: crate::types::TypeReferenceHandle,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    match syntax_trees.type_references.type_reference(type_reference) {
+        crate::types::TypeReferenceNode::Reference {
+            referee,
+            is_mutable: _,
+        } => count_type_reference_handle(syntax_trees, *referee, counts),
+        crate::types::TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            count_type_reference_handle(syntax_trees, *base_type, counts);
+            for constraint in syntax_trees.type_references.constraints(*constraints) {
+                match constraint {
+                    crate::types::TypeConstraintNode::Named(name) => count_identifier(name, counts),
+                    crate::types::TypeConstraintNode::Range { minimum, maximum } => {
+                        count_expression_handle(syntax_trees, *minimum, counts);
+                        count_expression_handle(syntax_trees, *maximum, counts);
+                    }
+                }
+            }
+        }
+        crate::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: _,
+        }
+        | crate::types::TypeReferenceNode::Slice { element_type } => {
+            count_type_reference_handle(syntax_trees, *element_type, counts)
+        }
+        crate::types::TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
+            count_identifier(base_name, counts);
+            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+                count_type_reference_handle(syntax_trees, *argument, counts);
+            }
+        }
+        crate::types::TypeReferenceNode::Named(name) => count_identifier(name, counts),
+        crate::types::TypeReferenceNode::Unit => {}
+    }
+}
+
 fn count_type_constraint(constraint: &TypeConstraint, counts: &mut AstIdentityStorageCounts) {
     match constraint {
         TypeConstraint::Named(name) => count_identifier(name, counts),
@@ -308,6 +416,28 @@ fn count_type_constraint(constraint: &TypeConstraint, counts: &mut AstIdentitySt
             count_expression(minimum, counts);
             count_expression(maximum, counts);
         }
+    }
+}
+
+fn count_transition_target_node(
+    syntax_trees: &SyntaxTrees,
+    target: crate::statement::TransitionTargetHandle,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    match syntax_trees.statements.transition_target(target) {
+        crate::statement::TransitionTargetNode::Named { path, arguments } => {
+            for member in syntax_trees.statements.identifier_path_members(*path) {
+                count_identifier(member, counts);
+            }
+            for argument in syntax_trees.statements.expression_handles(*arguments) {
+                count_expression_handle(syntax_trees, *argument, counts);
+            }
+        }
+        crate::statement::TransitionTargetNode::Value(expression) => {
+            count_expression_handle(syntax_trees, *expression, counts)
+        }
+        crate::statement::TransitionTargetNode::SelfTarget
+        | crate::statement::TransitionTargetNode::Terminal => {}
     }
 }
 

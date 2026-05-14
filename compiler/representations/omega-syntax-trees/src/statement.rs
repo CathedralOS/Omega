@@ -79,6 +79,24 @@ impl StatementTable {
         self.statements.append(statement)
     }
 
+    pub fn append_expression_handle(
+        &mut self,
+        expression: crate::expression::ExpressionHandle,
+    ) -> Handle<crate::expression::ExpressionHandle> {
+        self.expression_handles.append(expression)
+    }
+
+    pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
+        self.identifier_path_members.append(member)
+    }
+
+    pub fn insert_transition_target(
+        &mut self,
+        target: TransitionTargetNode,
+    ) -> TransitionTargetHandle {
+        self.transition_targets.insert(target)
+    }
+
     pub fn statement(&self, handle: StatementHandle) -> &StatementNode {
         self.statements.get(handle)
     }

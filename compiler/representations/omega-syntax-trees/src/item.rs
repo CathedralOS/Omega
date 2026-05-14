@@ -192,7 +192,7 @@ pub struct State {
     pub name: Identifier,
     pub parameters: Vec<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
-    pub statements: Vec<crate::statement::Statement>,
+    pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,6 +284,13 @@ impl ItemTable {
         self.statement_handles.span_or_empty(span)
     }
 
+    pub fn append_statement_handle(
+        &mut self,
+        handle: crate::statement::StatementHandle,
+    ) -> Handle<crate::statement::StatementHandle> {
+        self.statement_handles.append(handle)
+    }
+
     pub fn state_parameter_count(&self) -> usize {
         self.state_parameters.len()
     }
@@ -327,7 +334,7 @@ impl ItemTable {
     pub fn insert_state_tree(
         &mut self,
         state: &State,
-        statements: &mut crate::statement::StatementTable,
+        _statements: &mut crate::statement::StatementTable,
         type_references: &mut crate::types::TypeReferenceTable,
         expressions: &mut crate::expression::ExpressionTable,
     ) -> StateHandle {
@@ -338,17 +345,11 @@ impl ItemTable {
             .as_ref()
             .map(|return_type| type_references.insert_tree(return_type, expressions))
             .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
-        let statements = self.insert_statement_handle_span_from_trees(
-            &state.statements,
-            statements,
-            type_references,
-            expressions,
-        );
         self.states.append(StateNode {
             name: state.name.clone(),
             parameters,
             return_type,
-            statements,
+            statements: state.statements,
         })
     }
 
@@ -446,38 +447,10 @@ impl ItemTable {
         }
     }
 
-    fn insert_statement_handle_span_from_trees(
-        &mut self,
-        statements: &[crate::statement::Statement],
-        statement_table: &mut crate::statement::StatementTable,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<crate::statement::StatementHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for statement in statements {
-            let handle = statement_table.insert_tree(statement, expressions, type_references);
-            let handle = self.statement_handles.append(handle);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("statement handle span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
     fn insert_state_span_from_trees(
         &mut self,
         states: &[State],
-        statement_table: &mut crate::statement::StatementTable,
+        _statement_table: &mut crate::statement::StatementTable,
         type_references: &mut crate::types::TypeReferenceTable,
         expressions: &mut crate::expression::ExpressionTable,
     ) -> HandleSpan<StateNode> {
@@ -495,17 +468,11 @@ impl ItemTable {
                 .as_ref()
                 .map(|return_type| type_references.insert_tree(return_type, expressions))
                 .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
-            let statements = self.insert_statement_handle_span_from_trees(
-                &state.statements,
-                statement_table,
-                type_references,
-                expressions,
-            );
             let handle = self.states.append(StateNode {
                 name: state.name.clone(),
                 parameters,
                 return_type,
-                statements,
+                statements: state.statements,
             });
             if count == 0 {
                 start = handle;

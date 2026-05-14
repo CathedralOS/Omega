@@ -1,11 +1,13 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{parse_path, Input, ParseResult};
 use crate::parser::state::{parse_optional_return_type, parse_state};
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::Machine;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_machine<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
     let (path, input) = parse_path(input)?;
@@ -19,22 +21,22 @@ pub(super) fn parse_machine<'tokens, 'source>(
         if input.at_keyword(KeywordKind::Pub) {
             let input2 = input.take_keyword(KeywordKind::Pub, "pub")?;
             let input2 = input2.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(input2, StateKind::Entry)?;
+            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Entry)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Entry) {
             let input2 = input.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(input2, StateKind::Entry)?;
+            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Entry)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
-            let (state, rest) = parse_state(input2, StateKind::State)?;
+            let (state, rest) = parse_state(syntax_trees, input2, StateKind::State)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Fn) {
             let input2 = input.take_keyword(KeywordKind::Fn, "fn")?;
-            let (state, rest) = parse_state(input2, StateKind::Function)?;
+            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Function)?;
             states.push(state);
             input = rest;
         } else if input.at_keyword(KeywordKind::Invariant) {

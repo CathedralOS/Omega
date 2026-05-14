@@ -1,11 +1,13 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::statement::parse_statement;
-use crate::parser::transition::{parse_transition_block, parse_transition_statement};
+use crate::parser::statement::parse_statement_handle;
+use crate::parser::transition::{parse_transition_block_handles, parse_transition_statement_handle};
 use crate::parser::type_reference::{parse_type_reference, parse_type_reference_allowing_borrow};
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{State, StateParameter, StateSignature};
 use omega_syntax_trees::types::TypeReference;
+use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_state_signature<'tokens, 'source>(
@@ -26,6 +28,7 @@ pub(super) fn parse_state_signature<'tokens, 'source>(
 }
 
 pub(super) fn parse_state<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     kind: StateKind,
 ) -> ParseResult<'tokens, 'source, State> {
@@ -38,13 +41,20 @@ pub(super) fn parse_state<'tokens, 'source>(
     let (parameters, input) = parse_optional_state_parameters(input)?;
     let (return_type, mut input) = parse_optional_return_type(input)?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut statements = Vec::new();
+    let mut statement_start = Handle::invalid();
+    let mut statement_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_punctuation(PunctuationKind::Arrow) {
             let next = input.take_punctuation(PunctuationKind::Arrow, "->")?;
-            let (statement, rest) = parse_transition_statement(next)?;
-            statements.push(statement);
+            let (statement, rest) = parse_transition_statement_handle(syntax_trees, next)?;
+            let handle = syntax_trees.items.append_statement_handle(statement);
+            if statement_count == 0 {
+                statement_start = handle;
+            }
+            statement_count = statement_count
+                .checked_add(1)
+                .expect("state statement span count overflow");
             input = rest;
         } else if input.at_keyword(KeywordKind::Transition) || input.at_keyword(KeywordKind::Match)
         {
@@ -53,17 +63,35 @@ pub(super) fn parse_state<'tokens, 'source>(
             } else {
                 input.take_keyword(KeywordKind::Match, "match")?
             };
-            let (new_statements, rest) = parse_transition_block(next)?;
-            statements.extend(new_statements);
+            let (new_statements, rest) = parse_transition_block_handles(syntax_trees, next)?;
+            if !new_statements.is_empty() {
+                if statement_count == 0 {
+                    statement_start = new_statements.start();
+                }
+                statement_count = statement_count
+                    .checked_add(new_statements.count())
+                    .expect("state statement span count overflow");
+            }
             input = rest;
         } else {
-            let (statement, rest) = parse_statement(input)?;
-            statements.push(statement);
+            let (statement, rest) = parse_statement_handle(syntax_trees, input)?;
+            let handle = syntax_trees.items.append_statement_handle(statement);
+            if statement_count == 0 {
+                statement_start = handle;
+            }
+            statement_count = statement_count
+                .checked_add(1)
+                .expect("state statement span count overflow");
             input = rest;
         }
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let statements = if statement_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(statement_start, statement_count)
+    };
     Ok((
         State {
             name,
