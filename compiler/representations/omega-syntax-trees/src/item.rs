@@ -110,7 +110,7 @@ pub struct CapabilityField {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityState {
     pub signature: StateSignature,
-    pub contracts: Vec<CapabilityContract>,
+    pub contracts: HandleSpan<CapabilityContract>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,11 +119,26 @@ pub struct CapabilityContract {
     pub token_count: usize,
 }
 
+impl Default for CapabilityContract {
+    fn default() -> Self {
+        Self {
+            kind: CapabilityContractKind::default(),
+            token_count: 0,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CapabilityContractKind {
     Ensures,
     Requires,
     Trusted(TrustLevel),
+}
+
+impl Default for CapabilityContractKind {
+    fn default() -> Self {
+        Self::Requires
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -279,6 +294,7 @@ pub struct ItemTable {
     type_parameters: Arena<TypeParameter>,
     library_functions: Arena<LibraryFunction>,
     capability_members: Arena<CapabilityMember>,
+    capability_contracts: Arena<CapabilityContract>,
     data_members: Arena<DataMember>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
@@ -299,6 +315,7 @@ impl ItemTable {
             type_parameters: Arena::new(),
             library_functions: Arena::new(),
             capability_members: Arena::new(),
+            capability_contracts: Arena::new(),
             data_members: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),
@@ -335,6 +352,13 @@ impl ItemTable {
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
         self.capability_members.span_or_empty(span)
+    }
+
+    pub fn capability_contracts(
+        &self,
+        span: HandleSpan<CapabilityContract>,
+    ) -> &[CapabilityContract] {
+        self.capability_contracts.span_or_empty(span)
     }
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
@@ -450,6 +474,13 @@ impl ItemTable {
         member: CapabilityMember,
     ) -> Handle<CapabilityMember> {
         self.capability_members.append(member)
+    }
+
+    pub fn append_capability_contract(
+        &mut self,
+        contract: CapabilityContract,
+    ) -> Handle<CapabilityContract> {
+        self.capability_contracts.append(contract)
     }
 
     pub fn append_data_member(&mut self, member: DataMember) -> Handle<DataMember> {
