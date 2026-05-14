@@ -34,7 +34,8 @@ pub fn parse_syntax_trees_with_id(
     tokens: &[Token<'_>],
 ) -> Result<SyntaxTrees, ParseError> {
     let input = Input::new(source_id, tokens);
-    let (items, rest) = parse_file(input)?;
+    let mut syntax_trees = SyntaxTrees::new(source_id);
+    let ((), rest) = parse_file(&mut syntax_trees, input)?;
 
     if let Some(token) = rest.tokens.first() {
         return Err(ParseError::at_source_span(
@@ -43,7 +44,7 @@ pub fn parse_syntax_trees_with_id(
         ));
     }
 
-    Ok(SyntaxTrees::from_items(source_id, items))
+    Ok(syntax_trees)
 }
 
 #[cfg(test)]
@@ -64,7 +65,7 @@ mod tests {
 
         let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        assert_eq!(parsed.items.len(), 1);
+        assert_eq!(parsed.root_item_count(), 1);
     }
 
     #[test]
@@ -85,6 +86,6 @@ mod tests {
 
         let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-        assert_eq!(parsed.items.len(), 1);
+        assert_eq!(parsed.root_item_count(), 1);
     }
 }

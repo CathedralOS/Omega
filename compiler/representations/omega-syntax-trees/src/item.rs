@@ -1,6 +1,7 @@
 use crate::identifier::{Identifier, IdentifierPath};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
+pub type ItemHandle = Handle<Item>;
 pub type StateParameterHandle = Handle<StateParameterNode>;
 pub type StateSignatureHandle = Handle<StateSignatureNode>;
 pub type StateHandle = Handle<StateNode>;
@@ -20,9 +21,23 @@ pub enum Item {
     Target(TargetDefinition),
 }
 
+impl Default for Item {
+    fn default() -> Self {
+        Self::Use(UseItem::default())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseItem {
     pub path: IdentifierPath,
+}
+
+impl Default for UseItem {
+    fn default() -> Self {
+        Self {
+            path: IdentifierPath::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

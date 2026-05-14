@@ -117,7 +117,7 @@ fn validate_selected_target(
     };
 
     let target_found = source_storage.files.iter().any(|(_, file)| {
-        file.syntax_trees.items.iter().any(|item| {
+        file.syntax_trees.root_items().any(|item| {
             matches!(
                 item,
                 omega_syntax_trees::item::Item::Target(target) if target.name.as_str() == target_name
@@ -152,14 +152,16 @@ struct EmittedProgram {
 }
 
 fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {
-    let mut items = Vec::new();
+    let mut syntax_trees = SyntaxTrees::new(Default::default());
 
     for (_, file) in _sources.files.iter() {
-        items.extend(file.syntax_trees.items.clone());
+        for item in file.syntax_trees.root_items() {
+            syntax_trees.push_root_item(item.clone());
+        }
     }
 
     Ok(AssembledSyntax {
-        syntax_trees: SyntaxTrees::from_items(Default::default(), items),
+        syntax_trees,
     })
 }
 
