@@ -60,6 +60,54 @@ impl TypeReferenceTable {
         self.insert(TypeReferenceNode::Unit)
     }
 
+    pub fn insert_reference(
+        &mut self,
+        referee: TypeReferenceHandle,
+        is_mutable: bool,
+    ) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+        })
+    }
+
+    pub fn insert_constrained(
+        &mut self,
+        base_type: TypeReferenceHandle,
+        constraints: HandleSpan<TypeConstraintNode>,
+    ) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        })
+    }
+
+    pub fn insert_fixed_array(
+        &mut self,
+        element_type: TypeReferenceHandle,
+        length: usize,
+    ) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        })
+    }
+
+    pub fn insert_slice(&mut self, element_type: TypeReferenceHandle) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Slice { element_type })
+    }
+
+    pub fn insert_generic(
+        &mut self,
+        base_name: Identifier,
+        arguments: HandleSpan<TypeReferenceHandle>,
+    ) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        })
+    }
+
     pub fn insert_type_reference_handles(
         &mut self,
         type_references: impl IntoIterator<Item = TypeReferenceHandle>,
@@ -88,59 +136,6 @@ impl TypeReferenceTable {
         self.constraints.append(constraint)
     }
 
-    fn insert_type_reference_handle_span_from_trees<'type_reference>(
-        &mut self,
-        type_references: impl IntoIterator<Item = &'type_reference TypeReference>,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<TypeReferenceHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for type_reference in type_references {
-            let type_reference = self.insert_tree(type_reference, expressions);
-            let handle = self.type_reference_handles.append(type_reference);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type reference handle span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_constraint_span_from_tree(
-        &mut self,
-        constraints: &[TypeConstraint],
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<TypeConstraintNode> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for constraint in constraints {
-            let handle = self
-                .constraints
-                .append(TypeConstraintNode::from_tree(constraint, expressions));
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type constraint span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
         self.type_references.get(handle)
     }
@@ -162,63 +157,6 @@ impl TypeReferenceTable {
 
     pub fn constraint_count(&self) -> usize {
         self.constraints.len()
-    }
-
-    pub fn insert_tree(
-        &mut self,
-        type_reference: &TypeReference,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> TypeReferenceHandle {
-        match type_reference {
-            TypeReference::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let referee = self.insert_tree(referee, expressions);
-                self.insert(TypeReferenceNode::Reference {
-                    referee,
-                    is_mutable: *is_mutable,
-                })
-            }
-            TypeReference::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let base_type = self.insert_tree(base_type, expressions);
-                let constraints = self.insert_constraint_span_from_tree(constraints, expressions);
-                self.insert(TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                })
-            }
-            TypeReference::FixedArray {
-                element_type,
-                length,
-            } => {
-                let element_type = self.insert_tree(element_type, expressions);
-                self.insert(TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: *length,
-                })
-            }
-            TypeReference::Slice { element_type } => {
-                let element_type = self.insert_tree(element_type, expressions);
-                self.insert(TypeReferenceNode::Slice { element_type })
-            }
-            TypeReference::Generic {
-                base_name,
-                arguments,
-            } => {
-                let arguments =
-                    self.insert_type_reference_handle_span_from_trees(arguments, expressions);
-                self.insert(TypeReferenceNode::Generic {
-                    base_name: base_name.clone(),
-                    arguments,
-                })
-            }
-            TypeReference::Named(name) => self.insert(TypeReferenceNode::Named(name.clone())),
-            TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
-        }
     }
 }
 
@@ -277,21 +215,6 @@ pub enum TypeConstraintNode {
     },
 }
 
-impl TypeConstraintNode {
-    fn from_tree(
-        constraint: &TypeConstraint,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> Self {
-        match constraint {
-            TypeConstraint::Named(name) => Self::Named(name.clone()),
-            TypeConstraint::Range { minimum, maximum } => Self::Range {
-                minimum: expressions.insert_tree(minimum),
-                maximum: expressions.insert_tree(maximum),
-            },
-        }
-    }
-}
-
 impl Default for TypeConstraintNode {
     fn default() -> Self {
         Self::Named(Identifier::generated(""))
@@ -320,28 +243,19 @@ impl TypeReference {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
-    };
+    use super::{TypeConstraintNode, TypeReferenceNode, TypeReferenceTable};
     use crate::expression::{Expression, ExpressionTable};
     use crate::identifier::Identifier;
+    use omega_core::arena::HandleSpan;
 
     #[test]
     fn type_reference_table_stores_nested_references_as_handles() {
-        let type_reference = TypeReference::Generic {
-            base_name: Identifier::generated("Result"),
-            arguments: vec![
-                TypeReference::named("usize"),
-                TypeReference::FixedArray {
-                    element_type: Box::new(TypeReference::named("u8")),
-                    length: 16,
-                },
-            ],
-        };
-
-        let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions);
+        let usize_handle = types.insert_named(Identifier::generated("usize"));
+        let u8_handle = types.insert_named(Identifier::generated("u8"));
+        let fixed_array_handle = types.insert_fixed_array(u8_handle, 16);
+        let arguments = types.insert_type_reference_handles([usize_handle, fixed_array_handle]);
+        let root = types.insert_generic(Identifier::generated("Result"), arguments);
 
         assert_eq!(types.type_reference_count(), 4);
         let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
@@ -353,17 +267,13 @@ mod tests {
 
     #[test]
     fn type_reference_table_stores_constraint_bounds_as_expression_handles() {
-        let type_reference = TypeReference::Constrained {
-            base_type: Box::new(TypeReference::named("i32")),
-            constraints: vec![TypeConstraint::Range {
-                minimum: Expression::Integer(0),
-                maximum: Expression::Integer(10),
-            }],
-        };
-
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions);
+        let base_type = types.insert_named(Identifier::generated("i32"));
+        let minimum = expressions.insert_tree(&Expression::Integer(0));
+        let maximum = expressions.insert_tree(&Expression::Integer(10));
+        let constraint = types.append_constraint(TypeConstraintNode::Range { minimum, maximum });
+        let root = types.insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
 
         assert_eq!(types.type_reference_count(), 2);
         assert_eq!(expressions.expression_count(), 2);
