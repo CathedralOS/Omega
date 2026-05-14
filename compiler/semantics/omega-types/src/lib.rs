@@ -4,11 +4,10 @@
 //! ownership, borrow, and proof-aware type solving can grow here without living
 //! inside the compiler orchestration crate.
 
-use omega_syntax_trees::item::{
-    CapabilityMember, DataMember, Item, Machine, State, StateParameter, StateSignature,
-};
-use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 use omega_core::arena::Arena;
+use omega_syntax_trees::item::{CapabilityMember, DataMember, Item};
+use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_syntax_trees::SyntaxTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeSurfaceReport {
@@ -54,10 +53,10 @@ pub enum TypeReferenceUseKind {
     Unknown,
 }
 
-pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
+pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceReport {
     let mut report = TypeSurfaceReport::default();
 
-    for item in items {
+    for item in syntax_trees.root_items() {
         match item {
             Item::Capability(capability) => {
                 insert_declaration(
@@ -66,12 +65,13 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                     TypeDeclarationKind::Capability,
                 );
 
-                for member in &capability.members {
+                for member in syntax_trees.items.capability_members(capability.members) {
                     match member {
                         CapabilityMember::Field(field) => {
                             collect_type_reference(
                                 &mut report,
-                                &field.type_reference,
+                                syntax_trees,
+                                field.type_reference,
                                 TypeReferenceUseKind::Storage,
                                 &format!("capability `{}` field `{}`", capability.name, field.name),
                             );
@@ -79,6 +79,7 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                         CapabilityMember::State(state) => {
                             collect_state_signature(
                                 &mut report,
+                                syntax_trees,
                                 &state.signature,
                                 &format!(
                                     "capability `{}` state `{}`",
@@ -96,11 +97,12 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                     TypeDeclarationKind::Data,
                 );
 
-                for member in &data_definition.members {
+                for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {
                         collect_type_reference(
                             &mut report,
-                            &field.type_reference,
+                            syntax_trees,
+                            field.type_reference,
                             TypeReferenceUseKind::Storage,
                             &format!("data `{}` field `{}`", data_definition.name, field.name),
                         );
@@ -109,10 +111,10 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
             }
             Item::Invariant(invariant) => {
                 insert_declaration(&mut report, &invariant.name, TypeDeclarationKind::Invariant);
-
                 collect_constraints(
                     &mut report,
-                    &invariant.constraints,
+                    syntax_trees,
+                    invariant.constraints,
                     &format!("invariant `{}`", invariant.name),
                 );
             }
@@ -121,9 +123,10 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                     insert_declaration(&mut report, name, TypeDeclarationKind::Library);
                 }
 
-                for function in &library.functions {
+                for function in syntax_trees.items.library_functions(library.functions) {
                     collect_state_signature(
                         &mut report,
+                        syntax_trees,
                         &function.signature,
                         &format!(
                             "library `{}` function `{}`",
@@ -138,15 +141,21 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
                 }
             }
             Item::Use(_) => {}
-            Item::Machine(machine) => collect_machine(&mut report, machine),
+            Item::Machine(machine) => collect_machine(&mut report, syntax_trees, machine),
             Item::Platform(platform) => {
                 insert_declaration(&mut report, &platform.name, TypeDeclarationKind::Platform);
 
-                for state in &platform.states {
+                for state in syntax_trees.items.state_signatures(platform.states) {
+                    let signature = syntax_trees.items.state_signature(*state);
                     collect_state_signature(
                         &mut report,
-                        state,
-                        &format!("platform `{}` state `{}`", platform.name, state.name),
+                        syntax_trees,
+                        &omega_syntax_trees::item::StateSignature {
+                            name: signature.name.clone(),
+                            parameters: signature.parameters,
+                            return_type: signature.return_type,
+                        },
+                        &format!("platform `{}` state `{}`", platform.name, signature.name),
                     );
                 }
             }
@@ -160,15 +169,25 @@ pub fn build_type_surface_report(items: &[Item]) -> TypeSurfaceReport {
     report
 }
 
-fn collect_machine(report: &mut TypeSurfaceReport, machine: &Machine) {
+fn collect_machine(
+    report: &mut TypeSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    machine: &omega_syntax_trees::item::Machine,
+) {
     insert_declaration(report, &machine.name, TypeDeclarationKind::Machine);
 
-    for state in &machine.states {
-        collect_state(report, machine, state);
+    for state in syntax_trees.items.state_handles(machine.states) {
+        collect_state(report, syntax_trees, machine, *state);
     }
 }
 
-fn collect_state(report: &mut TypeSurfaceReport, machine: &Machine, state: &State) {
+fn collect_state(
+    report: &mut TypeSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    machine: &omega_syntax_trees::item::Machine,
+    state: omega_syntax_trees::item::StateHandle,
+) {
+    let state = syntax_trees.items.state(state);
     insert_declaration(
         report,
         &format!("{}::{}", machine.name, state.name),
@@ -177,34 +196,44 @@ fn collect_state(report: &mut TypeSurfaceReport, machine: &Machine, state: &Stat
 
     collect_state_parts(
         report,
-        &state.parameters,
-        state.return_type.as_ref(),
+        syntax_trees,
+        state.parameters,
+        state.return_type,
         &format!("machine `{}` state `{}`", machine.name, state.name),
     );
 }
 
-fn collect_state_signature(report: &mut TypeSurfaceReport, state: &StateSignature, owner: &str) {
-    collect_state_parts(report, &state.parameters, state.return_type.as_ref(), owner);
+fn collect_state_signature(
+    report: &mut TypeSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    state: &omega_syntax_trees::item::StateSignature,
+    owner: &str,
+) {
+    collect_state_parts(report, syntax_trees, state.parameters, state.return_type, owner);
 }
 
 fn collect_state_parts(
     report: &mut TypeSurfaceReport,
-    parameters: &[StateParameter],
-    return_type: Option<&TypeReference>,
+    syntax_trees: &SyntaxTrees,
+    parameters: omega_core::arena::HandleSpan<omega_syntax_trees::item::StateParameterHandle>,
+    return_type: TypeReferenceHandle,
     owner: &str,
 ) {
-    for parameter in parameters {
+    for parameter in syntax_trees.items.state_parameters(parameters) {
+        let parameter = syntax_trees.items.state_parameter(*parameter);
         collect_type_reference(
             report,
-            &parameter.type_reference,
+            syntax_trees,
+            parameter.type_reference,
             TypeReferenceUseKind::Parameter,
             &format!("{owner} parameter `{}`", parameter.name),
         );
     }
 
-    if let Some(return_type) = return_type {
+    if return_type.is_valid() {
         collect_type_reference(
             report,
+            syntax_trees,
             return_type,
             TypeReferenceUseKind::ReturnType,
             &format!("{owner} return type"),
@@ -214,59 +243,59 @@ fn collect_state_parts(
 
 fn collect_type_reference(
     report: &mut TypeSurfaceReport,
-    type_reference: &TypeReference,
+    syntax_trees: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
     kind: TypeReferenceUseKind,
     owner: &str,
 ) {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => {
-            collect_type_reference(report, referee, kind, owner);
-        }
-        TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => {
-            collect_type_reference(report, base_type, kind, owner);
-            collect_constraints(report, constraints, owner);
-        }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_type_reference(report, element_type, kind, owner);
-        }
-        TypeReference::Slice { element_type } => {
-            collect_type_reference(report, element_type, kind, owner);
-        }
-        TypeReference::Generic {
-            base_name,
-            arguments,
-        } => {
-            insert_reference(report, base_name, kind, owner);
+    if !type_reference.is_valid() {
+        return;
+    }
 
-            for argument in arguments {
-                collect_type_reference(report, argument, kind, owner);
+    match syntax_trees.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_reference(report, syntax_trees, *referee, kind, owner);
+        }
+        TypeReferenceNode::Constrained { base_type, constraints } => {
+            collect_type_reference(report, syntax_trees, *base_type, kind, owner);
+            collect_constraints(report, syntax_trees, *constraints, owner);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_type_reference(report, syntax_trees, *element_type, kind, owner);
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            collect_type_reference(report, syntax_trees, *element_type, kind, owner);
+        }
+        TypeReferenceNode::Generic { base_name, arguments } => {
+            insert_reference(report, base_name.as_str(), kind, owner);
+
+            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+                collect_type_reference(report, syntax_trees, *argument, kind, owner);
             }
         }
-        TypeReference::Named(name) => insert_reference(report, name, kind, owner),
-        TypeReference::Unit => {}
+        TypeReferenceNode::Named(name) => insert_reference(report, name.as_str(), kind, owner),
+        TypeReferenceNode::Unit => {}
     }
 }
 
 fn collect_constraints(
     report: &mut TypeSurfaceReport,
-    constraints: &[TypeConstraint],
+    syntax_trees: &SyntaxTrees,
+    constraints: omega_core::arena::HandleSpan<TypeConstraintNode>,
     owner: &str,
 ) {
-    for constraint in constraints {
+    for constraint in syntax_trees.type_references.constraints(constraints) {
         match constraint {
-            TypeConstraint::Named(name) => {
-                insert_reference(report, name, TypeReferenceUseKind::Constraint, owner);
+            TypeConstraintNode::Named(name) => {
+                insert_reference(report, name.as_str(), TypeReferenceUseKind::Constraint, owner);
             }
-            TypeConstraint::Range { minimum, maximum } => {
+            TypeConstraintNode::Range { minimum, maximum } => {
                 insert_reference(
                     report,
                     &format!(
                         "range<{}, {}>",
-                        minimum.display_name(),
-                        maximum.display_name()
+                        syntax_trees.expressions.display_name(*minimum),
+                        syntax_trees.expressions.display_name(*maximum),
                     ),
                     TypeReferenceUseKind::RangeConstraint,
                     owner,
@@ -298,40 +327,68 @@ fn insert_reference(
 
 #[cfg(test)]
 mod tests {
-    use omega_syntax_trees::identifier::Identifier;
-    use omega_syntax_trees::item::{Item, Machine, State, StateParameter};
-    use omega_syntax_trees::types::{TypeConstraint, TypeReference};
-
     use super::{TypeDeclarationKind, TypeReferenceUseKind, build_type_surface_report};
+    use omega_core::arena::HandleSpan;
+    use omega_syntax_trees::identifier::Identifier;
+    use omega_syntax_trees::item::{Item, Machine, State, StateParameterNode};
+    use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
+    use omega_syntax_trees::SyntaxTrees;
 
     #[test]
     fn collects_state_signatures_and_constraints() {
-        let report = build_type_surface_report(&[Item::Machine(Machine {
-            name: Identifier::generated("main"),
-            states: vec![State {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+
+        let base_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("f32")));
+        let minimum = syntax_trees.expressions.insert(omega_syntax_trees::expression::ExpressionNode::Integer(0));
+        let maximum = syntax_trees.expressions.insert(omega_syntax_trees::expression::ExpressionNode::Integer(100000));
+        let finite = syntax_trees
+            .type_references
+            .append_constraint(TypeConstraintNode::Named(Identifier::generated("finite")));
+        let range = syntax_trees
+            .type_references
+            .append_constraint(TypeConstraintNode::Range { minimum, maximum });
+        let parameter_type = syntax_trees.type_references.insert(TypeReferenceNode::Constrained {
+            base_type,
+            constraints: HandleSpan::from_parts(finite, 2),
+        });
+        let return_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+
+        let parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("value"),
+                type_reference: parameter_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
+
+        let state = syntax_trees.items.insert_state_tree(
+            &State {
                 name: Identifier::generated("entry"),
-                parameters: vec![StateParameter {
-                    name: Identifier::generated("value"),
-                    type_reference: TypeReference::Constrained {
-                        base_type: Box::new(TypeReference::named("f32")),
-                        constraints: vec![
-                            TypeConstraint::Named(Identifier::generated("finite")),
-                            TypeConstraint::Range {
-                                minimum: omega_syntax_trees::expression::Expression::Integer(0),
-                                maximum: omega_syntax_trees::expression::Expression::Integer(
-                                    100000,
-                                ),
-                            },
-                        ],
-                    },
-                    is_const: false,
-                    is_mutable: false,
-                    is_self: false,
-                }],
-                return_type: Some(TypeReference::named("i32")),
-                statements: Vec::new(),
-            }],
-        })]);
+                parameters: HandleSpan::from_parts(parameter, 1),
+                return_type,
+                statements: HandleSpan::empty(),
+            },
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let state = syntax_trees.items.append_state_handle(state);
+
+        syntax_trees.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("main"),
+            states: HandleSpan::from_parts(state, 1),
+        }));
+
+        let report = build_type_surface_report(&syntax_trees);
+
+        let _ = range;
 
         assert!(
             report.declarations.iter().any(|(_, declaration)| {
