@@ -1,0 +1,1013 @@
+use crate::expression::{
+    BinaryOperator, ExpressionNode, TableCallExpression, TableStructLiteralField,
+};
+use crate::identifier::Identifier;
+use crate::item::{
+    CapabilityContractKind, CapabilityMember, DataMember, Item, LibraryFunction,
+    StateParameterNode, StateSignature, TrustLevel,
+};
+use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use crate::syntax_trees::SyntaxTrees;
+use crate::types::{TypeConstraintNode, TypeReferenceNode};
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SyntaxTreesSnapshot {
+    pub source_id: usize,
+    pub root_items: Vec<ItemSnapshot>,
+}
+
+impl SyntaxTreesSnapshot {
+    pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct IdentifierSnapshot {
+    pub text: String,
+    pub source_id: usize,
+    pub start: usize,
+    pub end: usize,
+    pub source_backed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ItemSnapshot {
+    Capability {
+        name: IdentifierSnapshot,
+        members: Vec<CapabilityMemberSnapshot>,
+    },
+    Data {
+        name: IdentifierSnapshot,
+        type_parameters: Vec<TypeParameterSnapshot>,
+        members: Vec<DataMemberSnapshot>,
+    },
+    Invariant {
+        name: IdentifierSnapshot,
+        constraints: Vec<TypeConstraintSnapshot>,
+    },
+    Library {
+        name: Option<IdentifierSnapshot>,
+        path: String,
+        calling_convention: IdentifierSnapshot,
+        functions: Vec<LibraryFunctionSnapshot>,
+    },
+    TrustDefinition {
+        name: IdentifierSnapshot,
+        token_count: usize,
+    },
+    Use {
+        path: Vec<IdentifierSnapshot>,
+    },
+    Machine {
+        name: IdentifierSnapshot,
+        states: Vec<StateSnapshot>,
+    },
+    Platform {
+        name: IdentifierSnapshot,
+        states: Vec<StateSignatureSnapshot>,
+    },
+    Target {
+        name: IdentifierSnapshot,
+        host: Option<TargetHostSnapshot>,
+        trust_policies: Vec<TrustPolicySnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TypeParameterSnapshot {
+    pub name: IdentifierSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DataMemberSnapshot {
+    Field {
+        name: IdentifierSnapshot,
+        type_reference: TypeReferenceSnapshot,
+        initial_value: ExpressionSnapshot,
+    },
+    Variant {
+        name: IdentifierSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CapabilityMemberSnapshot {
+    Field {
+        name: IdentifierSnapshot,
+        type_reference: TypeReferenceSnapshot,
+    },
+    State {
+        signature: StateSignatureSnapshot,
+        contracts: Vec<CapabilityContractSnapshot>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CapabilityContractSnapshot {
+    pub kind: CapabilityContractKindSnapshot,
+    pub token_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CapabilityContractKindSnapshot {
+    Ensures,
+    Requires,
+    Trusted {
+        trust_level: TrustLevelSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct LibraryFunctionSnapshot {
+    pub signature: StateSignatureSnapshot,
+    pub symbol: Option<String>,
+    pub calling_convention: Option<IdentifierSnapshot>,
+    pub trusts: Vec<TrustLevelSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TrustLevelSnapshot {
+    Host,
+    Named {
+        name: IdentifierSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TargetHostSnapshot {
+    pub provider: Vec<IdentifierSnapshot>,
+    pub settings: Vec<TargetHostSettingSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TargetHostSettingSnapshot {
+    pub name: IdentifierSnapshot,
+    pub value: TargetHostSettingValueSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TargetHostSettingValueSnapshot {
+    Call {
+        name: IdentifierSnapshot,
+        argument_tokens: usize,
+    },
+    Named {
+        name: IdentifierSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TrustPolicySnapshot {
+    pub mode: &'static str,
+    pub path: Vec<IdentifierSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StateSnapshot {
+    pub name: IdentifierSnapshot,
+    pub parameters: Vec<StateParameterSnapshot>,
+    pub return_type: TypeReferenceSnapshot,
+    pub statements: Vec<StatementSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StateSignatureSnapshot {
+    pub name: IdentifierSnapshot,
+    pub parameters: Vec<StateParameterSnapshot>,
+    pub return_type: TypeReferenceSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StateParameterSnapshot {
+    pub name: IdentifierSnapshot,
+    pub type_reference: TypeReferenceSnapshot,
+    pub is_const: bool,
+    pub is_mutable: bool,
+    pub is_self: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum StatementSnapshot {
+    Assignment {
+        target: ExpressionSnapshot,
+        value: ExpressionSnapshot,
+    },
+    Call {
+        receiver: Vec<IdentifierSnapshot>,
+        target: IdentifierSnapshot,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+    Expression {
+        value: ExpressionSnapshot,
+    },
+    LocalData {
+        name: IdentifierSnapshot,
+        type_reference: TypeReferenceSnapshot,
+        initial_value: ExpressionSnapshot,
+    },
+    Transition {
+        target: TransitionTargetSnapshot,
+        continuation: Option<TransitionTargetSnapshot>,
+        guard: TransitionGuardSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TransitionGuardSnapshot {
+    Always,
+    When {
+        expression: ExpressionSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TransitionTargetSnapshot {
+    Named {
+        path: Vec<IdentifierSnapshot>,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+    Value {
+        expression: ExpressionSnapshot,
+    },
+    SelfTarget,
+    Terminal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TypeReferenceSnapshot {
+    Reference {
+        referee: Box<TypeReferenceSnapshot>,
+        is_mutable: bool,
+    },
+    Constrained {
+        base_type: Box<TypeReferenceSnapshot>,
+        constraints: Vec<TypeConstraintSnapshot>,
+    },
+    FixedArray {
+        element_type: Box<TypeReferenceSnapshot>,
+        length: usize,
+    },
+    Slice {
+        element_type: Box<TypeReferenceSnapshot>,
+    },
+    Generic {
+        base_name: IdentifierSnapshot,
+        arguments: Vec<TypeReferenceSnapshot>,
+    },
+    Named {
+        name: IdentifierSnapshot,
+    },
+    Unit,
+    Missing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TypeConstraintSnapshot {
+    Named {
+        name: IdentifierSnapshot,
+    },
+    Range {
+        minimum: ExpressionSnapshot,
+        maximum: ExpressionSnapshot,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ExpressionSnapshot {
+    ArrayLiteral {
+        values: Vec<ExpressionSnapshot>,
+    },
+    Binary {
+        left: Box<ExpressionSnapshot>,
+        operator: &'static str,
+        right: Box<ExpressionSnapshot>,
+    },
+    Boolean {
+        value: bool,
+    },
+    Cast {
+        value: Box<ExpressionSnapshot>,
+        target_type: Vec<IdentifierSnapshot>,
+    },
+    Call {
+        receiver: Option<Box<ExpressionSnapshot>>,
+        target: IdentifierSnapshot,
+        arguments: Vec<ExpressionSnapshot>,
+    },
+    Float {
+        text: String,
+    },
+    Indexed {
+        collection: Box<ExpressionSnapshot>,
+        index: Box<ExpressionSnapshot>,
+    },
+    Integer {
+        value: i64,
+    },
+    Member {
+        receiver: Box<ExpressionSnapshot>,
+        member: IdentifierSnapshot,
+    },
+    Mutable {
+        value: Box<ExpressionSnapshot>,
+    },
+    Name {
+        path: Vec<IdentifierSnapshot>,
+    },
+    StructLiteral {
+        type_name: IdentifierSnapshot,
+        fields: Vec<StructLiteralFieldSnapshot>,
+    },
+    String {
+        text: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct StructLiteralFieldSnapshot {
+    pub name: IdentifierSnapshot,
+    pub value: ExpressionSnapshot,
+}
+
+impl SyntaxTrees {
+    pub fn snapshot(&self) -> SyntaxTreesSnapshot {
+        SyntaxTreesSnapshot {
+            source_id: self.source_id.0,
+            root_items: self
+                .root_item_handles()
+                .iter()
+                .map(|handle| snapshot_item(self, self.items.item(*handle)))
+                .collect(),
+        }
+    }
+
+    pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json_pretty()
+    }
+
+    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json()
+    }
+}
+
+fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
+    match item {
+        Item::Capability(value) => ItemSnapshot::Capability {
+            name: snapshot_identifier(&value.name),
+            members: syntax_trees
+                .items
+                .capability_members(value.members)
+                .iter()
+                .map(|member| snapshot_capability_member(syntax_trees, member))
+                .collect(),
+        },
+        Item::Data(value) => ItemSnapshot::Data {
+            name: snapshot_identifier(&value.name),
+            type_parameters: syntax_trees
+                .items
+                .type_parameters(value.type_parameters)
+                .iter()
+                .map(|parameter| TypeParameterSnapshot {
+                    name: snapshot_identifier(&parameter.name),
+                })
+                .collect(),
+            members: syntax_trees
+                .items
+                .data_members(value.members)
+                .iter()
+                .map(|member| snapshot_data_member(syntax_trees, member))
+                .collect(),
+        },
+        Item::Invariant(value) => ItemSnapshot::Invariant {
+            name: snapshot_identifier(&value.name),
+            constraints: syntax_trees
+                .type_references
+                .constraints(value.constraints)
+                .iter()
+                .map(|constraint| snapshot_type_constraint(syntax_trees, constraint))
+                .collect(),
+        },
+        Item::Library(value) => ItemSnapshot::Library {
+            name: value.name.as_ref().map(snapshot_identifier),
+            path: value.path.clone(),
+            calling_convention: snapshot_identifier(&value.calling_convention),
+            functions: syntax_trees
+                .items
+                .library_functions(value.functions)
+                .iter()
+                .map(|function| snapshot_library_function(syntax_trees, function))
+                .collect(),
+        },
+        Item::TrustDefinition(value) => ItemSnapshot::TrustDefinition {
+            name: snapshot_identifier(&value.name),
+            token_count: value.token_count,
+        },
+        Item::Use(value) => ItemSnapshot::Use {
+            path: snapshot_identifier_slice(syntax_trees.items.identifier_path_members(value.path)),
+        },
+        Item::Machine(value) => ItemSnapshot::Machine {
+            name: snapshot_identifier(&value.name),
+            states: syntax_trees
+                .items
+                .state_handles(value.states)
+                .iter()
+                .map(|handle| snapshot_state_node(syntax_trees, syntax_trees.items.state(*handle)))
+                .collect(),
+        },
+        Item::Platform(value) => ItemSnapshot::Platform {
+            name: snapshot_identifier(&value.name),
+            states: syntax_trees
+                .items
+                .state_signatures(value.states)
+                .iter()
+                .map(|handle| {
+                    snapshot_state_signature_node(
+                        syntax_trees,
+                        syntax_trees.items.state_signature(*handle),
+                    )
+                })
+                .collect(),
+        },
+        Item::Target(value) => ItemSnapshot::Target {
+            name: snapshot_identifier(&value.name),
+            host: value.host.as_ref().map(|host| TargetHostSnapshot {
+                provider: snapshot_identifier_slice(
+                    syntax_trees.items.identifier_path_members(host.provider),
+                ),
+                settings: syntax_trees
+                    .items
+                    .target_host_settings(host.settings)
+                    .iter()
+                    .map(|setting| TargetHostSettingSnapshot {
+                        name: snapshot_identifier(&setting.name),
+                        value: match &setting.value {
+                            crate::item::TargetHostSettingValue::Call {
+                                name,
+                                argument_tokens,
+                            } => TargetHostSettingValueSnapshot::Call {
+                                name: snapshot_identifier(name),
+                                argument_tokens: *argument_tokens,
+                            },
+                            crate::item::TargetHostSettingValue::Named(name) => {
+                                TargetHostSettingValueSnapshot::Named {
+                                    name: snapshot_identifier(name),
+                                }
+                            }
+                        },
+                    })
+                    .collect(),
+            }),
+            trust_policies: syntax_trees
+                .items
+                .trust_policies(value.trust_policies)
+                .iter()
+                .map(|policy| TrustPolicySnapshot {
+                    mode: match policy.mode {
+                        crate::item::TrustMode::Checked => "checked",
+                        crate::item::TrustMode::Unchecked => "unchecked",
+                    },
+                    path: snapshot_identifier_slice(
+                        syntax_trees.items.identifier_path_members(policy.path),
+                    ),
+                })
+                .collect(),
+        },
+    }
+}
+
+fn snapshot_capability_member(
+    syntax_trees: &SyntaxTrees,
+    member: &CapabilityMember,
+) -> CapabilityMemberSnapshot {
+    match member {
+        CapabilityMember::Field(field) => CapabilityMemberSnapshot::Field {
+            name: snapshot_identifier(&field.name),
+            type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
+        },
+        CapabilityMember::State(state) => CapabilityMemberSnapshot::State {
+            signature: snapshot_state_signature(syntax_trees, &state.signature),
+            contracts: syntax_trees
+                .items
+                .capability_contracts(state.contracts)
+                .iter()
+                .map(|contract| CapabilityContractSnapshot {
+                    kind: match &contract.kind {
+                        CapabilityContractKind::Ensures => {
+                            CapabilityContractKindSnapshot::Ensures
+                        }
+                        CapabilityContractKind::Requires => {
+                            CapabilityContractKindSnapshot::Requires
+                        }
+                        CapabilityContractKind::Trusted(level) => {
+                            CapabilityContractKindSnapshot::Trusted {
+                                trust_level: snapshot_trust_level(level),
+                            }
+                        }
+                    },
+                    token_count: contract.token_count,
+                })
+                .collect(),
+        },
+    }
+}
+
+fn snapshot_data_member(syntax_trees: &SyntaxTrees, member: &DataMember) -> DataMemberSnapshot {
+    match member {
+        DataMember::Field(field) => DataMemberSnapshot::Field {
+            name: snapshot_identifier(&field.name),
+            type_reference: snapshot_type_reference_handle(syntax_trees, field.type_reference),
+            initial_value: snapshot_expression_handle(syntax_trees, field.initial_value),
+        },
+        DataMember::Variant(variant) => DataMemberSnapshot::Variant {
+            name: snapshot_identifier(&variant.name),
+        },
+    }
+}
+
+fn snapshot_library_function(
+    syntax_trees: &SyntaxTrees,
+    function: &LibraryFunction,
+) -> LibraryFunctionSnapshot {
+    LibraryFunctionSnapshot {
+        signature: snapshot_state_signature(syntax_trees, &function.signature),
+        symbol: function.symbol.clone(),
+        calling_convention: function.calling_convention.as_ref().map(snapshot_identifier),
+        trusts: syntax_trees
+            .items
+            .trust_levels(function.trusts)
+            .iter()
+            .map(snapshot_trust_level)
+            .collect(),
+    }
+}
+
+fn snapshot_trust_level(level: &TrustLevel) -> TrustLevelSnapshot {
+    match level {
+        TrustLevel::Host => TrustLevelSnapshot::Host,
+        TrustLevel::Named(name) => TrustLevelSnapshot::Named {
+            name: snapshot_identifier(name),
+        },
+    }
+}
+
+fn snapshot_state_node(
+    syntax_trees: &SyntaxTrees,
+    state: &crate::item::StateNode,
+) -> StateSnapshot {
+    StateSnapshot {
+        name: snapshot_identifier(&state.name),
+        parameters: syntax_trees
+            .items
+            .state_parameters(state.parameters)
+            .iter()
+            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .collect(),
+        return_type: snapshot_type_reference_handle(syntax_trees, state.return_type),
+        statements: syntax_trees
+            .items
+            .statements(state.statements)
+            .iter()
+            .map(|handle| snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle)))
+            .collect(),
+    }
+}
+
+fn snapshot_state_signature(
+    syntax_trees: &SyntaxTrees,
+    signature: &StateSignature,
+) -> StateSignatureSnapshot {
+    StateSignatureSnapshot {
+        name: snapshot_identifier(&signature.name),
+        parameters: syntax_trees
+            .items
+            .state_parameters(signature.parameters)
+            .iter()
+            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .collect(),
+        return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+    }
+}
+
+fn snapshot_state_signature_node(
+    syntax_trees: &SyntaxTrees,
+    signature: &crate::item::StateSignatureNode,
+) -> StateSignatureSnapshot {
+    StateSignatureSnapshot {
+        name: snapshot_identifier(&signature.name),
+        parameters: syntax_trees
+            .items
+            .state_parameters(signature.parameters)
+            .iter()
+            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .collect(),
+        return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
+    }
+}
+
+fn snapshot_state_parameter(
+    syntax_trees: &SyntaxTrees,
+    parameter: &StateParameterNode,
+) -> StateParameterSnapshot {
+    StateParameterSnapshot {
+        name: snapshot_identifier(&parameter.name),
+        type_reference: snapshot_type_reference_handle(syntax_trees, parameter.type_reference),
+        is_const: parameter.is_const,
+        is_mutable: parameter.is_mutable,
+        is_self: parameter.is_self,
+    }
+}
+
+fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
+    match statement {
+        StatementNode::Assignment(assignment) => StatementSnapshot::Assignment {
+            target: snapshot_expression_handle(syntax_trees, assignment.target),
+            value: snapshot_expression_handle(syntax_trees, assignment.value),
+        },
+        StatementNode::Call(call) => StatementSnapshot::Call {
+            receiver: snapshot_identifier_slice(
+                syntax_trees.statements.identifier_path_members(call.receiver),
+            ),
+            target: snapshot_identifier(&call.target),
+            arguments: syntax_trees
+                .statements
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+        },
+        StatementNode::Expression(value) => StatementSnapshot::Expression {
+            value: snapshot_expression_handle(syntax_trees, *value),
+        },
+        StatementNode::LocalData(value) => StatementSnapshot::LocalData {
+            name: snapshot_identifier(&value.name),
+            type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
+            initial_value: snapshot_expression_handle(syntax_trees, value.initial_value),
+        },
+        StatementNode::Transition(value) => StatementSnapshot::Transition {
+            target: snapshot_transition_target(
+                syntax_trees,
+                syntax_trees.statements.transition_target(value.target),
+            ),
+            continuation: value
+                .continuation
+                .is_valid()
+                .then(|| {
+                    snapshot_transition_target(
+                        syntax_trees,
+                        syntax_trees.statements.transition_target(value.continuation),
+                    )
+                }),
+            guard: match value.guard {
+                TransitionGuardNode::Always => TransitionGuardSnapshot::Always,
+                TransitionGuardNode::When(expression) => TransitionGuardSnapshot::When {
+                    expression: snapshot_expression_handle(syntax_trees, expression),
+                },
+            },
+        },
+    }
+}
+
+fn snapshot_transition_target(
+    syntax_trees: &SyntaxTrees,
+    target: &TransitionTargetNode,
+) -> TransitionTargetSnapshot {
+    match target {
+        TransitionTargetNode::Named { path, arguments } => TransitionTargetSnapshot::Named {
+            path: snapshot_identifier_slice(syntax_trees.statements.identifier_path_members(*path)),
+            arguments: syntax_trees
+                .statements
+                .expression_handles(*arguments)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+        },
+        TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
+            expression: snapshot_expression_handle(syntax_trees, *expression),
+        },
+        TransitionTargetNode::SelfTarget => TransitionTargetSnapshot::SelfTarget,
+        TransitionTargetNode::Terminal => TransitionTargetSnapshot::Terminal,
+    }
+}
+
+fn snapshot_type_reference_handle(
+    syntax_trees: &SyntaxTrees,
+    handle: crate::types::TypeReferenceHandle,
+) -> TypeReferenceSnapshot {
+    if !handle.is_valid() {
+        return TypeReferenceSnapshot::Missing;
+    }
+
+    match syntax_trees.type_references.type_reference(handle) {
+        TypeReferenceNode::Reference {
+            referee,
+            is_mutable,
+        } => TypeReferenceSnapshot::Reference {
+            referee: Box::new(snapshot_type_reference_handle(syntax_trees, *referee)),
+            is_mutable: *is_mutable,
+        },
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => TypeReferenceSnapshot::Constrained {
+            base_type: Box::new(snapshot_type_reference_handle(syntax_trees, *base_type)),
+            constraints: syntax_trees
+                .type_references
+                .constraints(*constraints)
+                .iter()
+                .map(|constraint| snapshot_type_constraint(syntax_trees, constraint))
+                .collect(),
+        },
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => TypeReferenceSnapshot::FixedArray {
+            element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
+            length: *length,
+        },
+        TypeReferenceNode::Slice { element_type } => TypeReferenceSnapshot::Slice {
+            element_type: Box::new(snapshot_type_reference_handle(syntax_trees, *element_type)),
+        },
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => TypeReferenceSnapshot::Generic {
+            base_name: snapshot_identifier(base_name),
+            arguments: syntax_trees
+                .type_references
+                .type_reference_handles(*arguments)
+                .iter()
+                .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
+                .collect(),
+        },
+        TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
+            name: snapshot_identifier(name),
+        },
+        TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
+    }
+}
+
+fn snapshot_type_constraint(
+    syntax_trees: &SyntaxTrees,
+    constraint: &TypeConstraintNode,
+) -> TypeConstraintSnapshot {
+    match constraint {
+        TypeConstraintNode::Named(name) => TypeConstraintSnapshot::Named {
+            name: snapshot_identifier(name),
+        },
+        TypeConstraintNode::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
+            minimum: snapshot_expression_handle(syntax_trees, *minimum),
+            maximum: snapshot_expression_handle(syntax_trees, *maximum),
+        },
+    }
+}
+
+fn snapshot_expression_handle(
+    syntax_trees: &SyntaxTrees,
+    handle: crate::expression::ExpressionHandle,
+) -> ExpressionSnapshot {
+    if !handle.is_valid() {
+        return ExpressionSnapshot::Name { path: Vec::new() };
+    }
+
+    match syntax_trees.expressions.expression(handle) {
+        ExpressionNode::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
+            values: syntax_trees
+                .expressions
+                .expression_handles(*values)
+                .iter()
+                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                .collect(),
+        },
+        ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
+            left: Box::new(snapshot_expression_handle(syntax_trees, binary.left)),
+            operator: snapshot_binary_operator(binary.operator),
+            right: Box::new(snapshot_expression_handle(syntax_trees, binary.right)),
+        },
+        ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
+        ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
+            value: Box::new(snapshot_expression_handle(syntax_trees, cast.value)),
+            target_type: snapshot_identifier_slice(
+                syntax_trees.expressions.identifier_path_members(cast.target_type),
+            ),
+        },
+        ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
+        ExpressionNode::Float(value) => ExpressionSnapshot::Float {
+            text: value.as_str().to_owned(),
+        },
+        ExpressionNode::Indexed(indexed) => ExpressionSnapshot::Indexed {
+            collection: Box::new(snapshot_expression_handle(syntax_trees, indexed.collection)),
+            index: Box::new(snapshot_expression_handle(syntax_trees, indexed.index)),
+        },
+        ExpressionNode::Integer(value) => ExpressionSnapshot::Integer { value: *value },
+        ExpressionNode::Member(member) => ExpressionSnapshot::Member {
+            receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),
+            member: snapshot_identifier(&member.member),
+        },
+        ExpressionNode::Mutable(value) => ExpressionSnapshot::Mutable {
+            value: Box::new(snapshot_expression_handle(syntax_trees, *value)),
+        },
+        ExpressionNode::Name(path) => ExpressionSnapshot::Name {
+            path: snapshot_identifier_slice(syntax_trees.expressions.identifier_path_members(*path)),
+        },
+        ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
+            type_name: snapshot_identifier(&value.type_name),
+            fields: syntax_trees
+                .expressions
+                .struct_fields(value.fields)
+                .iter()
+                .map(|field| snapshot_struct_field(syntax_trees, field))
+                .collect(),
+        },
+        ExpressionNode::String(value) => ExpressionSnapshot::String {
+            text: value.as_str().to_owned(),
+        },
+    }
+}
+
+fn snapshot_call_expression(
+    syntax_trees: &SyntaxTrees,
+    call: &TableCallExpression,
+) -> ExpressionSnapshot {
+    ExpressionSnapshot::Call {
+        receiver: call
+            .receiver
+            .is_valid()
+            .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.receiver))),
+        target: snapshot_identifier(&call.target),
+        arguments: syntax_trees
+            .expressions
+            .expression_handles(call.arguments)
+            .iter()
+            .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+            .collect(),
+    }
+}
+
+fn snapshot_struct_field(
+    syntax_trees: &SyntaxTrees,
+    field: &TableStructLiteralField,
+) -> StructLiteralFieldSnapshot {
+    StructLiteralFieldSnapshot {
+        name: snapshot_identifier(&field.name),
+        value: snapshot_expression_handle(syntax_trees, field.value),
+    }
+}
+
+fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
+    match operator {
+        BinaryOperator::Add => "add",
+        BinaryOperator::And => "and",
+        BinaryOperator::Divide => "divide",
+        BinaryOperator::Equal => "equal",
+        BinaryOperator::Greater => "greater",
+        BinaryOperator::GreaterOrEqual => "greater_or_equal",
+        BinaryOperator::Less => "less",
+        BinaryOperator::LessOrEqual => "less_or_equal",
+        BinaryOperator::Modulo => "modulo",
+        BinaryOperator::Multiply => "multiply",
+        BinaryOperator::NotEqual => "not_equal",
+        BinaryOperator::Or => "or",
+        BinaryOperator::ShiftLeft => "shift_left",
+        BinaryOperator::ShiftRight => "shift_right",
+        BinaryOperator::Subtract => "subtract",
+    }
+}
+
+fn snapshot_identifier(identifier: &Identifier) -> IdentifierSnapshot {
+    let source_span = identifier.source_span();
+    IdentifierSnapshot {
+        text: identifier.as_str().to_owned(),
+        source_id: source_span.source_id.0,
+        start: source_span.span.start,
+        end: source_span.span.end,
+        source_backed: identifier.is_source_backed(),
+    }
+}
+
+fn snapshot_identifier_slice(path: &[Identifier]) -> Vec<IdentifierSnapshot> {
+    path.iter().map(snapshot_identifier).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ExpressionSnapshot, ItemSnapshot, SyntaxTreesSnapshot, TypeReferenceSnapshot};
+    use crate::expression::{ExpressionNode, TableStructLiteral, TableStructLiteralField};
+    use crate::identifier::Identifier;
+    use crate::item::{DataDefinition, DataField, DataMember, Item};
+    use crate::syntax_trees::SyntaxTrees;
+    use crate::types::TypeReferenceNode;
+
+    #[test]
+    fn snapshots_materialize_handle_backed_syntax_shape() {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let i32_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+        let one = syntax_trees.expressions.insert(ExpressionNode::Integer(1));
+        let field = TableStructLiteralField {
+            name: Identifier::generated("value"),
+            value: one,
+        };
+        let field = syntax_trees.expressions.append_struct_field(field);
+        let struct_literal = syntax_trees
+            .expressions
+            .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                type_name: Identifier::generated("Boxed"),
+                fields: omega_core::arena::HandleSpan::from_parts(field, 1),
+            }));
+
+        let data = Item::Data(DataDefinition {
+            name: Identifier::generated("Example"),
+            type_parameters: omega_core::arena::HandleSpan::empty(),
+            members: omega_core::arena::HandleSpan::from_parts(
+                syntax_trees.items.append_data_member(DataMember::Field(DataField {
+                    name: Identifier::generated("field"),
+                    type_reference: i32_type,
+                    initial_value: struct_literal,
+                })),
+                1,
+            ),
+        });
+        syntax_trees.push_root_item(data);
+
+        let snapshot = syntax_trees.snapshot();
+
+        assert_eq!(
+            snapshot,
+            SyntaxTreesSnapshot {
+                source_id: 0,
+                root_items: vec![ItemSnapshot::Data {
+                    name: super::IdentifierSnapshot {
+                        text: "Example".to_owned(),
+                        source_id: 0,
+                        start: 0,
+                        end: 0,
+                        source_backed: false,
+                    },
+                    type_parameters: Vec::new(),
+                    members: vec![super::DataMemberSnapshot::Field {
+                        name: super::IdentifierSnapshot {
+                            text: "field".to_owned(),
+                            source_id: 0,
+                            start: 0,
+                            end: 0,
+                            source_backed: false,
+                        },
+                        type_reference: TypeReferenceSnapshot::Named {
+                            name: super::IdentifierSnapshot {
+                                text: "i32".to_owned(),
+                                source_id: 0,
+                                start: 0,
+                                end: 0,
+                                source_backed: false,
+                            },
+                        },
+                        initial_value: ExpressionSnapshot::StructLiteral {
+                            type_name: super::IdentifierSnapshot {
+                                text: "Boxed".to_owned(),
+                                source_id: 0,
+                                start: 0,
+                                end: 0,
+                                source_backed: false,
+                            },
+                            fields: vec![super::StructLiteralFieldSnapshot {
+                                name: super::IdentifierSnapshot {
+                                    text: "value".to_owned(),
+                                    source_id: 0,
+                                    start: 0,
+                                    end: 0,
+                                    source_backed: false,
+                                },
+                                value: ExpressionSnapshot::Integer { value: 1 },
+                            }],
+                        },
+                    }],
+                }],
+            }
+        );
+
+        let json = syntax_trees
+            .snapshot_json_pretty()
+            .expect("snapshot json should serialize");
+        assert!(json.contains("\"root_items\""));
+        assert!(json.contains("\"struct_literal\""));
+    }
+}
