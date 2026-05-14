@@ -58,7 +58,20 @@ fn state_value_has_planned_storage_write(
     input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> bool {
-    if value.role != StateValueRole::AssignmentValue {
+    if value.role == StateValueRole::TransitionArgument
+        && runtime_transition_arguments_are_materialized(
+            input,
+            value.source_key,
+            value.statement_index,
+        )
+    {
+        return true;
+    }
+
+    if !matches!(
+        value.role,
+        StateValueRole::AssignmentValue | StateValueRole::TransitionArgument
+    ) {
         return false;
     }
 
@@ -80,6 +93,36 @@ fn state_value_has_planned_storage_write(
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
+    })
+}
+
+fn runtime_transition_arguments_are_materialized(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    if input.runtime_flow.edges.iter().any(|(_, edge)| {
+        edge.from == source_key
+            && edge.statement_index == statement_index
+            && (!edge.expressions.target_arguments.is_empty()
+                || !edge.expressions.continuation_arguments.is_empty())
+    }) {
+        return true;
+    }
+
+    input.runtime_dispatch_loop.cases.iter().any(|(_, case)| {
+        case.key == source_key
+            && input
+                .runtime_dispatch_loop
+                .edges
+                .span(case.edges)
+                .unwrap_or(&[])
+                .iter()
+                .any(|edge| {
+                    edge.statement_index == statement_index
+                        && (!edge.target_arguments.is_empty()
+                            || !edge.continuation_arguments.is_empty())
+                })
     })
 }
 
@@ -170,7 +213,10 @@ fn state_value_is_static_assignment(
     input: &EmissionPlanningInput<'_>,
     value: &StateValueUse,
 ) -> bool {
-    if value.role != StateValueRole::AssignmentValue {
+    if !matches!(
+        value.role,
+        StateValueRole::AssignmentValue | StateValueRole::TransitionArgument
+    ) {
         return false;
     }
 

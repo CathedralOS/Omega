@@ -26,11 +26,25 @@ pub(super) fn build_branch_edges(
     let Some(transitions) = context.control_flow.transitions.span(state.transitions) else {
         return HandleSpan::empty();
     };
+    let state_dispatch_index = context
+        .state_dispatch
+        .states
+        .iter()
+        .find(|(_, dispatch_state)| dispatch_state.key == state_key)
+        .map(|(_, dispatch_state)| dispatch_state.dispatch_index);
 
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
     for (order, transition) in transitions.iter().enumerate() {
+        let guard = context
+            .state_guards
+            .guard_for_dispatch(state_dispatch_index.unwrap_or_default(), order)
+            .and_then(|guard| guard.has_expression.then_some(guard.expression))
+            .map(|guard| expressions.copy_from(&context.state_guards.expressions, guard))
+            .map(|guard| expressions.to_tree(guard))
+            .map(omega_checked_trees::statement::TransitionGuard::When)
+            .unwrap_or_else(|| transition.guard.clone());
         let target = runtime_transition_target(context, machine, state.key, &transition.target);
         let handle = output_edges.append(RuntimeBranchingCallEdge {
             order,
@@ -57,8 +71,8 @@ pub(super) fn build_branch_edges(
                     target_values.append(copied);
                     copied
                 }),
-            guard_kind: classify_transition_guard(&transition.guard),
-            guard: transition.guard.clone(),
+            guard_kind: classify_transition_guard(&guard),
+            guard,
         });
         if count == 0 {
             start = handle;

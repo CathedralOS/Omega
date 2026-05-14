@@ -103,6 +103,7 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
 
         self.runtime_flow.edges.insert(RuntimeEdge {
             from: from.key,
+            statement_index: transition.statement_index,
             target: target.clone(),
             continuation: continuation.clone(),
             guard: transition.guard.clone(),

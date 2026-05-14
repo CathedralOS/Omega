@@ -1,9 +1,9 @@
 use crate::InstructionSelectionInput;
 use super::guards::select_runtime_dispatch_expression_guard;
 use crate::selection::storage_places::{
-    resolve_runtime_storage_place_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
 };
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
 use omega_control_flow::StateParameterFlow;
 use omega_control_flow::StateKey;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
@@ -25,7 +25,7 @@ pub(super) fn select_runtime_dispatch_edge(
             select_runtime_dispatch_argument_materialization(
                 input,
                 source_key,
-                edge.order,
+                edge.statement_index,
                 edge.target_dispatch_index,
                 edge.target_arguments,
                 selected_instructions,
@@ -209,6 +209,7 @@ fn select_runtime_dispatch_argument_materialization(
     };
     let expressions = &input.control_flow.expressions;
     let target_arguments = expressions.expression_handles(arguments);
+    let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
 
     for (parameter_index, parameter) in target_state.parameters.iter().enumerate() {
         let Some(argument) = target_arguments.get(parameter_index).copied() else {
@@ -218,9 +219,35 @@ fn select_runtime_dispatch_argument_materialization(
             continue;
         };
 
+        if let Expression::Call(call) = expressions.to_tree(argument)
+            && let Some(place) = resolve_runtime_transition_argument_call_result_place(
+                input,
+                source_dispatch_index,
+                source_key,
+                statement_index,
+                &call,
+            )
+        {
+            if place.byte_count != slot.byte_size {
+                continue;
+            }
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorage {
+                    source_region: place.region,
+                    source_offset: place.byte_offset,
+                    target_region: omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+                    target_offset: slot.byte_offset,
+                    byte_count: slot.byte_size,
+                },
+                source_key,
+                source_statement: statement_index,
+            });
+            continue;
+        }
+
         if let Some(place) = resolve_runtime_storage_place_in_table(
             input,
-            target_dispatch_index_for_source(input, source_key),
+            source_dispatch_index,
             source_key,
             expressions,
             argument,

@@ -40,6 +40,7 @@ impl Default for RuntimeDispatchLoopCase {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeDispatchLoopEdge {
     pub order: usize,
+    pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub target_dispatch_index: u32,
     pub target_arguments: HandleSpan<ExpressionHandle>,
@@ -65,6 +66,7 @@ impl Default for RuntimeDispatchLoopEdge {
     fn default() -> Self {
         Self {
             order: 0,
+            statement_index: 0,
             target: RuntimeTransitionTarget::None,
             target_dispatch_index: 0,
             target_arguments: HandleSpan::empty(),

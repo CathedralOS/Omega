@@ -34,6 +34,7 @@ pub(super) fn plan_transition(
     });
 
     Ok(TransitionFlow {
+        statement_index: transition.statement_index,
         target: plan_transition_target(state_indexes, &tree.target)?,
         continuation: tree
             .continuation

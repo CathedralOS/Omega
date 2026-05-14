@@ -174,7 +174,9 @@ fn append_state_call_result_slot(
 ) {
     if !matches!(
         role,
-        StateCallRole::AssignmentValue | StateCallRole::TransitionGuard
+        StateCallRole::AssignmentValue
+            | StateCallRole::TransitionArgument
+            | StateCallRole::TransitionGuard
     ) {
         return;
     }

@@ -3,6 +3,7 @@ use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_control_flow::StateKey;
 use omega_target_operations::{RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind, StateGuardOperator};
 use omega_checked_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionTable, NamePath};
+use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, append_place_suffix, resolve_runtime_alias_binding,
@@ -11,7 +12,7 @@ use super::super::super::bindings::{
 use super::super::super::storage_places::resolve_runtime_storage_place;
 use super::super::super::storage_places::{
     resolve_runtime_assignment_value_call_result_place, resolve_runtime_frame_indexed_target,
-    resolve_runtime_pointee_slot_offset,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::text_writes::{
     runtime_text_builder_write_emit, select_runtime_string_descriptor_write,
@@ -28,6 +29,31 @@ fn supports_scalar_integer_write(byte_size: usize) -> bool {
 
 fn supports_runtime_value_operand(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 4 | 8)
+}
+
+fn resolve_runtime_call_result_source_place(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<super::super::super::storage_places::RuntimeStoragePlace> {
+    resolve_runtime_assignment_value_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        call,
+    )
+    .or_else(|| {
+        resolve_runtime_transition_argument_call_result_place(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            call,
+        )
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -71,6 +97,7 @@ pub(super) fn select_runtime_state_call_result_write(
     dispatch_index: u32,
     operation_source_key: StateKey,
     statement_index: usize,
+    role: StateCallRole,
     call_ordinal: usize,
     value_source_key: StateKey,
     value: ExpressionHandle,
@@ -81,10 +108,11 @@ pub(super) fn select_runtime_state_call_result_write(
 ) {
     let Some(slot) = input
         .runtime_storage
-        .assignment_value_result_slot_by_ordinal(
+        .call_result_slot_by_ordinal(
             dispatch_index,
             operation_source_key,
             statement_index,
+            role,
             call_ordinal,
         )
     else {
@@ -276,7 +304,7 @@ fn select_runtime_resolved_target_value_source_mutation_writes(
     }
 
     if let Expression::Call(call) = &resolved_value.expression
-        && let Some(source_place) = resolve_runtime_assignment_value_call_result_place(
+        && let Some(source_place) = resolve_runtime_call_result_source_place(
             input,
             dispatch_index,
             value_source_key,
@@ -700,7 +728,7 @@ fn resolve_runtime_value_operand(
     }
 
     if let Expression::Call(call) = expression
-        && let Some(place) = resolve_runtime_assignment_value_call_result_place(
+        && let Some(place) = resolve_runtime_call_result_source_place(
             input,
             dispatch_index,
             source_key,
@@ -762,16 +790,16 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
+        BinaryOperator::Greater => Some(StateGuardOperator::Greater),
+        BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
+        BinaryOperator::Less => Some(StateGuardOperator::Less),
+        BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::And
         | BinaryOperator::Divide
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

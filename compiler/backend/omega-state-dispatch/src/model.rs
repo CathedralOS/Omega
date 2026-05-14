@@ -30,6 +30,7 @@ impl Default for DispatchState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchEdge {
+    pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub target_dispatch_index: u32,
     pub continuation: RuntimeTransitionTarget,
@@ -42,6 +43,7 @@ pub struct DispatchEdge {
 impl Default for DispatchEdge {
     fn default() -> Self {
         Self {
+            statement_index: 0,
             target: RuntimeTransitionTarget::None,
             target_dispatch_index: 0,
             continuation: RuntimeTransitionTarget::None,

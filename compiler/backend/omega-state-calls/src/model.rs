@@ -75,6 +75,26 @@ impl StateCallPlan {
         self.call_for_role(source_key, statement_index, StateCallRole::TransitionGuard)
     }
 
+    pub fn transition_argument_call(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+    ) -> Option<&StateCall> {
+        self.call_for_role(source_key, statement_index, StateCallRole::TransitionArgument)
+    }
+
+    pub fn transition_argument_call_by_ordinal(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+        call_ordinal: usize,
+    ) -> Option<&StateCall> {
+        self.calls_for_statement(source_key, statement_index).find(|state_call| {
+            state_call.role == StateCallRole::TransitionArgument
+                && state_call.call_ordinal == call_ordinal
+        })
+    }
+
     pub fn required_source_or_target(&self, state_key: StateKey) -> bool {
         self.calls.iter().any(|(_, state_call)| {
             state_call.required

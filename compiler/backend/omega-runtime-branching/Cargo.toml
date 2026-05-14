@@ -14,6 +14,7 @@ omega-core = { path = "../../foundation/omega-core" }
 omega-platform-interface = { path = "../omega-platform-interface" }
 omega-runtime-bodies = { path = "../omega-runtime-bodies" }
 omega-state-calls = { path = "../omega-state-calls" }
+omega-state-dispatch = { path = "../omega-state-dispatch" }
 omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-state-guards = { path = "../omega-state-guards" }
 omega-state-storage = { path = "../omega-state-storage" }

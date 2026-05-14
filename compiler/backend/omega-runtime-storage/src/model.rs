@@ -64,6 +64,23 @@ impl RuntimeStoragePlan {
         statement_index: usize,
         call_ordinal: usize,
     ) -> Option<&RuntimeFrameSlot> {
+        self.call_result_slot_by_ordinal(
+            dispatch_index,
+            source_key,
+            statement_index,
+            StateCallRole::AssignmentValue,
+            call_ordinal,
+        )
+    }
+
+    pub fn call_result_slot_by_ordinal(
+        &self,
+        dispatch_index: u32,
+        source_key: StateKey,
+        statement_index: usize,
+        role: StateCallRole,
+        call_ordinal: usize,
+    ) -> Option<&RuntimeFrameSlot> {
         self.frame_slots.iter().find_map(|(_, slot)| {
             (slot.dispatch_index == dispatch_index
                 && Self::source_matches(slot.source_key, source_key)
@@ -71,10 +88,10 @@ impl RuntimeStoragePlan {
                 && matches!(
                     slot.kind,
                     RuntimeFrameSlotKind::StateCallResult {
-                        role: StateCallRole::AssignmentValue,
+                        role: slot_role,
                         call_ordinal: slot_call_ordinal,
                         ..
-                    } if slot_call_ordinal == call_ordinal
+                    } if slot_role == role && slot_call_ordinal == call_ordinal
                 ))
             .then_some(slot)
         })

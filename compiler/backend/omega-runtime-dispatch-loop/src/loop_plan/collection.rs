@@ -35,6 +35,7 @@ pub(super) fn build_runtime_dispatch_loop_case(
                 dispatch_guard_comparison(context, case_input.dispatch_index, order);
             RuntimeDispatchLoopEdge {
                 order,
+                statement_index: edge.statement_index,
                 target: edge.target.clone(),
                 target_dispatch_index: edge.target_dispatch_index,
                 target_arguments: edge.expressions.target_arguments,

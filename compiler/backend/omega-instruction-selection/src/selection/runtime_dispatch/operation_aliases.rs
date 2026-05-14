@@ -9,6 +9,7 @@ use super::super::bindings::{
 };
 use super::super::lookups::{
     state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
+    state_transition_argument_call, state_transition_argument_call_by_ordinal,
     state_transition_guard_call,
 };
 
@@ -65,6 +66,15 @@ pub(super) fn bind_runtime_operation_aliases(
         StateCallRole::TransitionGuard => {
             state_transition_guard_call(input, operation.source_key, operation.statement_index)
         }
+        StateCallRole::TransitionArgument => state_transition_argument_call_by_ordinal(
+            input,
+            operation.source_key,
+            operation.statement_index,
+            call_ordinal,
+        )
+        .or_else(|| {
+            state_transition_argument_call(input, operation.source_key, operation.statement_index)
+        }),
         _ => None,
     };
     let Some(state_call) = state_call else {

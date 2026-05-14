@@ -1,0 +1,67 @@
+enum ItemKind { RustedDagger; HealingCharm; }
+enum RewardKind { Gold; GoldAndItem; }
+
+data Reward {
+    kind: RewardKind;
+    gold: u32;
+    item: ItemKind;
+}
+
+data Enemy {
+    depth: u32;
+}
+
+data RandomState {}
+
+machine main {
+    pub entry(
+        &mut self,
+        enemy: Enemy,
+        random: &mut RandomState,
+        reward: &mut Reward
+    ) {
+        transition self.chance(random, 1, 4) {
+            true -> enemy_item(enemy, random, reward)
+            false -> enemy_gold(enemy, random, reward)
+        }
+    }
+
+    state enemy_item(
+        &mut self,
+        enemy: Enemy,
+        random: &mut RandomState,
+        reward: &mut Reward
+    ) {
+        reward.kind = RewardKind::GoldAndItem;
+        reward.gold = 1 + enemy.depth + self.range(random, 5);
+        reward.item = self.roll_item(enemy.depth, random);
+    }
+
+    state enemy_gold(
+        &mut self,
+        enemy: Enemy,
+        random: &mut RandomState,
+        reward: &mut Reward
+    ) {
+        reward.kind = RewardKind::Gold;
+        reward.gold = 2 + enemy.depth * 2 + self.range(random, 6);
+        reward.item = ItemKind::RustedDagger;
+    }
+
+    fn range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
+        1
+    }
+
+    fn chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
+        true
+    }
+
+    fn roll_item(
+        &mut self,
+        depth: u32,
+        random: &mut RandomState
+    ) -> ItemKind {
+        -> ItemKind::HealingCharm when depth > 1;
+        -> ItemKind::RustedDagger;
+    }
+}

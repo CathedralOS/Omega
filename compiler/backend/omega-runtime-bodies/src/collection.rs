@@ -155,7 +155,11 @@ fn append_state_body_operations(
 
     for (_, state_call) in context.state_calls.calls.iter() {
         if state_call.source_key == state_key
-            && state_call.role == omega_state_calls::StateCallRole::TransitionGuard
+            && matches!(
+                state_call.role,
+                omega_state_calls::StateCallRole::TransitionArgument
+                    | omega_state_calls::StateCallRole::TransitionGuard
+            )
         {
             append_state_call_body_operation(
                 context,
@@ -248,6 +252,7 @@ fn append_state_call_result_operation(
     if !matches!(
         state_call.role,
         omega_state_calls::StateCallRole::AssignmentValue
+            | omega_state_calls::StateCallRole::TransitionArgument
             | omega_state_calls::StateCallRole::TransitionGuard
     ) {
         return;
