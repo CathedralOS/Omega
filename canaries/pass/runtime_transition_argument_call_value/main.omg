@@ -1,0 +1,25 @@
+enum NavigationChoice { Invalid; Move; }
+enum CellId { Empty; }
+data Navigation { choice: NavigationChoice; destination: CellId; }
+data ConsoleLine { text: String; }
+
+machine main {
+    pub entry(&mut self, line: &ConsoleLine) -> Navigation {
+        let choice: NavigationChoice = self.resolve_command(line);
+        -> self.resolve_exit(line) when choice == NavigationChoice::Invalid;
+        -> self.navigation(choice, CellId::Empty);
+    }
+
+    fn resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
+        -> NavigationChoice::Invalid when line.text == "quit";
+        -> NavigationChoice::Move;
+    }
+
+    fn resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
+        -> self.navigation(NavigationChoice::Move, CellId::Empty);
+    }
+
+    fn navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
+        Navigation { choice: choice, destination: destination }
+    }
+}
