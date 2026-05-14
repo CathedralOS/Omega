@@ -499,10 +499,7 @@ fn build_call_expression_handle(
     let expression = syntax_trees.expressions.expression(expression).clone();
     match expression {
         ExpressionNode::Name(path) => {
-            let members = syntax_trees
-                .expressions
-                .identifier_path_members(path)
-                .to_vec();
+            let members = syntax_trees.expressions.identifier_path_members(path);
             let target = members
                 .last()
                 .cloned()
@@ -510,9 +507,10 @@ fn build_call_expression_handle(
             let receiver = if members.len() <= 1 {
                 ExpressionHandle::invalid()
             } else {
+                let receiver_members = members[..members.len() - 1].to_vec();
                 let receiver_path = insert_identifier_members_slice_handle(
                     &mut syntax_trees.expressions,
-                    &members[..members.len() - 1],
+                    &receiver_members,
                 );
                 syntax_trees
                     .expressions
