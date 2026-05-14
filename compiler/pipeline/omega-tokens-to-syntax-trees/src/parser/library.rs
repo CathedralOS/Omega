@@ -62,7 +62,8 @@ fn parse_library_function<'tokens, 'source>(
     let (signature, mut input) = parse_state_signature(syntax_trees, input)?;
     let mut symbol = None;
     let mut calling_convention = None;
-    let mut trusts = Vec::new();
+    let mut trust_start = Handle::invalid();
+    let mut trust_count = 0u32;
 
     loop {
         if input.at_keyword(KeywordKind::Fn) || input.at_punctuation(PunctuationKind::RightBrace) {
@@ -72,7 +73,13 @@ fn parse_library_function<'tokens, 'source>(
         if input.at_keyword(KeywordKind::Trust) {
             input = input.take_keyword(KeywordKind::Trust, "trust")?;
             let (trust, rest) = parse_trust_level(input)?;
-            trusts.push(trust);
+            let handle = syntax_trees.items.append_trust_level(trust);
+            if trust_count == 0 {
+                trust_start = handle;
+            }
+            trust_count = trust_count
+                .checked_add(1)
+                .expect("library function trust span count overflow");
             input = if rest.at_punctuation(PunctuationKind::Semicolon) {
                 rest.take_punctuation(PunctuationKind::Semicolon, ";")?
             } else {
@@ -102,6 +109,12 @@ fn parse_library_function<'tokens, 'source>(
             return Err(input.error_here("expected library function item"));
         }
     }
+
+    let trusts = if trust_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(trust_start, trust_count)
+    };
 
     Ok((
         LibraryFunction {

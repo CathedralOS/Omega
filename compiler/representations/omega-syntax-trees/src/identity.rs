@@ -92,7 +92,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                 if let Some(calling_convention) = &function.calling_convention {
                     count_identifier(calling_convention, counts);
                 }
-                for trust in &function.trusts {
+                for trust in syntax_trees.items.trust_levels(function.trusts) {
                     if let TrustLevel::Named(name) = trust {
                         count_identifier(name, counts);
                     }
