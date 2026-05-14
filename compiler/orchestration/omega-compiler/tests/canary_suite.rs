@@ -133,4 +133,5 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "bounded_guarded_subtraction_unproven",
     "bounded_index_max_unproven",
     "bounded_match_guard_unproven",
+    "runtime_indexed_text_builder_write",
 ];
