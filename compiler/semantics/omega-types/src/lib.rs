@@ -368,17 +368,12 @@ mod tests {
             });
         let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
 
-        let state = syntax_trees.items.insert_state_tree(
-            &State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::from_parts(parameter, 1),
-                return_type,
-                statements: HandleSpan::empty(),
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let state = syntax_trees.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::from_parts(parameter, 1),
+            return_type,
+            statements: HandleSpan::empty(),
+        });
         let state = syntax_trees.items.append_state_handle(state);
 
         syntax_trees.push_root_item(Item::Machine(Machine {

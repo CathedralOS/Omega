@@ -27,11 +27,7 @@ pub(super) fn parse_platform<'tokens, 'source>(
         }
 
         let (signature, rest) = parse_state_signature(syntax_trees, input)?;
-        let handle = syntax_trees.items.insert_state_signature_tree(
-            &signature,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);
         if state_count == 0 {
             state_start = handle;

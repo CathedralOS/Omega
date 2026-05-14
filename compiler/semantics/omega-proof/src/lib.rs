@@ -386,17 +386,12 @@ mod tests {
                 is_self: false,
             });
         let parameter_handle = syntax_trees.items.append_state_parameter_handle(parameter);
-        let state = syntax_trees.items.insert_state_tree(
-            &State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::from_parts(parameter_handle, 1),
-                return_type: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
-                statements: HandleSpan::empty(),
-            },
-            &mut syntax_trees.statements,
-            &mut syntax_trees.type_references,
-            &mut syntax_trees.expressions,
-        );
+        let state = syntax_trees.items.insert_state(&State {
+            name: Identifier::generated("entry"),
+            parameters: HandleSpan::from_parts(parameter_handle, 1),
+            return_type: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+            statements: HandleSpan::empty(),
+        });
         let state_handle = syntax_trees.items.append_state_handle(state);
         let constraint = syntax_trees
             .type_references

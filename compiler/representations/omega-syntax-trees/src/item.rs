@@ -563,12 +563,7 @@ impl ItemTable {
         self.state_storage.platforms.len()
     }
 
-    pub fn insert_state_signature_tree(
-        &mut self,
-        signature: &StateSignature,
-        _type_references: &mut crate::types::TypeReferenceTable,
-        _expressions: &mut crate::expression::ExpressionTable,
-    ) -> StateSignatureHandle {
+    pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {
         self.state_storage.signatures.append(StateSignatureNode {
             name: signature.name.clone(),
             parameters: signature.parameters,
@@ -576,13 +571,7 @@ impl ItemTable {
         })
     }
 
-    pub fn insert_state_tree(
-        &mut self,
-        state: &State,
-        _statements: &mut crate::statement::StatementTable,
-        _type_references: &mut crate::types::TypeReferenceTable,
-        _expressions: &mut crate::expression::ExpressionTable,
-    ) -> StateHandle {
+    pub fn insert_state(&mut self, state: &State) -> StateHandle {
         self.state_storage.states.append(StateNode {
             name: state.name.clone(),
             parameters: state.parameters,
@@ -591,25 +580,14 @@ impl ItemTable {
         })
     }
 
-    pub fn insert_machine_tree(
-        &mut self,
-        machine: &Machine,
-        _statements: &mut crate::statement::StatementTable,
-        _type_references: &mut crate::types::TypeReferenceTable,
-        _expressions: &mut crate::expression::ExpressionTable,
-    ) -> MachineHandle {
+    pub fn insert_machine(&mut self, machine: &Machine) -> MachineHandle {
         self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
             states: machine.states,
         })
     }
 
-    pub fn insert_platform_tree(
-        &mut self,
-        platform: &Platform,
-        _type_references: &mut crate::types::TypeReferenceTable,
-        _expressions: &mut crate::expression::ExpressionTable,
-    ) -> PlatformHandle {
+    pub fn insert_platform(&mut self, platform: &Platform) -> PlatformHandle {
         self.state_storage.platforms.append(PlatformNode {
             name: platform.name.clone(),
             states: platform.states,
