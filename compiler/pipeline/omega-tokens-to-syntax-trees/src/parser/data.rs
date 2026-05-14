@@ -1,6 +1,7 @@
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
 use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::PunctuationKind;
@@ -83,18 +84,25 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
 fn parse_type_parameters<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, omega_core::arena::HandleSpan<TypeParameter>> {
+) -> ParseResult<'tokens, 'source, HandleSpan<TypeParameter>> {
     if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((omega_core::arena::HandleSpan::empty(), input));
+        return Ok((HandleSpan::empty(), input));
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
-    let mut type_parameters = Vec::new();
+    let mut type_parameter_start = Handle::invalid();
+    let mut type_parameter_count = 0u32;
 
     loop {
         let (name, next) = input.take_identifier()?;
         input = next;
-        type_parameters.push(TypeParameter { name });
+        let handle = syntax_trees.items.append_type_parameter(TypeParameter { name });
+        if type_parameter_count == 0 {
+            type_parameter_start = handle;
+        }
+        type_parameter_count = type_parameter_count
+            .checked_add(1)
+            .expect("data type parameter span count overflow");
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -102,6 +110,11 @@ fn parse_type_parameters<'tokens, 'source>(
         }
 
         input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        return Ok((syntax_trees.items.insert_type_parameters(type_parameters), input));
+        let type_parameters = if type_parameter_count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(type_parameter_start, type_parameter_count)
+        };
+        return Ok((type_parameters, input));
     }
 }
