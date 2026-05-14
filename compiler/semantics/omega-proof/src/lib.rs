@@ -4,7 +4,7 @@ use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, StateSignature};
 use omega_syntax_trees::types::{
-    TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
 pub mod checker;
@@ -50,7 +50,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
             Item::Invariant(invariant) => {
                 report.invariants.insert(InvariantSurface {
                     name: invariant.name.to_string(),
-                    constraints: constraints_name(&invariant.constraints),
+                    constraints: constraint_handle_name(syntax_trees, invariant.constraints),
                 });
             }
             Item::Library(library) => {
@@ -353,46 +353,13 @@ fn constraint_handle_name(
     output
 }
 
-fn constraints_name(constraints: &[TypeConstraint]) -> String {
-    if constraints.is_empty() {
-        return "[]".to_owned();
-    }
-
-    let mut output = String::new();
-    output.push('[');
-
-    for (index, constraint) in constraints.iter().enumerate() {
-        if index > 0 {
-            output.push_str(", ");
-        }
-
-        output.push_str(&constraint_name(constraint));
-    }
-
-    output.push(']');
-    output
-}
-
-fn constraint_name(constraint: &TypeConstraint) -> String {
-    match constraint {
-        TypeConstraint::Named(name) => name.to_string(),
-        TypeConstraint::Range { minimum, maximum } => {
-            format!(
-                "range<{}, {}>",
-                minimum.display_name(),
-                maximum.display_name()
-            )
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use omega_core::arena::HandleSpan;
     use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{InvariantDefinition, Item, Machine, State, StateParameterNode};
-    use omega_syntax_trees::types::{TypeConstraint, TypeReference};
+    use omega_syntax_trees::types::{TypeConstraint, TypeConstraintNode, TypeReference};
 
     use super::build_proof_surface_report;
 
@@ -428,10 +395,13 @@ mod tests {
             &mut syntax_trees.expressions,
         );
         let state_handle = syntax_trees.items.append_state_handle(state);
+        let constraint = syntax_trees
+            .type_references
+            .append_constraint(TypeConstraintNode::Named(Identifier::generated("finite")));
 
         syntax_trees.push_root_item(Item::Invariant(InvariantDefinition {
             name: Identifier::generated("speed_range"),
-            constraints: vec![TypeConstraint::Named(Identifier::generated("finite"))],
+            constraints: HandleSpan::from_parts(constraint, 1),
         }));
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),

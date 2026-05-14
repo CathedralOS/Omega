@@ -17,7 +17,8 @@ pub(crate) fn lower_item(
             lowerer.program.data_definitions.push(data_definition);
         }
         syntax::item::Item::Invariant(invariant_definition) => {
-            let invariant_definition = lower_invariant_definition(lowerer, invariant_definition)?;
+            let invariant_definition =
+                lower_invariant_definition(lowerer, syntax_trees, invariant_definition)?;
             lowerer
                 .program
                 .invariant_definitions

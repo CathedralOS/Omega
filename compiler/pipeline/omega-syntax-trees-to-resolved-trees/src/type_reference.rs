@@ -1,4 +1,3 @@
-use crate::expression::lower_expression;
 use crate::program::Lowerer;
 use crate::statement::lower_expression_handle;
 use omega_core::arena::HandleSpan;
@@ -6,17 +5,6 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::types::{TypeConstraint, TypeReference};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
-
-pub(crate) fn lower_type_constraints(
-    lowerer: &mut Lowerer,
-    constraints: &[syntax::types::TypeConstraint],
-) -> Result<HandleSpan<TypeConstraint>, Diagnostic> {
-    let lowered = constraints
-        .iter()
-        .map(lower_type_constraint)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(lowerer.program.type_constraints.insert_many(lowered))
-}
 
 pub(crate) fn lower_type_reference_handle(
     lowerer: &mut Lowerer,
@@ -113,19 +101,5 @@ fn lower_type_constraint_handle(
                 maximum: lower_expression_handle(syntax_trees, *maximum)?,
             })
         }
-    }
-}
-
-fn lower_type_constraint(
-    constraint: &syntax::types::TypeConstraint,
-) -> Result<TypeConstraint, Diagnostic> {
-    match constraint {
-        syntax::types::TypeConstraint::Named(name) => {
-            Ok(TypeConstraint::Named(crate::name::lower_name(name)))
-        }
-        syntax::types::TypeConstraint::Range { minimum, maximum } => Ok(TypeConstraint::Range {
-            minimum: lower_expression(minimum)?,
-            maximum: lower_expression(maximum)?,
-        }),
     }
 }

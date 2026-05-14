@@ -1,16 +1,18 @@
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::type_reference::parse_type_constraints;
+use crate::parser::type_reference::parse_type_constraint_handles;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::InvariantDefinition;
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_invariant_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, InvariantDefinition> {
     let (name, input) = input.take_identifier()?;
 
     if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (constraints, input) = parse_type_constraints(input)?;
+        let (constraints, input) = parse_type_constraint_handles(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((InvariantDefinition { name, constraints }, input));
     }
@@ -19,7 +21,7 @@ pub(super) fn parse_invariant_definition<'tokens, 'source>(
     Ok((
         InvariantDefinition {
             name,
-            constraints: Vec::new(),
+            constraints: omega_core::arena::HandleSpan::empty(),
         },
         input,
     ))
