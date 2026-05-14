@@ -5,6 +5,7 @@ pub mod invariant;
 pub mod machine;
 pub mod name;
 pub mod platform;
+pub mod snapshot;
 pub mod signature;
 pub mod state;
 pub mod statement;
@@ -49,6 +50,18 @@ impl Program {
         self.tables.expression_table = tables.expressions;
         self.tables.statement_table = tables.statements;
         self.tables.type_reference_table = tables.type_references;
+    }
+
+    pub fn snapshot(&self) -> snapshot::ResolvedProgramSnapshot {
+        snapshot::ResolvedProgramSnapshot::from_program(self)
+    }
+
+    pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json()
+    }
+
+    pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
+        self.snapshot().to_json_pretty()
     }
 }
 
