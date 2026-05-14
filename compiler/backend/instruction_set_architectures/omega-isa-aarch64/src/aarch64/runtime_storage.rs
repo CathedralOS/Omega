@@ -632,12 +632,21 @@ fn encode_runtime_binary_operation(
             });
             bytes.extend(encode_move_x_register(destination_register, right_register));
         }
-        StateGuardOperator::Equal | StateGuardOperator::NotEqual => {
+        StateGuardOperator::Equal
+        | StateGuardOperator::NotEqual
+        | StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual => {
             bytes.extend(encode_compare_w_register(destination_register, right_register));
             bytes.extend(encode_movz_w(destination_register, 0));
             bytes.extend(match operator {
                 StateGuardOperator::Equal => encode_conditional_branch_not_equal(8)?,
                 StateGuardOperator::NotEqual => encode_conditional_branch_equal(8)?,
+                StateGuardOperator::Greater => encode_conditional_branch_less_or_equal(8)?,
+                StateGuardOperator::GreaterOrEqual => encode_conditional_branch_less(8)?,
+                StateGuardOperator::Less => encode_conditional_branch_greater_or_equal(8)?,
+                StateGuardOperator::LessOrEqual => encode_conditional_branch_greater(8)?,
                 _ => unreachable!(),
             });
             bytes.extend(encode_movz_w(destination_register, 1));
