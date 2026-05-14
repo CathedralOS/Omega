@@ -1,25 +1,8 @@
-use crate::identifier::{Identifier, IdentifierPath};
+use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceText;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Expression {
-    ArrayLiteral(Vec<Expression>),
-    Binary(Box<BinaryExpression>),
-    Boolean(bool),
-    Cast(Box<CastExpression>),
-    Call(Box<CallExpression>),
-    Float(SourceText),
-    Indexed(Box<IndexedExpression>),
-    Integer(i64),
-    Member(Box<MemberExpression>),
-    Mutable(Box<Expression>),
-    Name(IdentifierPath),
-    StructLiteral(StructLiteral),
-    String(SourceText),
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
@@ -156,22 +139,9 @@ pub struct TableIndexedExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemberExpression {
-    pub receiver: Expression,
-    pub member: Identifier,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member: Identifier,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CallExpression {
-    pub receiver: Option<Box<Expression>>,
-    pub target: Identifier,
-    pub arguments: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -211,13 +181,6 @@ impl Default for TableStructLiteralField {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BinaryExpression {
-    pub left: Expression,
-    pub operator: BinaryOperator,
-    pub right: Expression,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinaryOperator {
     Add,
@@ -235,60 +198,6 @@ pub enum BinaryOperator {
     ShiftLeft,
     ShiftRight,
     Subtract,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CastExpression {
-    pub value: Expression,
-    pub target_type: IdentifierPath,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IndexedExpression {
-    pub collection: Expression,
-    pub index: Expression,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructLiteral {
-    pub type_name: Identifier,
-    pub fields: Vec<StructLiteralField>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StructLiteralField {
-    pub name: Identifier,
-    pub value: Expression,
-}
-
-impl Expression {
-    pub fn display_name(&self) -> String {
-        match self {
-            Expression::ArrayLiteral(values) => {
-                bracketed_display_names(values.iter(), Expression::display_name)
-            }
-            Expression::Binary(binary) => binary.display_name(),
-            Expression::Boolean(value) => value.to_string(),
-            Expression::Cast(cast) => cast.display_name(),
-            Expression::Call(call) => call.display_name(),
-            Expression::Float(value) => value.to_string(),
-            Expression::Indexed(indexed) => {
-                format!(
-                    "{}[{}]",
-                    indexed.collection.display_name(),
-                    indexed.index.display_name()
-                )
-            }
-            Expression::Integer(value) => value.to_string(),
-            Expression::Member(member) => {
-                format!("{}.{}", member.receiver.display_name(), member.member)
-            }
-            Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
-            Expression::Name(path) => path.join("::"),
-            Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Expression::String(value) => format!("{:?}", value.as_str()),
-        }
-    }
 }
 
 impl ExpressionNode {
@@ -367,17 +276,6 @@ fn display_identifier_path(path: &[Identifier], separator: &str) -> String {
     display_name
 }
 
-impl BinaryExpression {
-    pub fn display_name(&self) -> String {
-        format!(
-            "{} {} {}",
-            self.left.display_name(),
-            self.operator.display_name(),
-            self.right.display_name()
-        )
-    }
-}
-
 impl TableBinaryExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         format!(
@@ -389,12 +287,6 @@ impl TableBinaryExpression {
     }
 }
 
-impl CastExpression {
-    pub fn display_name(&self) -> String {
-        format!("{} as {}", self.value.display_name(), self.target_type.join("::"))
-    }
-}
-
 impl TableCastExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
         let target_type = display_identifier_path(
@@ -402,23 +294,6 @@ impl TableCastExpression {
             "::",
         );
         format!("{} as {}", table.display_name(self.value), target_type)
-    }
-}
-
-impl CallExpression {
-    pub fn display_name(&self) -> String {
-        let arguments = self
-            .arguments
-            .iter()
-            .map(Expression::display_name)
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        if let Some(receiver) = &self.receiver {
-            format!("{}.{}({arguments})", receiver.display_name(), self.target)
-        } else {
-            format!("{}({arguments})", self.target)
-        }
     }
 }
 

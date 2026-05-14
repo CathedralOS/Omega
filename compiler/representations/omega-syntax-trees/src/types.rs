@@ -4,31 +4,6 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TypeReference {
-    Reference {
-        referee: Box<TypeReference>,
-        is_mutable: bool,
-    },
-    Constrained {
-        base_type: Box<TypeReference>,
-        constraints: Vec<TypeConstraint>,
-    },
-    FixedArray {
-        element_type: Box<TypeReference>,
-        length: usize,
-    },
-    Slice {
-        element_type: Box<TypeReference>,
-    },
-    Generic {
-        base_name: Identifier,
-        arguments: Vec<TypeReference>,
-    },
-    Named(Identifier),
-    Unit,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
     type_references: Arena<TypeReferenceNode>,
     type_reference_handles: Arena<TypeReferenceHandle>,
@@ -198,15 +173,6 @@ impl Default for TypeReferenceNode {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TypeConstraint {
-    Named(Identifier),
-    Range {
-        minimum: crate::expression::Expression,
-        maximum: crate::expression::Expression,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraintNode {
     Named(Identifier),
     Range {
@@ -218,26 +184,6 @@ pub enum TypeConstraintNode {
 impl Default for TypeConstraintNode {
     fn default() -> Self {
         Self::Named(Identifier::generated(""))
-    }
-}
-
-impl TypeReference {
-    pub fn named(name: impl Into<String>) -> Self {
-        Self::Named(Identifier::generated(name))
-    }
-
-    pub fn shared_reference(referee: TypeReference) -> Self {
-        Self::Reference {
-            referee: Box::new(referee),
-            is_mutable: false,
-        }
-    }
-
-    pub fn mutable_reference(referee: TypeReference) -> Self {
-        Self::Reference {
-            referee: Box::new(referee),
-            is_mutable: true,
-        }
     }
 }
 
