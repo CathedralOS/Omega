@@ -288,6 +288,7 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemTable {
+    items: Arena<Item>,
     state_parameters: Arena<StateParameterNode>,
     state_signatures: Arena<StateSignatureNode>,
     states: Arena<StateNode>,
@@ -310,6 +311,7 @@ pub struct ItemTable {
 impl ItemTable {
     pub fn new() -> Self {
         Self {
+            items: Arena::new(),
             state_parameters: Arena::new(),
             state_signatures: Arena::new(),
             states: Arena::new(),
@@ -332,6 +334,10 @@ impl ItemTable {
 
     pub fn state_parameter(&self, handle: StateParameterHandle) -> &StateParameterNode {
         self.state_parameters.get(handle)
+    }
+
+    pub fn item(&self, handle: ItemHandle) -> &Item {
+        self.items.get(handle)
     }
 
     pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignatureNode {
@@ -443,6 +449,10 @@ impl ItemTable {
         handle: crate::statement::StatementHandle,
     ) -> Handle<crate::statement::StatementHandle> {
         self.statement_handles.append(handle)
+    }
+
+    pub fn append_item(&mut self, item: Item) -> ItemHandle {
+        self.items.append(item)
     }
 
     pub fn insert_target_host_settings(

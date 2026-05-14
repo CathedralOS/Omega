@@ -2,15 +2,13 @@ use crate::expression::ExpressionTable;
 use crate::item::{Item, ItemHandle, ItemTable, Machine, Platform};
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
-use omega_core::arena::{Arena, HandleSpan};
+use omega_core::arena::Arena;
 use omega_core::source::SourceId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyntaxTrees {
     pub source_id: SourceId,
-    pub root_items: HandleSpan<ItemHandle>,
     pub root_item_handles: Arena<ItemHandle>,
-    pub root_item_storage: Arena<Item>,
     pub items: ItemTable,
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
@@ -21,9 +19,7 @@ impl SyntaxTrees {
     pub fn new(source_id: SourceId) -> Self {
         Self {
             source_id,
-            root_items: HandleSpan::empty(),
             root_item_handles: Arena::new(),
-            root_item_storage: Arena::new(),
             items: ItemTable::new(),
             expressions: ExpressionTable::new(),
             statements: StatementTable::new(),
@@ -42,31 +38,17 @@ impl SyntaxTrees {
     }
 
     pub fn push_root_item(&mut self, item: Item) -> ItemHandle {
-        self.insert_item(&item);
-        let handle = self.root_item_storage.append(item);
-        let root_handle = self.root_item_handles.append(handle);
-
-        self.root_items = if self.root_items.is_empty() {
-            HandleSpan::from_parts(root_handle, 1)
-        } else {
-            HandleSpan::from_parts(
-                self.root_items.start(),
-                self.root_items
-                    .count()
-                    .checked_add(1)
-                    .expect("root item span count overflow"),
-            )
-        };
-
+        let handle = self.insert_item(item);
+        self.root_item_handles.append(handle);
         handle
     }
 
     pub fn root_item_handles(&self) -> &[ItemHandle] {
-        self.root_item_handles.span_or_empty(self.root_items)
+        self.root_item_handles.storage_slice()
     }
 
     pub fn root_item(&self, handle: ItemHandle) -> &Item {
-        self.root_item_storage.get(handle)
+        self.items.item(handle)
     }
 
     pub fn root_items(&self) -> impl Iterator<Item = &Item> {
@@ -76,11 +58,11 @@ impl SyntaxTrees {
     }
 
     pub fn root_item_count(&self) -> usize {
-        self.root_item_handles().len()
+        self.root_item_handles.len()
     }
 
-    fn insert_item(&mut self, item: &Item) {
-        match item {
+    fn insert_item(&mut self, item: Item) -> ItemHandle {
+        match &item {
             Item::Capability(_) => {}
             Item::Data(data_definition) => {
                 let _ = data_definition;
@@ -91,6 +73,8 @@ impl SyntaxTrees {
             Item::Platform(platform) => self.insert_platform(platform),
             Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
         }
+
+        self.items.append_item(item)
     }
 
     fn insert_machine(&mut self, machine: &Machine) {
