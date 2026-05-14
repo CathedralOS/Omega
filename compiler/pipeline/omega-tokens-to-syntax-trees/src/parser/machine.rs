@@ -113,7 +113,7 @@ fn skip_machine_invariant<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (_, input) = crate::parser::type_reference::parse_type_constraints(input)?;
+        let (_, input) = input.skip_bracketed_block()?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         Ok(((), input))
     } else {
