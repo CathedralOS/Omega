@@ -22,15 +22,20 @@ pub struct Program {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramStorage {
-    pub data_definitions: Vec<data::DataDefinition>,
-    pub invariant_definitions: Vec<invariant::InvariantDefinition>,
-    pub machines: Vec<machine::Machine>,
-    pub platforms: Vec<platform::Platform>,
+    pub roots: ResolvedRoots,
     pub type_constraints: Arena<types::TypeConstraint>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
     pub symbols: SymbolTable,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedRoots {
+    pub data_definitions: Vec<data::DataDefinition>,
+    pub invariant_definitions: Vec<invariant::InvariantDefinition>,
+    pub machines: Vec<machine::Machine>,
+    pub platforms: Vec<platform::Platform>,
 }
 
 impl Program {
@@ -53,5 +58,19 @@ impl Deref for Program {
 impl DerefMut for Program {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.storage
+    }
+}
+
+impl Deref for ProgramStorage {
+    type Target = ResolvedRoots;
+
+    fn deref(&self) -> &Self::Target {
+        &self.roots
+    }
+}
+
+impl DerefMut for ProgramStorage {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.roots
     }
 }
