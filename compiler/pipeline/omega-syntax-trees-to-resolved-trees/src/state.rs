@@ -3,8 +3,8 @@ use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::signature::{StateParameter, StateSignature};
-use omega_resolved_trees::state::State;
+use omega_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
+use omega_resolved_trees::state::{State, StateStorage};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_state_node(
@@ -50,10 +50,12 @@ fn lower_state_parts(
     Ok(State {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(name),
-        parameters,
-        return_type,
-        statements,
-        statement_nodes: Default::default(),
+        storage: StateStorage {
+            parameters,
+            return_type,
+            statements,
+            statement_nodes: Default::default(),
+        },
     })
 }
 
@@ -92,8 +94,10 @@ fn lower_state_signature_parts(
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(name),
-        parameters,
-        return_type,
+        storage: StateSignatureStorage {
+            parameters,
+            return_type,
+        },
     })
 }
 

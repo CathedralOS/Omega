@@ -633,7 +633,7 @@ mod tests {
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
-    use crate::state::State;
+    use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
     use omega_core::arena::HandleSpan;
@@ -651,17 +651,19 @@ mod tests {
                 states: vec![State {
                     symbol: SymbolHandle::invalid(),
                     name: ProgramName::generated("entry"),
-                    parameters: Vec::new(),
-                    return_type: Some(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("i32"),
-                    }),
-                    statements: vec![Statement::Transition(Transition {
-                        target: TransitionTarget::Terminal,
-                        continuation: None,
-                        guard: TransitionGuard::When(Expression::Integer(1)),
-                    })],
-                    statement_nodes: HandleSpan::empty(),
+                    storage: StateStorage {
+                        parameters: Vec::new(),
+                        return_type: Some(TypeReference::Named {
+                            symbol: SymbolHandle::invalid(),
+                            name: ProgramName::generated("i32"),
+                        }),
+                        statements: vec![Statement::Transition(Transition {
+                            target: TransitionTarget::Terminal,
+                            continuation: None,
+                            guard: TransitionGuard::When(Expression::Integer(1)),
+                        })],
+                        statement_nodes: HandleSpan::empty(),
+                    },
                 }],
             },
         }];
