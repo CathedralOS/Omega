@@ -42,7 +42,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Target) {
         let input = input.take_keyword(KeywordKind::Target, "target")?;
-        let (item, rest) = parse_target_definition(input)?;
+        let (item, rest) = parse_target_definition(syntax_trees, input)?;
         return Ok((Item::Target(item), rest));
     }
 

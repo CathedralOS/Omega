@@ -132,7 +132,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             count_identifier(&target.name, counts);
             if let Some(host) = &target.host {
                 count_identifier_path(&host.provider, counts);
-                for setting in &host.settings {
+                for setting in syntax_trees.items.target_host_settings(host.settings) {
                     count_identifier(&setting.name, counts);
                     match &setting.value {
                         TargetHostSettingValue::Call { name, .. }
@@ -140,7 +140,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     }
                 }
             }
-            for policy in &target.trust_policies {
+            for policy in syntax_trees.items.trust_policies(target.trust_policies) {
                 count_identifier_path(&policy.path, counts);
             }
         }

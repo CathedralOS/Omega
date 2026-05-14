@@ -115,13 +115,13 @@ pub enum TrustLevel {
 pub struct TargetDefinition {
     pub name: Identifier,
     pub host: Option<TargetHost>,
-    pub trust_policies: Vec<TrustPolicy>,
+    pub trust_policies: HandleSpan<TrustPolicy>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetHost {
     pub provider: IdentifierPath,
-    pub settings: Vec<TargetHostSetting>,
+    pub settings: HandleSpan<TargetHostSetting>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,6 +149,36 @@ pub struct TrustPolicy {
 pub enum TrustMode {
     Checked,
     Unchecked,
+}
+
+impl Default for TargetHostSetting {
+    fn default() -> Self {
+        Self {
+            name: Identifier::default(),
+            value: TargetHostSettingValue::default(),
+        }
+    }
+}
+
+impl Default for TargetHostSettingValue {
+    fn default() -> Self {
+        Self::Named(Identifier::default())
+    }
+}
+
+impl Default for TrustPolicy {
+    fn default() -> Self {
+        Self {
+            mode: TrustMode::default(),
+            path: IdentifierPath::default(),
+        }
+    }
+}
+
+impl Default for TrustMode {
+    fn default() -> Self {
+        Self::Checked
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,6 +249,8 @@ pub struct ItemTable {
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
+    target_host_settings: Arena<TargetHostSetting>,
+    trust_policies: Arena<TrustPolicy>,
 }
 
 impl ItemTable {
@@ -233,6 +265,8 @@ impl ItemTable {
             statement_handles: Arena::new(),
             machines: Arena::new(),
             platforms: Arena::new(),
+            target_host_settings: Arena::new(),
+            trust_policies: Arena::new(),
         }
     }
 
@@ -254,6 +288,17 @@ impl ItemTable {
 
     pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
         self.platforms.get(handle)
+    }
+
+    pub fn target_host_settings(
+        &self,
+        span: HandleSpan<TargetHostSetting>,
+    ) -> &[TargetHostSetting] {
+        self.target_host_settings.span_or_empty(span)
+    }
+
+    pub fn trust_policies(&self, span: HandleSpan<TrustPolicy>) -> &[TrustPolicy] {
+        self.trust_policies.span_or_empty(span)
     }
 
     pub fn state_parameters(
@@ -311,6 +356,20 @@ impl ItemTable {
         handle: crate::statement::StatementHandle,
     ) -> Handle<crate::statement::StatementHandle> {
         self.statement_handles.append(handle)
+    }
+
+    pub fn insert_target_host_settings(
+        &mut self,
+        settings: impl IntoIterator<Item = TargetHostSetting>,
+    ) -> HandleSpan<TargetHostSetting> {
+        self.target_host_settings.insert_many(settings)
+    }
+
+    pub fn insert_trust_policies(
+        &mut self,
+        policies: impl IntoIterator<Item = TrustPolicy>,
+    ) -> HandleSpan<TrustPolicy> {
+        self.trust_policies.insert_many(policies)
     }
 
     pub fn state_parameter_count(&self) -> usize {
