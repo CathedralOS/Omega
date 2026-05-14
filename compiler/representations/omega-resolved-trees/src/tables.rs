@@ -10,13 +10,13 @@ use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TypedProgramTables {
+pub struct ResolvedProgramTables {
     pub expressions: ExpressionTable,
     pub statements: StatementTable,
     pub type_references: TypeReferenceTable,
 }
 
-impl TypedProgramTables {
+impl ResolvedProgramTables {
     pub fn from_program(program: &Program) -> Self {
         let mut tables = Self::default();
 
@@ -41,22 +41,22 @@ impl TypedProgramTables {
 
     pub fn from_program_with_state_spans(program: &mut Program) -> Self {
         let mut tables = Self::default();
-        let type_constraints = &program.type_constraints;
+        let type_constraints = program.type_constraints.clone();
 
         for invariant in &program.invariant_definitions {
-            tables.insert_type_constraints(invariant.constraints, type_constraints);
+            tables.insert_type_constraints(invariant.constraints, &type_constraints);
         }
 
         for data_definition in &program.data_definitions {
-            tables.insert_data_definition(data_definition, type_constraints);
+            tables.insert_data_definition(data_definition, &type_constraints);
         }
 
         for platform in &program.platforms {
-            tables.insert_platform(platform, type_constraints);
+            tables.insert_platform(platform, &type_constraints);
         }
 
         for machine in &mut program.machines {
-            tables.insert_machine_with_state_spans(machine, type_constraints);
+            tables.insert_machine_with_state_spans(machine, &type_constraints);
         }
 
         tables
@@ -233,30 +233,28 @@ mod tests {
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut program = Program {
-            machines: vec![Machine {
+        let mut program = Program::default();
+        program.machines = vec![Machine {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::generated("main"),
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states: vec![State {
                 symbol: SymbolHandle::invalid(),
-                name: ProgramName::generated("main"),
-                contains: Vec::new(),
-                owned_data: Vec::new(),
-                states: vec![State {
+                name: ProgramName::generated("entry"),
+                parameters: Vec::new(),
+                return_type: Some(TypeReference::Named {
                     symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("entry"),
-                    parameters: Vec::new(),
-                    return_type: Some(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("i32"),
-                    }),
-                    statements: vec![Statement::Transition(Transition {
-                        target: TransitionTarget::Terminal,
-                        continuation: None,
-                        guard: TransitionGuard::When(Expression::Integer(1)),
-                    })],
-                    statement_nodes: HandleSpan::empty(),
-                }],
+                    name: ProgramName::generated("i32"),
+                }),
+                statements: vec![Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })],
+                statement_nodes: HandleSpan::empty(),
             }],
-            ..Program::default()
-        };
+        }];
 
         program.rebuild_tables();
 

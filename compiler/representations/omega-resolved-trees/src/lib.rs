@@ -13,9 +13,15 @@ pub mod types;
 
 use omega_core::arena::Arena;
 use omega_core::symbols::SymbolTable;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
+    pub storage: ProgramStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ProgramStorage {
     pub data_definitions: Vec<data::DataDefinition>,
     pub invariant_definitions: Vec<invariant::InvariantDefinition>,
     pub machines: Vec<machine::Machine>,
@@ -29,9 +35,23 @@ pub struct Program {
 
 impl Program {
     pub fn rebuild_tables(&mut self) {
-        let tables = tables::TypedProgramTables::from_program_with_state_spans(self);
+        let tables = tables::ResolvedProgramTables::from_program_with_state_spans(self);
         self.expression_table = tables.expressions;
         self.statement_table = tables.statements;
         self.type_reference_table = tables.type_references;
+    }
+}
+
+impl Deref for Program {
+    type Target = ProgramStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for Program {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
     }
 }
