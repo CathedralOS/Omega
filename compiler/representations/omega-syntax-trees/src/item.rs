@@ -184,11 +184,11 @@ impl Default for TrustMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub name: Identifier,
-    pub type_parameters: Vec<TypeParameter>,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub members: Vec<DataMember>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypeParameter {
     pub name: Identifier,
 }
@@ -249,6 +249,7 @@ pub struct ItemTable {
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
+    type_parameters: Arena<TypeParameter>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
 }
@@ -265,6 +266,7 @@ impl ItemTable {
             statement_handles: Arena::new(),
             machines: Arena::new(),
             platforms: Arena::new(),
+            type_parameters: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),
         }
@@ -288,6 +290,10 @@ impl ItemTable {
 
     pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
         self.platforms.get(handle)
+    }
+
+    pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
+        self.type_parameters.span_or_empty(span)
     }
 
     pub fn target_host_settings(
@@ -370,6 +376,13 @@ impl ItemTable {
         policies: impl IntoIterator<Item = TrustPolicy>,
     ) -> HandleSpan<TrustPolicy> {
         self.trust_policies.insert_many(policies)
+    }
+
+    pub fn insert_type_parameters(
+        &mut self,
+        type_parameters: impl IntoIterator<Item = TypeParameter>,
+    ) -> HandleSpan<TypeParameter> {
+        self.type_parameters.insert_many(type_parameters)
     }
 
     pub fn state_parameter_count(&self) -> usize {

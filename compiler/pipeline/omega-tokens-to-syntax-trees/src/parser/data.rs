@@ -10,7 +10,7 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
-    let (type_parameters, next) = parse_type_parameters(input)?;
+    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut members = Vec::new();
@@ -55,10 +55,11 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
 }
 
 pub(super) fn parse_enum_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, DataDefinition> {
     let (name, mut input) = input.take_identifier()?;
-    let (type_parameters, next) = parse_type_parameters(input)?;
+    let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut members = Vec::new();
@@ -80,10 +81,11 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
 }
 
 fn parse_type_parameters<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<TypeParameter>> {
+) -> ParseResult<'tokens, 'source, omega_core::arena::HandleSpan<TypeParameter>> {
     if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((Vec::new(), input));
+        return Ok((omega_core::arena::HandleSpan::empty(), input));
     }
 
     input = input.take_punctuation(PunctuationKind::Less, "<")?;
@@ -100,6 +102,6 @@ fn parse_type_parameters<'tokens, 'source>(
         }
 
         input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        return Ok((type_parameters, input));
+        return Ok((syntax_trees.items.insert_type_parameters(type_parameters), input));
     }
 }
