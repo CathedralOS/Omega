@@ -1,5 +1,5 @@
 use crate::program::Lowerer;
-use crate::state::lower_state;
+use crate::state::lower_state_node;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::machine::Machine;
@@ -10,10 +10,11 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
-    let states = machine
-        .states
+    let states = syntax_trees
+        .items
+        .state_handles(machine.states)
         .iter()
-        .map(|state| lower_state(lowerer, syntax_trees, state))
+        .map(|state| lower_state_node(lowerer, syntax_trees, syntax_trees.items.state(*state)))
         .collect::<Result<Vec<_>, _>>()?;
     let machine_name = crate::name::lower_name(&machine.name);
 

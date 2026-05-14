@@ -184,7 +184,7 @@ pub struct DataVariant {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub name: Identifier,
-    pub states: Vec<State>,
+    pub states: HandleSpan<StateHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,7 +198,7 @@ pub struct State {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Platform {
     pub name: Identifier,
-    pub states: Vec<StateSignature>,
+    pub states: HandleSpan<StateSignatureHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,6 +214,7 @@ pub struct ItemTable {
     state_signatures: Arena<StateSignatureNode>,
     states: Arena<StateNode>,
     state_parameter_handles: Arena<StateParameterHandle>,
+    state_handles: Arena<StateHandle>,
     state_signature_handles: Arena<StateSignatureHandle>,
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
@@ -227,6 +228,7 @@ impl ItemTable {
             state_signatures: Arena::new(),
             states: Arena::new(),
             state_parameter_handles: Arena::new(),
+            state_handles: Arena::new(),
             state_signature_handles: Arena::new(),
             statement_handles: Arena::new(),
             machines: Arena::new(),
@@ -268,6 +270,10 @@ impl ItemTable {
         self.state_signature_handles.span_or_empty(span)
     }
 
+    pub fn state_handles(&self, span: HandleSpan<StateHandle>) -> &[StateHandle] {
+        self.state_handles.span_or_empty(span)
+    }
+
     pub fn statements(
         &self,
         span: HandleSpan<crate::statement::StatementHandle>,
@@ -287,6 +293,17 @@ impl ItemTable {
         handle: StateParameterHandle,
     ) -> Handle<StateParameterHandle> {
         self.state_parameter_handles.append(handle)
+    }
+
+    pub fn append_state_handle(&mut self, handle: StateHandle) -> Handle<StateHandle> {
+        self.state_handles.append(handle)
+    }
+
+    pub fn append_state_signature_handle(
+        &mut self,
+        handle: StateSignatureHandle,
+    ) -> Handle<StateSignatureHandle> {
+        self.state_signature_handles.append(handle)
     }
 
     pub fn append_statement_handle(
@@ -347,94 +364,26 @@ impl ItemTable {
     pub fn insert_machine_tree(
         &mut self,
         machine: &Machine,
-        statements: &mut crate::statement::StatementTable,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
+        _statements: &mut crate::statement::StatementTable,
+        _type_references: &mut crate::types::TypeReferenceTable,
+        _expressions: &mut crate::expression::ExpressionTable,
     ) -> MachineHandle {
-        let states = self.insert_state_span_from_trees(
-            &machine.states,
-            statements,
-            type_references,
-            expressions,
-        );
         self.machines.append(MachineNode {
             name: machine.name.clone(),
-            states,
+            states: machine.states,
         })
     }
 
     pub fn insert_platform_tree(
         &mut self,
         platform: &Platform,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> PlatformHandle {
-        let states = self.insert_state_signature_span_from_trees(
-            &platform.states,
-            type_references,
-            expressions,
-        );
-        self.platforms.append(PlatformNode {
-            name: platform.name.clone(),
-            states,
-        })
-    }
-
-    fn insert_state_signature_span_from_trees(
-        &mut self,
-        signatures: &[StateSignature],
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<StateSignatureHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for signature in signatures {
-            let handle = self.insert_state_signature_tree(signature, type_references, expressions);
-            let handle = self.state_signature_handles.append(handle);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("state signature handle span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_state_span_from_trees(
-        &mut self,
-        states: &[State],
-        _statement_table: &mut crate::statement::StatementTable,
         _type_references: &mut crate::types::TypeReferenceTable,
         _expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<StateNode> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for state in states {
-            let handle = self.states.append(StateNode {
-                name: state.name.clone(),
-                parameters: state.parameters,
-                return_type: state.return_type,
-                statements: state.statements,
-            });
-            if count == 0 {
-                start = handle;
-            }
-            count = count.checked_add(1).expect("state span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+    ) -> PlatformHandle {
+        self.platforms.append(PlatformNode {
+            name: platform.name.clone(),
+            states: platform.states,
+        })
     }
 }
 
@@ -471,7 +420,7 @@ pub struct StateNode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineNode {
     pub name: Identifier,
-    pub states: HandleSpan<StateNode>,
+    pub states: HandleSpan<StateHandle>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

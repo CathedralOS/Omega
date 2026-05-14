@@ -1,5 +1,5 @@
 use crate::program::Lowerer;
-use crate::state::lower_state_signature;
+use crate::state::lower_state_signature_node;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::platform::Platform;
@@ -10,10 +10,17 @@ pub(crate) fn lower_platform(
     syntax_trees: &SyntaxTrees,
     platform: &syntax::item::Platform,
 ) -> Result<Platform, Diagnostic> {
-    let states = platform
-        .states
+    let states = syntax_trees
+        .items
+        .state_signatures(platform.states)
         .iter()
-        .map(|signature| lower_state_signature(lowerer, syntax_trees, signature))
+        .map(|signature| {
+            lower_state_signature_node(
+                lowerer,
+                syntax_trees,
+                syntax_trees.items.state_signature(*signature),
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Platform {

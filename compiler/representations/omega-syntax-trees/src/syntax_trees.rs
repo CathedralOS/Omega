@@ -185,15 +185,22 @@ mod tests {
         let return_type = syntax_trees
             .type_references
             .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-
-        syntax_trees.push_root_item(Item::Machine(Machine {
-            name: Identifier::generated("Main"),
-            states: vec![State {
+        let state = syntax_trees.items.insert_state_tree(
+            &State {
                 name: Identifier::generated("entry"),
                 parameters: HandleSpan::empty(),
                 return_type,
                 statements,
-            }],
+            },
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let state_handle = syntax_trees.items.append_state_handle(state);
+
+        syntax_trees.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("Main"),
+            states: HandleSpan::from_parts(state_handle, 1),
         }));
 
         assert_eq!(syntax_trees.root_item_count(), 1);

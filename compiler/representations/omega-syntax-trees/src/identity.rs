@@ -107,7 +107,8 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Use(use_item) => count_identifier_path(&use_item.path, counts),
         Item::Machine(machine) => {
             count_identifier(&machine.name, counts);
-            for state in &machine.states {
+            for state in syntax_trees.items.state_handles(machine.states) {
+                let state = syntax_trees.items.state(*state);
                 count_identifier(&state.name, counts);
                 for parameter in syntax_trees.items.state_parameters(state.parameters) {
                     count_state_parameter(syntax_trees, *parameter, counts);
@@ -122,8 +123,9 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Platform(platform) => {
             count_identifier(&platform.name, counts);
-            for signature in &platform.states {
-                count_state_signature(syntax_trees, signature, counts);
+            for signature in syntax_trees.items.state_signatures(platform.states) {
+                let signature = syntax_trees.items.state_signature(*signature);
+                count_state_signature_node(syntax_trees, signature, counts);
             }
         }
         Item::Target(target) => {
@@ -192,6 +194,20 @@ fn count_statement_node(
 fn count_state_signature(
     syntax_trees: &SyntaxTrees,
     signature: &crate::item::StateSignature,
+    counts: &mut AstIdentityStorageCounts,
+) {
+    count_identifier(&signature.name, counts);
+    for parameter in syntax_trees.items.state_parameters(signature.parameters) {
+        count_state_parameter(syntax_trees, *parameter, counts);
+    }
+    if signature.return_type.is_valid() {
+        count_type_reference_handle(syntax_trees, signature.return_type, counts);
+    }
+}
+
+fn count_state_signature_node(
+    syntax_trees: &SyntaxTrees,
+    signature: &crate::item::StateSignatureNode,
     counts: &mut AstIdentityStorageCounts,
 ) {
     count_identifier(&signature.name, counts);

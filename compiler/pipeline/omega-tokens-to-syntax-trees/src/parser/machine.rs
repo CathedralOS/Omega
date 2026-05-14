@@ -1,6 +1,7 @@
 use crate::parser::context::StateKind;
 use crate::parser::input::{Input, ParseResult, parse_path};
 use crate::parser::state::{parse_optional_return_type, parse_state};
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::Machine;
@@ -15,34 +16,28 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (name, entry_name) = split_machine_path(path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut states = Vec::new();
+    let mut state_start = Handle::invalid();
+    let mut state_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_keyword(KeywordKind::Pub) {
+        let (mut state, rest) = if input.at_keyword(KeywordKind::Pub) {
             let input2 = input.take_keyword(KeywordKind::Pub, "pub")?;
             let input2 = input2.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Entry)?;
-            states.push(state);
-            input = rest;
+            parse_state(syntax_trees, input2, StateKind::Entry)?
         } else if input.at_keyword(KeywordKind::Entry) {
             let input2 = input.take_keyword(KeywordKind::Entry, "entry")?;
-            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Entry)?;
-            states.push(state);
-            input = rest;
+            parse_state(syntax_trees, input2, StateKind::Entry)?
         } else if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
-            let (state, rest) = parse_state(syntax_trees, input2, StateKind::State)?;
-            states.push(state);
-            input = rest;
+            parse_state(syntax_trees, input2, StateKind::State)?
         } else if input.at_keyword(KeywordKind::Fn) {
             let input2 = input.take_keyword(KeywordKind::Fn, "fn")?;
-            let (state, rest) = parse_state(syntax_trees, input2, StateKind::Function)?;
-            states.push(state);
-            input = rest;
+            parse_state(syntax_trees, input2, StateKind::Function)?
         } else if input.at_keyword(KeywordKind::Invariant) {
             let input2 = input.take_keyword(KeywordKind::Invariant, "invariant")?;
             let (_, rest) = skip_machine_invariant(input2)?;
             input = rest;
+            continue;
         } else {
             return Err(input.expected_one_of_here(&[
                 "`pub entry`",
@@ -51,25 +46,38 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 "`fn`",
                 "`invariant`",
             ]));
+        };
+
+        if let Some(entry_name) = &entry_name {
+            if state.name == "entry" {
+                state.name = entry_name.clone();
+            }
         }
+
+        if machine_return_type.is_valid() && !state.return_type.is_valid() {
+            state.return_type = machine_return_type;
+        }
+
+        let handle = syntax_trees.items.insert_state_tree(
+            &state,
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let handle = syntax_trees.items.append_state_handle(handle);
+        if state_count == 0 {
+            state_start = handle;
+        }
+        state_count = state_count.checked_add(1).expect("machine state span count overflow");
+        input = rest;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-
-    if let Some(entry_name) = entry_name {
-        if let Some(entry_state) = states.iter_mut().find(|state| state.name == "entry") {
-            entry_state.name = entry_name;
-        }
-    }
-
-    if machine_return_type.is_valid() {
-        for state in &mut states {
-            if !state.return_type.is_valid() {
-                state.return_type = machine_return_type;
-            }
-        }
-    }
-
+    let states = if state_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(state_start, state_count)
+    };
     Ok((Machine { name, states }, input))
 }
 

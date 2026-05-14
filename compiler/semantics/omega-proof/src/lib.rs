@@ -2,7 +2,7 @@
 
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
-use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, State, StateSignature};
+use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, StateSignature};
 use omega_syntax_trees::types::{
     TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -82,16 +82,17 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
 }
 
 fn collect_machine(report: &mut ProofSurfaceReport, syntax_trees: &SyntaxTrees, machine: &Machine) {
-    for state in &machine.states {
-        collect_state(report, syntax_trees, machine, state);
+    for state in syntax_trees.items.state_handles(machine.states) {
+        let state = syntax_trees.items.state(*state);
+        collect_state_node(report, syntax_trees, machine, state);
     }
 }
 
-fn collect_state(
+fn collect_state_node(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
     machine: &Machine,
-    state: &State,
+    state: &omega_syntax_trees::item::StateNode,
 ) {
     collect_signature_parts(
         report,
@@ -125,8 +126,9 @@ fn collect_platform(
     syntax_trees: &SyntaxTrees,
     platform: &Platform,
 ) {
-    for state in &platform.states {
-        collect_state_signature(
+    for state in syntax_trees.items.state_signatures(platform.states) {
+        let state = syntax_trees.items.state_signature(*state);
+        collect_state_signature_node(
             report,
             syntax_trees,
             state,
@@ -139,6 +141,21 @@ fn collect_state_signature(
     report: &mut ProofSurfaceReport,
     syntax_trees: &SyntaxTrees,
     state: &StateSignature,
+    owner: &str,
+) {
+    collect_signature_parts(
+        report,
+        syntax_trees,
+        state.parameters,
+        state.return_type,
+        owner,
+    );
+}
+
+fn collect_state_signature_node(
+    report: &mut ProofSurfaceReport,
+    syntax_trees: &SyntaxTrees,
+    state: &omega_syntax_trees::item::StateSignatureNode,
     owner: &str,
 ) {
     collect_signature_parts(
@@ -399,6 +416,18 @@ mod tests {
                 is_self: false,
             });
         let parameter_handle = syntax_trees.items.append_state_parameter_handle(parameter);
+        let state = syntax_trees.items.insert_state_tree(
+            &State {
+                name: Identifier::generated("entry"),
+                parameters: HandleSpan::from_parts(parameter_handle, 1),
+                return_type: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
+                statements: HandleSpan::empty(),
+            },
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let state_handle = syntax_trees.items.append_state_handle(state);
 
         syntax_trees.push_root_item(Item::Invariant(InvariantDefinition {
             name: Identifier::generated("speed_range"),
@@ -406,12 +435,7 @@ mod tests {
         }));
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
-            states: vec![State {
-                name: Identifier::generated("entry"),
-                parameters: HandleSpan::from_parts(parameter_handle, 1),
-                return_type: omega_syntax_trees::types::TypeReferenceHandle::invalid(),
-                statements: HandleSpan::empty(),
-            }],
+            states: HandleSpan::from_parts(state_handle, 1),
         }));
 
         let report = build_proof_surface_report(&syntax_trees);

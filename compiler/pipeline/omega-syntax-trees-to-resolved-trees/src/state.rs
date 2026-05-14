@@ -7,32 +7,49 @@ use omega_resolved_trees::signature::{StateParameter, StateSignature};
 use omega_resolved_trees::state::State;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
-pub(crate) fn lower_state(
+pub(crate) fn lower_state_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    state: &syntax::item::State,
+    state: &syntax::item::StateNode,
+) -> Result<State, Diagnostic> {
+    lower_state_parts(
+        lowerer,
+        syntax_trees,
+        &state.name,
+        state.parameters,
+        state.return_type,
+        state.statements,
+    )
+}
+
+fn lower_state_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    name: &syntax::identifier::Identifier,
+    parameters: omega_core::arena::HandleSpan<syntax::item::StateParameterHandle>,
+    return_type_handle: syntax::types::TypeReferenceHandle,
+    statements: omega_core::arena::HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<State, Diagnostic> {
     let parameters = syntax_trees
         .items
-        .state_parameters(state.parameters)
+        .state_parameters(parameters)
         .iter()
         .map(|parameter| lower_state_parameter(lowerer, syntax_trees, *parameter))
         .collect::<Result<Vec<_>, _>>()?;
-    let return_type = state
-        .return_type
+    let return_type = return_type_handle
         .is_valid()
-        .then(|| lower_type_reference_handle(lowerer, syntax_trees, state.return_type))
+        .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
     let statements = syntax_trees
         .items
-        .statements(state.statements)
+        .statements(statements)
         .iter()
         .map(|statement| lower_statement_handle(lowerer, syntax_trees, *statement))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {
         symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&state.name),
+        name: crate::name::lower_name(name),
         parameters,
         return_type,
         statements,
@@ -40,26 +57,41 @@ pub(crate) fn lower_state(
     })
 }
 
-pub(crate) fn lower_state_signature(
+pub(crate) fn lower_state_signature_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
-    signature: &syntax::item::StateSignature,
+    signature: &syntax::item::StateSignatureNode,
+) -> Result<StateSignature, Diagnostic> {
+    lower_state_signature_parts(
+        lowerer,
+        syntax_trees,
+        &signature.name,
+        signature.parameters,
+        signature.return_type,
+    )
+}
+
+fn lower_state_signature_parts(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    name: &syntax::identifier::Identifier,
+    parameters: omega_core::arena::HandleSpan<syntax::item::StateParameterHandle>,
+    return_type_handle: syntax::types::TypeReferenceHandle,
 ) -> Result<StateSignature, Diagnostic> {
     let parameters = syntax_trees
         .items
-        .state_parameters(signature.parameters)
+        .state_parameters(parameters)
         .iter()
         .map(|parameter| lower_state_parameter(lowerer, syntax_trees, *parameter))
         .collect::<Result<Vec<_>, _>>()?;
-    let return_type = signature
-        .return_type
+    let return_type = return_type_handle
         .is_valid()
-        .then(|| lower_type_reference_handle(lowerer, syntax_trees, signature.return_type))
+        .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
 
     Ok(StateSignature {
         symbol: SymbolHandle::invalid(),
-        name: crate::name::lower_name(&signature.name),
+        name: crate::name::lower_name(name),
         parameters,
         return_type,
     })
