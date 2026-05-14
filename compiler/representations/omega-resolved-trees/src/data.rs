@@ -1,13 +1,33 @@
 use crate::name::ProgramName;
 use crate::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub storage: DataDefinitionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DataDefinitionStorage {
     pub type_parameters: Vec<TypeParameter>,
     pub members: Vec<DataMember>,
+}
+
+impl Deref for DataDefinition {
+    type Target = DataDefinitionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for DataDefinition {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 impl DataDefinition {

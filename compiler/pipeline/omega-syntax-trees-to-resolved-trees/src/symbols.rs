@@ -139,20 +139,24 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
 
     for data_definition in &mut program.data_definitions {
         data_definition.symbol = top_level_symbol(symbols, SymbolKind::Data, data_definition.name.as_str());
+        let data_symbol = data_definition.symbol;
 
         for type_parameter in &mut data_definition.type_parameters {
-            type_parameter.symbol =
-                child_symbol_by_kinds(symbols, data_definition.symbol, &[SymbolKind::TypeParameter], type_parameter.name.as_str());
+            type_parameter.symbol = child_symbol_by_kinds(
+                symbols,
+                data_symbol,
+                &[SymbolKind::TypeParameter],
+                type_parameter.name.as_str(),
+            );
         }
 
         for member in &mut data_definition.members {
             match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
-                    field.symbol = child_symbol(symbols, data_definition.symbol, field.name.as_str());
+                    field.symbol = child_symbol(symbols, data_symbol, field.name.as_str());
                 }
                 omega_resolved_trees::data::DataMember::Variant(variant) => {
-                    variant.symbol =
-                        child_symbol(symbols, data_definition.symbol, variant.name.as_str());
+                    variant.symbol = child_symbol(symbols, data_symbol, variant.name.as_str());
                 }
             }
         }
