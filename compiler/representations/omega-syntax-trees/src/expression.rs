@@ -75,80 +75,6 @@ impl ExpressionTable {
         self.identifier_path_members.append(member)
     }
 
-    fn insert_identifier_path_members(&mut self, path: &IdentifierPath) -> HandleSpan<Identifier> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for member in path.iter() {
-            let handle = self.identifier_path_members.append(member.clone());
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("identifier path member span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_expression_handle_span_from_trees<'expression>(
-        &mut self,
-        expressions: impl IntoIterator<Item = &'expression Expression>,
-    ) -> HandleSpan<ExpressionHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for expression in expressions {
-            let expression = self.insert_tree(expression);
-            let handle = self.expression_handles.append(expression);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("expression handle span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_struct_field_span_from_tree(
-        &mut self,
-        fields: &[StructLiteralField],
-    ) -> HandleSpan<TableStructLiteralField> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for field in fields {
-            let value = self.insert_tree(&field.value);
-            let handle = self.struct_fields.append(TableStructLiteralField {
-                name: field.name.clone(),
-                value,
-            });
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("struct field span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }
@@ -174,76 +100,6 @@ impl ExpressionTable {
 
     pub fn struct_field_count(&self) -> usize {
         self.struct_fields.len()
-    }
-
-    pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
-        match expression {
-            Expression::ArrayLiteral(values) => {
-                let values = self.insert_expression_handle_span_from_trees(values);
-                self.insert(ExpressionNode::ArrayLiteral(values))
-            }
-            Expression::Binary(binary) => {
-                let left = self.insert_tree(&binary.left);
-                let right = self.insert_tree(&binary.right);
-                self.insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: binary.operator,
-                    right,
-                }))
-            }
-            Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
-            Expression::Cast(cast) => {
-                let value = self.insert_tree(&cast.value);
-                let target_type = self.insert_identifier_path_members(&cast.target_type);
-                self.insert(ExpressionNode::Cast(TableCastExpression { value, target_type }))
-            }
-            Expression::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .as_ref()
-                    .map(|receiver| self.insert_tree(receiver))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
-                self.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver,
-                    target: call.target.clone(),
-                    arguments,
-                }))
-            }
-            Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
-            Expression::Indexed(indexed) => {
-                let collection = self.insert_tree(&indexed.collection);
-                let index = self.insert_tree(&indexed.index);
-                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection,
-                    index,
-                }))
-            }
-            Expression::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
-            Expression::Member(member) => {
-                let receiver = self.insert_tree(&member.receiver);
-                self.insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member: member.member.clone(),
-                }))
-            }
-            Expression::Mutable(inner_expression) => {
-                let inner_expression = self.insert_tree(inner_expression);
-                self.insert(ExpressionNode::Mutable(inner_expression))
-            }
-            Expression::Name(path) => {
-                let path = self.insert_identifier_path_members(path);
-                self.insert(ExpressionNode::Name(path))
-            }
-            Expression::StructLiteral(struct_literal) => {
-                let fields = self.insert_struct_field_span_from_tree(&struct_literal.fields);
-                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: struct_literal.type_name.clone(),
-                    fields,
-                }))
-            }
-            Expression::String(value) => self.insert(ExpressionNode::String(value.clone())),
-        }
     }
 
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
@@ -611,26 +467,26 @@ impl BinaryOperator {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable,
-        TableBinaryExpression,
-    };
-    use crate::identifier::{Identifier, IdentifierPath};
+    use super::{BinaryOperator, ExpressionNode, ExpressionTable, TableBinaryExpression};
+    use crate::identifier::Identifier;
+    use omega_core::arena::HandleSpan;
 
     #[test]
     fn expression_table_stores_recursive_expressions_as_handles() {
-        let expression = Expression::Binary(Box::new(BinaryExpression {
-            left: Expression::Integer(1),
-            operator: BinaryOperator::Add,
-            right: Expression::Binary(Box::new(BinaryExpression {
-                left: Expression::Integer(2),
-                operator: BinaryOperator::Add,
-                right: Expression::Integer(3),
-            })),
-        }));
-
         let mut table = ExpressionTable::new();
-        let root = table.insert_tree(&expression);
+        let one = table.insert(ExpressionNode::Integer(1));
+        let two = table.insert(ExpressionNode::Integer(2));
+        let three = table.insert(ExpressionNode::Integer(3));
+        let nested = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: two,
+            operator: BinaryOperator::Add,
+            right: three,
+        }));
+        let root = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+            left: one,
+            operator: BinaryOperator::Add,
+            right: nested,
+        }));
 
         assert_eq!(table.expression_count(), 5);
         assert_eq!(table.display_name(root), "1 + 2 + 3");
@@ -647,14 +503,12 @@ mod tests {
 
     #[test]
     fn expression_table_stores_array_children_as_handle_spans() {
-        let expression = Expression::ArrayLiteral(vec![
-            Expression::Integer(1),
-            Expression::Integer(2),
-            Expression::Integer(3),
-        ]);
-
         let mut table = ExpressionTable::new();
-        let root = table.insert_tree(&expression);
+        let one = table.insert(ExpressionNode::Integer(1));
+        let two = table.insert(ExpressionNode::Integer(2));
+        let three = table.insert(ExpressionNode::Integer(3));
+        let values = table.insert_expression_handles([one, two, three]);
+        let root = table.insert(ExpressionNode::ArrayLiteral(values));
         let ExpressionNode::ArrayLiteral(values) = table.expression(root) else {
             panic!("root expression should be array literal");
         };
@@ -665,13 +519,10 @@ mod tests {
 
     #[test]
     fn expression_table_stores_name_paths_as_member_spans() {
-        let expression = Expression::Name(IdentifierPath::from(vec![
-            Identifier::generated("player"),
-            Identifier::generated("inventory"),
-        ]));
-
         let mut table = ExpressionTable::new();
-        let root = table.insert_tree(&expression);
+        let first = table.append_identifier_path_member(Identifier::generated("player"));
+        let _second = table.append_identifier_path_member(Identifier::generated("inventory"));
+        let root = table.insert(ExpressionNode::Name(HandleSpan::from_parts(first, 2)));
         let ExpressionNode::Name(path) = table.expression(root) else {
             panic!("root expression should be a name path");
         };
