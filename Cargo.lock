@@ -525,6 +525,8 @@ name = "omega-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "omega-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
