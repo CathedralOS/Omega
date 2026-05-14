@@ -1,5 +1,5 @@
+use crate::expression::lower_expression_handle;
 use crate::program::Lowerer;
-use crate::statement::lower_expression_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
