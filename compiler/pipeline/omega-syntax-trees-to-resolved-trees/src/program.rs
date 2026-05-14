@@ -1,9 +1,9 @@
 use crate::item::lower_item;
 use omega_core::diagnostics::Diagnostic;
+use omega_resolved_trees::ResolvedTrees;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
-use omega_resolved_trees::Program;
 
-pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnostic> {
+pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<ResolvedTrees, Diagnostic> {
     let mut lowerer = Lowerer::default();
 
     for item in syntax_trees.root_items() {
@@ -13,7 +13,7 @@ pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnos
     lowerer.finish()
 }
 
-pub fn lower_program(items: &[syntax::item::Item]) -> Result<Program, Diagnostic> {
+pub fn lower_program(items: &[syntax::item::Item]) -> Result<ResolvedTrees, Diagnostic> {
     let syntax_trees =
         SyntaxTrees::from_root_items(Default::default(), items.iter().cloned());
     lower_syntax_trees(&syntax_trees)
@@ -21,11 +21,11 @@ pub fn lower_program(items: &[syntax::item::Item]) -> Result<Program, Diagnostic
 
 #[derive(Default)]
 pub(crate) struct Lowerer {
-    pub(crate) program: Program,
+    pub(crate) program: ResolvedTrees,
 }
 
 impl Lowerer {
-    pub(crate) fn finish(mut self) -> Result<Program, Diagnostic> {
+    pub(crate) fn finish(mut self) -> Result<ResolvedTrees, Diagnostic> {
         crate::symbols::assign_symbols(&mut self.program);
         self.program.rebuild_tables();
         Ok(self.program)

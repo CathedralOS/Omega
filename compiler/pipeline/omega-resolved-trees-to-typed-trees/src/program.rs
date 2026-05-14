@@ -3,10 +3,10 @@ use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::platform::lower_platform;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees::Program as ResolvedProgram;
+use omega_resolved_trees::ResolvedTrees;
 use omega_typed_trees::Program as TypedProgram;
 
-pub fn lower_resolved_trees(resolved_program: &ResolvedProgram) -> Result<TypedProgram, Diagnostic> {
+pub fn lower_resolved_trees(resolved_program: &ResolvedTrees) -> Result<TypedProgram, Diagnostic> {
     let mut lowerer = Lowerer {
         program: TypedProgram::default(),
         source_program: resolved_program,
@@ -35,13 +35,13 @@ pub fn lower_resolved_trees(resolved_program: &ResolvedProgram) -> Result<TypedP
     lowerer.finish()
 }
 
-pub fn lower_program(resolved_program: &ResolvedProgram) -> Result<TypedProgram, Diagnostic> {
+pub fn lower_program(resolved_program: &ResolvedTrees) -> Result<TypedProgram, Diagnostic> {
     lower_resolved_trees(resolved_program)
 }
 
 pub(crate) struct Lowerer<'source> {
     pub(crate) program: TypedProgram,
-    pub(crate) source_program: &'source ResolvedProgram,
+    pub(crate) source_program: &'source ResolvedTrees,
 }
 
 impl Lowerer<'_> {

@@ -1,4 +1,4 @@
-use crate::Program;
+use crate::ResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
@@ -27,7 +27,7 @@ pub struct ResolvedTypeTables {
 }
 
 impl ResolvedProgramTables {
-    pub fn from_program_with_state_spans(program: &mut Program) -> Self {
+    pub fn from_program_with_state_spans(program: &mut ResolvedTrees) -> Self {
         let mut tables = Self::default();
         let type_constraints = program.tables.types.constraints.clone();
 
@@ -173,7 +173,7 @@ impl ResolvedProgramTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::Program;
+    use crate::ResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut program = Program::default();
+        let mut program = ResolvedTrees::default();
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),

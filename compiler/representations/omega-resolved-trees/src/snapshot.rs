@@ -1,4 +1,4 @@
-use crate::Program;
+use crate::ResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{BinaryOperator, Expression, NamePath};
 use crate::invariant::InvariantDefinition;
@@ -17,7 +17,7 @@ pub struct ResolvedProgramSnapshot {
 }
 
 impl ResolvedProgramSnapshot {
-    pub fn from_program(program: &Program) -> Self {
+    pub fn from_program(program: &ResolvedTrees) -> Self {
         Self {
             roots: ResolvedRootsSnapshot {
                 data_definitions: program
@@ -281,7 +281,7 @@ pub enum TypeConstraintSnapshot {
     },
 }
 
-fn data_definition_snapshot(program: &Program, data: &DataDefinition) -> DataDefinitionSnapshot {
+fn data_definition_snapshot(program: &ResolvedTrees, data: &DataDefinition) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
         name: data.name.to_string(),
         type_parameters: data
@@ -297,7 +297,7 @@ fn data_definition_snapshot(program: &Program, data: &DataDefinition) -> DataDef
     }
 }
 
-fn data_member_snapshot(program: &Program, member: &DataMember) -> DataMemberSnapshot {
+fn data_member_snapshot(program: &ResolvedTrees, member: &DataMember) -> DataMemberSnapshot {
     match member {
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: field.name.to_string(),
@@ -310,7 +310,7 @@ fn data_member_snapshot(program: &Program, member: &DataMember) -> DataMemberSna
 }
 
 fn invariant_definition_snapshot(
-    program: &Program,
+    program: &ResolvedTrees,
     invariant: &InvariantDefinition,
 ) -> InvariantDefinitionSnapshot {
     InvariantDefinitionSnapshot {
@@ -326,7 +326,7 @@ fn invariant_definition_snapshot(
     }
 }
 
-fn machine_snapshot(program: &Program, machine: &Machine) -> MachineSnapshot {
+fn machine_snapshot(program: &ResolvedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
         contains: machine
@@ -350,7 +350,7 @@ fn machine_snapshot(program: &Program, machine: &Machine) -> MachineSnapshot {
     }
 }
 
-fn owned_data_snapshot(program: &Program, owned: &OwnedData) -> OwnedDataSnapshot {
+fn owned_data_snapshot(program: &ResolvedTrees, owned: &OwnedData) -> OwnedDataSnapshot {
     OwnedDataSnapshot {
         name: owned.name.to_string(),
         type_reference: type_reference_snapshot(program, &owned.type_reference),
@@ -358,7 +358,7 @@ fn owned_data_snapshot(program: &Program, owned: &OwnedData) -> OwnedDataSnapsho
     }
 }
 
-fn platform_snapshot(program: &Program, platform: &Platform) -> PlatformSnapshot {
+fn platform_snapshot(program: &ResolvedTrees, platform: &Platform) -> PlatformSnapshot {
     PlatformSnapshot {
         name: platform.name.to_string(),
         states: platform
@@ -369,7 +369,7 @@ fn platform_snapshot(program: &Program, platform: &Platform) -> PlatformSnapshot
     }
 }
 
-fn state_snapshot(program: &Program, state: &State) -> StateSnapshot {
+fn state_snapshot(program: &ResolvedTrees, state: &State) -> StateSnapshot {
     StateSnapshot {
         name: state.name.to_string(),
         parameters: state
@@ -390,7 +390,7 @@ fn state_snapshot(program: &Program, state: &State) -> StateSnapshot {
     }
 }
 
-fn state_signature_snapshot(program: &Program, signature: &StateSignature) -> StateSignatureSnapshot {
+fn state_signature_snapshot(program: &ResolvedTrees, signature: &StateSignature) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
         parameters: signature
@@ -405,7 +405,7 @@ fn state_signature_snapshot(program: &Program, signature: &StateSignature) -> St
     }
 }
 
-fn state_parameter_snapshot(program: &Program, parameter: &StateParameter) -> StateParameterSnapshot {
+fn state_parameter_snapshot(program: &ResolvedTrees, parameter: &StateParameter) -> StateParameterSnapshot {
     StateParameterSnapshot {
         name: parameter.name.to_string(),
         type_reference: type_reference_snapshot(program, &parameter.type_reference),
@@ -414,7 +414,7 @@ fn state_parameter_snapshot(program: &Program, parameter: &StateParameter) -> St
     }
 }
 
-fn statement_snapshot(program: &Program, statement: &Statement) -> StatementSnapshot {
+fn statement_snapshot(program: &ResolvedTrees, statement: &Statement) -> StatementSnapshot {
     match statement {
         Statement::Assignment(assignment) => StatementSnapshot::Assignment {
             target: expression_snapshot(&assignment.target),
@@ -522,7 +522,7 @@ fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
     }
 }
 
-fn type_reference_snapshot(program: &Program, type_reference: &TypeReference) -> TypeReferenceSnapshot {
+fn type_reference_snapshot(program: &ResolvedTrees, type_reference: &TypeReference) -> TypeReferenceSnapshot {
     type_reference_snapshot_from_constraints(type_reference, |constraints| {
         program
             .tables
@@ -629,7 +629,7 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::ResolvedProgramSnapshot;
-    use crate::Program;
+    use crate::ResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
@@ -641,7 +641,7 @@ mod tests {
 
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
-        let mut program = Program::default();
+        let mut program = ResolvedTrees::default();
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),

@@ -12,7 +12,7 @@ use omega_core::parallel::WorkerPool;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
 use omega_image_emission::{ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image};
 use omega_object::{ObjectContainerInput, SectionKind, emit_omega_object_container};
-use omega_resolved_trees::Program as ResolvedProgram;
+use omega_resolved_trees::ResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::Program as TypedProgram;
@@ -163,12 +163,12 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
     })
 }
 
-fn resolve_program(syntax: AssembledSyntax) -> Result<ResolvedProgram, Vec<Diagnostic>> {
+fn resolve_program(syntax: AssembledSyntax) -> Result<ResolvedTrees, Vec<Diagnostic>> {
     omega_syntax_trees_to_resolved_trees::lower_syntax_trees(&syntax.syntax_trees)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn typecheck_program(resolved: ResolvedProgram) -> Result<TypedProgram, Vec<Diagnostic>> {
+fn typecheck_program(resolved: ResolvedTrees) -> Result<TypedProgram, Vec<Diagnostic>> {
     omega_resolved_trees_to_typed_trees::lower_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])
 }

@@ -1,9 +1,9 @@
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
-use omega_resolved_trees::Program;
+use omega_resolved_trees::ResolvedTrees;
 
-pub(crate) fn assign_symbols(program: &mut Program) {
+pub(crate) fn assign_symbols(program: &mut ResolvedTrees) {
     program.symbols = build_symbol_table(program);
     let symbols = program.symbols.clone();
     assign_top_level_symbols(program, &symbols);
@@ -11,7 +11,7 @@ pub(crate) fn assign_symbols(program: &mut Program) {
     assign_statement_call_symbols(program, &symbols);
 }
 
-fn build_symbol_table(program: &Program) -> SymbolTable {
+fn build_symbol_table(program: &ResolvedTrees) -> SymbolTable {
     let mut children = builtin_type_symbol_definitions().to_vec();
 
     children.extend(
@@ -51,7 +51,7 @@ fn data_symbol_definition<'program>(
 }
 
 fn machine_symbol_definition<'program>(
-    program: &'program Program,
+    program: &'program ResolvedTrees,
     machine: &'program omega_resolved_trees::machine::Machine,
 ) -> SymbolDefinition<'program> {
     let inherited_data_members = program
@@ -132,7 +132,7 @@ fn local_symbol_definitions<'program>(
     })
 }
 
-fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
+fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
     for invariant in &mut program.invariant_definitions {
         invariant.symbol = top_level_symbol(symbols, SymbolKind::Invariant, invariant.name.as_str());
     }
@@ -221,7 +221,7 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
 }
 
 fn assign_type_reference_symbols(
-    program: &mut Program,
+    program: &mut ResolvedTrees,
     symbols: &SymbolTable,
 ) {
     for data_definition in &mut program.data_definitions {
@@ -238,7 +238,7 @@ fn assign_type_reference_symbols(
     }
 }
 
-fn assign_statement_call_symbols(program: &mut Program, symbols: &SymbolTable) {
+fn assign_statement_call_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
     let data_definitions = program.data_definitions.clone();
     for machine in &mut program.machines {
         let machine_scope = MachineScope {
