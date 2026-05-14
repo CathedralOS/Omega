@@ -474,33 +474,8 @@ impl ItemTable {
         self.declaration_storage.identifier_path_members.append(member)
     }
 
-    pub fn insert_target_host_settings(
-        &mut self,
-        settings: impl IntoIterator<Item = TargetHostSetting>,
-    ) -> HandleSpan<TargetHostSetting> {
-        self.declaration_storage
-            .target_host_settings
-            .insert_many(settings)
-    }
-
-    pub fn insert_trust_policies(
-        &mut self,
-        policies: impl IntoIterator<Item = TrustPolicy>,
-    ) -> HandleSpan<TrustPolicy> {
-        self.declaration_storage.trust_policies.insert_many(policies)
-    }
-
     pub fn append_trust_policy(&mut self, policy: TrustPolicy) -> Handle<TrustPolicy> {
         self.declaration_storage.trust_policies.append(policy)
-    }
-
-    pub fn insert_type_parameters(
-        &mut self,
-        type_parameters: impl IntoIterator<Item = TypeParameter>,
-    ) -> HandleSpan<TypeParameter> {
-        self.declaration_storage
-            .type_parameters
-            .insert_many(type_parameters)
     }
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
@@ -543,24 +518,12 @@ impl ItemTable {
         self.declaration_storage.target_host_settings.append(setting)
     }
 
-    pub fn state_parameter_count(&self) -> usize {
-        self.state_storage.parameters.len()
-    }
-
-    pub fn state_signature_count(&self) -> usize {
-        self.state_storage.signatures.len()
-    }
-
     pub fn state_count(&self) -> usize {
         self.state_storage.states.len()
     }
 
     pub fn machine_count(&self) -> usize {
         self.state_storage.machines.len()
-    }
-
-    pub fn platform_count(&self) -> usize {
-        self.state_storage.platforms.len()
     }
 
     pub fn insert_state_signature(&mut self, signature: &StateSignature) -> StateSignatureHandle {

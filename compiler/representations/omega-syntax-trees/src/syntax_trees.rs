@@ -63,15 +63,15 @@ impl SyntaxTrees {
 
     fn insert_item(&mut self, item: Item) -> ItemHandle {
         match &item {
-            Item::Capability(_) => {}
-            Item::Data(data_definition) => {
-                let _ = data_definition;
-            }
-            Item::Invariant(_) => {}
-            Item::Library(_) => {}
             Item::Machine(machine) => self.insert_machine(machine),
             Item::Platform(platform) => self.insert_platform(platform),
-            Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
+            Item::Capability(_)
+            | Item::Data(_)
+            | Item::Invariant(_)
+            | Item::Library(_)
+            | Item::Target(_)
+            | Item::TrustDefinition(_)
+            | Item::Use(_) => {}
         }
 
         self.items.append_item(item)

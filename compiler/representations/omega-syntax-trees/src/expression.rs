@@ -81,10 +81,6 @@ impl ExpressionTable {
         self.expressions.len()
     }
 
-    pub fn struct_field_count(&self) -> usize {
-        self.struct_fields.len()
-    }
-
     pub fn display_name(&self, handle: ExpressionHandle) -> String {
         self.expression(handle).display_name(self)
     }
