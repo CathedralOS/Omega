@@ -21,19 +21,22 @@ impl ResolvedProgramTables {
         let mut tables = Self::default();
 
         for invariant in &program.invariant_definitions {
-            tables.insert_type_constraints(invariant.constraints, &program.tables.type_constraints);
+            tables.insert_type_constraints(
+                invariant.constraints,
+                &program.tables.types.constraints,
+            );
         }
 
         for data_definition in &program.data_definitions {
-            tables.insert_data_definition(data_definition, &program.tables.type_constraints);
+            tables.insert_data_definition(data_definition, &program.tables.types.constraints);
         }
 
         for platform in &program.platforms {
-            tables.insert_platform(platform, &program.tables.type_constraints);
+            tables.insert_platform(platform, &program.tables.types.constraints);
         }
 
         for machine in &program.machines {
-            tables.insert_machine(machine, &program.tables.type_constraints);
+            tables.insert_machine(machine, &program.tables.types.constraints);
         }
 
         tables
@@ -41,7 +44,7 @@ impl ResolvedProgramTables {
 
     pub fn from_program_with_state_spans(program: &mut Program) -> Self {
         let mut tables = Self::default();
-        let type_constraints = program.tables.type_constraints.clone();
+        let type_constraints = program.tables.types.constraints.clone();
 
         for invariant in &program.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, &type_constraints);
@@ -258,7 +261,7 @@ mod tests {
 
         program.rebuild_tables();
 
-        assert_eq!(program.tables.type_reference_table.type_reference_count(), 1);
+        assert_eq!(program.tables.types.references.type_reference_count(), 1);
         assert_eq!(program.tables.expression_table.expression_count(), 1);
         assert_eq!(program.tables.statement_table.statement_count(), 1);
         assert_eq!(program.machines[0].states[0].statement_nodes.count(), 1);

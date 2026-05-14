@@ -38,10 +38,15 @@ pub struct ResolvedRoots {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ResolvedTableStorage {
-    pub type_constraints: Arena<types::TypeConstraint>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: statement::StatementTable,
-    pub type_reference_table: types::TypeReferenceTable,
+    pub types: ResolvedTypeStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedTypeStorage {
+    pub constraints: Arena<types::TypeConstraint>,
+    pub references: types::TypeReferenceTable,
 }
 
 impl Program {
@@ -49,7 +54,7 @@ impl Program {
         let tables = tables::ResolvedProgramTables::from_program_with_state_spans(self);
         self.tables.expression_table = tables.expressions;
         self.tables.statement_table = tables.statements;
-        self.tables.type_reference_table = tables.type_references;
+        self.tables.types.references = tables.type_references;
     }
 
     pub fn snapshot(&self) -> snapshot::ResolvedProgramSnapshot {

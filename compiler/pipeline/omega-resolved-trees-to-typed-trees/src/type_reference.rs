@@ -65,7 +65,8 @@ pub(crate) fn lower_type_constraints(
     let lowered = lowerer
         .source_program
         .tables
-        .type_constraints
+        .types
+        .constraints
         .span_or_empty(constraints)
         .iter()
         .map(lower_type_constraint)
