@@ -74,7 +74,8 @@ fn parse_capability_state<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityState> {
     let (signature, mut input) = parse_state_signature(syntax_trees, input)?;
-    let mut contracts = Vec::new();
+    let mut contract_start = Handle::invalid();
+    let mut contract_count = 0u32;
 
     if input.at_contextual("where") {
         input = input.take_contextual("where")?;
@@ -84,7 +85,13 @@ fn parse_capability_state<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
         while !input.at_punctuation(PunctuationKind::RightBrace) {
             let (contract, rest) = parse_capability_contract(input)?;
-            contracts.push(contract);
+            let handle = syntax_trees.items.append_capability_contract(contract);
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("capability contract span count overflow");
             input = rest;
         }
         input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
@@ -95,10 +102,22 @@ fn parse_capability_state<'tokens, 'source>(
             || input.tokens.is_empty())
         {
             let (contract, rest) = parse_capability_contract(input)?;
-            contracts.push(contract);
+            let handle = syntax_trees.items.append_capability_contract(contract);
+            if contract_count == 0 {
+                contract_start = handle;
+            }
+            contract_count = contract_count
+                .checked_add(1)
+                .expect("capability contract span count overflow");
             input = rest;
         }
     }
+
+    let contracts = if contract_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(contract_start, contract_count)
+    };
 
     Ok((
         CapabilityState {

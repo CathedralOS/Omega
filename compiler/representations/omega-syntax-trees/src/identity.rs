@@ -44,7 +44,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                     }
                     CapabilityMember::State(state) => {
                         count_state_signature(syntax_trees, &state.signature, counts);
-                        for contract in &state.contracts {
+                        for contract in syntax_trees.items.capability_contracts(state.contracts) {
                             if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) =
                                 &contract.kind
                             {
