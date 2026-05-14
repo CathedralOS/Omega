@@ -8,7 +8,6 @@ use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
     TableCallExpression,
 };
-use omega_syntax_trees::identifier::IdentifierPath;
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
@@ -215,63 +214,97 @@ fn classify_call_target_handle(
     syntax_trees: &mut SyntaxTrees,
     call: TableCallExpression,
 ) -> Result<TransitionTargetNode, ParseError> {
-    let receiver_path = if call.receiver.is_valid() {
-        expression_handle_to_identifier_path(syntax_trees, call.receiver)
+    let receiver_depth = if call.receiver.is_valid() {
+        expression_handle_identifier_depth(syntax_trees, call.receiver)
     } else {
-        None
+        Some(0)
     };
-    if receiver_path.as_ref().is_some_and(|path| path.len() > 1) {
+    let Some(receiver_depth) = receiver_depth else {
+        return Ok(TransitionTargetNode::Value(
+            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
+        ));
+    };
+    if receiver_depth > 1 {
         return Ok(TransitionTargetNode::Value(
             syntax_trees.expressions.insert(ExpressionNode::Call(call)),
         ));
     }
-    let path = match receiver_path {
-        None => IdentifierPath::from(vec![call.target.clone()]),
-        Some(mut path) => {
-            path.push(call.target.clone());
-            path
-        }
+    let path = if call.receiver.is_valid() {
+        let receiver = copy_expression_identifier_path_to_statement_table(
+            syntax_trees,
+            call.receiver,
+        )
+        .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
+        append_statement_identifier_path_member(syntax_trees, receiver, call.target.clone())
+    } else {
+        let handle = syntax_trees
+            .statements
+            .append_identifier_path_member(call.target.clone());
+        HandleSpan::from_parts(handle, 1)
     };
 
-    if path.len() == 1 && path.as_slice()[0].as_str() == "self" {
+    let path_members = syntax_trees.statements.identifier_path_members(path);
+    if path_members.len() == 1 && path_members[0].as_str() == "self" {
         Ok(TransitionTargetNode::SelfTarget)
     } else {
         let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
         Ok(TransitionTargetNode::Named {
-            path: copy_identifier_path_to_statement_table(syntax_trees, &path),
+            path,
             arguments,
         })
     }
 }
 
-fn expression_handle_to_identifier_path(
+fn expression_handle_identifier_depth(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
-) -> Option<IdentifierPath> {
+) -> Option<usize> {
     match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => Some(IdentifierPath::from(
-            syntax_trees.expressions.identifier_path_members(*path).to_vec(),
-        )),
+        ExpressionNode::Name(path) => Some(syntax_trees.expressions.identifier_path_members(*path).len()),
         ExpressionNode::Member(member) => {
-            let mut path = expression_handle_to_identifier_path(syntax_trees, member.receiver)?;
-            path.push(member.member.clone());
-            Some(path)
+            let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
+            Some(depth + 1)
         }
         _ => None,
     }
 }
 
-fn copy_identifier_path_to_statement_table(
+fn copy_expression_identifier_path_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
-    path: &IdentifierPath,
+    expression: ExpressionHandle,
+) -> Option<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
+    match syntax_trees.expressions.expression(expression).clone() {
+        ExpressionNode::Name(path) => Some(copy_identifier_members_to_statement_table(
+            syntax_trees,
+            path,
+        )),
+        ExpressionNode::Member(member) => {
+            let receiver =
+                copy_expression_identifier_path_to_statement_table(syntax_trees, member.receiver)?;
+            Some(append_statement_identifier_path_member(
+                syntax_trees,
+                receiver,
+                member.member,
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn copy_identifier_members_to_statement_table(
+    syntax_trees: &mut SyntaxTrees,
+    path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
 ) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
-    for member in path.iter() {
+    let member_count = syntax_trees.expressions.identifier_path_members(path).len();
+
+    for index in 0..member_count {
+        let member = syntax_trees.expressions.identifier_path_members(path)[index].clone();
         let handle = syntax_trees
             .statements
-            .append_identifier_path_member(member.clone());
+            .append_identifier_path_member(member);
         if count == 0 {
             start = handle;
         }
@@ -284,6 +317,25 @@ fn copy_identifier_path_to_statement_table(
         HandleSpan::empty()
     } else {
         HandleSpan::from_parts(start, count)
+    }
+}
+
+fn append_statement_identifier_path_member(
+    syntax_trees: &mut SyntaxTrees,
+    path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    member: omega_syntax_trees::identifier::Identifier,
+) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
+    let handle = syntax_trees.statements.append_identifier_path_member(member);
+
+    if path.is_empty() {
+        HandleSpan::from_parts(handle, 1)
+    } else {
+        HandleSpan::from_parts(
+            path.start(),
+            path.count()
+                .checked_add(1)
+                .expect("transition target path span count overflow"),
+        )
     }
 }
 
