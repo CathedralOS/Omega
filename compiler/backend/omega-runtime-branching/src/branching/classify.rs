@@ -26,6 +26,7 @@ pub(super) fn classify_branch_call_expansion(
             StateGuardKind::Always
                 | StateGuardKind::RuntimeEquality
                 | StateGuardKind::RuntimeInequality
+                | StateGuardKind::RuntimeOrdering
         ) {
             has_complex_guard = true;
         }
