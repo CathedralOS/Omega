@@ -244,11 +244,12 @@ fn assign_statement_call_symbols(program: &mut Program, symbols: &SymbolTable) {
         };
         for state in &mut machine.states {
             let parameter_bindings = state_parameter_bindings(state);
+            let state_symbol = state.symbol;
             for statement in &mut state.statements {
                 assign_statement_symbols(
                     &machine_scope,
                     &parameter_bindings,
-                    state.symbol,
+                    state_symbol,
                     statement,
                     symbols,
                 );
