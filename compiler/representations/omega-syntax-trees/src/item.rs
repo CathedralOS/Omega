@@ -289,15 +289,25 @@ pub struct StateSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemTable {
     items: Arena<Item>,
-    state_parameters: Arena<StateParameterNode>,
-    state_signatures: Arena<StateSignatureNode>,
+    state_storage: StateStorage,
+    declaration_storage: DeclarationStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StateStorage {
+    parameters: Arena<StateParameterNode>,
+    signatures: Arena<StateSignatureNode>,
     states: Arena<StateNode>,
-    state_parameter_handles: Arena<StateParameterHandle>,
+    parameter_handles: Arena<StateParameterHandle>,
     state_handles: Arena<StateHandle>,
-    state_signature_handles: Arena<StateSignatureHandle>,
+    signature_handles: Arena<StateSignatureHandle>,
     statement_handles: Arena<crate::statement::StatementHandle>,
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct DeclarationStorage {
     type_parameters: Arena<TypeParameter>,
     trust_levels: Arena<TrustLevel>,
     library_functions: Arena<LibraryFunction>,
@@ -312,28 +322,13 @@ impl ItemTable {
     pub fn new() -> Self {
         Self {
             items: Arena::new(),
-            state_parameters: Arena::new(),
-            state_signatures: Arena::new(),
-            states: Arena::new(),
-            state_parameter_handles: Arena::new(),
-            state_handles: Arena::new(),
-            state_signature_handles: Arena::new(),
-            statement_handles: Arena::new(),
-            machines: Arena::new(),
-            platforms: Arena::new(),
-            type_parameters: Arena::new(),
-            trust_levels: Arena::new(),
-            library_functions: Arena::new(),
-            capability_members: Arena::new(),
-            capability_contracts: Arena::new(),
-            data_members: Arena::new(),
-            target_host_settings: Arena::new(),
-            trust_policies: Arena::new(),
+            state_storage: StateStorage::new(),
+            declaration_storage: DeclarationStorage::new(),
         }
     }
 
     pub fn state_parameter(&self, handle: StateParameterHandle) -> &StateParameterNode {
-        self.state_parameters.get(handle)
+        self.state_storage.parameters.get(handle)
     }
 
     pub fn item(&self, handle: ItemHandle) -> &Item {
@@ -341,114 +336,118 @@ impl ItemTable {
     }
 
     pub fn state_signature(&self, handle: StateSignatureHandle) -> &StateSignatureNode {
-        self.state_signatures.get(handle)
+        self.state_storage.signatures.get(handle)
     }
 
     pub fn state(&self, handle: StateHandle) -> &StateNode {
-        self.states.get(handle)
+        self.state_storage.states.get(handle)
     }
 
     pub fn machine(&self, handle: MachineHandle) -> &MachineNode {
-        self.machines.get(handle)
+        self.state_storage.machines.get(handle)
     }
 
     pub fn platform(&self, handle: PlatformHandle) -> &PlatformNode {
-        self.platforms.get(handle)
+        self.state_storage.platforms.get(handle)
     }
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
-        self.type_parameters.span_or_empty(span)
+        self.declaration_storage.type_parameters.span_or_empty(span)
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
-        self.library_functions.span_or_empty(span)
+        self.declaration_storage.library_functions.span_or_empty(span)
     }
 
     pub fn trust_levels(&self, span: HandleSpan<TrustLevel>) -> &[TrustLevel] {
-        self.trust_levels.span_or_empty(span)
+        self.declaration_storage.trust_levels.span_or_empty(span)
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
-        self.capability_members.span_or_empty(span)
+        self.declaration_storage.capability_members.span_or_empty(span)
     }
 
     pub fn capability_contracts(
         &self,
         span: HandleSpan<CapabilityContract>,
     ) -> &[CapabilityContract] {
-        self.capability_contracts.span_or_empty(span)
+        self.declaration_storage
+            .capability_contracts
+            .span_or_empty(span)
     }
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
-        self.data_members.span_or_empty(span)
+        self.declaration_storage.data_members.span_or_empty(span)
     }
 
     pub fn target_host_settings(
         &self,
         span: HandleSpan<TargetHostSetting>,
     ) -> &[TargetHostSetting] {
-        self.target_host_settings.span_or_empty(span)
+        self.declaration_storage
+            .target_host_settings
+            .span_or_empty(span)
     }
 
     pub fn trust_policies(&self, span: HandleSpan<TrustPolicy>) -> &[TrustPolicy] {
-        self.trust_policies.span_or_empty(span)
+        self.declaration_storage.trust_policies.span_or_empty(span)
     }
 
     pub fn state_parameters(
         &self,
         span: HandleSpan<StateParameterHandle>,
     ) -> &[StateParameterHandle] {
-        self.state_parameter_handles.span_or_empty(span)
+        self.state_storage.parameter_handles.span_or_empty(span)
     }
 
     pub fn state_signatures(
         &self,
         span: HandleSpan<StateSignatureHandle>,
     ) -> &[StateSignatureHandle] {
-        self.state_signature_handles.span_or_empty(span)
+        self.state_storage.signature_handles.span_or_empty(span)
     }
 
     pub fn state_handles(&self, span: HandleSpan<StateHandle>) -> &[StateHandle] {
-        self.state_handles.span_or_empty(span)
+        self.state_storage.state_handles.span_or_empty(span)
     }
 
     pub fn statements(
         &self,
         span: HandleSpan<crate::statement::StatementHandle>,
     ) -> &[crate::statement::StatementHandle] {
-        self.statement_handles.span_or_empty(span)
+        self.state_storage.statement_handles.span_or_empty(span)
     }
 
     pub fn insert_state_parameter_node(
         &mut self,
         parameter: StateParameterNode,
     ) -> StateParameterHandle {
-        self.state_parameters.append(parameter)
+        self.state_storage.parameters.append(parameter)
     }
 
     pub fn append_state_parameter_handle(
         &mut self,
         handle: StateParameterHandle,
     ) -> Handle<StateParameterHandle> {
-        self.state_parameter_handles.append(handle)
+        self.state_storage.parameter_handles.append(handle)
     }
 
     pub fn append_state_handle(&mut self, handle: StateHandle) -> Handle<StateHandle> {
-        self.state_handles.append(handle)
+        self.state_storage.state_handles.append(handle)
     }
 
     pub fn append_state_signature_handle(
         &mut self,
         handle: StateSignatureHandle,
     ) -> Handle<StateSignatureHandle> {
-        self.state_signature_handles.append(handle)
+        self.state_storage.signature_handles.append(handle)
     }
 
     pub fn append_statement_handle(
         &mut self,
         handle: crate::statement::StatementHandle,
     ) -> Handle<crate::statement::StatementHandle> {
-        self.statement_handles.append(handle)
+        self.state_storage.statement_handles.append(handle)
     }
 
     pub fn append_item(&mut self, item: Item) -> ItemHandle {
@@ -459,85 +458,89 @@ impl ItemTable {
         &mut self,
         settings: impl IntoIterator<Item = TargetHostSetting>,
     ) -> HandleSpan<TargetHostSetting> {
-        self.target_host_settings.insert_many(settings)
+        self.declaration_storage
+            .target_host_settings
+            .insert_many(settings)
     }
 
     pub fn insert_trust_policies(
         &mut self,
         policies: impl IntoIterator<Item = TrustPolicy>,
     ) -> HandleSpan<TrustPolicy> {
-        self.trust_policies.insert_many(policies)
+        self.declaration_storage.trust_policies.insert_many(policies)
     }
 
     pub fn append_trust_policy(&mut self, policy: TrustPolicy) -> Handle<TrustPolicy> {
-        self.trust_policies.append(policy)
+        self.declaration_storage.trust_policies.append(policy)
     }
 
     pub fn insert_type_parameters(
         &mut self,
         type_parameters: impl IntoIterator<Item = TypeParameter>,
     ) -> HandleSpan<TypeParameter> {
-        self.type_parameters.insert_many(type_parameters)
+        self.declaration_storage
+            .type_parameters
+            .insert_many(type_parameters)
     }
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
-        self.type_parameters.append(type_parameter)
+        self.declaration_storage.type_parameters.append(type_parameter)
     }
 
     pub fn append_trust_level(&mut self, trust_level: TrustLevel) -> Handle<TrustLevel> {
-        self.trust_levels.append(trust_level)
+        self.declaration_storage.trust_levels.append(trust_level)
     }
 
     pub fn append_library_function(
         &mut self,
         function: LibraryFunction,
     ) -> Handle<LibraryFunction> {
-        self.library_functions.append(function)
+        self.declaration_storage.library_functions.append(function)
     }
 
     pub fn append_capability_member(
         &mut self,
         member: CapabilityMember,
     ) -> Handle<CapabilityMember> {
-        self.capability_members.append(member)
+        self.declaration_storage.capability_members.append(member)
     }
 
     pub fn append_capability_contract(
         &mut self,
         contract: CapabilityContract,
     ) -> Handle<CapabilityContract> {
-        self.capability_contracts.append(contract)
+        self.declaration_storage.capability_contracts.append(contract)
     }
 
     pub fn append_data_member(&mut self, member: DataMember) -> Handle<DataMember> {
-        self.data_members.append(member)
+        self.declaration_storage.data_members.append(member)
     }
 
     pub fn append_target_host_setting(
         &mut self,
         setting: TargetHostSetting,
     ) -> Handle<TargetHostSetting> {
-        self.target_host_settings.append(setting)
+        self.declaration_storage.target_host_settings.append(setting)
     }
 
     pub fn state_parameter_count(&self) -> usize {
-        self.state_parameters.len()
+        self.state_storage.parameters.len()
     }
 
     pub fn state_signature_count(&self) -> usize {
-        self.state_signatures.len()
+        self.state_storage.signatures.len()
     }
 
     pub fn state_count(&self) -> usize {
-        self.states.len()
+        self.state_storage.states.len()
     }
 
     pub fn machine_count(&self) -> usize {
-        self.machines.len()
+        self.state_storage.machines.len()
     }
 
     pub fn platform_count(&self) -> usize {
-        self.platforms.len()
+        self.state_storage.platforms.len()
     }
 
     pub fn insert_state_signature_tree(
@@ -546,7 +549,7 @@ impl ItemTable {
         _type_references: &mut crate::types::TypeReferenceTable,
         _expressions: &mut crate::expression::ExpressionTable,
     ) -> StateSignatureHandle {
-        self.state_signatures.append(StateSignatureNode {
+        self.state_storage.signatures.append(StateSignatureNode {
             name: signature.name.clone(),
             parameters: signature.parameters,
             return_type: signature.return_type,
@@ -560,7 +563,7 @@ impl ItemTable {
         _type_references: &mut crate::types::TypeReferenceTable,
         _expressions: &mut crate::expression::ExpressionTable,
     ) -> StateHandle {
-        self.states.append(StateNode {
+        self.state_storage.states.append(StateNode {
             name: state.name.clone(),
             parameters: state.parameters,
             return_type: state.return_type,
@@ -575,7 +578,7 @@ impl ItemTable {
         _type_references: &mut crate::types::TypeReferenceTable,
         _expressions: &mut crate::expression::ExpressionTable,
     ) -> MachineHandle {
-        self.machines.append(MachineNode {
+        self.state_storage.machines.append(MachineNode {
             name: machine.name.clone(),
             states: machine.states,
         })
@@ -587,7 +590,7 @@ impl ItemTable {
         _type_references: &mut crate::types::TypeReferenceTable,
         _expressions: &mut crate::expression::ExpressionTable,
     ) -> PlatformHandle {
-        self.platforms.append(PlatformNode {
+        self.state_storage.platforms.append(PlatformNode {
             name: platform.name.clone(),
             states: platform.states,
         })
@@ -597,6 +600,37 @@ impl ItemTable {
 impl Default for ItemTable {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl StateStorage {
+    fn new() -> Self {
+        Self {
+            parameters: Arena::new(),
+            signatures: Arena::new(),
+            states: Arena::new(),
+            parameter_handles: Arena::new(),
+            state_handles: Arena::new(),
+            signature_handles: Arena::new(),
+            statement_handles: Arena::new(),
+            machines: Arena::new(),
+            platforms: Arena::new(),
+        }
+    }
+}
+
+impl DeclarationStorage {
+    fn new() -> Self {
+        Self {
+            type_parameters: Arena::new(),
+            trust_levels: Arena::new(),
+            library_functions: Arena::new(),
+            capability_members: Arena::new(),
+            capability_contracts: Arena::new(),
+            data_members: Arena::new(),
+            target_host_settings: Arena::new(),
+            trust_policies: Arena::new(),
+        }
     }
 }
 
