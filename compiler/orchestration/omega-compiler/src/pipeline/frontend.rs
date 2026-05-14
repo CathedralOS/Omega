@@ -6,7 +6,7 @@ use crate::{lexer, parser};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceId;
-use omega_syntax_trees::identifier::IdentifierPath;
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::Item;
 use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{Token, TokenStream, TokenText};
@@ -176,7 +176,13 @@ pub fn discover_imports(
         for item in parsed_source.syntax_trees.root_items() {
             match item {
                 Item::Use(use_item) => {
-                    imports.push(normalize_path(&resolve_source_path(&root_dir, &use_item.path))?);
+                    imports.push(normalize_path(&resolve_source_path(
+                        &root_dir,
+                        parsed_source
+                            .syntax_trees
+                            .items
+                            .identifier_path_members(use_item.path),
+                    ))?);
                 }
                 Item::Target(target) => {
                     let target_is_selected = selected_target_name
@@ -187,10 +193,14 @@ pub fn discover_imports(
                     }
 
                     if let Some(host) = &target.host {
-                        if is_bundled_omega_path(&host.provider) {
+                        let provider = parsed_source
+                            .syntax_trees
+                            .items
+                            .identifier_path_members(host.provider);
+                        if is_bundled_omega_path(provider) {
                             imports.push(normalize_path(&resolve_source_path(
                                 &root_dir,
-                                &host.provider,
+                                provider,
                             ))?);
                         }
                     }
@@ -200,10 +210,14 @@ pub fn discover_imports(
                         .items
                         .trust_policies(target.trust_policies)
                     {
-                        if is_bundled_omega_path(&trust_policy.path) {
+                        let policy_path = parsed_source
+                            .syntax_trees
+                            .items
+                            .identifier_path_members(trust_policy.path);
+                        if is_bundled_omega_path(policy_path) {
                             imports.push(normalize_path(&resolve_source_path(
                                 &root_dir,
-                                &trust_policy.path,
+                                policy_path,
                             ))?);
                         }
                     }
@@ -237,7 +251,7 @@ fn own_token_stream(tokens: &TokenStream<'_>) -> TokenStream<'static> {
     TokenStream::new(owned_tokens)
 }
 
-fn resolve_source_path(root_dir: &Path, source_path: &IdentifierPath) -> PathBuf {
+fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
     let mut segments = source_path.iter();
     let mut path = if is_bundled_omega_path(source_path) {
         segments.next();
@@ -262,7 +276,7 @@ fn resolve_source_path(root_dir: &Path, source_path: &IdentifierPath) -> PathBuf
         .unwrap_or(path)
 }
 
-fn is_bundled_omega_path(path: &IdentifierPath) -> bool {
+fn is_bundled_omega_path(path: &[Identifier]) -> bool {
     path.first().is_some_and(|segment| segment.as_str() == "omega")
 }
 

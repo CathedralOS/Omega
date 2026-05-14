@@ -26,7 +26,7 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
             input = rest;
         } else if input.at_keyword(KeywordKind::Trust) {
             input = input.take_keyword(KeywordKind::Trust, "trust")?;
-            let (value, rest) = parse_trust_policy(input)?;
+            let (value, rest) = parse_trust_policy(syntax_trees, input)?;
             let handle = syntax_trees.items.append_trust_policy(value);
             if trust_policy_count == 0 {
                 trust_policy_start = handle;
@@ -62,6 +62,9 @@ fn parse_target_host<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, TargetHost> {
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (provider, mut input) = parse_path(input)?;
+    let provider = syntax_trees
+        .items
+        .insert_identifier_path_members(provider.iter().cloned());
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut setting_start = Handle::invalid();
     let mut setting_count = 0u32;
@@ -112,6 +115,7 @@ fn parse_target_host<'tokens, 'source>(
 }
 
 fn parse_trust_policy<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TrustPolicy> {
     let (mode, input) = if input.at_contextual("unchecked") {
@@ -122,9 +126,20 @@ fn parse_trust_policy<'tokens, 'source>(
 
     let (path, input) = if input.at_keyword(KeywordKind::Host) {
         let input = input.take_keyword(KeywordKind::Host, "host")?;
-        (omega_syntax_trees::identifier::IdentifierPath::from(vec![Identifier::generated("host")]), input)
+        (
+            syntax_trees
+                .items
+                .insert_identifier_path_members([Identifier::generated("host")]),
+            input,
+        )
     } else {
-        parse_path(input)?
+        let (path, input) = parse_path(input)?;
+        (
+            syntax_trees
+                .items
+                .insert_identifier_path_members(path.iter().cloned()),
+            input,
+        )
     };
 
     Ok((TrustPolicy { mode, path }, input))

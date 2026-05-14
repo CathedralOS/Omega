@@ -1,4 +1,4 @@
-use crate::identifier::{Identifier, IdentifierPath};
+use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub type ItemHandle = Handle<Item>;
@@ -29,13 +29,13 @@ impl Default for Item {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseItem {
-    pub path: IdentifierPath,
+    pub path: HandleSpan<Identifier>,
 }
 
 impl Default for UseItem {
     fn default() -> Self {
         Self {
-            path: IdentifierPath::default(),
+            path: HandleSpan::empty(),
         }
     }
 }
@@ -162,7 +162,7 @@ pub struct TargetDefinition {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetHost {
-    pub provider: IdentifierPath,
+    pub provider: HandleSpan<Identifier>,
     pub settings: HandleSpan<TargetHostSetting>,
 }
 
@@ -184,7 +184,7 @@ pub enum TargetHostSettingValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrustPolicy {
     pub mode: TrustMode,
-    pub path: IdentifierPath,
+    pub path: HandleSpan<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,7 +212,7 @@ impl Default for TrustPolicy {
     fn default() -> Self {
         Self {
             mode: TrustMode::default(),
-            path: IdentifierPath::default(),
+            path: HandleSpan::empty(),
         }
     }
 }
@@ -308,6 +308,7 @@ struct StateStorage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DeclarationStorage {
+    identifier_path_members: Arena<Identifier>,
     type_parameters: Arena<TypeParameter>,
     trust_levels: Arena<TrustLevel>,
     library_functions: Arena<LibraryFunction>,
@@ -353,6 +354,12 @@ impl ItemTable {
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.declaration_storage.type_parameters.span_or_empty(span)
+    }
+
+    pub fn identifier_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
+        self.declaration_storage
+            .identifier_path_members
+            .span_or_empty(span)
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
@@ -452,6 +459,15 @@ impl ItemTable {
 
     pub fn append_item(&mut self, item: Item) -> ItemHandle {
         self.items.append(item)
+    }
+
+    pub fn insert_identifier_path_members(
+        &mut self,
+        members: impl IntoIterator<Item = Identifier>,
+    ) -> HandleSpan<Identifier> {
+        self.declaration_storage
+            .identifier_path_members
+            .insert_many(members)
     }
 
     pub fn insert_target_host_settings(
@@ -622,6 +638,7 @@ impl StateStorage {
 impl DeclarationStorage {
     fn new() -> Self {
         Self {
+            identifier_path_members: Arena::new(),
             type_parameters: Arena::new(),
             trust_levels: Arena::new(),
             library_functions: Arena::new(),
