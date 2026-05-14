@@ -155,9 +155,7 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
     let mut syntax_trees = SyntaxTrees::new(Default::default());
 
     for (_, file) in _sources.files.iter() {
-        for item in file.syntax_trees.root_items() {
-            syntax_trees.push_root_item(item.clone());
-        }
+        syntax_trees.extend_from(&file.syntax_trees);
     }
 
     Ok(AssembledSyntax {

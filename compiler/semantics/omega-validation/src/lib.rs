@@ -550,6 +550,68 @@ fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::validate_program;
+    use omega_resolved_trees_to_typed_trees::lower_resolved_trees;
+    use omega_source_files_to_tokens::Lexer;
+    use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees;
+
+    #[test]
+    fn validates_main_entry_surface_from_source_pipeline() {
+        let source = r#"
+        machine main {
+            pub entry() {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        assert_eq!(typed.machines.len(), 1);
+        assert_eq!(typed.machines[0].name.as_str(), "main");
+        assert_eq!(typed.machines[0].states.len(), 1);
+        assert_eq!(typed.machines[0].states[0].name.as_str(), "entry");
+        validate_program(&typed).expect("validation should succeed");
+    }
+
+    #[test]
+    fn validates_local_state_call_arguments_from_source_pipeline() {
+        let source = r#"
+        machine main {
+            pub entry(&mut self) {
+                self.take_non_negative(0);
+            }
+
+            state take_non_negative(
+                &mut self,
+                value: u32[exact, non_negative]
+            ) {
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
+        let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
+
+        let entry = typed.machines[0]
+            .states
+            .iter()
+            .find(|state| state.name.as_str() == "entry")
+            .expect("entry state");
+        let omega_typed_trees::statement::Statement::Call(call) = &entry.statements[0] else {
+            panic!("expected call statement");
+        };
+        assert_eq!(call.arguments.len(), 1);
+        validate_program(&typed).expect("validation should succeed");
+    }
+}
+
 fn validate_contained_types(
     machine: &omega_typed_trees::machine::Machine,
     symbols: &ProgramSymbols<'_>,
