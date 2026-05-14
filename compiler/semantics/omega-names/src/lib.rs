@@ -5,18 +5,17 @@
 //! syntactic references without pretending that every reference is fully bound.
 //! That gives later phases a concrete spine to grow from.
 
-use omega_syntax_trees::expression::Expression;
-use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
-use omega_syntax_trees::item::{
-    CapabilityMember, DataMember, Item, Machine, State, StateSignature,
-};
-use omega_syntax_trees::statement::{Statement, TransitionGuard, TransitionTarget};
-use omega_syntax_trees::types::{TypeConstraint, TypeReference};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
+use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_syntax_trees::identifier::Identifier;
+use omega_syntax_trees::item::{CapabilityMember, DataMember, Item};
+use omega_syntax_trees::statement::{StatementHandle, StatementNode, TransitionTargetHandle};
+use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+use omega_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -150,22 +149,22 @@ impl ResolveReport {
     }
 }
 
-pub fn build_resolve_report(items: &[Item], sources: Arc<SourceMap>) -> ResolveReport {
-    build_resolve_report_with_optional_sources(items, Some(sources))
+pub fn build_resolve_report(syntax_trees: &SyntaxTrees, sources: Arc<SourceMap>) -> ResolveReport {
+    build_resolve_report_with_optional_sources(syntax_trees, Some(sources))
 }
 
-pub fn build_resolve_report_without_sources(items: &[Item]) -> ResolveReport {
-    build_resolve_report_with_optional_sources(items, None)
+pub fn build_resolve_report_without_sources(syntax_trees: &SyntaxTrees) -> ResolveReport {
+    build_resolve_report_with_optional_sources(syntax_trees, None)
 }
 
 fn build_resolve_report_with_optional_sources(
-    items: &[Item],
+    syntax_trees: &SyntaxTrees,
     sources: Option<Arc<SourceMap>>,
 ) -> ResolveReport {
     let mut report = ResolveReport::default();
-    report.symbols = build_source_symbol_table(items, sources);
+    report.symbols = build_source_symbol_table(syntax_trees, sources);
 
-    for item in items {
+    for item in syntax_trees.root_items() {
         match item {
             Item::Capability(capability) => {
                 insert_definition(
@@ -174,18 +173,20 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Capability,
                 );
 
-                for member in &capability.members {
+                for member in syntax_trees.items.capability_members(capability.members) {
                     match member {
                         CapabilityMember::Field(field) => {
                             collect_type_reference(
                                 &mut report,
-                                &field.type_reference,
+                                syntax_trees,
+                                field.type_reference,
                                 &format!("capability `{}` field `{}`", capability.name, field.name),
                             );
                         }
                         CapabilityMember::State(state) => {
-                            collect_state_signature_references(
+                            collect_inline_state_signature_references(
                                 &mut report,
+                                syntax_trees,
                                 &state.signature,
                                 &format!(
                                     "capability `{}` state `{}`",
@@ -203,11 +204,12 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Data,
                 );
 
-                for member in &data_definition.members {
+                for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {
                         collect_type_reference(
                             &mut report,
-                            &field.type_reference,
+                            syntax_trees,
+                            field.type_reference,
                             &format!("data `{}` field `{}`", data_definition.name, field.name),
                         );
                     }
@@ -222,7 +224,8 @@ fn build_resolve_report_with_optional_sources(
 
                 collect_constraints(
                     &mut report,
-                    &invariant.constraints,
+                    syntax_trees,
+                    invariant.constraints,
                     &format!("invariant `{}`", invariant.name),
                 );
             }
@@ -231,9 +234,10 @@ fn build_resolve_report_with_optional_sources(
                     insert_definition(&mut report, name.as_str(), ResolvedDefinitionKind::Library);
                 }
 
-                for function in &library.functions {
-                    collect_state_signature_references(
+                for function in syntax_trees.items.library_functions(library.functions) {
+                    collect_inline_state_signature_references(
                         &mut report,
+                        syntax_trees,
                         &function.signature,
                         &format!(
                             "library `{}` function `{}`",
@@ -248,7 +252,10 @@ fn build_resolve_report_with_optional_sources(
                 }
             }
             Item::Use(use_item) => {
-                let path = insert_name_members(&mut report, use_item.path.iter());
+                let path = insert_name_members(
+                    &mut report,
+                    syntax_trees.items.identifier_path_members(use_item.path),
+                );
                 report.imports.insert(ResolvedImport { path });
             }
             Item::Machine(machine) => {
@@ -257,8 +264,7 @@ fn build_resolve_report_with_optional_sources(
                     machine.name.as_str(),
                     ResolvedDefinitionKind::Machine,
                 );
-
-                collect_machine_references(&mut report, machine);
+                collect_machine_references(&mut report, syntax_trees, machine);
             }
             Item::Platform(platform) => {
                 insert_definition(
@@ -267,11 +273,16 @@ fn build_resolve_report_with_optional_sources(
                     ResolvedDefinitionKind::Platform,
                 );
 
-                for state in &platform.states {
+                for signature_handle in syntax_trees.items.state_signatures(platform.states) {
                     collect_state_signature_references(
                         &mut report,
-                        state,
-                        &format!("platform `{}` state `{}`", platform.name, state.name),
+                        syntax_trees,
+                        *signature_handle,
+                        &format!(
+                            "platform `{}` state `{}`",
+                            platform.name,
+                            syntax_trees.items.state_signature(*signature_handle).name
+                        ),
                     );
                 }
             }
@@ -305,23 +316,25 @@ fn insert_definition(report: &mut ResolveReport, name: &str, kind: ResolvedDefin
         .insert(ResolvedDefinition { kind, symbol });
 }
 
-fn collect_machine_references(report: &mut ResolveReport, machine: &Machine) {
+fn collect_machine_references(report: &mut ResolveReport, syntax_trees: &SyntaxTrees, machine: &omega_syntax_trees::item::Machine) {
     let machine_symbol = report
         .symbols
         .find_child_by_name(report.symbols.root(), machine.name.as_str())
         .unwrap_or_else(SymbolHandle::invalid);
 
-    for state in &machine.states {
-        collect_state_references(report, machine, machine_symbol, state);
+    for state_handle in syntax_trees.items.state_handles(machine.states) {
+        collect_state_references(report, syntax_trees, machine, machine_symbol, *state_handle);
     }
 }
 
 fn collect_state_references(
     report: &mut ResolveReport,
-    machine: &Machine,
+    syntax_trees: &SyntaxTrees,
+    machine: &omega_syntax_trees::item::Machine,
     machine_symbol: SymbolHandle,
-    state: &State,
+    state_handle: omega_syntax_trees::item::StateHandle,
 ) {
+    let state = syntax_trees.items.state(state_handle);
     let state_symbol = report
         .symbols
         .find_child_by_name(machine_symbol, state.name.as_str())
@@ -330,15 +343,17 @@ fn collect_state_references(
 
     collect_state_signature_parts(
         report,
-        &state.parameters,
-        state.return_type.as_ref(),
+        syntax_trees,
+        state.parameters,
+        state.return_type,
         &format!("machine `{}` state `{}`", machine.name, state.name),
     );
 
-    for statement in &state.statements {
+    for statement_handle in syntax_trees.items.statements(state.statements) {
         collect_statement(
             report,
-            statement,
+            syntax_trees,
+            *statement_handle,
             &format!("machine `{}` state `{}`", machine.name, state.name),
             context,
         );
@@ -347,89 +362,112 @@ fn collect_state_references(
 
 fn collect_state_signature_references(
     report: &mut ResolveReport,
-    state: &StateSignature,
+    syntax_trees: &SyntaxTrees,
+    signature_handle: omega_syntax_trees::item::StateSignatureHandle,
     owner: &str,
 ) {
-    collect_state_signature_parts(report, &state.parameters, state.return_type.as_ref(), owner);
+    let signature = syntax_trees.items.state_signature(signature_handle);
+    collect_state_signature_parts(
+        report,
+        syntax_trees,
+        signature.parameters,
+        signature.return_type,
+        owner,
+    );
+}
+
+fn collect_inline_state_signature_references(
+    report: &mut ResolveReport,
+    syntax_trees: &SyntaxTrees,
+    signature: &omega_syntax_trees::item::StateSignature,
+    owner: &str,
+) {
+    collect_state_signature_parts(
+        report,
+        syntax_trees,
+        signature.parameters,
+        signature.return_type,
+        owner,
+    );
 }
 
 fn collect_state_signature_parts(
     report: &mut ResolveReport,
-    parameters: &[omega_syntax_trees::item::StateParameter],
-    return_type: Option<&TypeReference>,
+    syntax_trees: &SyntaxTrees,
+    parameters: HandleSpan<omega_syntax_trees::item::StateParameterHandle>,
+    return_type: TypeReferenceHandle,
     owner: &str,
 ) {
-    for parameter in parameters {
+    for parameter_handle in syntax_trees.items.state_parameters(parameters) {
+        let parameter = syntax_trees.items.state_parameter(*parameter_handle);
         collect_type_reference(
             report,
-            &parameter.type_reference,
+            syntax_trees,
+            parameter.type_reference,
             &format!("{owner} parameter `{}`", parameter.name),
         );
     }
 
-    if let Some(return_type) = return_type {
-        collect_type_reference(report, return_type, &format!("{owner} return type"));
+    if return_type.is_valid() {
+        collect_type_reference(report, syntax_trees, return_type, &format!("{owner} return type"));
     }
 }
 
 fn collect_statement(
     report: &mut ResolveReport,
-    statement: &Statement,
+    syntax_trees: &SyntaxTrees,
+    statement: StatementHandle,
     owner: &str,
     context: ResolveContext,
 ) {
-    match statement {
-        Statement::Assignment(assignment) => {
-            collect_expression(
-                report,
-                &assignment.target,
-                &format!("{owner} assignment target"),
-                context,
-            );
-            collect_expression(
-                report,
-                &assignment.value,
-                &format!("{owner} assignment value"),
-                context,
-            );
+    match syntax_trees.statements.statement(statement) {
+        StatementNode::Assignment(assignment) => {
+            collect_expression(report, syntax_trees, assignment.target, &format!("{owner} assignment target"), context);
+            collect_expression(report, syntax_trees, assignment.value, &format!("{owner} assignment value"), context);
         }
-        Statement::Call(call) => {
+        StatementNode::Call(call) => {
+            let receiver = syntax_trees.statements.identifier_path_members(call.receiver);
             let symbol = context.resolve_call_target(
                 &report.symbols,
-                call.receiver.as_ref().map(IdentifierPath::as_slice),
+                if receiver.is_empty() { None } else { Some(receiver) },
                 call.target.as_str(),
             );
 
-            insert_reference_from_identifiers(
+            let name = insert_name_members(
                 report,
-                call.receiver
-                    .iter()
-                    .flat_map(IdentifierPath::iter)
-                    .chain(std::iter::once(&call.target)),
-                ResolvedReferenceKind::CallTarget,
-                owner,
-                symbol,
+                receiver.iter().chain(std::iter::once(&call.target)),
             );
+            report.references.insert(ResolvedReference {
+                name,
+                kind: ResolvedReferenceKind::CallTarget,
+                owner: owner.to_owned(),
+                symbol,
+            });
 
-            for argument in &call.arguments {
-                collect_expression(report, argument, &format!("{owner} call argument"), context);
+            for argument in syntax_trees.statements.expression_handles(call.arguments) {
+                collect_expression(report, syntax_trees, *argument, &format!("{owner} call argument"), context);
             }
         }
-        Statement::Expression(expression) => collect_expression(report, expression, owner, context),
-        Statement::LocalData(local_data) => collect_type_reference(
-            report,
-            &local_data.type_reference,
-            &format!("{owner} local `{}`", local_data.name),
-        ),
-        Statement::Transition(transition) => {
-            collect_transition_target(report, &transition.target, owner, context);
+        StatementNode::Expression(expression) => {
+            collect_expression(report, syntax_trees, *expression, owner, context);
+        }
+        StatementNode::LocalData(local_data) => {
+            collect_type_reference(
+                report,
+                syntax_trees,
+                local_data.type_reference,
+                &format!("{owner} local `{}`", local_data.name),
+            );
+        }
+        StatementNode::Transition(transition) => {
+            collect_transition_target(report, syntax_trees, transition.target, owner, context);
 
-            if let Some(continuation) = &transition.continuation {
-                collect_transition_target(report, continuation, owner, context);
+            if transition.continuation.is_valid() {
+                collect_transition_target(report, syntax_trees, transition.continuation, owner, context);
             }
 
-            if let TransitionGuard::When(guard) = &transition.guard {
-                collect_expression(report, guard, &format!("{owner} transition guard"), context);
+            if let omega_syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+                collect_expression(report, syntax_trees, guard, &format!("{owner} transition guard"), context);
             }
         }
     }
@@ -437,24 +475,29 @@ fn collect_statement(
 
 fn collect_transition_target(
     report: &mut ResolveReport,
-    target: &TransitionTarget,
+    syntax_trees: &SyntaxTrees,
+    target: TransitionTargetHandle,
     owner: &str,
     context: ResolveContext,
 ) {
-    if let TransitionTarget::Named { path, arguments } = target {
-        let symbol = context.resolve_identifier_path(&report.symbols, path);
-        insert_reference_from_path(
+    if let omega_syntax_trees::statement::TransitionTargetNode::Named { path, arguments } =
+        syntax_trees.statements.transition_target(target)
+    {
+        let path_members = syntax_trees.statements.identifier_path_members(*path);
+        let symbol = context.resolve_identifier_members(&report.symbols, path_members);
+        insert_reference_from_members(
             report,
-            path,
+            path_members,
             ResolvedReferenceKind::TransitionTarget,
             owner,
             symbol,
         );
 
-        for argument in arguments {
+        for argument in syntax_trees.statements.expression_handles(*arguments) {
             collect_expression(
                 report,
-                argument,
+                syntax_trees,
+                *argument,
                 &format!("{owner} transition argument"),
                 context,
             );
@@ -462,72 +505,56 @@ fn collect_transition_target(
     }
 }
 
-fn collect_type_reference(report: &mut ResolveReport, type_reference: &TypeReference, owner: &str) {
-    match type_reference {
-        TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => {
-            collect_type_reference(report, base_type, owner);
-            collect_constraints(report, constraints, owner);
+fn collect_type_reference(
+    report: &mut ResolveReport,
+    syntax_trees: &SyntaxTrees,
+    type_reference: TypeReferenceHandle,
+    owner: &str,
+) {
+    match syntax_trees.type_references.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            collect_type_reference(report, syntax_trees, *referee, owner);
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            collect_type_reference(report, element_type, owner);
+        TypeReferenceNode::Constrained { base_type, constraints } => {
+            collect_type_reference(report, syntax_trees, *base_type, owner);
+            collect_constraints(report, syntax_trees, *constraints, owner);
         }
-        TypeReference::Slice { element_type } => {
-            collect_type_reference(report, element_type, owner);
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            collect_type_reference(report, syntax_trees, *element_type, owner);
         }
-        TypeReference::Generic {
-            base_name,
-            arguments,
-        } => {
+        TypeReferenceNode::Slice { element_type } => {
+            collect_type_reference(report, syntax_trees, *element_type, owner);
+        }
+        TypeReferenceNode::Generic { base_name, arguments } => {
             let symbol = resolve_global_name(report, base_name.as_str());
-            insert_reference(
-                report,
-                base_name,
-                ResolvedReferenceKind::Type,
-                owner,
-                symbol,
-            );
-
-            for argument in arguments {
-                collect_type_reference(report, argument, owner);
+            insert_reference(report, base_name, ResolvedReferenceKind::Type, owner, symbol);
+            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+                collect_type_reference(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReference::Named(name) => {
+        TypeReferenceNode::Named(name) => {
             let symbol = resolve_global_name(report, name.as_str());
             insert_reference(report, name, ResolvedReferenceKind::Type, owner, symbol);
         }
-        TypeReference::Unit => {}
+        TypeReferenceNode::Unit => {}
     }
 }
 
-fn collect_constraints(report: &mut ResolveReport, constraints: &[TypeConstraint], owner: &str) {
-    for constraint in constraints {
+fn collect_constraints(
+    report: &mut ResolveReport,
+    syntax_trees: &SyntaxTrees,
+    constraints: HandleSpan<TypeConstraintNode>,
+    owner: &str,
+) {
+    for constraint in syntax_trees.type_references.constraints(constraints) {
         match constraint {
-            TypeConstraint::Named(name) => {
+            TypeConstraintNode::Named(name) => {
                 let symbol = resolve_global_name(report, name.as_str());
-                insert_reference(
-                    report,
-                    name,
-                    ResolvedReferenceKind::Invariant,
-                    owner,
-                    symbol,
-                );
+                insert_reference(report, name, ResolvedReferenceKind::Invariant, owner, symbol);
             }
-            TypeConstraint::Range { minimum, maximum } => {
-                collect_expression(
-                    report,
-                    minimum,
-                    &format!("{owner} range minimum"),
-                    ResolveContext::default(),
-                );
-                collect_expression(
-                    report,
-                    maximum,
-                    &format!("{owner} range maximum"),
-                    ResolveContext::default(),
-                );
+            TypeConstraintNode::Range { minimum, maximum } => {
+                collect_expression(report, syntax_trees, *minimum, &format!("{owner} range minimum"), ResolveContext::default());
+                collect_expression(report, syntax_trees, *maximum, &format!("{owner} range maximum"), ResolveContext::default());
             }
         }
     }
@@ -535,82 +562,86 @@ fn collect_constraints(report: &mut ResolveReport, constraints: &[TypeConstraint
 
 fn collect_expression(
     report: &mut ResolveReport,
-    expression: &Expression,
+    syntax_trees: &SyntaxTrees,
+    expression: ExpressionHandle,
     owner: &str,
     context: ResolveContext,
 ) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                collect_expression(report, value, owner, context);
+    match syntax_trees.expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in syntax_trees.expressions.expression_handles(*values) {
+                collect_expression(report, syntax_trees, *value, owner, context);
             }
         }
-        Expression::Binary(binary) => {
-            collect_expression(report, &binary.left, owner, context);
-            collect_expression(report, &binary.right, owner, context);
+        ExpressionNode::Binary(binary) => {
+            collect_expression(report, syntax_trees, binary.left, owner, context);
+            collect_expression(report, syntax_trees, binary.right, owner, context);
         }
-        Expression::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                if let Expression::Name(path) = receiver.as_ref() {
-                    let symbol = context.resolve_call_target(
-                        &report.symbols,
-                        Some(path.as_slice()),
-                        call.target.as_str(),
-                    );
-                    insert_reference_from_identifiers(
-                        report,
-                        path.iter().chain(std::iter::once(&call.target)),
-                        ResolvedReferenceKind::CallTarget,
-                        owner,
-                        symbol,
-                    );
-                } else {
-                    collect_expression(report, receiver, owner, context);
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => {}
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                match syntax_trees.expressions.expression(call.receiver) {
+                    ExpressionNode::Name(path) => {
+                        let path_members = syntax_trees.expressions.identifier_path_members(*path);
+                        let symbol = context.resolve_call_target(
+                            &report.symbols,
+                            Some(path_members),
+                            call.target.as_str(),
+                        );
+                        let name = insert_name_members(
+                            report,
+                            path_members.iter().chain(std::iter::once(&call.target)),
+                        );
+                        report.references.insert(ResolvedReference {
+                            name,
+                            kind: ResolvedReferenceKind::CallTarget,
+                            owner: owner.to_owned(),
+                            symbol,
+                        });
+                    }
+                    _ => collect_expression(report, syntax_trees, call.receiver, owner, context),
                 }
             } else {
                 let symbol = context.resolve_call_target(&report.symbols, None, call.target.as_str());
-                insert_reference(
-                    report,
-                    &call.target,
-                    ResolvedReferenceKind::CallTarget,
-                    owner,
-                    symbol,
-                );
+                insert_reference(report, &call.target, ResolvedReferenceKind::CallTarget, owner, symbol);
             }
 
-            for argument in &call.arguments {
-                collect_expression(report, argument, owner, context);
+            for argument in syntax_trees.expressions.expression_handles(call.arguments) {
+                collect_expression(report, syntax_trees, *argument, owner, context);
             }
         }
-        Expression::Cast(cast) => {
-            collect_expression(report, &cast.value, owner, context);
-
-            for member in cast.target_type.iter() {
+        ExpressionNode::Cast(cast) => {
+            collect_expression(report, syntax_trees, cast.value, owner, context);
+            for member in syntax_trees.expressions.identifier_path_members(cast.target_type) {
                 let symbol = resolve_global_name(report, member.as_str());
                 insert_reference(report, member, ResolvedReferenceKind::Type, owner, symbol);
             }
         }
-        Expression::Indexed(indexed) => {
-            collect_expression(report, &indexed.collection, owner, context);
-            collect_expression(report, &indexed.index, owner, context);
+        ExpressionNode::Indexed(indexed) => {
+            collect_expression(report, syntax_trees, indexed.collection, owner, context);
+            collect_expression(report, syntax_trees, indexed.index, owner, context);
         }
-        Expression::Member(member) => {
-            collect_expression(report, &member.receiver, owner, context);
+        ExpressionNode::Member(member) => {
+            collect_expression(report, syntax_trees, member.receiver, owner, context);
         }
-        Expression::Mutable(inner_expression) => {
-            collect_expression(report, inner_expression, owner, context)
+        ExpressionNode::Mutable(inner) => {
+            collect_expression(report, syntax_trees, *inner, owner, context);
         }
-        Expression::Name(path) => {
-            let symbol = context.resolve_identifier_path(&report.symbols, path);
-            insert_reference_from_path(
+        ExpressionNode::Name(path) => {
+            let path_members = syntax_trees.expressions.identifier_path_members(*path);
+            let symbol = context.resolve_identifier_members(&report.symbols, path_members);
+            insert_reference_from_members(
                 report,
-                path,
+                path_members,
                 ResolvedReferenceKind::ExpressionName,
                 owner,
                 symbol,
             );
         }
-        Expression::StructLiteral(struct_literal) => {
+        ExpressionNode::StructLiteral(struct_literal) => {
             let symbol = resolve_global_name(report, struct_literal.type_name.as_str());
             insert_reference(
                 report,
@@ -620,14 +651,10 @@ fn collect_expression(
                 symbol,
             );
 
-            for field in &struct_literal.fields {
-                collect_expression(report, &field.value, owner, context);
+            for field in syntax_trees.expressions.struct_fields(struct_literal.fields) {
+                collect_expression(report, syntax_trees, field.value, owner, context);
             }
         }
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => {}
     }
 }
 
@@ -638,20 +665,10 @@ fn insert_reference(
     owner: &str,
     symbol: SymbolHandle,
 ) {
-    insert_reference_from_identifiers(report, [name], kind, owner, symbol);
+    insert_reference_from_members(report, [name], kind, owner, symbol);
 }
 
-fn insert_reference_from_path(
-    report: &mut ResolveReport,
-    path: &IdentifierPath,
-    kind: ResolvedReferenceKind,
-    owner: &str,
-    symbol: SymbolHandle,
-) {
-    insert_reference_from_identifiers(report, path.iter(), kind, owner, symbol);
-}
-
-fn insert_reference_from_identifiers<'identifier>(
+fn insert_reference_from_members<'identifier>(
     report: &mut ResolveReport,
     identifiers: impl IntoIterator<Item = &'identifier Identifier>,
     kind: ResolvedReferenceKind,
@@ -659,7 +676,6 @@ fn insert_reference_from_identifiers<'identifier>(
     symbol: SymbolHandle,
 ) {
     let name = insert_name_members(report, identifiers);
-
     report.references.insert(ResolvedReference {
         name,
         kind,
@@ -672,11 +688,9 @@ fn insert_name_members<'identifier>(
     report: &mut ResolveReport,
     identifiers: impl IntoIterator<Item = &'identifier Identifier>,
 ) -> HandleSpan<ResolvedNameMember> {
-    report.name_members.insert_many(
-        identifiers
-            .into_iter()
-            .map(ResolvedNameMember::from_identifier),
-    )
+    report
+        .name_members
+        .insert_many(identifiers.into_iter().map(ResolvedNameMember::from_identifier))
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -708,7 +722,7 @@ impl ResolveContext {
         self.resolve_symbol(symbols, [target])
     }
 
-    fn resolve_identifier_path(self, symbols: &SymbolTable, path: &IdentifierPath) -> SymbolHandle {
+    fn resolve_identifier_members(self, symbols: &SymbolTable, path: &[Identifier]) -> SymbolHandle {
         let Some(first_member) = path.first().map(|member| member.as_str()) else {
             return SymbolHandle::invalid();
         };
@@ -775,26 +789,24 @@ fn resolve_global_name(report: &ResolveReport, name: &str) -> SymbolHandle {
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-fn build_source_symbol_table(items: &[Item], sources: Option<Arc<SourceMap>>) -> SymbolTable {
-    let builder = SourceSymbolDefinitionBuilder { items };
+fn build_source_symbol_table(syntax_trees: &SyntaxTrees, sources: Option<Arc<SourceMap>>) -> SymbolTable {
+    let builder = SourceSymbolDefinitionBuilder { syntax_trees };
 
     SymbolTable::from_definition_with_sources(
         SymbolDefinition::static_with_children(
             SymbolKind::Root,
             "program",
-            builtin_type_symbol_definitions().into_iter().chain(
-                items
-                    .iter()
-                    .filter_map(|item| builder.item_symbol_definition(item)),
-            ),
+            builtin_type_symbol_definitions()
+                .into_iter()
+                .chain(syntax_trees.root_items().filter_map(|item| builder.item_symbol_definition(item))),
         ),
         sources,
     )
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SourceSymbolDefinitionBuilder<'items> {
-    items: &'items [Item],
+struct SourceSymbolDefinitionBuilder<'syntax> {
+    syntax_trees: &'syntax SyntaxTrees,
 }
 
 fn source_symbol<'items>(
@@ -824,58 +836,73 @@ fn has_source_name(source_span: SourceSpan) -> bool {
     source_span.span.start != source_span.span.end
 }
 
-impl<'items> SourceSymbolDefinitionBuilder<'items> {
-    fn item_symbol_definition(self, item: &'items Item) -> Option<SymbolDefinition<'items>> {
+impl<'syntax> SourceSymbolDefinitionBuilder<'syntax> {
+    fn item_symbol_definition(self, item: &'syntax Item) -> Option<SymbolDefinition<'syntax>> {
         match item {
             Item::Capability(capability) => Some(source_symbol_with_children(
                 SymbolKind::HostCapability,
                 &capability.name,
-                capability.members.iter().map(|member| match member {
-                    CapabilityMember::Field(field) => source_symbol_with_children(
-                        SymbolKind::Field,
-                        &field.name,
-                        self.type_children(&field.type_reference, 0),
-                    ),
-                    CapabilityMember::State(state) => {
-                        self.state_signature_symbol_definition(&state.signature)
-                    }
-                }),
+                self.syntax_trees
+                    .items
+                    .capability_members(capability.members)
+                    .iter()
+                    .map(|member| match member {
+                        CapabilityMember::Field(field) => source_symbol_with_children(
+                            SymbolKind::Field,
+                            &field.name,
+                            self.type_children(field.type_reference, 0),
+                        ),
+                        CapabilityMember::State(state) => {
+                            self.inline_state_signature_symbol_definition(
+                                &state.signature,
+                                SymbolKind::State,
+                            )
+                        }
+                    }),
             )),
             Item::Data(data_definition) => Some(source_symbol_with_children(
                 SymbolKind::Data,
                 &data_definition.name,
-                data_definition
-                    .members
+                self.syntax_trees
+                    .items
+                    .data_members(data_definition.members)
                     .iter()
                     .map(|member| self.data_member_symbol_definition(member, 0)),
             )),
-            Item::Invariant(invariant) => {
-                Some(source_symbol(SymbolKind::Invariant, &invariant.name))
-            }
+            Item::Invariant(invariant) => Some(source_symbol(SymbolKind::Invariant, &invariant.name)),
             Item::Library(library) => library.name.as_ref().map(|name| {
                 source_symbol_with_children(
                     SymbolKind::Import,
                     name,
-                    library.functions.iter().map(|function| {
-                        self.function_signature_symbol_definition(&function.signature)
-                    }),
+                    self.syntax_trees
+                        .items
+                        .library_functions(library.functions)
+                        .iter()
+                        .map(|function| {
+                            self.inline_state_signature_symbol_definition(
+                                &function.signature,
+                                SymbolKind::Function,
+                            )
+                        }),
                 )
             }),
             Item::Machine(machine) => Some(source_symbol_with_children(
                 SymbolKind::Machine,
                 &machine.name,
-                machine
-                    .states
+                self.syntax_trees
+                    .items
+                    .state_handles(machine.states)
                     .iter()
-                    .map(|state| self.state_symbol_definition(state)),
+                    .map(|state| self.state_symbol_definition(*state)),
             )),
             Item::Platform(platform) => Some(source_symbol_with_children(
                 SymbolKind::Platform,
                 &platform.name,
-                platform
-                    .states
+                self.syntax_trees
+                    .items
+                    .state_signatures(platform.states)
                     .iter()
-                    .map(|signature| self.state_signature_symbol_definition(signature)),
+                    .map(|signature| self.state_signature_symbol_definition(*signature)),
             )),
             Item::Target(target) => Some(source_symbol(SymbolKind::Object, &target.name)),
             Item::TrustDefinition(trust_definition) => {
@@ -885,88 +912,107 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
         }
     }
 
-    fn state_symbol_definition(self, state: &'items State) -> SymbolDefinition<'items> {
+    fn state_symbol_definition(
+        self,
+        state_handle: omega_syntax_trees::item::StateHandle,
+    ) -> SymbolDefinition<'syntax> {
+        let state = self.syntax_trees.items.state(state_handle);
         source_symbol_with_children(
             SymbolKind::State,
             &state.name,
-            state
-                .parameters
+            self.syntax_trees
+                .items
+                .state_parameters(state.parameters)
                 .iter()
                 .map(|parameter| {
+                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
                     source_symbol_with_children(
                         SymbolKind::Parameter,
                         &parameter.name,
-                        self.type_children(&parameter.type_reference, 0),
+                        self.type_children(parameter.type_reference, 0),
                     )
                 })
                 .chain(
-                    state
-                        .statements
+                    self.syntax_trees
+                        .items
+                        .statements(state.statements)
                         .iter()
-                        .filter_map(|statement| self.local_data_symbol_definition(statement)),
+                        .filter_map(|statement| self.local_data_symbol_definition(*statement)),
                 ),
         )
     }
 
     fn local_data_symbol_definition(
         self,
-        statement: &'items Statement,
-    ) -> Option<SymbolDefinition<'items>> {
-        let Statement::LocalData(local_data) = statement else {
+        statement: StatementHandle,
+    ) -> Option<SymbolDefinition<'syntax>> {
+        let StatementNode::LocalData(local_data) = self.syntax_trees.statements.statement(statement) else {
             return None;
         };
 
         Some(source_symbol_with_children(
             SymbolKind::Local,
             &local_data.name,
-            self.type_children(&local_data.type_reference, 0),
+            self.type_children(local_data.type_reference, 0),
         ))
     }
 
     fn state_signature_symbol_definition(
         self,
-        signature: &'items StateSignature,
-    ) -> SymbolDefinition<'items> {
+        signature_handle: omega_syntax_trees::item::StateSignatureHandle,
+    ) -> SymbolDefinition<'syntax> {
+        let signature = self.syntax_trees.items.state_signature(signature_handle);
         source_symbol_with_children(
             SymbolKind::State,
             &signature.name,
-            signature.parameters.iter().map(|parameter| {
-                source_symbol_with_children(
-                    SymbolKind::Parameter,
-                    &parameter.name,
-                    self.type_children(&parameter.type_reference, 0),
-                )
-            }),
+            self.syntax_trees
+                .items
+                .state_parameters(signature.parameters)
+                .iter()
+                .map(|parameter| {
+                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
+                    source_symbol_with_children(
+                        SymbolKind::Parameter,
+                        &parameter.name,
+                        self.type_children(parameter.type_reference, 0),
+                    )
+                }),
         )
     }
 
-    fn function_signature_symbol_definition(
+    fn inline_state_signature_symbol_definition(
         self,
-        signature: &'items StateSignature,
-    ) -> SymbolDefinition<'items> {
+        signature: &'syntax omega_syntax_trees::item::StateSignature,
+        kind: SymbolKind,
+    ) -> SymbolDefinition<'syntax> {
         source_symbol_with_children(
-            SymbolKind::Function,
+            kind,
             &signature.name,
-            signature.parameters.iter().map(|parameter| {
-                source_symbol_with_children(
-                    SymbolKind::Parameter,
-                    &parameter.name,
-                    self.type_children(&parameter.type_reference, 0),
-                )
-            }),
+            self.syntax_trees
+                .items
+                .state_parameters(signature.parameters)
+                .iter()
+                .map(|parameter| {
+                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
+                    source_symbol_with_children(
+                        SymbolKind::Parameter,
+                        &parameter.name,
+                        self.type_children(parameter.type_reference, 0),
+                    )
+                }),
         )
     }
 
     fn data_member_symbol_definition(
         self,
-        member: &'items DataMember,
+        member: &'syntax DataMember,
         depth: usize,
-    ) -> SymbolDefinition<'items> {
+    ) -> SymbolDefinition<'syntax> {
         match member {
             DataMember::Field(field) => source_symbol_with_children(
                 SymbolKind::Field,
                 &field.name,
-                self.type_children(&field.type_reference, depth + 1),
+                self.type_children(field.type_reference, depth + 1),
             ),
             DataMember::Variant(variant) => source_symbol(SymbolKind::Variant, &variant.name),
         }
@@ -974,73 +1020,90 @@ impl<'items> SourceSymbolDefinitionBuilder<'items> {
 
     fn type_children(
         self,
-        type_reference: &'items TypeReference,
+        type_reference: TypeReferenceHandle,
         depth: usize,
-    ) -> Vec<SymbolDefinition<'items>> {
-        if depth > 8 {
+    ) -> Vec<SymbolDefinition<'syntax>> {
+        if !type_reference.is_valid() || depth > 8 {
             return Vec::new();
         }
 
-        match type_reference {
-            TypeReference::Constrained { base_type, .. } => self.type_children(base_type, depth),
-            TypeReference::FixedArray { element_type, .. } => {
-                self.type_children(element_type, depth + 1)
-            }
-            TypeReference::Slice { element_type } => self.type_children(element_type, depth + 1),
-            TypeReference::Generic { base_name, .. } | TypeReference::Named(base_name) => {
+        match self.syntax_trees.type_references.type_reference(type_reference) {
+            TypeReferenceNode::Reference { referee, .. } => self.type_children(*referee, depth),
+            TypeReferenceNode::Constrained { base_type, .. } => self.type_children(*base_type, depth),
+            TypeReferenceNode::FixedArray { element_type, .. } => self.type_children(*element_type, depth + 1),
+            TypeReferenceNode::Slice { element_type } => self.type_children(*element_type, depth + 1),
+            TypeReferenceNode::Generic { base_name, .. } | TypeReferenceNode::Named(base_name) => {
                 self.named_type_children(base_name.as_str(), depth + 1)
             }
-            TypeReference::Unit => Vec::new(),
+            TypeReferenceNode::Unit => Vec::new(),
         }
     }
 
-    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'items>> {
+    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'syntax>> {
         if depth > 8 {
             return Vec::new();
         }
 
         let Some(item) = self
-            .items
-            .iter()
+            .syntax_trees
+            .root_items()
             .find(|item| top_level_item_name(item) == Some(type_name))
         else {
             return Vec::new();
         };
 
         match item {
-            Item::Capability(capability) => capability
-                .members
+            Item::Capability(capability) => self
+                .syntax_trees
+                .items
+                .capability_members(capability.members)
                 .iter()
                 .map(|member| match member {
                     CapabilityMember::Field(field) => source_symbol_with_children(
                         SymbolKind::Field,
                         &field.name,
-                        self.type_children(&field.type_reference, depth + 1),
+                        self.type_children(field.type_reference, depth + 1),
                     ),
                     CapabilityMember::State(state) => {
-                        self.state_signature_symbol_definition(&state.signature)
+                        self.inline_state_signature_symbol_definition(
+                            &state.signature,
+                            SymbolKind::State,
+                        )
                     }
                 })
                 .collect(),
-            Item::Data(data_definition) => data_definition
-                .members
+            Item::Data(data_definition) => self
+                .syntax_trees
+                .items
+                .data_members(data_definition.members)
                 .iter()
                 .map(|member| self.data_member_symbol_definition(member, depth + 1))
                 .collect(),
-            Item::Library(library) => library
-                .functions
+            Item::Library(library) => self
+                .syntax_trees
+                .items
+                .library_functions(library.functions)
                 .iter()
-                .map(|function| self.function_signature_symbol_definition(&function.signature))
+                .map(|function| {
+                    self.inline_state_signature_symbol_definition(
+                        &function.signature,
+                        SymbolKind::Function,
+                    )
+                })
                 .collect(),
-            Item::Machine(machine) => machine
-                .states
+            Item::Machine(machine) => self
+                .syntax_trees
+                .items
+                .state_handles(machine.states)
                 .iter()
-                .map(|state| self.state_symbol_definition(state))
+                .map(|state| self.state_symbol_definition(*state))
                 .collect(),
-            Item::Platform(platform) => platform
-                .states
+            Item::Platform(platform) => self
+                .syntax_trees
+                .items
+                .state_signatures(platform.states)
                 .iter()
-                .map(|signature| self.state_signature_symbol_definition(signature))
+                .map(|signature| self.state_signature_symbol_definition(*signature))
                 .collect(),
             Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {
                 Vec::new()
@@ -1065,63 +1128,91 @@ fn top_level_item_name(item: &Item) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
-    use omega_syntax_trees::item::{Item, Machine, State, StateParameter, UseItem};
-    use omega_syntax_trees::statement::{
-        Statement, Transition, TransitionGuard, TransitionTarget,
-    };
-    use omega_syntax_trees::types::TypeReference;
-
     use super::{
         ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report_without_sources,
     };
-
-    fn identifier_path(members: &[&str]) -> IdentifierPath {
-        members
-            .iter()
-            .copied()
-            .map(Identifier::generated)
-            .collect::<Vec<_>>()
-            .into()
-    }
+    use omega_core::arena::HandleSpan;
+    use omega_syntax_trees::identifier::Identifier;
+    use omega_syntax_trees::item::{Item, Machine, StateParameterNode, UseItem};
+    use omega_syntax_trees::statement::{StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode};
+    use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+    use omega_syntax_trees::SyntaxTrees;
 
     #[test]
     fn collects_definitions_imports_and_references() {
-        let report = build_resolve_report_without_sources(&[
-            Item::Use(UseItem {
-                path: identifier_path(&["platform", "console"]),
-            }),
-            Item::Machine(Machine {
-                name: Identifier::generated("main"),
-                states: vec![
-                    State {
-                        name: Identifier::generated("entry"),
-                        parameters: vec![StateParameter {
-                            name: Identifier::generated("amount"),
-                            type_reference: TypeReference::named("i32"),
-                            is_const: false,
-                            is_mutable: false,
-                            is_self: false,
-                        }],
-                        return_type: None,
-                        statements: vec![Statement::Transition(Transition {
-                            target: TransitionTarget::Named {
-                                path: identifier_path(&["finish"]),
-                                arguments: Vec::new(),
-                            },
-                            continuation: None,
-                            guard: TransitionGuard::Always,
-                        })],
-                    },
-                    State {
-                        name: Identifier::generated("finish"),
-                        parameters: Vec::new(),
-                        return_type: None,
-                        statements: Vec::new(),
-                    },
-                ],
-            }),
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+
+        let import_path = syntax_trees.items.insert_identifier_path_members([
+            Identifier::generated("platform"),
+            Identifier::generated("console"),
         ]);
+        syntax_trees.push_root_item(Item::Use(UseItem { path: import_path }));
+
+        let parameter_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
+        let parameter = syntax_trees
+            .items
+            .insert_state_parameter_node(StateParameterNode {
+                name: Identifier::generated("amount"),
+                type_reference: parameter_type,
+                is_const: false,
+                is_mutable: false,
+                is_self: false,
+            });
+        let parameter = syntax_trees.items.append_state_parameter_handle(parameter);
+
+        let target_path_start = syntax_trees
+            .statements
+            .append_identifier_path_member(Identifier::generated("finish"));
+        let target_path = HandleSpan::from_parts(target_path_start, 1);
+        let target = syntax_trees
+            .statements
+            .insert_transition_target(TransitionTargetNode::Named {
+                path: target_path,
+                arguments: HandleSpan::empty(),
+            });
+        let transition = syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::Always,
+            }));
+        let transition = syntax_trees.items.append_statement_handle(transition);
+
+        let entry_state = syntax_trees.items.insert_state_tree(
+            &omega_syntax_trees::item::State {
+                name: Identifier::generated("entry"),
+                parameters: HandleSpan::from_parts(parameter, 1),
+                return_type: TypeReferenceHandle::invalid(),
+                statements: HandleSpan::from_parts(transition, 1),
+            },
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let entry_state = syntax_trees.items.append_state_handle(entry_state);
+
+        let finish_state = syntax_trees.items.insert_state_tree(
+            &omega_syntax_trees::item::State {
+                name: Identifier::generated("finish"),
+                parameters: HandleSpan::empty(),
+                return_type: TypeReferenceHandle::invalid(),
+                statements: HandleSpan::empty(),
+            },
+            &mut syntax_trees.statements,
+            &mut syntax_trees.type_references,
+            &mut syntax_trees.expressions,
+        );
+        let _finish_state = syntax_trees.items.append_state_handle(finish_state);
+
+        syntax_trees.push_root_item(Item::Machine(Machine {
+            name: Identifier::generated("main"),
+            states: HandleSpan::from_parts(entry_state, 2),
+        }));
+
+        let report = build_resolve_report_without_sources(&syntax_trees);
 
         assert_eq!(report.imports.len(), 1);
         assert_eq!(report.definitions.len(), 1);
@@ -1143,5 +1234,6 @@ mod tests {
             }),
             "state transition target should be collected and bound to a symbol"
         );
+
     }
 }
