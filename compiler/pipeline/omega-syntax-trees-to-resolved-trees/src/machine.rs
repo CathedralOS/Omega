@@ -2,7 +2,7 @@ use crate::program::Lowerer;
 use crate::state::lower_state_node;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::machine::Machine;
+use omega_resolved_trees::machine::{Machine, MachineStorage};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_machine_into(
@@ -31,9 +31,11 @@ pub(crate) fn lower_machine_into(
     lowerer.program.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
-        contains: Vec::new(),
-        owned_data: Vec::new(),
-        states,
+        storage: MachineStorage {
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states,
+        },
     });
     Ok(())
 }
