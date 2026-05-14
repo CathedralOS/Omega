@@ -25,7 +25,17 @@ pub enum Expression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpressionTable {
+    nodes: ExpressionNodeStorage,
+    spans: ExpressionSpanStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExpressionSpanStorage {
     expression_handles: Arena<ExpressionHandle>,
     name_path_members: Arena<ProgramName>,
     struct_fields: Arena<TableStructLiteralField>,
@@ -34,36 +44,40 @@ pub struct ExpressionTable {
 impl ExpressionTable {
     pub fn new() -> Self {
         Self {
-            expressions: Arena::new(),
-            expression_handles: Arena::new(),
-            name_path_members: Arena::new(),
-            struct_fields: Arena::new(),
+            nodes: ExpressionNodeStorage {
+                expressions: Arena::new(),
+            },
+            spans: ExpressionSpanStorage {
+                expression_handles: Arena::new(),
+                name_path_members: Arena::new(),
+                struct_fields: Arena::new(),
+            },
         }
     }
 
     pub fn clear(&mut self) {
-        self.expressions.reset_retain_capacity();
-        self.expression_handles.reset_retain_capacity();
-        self.name_path_members.reset_retain_capacity();
-        self.struct_fields.reset_retain_capacity();
+        self.nodes.expressions.reset_retain_capacity();
+        self.spans.expression_handles.reset_retain_capacity();
+        self.spans.name_path_members.reset_retain_capacity();
+        self.spans.struct_fields.reset_retain_capacity();
     }
 
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
-        self.expressions.insert(expression)
+        self.nodes.expressions.insert(expression)
     }
 
     pub fn insert_expression_handles(
         &mut self,
         expressions: impl IntoIterator<Item = ExpressionHandle>,
     ) -> HandleSpan<ExpressionHandle> {
-        self.expression_handles.insert_many(expressions)
+        self.spans.expression_handles.insert_many(expressions)
     }
 
     pub fn insert_struct_fields(
         &mut self,
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        self.struct_fields.insert_many(fields)
+        self.spans.struct_fields.insert_many(fields)
     }
 
     pub fn copy_from(
@@ -78,7 +92,7 @@ impl ExpressionTable {
 
                 for value in source.expression_handles(*values) {
                     let value = self.copy_from(source, *value);
-                    let handle = self.expression_handles.append(value);
+                    let handle = self.spans.expression_handles.append(value);
                     if count == 0 {
                         start = handle;
                     }
@@ -184,7 +198,7 @@ impl ExpressionTable {
 
         for expression in expressions {
             let expression = self.copy_from(source, *expression);
-            let handle = self.expression_handles.append(expression);
+            let handle = self.spans.expression_handles.append(expression);
             if count == 0 {
                 start = handle;
             }
@@ -205,7 +219,7 @@ impl ExpressionTable {
         let mut count = 0u32;
 
         for member in path.members() {
-            let handle = self.name_path_members.append(member.clone());
+            let handle = self.spans.name_path_members.append(member.clone());
             if count == 0 {
                 start = handle;
             }
@@ -230,7 +244,7 @@ impl ExpressionTable {
         let mut count = 0u32;
 
         for member in source.name_path_members(members) {
-            let handle = self.name_path_members.append(member.clone());
+            let handle = self.spans.name_path_members.append(member.clone());
             if count == 0 {
                 start = handle;
             }
@@ -256,7 +270,7 @@ impl ExpressionTable {
 
         for field in source.struct_fields(fields) {
             let value = self.copy_from(source, field.value);
-            let handle = self.struct_fields.append(TableStructLiteralField {
+            let handle = self.spans.struct_fields.append(TableStructLiteralField {
                 name: field.name.clone(),
                 value,
             });
@@ -284,7 +298,7 @@ impl ExpressionTable {
 
         for expression in expressions {
             let expression = self.insert_tree(expression);
-            let handle = self.expression_handles.append(expression);
+            let handle = self.spans.expression_handles.append(expression);
             if count == 0 {
                 start = handle;
             }
@@ -309,7 +323,7 @@ impl ExpressionTable {
 
         for field in fields {
             let value = self.insert_tree(&field.value);
-            let handle = self.struct_fields.append(TableStructLiteralField {
+            let handle = self.spans.struct_fields.append(TableStructLiteralField {
                 name: field.name.clone(),
                 value,
             });
@@ -329,22 +343,22 @@ impl ExpressionTable {
     }
 
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
-        self.expressions.get(handle)
+        self.nodes.expressions.get(handle)
     }
 
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
-        self.expression_handles.span_or_empty(span)
+        self.spans.expression_handles.span_or_empty(span)
     }
 
     pub fn struct_fields(
         &self,
         span: HandleSpan<TableStructLiteralField>,
     ) -> &[TableStructLiteralField] {
-        self.struct_fields.span_or_empty(span)
+        self.spans.struct_fields.span_or_empty(span)
     }
 
     pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
-        self.name_path_members.span_or_empty(span)
+        self.spans.name_path_members.span_or_empty(span)
     }
 
     pub fn copy_name_path_members_with_suffix(
@@ -357,6 +371,7 @@ impl ExpressionTable {
 
         for offset in 0..members.count() {
             let member = self
+                .spans
                 .name_path_members
                 .get(Handle::from_parts(
                     members
@@ -367,7 +382,7 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            let handle = self.name_path_members.append(member);
+            let handle = self.spans.name_path_members.append(member);
             if count == 0 {
                 start = handle;
             }
@@ -376,7 +391,7 @@ impl ExpressionTable {
                 .expect("name path member span count overflow");
         }
 
-        let handle = self.name_path_members.append(suffix);
+        let handle = self.spans.name_path_members.append(suffix);
         if count == 0 {
             start = handle;
         }
@@ -398,6 +413,7 @@ impl ExpressionTable {
 
         for offset in 0..members.count() {
             let member = self
+                .spans
                 .name_path_members
                 .get(Handle::from_parts(
                     members
@@ -408,7 +424,7 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            let handle = self.name_path_members.append(member);
+            let handle = self.spans.name_path_members.append(member);
             if count == 0 {
                 start = handle;
             }
@@ -419,6 +435,7 @@ impl ExpressionTable {
 
         for offset in suffix_start_offset..suffix_members.count() {
             let member = self
+                .spans
                 .name_path_members
                 .get(Handle::from_parts(
                     suffix_members
@@ -429,7 +446,7 @@ impl ExpressionTable {
                     suffix_members.start().generation(),
                 ))
                 .clone();
-            let handle = self.name_path_members.append(member);
+            let handle = self.spans.name_path_members.append(member);
             if count == 0 {
                 start = handle;
             }
@@ -487,11 +504,11 @@ impl ExpressionTable {
     }
 
     pub fn expression_count(&self) -> usize {
-        self.expressions.len()
+        self.nodes.expressions.len()
     }
 
     pub fn struct_field_count(&self) -> usize {
-        self.struct_fields.len()
+        self.spans.struct_fields.len()
     }
 
     pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
