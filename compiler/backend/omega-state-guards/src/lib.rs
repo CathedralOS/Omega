@@ -71,6 +71,7 @@ pub fn build_state_guard_plan(
                 state.key,
                 state.dispatch_index,
                 statement_order,
+                edge.statement_index,
                 edge,
             ));
         }
@@ -153,6 +154,7 @@ fn build_state_guard(
     source: StateKey,
     source_dispatch_index: u32,
     statement_order: usize,
+    statement_index: usize,
     edge: &DispatchEdge,
 ) -> StateGuard {
     let source_guard = edge.expressions.guard;
@@ -187,13 +189,52 @@ fn build_state_guard(
         source,
         source_machine.symbol,
         source_dispatch_index,
-        statement_order,
+        statement_index,
         normalized_guard,
     );
-    let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
-    let operands = guard_operands
-        .map(|operands| operands.insert_into(operand_arena))
-        .unwrap_or_default();
+    let (kind, operator, lowering, operands) = if let Some(expected) =
+        normalized_guard.and_then(|guard| match normalized_expressions.expression(guard) {
+            ExpressionNode::Boolean(value) => Some(*value),
+            _ => None,
+        })
+        && let Some(slot) = runtime_storage.transition_guard_result_slot(
+            source_dispatch_index,
+            source,
+            statement_index,
+        ) {
+            let operands = GuardOperands {
+                left: StateGuardOperand {
+                    expression,
+                    kind: StateGuardOperandKind::Place,
+                    storage: StateGuardOperandStorage::RuntimeFrame,
+                    byte_offset: slot.byte_offset,
+                    byte_size: slot.byte_size,
+                    resolved_value: 0,
+                    has_resolved_value: false,
+                },
+                right: StateGuardOperand {
+                    expression,
+                    kind: StateGuardOperandKind::Literal,
+                    storage: StateGuardOperandStorage::Unknown,
+                    byte_offset: 0,
+                    byte_size: slot.byte_size,
+                    resolved_value: i64::from(expected),
+                    has_resolved_value: true,
+                },
+            };
+            (
+                StateGuardKind::RuntimeEquality,
+                StateGuardOperator::Equal,
+                StateGuardLowering::CompareStaticValue,
+                operands.insert_into(operand_arena),
+            )
+        } else {
+            let lowering = guard_lowering(kind, operator, guard_operands.as_ref());
+            let operands = guard_operands
+                .map(|operands| operands.insert_into(operand_arena))
+                .unwrap_or_default();
+            (kind, operator, lowering, operands)
+        };
 
     StateGuard {
         source,
@@ -203,6 +244,7 @@ fn build_state_guard(
         continuation: edge.continuation.clone(),
         continuation_dispatch_index: edge.continuation_dispatch_index,
         statement_order,
+        statement_index,
         kind,
         operator,
         lowering,
@@ -318,7 +360,7 @@ pub fn lower_guard_conjunction(
             source_key,
             source_machine,
             source_dispatch_index,
-            statement_order,
+            guard.statement_index,
             Some(leaf),
         )?;
         let lowering = guard_lowering(kind, operator, Some(&operands));

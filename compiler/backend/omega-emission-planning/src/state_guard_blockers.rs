@@ -41,7 +41,7 @@ pub(super) fn collect_state_guard_blockers(
                 input,
                 guard.source,
                 guard.source_dispatch_index,
-                guard.statement_order,
+                guard.statement_index,
                 &input.state_guards.expressions.to_tree(guard.expression),
             )
         {
@@ -85,7 +85,7 @@ fn guard_expression_can_emit(
     input: &EmissionPlanningInput<'_>,
     source_key: omega_control_flow::StateKey,
     source_dispatch_index: u32,
-    statement_order: usize,
+    statement_index: usize,
     expression: &Expression,
 ) -> bool {
     if let Some(normalized) = normalized_boolean_wrapped_expression(expression) {
@@ -93,7 +93,7 @@ fn guard_expression_can_emit(
             input,
             source_key,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             &normalized,
         );
     }
@@ -103,7 +103,7 @@ fn guard_expression_can_emit(
             input,
             source_key,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             expression,
         );
     }
@@ -124,13 +124,13 @@ fn guard_expression_can_emit(
         input,
         source_key,
         source_dispatch_index,
-        statement_order,
+        statement_index,
         &binary.left,
     ) && runtime_value_expression_can_emit(
         input,
         source_key,
         source_dispatch_index,
-        statement_order,
+        statement_index,
         &binary.right,
     )
 }
@@ -153,7 +153,7 @@ fn runtime_value_expression_can_emit(
     input: &EmissionPlanningInput<'_>,
     source_key: omega_control_flow::StateKey,
     source_dispatch_index: u32,
-    statement_order: usize,
+    statement_index: usize,
     expression: &Expression,
 ) -> bool {
     match expression {
@@ -164,13 +164,13 @@ fn runtime_value_expression_can_emit(
             input,
             source_key,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             &binary.left,
         ) && runtime_value_expression_can_emit(
             input,
             source_key,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             &binary.right,
         ),
         Expression::Name(_)
@@ -181,7 +181,7 @@ fn runtime_value_expression_can_emit(
         | Expression::Integer(_) => true,
         Expression::Call(_) => input
             .runtime_storage
-            .transition_guard_result_slot(source_dispatch_index, source_key, statement_order)
+            .transition_guard_result_slot(source_dispatch_index, source_key, statement_index)
             .is_some(),
         _ => false,
     }
