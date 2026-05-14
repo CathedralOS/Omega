@@ -15,11 +15,7 @@ impl Default for SourceFile {
         Self {
             source_id: SourceId::default(),
             path: PathBuf::default(),
-            syntax_trees: SyntaxTrees {
-                source_id: SourceId::default(),
-                items: Vec::new(),
-                tables: Default::default(),
-            },
+            syntax_trees: SyntaxTrees::default(),
         }
     }
 }

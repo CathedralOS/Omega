@@ -6,7 +6,7 @@ use omega_resolved_trees::Program;
 pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnostic> {
     let mut lowerer = Lowerer::default();
 
-    for item in &syntax_trees.items {
+    for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, item)?;
     }
 
@@ -14,7 +14,8 @@ pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnos
 }
 
 pub fn lower_program(items: &[syntax::item::Item]) -> Result<Program, Diagnostic> {
-    let syntax_trees = SyntaxTrees::from_items(Default::default(), items.to_vec());
+    let syntax_trees =
+        SyntaxTrees::from_root_items(Default::default(), items.iter().cloned());
     lower_syntax_trees(&syntax_trees)
 }
 

@@ -52,11 +52,7 @@ impl Default for ParsedSource {
             source_id: SourceId::default(),
             path: PathBuf::default(),
             source: Arc::from(""),
-            syntax_trees: SyntaxTrees {
-                source_id: SourceId::default(),
-                items: Vec::new(),
-                tables: Default::default(),
-            },
+            syntax_trees: SyntaxTrees::default(),
         }
     }
 }
@@ -177,7 +173,7 @@ pub fn discover_imports(
     let mut imports = Vec::new();
 
     for parsed_source in parsed.sources.span_or_empty(parsed.batch) {
-        for item in &parsed_source.syntax_trees.items {
+        for item in parsed_source.syntax_trees.root_items() {
             match item {
                 Item::Use(use_item) => {
                     imports.push(normalize_path(&resolve_source_path(&root_dir, &use_item.path))?);
