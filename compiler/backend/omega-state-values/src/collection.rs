@@ -1,5 +1,5 @@
 use super::classify::value_kind;
-use super::simplify::simplify_state_expression;
+use super::simplify::simplify_state_expression_for_role;
 use super::{StateValuePlan, StateValueRole, StateValueUse};
 use crate::StateValuePlanningContext;
 use omega_checked_trees::Program;
@@ -169,8 +169,14 @@ fn push_value(
     expression: ExpressionHandle,
     required: bool,
 ) {
-    let simplified_expression =
-        simplify_state_expression(program, machine, state, statement_index, &program.expression_table.to_tree(expression));
+    let simplified_expression = simplify_state_expression_for_role(
+        program,
+        machine,
+        state,
+        statement_index,
+        role,
+        &program.expression_table.to_tree(expression),
+    );
     let expression = plan.expressions.insert_tree(&simplified_expression);
     plan.values.insert(StateValueUse {
         source_key,

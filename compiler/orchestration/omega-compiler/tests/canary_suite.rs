@@ -124,6 +124,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_multi_assignment_value_calls",
     "runtime_reward_table_roll_item_shape",
     "runtime_text_storage",
+    "runtime_transition_argument_call_value",
     "std_option_storage_write",
     "std_option_surface",
 ];
