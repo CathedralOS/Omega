@@ -36,7 +36,17 @@ pub enum TypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeReferenceTable {
+    nodes: TypeReferenceNodeStorage,
+    spans: TypeReferenceSpanStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TypeReferenceNodeStorage {
     type_references: Arena<TypeReferenceNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TypeReferenceSpanStorage {
     type_reference_handles: Arena<TypeReferenceHandle>,
     constraints: Arena<TypeConstraintNode>,
 }
@@ -44,28 +54,32 @@ pub struct TypeReferenceTable {
 impl TypeReferenceTable {
     pub fn new() -> Self {
         Self {
-            type_references: Arena::new(),
-            type_reference_handles: Arena::new(),
-            constraints: Arena::new(),
+            nodes: TypeReferenceNodeStorage {
+                type_references: Arena::new(),
+            },
+            spans: TypeReferenceSpanStorage {
+                type_reference_handles: Arena::new(),
+                constraints: Arena::new(),
+            },
         }
     }
 
     pub fn insert(&mut self, type_reference: TypeReferenceNode) -> TypeReferenceHandle {
-        self.type_references.insert(type_reference)
+        self.nodes.type_references.insert(type_reference)
     }
 
     pub fn insert_type_reference_handles(
         &mut self,
         type_references: impl IntoIterator<Item = TypeReferenceHandle>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        self.type_reference_handles.insert_many(type_references)
+        self.spans.type_reference_handles.insert_many(type_references)
     }
 
     pub fn insert_constraints(
         &mut self,
         constraints: impl IntoIterator<Item = TypeConstraintNode>,
     ) -> HandleSpan<TypeConstraintNode> {
-        self.constraints.insert_many(constraints)
+        self.spans.constraints.insert_many(constraints)
     }
 
     fn insert_type_reference_handle_span_from_trees<'type_reference>(
@@ -79,7 +93,7 @@ impl TypeReferenceTable {
 
         for type_reference in type_references {
             let type_reference = self.insert_tree(type_reference, expressions, source_constraints);
-            let handle = self.type_reference_handles.append(type_reference);
+            let handle = self.spans.type_reference_handles.append(type_reference);
             if count == 0 {
                 start = handle;
             }
@@ -106,6 +120,7 @@ impl TypeReferenceTable {
 
         for constraint in source_constraints.span_or_empty(constraints) {
             let handle = self
+                .spans
                 .constraints
                 .append(TypeConstraintNode::from_tree(constraint, expressions));
             if count == 0 {
@@ -124,26 +139,26 @@ impl TypeReferenceTable {
     }
 
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
-        self.type_references.get(handle)
+        self.nodes.type_references.get(handle)
     }
 
     pub fn type_reference_handles(
         &self,
         span: HandleSpan<TypeReferenceHandle>,
     ) -> &[TypeReferenceHandle] {
-        self.type_reference_handles.span_or_empty(span)
+        self.spans.type_reference_handles.span_or_empty(span)
     }
 
     pub fn constraints(&self, span: HandleSpan<TypeConstraintNode>) -> &[TypeConstraintNode] {
-        self.constraints.span_or_empty(span)
+        self.spans.constraints.span_or_empty(span)
     }
 
     pub fn type_reference_count(&self) -> usize {
-        self.type_references.len()
+        self.nodes.type_references.len()
     }
 
     pub fn constraint_count(&self) -> usize {
-        self.constraints.len()
+        self.spans.constraints.len()
     }
 
     pub fn insert_tree(
