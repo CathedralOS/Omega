@@ -10,8 +10,9 @@ pub(crate) fn lower_data_definition(
     syntax_trees: &SyntaxTrees,
     data_definition: &syntax::item::DataDefinition,
 ) -> Result<DataDefinition, Diagnostic> {
-    let members = data_definition
-        .members
+    let members = syntax_trees
+        .items
+        .data_members(data_definition.members)
         .iter()
         .map(|member| lower_data_member(lowerer, syntax_trees, member))
         .collect::<Result<Vec<_>, _>>()?;

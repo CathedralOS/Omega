@@ -185,7 +185,7 @@ impl Default for TrustMode {
 pub struct DataDefinition {
     pub name: Identifier,
     pub type_parameters: HandleSpan<TypeParameter>,
-    pub members: Vec<DataMember>,
+    pub members: HandleSpan<DataMember>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -199,14 +199,20 @@ pub enum DataMember {
     Variant(DataVariant),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Default for DataMember {
+    fn default() -> Self {
+        Self::Variant(DataVariant::default())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
     pub name: Identifier,
 }
@@ -250,6 +256,7 @@ pub struct ItemTable {
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
     type_parameters: Arena<TypeParameter>,
+    data_members: Arena<DataMember>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
 }
@@ -267,6 +274,7 @@ impl ItemTable {
             machines: Arena::new(),
             platforms: Arena::new(),
             type_parameters: Arena::new(),
+            data_members: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),
         }
@@ -294,6 +302,10 @@ impl ItemTable {
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.type_parameters.span_or_empty(span)
+    }
+
+    pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
+        self.data_members.span_or_empty(span)
     }
 
     pub fn target_host_settings(
@@ -391,6 +403,10 @@ impl ItemTable {
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
         self.type_parameters.append(type_parameter)
+    }
+
+    pub fn append_data_member(&mut self, member: DataMember) -> Handle<DataMember> {
+        self.data_members.append(member)
     }
 
     pub fn append_target_host_setting(
