@@ -3,7 +3,7 @@ use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
+    ExpressionHandle, ExpressionNode, TableCallExpression,
 };
 use omega_syntax_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData};
 use omega_syntax_trees::SyntaxTrees;
@@ -122,43 +122,16 @@ fn expression_handle_to_identifier_path_span(
     expression: ExpressionHandle,
 ) -> Option<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
     match syntax_trees.expressions.expression(expression).clone() {
-        ExpressionNode::Name(path) => {
-            let members = syntax_trees
-                .expressions
-                .identifier_path_members(path)
-                .to_vec();
-            Some(copy_expression_identifier_path_to_statement_table(
-                syntax_trees,
-                &members,
-            ))
-        }
+        ExpressionNode::Name(path) => Some(copy_expression_identifier_path_to_statement_table(
+            syntax_trees, path,
+        )),
         ExpressionNode::Member(member) => {
-            let mut members = expression_handle_to_identifier_vec(syntax_trees, member.receiver)?;
-            members.push(member.member);
-            Some(copy_expression_identifier_path_to_statement_table(
+            let receiver = expression_handle_to_identifier_path_span(syntax_trees, member.receiver)?;
+            Some(append_statement_identifier_path_member(
                 syntax_trees,
-                &members,
+                receiver,
+                member.member,
             ))
-        }
-        _ => None,
-    }
-}
-
-fn expression_handle_to_identifier_vec(
-    syntax_trees: &SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Option<Vec<omega_syntax_trees::identifier::Identifier>> {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => Some(
-            syntax_trees
-                .expressions
-                .identifier_path_members(*path)
-                .to_vec(),
-        ),
-        ExpressionNode::Member(TableMemberExpression { receiver, member }) => {
-            let mut members = expression_handle_to_identifier_vec(syntax_trees, *receiver)?;
-            members.push(member.clone());
-            Some(members)
         }
         _ => None,
     }
@@ -166,15 +139,18 @@ fn expression_handle_to_identifier_vec(
 
 fn copy_expression_identifier_path_to_statement_table(
     syntax_trees: &mut SyntaxTrees,
-    members: &[omega_syntax_trees::identifier::Identifier],
+    path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
 ) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
-    for member in members {
+    let member_count = syntax_trees.expressions.identifier_path_members(path).len();
+
+    for index in 0..member_count {
+        let member = syntax_trees.expressions.identifier_path_members(path)[index].clone();
         let handle = syntax_trees
             .statements
-            .append_identifier_path_member(member.clone());
+            .append_identifier_path_member(member);
         if count == 0 {
             start = handle;
         }
@@ -187,5 +163,24 @@ fn copy_expression_identifier_path_to_statement_table(
         HandleSpan::empty()
     } else {
         HandleSpan::from_parts(start, count)
+    }
+}
+
+fn append_statement_identifier_path_member(
+    syntax_trees: &mut SyntaxTrees,
+    path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    member: omega_syntax_trees::identifier::Identifier,
+) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
+    let handle = syntax_trees.statements.append_identifier_path_member(member);
+
+    if path.is_empty() {
+        HandleSpan::from_parts(handle, 1)
+    } else {
+        HandleSpan::from_parts(
+            path.start(),
+            path.count()
+                .checked_add(1)
+                .expect("statement identifier path span count overflow"),
+        )
     }
 }
