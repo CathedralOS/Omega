@@ -23,10 +23,7 @@ pub struct Program {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramStorage {
     pub roots: ResolvedRoots,
-    pub type_constraints: Arena<types::TypeConstraint>,
-    pub expression_table: expression::ExpressionTable,
-    pub statement_table: statement::StatementTable,
-    pub type_reference_table: types::TypeReferenceTable,
+    pub tables: ResolvedTableStorage,
     pub symbols: SymbolTable,
 }
 
@@ -38,12 +35,20 @@ pub struct ResolvedRoots {
     pub platforms: Vec<platform::Platform>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedTableStorage {
+    pub type_constraints: Arena<types::TypeConstraint>,
+    pub expression_table: expression::ExpressionTable,
+    pub statement_table: statement::StatementTable,
+    pub type_reference_table: types::TypeReferenceTable,
+}
+
 impl Program {
     pub fn rebuild_tables(&mut self) {
         let tables = tables::ResolvedProgramTables::from_program_with_state_spans(self);
-        self.expression_table = tables.expressions;
-        self.statement_table = tables.statements;
-        self.type_reference_table = tables.type_references;
+        self.tables.expression_table = tables.expressions;
+        self.tables.statement_table = tables.statements;
+        self.tables.type_reference_table = tables.type_references;
     }
 }
 
