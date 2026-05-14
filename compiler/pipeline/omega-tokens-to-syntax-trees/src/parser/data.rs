@@ -14,7 +14,8 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut members = Vec::new();
+    let mut member_start = Handle::invalid();
+    let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (field_name, next) = input.take_identifier()?;
@@ -36,22 +37,41 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
             } else {
                 next
             };
-            members.push(DataMember::Field(DataField {
+            let handle = syntax_trees.items.append_data_member(DataMember::Field(DataField {
                 name: field_name,
                 type_reference,
                 initial_value,
             }));
+            if member_count == 0 {
+                member_start = handle;
+            }
+            member_count = member_count
+                .checked_add(1)
+                .expect("data member span count overflow");
         } else {
             input = if input.at_punctuation(PunctuationKind::Semicolon) {
                 input.take_punctuation(PunctuationKind::Semicolon, ";")?
             } else {
                 input
             };
-            members.push(DataMember::Variant(DataVariant { name: field_name }));
+            let handle = syntax_trees
+                .items
+                .append_data_member(DataMember::Variant(DataVariant { name: field_name }));
+            if member_count == 0 {
+                member_start = handle;
+            }
+            member_count = member_count
+                .checked_add(1)
+                .expect("data member span count overflow");
         }
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let members = if member_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(member_start, member_count)
+    };
     Ok((DataDefinition { name, type_parameters, members }, input))
 }
 
@@ -63,12 +83,21 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
     let (type_parameters, next) = parse_type_parameters(syntax_trees, input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut members = Vec::new();
+    let mut member_start = Handle::invalid();
+    let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (variant_name, next) = input.take_identifier()?;
         input = next;
-        members.push(DataMember::Variant(DataVariant { name: variant_name }));
+        let handle = syntax_trees
+            .items
+            .append_data_member(DataMember::Variant(DataVariant { name: variant_name }));
+        if member_count == 0 {
+            member_start = handle;
+        }
+        member_count = member_count
+            .checked_add(1)
+            .expect("data member span count overflow");
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -78,6 +107,11 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let members = if member_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(member_start, member_count)
+    };
     Ok((DataDefinition { name, type_parameters, members }, input))
 }
 

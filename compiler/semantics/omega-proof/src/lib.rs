@@ -36,7 +36,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
         match item {
             Item::Capability(_) => {}
             Item::Data(data_definition) => {
-                for member in &data_definition.members {
+                for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {
                         collect_bounded_type_site_tree(
                             &mut report,
