@@ -550,6 +550,7 @@ dependencies = [
  "omega-platform-interface",
  "omega-runtime-bodies",
  "omega-state-calls",
+ "omega-state-dispatch",
  "omega-state-graph",
  "omega-state-guards",
  "omega-state-storage",

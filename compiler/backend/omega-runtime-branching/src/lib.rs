@@ -15,6 +15,8 @@ use omega_control_flow::ControlFlowPlan;
 use omega_platform_interface::HostCallPlan;
 use omega_runtime_bodies::RuntimeDispatchBodyPlan;
 use omega_state_calls::StateCallPlan;
+use omega_state_dispatch::StateDispatchPlan;
+use omega_state_guards::StateGuardPlan;
 use omega_state_storage::StateStoragePlan;
 
 #[derive(Debug, Clone, Copy)]
@@ -23,5 +25,7 @@ pub struct RuntimeBranchingContext<'plan> {
     pub host_calls: &'plan HostCallPlan,
     pub runtime_bodies: &'plan RuntimeDispatchBodyPlan,
     pub state_calls: &'plan StateCallPlan,
+    pub state_dispatch: &'plan StateDispatchPlan,
+    pub state_guards: &'plan StateGuardPlan,
     pub state_storage: &'plan StateStoragePlan,
 }

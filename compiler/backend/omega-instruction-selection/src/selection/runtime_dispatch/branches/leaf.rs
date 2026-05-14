@@ -73,7 +73,9 @@ fn select_runtime_leaf_branch_terminal_value_write(
     };
     if !matches!(
         expansion.role,
-        StateCallRole::AssignmentValue | StateCallRole::TransitionGuard
+        StateCallRole::AssignmentValue
+            | StateCallRole::TransitionArgument
+            | StateCallRole::TransitionGuard
     ) {
         return;
     }

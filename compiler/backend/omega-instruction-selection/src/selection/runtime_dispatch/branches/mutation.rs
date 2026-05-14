@@ -412,16 +412,16 @@ fn runtime_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperato
     match operator {
         BinaryOperator::Add => Some(StateGuardOperator::Add),
         BinaryOperator::Equal => Some(StateGuardOperator::Equal),
+        BinaryOperator::Greater => Some(StateGuardOperator::Greater),
+        BinaryOperator::GreaterOrEqual => Some(StateGuardOperator::GreaterOrEqual),
+        BinaryOperator::Less => Some(StateGuardOperator::Less),
+        BinaryOperator::LessOrEqual => Some(StateGuardOperator::LessOrEqual),
         BinaryOperator::NotEqual => Some(StateGuardOperator::NotEqual),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
         BinaryOperator::And
         | BinaryOperator::Divide
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => None,

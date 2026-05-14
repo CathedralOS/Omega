@@ -75,6 +75,7 @@ fn build_dispatch_state(
         .iter()
         .filter(|edge| edge.from == runtime_state.key)
         .map(|edge| DispatchEdge {
+            statement_index: edge.statement_index,
             target_dispatch_index: target_dispatch_index(context, &edge.target),
             target: edge.target.clone(),
             continuation_dispatch_index: target_dispatch_index(context, &edge.continuation),
@@ -133,6 +134,7 @@ fn terminal_continuation_edges(
         }
 
         edges.push(DispatchEdge {
+            statement_index: 0,
             target_dispatch_index: target_dispatch_index(context, &edge.continuation),
             target: edge.continuation.clone(),
             continuation_dispatch_index: 0,

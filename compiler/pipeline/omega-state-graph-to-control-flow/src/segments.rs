@@ -25,6 +25,7 @@ pub(super) struct StateSegment<'program> {
 
 #[derive(Debug, Clone)]
 pub(super) struct SegmentTransition<'program> {
+    pub statement_index: usize,
     pub tree: &'program Transition,
     pub table: TableTransition,
 }
@@ -50,6 +51,7 @@ pub(super) fn split_state_segments<'program>(
             transition_section_started = true;
             if let Some(StatementNode::Transition(table)) = table_statement {
                 transitions.push(SegmentTransition {
+                    statement_index,
                     tree: transition,
                     table: *table,
                 });

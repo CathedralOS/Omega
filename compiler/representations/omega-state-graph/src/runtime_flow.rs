@@ -27,6 +27,7 @@ pub struct RuntimeCycle {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeEdge {
     pub from: StateKey,
+    pub statement_index: usize,
     pub target: RuntimeTransitionTarget,
     pub continuation: RuntimeTransitionTarget,
     pub guard: TransitionGuard,
@@ -38,6 +39,7 @@ impl Default for RuntimeEdge {
     fn default() -> Self {
         Self {
             from: StateKey::default(),
+            statement_index: 0,
             target: RuntimeTransitionTarget::None,
             continuation: RuntimeTransitionTarget::None,
             guard: TransitionGuard::Always,

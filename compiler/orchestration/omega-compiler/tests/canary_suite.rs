@@ -104,6 +104,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_branching_helper_string",
     "runtime_branching_helper_struct",
     "runtime_branching_helper_value",
+    "runtime_branch_enemy_reward_shape",
     "runtime_call_value",
     "runtime_call_enum_field_value",
     "runtime_call_enum_field_with_args",

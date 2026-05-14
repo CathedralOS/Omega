@@ -14,6 +14,7 @@ use super::super::super::bindings::{
 use super::super::super::lookups::{
     state_assignment_value_call, state_assignment_value_call_by_ordinal,
     state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
+    state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
 use super::mutation::select_runtime_resolved_mutation_write;
@@ -158,6 +159,15 @@ fn select_runtime_straight_line_leaf_state_call_writes(
                 state_assignment_value_call(input, operation.source_key, operation.statement_index)
             })
         }
+        StateCallRole::TransitionArgument => state_transition_argument_call_by_ordinal(
+            input,
+            operation.source_key,
+            operation.statement_index,
+            call_ordinal,
+        )
+        .or_else(|| {
+            state_transition_argument_call(input, operation.source_key, operation.statement_index)
+        }),
         _ => None,
     };
     let Some(state_call) = state_call

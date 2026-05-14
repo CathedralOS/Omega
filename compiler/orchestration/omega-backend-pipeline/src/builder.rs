@@ -216,6 +216,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
                 host_calls: &backend_plan.host_calls,
                 runtime_bodies: &backend_plan.runtime_bodies,
                 state_calls: &backend_plan.state_calls,
+                state_dispatch: &backend_plan.state_dispatch,
+                state_guards: &backend_plan.state_guards,
                 state_storage: &backend_plan.state_storage,
             })
         });
