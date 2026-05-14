@@ -55,11 +55,25 @@ impl TypeReferenceTable {
         self.type_reference_handles.insert_many(type_references)
     }
 
+    pub fn append_type_reference_handle(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+    ) -> Handle<TypeReferenceHandle> {
+        self.type_reference_handles.append(type_reference)
+    }
+
     pub fn insert_constraints(
         &mut self,
         constraints: impl IntoIterator<Item = TypeConstraintNode>,
     ) -> HandleSpan<TypeConstraintNode> {
         self.constraints.insert_many(constraints)
+    }
+
+    pub fn append_constraint(
+        &mut self,
+        constraint: TypeConstraintNode,
+    ) -> Handle<TypeConstraintNode> {
+        self.constraints.append(constraint)
     }
 
     fn insert_type_reference_handle_span_from_trees<'type_reference>(

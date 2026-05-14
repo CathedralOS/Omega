@@ -27,7 +27,7 @@ pub(crate) fn lower_item(
             lower_machine_into(lowerer, syntax_trees, machine)?;
         }
         syntax::item::Item::Platform(platform) => {
-            let platform = lower_platform(lowerer, platform)?;
+            let platform = lower_platform(lowerer, syntax_trees, platform)?;
             lowerer.program.platforms.push(platform);
         }
         syntax::item::Item::Capability(_)

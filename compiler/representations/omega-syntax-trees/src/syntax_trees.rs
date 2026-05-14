@@ -31,10 +31,7 @@ impl SyntaxTrees {
         }
     }
 
-    pub fn from_root_items(
-        source_id: SourceId,
-        items: impl IntoIterator<Item = Item>,
-    ) -> Self {
+    pub fn from_root_items(source_id: SourceId, items: impl IntoIterator<Item = Item>) -> Self {
         let mut syntax_trees = Self::new(source_id);
 
         for item in items {
@@ -141,11 +138,8 @@ impl SyntaxTrees {
     }
 
     fn insert_platform(&mut self, platform: &Platform) {
-        self.items.insert_platform_tree(
-            platform,
-            &mut self.type_references,
-            &mut self.expressions,
-        );
+        self.items
+            .insert_platform_tree(platform, &mut self.type_references, &mut self.expressions);
     }
 
     fn insert_type_reference(&mut self, type_reference: &TypeReference) {
@@ -179,8 +173,10 @@ mod tests {
     use super::SyntaxTrees;
     use crate::identifier::Identifier;
     use crate::item::{Item, Machine, State};
-    use crate::statement::{StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode};
-    use crate::types::TypeReference;
+    use crate::statement::{
+        StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    };
+    use crate::types::TypeReferenceNode;
     use omega_core::arena::HandleSpan;
 
     #[test]
@@ -192,25 +188,29 @@ mod tests {
         let target = syntax_trees
             .statements
             .insert_transition_target(TransitionTargetNode::Terminal);
-        let statement = syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: crate::statement::TransitionTargetHandle::invalid(),
-                guard: TransitionGuardNode::When(guard),
-            }));
+        let statement =
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: crate::statement::TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::When(guard),
+                }));
         let statement_handle = syntax_trees.items.append_statement_handle(statement);
         let statements = HandleSpan::from_parts(statement_handle, 1);
+        let return_type = syntax_trees
+            .type_references
+            .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
 
         syntax_trees.push_root_item(Item::Machine(Machine {
-                name: Identifier::generated("Main"),
-                states: vec![State {
-                    name: Identifier::generated("entry"),
-                    parameters: Vec::new(),
-                    return_type: Some(TypeReference::named("i32")),
-                    statements,
-                }],
-            }));
+            name: Identifier::generated("Main"),
+            states: vec![State {
+                name: Identifier::generated("entry"),
+                parameters: HandleSpan::empty(),
+                return_type,
+                statements,
+            }],
+        }));
 
         assert_eq!(syntax_trees.root_item_count(), 1);
         assert_eq!(syntax_trees.type_references.type_reference_count(), 1);

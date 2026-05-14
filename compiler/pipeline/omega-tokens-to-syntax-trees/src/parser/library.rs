@@ -1,9 +1,11 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{LibraryDefinition, LibraryFunction, TrustLevel};
 use omega_tokens::{KeywordKind, PunctuationKind, Token};
 
 pub(super) fn parse_library_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, LibraryDefinition> {
     let ((name, path), mut input) = if input.tokens.first().is_some_and(Token::is_string_literal) {
@@ -23,7 +25,7 @@ pub(super) fn parse_library_definition<'tokens, 'source>(
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         input = input.take_keyword(KeywordKind::Fn, "fn")?;
-        let (function, rest) = parse_library_function(input)?;
+        let (function, rest) = parse_library_function(syntax_trees, input)?;
         functions.push(function);
         input = rest;
     }
@@ -41,9 +43,10 @@ pub(super) fn parse_library_definition<'tokens, 'source>(
 }
 
 fn parse_library_function<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, LibraryFunction> {
-    let (signature, mut input) = parse_state_signature(input)?;
+    let (signature, mut input) = parse_state_signature(syntax_trees, input)?;
     let mut symbol = None;
     let mut calling_convention = None;
     let mut trusts = Vec::new();

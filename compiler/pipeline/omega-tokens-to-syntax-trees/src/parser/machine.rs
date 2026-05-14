@@ -1,5 +1,5 @@
 use crate::parser::context::StateKind;
-use crate::parser::input::{parse_path, Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path};
 use crate::parser::state::{parse_optional_return_type, parse_state};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -11,7 +11,7 @@ pub(super) fn parse_machine<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
     let (path, input) = parse_path(input)?;
-    let (machine_return_type, mut input) = parse_optional_return_type(input)?;
+    let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (name, entry_name) = split_machine_path(path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
@@ -62,10 +62,10 @@ pub(super) fn parse_machine<'tokens, 'source>(
         }
     }
 
-    if let Some(return_type) = &machine_return_type {
+    if machine_return_type.is_valid() {
         for state in &mut states {
-            if state.return_type.is_none() {
-                state.return_type = Some(return_type.clone());
+            if !state.return_type.is_valid() {
+                state.return_type = machine_return_type;
             }
         }
     }
@@ -73,7 +73,9 @@ pub(super) fn parse_machine<'tokens, 'source>(
     Ok((Machine { name, states }, input))
 }
 
-fn split_machine_path(path: omega_syntax_trees::identifier::IdentifierPath) -> (Identifier, Option<Identifier>) {
+fn split_machine_path(
+    path: omega_syntax_trees::identifier::IdentifierPath,
+) -> (Identifier, Option<Identifier>) {
     if path.len() <= 1 {
         return (
             path.as_slice()

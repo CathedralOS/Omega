@@ -1,9 +1,11 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Platform;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_platform<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Platform> {
     let (name, mut input) = input.take_identifier()?;
@@ -22,7 +24,7 @@ pub(super) fn parse_platform<'tokens, 'source>(
             input = input.take_keyword(KeywordKind::Fn, "fn")?;
         }
 
-        let (signature, rest) = parse_state_signature(input)?;
+        let (signature, rest) = parse_state_signature(syntax_trees, input)?;
         states.push(signature);
         input = if rest.at_punctuation(PunctuationKind::Semicolon) {
             rest.take_punctuation(PunctuationKind::Semicolon, ";")?
