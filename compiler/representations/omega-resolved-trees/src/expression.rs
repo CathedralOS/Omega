@@ -843,15 +843,20 @@ impl Default for Expression {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePath {
-    members: Vec<ProgramName>,
+    storage: NamePathStorage,
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NamePathStorage {
+    members: Vec<ProgramName>,
 }
 
 impl NamePath {
     pub fn unresolved(members: Vec<ProgramName>) -> Self {
         Self {
-            members,
+            storage: NamePathStorage { members },
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -863,14 +868,14 @@ impl NamePath {
         symbol: SymbolHandle,
     ) -> Self {
         Self {
-            members,
+            storage: NamePathStorage { members },
             head_symbol,
             symbol,
         }
     }
 
     pub fn members(&self) -> &[ProgramName] {
-        &self.members
+        &self.storage.members
     }
 
     pub fn as_slice(&self) -> &[ProgramName] {
@@ -878,16 +883,16 @@ impl NamePath {
     }
 
     pub fn into_members(self) -> Vec<ProgramName> {
-        self.members
+        self.storage.members
     }
 
     pub fn push(&mut self, member: ProgramName) {
-        self.members.push(member);
+        self.storage.members.push(member);
         self.symbol = SymbolHandle::invalid();
     }
 
     pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
-        self.members.extend_from_slice(members);
+        self.storage.members.extend_from_slice(members);
         self.symbol = SymbolHandle::invalid();
     }
 
@@ -923,7 +928,7 @@ impl Deref for NamePath {
 impl DerefMut for NamePath {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.symbol = SymbolHandle::invalid();
-        &mut self.members
+        &mut self.storage.members
     }
 }
 
@@ -932,7 +937,7 @@ impl<'path> IntoIterator for &'path NamePath {
     type IntoIter = std::slice::Iter<'path, ProgramName>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.members.iter()
+        self.storage.members.iter()
     }
 }
 
