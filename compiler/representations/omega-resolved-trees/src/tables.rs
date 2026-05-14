@@ -204,8 +204,8 @@ mod tests {
         program.rebuild_tables();
 
         assert_eq!(program.tables.types.references.type_reference_count(), 1);
-        assert_eq!(program.tables.expression_table.expression_count(), 1);
-        assert_eq!(program.tables.statement_table.statement_count(), 1);
+        assert_eq!(program.tables.bodies.expressions.expression_count(), 1);
+        assert_eq!(program.tables.bodies.statements.statement_count(), 1);
         assert_eq!(program.machines[0].states[0].statement_nodes.count(), 1);
     }
 }

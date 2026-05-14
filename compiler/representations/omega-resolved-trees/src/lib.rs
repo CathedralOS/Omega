@@ -38,8 +38,7 @@ pub struct ResolvedRoots {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ResolvedTableStorage {
-    pub expression_table: expression::ExpressionTable,
-    pub statement_table: statement::StatementTable,
+    pub bodies: ResolvedBodyStorage,
     pub types: ResolvedTypeStorage,
 }
 
@@ -49,11 +48,17 @@ pub struct ResolvedTypeStorage {
     pub references: types::TypeReferenceTable,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResolvedBodyStorage {
+    pub expressions: expression::ExpressionTable,
+    pub statements: statement::StatementTable,
+}
+
 impl Program {
     pub fn rebuild_tables(&mut self) {
         let tables = tables::ResolvedProgramTables::from_program_with_state_spans(self);
-        self.tables.expression_table = tables.expressions;
-        self.tables.statement_table = tables.statements;
+        self.tables.bodies.expressions = tables.expressions;
+        self.tables.bodies.statements = tables.statements;
         self.tables.types.references = tables.type_references;
     }
 

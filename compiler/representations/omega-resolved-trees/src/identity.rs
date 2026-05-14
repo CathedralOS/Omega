@@ -93,10 +93,10 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
-            for statement in program.tables.statement_table.statements(state.statement_nodes) {
+            for statement in program.tables.bodies.statements.statements(state.statement_nodes) {
                 count_statement_node(
-                    &program.tables.statement_table,
-                    &program.tables.expression_table,
+                    &program.tables.bodies.statements,
+                    &program.tables.bodies.expressions,
                     &program.tables.types.references,
                     statement,
                     &mut counts,
