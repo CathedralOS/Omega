@@ -108,6 +108,21 @@ pub(super) fn encode_runtime_text_stored_place_append(
     )
 }
 
+pub(super) fn encode_runtime_text_stored_place_append_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_stored_place_append_to_runtime_pointee(
+        input.target.architecture,
+        0,
+        source_offset,
+        pointer_byte_offset,
+        field_byte_offset,
+    )
+}
+
 pub(super) fn encode_runtime_text_literal_append(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
@@ -121,11 +136,38 @@ pub(super) fn encode_runtime_text_literal_append(
     )
 }
 
+pub(super) fn encode_runtime_text_literal_append_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_literal_append_to_runtime_pointee(
+        input.target.architecture,
+        0,
+        pointer_byte_offset,
+        field_byte_offset,
+        literal,
+    )
+}
+
 pub(super) fn encode_runtime_text_buffer_materialize(
     input: MachineEmissionContext<'_>,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_text_buffer_materialize(input.target.architecture, target_offset)
+}
+
+pub(super) fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
+    input: MachineEmissionContext<'_>,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+        input.target.architecture,
+        pointer_byte_offset,
+        field_byte_offset,
+    )
 }
 
 pub(super) fn encode_runtime_text_line_read(

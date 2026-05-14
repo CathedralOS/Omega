@@ -127,10 +127,19 @@ fn machine_instruction_width(
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. } => {
             runtime_text_buffer_materialize_width(input.target.architecture)
         }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. } => {
+            runtime_text_buffer_materialize_width(input.target.architecture)
+        }
         SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. } => {
             runtime_text_stored_place_append_width(input.target.architecture)
         }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. } => {
+            runtime_text_stored_place_append_width(input.target.architecture)
+        }
         SelectedInstructionKind::AppendRuntimeTextLiteral { literal, .. } => {
+            runtime_text_literal_append_width(input.target.architecture, literal)
+        }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { literal, .. } => {
             runtime_text_literal_append_width(input.target.architecture, literal)
         }
         SelectedInstructionKind::WriteRuntimeMachineInteger { byte_size, .. } => {

@@ -3,7 +3,7 @@ use omega_platform_interface::HostCall;
 use omega_runtime_text::RuntimeTextSource;
 use omega_runtime_text::places::{
     expression_name_with_suffix_eq_in_table, expression_name_with_suffix_eq_tree,
-    expression_place_eq_in_table,
+    expression_place_eq, expression_place_eq_in_table,
 };
 use omega_target_operations::{TargetDataObject, TargetDataObjectHandle};
 use omega_checked_trees::expression::Expression;
@@ -69,13 +69,13 @@ pub(in crate::selection) fn runtime_text_input_buffer_data_for_text_place<'plan>
     text_place: &Expression,
 ) -> Option<(TargetDataObjectHandle, &'plan TargetDataObject)> {
     let buffer = input.runtime_text.buffers.iter().find_map(|(_, buffer)| {
-        expression_name_with_suffix_eq_tree(
+        (expression_name_with_suffix_eq_tree(
             &input.runtime_text.expressions,
             buffer.target,
             text_place,
             "text",
-        )
-        .then_some(buffer)
+        ) || expression_place_eq(&input.runtime_text.expressions.to_tree(buffer.target), text_place))
+            .then_some(buffer)
     })?;
 
     input.data.objects.iter().find(|(_, data_object)| {

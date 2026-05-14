@@ -155,14 +155,45 @@ pub(super) fn encode_machine_instruction(
             *source_offset,
             *target_offset,
         ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => runtime_text::encode_runtime_text_stored_place_append_to_runtime_pointee(
+            input,
+            *source_offset,
+            *pointer_byte_offset,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             target_offset,
             literal,
             ..
         } => runtime_text::encode_runtime_text_literal_append(input, *target_offset, literal),
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+            ..
+        } => runtime_text::encode_runtime_text_literal_append_to_runtime_pointee(
+            input,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
             runtime_text::encode_runtime_text_buffer_materialize(input, *target_offset)
         }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => runtime_text::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+            input,
+            *pointer_byte_offset,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
