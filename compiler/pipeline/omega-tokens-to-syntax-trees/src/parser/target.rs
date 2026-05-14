@@ -1,4 +1,4 @@
-use crate::parser::input::{parse_path, Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
@@ -61,10 +61,9 @@ fn parse_target_host<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TargetHost> {
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (provider, mut input) = parse_path(input)?;
-    let provider = syntax_trees
-        .items
-        .insert_identifier_path_members(provider.iter().cloned());
+    let (provider, mut input) = parse_path_handle_span(input, |member| {
+        syntax_trees.items.append_identifier_path_member(member)
+    })?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut setting_start = Handle::invalid();
     let mut setting_count = 0u32;
@@ -133,13 +132,7 @@ fn parse_trust_policy<'tokens, 'source>(
             input,
         )
     } else {
-        let (path, input) = parse_path(input)?;
-        (
-            syntax_trees
-                .items
-                .insert_identifier_path_members(path.iter().cloned()),
-            input,
-        )
+        parse_path_handle_span(input, |member| syntax_trees.items.append_identifier_path_member(member))?
     };
 
     Ok((TrustPolicy { mode, path }, input))

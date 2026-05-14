@@ -470,6 +470,10 @@ impl ItemTable {
             .insert_many(members)
     }
 
+    pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
+        self.declaration_storage.identifier_path_members.append(member)
+    }
+
     pub fn insert_target_host_settings(
         &mut self,
         settings: impl IntoIterator<Item = TargetHostSetting>,

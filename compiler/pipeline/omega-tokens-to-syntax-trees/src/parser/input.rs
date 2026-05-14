@@ -1,5 +1,6 @@
 use crate::parser::diagnostics;
 use crate::parse_error::ParseError;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
 use omega_tokens::{
@@ -335,4 +336,25 @@ pub(super) fn parse_path<'tokens, 'source>(
     }
 
     Ok((IdentifierPath::from(members), rest))
+}
+
+pub(super) fn parse_path_handle_span<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+    mut append_member: impl FnMut(Identifier) -> Handle<Identifier>,
+) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
+    let (first, mut rest) = input.take_identifier()?;
+    let start = append_member(first);
+    let mut count = 1u32;
+
+    while rest.at_punctuation(PunctuationKind::ColonColon) {
+        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (member, next) = rest.take_identifier()?;
+        append_member(member);
+        count = count
+            .checked_add(1)
+            .expect("identifier path member span count overflow");
+        rest = next;
+    }
+
+    Ok((HandleSpan::from_parts(start, count), rest))
 }

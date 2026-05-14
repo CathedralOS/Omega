@@ -1,13 +1,13 @@
 use crate::parser::context::ExpressionContext;
 use crate::parse_error::ParseError;
-use crate::parser::input::{parse_path, Input, ParseResult};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
     TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
     TableStructLiteral, TableStructLiteralField,
 };
-use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
@@ -302,10 +302,10 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
 
         if input.at_keyword(KeywordKind::As) {
             input = input.take_keyword(KeywordKind::As, "as")?;
-            let (target_type, rest) = parse_path(input)?;
+            let (target_type, rest) = parse_path_handle_span(input, |member| {
+                syntax_trees.expressions.append_identifier_path_member(member)
+            })?;
             input = rest;
-            let target_type =
-                insert_identifier_path_members_handle(&mut syntax_trees.expressions, &target_type);
             expression = syntax_trees
                 .expressions
                 .insert(ExpressionNode::Cast(TableCastExpression {
@@ -418,21 +418,23 @@ fn parse_primary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_name_like() {
-        let (path, input) = parse_path(input)?;
+        let (path, input) = parse_path_handle_span(input, |member| {
+            syntax_trees.expressions.append_identifier_path_member(member)
+        })?;
 
         if context != ExpressionContext::NoStructLiteral
             && input.at_punctuation(PunctuationKind::LeftBrace)
-            && path.len() == 1
+            && path.count() == 1
         {
-            let type_name = path
-                .as_slice()
+            let type_name = syntax_trees
+                .expressions
+                .identifier_path_members(path)
                 .first()
                 .cloned()
                 .expect("single-member path should have one member");
             return parse_struct_literal_handle(syntax_trees, type_name, input);
         }
 
-        let path = insert_identifier_path_members_handle(&mut syntax_trees.expressions, &path);
         return Ok((
             syntax_trees.expressions.insert(ExpressionNode::Name(path)),
             input,
@@ -534,13 +536,6 @@ fn build_call_expression_handle(
             }))),
         _ => Err(ParseError::new("call target must be a path or member access")),
     }
-}
-
-fn insert_identifier_path_members_handle(
-    expressions: &mut omega_syntax_trees::expression::ExpressionTable,
-    path: &IdentifierPath,
-) -> HandleSpan<Identifier> {
-    insert_identifier_members_slice_handle(expressions, path.as_slice())
 }
 
 fn insert_identifier_members_slice_handle(
