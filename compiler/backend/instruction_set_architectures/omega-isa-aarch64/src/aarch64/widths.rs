@@ -72,12 +72,34 @@ pub fn runtime_text_stored_place_append_width() -> usize {
     80
 }
 
+pub fn runtime_text_stored_place_append_to_runtime_frame_indexed_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 72
+}
+
 pub fn runtime_text_literal_append_width(literal: &str) -> usize {
     40 + literal.len() * 8
 }
 
+pub fn runtime_text_literal_append_to_runtime_frame_indexed_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 32 + literal.len() * 8
+}
+
 pub fn runtime_text_buffer_materialize_width() -> usize {
     60
+}
+
+pub fn runtime_text_buffer_materialize_to_runtime_frame_indexed_width(
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    runtime_frame_index_setup_width(element_byte_size, field_byte_offset) + 48
 }
 
 pub fn runtime_machine_integer_write_width(byte_size: usize) -> usize {

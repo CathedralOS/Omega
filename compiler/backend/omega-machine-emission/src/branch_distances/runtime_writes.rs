@@ -127,10 +127,13 @@ fn is_runtime_write(instruction: &LaidOutMachineInstruction) -> bool {
             | MachineInstructionKind::RuntimeStorageCopyToRuntimeFrameIndexed { .. }
             | MachineInstructionKind::RuntimeTextBufferMaterialize { .. }
             | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee { .. }
+            | MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimeFrameIndexed { .. }
             | MachineInstructionKind::RuntimeTextStoredPlaceAppend { .. }
             | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee { .. }
+            | MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimeFrameIndexed { .. }
             | MachineInstructionKind::RuntimeTextLiteralAppend { .. }
             | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee { .. }
+            | MachineInstructionKind::RuntimeTextLiteralAppendToRuntimeFrameIndexed { .. }
             | MachineInstructionKind::DispatchStateWrite { .. }
     )
 }

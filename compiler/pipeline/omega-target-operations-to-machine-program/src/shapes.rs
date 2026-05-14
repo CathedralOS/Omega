@@ -106,6 +106,18 @@ pub(super) fn lower_machine_instruction_kind(
             *pointer_byte_offset,
             *field_byte_offset,
         ),
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => runtime_text::runtime_text_buffer_materialize_to_runtime_frame_indexed_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
             source_offset,
             target_offset,
@@ -121,6 +133,20 @@ pub(super) fn lower_machine_instruction_kind(
             *pointer_byte_offset,
             *field_byte_offset,
         ),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimeFrameIndexed {
+            source_offset,
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            ..
+        } => runtime_text::runtime_text_stored_place_append_to_runtime_frame_indexed_kind(
+            *source_offset,
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             target_offset,
             literal,
@@ -133,6 +159,20 @@ pub(super) fn lower_machine_instruction_kind(
             ..
         } => runtime_text::runtime_text_literal_append_to_runtime_pointee_kind(
             *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
+        ),
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimeFrameIndexed {
+            descriptor_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            literal,
+            ..
+        } => runtime_text::runtime_text_literal_append_to_runtime_frame_indexed_kind(
+            *descriptor_offset,
+            *index_offset,
+            *element_byte_size,
             *field_byte_offset,
             literal,
         ),
