@@ -1,61 +1,8 @@
-use crate::identifier::{Identifier, IdentifierPath};
+use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Statement {
-    Assignment(Assignment),
-    Call(Call),
-    Expression(crate::expression::Expression),
-    LocalData(LocalData),
-    Transition(Transition),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Assignment {
-    pub target: crate::expression::Expression,
-    pub value: crate::expression::Expression,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LocalData {
-    pub name: Identifier,
-    pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<crate::expression::Expression>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Call {
-    pub receiver: Option<IdentifierPath>,
-    pub target: Identifier,
-    pub arguments: Vec<crate::expression::Expression>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Transition {
-    pub target: TransitionTarget,
-    pub continuation: Option<TransitionTarget>,
-    pub guard: TransitionGuard,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransitionGuard {
-    Always,
-    When(crate::expression::Expression),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransitionTarget {
-    Named {
-        path: IdentifierPath,
-        arguments: Vec<crate::expression::Expression>,
-    },
-    Value(crate::expression::Expression),
-    SelfTarget,
-    Terminal,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatementTable {
@@ -122,139 +69,6 @@ impl StatementTable {
 
     pub fn transition_target_count(&self) -> usize {
         self.transition_targets.len()
-    }
-
-    pub fn insert_tree(
-        &mut self,
-        statement: &Statement,
-        expressions: &mut crate::expression::ExpressionTable,
-        type_references: &mut crate::types::TypeReferenceTable,
-    ) -> StatementHandle {
-        match statement {
-            Statement::Assignment(assignment) => {
-                let target = expressions.insert_tree(&assignment.target);
-                let value = expressions.insert_tree(&assignment.value);
-                self.insert(StatementNode::Assignment(TableAssignment { target, value }))
-            }
-            Statement::Call(call) => {
-                let arguments =
-                    self.insert_expression_handle_span_from_trees(&call.arguments, expressions);
-                let receiver = call
-                    .receiver
-                    .as_ref()
-                    .map(|path| self.insert_identifier_path_members(path))
-                    .unwrap_or_else(HandleSpan::empty);
-                self.insert(StatementNode::Call(TableCall {
-                    receiver,
-                    target: call.target.clone(),
-                    arguments,
-                }))
-            }
-            Statement::Expression(expression) => {
-                let expression = expressions.insert_tree(expression);
-                self.insert(StatementNode::Expression(expression))
-            }
-            Statement::LocalData(local_data) => {
-                let type_reference =
-                    type_references.insert_tree(&local_data.type_reference, expressions);
-                let initial_value = local_data
-                    .initial_value
-                    .as_ref()
-                    .map(|value| expressions.insert_tree(value))
-                    .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
-                self.insert(StatementNode::LocalData(TableLocalData {
-                    name: local_data.name.clone(),
-                    type_reference,
-                    initial_value,
-                }))
-            }
-            Statement::Transition(transition) => {
-                let target = self.insert_transition_target_tree(&transition.target, expressions);
-                let continuation = transition
-                    .continuation
-                    .as_ref()
-                    .map(|target| self.insert_transition_target_tree(target, expressions))
-                    .unwrap_or_else(TransitionTargetHandle::invalid);
-                let guard = match &transition.guard {
-                    TransitionGuard::Always => TransitionGuardNode::Always,
-                    TransitionGuard::When(expression) => {
-                        TransitionGuardNode::When(expressions.insert_tree(expression))
-                    }
-                };
-                self.insert(StatementNode::Transition(TableTransition {
-                    target,
-                    continuation,
-                    guard,
-                }))
-            }
-        }
-    }
-
-    fn insert_expression_handle_span_from_trees(
-        &mut self,
-        arguments: &[crate::expression::Expression],
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for argument in arguments {
-            let argument = expressions.insert_tree(argument);
-            let handle = self.expression_handles.append(argument);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("statement expression span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_identifier_path_members(&mut self, path: &IdentifierPath) -> HandleSpan<Identifier> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for member in path.iter() {
-            let handle = self.identifier_path_members.append(member.clone());
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("transition target path member span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
-    }
-
-    fn insert_transition_target_tree(
-        &mut self,
-        target: &TransitionTarget,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> TransitionTargetHandle {
-        let target = match target {
-            TransitionTarget::Named { path, arguments } => TransitionTargetNode::Named {
-                path: self.insert_identifier_path_members(path),
-                arguments: self.insert_expression_handle_span_from_trees(arguments, expressions),
-            },
-            TransitionTarget::Value(expression) => {
-                TransitionTargetNode::Value(expressions.insert_tree(expression))
-            }
-            TransitionTarget::SelfTarget => TransitionTargetNode::SelfTarget,
-            TransitionTarget::Terminal => TransitionTargetNode::Terminal,
-        };
-
-        self.transition_targets.insert(target)
     }
 }
 
@@ -361,29 +175,29 @@ impl Default for TransitionTargetNode {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Statement, StatementNode, StatementTable, Transition, TransitionGuard, TransitionTarget,
-        TransitionTargetNode,
-    };
-    use crate::expression::{Expression, ExpressionTable};
-    use crate::identifier::{Identifier, IdentifierPath};
-    use crate::types::TypeReferenceTable;
+    use super::{StatementNode, StatementTable, TableTransition, TransitionGuardNode, TransitionTargetNode};
+    use crate::expression::{ExpressionNode, ExpressionTable};
+    use crate::identifier::Identifier;
+    use omega_core::arena::HandleSpan;
 
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
-        let statement = Statement::Transition(Transition {
-            target: TransitionTarget::Named {
-                path: IdentifierPath::from(vec![Identifier::generated("next")]),
-                arguments: vec![Expression::Integer(1), Expression::Integer(2)],
-            },
-            continuation: None,
-            guard: TransitionGuard::When(Expression::Boolean(true)),
-        });
-
         let mut statements = StatementTable::new();
         let mut expressions = ExpressionTable::new();
-        let mut type_references = TypeReferenceTable::new();
-        let statement = statements.insert_tree(&statement, &mut expressions, &mut type_references);
+        let path_start = statements.append_identifier_path_member(Identifier::generated("next"));
+        let path = HandleSpan::from_parts(path_start, 1);
+        let argument_one = expressions.insert(ExpressionNode::Integer(1));
+        let argument_one = statements.append_expression_handle(argument_one);
+        let argument_two = expressions.insert(ExpressionNode::Integer(2));
+        let argument_two = statements.append_expression_handle(argument_two);
+        let arguments = HandleSpan::from_parts(argument_one, 2);
+        let target = statements.insert_transition_target(TransitionTargetNode::Named { path, arguments });
+        let guard = expressions.insert(ExpressionNode::Boolean(true));
+        let statement = statements.insert(StatementNode::Transition(TableTransition {
+            target,
+            continuation: super::TransitionTargetHandle::invalid(),
+            guard: TransitionGuardNode::When(guard),
+        }));
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {
             panic!("statement should lower to a table transition");
