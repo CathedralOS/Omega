@@ -1,6 +1,6 @@
 use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
-use crate::parser::type_reference::parse_type_reference_allowing_borrow;
+use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableMemberExpression,
@@ -66,7 +66,7 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, StatementHandle> {
     let (name, input) = input.take_identifier()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-    let (type_reference, input) = parse_type_reference_allowing_borrow(input)?;
+    let (type_reference, input) = parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
     let (initial_value, input) = if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
         let (expression, input) = parse_expression_handle(syntax_trees, input)?;
@@ -76,9 +76,6 @@ fn parse_local_data_statement_handle<'tokens, 'source>(
     };
     let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
 
-    let type_reference = syntax_trees
-        .type_references
-        .insert_tree(&type_reference, &mut syntax_trees.expressions);
     Ok((
         syntax_trees
             .statements
