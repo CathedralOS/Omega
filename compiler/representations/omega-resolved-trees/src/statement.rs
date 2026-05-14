@@ -2,6 +2,7 @@ use crate::expression::{Expression, NamePath};
 use crate::name::ProgramName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use std::ops::{Deref, DerefMut};
 
 pub type StatementHandle = Handle<StatementNode>;
 pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
@@ -33,9 +34,28 @@ pub struct LocalData {
 pub struct Call {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: Option<NamePath>,
     pub target: ProgramName,
+    pub storage: CallStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallStorage {
+    pub receiver: Option<NamePath>,
     pub arguments: Vec<Expression>,
+}
+
+impl Deref for Call {
+    type Target = CallStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for Call {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
