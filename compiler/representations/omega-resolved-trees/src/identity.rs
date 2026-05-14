@@ -1,4 +1,4 @@
-use crate::Program;
+use crate::ResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::ProgramName;
@@ -43,7 +43,7 @@ impl IdentityStorageCounts {
     }
 }
 
-pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
+pub fn count_identity_storage(program: &ResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
 
     for invariant in &program.invariant_definitions {
