@@ -71,7 +71,7 @@ pub struct LibraryFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapabilityDefinition {
     pub name: Identifier,
-    pub members: Vec<CapabilityMember>,
+    pub members: HandleSpan<CapabilityMember>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +80,13 @@ pub enum CapabilityMember {
     State(CapabilityState),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Default for CapabilityMember {
+    fn default() -> Self {
+        Self::Field(CapabilityField::default())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CapabilityField {
     pub name: Identifier,
     pub type_reference: crate::types::TypeReferenceHandle,
@@ -256,6 +262,7 @@ pub struct ItemTable {
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
     type_parameters: Arena<TypeParameter>,
+    capability_members: Arena<CapabilityMember>,
     data_members: Arena<DataMember>,
     target_host_settings: Arena<TargetHostSetting>,
     trust_policies: Arena<TrustPolicy>,
@@ -274,6 +281,7 @@ impl ItemTable {
             machines: Arena::new(),
             platforms: Arena::new(),
             type_parameters: Arena::new(),
+            capability_members: Arena::new(),
             data_members: Arena::new(),
             target_host_settings: Arena::new(),
             trust_policies: Arena::new(),
@@ -302,6 +310,10 @@ impl ItemTable {
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.type_parameters.span_or_empty(span)
+    }
+
+    pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
+        self.capability_members.span_or_empty(span)
     }
 
     pub fn data_members(&self, span: HandleSpan<DataMember>) -> &[DataMember] {
@@ -403,6 +415,13 @@ impl ItemTable {
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
         self.type_parameters.append(type_parameter)
+    }
+
+    pub fn append_capability_member(
+        &mut self,
+        member: CapabilityMember,
+    ) -> Handle<CapabilityMember> {
+        self.capability_members.append(member)
     }
 
     pub fn append_data_member(&mut self, member: DataMember) -> Handle<DataMember> {

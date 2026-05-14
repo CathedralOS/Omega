@@ -1,5 +1,5 @@
 use crate::expression::ExpressionTable;
-use crate::item::{CapabilityMember, Item, ItemHandle, ItemTable, Machine, Platform};
+use crate::item::{Item, ItemHandle, ItemTable, Machine, Platform};
 use crate::statement::StatementTable;
 use crate::types::TypeReferenceTable;
 use omega_core::arena::{Arena, HandleSpan};
@@ -81,20 +81,7 @@ impl SyntaxTrees {
 
     fn insert_item(&mut self, item: &Item) {
         match item {
-            Item::Capability(capability) => {
-                for member in &capability.members {
-                    match member {
-                        CapabilityMember::Field(_) => {}
-                        CapabilityMember::State(state) => {
-                            self.items.insert_state_signature_tree(
-                                &state.signature,
-                                &mut self.type_references,
-                                &mut self.expressions,
-                            );
-                        }
-                    }
-                }
-            }
+            Item::Capability(_) => {}
             Item::Data(data_definition) => {
                 let _ = data_definition;
             }

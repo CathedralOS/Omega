@@ -1,6 +1,7 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
 use crate::parser::type_reference::parse_type_reference_handle;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
@@ -14,7 +15,8 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, CapabilityDefinition> {
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut members = Vec::new();
+    let mut member_start = Handle::invalid();
+    let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if input.at_keyword(KeywordKind::State) || input.at_keyword(KeywordKind::Fn) {
@@ -24,7 +26,15 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
                 input.take_keyword(KeywordKind::Fn, "fn")?
             };
             let (state, rest) = parse_capability_state(syntax_trees, input)?;
-            members.push(CapabilityMember::State(state));
+            let handle = syntax_trees
+                .items
+                .append_capability_member(CapabilityMember::State(state));
+            if member_count == 0 {
+                member_start = handle;
+            }
+            member_count = member_count
+                .checked_add(1)
+                .expect("capability member span count overflow");
             input = rest;
         } else {
             let (field_name, rest) = input.take_identifier()?;
@@ -35,14 +45,27 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             } else {
                 rest
             };
-            members.push(CapabilityMember::Field(CapabilityField {
+            let handle = syntax_trees
+                .items
+                .append_capability_member(CapabilityMember::Field(CapabilityField {
                 name: field_name,
                 type_reference,
             }));
+            if member_count == 0 {
+                member_start = handle;
+            }
+            member_count = member_count
+                .checked_add(1)
+                .expect("capability member span count overflow");
         }
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let members = if member_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(member_start, member_count)
+    };
     Ok((CapabilityDefinition { name, members }, input))
 }
 
