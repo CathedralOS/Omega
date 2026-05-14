@@ -24,7 +24,7 @@ pub(super) fn resolve_guard_operand_layout(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
-    statement_order: usize,
+    statement_index: usize,
     table: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<ResolvedOperandLayout> {
@@ -32,7 +32,7 @@ pub(super) fn resolve_guard_operand_layout(
         && let Some(slot) = runtime_storage.transition_guard_result_slot(
             source_dispatch_index,
             source_key,
-            statement_order,
+            statement_index,
         )
     {
         return Some(ResolvedOperandLayout {

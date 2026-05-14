@@ -36,7 +36,7 @@ pub(crate) fn guard_operands(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
-    statement_order: usize,
+    statement_index: usize,
     guard: Option<ExpressionHandle>,
 ) -> Option<GuardOperands> {
     let ExpressionNode::Binary(binary) = source_expressions.expression(guard?) else {
@@ -53,7 +53,7 @@ pub(crate) fn guard_operands(
             source_key,
             source_machine,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             binary.left,
         ),
         right: guard_operand(
@@ -65,7 +65,7 @@ pub(crate) fn guard_operands(
             source_key,
             source_machine,
             source_dispatch_index,
-            statement_order,
+            statement_index,
             binary.right,
         ),
     })
@@ -80,7 +80,7 @@ fn guard_operand(
     source_key: StateKey,
     source_machine: SymbolHandle,
     source_dispatch_index: u32,
-    statement_order: usize,
+    statement_index: usize,
     expression: ExpressionHandle,
 ) -> StateGuardOperand {
     let resolved_value = resolved_guard_operand_value(layouts, source_expressions, expression);
@@ -91,7 +91,7 @@ fn guard_operand(
         source_key,
         source_machine,
         source_dispatch_index,
-        statement_order,
+        statement_index,
         source_expressions,
         expression,
     );

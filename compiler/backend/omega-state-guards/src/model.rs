@@ -12,6 +12,20 @@ pub struct StateGuardPlan {
 }
 
 impl StateGuardPlan {
+    pub fn guard_for_source(
+        &self,
+        source: StateKey,
+        statement_order: usize,
+    ) -> Option<&StateGuard> {
+        self.guards
+            .iter()
+            .find(|(_, guard)| {
+                guard.source == source
+                    && guard.statement_order == statement_order
+            })
+            .map(|(_, guard)| guard)
+    }
+
     pub fn guard_for_dispatch(
         &self,
         source_dispatch_index: u32,
@@ -43,6 +57,7 @@ pub struct StateGuard {
     pub continuation: RuntimeTransitionTarget,
     pub continuation_dispatch_index: u32,
     pub statement_order: usize,
+    pub statement_index: usize,
     pub kind: StateGuardKind,
     pub operator: StateGuardOperator,
     pub lowering: StateGuardLowering,
@@ -62,6 +77,7 @@ impl Default for StateGuard {
             continuation: RuntimeTransitionTarget::None,
             continuation_dispatch_index: 0,
             statement_order: 0,
+            statement_index: 0,
             kind: StateGuardKind::Always,
             operator: StateGuardOperator::None,
             lowering: StateGuardLowering::NoOp,
