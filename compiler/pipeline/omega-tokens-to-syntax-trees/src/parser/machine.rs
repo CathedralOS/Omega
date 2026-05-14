@@ -1,5 +1,5 @@
 use crate::parser::context::StateKind;
-use crate::parser::input::{Input, ParseResult, parse_path};
+use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use crate::parser::state::{parse_optional_return_type, parse_state};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
@@ -11,9 +11,11 @@ pub(super) fn parse_machine<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
-    let (path, input) = parse_path(input)?;
+    let (path, input) = parse_path_handle_span(input, |member| {
+        syntax_trees.expressions.append_identifier_path_member(member)
+    })?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
-    let (name, entry_name) = split_machine_path(path);
+    let (name, entry_name) = split_machine_path(syntax_trees, path);
 
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut state_start = Handle::invalid();
@@ -82,11 +84,14 @@ pub(super) fn parse_machine<'tokens, 'source>(
 }
 
 fn split_machine_path(
-    path: omega_syntax_trees::identifier::IdentifierPath,
+    syntax_trees: &SyntaxTrees,
+    path: HandleSpan<Identifier>,
 ) -> (Identifier, Option<Identifier>) {
-    if path.len() <= 1 {
+    let members = syntax_trees.expressions.identifier_path_members(path);
+
+    if members.len() <= 1 {
         return (
-            path.as_slice()
+            members
                 .first()
                 .cloned()
                 .expect("machine path should contain a name"),
@@ -94,7 +99,6 @@ fn split_machine_path(
         );
     }
 
-    let members = path.as_slice();
     let name = Identifier::generated(
         members[..members.len() - 1]
             .iter()
