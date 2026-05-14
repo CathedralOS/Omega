@@ -1,14 +1,15 @@
 use crate::program::Lowerer;
-use crate::statement::lower_statement;
+use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_syntax_trees as syntax;
+use omega_syntax_trees::{self as syntax, SyntaxTrees};
 use omega_resolved_trees::signature::{StateParameter, StateSignature};
 use omega_resolved_trees::state::State;
 
 pub(crate) fn lower_state(
     lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
     state: &syntax::item::State,
 ) -> Result<State, Diagnostic> {
     let parameters = state
@@ -21,10 +22,11 @@ pub(crate) fn lower_state(
         .as_ref()
         .map(|type_reference| lower_type_reference(lowerer, type_reference))
         .transpose()?;
-    let statements = state
-        .statements
+    let statements = syntax_trees
+        .items
+        .statements(state.statements)
         .iter()
-        .map(|statement| lower_statement(lowerer, statement))
+        .map(|statement| lower_statement_handle(lowerer, syntax_trees, *statement))
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(State {

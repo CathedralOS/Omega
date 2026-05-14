@@ -177,30 +177,40 @@ impl Default for SyntaxTrees {
 #[cfg(test)]
 mod tests {
     use super::SyntaxTrees;
-    use crate::expression::Expression;
     use crate::identifier::Identifier;
     use crate::item::{Item, Machine, State};
-    use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+    use crate::statement::{StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode};
     use crate::types::TypeReference;
+    use omega_core::arena::HandleSpan;
 
     #[test]
     fn syntax_trees_collect_state_expression_and_type_payloads() {
-        let syntax_trees = SyntaxTrees::from_root_items(
-            Default::default(),
-            vec![Item::Machine(Machine {
+        let mut syntax_trees = SyntaxTrees::new(Default::default());
+        let guard = syntax_trees
+            .expressions
+            .insert(crate::expression::ExpressionNode::Integer(1));
+        let target = syntax_trees
+            .statements
+            .insert_transition_target(TransitionTargetNode::Terminal);
+        let statement = syntax_trees
+            .statements
+            .insert(StatementNode::Transition(TableTransition {
+                target,
+                continuation: crate::statement::TransitionTargetHandle::invalid(),
+                guard: TransitionGuardNode::When(guard),
+            }));
+        let statement_handle = syntax_trees.items.append_statement_handle(statement);
+        let statements = HandleSpan::from_parts(statement_handle, 1);
+
+        syntax_trees.push_root_item(Item::Machine(Machine {
                 name: Identifier::generated("Main"),
                 states: vec![State {
                     name: Identifier::generated("entry"),
                     parameters: Vec::new(),
                     return_type: Some(TypeReference::named("i32")),
-                    statements: vec![Statement::Transition(Transition {
-                        target: TransitionTarget::Terminal,
-                        continuation: None,
-                        guard: TransitionGuard::When(Expression::Integer(1)),
-                    })],
+                    statements,
                 }],
-            })],
-        );
+            }));
 
         assert_eq!(syntax_trees.root_item_count(), 1);
         assert_eq!(syntax_trees.type_references.type_reference_count(), 1);

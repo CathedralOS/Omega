@@ -4,9 +4,13 @@ use crate::machine::lower_machine_into;
 use crate::platform::lower_platform;
 use crate::program::Lowerer;
 use omega_core::diagnostics::Diagnostic;
-use omega_syntax_trees as syntax;
+use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
-pub(crate) fn lower_item(lowerer: &mut Lowerer, item: &syntax::item::Item) -> Result<(), Diagnostic> {
+pub(crate) fn lower_item(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    item: &syntax::item::Item,
+) -> Result<(), Diagnostic> {
     match item {
         syntax::item::Item::Data(data_definition) => {
             let data_definition = lower_data_definition(lowerer, data_definition)?;
@@ -20,7 +24,7 @@ pub(crate) fn lower_item(lowerer: &mut Lowerer, item: &syntax::item::Item) -> Re
                 .push(invariant_definition);
         }
         syntax::item::Item::Machine(machine) => {
-            lower_machine_into(lowerer, machine)?;
+            lower_machine_into(lowerer, syntax_trees, machine)?;
         }
         syntax::item::Item::Platform(platform) => {
             let platform = lower_platform(lowerer, platform)?;

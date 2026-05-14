@@ -7,7 +7,7 @@ pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<Program, Diagnos
     let mut lowerer = Lowerer::default();
 
     for item in syntax_trees.root_items() {
-        lower_item(&mut lowerer, item)?;
+        lower_item(&mut lowerer, syntax_trees, item)?;
     }
 
     lowerer.finish()

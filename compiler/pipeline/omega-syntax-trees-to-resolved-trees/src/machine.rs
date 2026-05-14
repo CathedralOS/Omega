@@ -3,16 +3,17 @@ use crate::state::lower_state;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::machine::Machine;
-use omega_syntax_trees as syntax;
+use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_machine_into(
     lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
     let states = machine
         .states
         .iter()
-        .map(|state| lower_state(lowerer, state))
+        .map(|state| lower_state(lowerer, syntax_trees, state))
         .collect::<Result<Vec<_>, _>>()?;
     let machine_name = crate::name::lower_name(&machine.name);
 

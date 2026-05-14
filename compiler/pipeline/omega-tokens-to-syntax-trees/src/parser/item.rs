@@ -8,10 +8,12 @@ use crate::parser::platform::parse_platform;
 use crate::parser::target::parse_target_definition;
 use crate::parser::trust::parse_trust_definition;
 use crate::parser::use_item::parse_use_item;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::Item;
 use omega_tokens::KeywordKind;
 
 pub(super) fn parse_item<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
     if input.at_keyword(KeywordKind::Use) {
@@ -34,7 +36,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Machine) {
         let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (item, rest) = parse_machine(input)?;
+        let (item, rest) = parse_machine(syntax_trees, input)?;
         return Ok((Item::Machine(item), rest));
     }
 
