@@ -65,7 +65,7 @@ pub struct LibraryFunction {
     pub signature: StateSignature,
     pub symbol: Option<String>,
     pub calling_convention: Option<Identifier>,
-    pub trusts: Vec<TrustLevel>,
+    pub trusts: HandleSpan<TrustLevel>,
 }
 
 impl Default for LibraryFunction {
@@ -78,7 +78,7 @@ impl Default for LibraryFunction {
             },
             symbol: None,
             calling_convention: None,
-            trusts: Vec::new(),
+            trusts: HandleSpan::empty(),
         }
     }
 }
@@ -145,6 +145,12 @@ impl Default for CapabilityContractKind {
 pub enum TrustLevel {
     Host,
     Named(Identifier),
+}
+
+impl Default for TrustLevel {
+    fn default() -> Self {
+        Self::Named(Identifier::default())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -292,6 +298,7 @@ pub struct ItemTable {
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
     type_parameters: Arena<TypeParameter>,
+    trust_levels: Arena<TrustLevel>,
     library_functions: Arena<LibraryFunction>,
     capability_members: Arena<CapabilityMember>,
     capability_contracts: Arena<CapabilityContract>,
@@ -313,6 +320,7 @@ impl ItemTable {
             machines: Arena::new(),
             platforms: Arena::new(),
             type_parameters: Arena::new(),
+            trust_levels: Arena::new(),
             library_functions: Arena::new(),
             capability_members: Arena::new(),
             capability_contracts: Arena::new(),
@@ -348,6 +356,10 @@ impl ItemTable {
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
         self.library_functions.span_or_empty(span)
+    }
+
+    pub fn trust_levels(&self, span: HandleSpan<TrustLevel>) -> &[TrustLevel] {
+        self.trust_levels.span_or_empty(span)
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
@@ -460,6 +472,10 @@ impl ItemTable {
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
         self.type_parameters.append(type_parameter)
+    }
+
+    pub fn append_trust_level(&mut self, trust_level: TrustLevel) -> Handle<TrustLevel> {
+        self.trust_levels.append(trust_level)
     }
 
     pub fn append_library_function(
