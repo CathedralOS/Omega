@@ -30,7 +30,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Enum) {
         let input = input.take_keyword(KeywordKind::Enum, "enum")?;
-        let (item, rest) = parse_enum_definition(input)?;
+        let (item, rest) = parse_enum_definition(syntax_trees, input)?;
         return Ok((Item::Data(item), rest));
     }
 
