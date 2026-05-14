@@ -54,7 +54,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Capability) {
         let input = input.take_keyword(KeywordKind::Capability, "capability")?;
-        let (item, rest) = parse_capability_definition(input)?;
+        let (item, rest) = parse_capability_definition(syntax_trees, input)?;
         return Ok((Item::Capability(item), rest));
     }
 
@@ -66,13 +66,13 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Library) {
         let input = input.take_keyword(KeywordKind::Library, "library")?;
-        let (item, rest) = parse_library_definition(input)?;
+        let (item, rest) = parse_library_definition(syntax_trees, input)?;
         return Ok((Item::Library(item), rest));
     }
 
     if input.at_keyword(KeywordKind::Platform) {
         let input = input.take_keyword(KeywordKind::Platform, "platform")?;
-        let (item, rest) = parse_platform(input)?;
+        let (item, rest) = parse_platform(syntax_trees, input)?;
         return Ok((Item::Platform(item), rest));
     }
 

@@ -190,8 +190,8 @@ pub struct Machine {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub name: Identifier,
-    pub parameters: Vec<StateParameter>,
-    pub return_type: Option<crate::types::TypeReference>,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub return_type: crate::types::TypeReferenceHandle,
     pub statements: HandleSpan<crate::statement::StatementHandle>,
 }
 
@@ -204,17 +204,8 @@ pub struct Platform {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub name: Identifier,
-    pub parameters: Vec<StateParameter>,
-    pub return_type: Option<crate::types::TypeReference>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateParameter {
-    pub name: Identifier,
-    pub type_reference: crate::types::TypeReference,
-    pub is_const: bool,
-    pub is_mutable: bool,
-    pub is_self: bool,
+    pub parameters: HandleSpan<StateParameterHandle>,
+    pub return_type: crate::types::TypeReferenceHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -284,6 +275,20 @@ impl ItemTable {
         self.statement_handles.span_or_empty(span)
     }
 
+    pub fn insert_state_parameter_node(
+        &mut self,
+        parameter: StateParameterNode,
+    ) -> StateParameterHandle {
+        self.state_parameters.append(parameter)
+    }
+
+    pub fn append_state_parameter_handle(
+        &mut self,
+        handle: StateParameterHandle,
+    ) -> Handle<StateParameterHandle> {
+        self.state_parameter_handles.append(handle)
+    }
+
     pub fn append_statement_handle(
         &mut self,
         handle: crate::statement::StatementHandle,
@@ -314,20 +319,13 @@ impl ItemTable {
     pub fn insert_state_signature_tree(
         &mut self,
         signature: &StateSignature,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
+        _type_references: &mut crate::types::TypeReferenceTable,
+        _expressions: &mut crate::expression::ExpressionTable,
     ) -> StateSignatureHandle {
-        let parameters =
-            self.insert_state_parameter_span_from_trees(&signature.parameters, type_references, expressions);
-        let return_type = signature
-            .return_type
-            .as_ref()
-            .map(|return_type| type_references.insert_tree(return_type, expressions))
-            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
         self.state_signatures.append(StateSignatureNode {
             name: signature.name.clone(),
-            parameters,
-            return_type,
+            parameters: signature.parameters,
+            return_type: signature.return_type,
         })
     }
 
@@ -335,20 +333,13 @@ impl ItemTable {
         &mut self,
         state: &State,
         _statements: &mut crate::statement::StatementTable,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
+        _type_references: &mut crate::types::TypeReferenceTable,
+        _expressions: &mut crate::expression::ExpressionTable,
     ) -> StateHandle {
-        let parameters =
-            self.insert_state_parameter_span_from_trees(&state.parameters, type_references, expressions);
-        let return_type = state
-            .return_type
-            .as_ref()
-            .map(|return_type| type_references.insert_tree(return_type, expressions))
-            .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
         self.states.append(StateNode {
             name: state.name.clone(),
-            parameters,
-            return_type,
+            parameters: state.parameters,
+            return_type: state.return_type,
             statements: state.statements,
         })
     }
@@ -378,46 +369,15 @@ impl ItemTable {
         type_references: &mut crate::types::TypeReferenceTable,
         expressions: &mut crate::expression::ExpressionTable,
     ) -> PlatformHandle {
-        let states =
-            self.insert_state_signature_span_from_trees(&platform.states, type_references, expressions);
+        let states = self.insert_state_signature_span_from_trees(
+            &platform.states,
+            type_references,
+            expressions,
+        );
         self.platforms.append(PlatformNode {
             name: platform.name.clone(),
             states,
         })
-    }
-
-    fn insert_state_parameter_span_from_trees(
-        &mut self,
-        parameters: &[StateParameter],
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
-    ) -> HandleSpan<StateParameterHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
-
-        for parameter in parameters {
-            let type_reference = type_references.insert_tree(&parameter.type_reference, expressions);
-            let handle = self.state_parameters.append(StateParameterNode {
-                name: parameter.name.clone(),
-                type_reference,
-                is_const: parameter.is_const,
-                is_mutable: parameter.is_mutable,
-                is_self: parameter.is_self,
-            });
-            let handle = self.state_parameter_handles.append(handle);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("state parameter handle span count overflow");
-        }
-
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
     }
 
     fn insert_state_signature_span_from_trees(
@@ -451,27 +411,17 @@ impl ItemTable {
         &mut self,
         states: &[State],
         _statement_table: &mut crate::statement::StatementTable,
-        type_references: &mut crate::types::TypeReferenceTable,
-        expressions: &mut crate::expression::ExpressionTable,
+        _type_references: &mut crate::types::TypeReferenceTable,
+        _expressions: &mut crate::expression::ExpressionTable,
     ) -> HandleSpan<StateNode> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
         for state in states {
-            let parameters = self.insert_state_parameter_span_from_trees(
-                &state.parameters,
-                type_references,
-                expressions,
-            );
-            let return_type = state
-                .return_type
-                .as_ref()
-                .map(|return_type| type_references.insert_tree(return_type, expressions))
-                .unwrap_or_else(crate::types::TypeReferenceHandle::invalid);
             let handle = self.states.append(StateNode {
                 name: state.name.clone(),
-                parameters,
-                return_type,
+                parameters: state.parameters,
+                return_type: state.return_type,
                 statements: state.statements,
             });
             if count == 0 {
@@ -486,7 +436,6 @@ impl ItemTable {
             HandleSpan::from_parts(start, count)
         }
     }
-
 }
 
 impl Default for ItemTable {

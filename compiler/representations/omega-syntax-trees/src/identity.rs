@@ -1,10 +1,10 @@
+use crate::SyntaxTrees;
 use crate::expression::Expression;
 use crate::identifier::{Identifier, IdentifierPath};
 use crate::item::{
     CapabilityContractKind, CapabilityMember, Item, TargetHostSettingValue, TrustLevel,
 };
 use crate::types::{TypeConstraint, TypeReference};
-use crate::SyntaxTrees;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AstIdentityStorageCounts {
@@ -45,7 +45,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
                         count_type_reference(&field.type_reference, counts);
                     }
                     CapabilityMember::State(state) => {
-                        count_state_signature(&state.signature, counts);
+                        count_state_signature(syntax_trees, &state.signature, counts);
                         for contract in &state.contracts {
                             if let CapabilityContractKind::Trusted(TrustLevel::Named(name)) =
                                 &contract.kind
@@ -84,7 +84,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             counts.string_literals += 1;
             count_identifier(&library.calling_convention, counts);
             for function in &library.functions {
-                count_state_signature(&function.signature, counts);
+                count_state_signature(syntax_trees, &function.signature, counts);
                 if function.symbol.is_some() {
                     counts.string_literals += 1;
                 }
@@ -106,11 +106,11 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             count_identifier(&machine.name, counts);
             for state in &machine.states {
                 count_identifier(&state.name, counts);
-                for parameter in &state.parameters {
-                    count_state_parameter(parameter, counts);
+                for parameter in syntax_trees.items.state_parameters(state.parameters) {
+                    count_state_parameter(syntax_trees, *parameter, counts);
                 }
-                if let Some(return_type) = &state.return_type {
-                    count_type_reference(return_type, counts);
+                if state.return_type.is_valid() {
+                    count_type_reference_handle(syntax_trees, state.return_type, counts);
                 }
                 for statement in syntax_trees.items.statements(state.statements) {
                     count_statement_node(syntax_trees, *statement, counts);
@@ -120,7 +120,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         Item::Platform(platform) => {
             count_identifier(&platform.name, counts);
             for signature in &platform.states {
-                count_state_signature(signature, counts);
+                count_state_signature(syntax_trees, signature, counts);
             }
         }
         Item::Target(target) => {
@@ -153,7 +153,10 @@ fn count_statement_node(
             count_expression_handle(syntax_trees, assignment.value, counts);
         }
         crate::statement::StatementNode::Call(call) => {
-            for member in syntax_trees.statements.identifier_path_members(call.receiver) {
+            for member in syntax_trees
+                .statements
+                .identifier_path_members(call.receiver)
+            {
                 count_identifier(member, counts);
             }
             count_identifier(&call.target, counts);
@@ -184,24 +187,27 @@ fn count_statement_node(
 }
 
 fn count_state_signature(
+    syntax_trees: &SyntaxTrees,
     signature: &crate::item::StateSignature,
     counts: &mut AstIdentityStorageCounts,
 ) {
     count_identifier(&signature.name, counts);
-    for parameter in &signature.parameters {
-        count_state_parameter(parameter, counts);
+    for parameter in syntax_trees.items.state_parameters(signature.parameters) {
+        count_state_parameter(syntax_trees, *parameter, counts);
     }
-    if let Some(return_type) = &signature.return_type {
-        count_type_reference(return_type, counts);
+    if signature.return_type.is_valid() {
+        count_type_reference_handle(syntax_trees, signature.return_type, counts);
     }
 }
 
 fn count_state_parameter(
-    parameter: &crate::item::StateParameter,
+    syntax_trees: &SyntaxTrees,
+    parameter: crate::item::StateParameterHandle,
     counts: &mut AstIdentityStorageCounts,
 ) {
+    let parameter = syntax_trees.items.state_parameter(parameter);
     count_identifier(&parameter.name, counts);
-    count_type_reference(&parameter.type_reference, counts);
+    count_type_reference_handle(syntax_trees, parameter.type_reference, counts);
 }
 
 fn count_expression(expression: &Expression, counts: &mut AstIdentityStorageCounts) {
@@ -273,10 +279,14 @@ fn count_expression_handle(
             count_expression_handle(syntax_trees, binary.left, counts);
             count_expression_handle(syntax_trees, binary.right, counts);
         }
-        crate::expression::ExpressionNode::Boolean(_) | crate::expression::ExpressionNode::Integer(_) => {}
+        crate::expression::ExpressionNode::Boolean(_)
+        | crate::expression::ExpressionNode::Integer(_) => {}
         crate::expression::ExpressionNode::Cast(cast) => {
             count_expression_handle(syntax_trees, cast.value, counts);
-            for member in syntax_trees.expressions.identifier_path_members(cast.target_type) {
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(cast.target_type)
+            {
                 count_identifier(member, counts);
             }
         }
@@ -308,7 +318,10 @@ fn count_expression_handle(
         }
         crate::expression::ExpressionNode::StructLiteral(struct_literal) => {
             count_identifier(&struct_literal.type_name, counts);
-            for field in syntax_trees.expressions.struct_fields(struct_literal.fields) {
+            for field in syntax_trees
+                .expressions
+                .struct_fields(struct_literal.fields)
+            {
                 count_identifier(&field.name, counts);
                 count_expression_handle(syntax_trees, field.value, counts);
             }
@@ -400,7 +413,10 @@ fn count_type_reference_handle(
             arguments,
         } => {
             count_identifier(base_name, counts);
-            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(*arguments)
+            {
                 count_type_reference_handle(syntax_trees, *argument, counts);
             }
         }

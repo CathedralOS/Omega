@@ -1,6 +1,7 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
 use crate::parser::type_reference::parse_type_reference;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, TrustLevel,
@@ -8,6 +9,7 @@ use omega_syntax_trees::item::{
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_capability_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityDefinition> {
     let (name, mut input) = input.take_identifier()?;
@@ -21,7 +23,7 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             } else {
                 input.take_keyword(KeywordKind::Fn, "fn")?
             };
-            let (state, rest) = parse_capability_state(input)?;
+            let (state, rest) = parse_capability_state(syntax_trees, input)?;
             members.push(CapabilityMember::State(state));
             input = rest;
         } else {
@@ -45,9 +47,10 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
 }
 
 fn parse_capability_state<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, CapabilityState> {
-    let (signature, mut input) = parse_state_signature(input)?;
+    let (signature, mut input) = parse_state_signature(syntax_trees, input)?;
     let mut contracts = Vec::new();
 
     if input.at_contextual("where") {
@@ -74,7 +77,13 @@ fn parse_capability_state<'tokens, 'source>(
         }
     }
 
-    Ok((CapabilityState { signature, contracts }, input))
+    Ok((
+        CapabilityState {
+            signature,
+            contracts,
+        },
+        input,
+    ))
 }
 
 fn parse_capability_contract<'tokens, 'source>(
