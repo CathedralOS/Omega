@@ -64,6 +64,7 @@ pub(crate) fn lower_type_constraints(
 ) -> Result<HandleSpan<typed::types::TypeConstraint>, Diagnostic> {
     let lowered = lowerer
         .source_program
+        .tables
         .type_constraints
         .span_or_empty(constraints)
         .iter()

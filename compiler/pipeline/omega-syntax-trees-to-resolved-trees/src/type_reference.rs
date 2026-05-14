@@ -84,7 +84,7 @@ pub(crate) fn lower_type_constraint_handles(
         .iter()
         .map(|constraint| lower_type_constraint_handle(syntax_trees, constraint))
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(lowerer.program.type_constraints.insert_many(lowered))
+    Ok(lowerer.program.tables.type_constraints.insert_many(lowered))
 }
 
 fn lower_type_constraint_handle(
