@@ -1,0 +1,16 @@
+data RandomState {}
+
+enum ItemKind { RustedDagger; DeepKey; }
+
+data Reward { item: ItemKind; }
+
+machine main {
+    pub entry(&mut self, depth: u32, random: &mut RandomState, reward: &mut Reward) {
+        reward.item = self.roll_item(depth, random);
+    }
+
+    fn roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
+        -> ItemKind::DeepKey when depth > 0;
+        -> ItemKind::RustedDagger;
+    }
+}

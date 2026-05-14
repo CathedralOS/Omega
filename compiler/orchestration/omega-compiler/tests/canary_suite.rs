@@ -110,6 +110,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_call_enum_field_with_mut_arg",
     "runtime_call_enum_sequence",
     "runtime_call_enum_value",
+    "runtime_guarded_leaf_ordering_call",
     "runtime_contained_call_value",
     "runtime_contained_reward_table_roll_item",
     "runtime_nested_branch_assignment_prelude_value",
