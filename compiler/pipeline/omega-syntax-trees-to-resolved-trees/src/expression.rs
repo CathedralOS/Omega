@@ -2,8 +2,9 @@ use crate::name::{lower_name, lower_name_members};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::expression::{
-    BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression, FloatLiteral,
-    IndexedExpression, MemberExpression, StructLiteral, StructLiteralField,
+    BinaryExpression, BinaryOperator, CallExpression, CallExpressionStorage, CastExpression,
+    Expression, FloatLiteral, IndexedExpression, MemberExpression, StructLiteral,
+    StructLiteralField,
 };
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
@@ -49,22 +50,24 @@ fn lower_expression_node(
         ))),
         syntax::expression::ExpressionNode::Call(call) => Ok(Expression::Call(Box::new(
             CallExpression {
-                receiver: if call.receiver.is_valid() {
-                    Some(Box::new(lower_expression_handle(
-                        syntax_trees,
-                        call.receiver,
-                    )?))
-                } else {
-                    None
-                },
                 target_symbol: SymbolHandle::invalid(),
                 target: lower_name(&call.target),
-                arguments: syntax_trees
-                    .expressions
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                storage: CallExpressionStorage {
+                    receiver: if call.receiver.is_valid() {
+                        Some(Box::new(lower_expression_handle(
+                            syntax_trees,
+                            call.receiver,
+                        )?))
+                    } else {
+                        None
+                    },
+                    arguments: syntax_trees
+                        .expressions
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| lower_expression_handle(syntax_trees, *argument))
+                        .collect::<Result<Vec<_>, _>>()?,
+                },
             },
         ))),
         syntax::expression::ExpressionNode::Float(value) => {

@@ -469,9 +469,11 @@ fn resolve_expression_call_target_symbol(
         let statement_call = omega_resolved_trees::statement::Call {
             receiver_symbol: receiver_path.symbol(),
             target_symbol: call.target_symbol,
-            receiver: Some(receiver_path),
             target: call.target.clone(),
-            arguments: Vec::new(),
+            storage: omega_resolved_trees::statement::CallStorage {
+                receiver: Some(receiver_path),
+                arguments: Vec::new(),
+            },
         };
         return resolve_call_target_symbol(machine, parameters, &statement_call, symbols);
     }
@@ -479,9 +481,11 @@ fn resolve_expression_call_target_symbol(
     let statement_call = omega_resolved_trees::statement::Call {
         receiver_symbol: SymbolHandle::invalid(),
         target_symbol: call.target_symbol,
-        receiver: None,
         target: call.target.clone(),
-        arguments: Vec::new(),
+        storage: omega_resolved_trees::statement::CallStorage {
+            receiver: None,
+            arguments: Vec::new(),
+        },
     };
     resolve_call_target_symbol(machine, parameters, &statement_call, symbols)
 }

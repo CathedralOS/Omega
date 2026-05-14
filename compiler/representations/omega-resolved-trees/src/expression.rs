@@ -606,17 +606,19 @@ impl ExpressionTable {
                 target_type: NamePath::unresolved(self.name_path_members(cast.target_type).to_vec()),
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
-                receiver: call
-                    .receiver
-                    .is_valid()
-                    .then(|| Box::new(self.to_tree(call.receiver))),
                 target_symbol: call.target_symbol,
                 target: call.target.clone(),
-                arguments: self
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| self.to_tree(*argument))
-                    .collect(),
+                storage: CallExpressionStorage {
+                    receiver: call
+                        .receiver
+                        .is_valid()
+                        .then(|| Box::new(self.to_tree(call.receiver))),
+                    arguments: self
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .map(|argument| self.to_tree(*argument))
+                        .collect(),
+                },
             })),
             ExpressionNode::Float(value) => Expression::Float(*value),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
@@ -784,10 +786,29 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
-    pub receiver: Option<Box<Expression>>,
     pub target_symbol: SymbolHandle,
     pub target: ProgramName,
+    pub storage: CallExpressionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallExpressionStorage {
+    pub receiver: Option<Box<Expression>>,
     pub arguments: Vec<Expression>,
+}
+
+impl Deref for CallExpression {
+    type Target = CallExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for CallExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

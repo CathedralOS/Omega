@@ -5,7 +5,8 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
-    Assignment, Call, LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+    Assignment, Call, CallStorage, LocalData, Statement, Transition, TransitionGuard,
+    TransitionTarget,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -36,23 +37,25 @@ fn lower_statement_node(
         syntax::statement::StatementNode::Call(call) => Ok(Statement::Call(Call {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
-            receiver: if call.receiver.is_empty() {
-                None
-            } else {
-                Some(lower_name_members(
-                    syntax_trees
-                        .statements
-                        .identifier_path_members(call.receiver)
-                        .iter(),
-                ))
-            },
             target: crate::name::lower_name(&call.target),
-            arguments: syntax_trees
-                .statements
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                .collect::<Result<Vec<_>, _>>()?,
+            storage: CallStorage {
+                receiver: if call.receiver.is_empty() {
+                    None
+                } else {
+                    Some(lower_name_members(
+                        syntax_trees
+                            .statements
+                            .identifier_path_members(call.receiver)
+                            .iter(),
+                    ))
+                },
+                arguments: syntax_trees
+                    .statements
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| lower_expression_handle(syntax_trees, *argument))
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
         })),
         syntax::statement::StatementNode::Expression(expression) => Ok(Statement::Expression(
             lower_expression_handle(syntax_trees, *expression)?,
