@@ -160,29 +160,33 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
 
     for machine in &mut program.machines {
         machine.symbol = top_level_symbol(symbols, SymbolKind::Machine, machine.name.as_str());
+        let machine_symbol = machine.symbol;
 
         for contained_object in &mut machine.contains {
-            contained_object.symbol = child_symbol(symbols, machine.symbol, contained_object.name.as_str());
+            contained_object.symbol =
+                child_symbol(symbols, machine_symbol, contained_object.name.as_str());
             contained_object.type_symbol =
                 top_level_symbol(symbols, SymbolKind::Machine, contained_object.type_name.as_str());
         }
 
         for owned_data in &mut machine.owned_data {
-            owned_data.symbol = child_symbol(symbols, machine.symbol, owned_data.name.as_str());
+            owned_data.symbol = child_symbol(symbols, machine_symbol, owned_data.name.as_str());
             assign_type_reference_symbol(symbols, &mut owned_data.type_reference);
         }
 
         for state in &mut machine.states {
-            state.symbol = child_symbol(symbols, machine.symbol, state.name.as_str());
+            state.symbol = child_symbol(symbols, machine_symbol, state.name.as_str());
+            let state_symbol = state.symbol;
 
             for parameter in &mut state.parameters {
-                parameter.symbol = child_symbol(symbols, state.symbol, parameter.name.as_str());
+                parameter.symbol = child_symbol(symbols, state_symbol, parameter.name.as_str());
                 assign_type_reference_symbol(symbols, &mut parameter.type_reference);
             }
 
             for statement in &mut state.statements {
                 if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement {
-                    local_data.symbol = child_symbol(symbols, state.symbol, local_data.name.as_str());
+                    local_data.symbol =
+                        child_symbol(symbols, state_symbol, local_data.name.as_str());
                 }
             }
 
@@ -194,12 +198,14 @@ fn assign_top_level_symbols(program: &mut Program, symbols: &SymbolTable) {
 
     for platform in &mut program.platforms {
         platform.symbol = top_level_symbol(symbols, SymbolKind::Platform, platform.name.as_str());
+        let platform_symbol = platform.symbol;
 
         for state in &mut platform.states {
-            state.symbol = child_symbol(symbols, platform.symbol, state.name.as_str());
+            state.symbol = child_symbol(symbols, platform_symbol, state.name.as_str());
+            let state_symbol = state.symbol;
 
             for parameter in &mut state.parameters {
-                parameter.symbol = child_symbol(symbols, state.symbol, parameter.name.as_str());
+                parameter.symbol = child_symbol(symbols, state_symbol, parameter.name.as_str());
                 assign_type_reference_symbol(symbols, &mut parameter.type_reference);
             }
 

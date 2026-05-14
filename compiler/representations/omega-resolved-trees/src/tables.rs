@@ -164,7 +164,7 @@ impl ResolvedProgramTables {
 mod tests {
     use crate::Program;
     use crate::expression::Expression;
-    use crate::machine::Machine;
+    use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
     use crate::state::State;
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
@@ -178,23 +178,25 @@ mod tests {
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),
-            contains: Vec::new(),
-            owned_data: Vec::new(),
-            states: vec![State {
-                symbol: SymbolHandle::invalid(),
-                name: ProgramName::generated("entry"),
-                parameters: Vec::new(),
-                return_type: Some(TypeReference::Named {
+            storage: MachineStorage {
+                contains: Vec::new(),
+                owned_data: Vec::new(),
+                states: vec![State {
                     symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("i32"),
-                }),
-                statements: vec![Statement::Transition(Transition {
-                    target: TransitionTarget::Terminal,
-                    continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
-                })],
-                statement_nodes: HandleSpan::empty(),
-            }],
+                    name: ProgramName::generated("entry"),
+                    parameters: Vec::new(),
+                    return_type: Some(TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: ProgramName::generated("i32"),
+                    }),
+                    statements: vec![Statement::Transition(Transition {
+                        target: TransitionTarget::Terminal,
+                        continuation: None,
+                        guard: TransitionGuard::When(Expression::Integer(1)),
+                    })],
+                    statement_nodes: HandleSpan::empty(),
+                }],
+            },
         }];
 
         program.rebuild_tables();

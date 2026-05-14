@@ -2,7 +2,7 @@ use crate::program::Lowerer;
 use crate::state::lower_state_signature_node;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::platform::Platform;
+use omega_resolved_trees::platform::{Platform, PlatformStorage};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_platform(
@@ -26,6 +26,6 @@ pub(crate) fn lower_platform(
     Ok(Platform {
         symbol: SymbolHandle::invalid(),
         name: crate::name::lower_name(&platform.name),
-        states,
+        storage: PlatformStorage { states },
     })
 }
