@@ -86,15 +86,7 @@ impl SyntaxTrees {
                 let _ = data_definition;
             }
             Item::Invariant(_) => {}
-            Item::Library(library) => {
-                for function in &library.functions {
-                    self.items.insert_state_signature_tree(
-                        &function.signature,
-                        &mut self.type_references,
-                        &mut self.expressions,
-                    );
-                }
-            }
+            Item::Library(_) => {}
             Item::Machine(machine) => self.insert_machine(machine),
             Item::Platform(platform) => self.insert_platform(platform),
             Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}

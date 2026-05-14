@@ -1,5 +1,6 @@
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_state_signature;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{LibraryDefinition, LibraryFunction, TrustLevel};
 use omega_tokens::{KeywordKind, PunctuationKind, Token};
@@ -21,16 +22,28 @@ pub(super) fn parse_library_definition<'tokens, 'source>(
     input = input.take_keyword(KeywordKind::CallingConvention, "calling_convention")?;
     let (calling_convention, input2) = input.take_identifier()?;
     input = input2.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let mut functions = Vec::new();
+    let mut function_start = Handle::invalid();
+    let mut function_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         input = input.take_keyword(KeywordKind::Fn, "fn")?;
         let (function, rest) = parse_library_function(syntax_trees, input)?;
-        functions.push(function);
+        let handle = syntax_trees.items.append_library_function(function);
+        if function_count == 0 {
+            function_start = handle;
+        }
+        function_count = function_count
+            .checked_add(1)
+            .expect("library function span count overflow");
         input = rest;
     }
 
     input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    let functions = if function_count == 0 {
+        HandleSpan::empty()
+    } else {
+        HandleSpan::from_parts(function_start, function_count)
+    };
     Ok((
         LibraryDefinition {
             name,

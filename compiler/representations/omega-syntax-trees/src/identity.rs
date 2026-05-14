@@ -84,7 +84,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
             }
             counts.string_literals += 1;
             count_identifier(&library.calling_convention, counts);
-            for function in &library.functions {
+            for function in syntax_trees.items.library_functions(library.functions) {
                 count_state_signature(syntax_trees, &function.signature, counts);
                 if function.symbol.is_some() {
                     counts.string_literals += 1;
