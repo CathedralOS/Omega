@@ -57,7 +57,7 @@ pub struct LibraryDefinition {
     pub name: Option<Identifier>,
     pub path: String,
     pub calling_convention: Identifier,
-    pub functions: Vec<LibraryFunction>,
+    pub functions: HandleSpan<LibraryFunction>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,6 +66,21 @@ pub struct LibraryFunction {
     pub symbol: Option<String>,
     pub calling_convention: Option<Identifier>,
     pub trusts: Vec<TrustLevel>,
+}
+
+impl Default for LibraryFunction {
+    fn default() -> Self {
+        Self {
+            signature: StateSignature {
+                name: Identifier::default(),
+                parameters: HandleSpan::empty(),
+                return_type: crate::types::TypeReferenceHandle::invalid(),
+            },
+            symbol: None,
+            calling_convention: None,
+            trusts: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -262,6 +277,7 @@ pub struct ItemTable {
     machines: Arena<MachineNode>,
     platforms: Arena<PlatformNode>,
     type_parameters: Arena<TypeParameter>,
+    library_functions: Arena<LibraryFunction>,
     capability_members: Arena<CapabilityMember>,
     data_members: Arena<DataMember>,
     target_host_settings: Arena<TargetHostSetting>,
@@ -281,6 +297,7 @@ impl ItemTable {
             machines: Arena::new(),
             platforms: Arena::new(),
             type_parameters: Arena::new(),
+            library_functions: Arena::new(),
             capability_members: Arena::new(),
             data_members: Arena::new(),
             target_host_settings: Arena::new(),
@@ -310,6 +327,10 @@ impl ItemTable {
 
     pub fn type_parameters(&self, span: HandleSpan<TypeParameter>) -> &[TypeParameter] {
         self.type_parameters.span_or_empty(span)
+    }
+
+    pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
+        self.library_functions.span_or_empty(span)
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
@@ -415,6 +436,13 @@ impl ItemTable {
 
     pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
         self.type_parameters.append(type_parameter)
+    }
+
+    pub fn append_library_function(
+        &mut self,
+        function: LibraryFunction,
+    ) -> Handle<LibraryFunction> {
+        self.library_functions.append(function)
     }
 
     pub fn append_capability_member(

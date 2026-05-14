@@ -54,7 +54,7 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
                 });
             }
             Item::Library(library) => {
-                for function in &library.functions {
+                for function in syntax_trees.items.library_functions(library.functions) {
                     collect_state_signature(
                         &mut report,
                         syntax_trees,
