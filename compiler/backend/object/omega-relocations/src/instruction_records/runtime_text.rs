@@ -81,6 +81,26 @@ pub(super) fn collect_runtime_text_relocations(
                 &source_symbol,
             );
         }
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            buffer,
+            source_region,
+            ..
+        } => {
+            let buffer_symbol = &context.input.data.objects.get(*buffer).symbol;
+            let source_symbol =
+                storage_region_symbol_name(*source_region, context.input.entry_machine_name);
+            let target_symbol =
+                storage_region_symbol_name(omega_target_operations::RuntimeStorageRegion::RuntimeFrame, context.input.entry_machine_name);
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_place_target_address_offset(context.input.target.architecture),
+                &target_symbol,
+            );
+            context.insert_data_address_at_relative_offset(
+                runtime_text_stored_place_source_address_offset(context.input.target.architecture),
+                &source_symbol,
+            );
+        }
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             buffer,
             target_region,
@@ -97,6 +117,21 @@ pub(super) fn collect_runtime_text_relocations(
                 &target_symbol,
             );
         }
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+            buffer,
+            ..
+        } => {
+            let buffer_symbol = &context.input.data.objects.get(*buffer).symbol;
+            let target_symbol =
+                storage_region_symbol_name(omega_target_operations::RuntimeStorageRegion::RuntimeFrame, context.input.entry_machine_name);
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_literal_append_target_address_offset(
+                    context.input.target.architecture,
+                ),
+                &target_symbol,
+            );
+        }
         SelectedInstructionKind::MaterializeRuntimeTextBuffer {
             buffer,
             target_region,
@@ -105,6 +140,21 @@ pub(super) fn collect_runtime_text_relocations(
             let buffer_symbol = &context.input.data.objects.get(*buffer).symbol;
             let target_symbol =
                 storage_region_symbol_name(*target_region, context.input.entry_machine_name);
+            context.insert_data_address_at_instruction_start(buffer_symbol);
+            context.insert_data_address_at_relative_offset(
+                runtime_text_buffer_materialize_target_address_offset(
+                    context.input.target.architecture,
+                ),
+                &target_symbol,
+            );
+        }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            buffer,
+            ..
+        } => {
+            let buffer_symbol = &context.input.data.objects.get(*buffer).symbol;
+            let target_symbol =
+                storage_region_symbol_name(omega_target_operations::RuntimeStorageRegion::RuntimeFrame, context.input.entry_machine_name);
             context.insert_data_address_at_instruction_start(buffer_symbol);
             context.insert_data_address_at_relative_offset(
                 runtime_text_buffer_materialize_target_address_offset(

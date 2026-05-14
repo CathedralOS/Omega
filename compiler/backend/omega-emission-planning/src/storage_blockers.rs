@@ -170,6 +170,13 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::WriteRuntimePointeeString { .. }
+                    | SelectedInstructionKind::MaterializeRuntimeTextBuffer { .. }
+                    | SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee { .. }
+                    | SelectedInstructionKind::AppendRuntimeTextStoredPlace { .. }
+                    | SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee { .. }
+                    | SelectedInstructionKind::AppendRuntimeTextLiteral { .. }
+                    | SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee { .. }
+                    | SelectedInstructionKind::AppendRuntimeTextStoredSuffix { .. }
                     | SelectedInstructionKind::CopyRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeFrameIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }

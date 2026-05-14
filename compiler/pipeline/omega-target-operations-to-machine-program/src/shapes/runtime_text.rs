@@ -51,6 +51,16 @@ pub(super) fn runtime_text_buffer_materialize_kind(target_offset: usize) -> Mach
     MachineInstructionKind::RuntimeTextBufferMaterialize { target_offset }
 }
 
+pub(super) fn runtime_text_buffer_materialize_to_runtime_pointee_kind(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextBufferMaterializeToRuntimePointee {
+        pointer_byte_offset,
+        field_byte_offset,
+    }
+}
+
 pub(super) fn runtime_text_stored_place_append_kind(
     source_offset: usize,
     target_offset: usize,
@@ -61,12 +71,36 @@ pub(super) fn runtime_text_stored_place_append_kind(
     }
 }
 
+pub(super) fn runtime_text_stored_place_append_to_runtime_pointee_kind(
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextStoredPlaceAppendToRuntimePointee {
+        source_offset,
+        pointer_byte_offset,
+        field_byte_offset,
+    }
+}
+
 pub(super) fn runtime_text_literal_append_kind(
     target_offset: usize,
     literal: &str,
 ) -> MachineInstructionKind {
     MachineInstructionKind::RuntimeTextLiteralAppend {
         target_offset,
+        literal: literal.to_owned(),
+    }
+}
+
+pub(super) fn runtime_text_literal_append_to_runtime_pointee_kind(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> MachineInstructionKind {
+    MachineInstructionKind::RuntimeTextLiteralAppendToRuntimePointee {
+        pointer_byte_offset,
+        field_byte_offset,
         literal: literal.to_owned(),
     }
 }

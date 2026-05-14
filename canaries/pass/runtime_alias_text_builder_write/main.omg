@@ -1,0 +1,9 @@
+data Room {
+    description: String;
+}
+
+machine main {
+    pub entry(&mut self, room: &mut Room, suffix: String) {
+        room.description = "prefix " + suffix;
+    }
+}

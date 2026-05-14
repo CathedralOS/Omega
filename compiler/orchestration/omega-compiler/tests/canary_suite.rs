@@ -95,6 +95,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "runtime_alias_field_integer",
     "runtime_alias_field_binary",
     "runtime_alias_string_write",
+    "runtime_alias_text_builder_write",
     "runtime_arithmetic_guard",
     "runtime_arithmetic_value",
     "runtime_call_guard",

@@ -17,6 +17,8 @@ use omega_platform_interface::HostCallPlan;
 use omega_state_storage::StateStoragePlan;
 use slots::build_runtime_text_slots;
 
+const DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY: usize = 256;
+
 pub fn build_runtime_text_plan(
     host_calls: &HostCallPlan,
     state_storage: &StateStoragePlan,
@@ -35,7 +37,9 @@ pub fn build_runtime_text_plan(
 
 fn collect_runtime_text_writes(state_storage: &StateStoragePlan, plan: &mut RuntimeTextPlan) {
     for (_, mutation) in state_storage.mutations.iter() {
-        if !is_text_place(&state_storage.expressions, mutation.target) {
+        if !is_text_place(&state_storage.expressions, mutation.target)
+            && !is_obvious_runtime_text_value(&state_storage.expressions, mutation.value)
+        {
             continue;
         }
         let target = plan
@@ -59,6 +63,7 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
     let RuntimeTextPlan {
         expressions,
         writes,
+        buffers,
         builders,
         builder_segments,
         ..
@@ -75,6 +80,13 @@ fn collect_runtime_text_builders(plan: &mut RuntimeTextPlan) {
             statement_index: write.statement_index,
             target: write.target,
             segments: segment_span,
+        });
+        buffers.insert(RuntimeTextBuffer {
+            source_key: write.source_key,
+            statement_index: write.statement_index,
+            platform_call: String::new(),
+            target: write.target,
+            byte_capacity: DEFAULT_RUNTIME_TEXT_OUTPUT_BUFFER_CAPACITY,
         });
     }
 }
@@ -147,6 +159,61 @@ fn classify_runtime_text_builder_segment(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Mutable(_)
         | ExpressionNode::StructLiteral(_) => RuntimeTextBuilderSegmentKind::OtherExpression,
+    }
+}
+
+fn is_obvious_runtime_text_value(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::String(_) => true,
+        ExpressionNode::Binary(binary) => {
+            binary.operator == BinaryOperator::Add
+                && is_runtime_text_segment_like(table, binary.left)
+                && is_runtime_text_segment_like(table, binary.right)
+                && (contains_runtime_text_anchor(table, binary.left)
+                    || contains_runtime_text_anchor(table, binary.right))
+        }
+        _ => false,
+    }
+}
+
+fn is_runtime_text_segment_like(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::String(_) => true,
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_) | ExpressionNode::Member(_) => true,
+        ExpressionNode::Binary(binary) => {
+            binary.operator == BinaryOperator::Add
+                && is_runtime_text_segment_like(table, binary.left)
+                && is_runtime_text_segment_like(table, binary.right)
+        }
+        ExpressionNode::Call(call) => call.target == "to_string",
+        ExpressionNode::Mutable(inner) => is_runtime_text_segment_like(table, *inner),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::StructLiteral(_) => false,
+    }
+}
+
+fn contains_runtime_text_anchor(table: &ExpressionTable, expression: ExpressionHandle) -> bool {
+    match table.expression(expression) {
+        ExpressionNode::String(_) => true,
+        ExpressionNode::Binary(binary) => {
+            contains_runtime_text_anchor(table, binary.left)
+                || contains_runtime_text_anchor(table, binary.right)
+        }
+        ExpressionNode::Call(call) => call.target == "to_string",
+        ExpressionNode::Mutable(inner) => contains_runtime_text_anchor(table, *inner),
+        ExpressionNode::ArrayLiteral(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Name(_)
+        | ExpressionNode::StructLiteral(_) => false,
     }
 }
 

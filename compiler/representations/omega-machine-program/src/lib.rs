@@ -129,12 +129,26 @@ pub enum MachineInstructionKind {
     RuntimeTextBufferMaterialize {
         target_offset: usize,
     },
+    RuntimeTextBufferMaterializeToRuntimePointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
     RuntimeTextStoredPlaceAppend {
         source_offset: usize,
         target_offset: usize,
     },
+    RuntimeTextStoredPlaceAppendToRuntimePointee {
+        source_offset: usize,
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
+    },
     RuntimeTextLiteralAppend {
         target_offset: usize,
+        literal: String,
+    },
+    RuntimeTextLiteralAppendToRuntimePointee {
+        pointer_byte_offset: usize,
+        field_byte_offset: usize,
         literal: String,
     },
     RuntimeMachineIntegerWrite {

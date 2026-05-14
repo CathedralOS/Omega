@@ -4,7 +4,8 @@ use crate::selection::bindings::{
 };
 use crate::selection::host_operations::runtime_text_input_buffer_data_for_text_place;
 use crate::selection::storage_places::{
-    resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_storage_place,
+    resolve_runtime_storage_place_in_table,
 };
 use omega_control_flow::StateKey;
 use omega_runtime_text::RuntimeTextBuilderSegmentKind;
@@ -84,23 +85,36 @@ fn runtime_text_builder_write_without_aliases_emit(
     else {
         return false;
     };
-    let Some(target_place) = resolve_runtime_storage_place(
+    let target_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &resolved_target,
-    ) else {
+    );
+    let target_pointee =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
+    if target_place.is_none() && target_pointee.is_none() {
         return false;
-    };
-    if target_place.byte_count != input.target.pointer_size * 2 {
+    }
+    if target_place
+        .as_ref()
+        .is_some_and(|place| place.byte_count != input.target.pointer_size * 2)
+    {
+        return false;
+    }
+    if target_pointee
+        .as_ref()
+        .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+    {
         return false;
     }
 
     if let [prefix, suffix] = segments
         && prefix.kind == RuntimeTextBuilderSegmentKind::StaticText
         && suffix.kind == RuntimeTextBuilderSegmentKind::StoredPlace
+        && let Some(target_place) = target_place.as_ref()
     {
         return prefixed_stored_place_write_without_aliases(
             input,
@@ -131,24 +145,36 @@ fn runtime_text_builder_write_without_aliases_emit(
                 if source_place.byte_count != input.target.pointer_size * 2 {
                     return false;
                 }
-                if source_place.region == target_place.region
-                    && source_place.byte_offset == target_place.byte_offset
-                {
-                    emit(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                if let Some(target_place) = target_place.as_ref() {
+                    if source_place.region == target_place.region
+                        && source_place.byte_offset == target_place.byte_offset
+                    {
+                        emit(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                            buffer,
+                            target_region: target_place.region,
+                            target_offset: target_place.byte_offset,
+                        });
+                        emitted = true;
+                        continue;
+                    }
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
                         buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
                         target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
-                    emitted = true;
-                    continue;
+                } else if let Some(target) = target_pointee.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                    });
+                } else {
+                    return false;
                 }
-                emit(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-                    buffer,
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                });
                 emitted = true;
             }
             RuntimeTextBuilderSegmentKind::StaticText => {
@@ -160,12 +186,23 @@ fn runtime_text_builder_write_without_aliases_emit(
                 else {
                     return false;
                 };
-                emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
-                    buffer,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                    literal,
-                });
+                if let Some(target_place) = target_place.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
+                        buffer,
+                        target_region: target_place.region,
+                        target_offset: target_place.byte_offset,
+                        literal,
+                    });
+                } else if let Some(target) = target_pointee.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+                        buffer,
+                        pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                        literal,
+                    });
+                } else {
+                    return false;
+                }
                 emitted = true;
             }
             RuntimeTextBuilderSegmentKind::OtherExpression => return false,
@@ -206,23 +243,36 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
     else {
         return false;
     };
-    let Some(target_place) = resolve_runtime_storage_place(
+    let target_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
         source_key,
         source_machine,
         source_state,
         &resolved_target,
-    ) else {
+    );
+    let target_pointee =
+        resolve_runtime_pointee_slot_offset(input, dispatch_index, source_key, &resolved_target);
+    if target_place.is_none() && target_pointee.is_none() {
         return false;
-    };
-    if target_place.byte_count != input.target.pointer_size * 2 {
+    }
+    if target_place
+        .as_ref()
+        .is_some_and(|place| place.byte_count != input.target.pointer_size * 2)
+    {
+        return false;
+    }
+    if target_pointee
+        .as_ref()
+        .is_some_and(|target| target.pointee_byte_size != input.target.pointer_size * 2)
+    {
         return false;
     }
 
     if let [prefix, suffix] = segments
         && prefix.kind == RuntimeTextBuilderSegmentKind::StaticText
         && suffix.kind == RuntimeTextBuilderSegmentKind::StoredPlace
+        && let Some(target_place) = target_place.as_ref()
     {
         return prefixed_stored_place_write(
             input,
@@ -259,24 +309,36 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                 if source_place.byte_count != input.target.pointer_size * 2 {
                     return false;
                 }
-                if source_place.region == target_place.region
-                    && source_place.byte_offset == target_place.byte_offset
-                {
-                    emit(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                if let Some(target_place) = target_place.as_ref() {
+                    if source_place.region == target_place.region
+                        && source_place.byte_offset == target_place.byte_offset
+                    {
+                        emit(SelectedInstructionKind::MaterializeRuntimeTextBuffer {
+                            buffer,
+                            target_region: target_place.region,
+                            target_offset: target_place.byte_offset,
+                        });
+                        emitted = true;
+                        continue;
+                    }
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
                         buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
                         target_region: target_place.region,
                         target_offset: target_place.byte_offset,
                     });
-                    emitted = true;
-                    continue;
+                } else if let Some(target) = target_pointee.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+                        buffer,
+                        source_region: source_place.region,
+                        source_offset: source_place.byte_offset,
+                        pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                    });
+                } else {
+                    return false;
                 }
-                emit(SelectedInstructionKind::AppendRuntimeTextStoredPlace {
-                    buffer,
-                    source_region: source_place.region,
-                    source_offset: source_place.byte_offset,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                });
                 emitted = true;
             }
             RuntimeTextBuilderSegmentKind::StaticText => {
@@ -288,12 +350,23 @@ pub(in crate::selection) fn runtime_text_builder_write_with_resolver_emit(
                 else {
                     return false;
                 };
-                emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
-                    buffer,
-                    target_region: target_place.region,
-                    target_offset: target_place.byte_offset,
-                    literal,
-                });
+                if let Some(target_place) = target_place.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteral {
+                        buffer,
+                        target_region: target_place.region,
+                        target_offset: target_place.byte_offset,
+                        literal,
+                    });
+                } else if let Some(target) = target_pointee.as_ref() {
+                    emit(SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+                        buffer,
+                        pointer_byte_offset: target.pointer_byte_offset,
+                        field_byte_offset: target.field_byte_offset,
+                        literal,
+                    });
+                } else {
+                    return false;
+                }
                 emitted = true;
             }
             RuntimeTextBuilderSegmentKind::OtherExpression => return false,

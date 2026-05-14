@@ -94,6 +94,24 @@ pub fn encode_runtime_text_stored_place_append(
     }
 }
 
+pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
+    architecture: Architecture,
+    buffer_offset: usize,
+    source_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_place_append_to_runtime_pointee(
+            buffer_offset,
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_text_literal_append(
     architecture: Architecture,
     buffer_offset: usize,
@@ -108,12 +126,46 @@ pub fn encode_runtime_text_literal_append(
     }
 }
 
+pub fn encode_runtime_text_literal_append_to_runtime_pointee(
+    architecture: Architecture,
+    buffer_offset: usize,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_append_to_runtime_pointee(
+            buffer_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
 pub fn encode_runtime_text_buffer_materialize(
     architecture: Architecture,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize(target_offset),
+        Architecture::X86_64 => Ok(Vec::new()),
+    }
+}
+
+pub fn encode_runtime_text_buffer_materialize_to_runtime_pointee(
+    architecture: Architecture,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_buffer_materialize_to_runtime_pointee(
+                pointer_byte_offset,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

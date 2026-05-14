@@ -98,16 +98,44 @@ pub(super) fn lower_machine_instruction_kind(
         SelectedInstructionKind::MaterializeRuntimeTextBuffer { target_offset, .. } => {
             runtime_text::runtime_text_buffer_materialize_kind(*target_offset)
         }
+        SelectedInstructionKind::MaterializeRuntimeTextBufferToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => runtime_text::runtime_text_buffer_materialize_to_runtime_pointee_kind(
+            *pointer_byte_offset,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextStoredPlace {
             source_offset,
             target_offset,
             ..
         } => runtime_text::runtime_text_stored_place_append_kind(*source_offset, *target_offset),
+        SelectedInstructionKind::AppendRuntimeTextStoredPlaceToRuntimePointee {
+            source_offset,
+            pointer_byte_offset,
+            field_byte_offset,
+            ..
+        } => runtime_text::runtime_text_stored_place_append_to_runtime_pointee_kind(
+            *source_offset,
+            *pointer_byte_offset,
+            *field_byte_offset,
+        ),
         SelectedInstructionKind::AppendRuntimeTextLiteral {
             target_offset,
             literal,
             ..
         } => runtime_text::runtime_text_literal_append_kind(*target_offset, literal),
+        SelectedInstructionKind::AppendRuntimeTextLiteralToRuntimePointee {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+            ..
+        } => runtime_text::runtime_text_literal_append_to_runtime_pointee_kind(
+            *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineInteger {
             byte_offset,
             byte_size,
