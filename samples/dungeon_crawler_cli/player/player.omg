@@ -85,7 +85,7 @@ machine PlayerSystem::grant_xp {
         }
     }
 
-    fn xp_required(
+    entry xp_required(
         &mut self,
         level: u32[exact, positive]
     ) -> u32[exact, positive] {

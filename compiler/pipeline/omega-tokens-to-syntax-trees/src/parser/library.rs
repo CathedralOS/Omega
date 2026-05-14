@@ -26,7 +26,7 @@ pub(super) fn parse_library_definition<'tokens, 'source>(
     let mut function_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        input = input.take_keyword(KeywordKind::Fn, "fn")?;
+        input = input.take_keyword(KeywordKind::Entry, "entry")?;
         let (function, rest) = parse_library_function(syntax_trees, input)?;
         let handle = syntax_trees.items.append_library_function(function);
         if function_count == 0 {
@@ -66,7 +66,9 @@ fn parse_library_function<'tokens, 'source>(
     let mut trust_count = 0u32;
 
     loop {
-        if input.at_keyword(KeywordKind::Fn) || input.at_punctuation(PunctuationKind::RightBrace) {
+        if input.at_keyword(KeywordKind::Entry)
+            || input.at_punctuation(PunctuationKind::RightBrace)
+        {
             break;
         }
 

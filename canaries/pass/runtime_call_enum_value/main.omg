@@ -11,7 +11,7 @@ machine main {
         out = self.pick();
     }
 
-    fn pick(
+    entry pick(
         &mut self
     ) -> ItemKind {
         -> ItemKind::DeepKey;

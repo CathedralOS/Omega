@@ -5,7 +5,7 @@ machine main {
         write(value);
     }
 
-    fn write(input_value: i32) {
+    entry write(input_value: i32) {
         copy(mut input_value);
     }
 

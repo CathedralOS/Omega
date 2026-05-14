@@ -31,7 +31,7 @@ machine Dungeon::enter_room {
         self.mark_current_room_discovered();
     }
 
-    fn mark_current_room_discovered(&mut self) {
+    entry mark_current_room_discovered(&mut self) {
         let room: Room;
         self.lookup.find_room(self.level, self.current_cell, &mut room);
         room.discovered = true;

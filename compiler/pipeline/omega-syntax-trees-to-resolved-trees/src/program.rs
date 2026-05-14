@@ -82,4 +82,22 @@ mod tests {
         assert_eq!(program.machines[0].name.as_str(), "Game");
         assert_eq!(program.machines[0].states.len(), 2);
     }
+
+    #[test]
+    fn lowers_main_entry_state_name_as_entry() {
+        let source = r#"
+        machine main {
+            pub entry() {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+
+        assert_eq!(program.machines.len(), 1);
+        assert_eq!(program.machines[0].name.as_str(), "main");
+        assert_eq!(program.machines[0].states.len(), 1);
+        assert_eq!(program.machines[0].states[0].name.as_str(), "entry");
+    }
 }

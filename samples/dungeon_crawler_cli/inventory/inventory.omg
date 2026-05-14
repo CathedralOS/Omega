@@ -29,7 +29,7 @@ machine InventorySystem::add_reward {
         }
     }
 
-    fn add_gold(
+    entry add_gold(
         &mut self,
         inventory: &mut Inventory,
         amount: u32[exact, non_negative]
@@ -37,7 +37,7 @@ machine InventorySystem::add_reward {
         inventory.gold = inventory.gold + amount;
     }
 
-    fn add_item(
+    entry add_item(
         &mut self,
         inventory: &mut Inventory,
         kind: ItemKind
@@ -50,7 +50,7 @@ machine InventorySystem::add_reward {
         }
     }
 
-    fn append_item(
+    entry append_item(
         &mut self,
         inventory: &mut Inventory,
         kind: ItemKind
@@ -70,7 +70,7 @@ machine InventorySystem::add_reward {
         self.add_item(inventory, reward.item);
     }
 
-    fn find_item(
+    entry find_item(
         &mut self,
         inventory: &Inventory,
         kind: ItemKind
@@ -83,7 +83,7 @@ machine InventorySystem::add_reward {
         }
     }
 
-    fn find_item_at(
+    entry find_item_at(
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
@@ -98,7 +98,7 @@ machine InventorySystem::add_reward {
         }
     }
 
-    fn find_item_after(
+    entry find_item_after(
         &mut self,
         items: &[InventoryItem],
         kind: ItemKind,
@@ -112,7 +112,7 @@ machine InventorySystem::add_reward {
         }
     }
 
-    fn increment_item(
+    entry increment_item(
         &mut self,
         item: &mut InventoryItem,
         amount: u32[exact, positive]

@@ -48,15 +48,15 @@ machine main {
         reward.item = ItemKind::RustedDagger;
     }
 
-    fn range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
+    entry range(&mut self, random: &mut RandomState, limit: u32) -> u32 {
         1
     }
 
-    fn chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
+    entry chance(&mut self, random: &mut RandomState, top: u32, bottom: u32) -> bool {
         true
     }
 
-    fn roll_item(
+    entry roll_item(
         &mut self,
         depth: u32,
         random: &mut RandomState

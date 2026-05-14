@@ -19,11 +19,11 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
     let mut member_count = 0u32;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        if input.at_keyword(KeywordKind::State) || input.at_keyword(KeywordKind::Fn) {
+        if input.at_keyword(KeywordKind::State) || input.at_keyword(KeywordKind::Entry) {
             input = if input.at_keyword(KeywordKind::State) {
                 input.take_keyword(KeywordKind::State, "state")?
             } else {
-                input.take_keyword(KeywordKind::Fn, "fn")?
+                input.take_keyword(KeywordKind::Entry, "entry")?
             };
             let (state, rest) = parse_capability_state(syntax_trees, input)?;
             let handle = syntax_trees
@@ -97,7 +97,7 @@ fn parse_capability_state<'tokens, 'source>(
         input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
     } else {
         while !(input.at_keyword(KeywordKind::State)
-            || input.at_keyword(KeywordKind::Fn)
+            || input.at_keyword(KeywordKind::Entry)
             || input.at_punctuation(PunctuationKind::RightBrace)
             || input.tokens.is_empty())
         {
@@ -181,7 +181,7 @@ fn skip_contract_tokens<'tokens, 'source>(
     while !(input.at_punctuation(PunctuationKind::Semicolon)
         || input.at_punctuation(PunctuationKind::RightBrace)
         || input.at_keyword(KeywordKind::State)
-        || input.at_keyword(KeywordKind::Fn)
+        || input.at_keyword(KeywordKind::Entry)
         || input.tokens.is_empty())
     {
         let (_, rest) = input.expect_token()?;

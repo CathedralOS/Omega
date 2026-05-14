@@ -10,16 +10,16 @@ machine main {
         -> self.navigation(choice, CellId::Empty);
     }
 
-    fn resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
+    entry resolve_command(&mut self, line: &ConsoleLine) -> NavigationChoice {
         -> NavigationChoice::Invalid when line.text == "quit";
         -> NavigationChoice::Move;
     }
 
-    fn resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
+    entry resolve_exit(&mut self, line: &ConsoleLine) -> Navigation {
         -> self.navigation(NavigationChoice::Move, CellId::Empty);
     }
 
-    fn navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
+    entry navigation(&mut self, choice: NavigationChoice, destination: CellId) -> Navigation {
         Navigation { choice: choice, destination: destination }
     }
 }

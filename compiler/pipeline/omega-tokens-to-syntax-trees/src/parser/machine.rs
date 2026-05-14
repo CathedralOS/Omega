@@ -32,9 +32,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
         } else if input.at_keyword(KeywordKind::State) {
             let input2 = input.take_keyword(KeywordKind::State, "state")?;
             parse_state(syntax_trees, input2, StateKind::State)?
-        } else if input.at_keyword(KeywordKind::Fn) {
-            let input2 = input.take_keyword(KeywordKind::Fn, "fn")?;
-            parse_state(syntax_trees, input2, StateKind::Function)?
         } else if input.at_keyword(KeywordKind::Invariant) {
             let input2 = input.take_keyword(KeywordKind::Invariant, "invariant")?;
             let (_, rest) = skip_machine_invariant(input2)?;
@@ -45,7 +42,6 @@ pub(super) fn parse_machine<'tokens, 'source>(
                 "`pub entry`",
                 "`entry`",
                 "`state`",
-                "`fn`",
                 "`invariant`",
             ]));
         };

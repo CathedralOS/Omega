@@ -58,7 +58,7 @@ machine RoomLookup::find_room_mut -> &mut Room {
         }
     }
 
-    fn find_room_mut_at(
+    entry find_room_mut_at(
         &mut self,
         rooms: &mut [Room],
         room_count: usize[positive],

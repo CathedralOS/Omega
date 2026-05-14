@@ -16,7 +16,7 @@ machine main {
         -> xp - cost(level);
     }
 
-    fn cost(
+    entry cost(
         level: u32[exact, positive]
     ) -> u32[exact, positive] {
         -> 10 + level * 5;

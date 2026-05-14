@@ -16,7 +16,7 @@ machine main {
         reward.item = self.pick(depth);
     }
 
-    fn pick(
+    entry pick(
         &mut self,
         depth: u32
     ) -> ItemKind {

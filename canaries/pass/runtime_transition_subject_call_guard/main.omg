@@ -14,7 +14,7 @@ machine main {
 
     state no(&mut self) {}
 
-    fn pick(&mut self, flag: Flag) -> bool {
+    entry pick(&mut self, flag: Flag) -> bool {
         -> flag.value;
     }
 }

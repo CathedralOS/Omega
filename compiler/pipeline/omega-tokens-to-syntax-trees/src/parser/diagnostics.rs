@@ -75,7 +75,6 @@ fn render_keyword(keyword: KeywordKind) -> &'static str {
         KeywordKind::Enum => "enum",
         KeywordKind::Entry => "entry",
         KeywordKind::False => "false",
-        KeywordKind::Fn => "fn",
         KeywordKind::Foreign => "foreign",
         KeywordKind::Host => "host",
         KeywordKind::If => "if",

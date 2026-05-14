@@ -1,7 +1,7 @@
 platform Console {
-    fn write_line(text: String);
-    fn read_line(out_line: &mut ConsoleLine);
-    fn exit_process(return_code: i32);
+    entry write_line(text: String);
+    entry read_line(out_line: &mut ConsoleLine);
+    entry exit_process(return_code: i32);
 }
 
 data ConsoleLine {

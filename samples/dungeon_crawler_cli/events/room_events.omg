@@ -28,7 +28,7 @@ machine RoomEvents::roll_event {
         }
     }
 
-    fn event_action(
+    entry event_action(
         &mut self,
         roll: u32[exact, range<0, 100>]
     ) -> RoomEventAction {

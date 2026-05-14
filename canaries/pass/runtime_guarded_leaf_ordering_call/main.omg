@@ -9,7 +9,7 @@ machine main {
         reward.item = self.roll_item(depth, random);
     }
 
-    fn roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
+    entry roll_item(&mut self, depth: u32, random: &mut RandomState) -> ItemKind {
         -> ItemKind::DeepKey when depth > 0;
         -> ItemKind::RustedDagger;
     }

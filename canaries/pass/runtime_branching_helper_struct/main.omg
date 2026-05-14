@@ -8,7 +8,7 @@ machine main {
         out = self.pick(flag);
     }
 
-    fn pick(&mut self, flag: bool) -> RewardItem {
+    entry pick(&mut self, flag: bool) -> RewardItem {
         transition flag {
             true -> RewardItem::Gold
             false -> RewardItem::None

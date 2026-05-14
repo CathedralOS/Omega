@@ -15,7 +15,7 @@ machine main {
         reward.item = self.pick();
     }
 
-    fn pick(
+    entry pick(
         &mut self
     ) -> ItemKind {
         -> ItemKind::DeepKey;

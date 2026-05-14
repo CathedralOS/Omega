@@ -24,7 +24,7 @@ machine main {
         -> entry() when true;
     }
 
-    fn append_exit(
+    entry append_exit(
         &mut self,
         room: &mut Room,
         destination: u32

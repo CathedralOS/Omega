@@ -1,7 +1,7 @@
 use omega::host::targets::windows::types;
 
 capability WindowsKernel32 {
-    fn get_std_handle(kind: u32) -> WinHandle where {
+    entry get_std_handle(kind: u32) -> WinHandle where {
         requires kind == std_input_handle || kind == std_output_handle
         ensures result.valid || result.invalid
         trust windows_loader
@@ -9,7 +9,7 @@ capability WindowsKernel32 {
         trust windows_x64_calling_convention
     }
 
-    fn write_file(
+    entry write_file(
         handle: WinHandle,
         buffer: Slice<u8>,
         bytes_to_write: u32,
@@ -25,7 +25,7 @@ capability WindowsKernel32 {
         trust windows_x64_calling_convention
     }
 
-    fn read_file(
+    entry read_file(
         handle: WinHandle,
         buffer: Slice<u8>,
         bytes_to_read: u32,
@@ -41,7 +41,7 @@ capability WindowsKernel32 {
         trust windows_x64_calling_convention
     }
 
-    fn exit_process(return_code: u32) -> Terminal where {
+    entry exit_process(return_code: u32) -> Terminal where {
         requires windows_accepts_exit_code(return_code)
         ensures process_terminated
         trust windows_loader

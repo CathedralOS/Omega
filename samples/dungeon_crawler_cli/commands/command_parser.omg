@@ -20,7 +20,7 @@ machine CommandParser::resolve_navigation -> Navigation {
         -> self.navigation(choice, CellId::Empty);
     }
 
-    fn resolve_command(
+    entry resolve_command(
         &mut self,
         line: &ConsoleLine
     ) -> NavigationChoice {
@@ -38,7 +38,7 @@ machine CommandParser::resolve_navigation -> Navigation {
         -> NavigationChoice::Invalid;
     }
 
-    fn resolve_exit(
+    entry resolve_exit(
         &mut self,
         level: Level,
         cell: CellId,
@@ -49,7 +49,7 @@ machine CommandParser::resolve_navigation -> Navigation {
         -> self.find_exit(room, &line.text);
     }
 
-    fn find_exit(
+    entry find_exit(
         &mut self,
         room: Room,
         command: &String
@@ -62,7 +62,7 @@ machine CommandParser::resolve_navigation -> Navigation {
         }
     }
 
-    fn find_exit_at(
+    entry find_exit_at(
         &mut self,
         exits: &[Exit],
         exit_count: usize[positive],
@@ -78,11 +78,11 @@ machine CommandParser::resolve_navigation -> Navigation {
         -> self.invalid_navigation();
     }
 
-    fn invalid_navigation(&mut self) -> Navigation {
+    entry invalid_navigation(&mut self) -> Navigation {
         -> self.navigation(NavigationChoice::Invalid, CellId::Empty);
     }
 
-    fn navigation(
+    entry navigation(
         &mut self,
         choice: NavigationChoice,
         destination: CellId

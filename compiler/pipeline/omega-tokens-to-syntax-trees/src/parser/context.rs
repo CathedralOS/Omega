@@ -8,7 +8,6 @@ pub(super) enum ExpressionContext {
 pub(super) enum StateKind {
     Entry,
     State,
-    Function,
 }
 
 impl StateKind {

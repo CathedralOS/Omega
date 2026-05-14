@@ -1,6 +1,6 @@
 platform Console {
-    fn write_line(text: String);
-    fn exit_process(return_code: i32);
+    entry write_line(text: String);
+    entry exit_process(return_code: i32);
 }
 
 data main {

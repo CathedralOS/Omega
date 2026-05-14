@@ -14,7 +14,7 @@ data CellLine {
 }
 
 platform Console {
-    fn write_line(text: String);
+    entry write_line(text: String);
 }
 
 machine main {
