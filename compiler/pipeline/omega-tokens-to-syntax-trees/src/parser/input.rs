@@ -2,7 +2,7 @@ use crate::parser::diagnostics;
 use crate::parse_error::ParseError;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::source::{SourceId, SourceSpan, SourceText};
-use omega_syntax_trees::identifier::{Identifier, IdentifierPath};
+use omega_syntax_trees::identifier::Identifier;
 use omega_tokens::{
     FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericBase, PunctuationKind, Token,
     TokenKind,
@@ -320,22 +320,6 @@ fn validate_float_literal(kind: FloatLiteralKind) -> Result<(), &'static str> {
     }
 
     Ok(())
-}
-
-pub(super) fn parse_path<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, IdentifierPath> {
-    let (first, mut rest) = input.take_identifier()?;
-    let mut members = vec![first];
-
-    while rest.at_punctuation(PunctuationKind::ColonColon) {
-        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        let (member, next) = rest.take_identifier()?;
-        members.push(member);
-        rest = next;
-    }
-
-    Ok((IdentifierPath::from(members), rest))
 }
 
 pub(super) fn parse_path_handle_span<'tokens, 'source>(
