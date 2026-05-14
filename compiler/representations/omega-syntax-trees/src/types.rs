@@ -48,6 +48,18 @@ impl TypeReferenceTable {
         self.type_references.insert(type_reference)
     }
 
+    pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Named(name))
+    }
+
+    pub fn insert_generated_named(&mut self, name: impl Into<String>) -> TypeReferenceHandle {
+        self.insert_named(Identifier::generated(name))
+    }
+
+    pub fn insert_unit(&mut self) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::Unit)
+    }
+
     pub fn insert_type_reference_handles(
         &mut self,
         type_references: impl IntoIterator<Item = TypeReferenceHandle>,
