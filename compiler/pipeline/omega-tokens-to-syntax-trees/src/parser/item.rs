@@ -18,7 +18,7 @@ pub(super) fn parse_item<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, Item> {
     if input.at_keyword(KeywordKind::Use) {
         let input = input.take_keyword(KeywordKind::Use, "use")?;
-        let (item, rest) = parse_use_item(input)?;
+        let (item, rest) = parse_use_item(syntax_trees, input)?;
         return Ok((Item::Use(item), rest));
     }
 
