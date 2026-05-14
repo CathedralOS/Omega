@@ -36,7 +36,7 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
     match item {
         Item::Capability(capability) => {
             count_identifier(&capability.name, counts);
-            for member in &capability.members {
+            for member in syntax_trees.items.capability_members(capability.members) {
                 match member {
                     CapabilityMember::Field(field) => {
                         count_identifier(&field.name, counts);
