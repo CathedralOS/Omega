@@ -8,13 +8,12 @@ pub(crate) fn lower_expression(
 ) -> Result<typed::expression::Expression, Diagnostic> {
     match expression {
         resolved::expression::Expression::ArrayLiteral(array_literal) => {
-            Ok(typed::expression::Expression::ArrayLiteral(
-                array_literal
-                    .values
-                    .iter()
-                    .map(lower_expression)
-                    .collect::<Result<Vec<_>, _>>()?,
-            ))
+            let mut values = Vec::new();
+            for value in &array_literal.values {
+                values.push(lower_expression(value)?);
+            }
+
+            Ok(typed::expression::Expression::ArrayLiteral(values))
         }
         resolved::expression::Expression::Binary(binary) => Ok(
             typed::expression::Expression::Binary(Box::new(typed::expression::BinaryExpression {
@@ -42,11 +41,7 @@ pub(crate) fn lower_expression(
                     .map(Box::new),
                 target_symbol: call.target_symbol,
                 target: lower_name(&call.target),
-                arguments: call
-                    .arguments
-                    .iter()
-                    .map(lower_expression)
-                    .collect::<Result<Vec<_>, _>>()?,
+                arguments: lower_expressions(&call.arguments)?,
             }),
         )),
         resolved::expression::Expression::Float(value) => Ok(typed::expression::Expression::Float(
@@ -79,22 +74,40 @@ pub(crate) fn lower_expression(
         resolved::expression::Expression::StructLiteral(struct_literal) => Ok(
             typed::expression::Expression::StructLiteral(typed::expression::StructLiteral {
                 type_name: lower_name(&struct_literal.type_name),
-                fields: struct_literal
-                    .fields
-                    .iter()
-                    .map(|field| {
-                        Ok(typed::expression::StructLiteralField {
-                            name: lower_name(&field.name),
-                            value: lower_expression(&field.value)?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+                fields: lower_struct_literal_fields(&struct_literal.fields)?,
             }),
         ),
         resolved::expression::Expression::String(value) => {
             Ok(typed::expression::Expression::String(value.clone()))
         }
     }
+}
+
+fn lower_expressions(
+    expressions: &[resolved::expression::Expression],
+) -> Result<Vec<typed::expression::Expression>, Diagnostic> {
+    let mut lowered = Vec::new();
+
+    for expression in expressions {
+        lowered.push(lower_expression(expression)?);
+    }
+
+    Ok(lowered)
+}
+
+fn lower_struct_literal_fields(
+    fields: &[resolved::expression::StructLiteralField],
+) -> Result<Vec<typed::expression::StructLiteralField>, Diagnostic> {
+    let mut lowered = Vec::new();
+
+    for field in fields {
+        lowered.push(typed::expression::StructLiteralField {
+            name: lower_name(&field.name),
+            value: lower_expression(&field.value)?,
+        });
+    }
+
+    Ok(lowered)
 }
 
 fn lower_binary_operator(
