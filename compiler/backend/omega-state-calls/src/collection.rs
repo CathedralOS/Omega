@@ -58,7 +58,7 @@ pub(crate) fn collect_machine_state_calls(
                     state.key,
                     *receiver_symbol,
                     *target_symbol,
-                    receiver.as_ref().map(|receiver| receiver.as_slice()),
+                    receiver.as_ref().map(|receiver| receiver.members()),
                     target,
                 );
 
@@ -70,7 +70,7 @@ pub(crate) fn collect_machine_state_calls(
                     receiver: receiver
                         .as_ref()
                         .and_then(|receiver: &omega_checked_trees::expression::NamePath| {
-                            receiver.as_slice().last().cloned()
+                            receiver.last().cloned()
                         })
                         .unwrap_or_else(|| ProgramName::generated("self")),
                     target_key: resolved_target

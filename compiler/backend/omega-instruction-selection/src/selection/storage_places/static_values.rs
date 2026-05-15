@@ -8,7 +8,7 @@ pub(in crate::selection) fn enum_variant_value(
     let Expression::Name(path) = expression else {
         return None;
     };
-    let [_, _] = path.as_slice() else {
+    let [_, _] = path.members() else {
         return None;
     };
     let type_symbol = path.head_symbol();

@@ -562,7 +562,7 @@ fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatR
 fn integer_literal(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
-        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as i64),
+        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as i64),
         _ => None,
     }
 }
@@ -571,7 +571,7 @@ fn float_literal_expression(expression: &Expression) -> Option<f64> {
     match expression {
         Expression::Float(value) => finite_float_literal(*value),
         Expression::Integer(value) => Some(*value as f64),
-        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as f64),
+        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as f64),
         _ => None,
     }
 }
@@ -706,7 +706,7 @@ fn expressions_equivalent_for_proof(left: &Expression, right: &Expression) -> bo
     match (left, right) {
         (Expression::Mutable(left), _) => expressions_equivalent_for_proof(left, right),
         (_, Expression::Mutable(right)) => expressions_equivalent_for_proof(left, right),
-        (Expression::Name(left), Expression::Name(right)) => left.as_slice() == right.as_slice(),
+        (Expression::Name(left), Expression::Name(right)) => left.members() == right.members(),
         (Expression::Call(left), Expression::Call(right)) => {
             left.target == right.target
                 && left.arguments.len() == right.arguments.len()

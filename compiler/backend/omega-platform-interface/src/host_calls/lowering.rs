@@ -121,7 +121,7 @@ pub(crate) fn platform_call_name(call: &Call) -> String {
         Some(receiver) => format!(
             "{}.{}",
             receiver
-                .as_slice()
+                .members()
                 .iter()
                 .map(|member| member.as_str())
                 .collect::<Vec<_>>()

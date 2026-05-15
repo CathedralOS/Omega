@@ -705,7 +705,7 @@ fn validate_call(
         return;
     };
 
-    let receiver_members = receiver_path.as_slice();
+    let receiver_members = receiver_path.members();
 
     if receiver_members == ["self"] {
         let Some(state) = machine_symbols.state(&call.target) else {
