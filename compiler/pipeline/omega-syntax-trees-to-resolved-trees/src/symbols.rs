@@ -137,9 +137,10 @@ fn insert_machine_symbol_children(
                     symbol_seed(SymbolKind::Field, &owned_data.name, has_sources)
                 }))
                 .chain(
-                    machine
-                        .states
+                    program
+                        .machine_state_handles(machine.states)
                         .iter()
+                        .map(|state| program.machine_state(*state))
                         .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
                 ),
         );
@@ -154,8 +155,9 @@ fn insert_machine_symbol_children(
     for _ in &machine.owned_data {
         let _ = machine_children.next();
     }
-    for state in &machine.states {
+    for state in program.machine_state_handles(machine.states) {
         if let Some(state_symbol) = machine_children.next() {
+            let state = program.machine_state(*state);
             insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
         }
     }
@@ -296,8 +298,11 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             }
         });
 
-    let data_members = &program.tables.declarations.data_members;
-    let state_parameters = &mut program.tables.declarations.state_parameters;
+    let declarations = &mut program.tables.declarations;
+    let data_members = &declarations.data_members;
+    let machine_state_handles = &declarations.machine_state_handles;
+    let machine_states = &mut declarations.machine_states;
+    let state_parameters = &mut declarations.state_parameters;
     let omega_resolved_trees::SymbolResolvedRoots {
         data_definitions,
         machines,
@@ -334,7 +339,12 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             );
         }
 
-        for state in &mut machine.states {
+        for state in machine_state_handles
+            .span_or_empty(machine.states)
+            .iter()
+            .copied()
+        {
+            let state = machine_states.get_mut(state);
             state.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
             let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
@@ -459,6 +469,8 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         ..
     } = program;
     let data_members = &tables.declarations.data_members;
+    let machine_state_handles = &tables.declarations.machine_state_handles;
+    let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &tables.declarations.state_parameters;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
@@ -478,7 +490,8 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             inherited_data_members,
             owned_data: owned_data.as_slice(),
         };
-        for state in states {
+        for state in machine_state_handles.span_or_empty(*states).iter().copied() {
+            let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
             for statement in &mut state.storage.statements {

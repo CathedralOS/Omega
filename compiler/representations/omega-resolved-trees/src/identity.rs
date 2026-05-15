@@ -86,7 +86,11 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_type_reference(&owned_data.type_reference, &mut counts);
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
         }
-        for state in &machine.states {
+        for state in program
+            .machine_state_handles(machine.states)
+            .iter()
+            .map(|state| program.machine_state(*state))
+        {
             count_declaration_name(&state.name, &mut counts);
             count_optional_type_reference(state.return_type.as_ref(), &mut counts);
             for parameter in program.state_parameters(state.parameters) {

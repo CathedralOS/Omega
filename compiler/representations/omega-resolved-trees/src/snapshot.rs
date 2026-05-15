@@ -376,9 +376,10 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
             .iter()
             .map(|owned| owned_data_snapshot(program, owned))
             .collect(),
-        states: machine
-            .states
+        states: program
+            .machine_state_handles(machine.states)
             .iter()
+            .map(|state| program.machine_state(*state))
             .map(|state| state_snapshot(program, state))
             .collect(),
     }
@@ -690,29 +691,35 @@ mod tests {
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
         let mut program = SymbolResolvedTrees::default();
+        let state = program.tables.declarations.machine_states.append(State {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("entry"),
+            storage: StateStorage {
+                parameters: HandleSpan::empty(),
+                return_type: Some(TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: DiagnosticName::generated("i32"),
+                }),
+                statements: vec![Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })],
+                statement_nodes: HandleSpan::empty(),
+            },
+        });
+        let states = program
+            .tables
+            .declarations
+            .machine_state_handles
+            .insert_many([state]);
         program.machines.push(Machine {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
                 contains: Vec::new(),
                 owned_data: Vec::new(),
-                states: vec![State {
-                    symbol: SymbolHandle::invalid(),
-                    name: DiagnosticName::generated("entry"),
-                    storage: StateStorage {
-                        parameters: HandleSpan::empty(),
-                        return_type: Some(TypeReference::Named {
-                            symbol: SymbolHandle::invalid(),
-                            name: DiagnosticName::generated("i32"),
-                        }),
-                        statements: vec![Statement::Transition(Transition {
-                            target: TransitionTarget::Terminal,
-                            continuation: None,
-                            guard: TransitionGuard::When(Expression::Integer(1)),
-                        })],
-                        statement_nodes: HandleSpan::empty(),
-                    },
-                }],
+                states,
             },
         });
         program.rebuild_tables();

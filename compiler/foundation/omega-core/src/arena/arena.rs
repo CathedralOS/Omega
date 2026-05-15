@@ -169,6 +169,52 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    pub fn copy_span_pair(&mut self, first: HandleSpan<T>, second: HandleSpan<T>) -> HandleSpan<T>
+    where
+        T: Clone,
+    {
+        let first_range = self.valid_span_range(first);
+        let second_range = self.valid_span_range(second);
+        let count = first_range
+            .as_ref()
+            .map(|range| range.len())
+            .unwrap_or(0)
+            .checked_add(second_range.as_ref().map(|range| range.len()).unwrap_or(0))
+            .expect("arena copied span count overflow");
+
+        if count == 0 {
+            return HandleSpan::empty();
+        }
+
+        let start_index = self.items.len().try_into().expect("arena index overflow");
+
+        if let Some(first_range) = first_range {
+            for index in first_range {
+                self.items.push(self.items[index].clone());
+                self.generations.push(1);
+                self.occupied.push(true);
+            }
+        }
+
+        if let Some(second_range) = second_range {
+            for index in second_range {
+                self.items.push(self.items[index].clone());
+                self.generations.push(1);
+                self.occupied.push(true);
+            }
+        }
+
+        self.active_count = self
+            .active_count
+            .checked_add(count)
+            .expect("arena active count overflow");
+
+        HandleSpan::from_parts(
+            Handle::from_arena_index(start_index),
+            count.try_into().expect("arena span count overflow"),
+        )
+    }
+
     pub fn get(&self, handle: Handle<T>) -> &T {
         let index = self.index_from_valid_handle(handle);
 
@@ -471,6 +517,28 @@ mod tests {
         assert_eq!(
             arena.span(span).expect("span should resolve"),
             &["alpha".to_owned(), "beta".to_owned()]
+        );
+    }
+
+    #[test]
+    fn copies_two_spans_into_one_contiguous_span() {
+        let mut arena = Arena::new();
+        let first = arena.insert_many(["alpha".to_owned(), "beta".to_owned()]);
+        let _gap = arena.insert_many(["gap".to_owned()]);
+        let second = arena.insert_many(["gamma".to_owned(), "delta".to_owned()]);
+
+        let copied = arena.copy_span_pair(first, second);
+
+        assert_eq!(copied.start().arena_index(), 6);
+        assert_eq!(copied.count(), 4);
+        assert_eq!(
+            arena.span(copied).expect("span should resolve"),
+            &[
+                "alpha".to_owned(),
+                "beta".to_owned(),
+                "gamma".to_owned(),
+                "delta".to_owned()
+            ]
         );
     }
 

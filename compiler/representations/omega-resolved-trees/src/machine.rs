@@ -2,6 +2,7 @@ use crate::expression::Expression;
 use crate::name::DiagnosticName;
 use crate::state::State;
 use crate::types::TypeReference;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
@@ -16,7 +17,7 @@ pub struct Machine {
 pub struct MachineStorage {
     pub contains: Vec<ContainedObject>,
     pub owned_data: Vec<OwnedData>,
-    pub states: Vec<State>,
+    pub states: HandleSpan<Handle<State>>,
 }
 
 impl Deref for Machine {
