@@ -125,7 +125,7 @@ fn infer_call_effect(
     };
 
     if program
-        .platforms
+        .platforms()
         .iter()
         .any(|platform| platform.name == receiver_type)
     {

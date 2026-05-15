@@ -53,7 +53,7 @@ impl<'program> LayoutBuilder<'program> {
             machine_definitions: &program.machines,
             machine_layouts: Arena::new(),
             machine_visiting: Vec::new(),
-            platform_definitions: &program.platforms,
+            platform_definitions: program.platforms(),
             target,
             type_constraints: &program.type_constraints,
         }

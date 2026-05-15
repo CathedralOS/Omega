@@ -814,7 +814,7 @@ pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
         collect_machine(&mut report, machine);
     }
 
-    for platform in &program.platforms {
+    for platform in program.platforms() {
         collect_platform(&mut report, platform);
     }
 
@@ -922,7 +922,7 @@ mod tests {
     #[test]
     fn collects_entry_machine_and_platforms() {
         let mut program = Program::default();
-        program.typed.platforms = vec![Platform {
+        program.typed.push_platform(Platform {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("Console"),
             states: vec![StateSignature {
@@ -931,7 +931,7 @@ mod tests {
                 parameters: Vec::new(),
                 return_type: None,
             }],
-        }];
+        });
         program.typed.machines = vec![Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),

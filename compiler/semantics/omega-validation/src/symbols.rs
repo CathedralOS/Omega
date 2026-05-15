@@ -86,7 +86,7 @@ impl<'program> ProgramSymbols<'program> {
             });
         }
 
-        for platform in &program.platforms {
+        for platform in program.platforms() {
             if symbols.platform(platform.name.as_str()).is_some() {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate platform `{}`",

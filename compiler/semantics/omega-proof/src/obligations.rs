@@ -1304,7 +1304,7 @@ fn callable_return_type_by_symbol(
         .and_then(|candidate| candidate.return_type.as_ref())
         .or_else(|| {
             program
-                .platforms
+                .platforms()
                 .iter()
                 .flat_map(|platform| platform.states.iter())
                 .find(|candidate| candidate.symbol == target_symbol)

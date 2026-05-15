@@ -48,7 +48,7 @@ pub(crate) fn platform_call_receiver_type(
         .or_else(|| {
             call.target_symbol.is_valid().then(|| {
                 program
-                    .platforms
+                    .platforms()
                     .iter()
                     .find(|platform| platform.states.iter().any(|state| state.symbol == call.target_symbol))
                     .map(|platform| platform.symbol)
@@ -56,7 +56,7 @@ pub(crate) fn platform_call_receiver_type(
         })?;
 
     program
-        .platforms
+        .platforms()
         .iter()
         .find(|platform| platform.symbol == receiver_type_symbol)
         .map(|platform| platform.name.to_string())

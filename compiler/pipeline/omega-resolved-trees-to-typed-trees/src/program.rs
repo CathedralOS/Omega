@@ -33,7 +33,7 @@ pub fn lower_symbol_resolved_trees(
 
     for platform in &resolved_program.platforms {
         let platform = lower_platform(&mut lowerer, platform)?;
-        lowerer.typed_trees.platforms.push(platform);
+        lowerer.typed_trees.push_platform(platform);
     }
 
     lowerer.finish()

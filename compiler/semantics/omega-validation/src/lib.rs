@@ -266,7 +266,7 @@ fn validate_callable_state_signatures(
         );
     }
 
-    for platform in &program.platforms {
+    for platform in program.platforms() {
         validate_platform_state_names(platform, diagnostics);
         validate_state_signature_types(
             platform.states.iter().map(|state| StateSignatureView {
