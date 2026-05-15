@@ -11,4 +11,4 @@ mod statement;
 mod symbols;
 mod type_reference;
 
-pub use program::{lower_program, lower_syntax_trees, lower_syntax_trees_with_sources};
+pub use program::{lower_syntax_trees, lower_syntax_trees_with_sources};

@@ -101,7 +101,7 @@ fn lower_type_reference_arguments(
     {
         let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .type_reference_arguments
@@ -123,7 +123,7 @@ pub(crate) fn lower_type_constraint_handles(
         .map(|constraint| lower_type_constraint_handle(syntax_trees, constraint));
 
     lowerer
-        .program
+        .symbol_resolved_trees
         .tables
         .types
         .constraints

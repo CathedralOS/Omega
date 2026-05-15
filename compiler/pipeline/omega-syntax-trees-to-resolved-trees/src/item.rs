@@ -14,13 +14,16 @@ pub(crate) fn lower_item(
     match item {
         syntax::item::Item::Data(data_definition) => {
             let data_definition = lower_data_definition(lowerer, syntax_trees, data_definition)?;
-            lowerer.program.data_definitions.push(data_definition);
+            lowerer
+                .symbol_resolved_trees
+                .data_definitions
+                .push(data_definition);
         }
         syntax::item::Item::Invariant(invariant_definition) => {
             let invariant_definition =
                 lower_invariant_definition(lowerer, syntax_trees, invariant_definition)?;
             lowerer
-                .program
+                .symbol_resolved_trees
                 .invariant_definitions
                 .push(invariant_definition);
         }
@@ -29,7 +32,7 @@ pub(crate) fn lower_item(
         }
         syntax::item::Item::Platform(platform) => {
             let platform = lower_platform(lowerer, syntax_trees, platform)?;
-            lowerer.program.platforms.push(platform);
+            lowerer.symbol_resolved_trees.platforms.push(platform);
         }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Library(_)

@@ -35,7 +35,7 @@ fn lower_platform_state_signatures(
             syntax_trees.items.state_signature(*signature),
         )?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .platform_state_signatures

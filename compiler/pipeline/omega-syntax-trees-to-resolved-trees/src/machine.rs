@@ -16,19 +16,23 @@ pub(crate) fn lower_machine_into(
     let machine_name = crate::name::lower_name(&machine.name);
 
     let existing_states = lowerer
-        .program
+        .symbol_resolved_trees
         .machines
         .iter()
         .find(|existing_machine| existing_machine.name == machine_name)
         .map(|existing_machine| existing_machine.states);
     if let Some(existing_states) = existing_states {
         let states = merge_machine_state_spans(
-            &mut lowerer.program.tables.declarations.machine_state_handles,
+            &mut lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .machine_state_handles,
             existing_states,
             states,
         );
         let existing_machine = lowerer
-            .program
+            .symbol_resolved_trees
             .machines
             .find_mut(|existing_machine| existing_machine.name == machine_name)
             .expect("existing machine should still be present");
@@ -36,7 +40,7 @@ pub(crate) fn lower_machine_into(
         return Ok(());
     }
 
-    lowerer.program.machines.push(Machine {
+    lowerer.symbol_resolved_trees.machines.push(Machine {
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         storage: MachineStorage {
@@ -58,13 +62,13 @@ fn lower_machine_states(
     for state in syntax_trees.items.state_handles(states) {
         let state = lower_state_node(lowerer, syntax_trees, syntax_trees.items.state(*state))?;
         let state = lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .machine_states
             .append(state);
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .machine_state_handles

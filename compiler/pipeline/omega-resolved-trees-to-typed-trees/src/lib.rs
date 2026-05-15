@@ -9,4 +9,4 @@ mod state;
 mod statement;
 mod type_reference;
 
-pub use program::{lower_program, lower_symbol_resolved_trees};
+pub use program::lower_symbol_resolved_trees;

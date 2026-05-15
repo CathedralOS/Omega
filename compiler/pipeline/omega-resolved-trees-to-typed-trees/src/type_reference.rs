@@ -34,7 +34,7 @@ pub(crate) fn lower_type_reference(
         resolved::types::TypeReference::Generic(generic) => {
             let mut arguments = Vec::new();
             for argument in lowerer
-                .source_program
+                .source_trees
                 .type_reference_arguments(generic.arguments)
             {
                 arguments.push(lower_type_reference(lowerer, argument)?);
@@ -69,7 +69,7 @@ pub(crate) fn lower_type_constraints(
     let mut span = HandleSpan::empty();
 
     for constraint in lowerer
-        .source_program
+        .source_trees
         .tables
         .types
         .constraints

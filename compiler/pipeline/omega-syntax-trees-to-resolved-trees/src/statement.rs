@@ -105,7 +105,7 @@ fn lower_statement_expressions(
     for expression in syntax_trees.statements.expression_handles(expressions) {
         let expression = lower_expression_handle(syntax_trees, *expression)?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .state_statement_expressions

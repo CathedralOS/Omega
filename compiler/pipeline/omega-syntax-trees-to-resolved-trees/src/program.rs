@@ -2,7 +2,7 @@ use crate::item::lower_item;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceMap;
 use omega_resolved_trees::SymbolResolvedTrees;
-use omega_syntax_trees::{self as syntax, SyntaxTrees};
+use omega_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
 pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<SymbolResolvedTrees, Diagnostic> {
@@ -29,28 +29,23 @@ fn lower_syntax_trees_with_optional_sources(
     lowerer.finish()
 }
 
-pub fn lower_program(items: &[syntax::item::Item]) -> Result<SymbolResolvedTrees, Diagnostic> {
-    let syntax_trees = SyntaxTrees::from_root_items(Default::default(), items.iter().cloned());
-    lower_syntax_trees(&syntax_trees)
-}
-
 pub(crate) struct Lowerer {
-    pub(crate) program: SymbolResolvedTrees,
+    pub(crate) symbol_resolved_trees: SymbolResolvedTrees,
     sources: Option<Arc<SourceMap>>,
 }
 
 impl Lowerer {
     fn new(sources: Option<Arc<SourceMap>>) -> Self {
         Self {
-            program: SymbolResolvedTrees::default(),
+            symbol_resolved_trees: SymbolResolvedTrees::default(),
             sources,
         }
     }
 
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
-        crate::symbols::assign_symbols(&mut self.program, self.sources);
-        self.program.rebuild_tables();
-        Ok(self.program)
+        crate::symbols::assign_symbols(&mut self.symbol_resolved_trees, self.sources);
+        self.symbol_resolved_trees.rebuild_tables();
+        Ok(self.symbol_resolved_trees)
     }
 }
 

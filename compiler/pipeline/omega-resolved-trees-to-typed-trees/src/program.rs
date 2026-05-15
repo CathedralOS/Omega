@@ -7,31 +7,31 @@ use omega_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees::TypedTrees;
 
 pub fn lower_symbol_resolved_trees(
-    resolved_program: &SymbolResolvedTrees,
+    symbol_resolved_trees: &SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
     let mut lowerer = Lowerer {
         typed_trees: TypedTrees::default(),
-        source_program: resolved_program,
+        source_trees: symbol_resolved_trees,
     };
 
-    for invariant_definition in &resolved_program.invariant_definitions {
+    for invariant_definition in &symbol_resolved_trees.invariant_definitions {
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
         lowerer
             .typed_trees
             .push_invariant_definition(invariant_definition);
     }
 
-    for data_definition in &resolved_program.data_definitions {
+    for data_definition in &symbol_resolved_trees.data_definitions {
         let data_definition = lower_data_definition(&mut lowerer, data_definition)?;
         lowerer.typed_trees.push_data_definition(data_definition);
     }
 
-    for machine in &resolved_program.machines {
+    for machine in &symbol_resolved_trees.machines {
         let machine = lower_machine(&mut lowerer, machine)?;
         lowerer.typed_trees.push_machine(machine);
     }
 
-    for platform in &resolved_program.platforms {
+    for platform in &symbol_resolved_trees.platforms {
         let platform = lower_platform(&mut lowerer, platform)?;
         lowerer.typed_trees.push_platform(platform);
     }
@@ -39,18 +39,14 @@ pub fn lower_symbol_resolved_trees(
     lowerer.finish()
 }
 
-pub fn lower_program(resolved_program: &SymbolResolvedTrees) -> Result<TypedTrees, Diagnostic> {
-    lower_symbol_resolved_trees(resolved_program)
-}
-
 pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
-    pub(crate) source_program: &'source SymbolResolvedTrees,
+    pub(crate) source_trees: &'source SymbolResolvedTrees,
 }
 
 impl Lowerer<'_> {
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
-        self.typed_trees.symbols = self.source_program.symbols.clone();
+        self.typed_trees.symbols = self.source_trees.symbols.clone();
         self.typed_trees.rebuild_tables();
         Ok(self.typed_trees)
     }
