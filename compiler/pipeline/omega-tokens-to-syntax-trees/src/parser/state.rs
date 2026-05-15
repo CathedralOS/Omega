@@ -186,12 +186,8 @@ fn parse_state_parameter<'tokens, 'source>(
             (false, input)
         };
 
-        if input.at_keyword(KeywordKind::SelfValue) || input.at_contextual("self") {
-            let input = if input.at_keyword(KeywordKind::SelfValue) {
-                input.take_keyword(KeywordKind::SelfValue, "self")?
-            } else {
-                input.take_contextual("self")?
-            };
+        if input.at_keyword(KeywordKind::SelfValue) {
+            let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(
@@ -227,12 +223,8 @@ fn parse_state_parameter<'tokens, 'source>(
         ));
     }
 
-    if input.at_keyword(KeywordKind::SelfValue) || input.at_contextual("self") {
-        let input = if input.at_keyword(KeywordKind::SelfValue) {
-            input.take_keyword(KeywordKind::SelfValue, "self")?
-        } else {
-            input.take_contextual("self")?
-        };
+    if input.at_keyword(KeywordKind::SelfValue) {
+        let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
 
         return Ok((
             syntax_trees.items.insert_state_parameter_node(
