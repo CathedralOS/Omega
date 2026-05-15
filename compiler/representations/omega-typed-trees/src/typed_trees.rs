@@ -9,7 +9,8 @@ pub struct TypedTrees {
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub machines: Vec<machine::Machine>,
-    pub platforms: Vec<platform::Platform>,
+    pub root_platforms: HandleSpan<platform::Platform>,
+    pub platforms: Arena<platform::Platform>,
     pub type_constraints: Arena<types::TypeConstraint>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -39,6 +40,15 @@ impl TypedTrees {
     pub fn invariant_definitions(&self) -> &[invariant::InvariantDefinition] {
         self.invariant_definitions
             .span_or_empty(self.root_invariants)
+    }
+
+    pub fn push_platform(&mut self, platform: platform::Platform) {
+        self.platforms
+            .append_to_span(&mut self.root_platforms, platform);
+    }
+
+    pub fn platforms(&self) -> &[platform::Platform] {
+        self.platforms.span_or_empty(self.root_platforms)
     }
 
     pub fn rebuild_tables(&mut self) {

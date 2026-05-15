@@ -8,3 +8,13 @@ pub struct Platform {
     pub name: ProgramName,
     pub states: Vec<StateSignature>,
 }
+
+impl Default for Platform {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            states: Vec::new(),
+        }
+    }
+}

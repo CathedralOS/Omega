@@ -63,7 +63,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
-    for platform in &typed_trees.platforms {
+    for platform in typed_trees.platforms() {
         count_declaration_name(&platform.name, &mut counts);
         for signature in &platform.states {
             count_declaration_name(&signature.name, &mut counts);

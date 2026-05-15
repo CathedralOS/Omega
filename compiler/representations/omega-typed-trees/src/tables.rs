@@ -28,7 +28,7 @@ impl TypedProgramTables {
             tables.insert_data_definition(data_definition, &typed_trees.type_constraints);
         }
 
-        for platform in &typed_trees.platforms {
+        for platform in typed_trees.platforms() {
             tables.insert_platform(platform, &typed_trees.type_constraints);
         }
 
@@ -51,7 +51,7 @@ impl TypedProgramTables {
             tables.insert_data_definition(data_definition, type_constraints);
         }
 
-        for platform in &typed_trees.platforms {
+        for platform in typed_trees.platforms() {
             tables.insert_platform(platform, type_constraints);
         }
 
