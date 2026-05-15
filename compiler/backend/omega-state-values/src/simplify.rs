@@ -502,23 +502,27 @@ fn resolve_call_target_machine<'program>(
         return Some(current_machine);
     }
 
-    let (contained_symbol, contained_name) = match receiver {
+    let contained_symbol = match receiver {
         Expression::Member(member) if expression_is_self_reference(&member.receiver) => {
-            (member.member_symbol, Some(member.member.as_str()))
+            member.member_symbol
         }
-        Expression::Name(path) => (path.symbol(), path.last().map(|name| name.as_str())),
+        Expression::Name(path) => path.symbol(),
         _ => return None,
     };
 
-    let contained = current_machine.contains.iter().find(|contained| {
-        (contained_symbol.is_valid() && contained.symbol == contained_symbol)
-            || contained_name.is_some_and(|name| contained.name.as_str() == name)
-    })?;
+    if !contained_symbol.is_valid() {
+        return None;
+    }
+
+    let contained = current_machine
+        .contains
+        .iter()
+        .find(|contained| contained.symbol == contained_symbol)?;
 
     program
         .machines
         .iter()
-        .find(|machine| machine.symbol == contained.type_symbol || machine.name == contained.type_name)
+        .find(|machine| machine.symbol == contained.type_symbol)
 }
 
 fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
@@ -532,10 +536,14 @@ fn resolve_call_target_state<'machine>(
     machine: &'machine Machine,
     call: &CallExpression,
 ) -> Option<&'machine omega_checked_trees::state::State> {
-    machine.states.iter().find(|state| {
-        (call.target_symbol.is_valid() && state.symbol == call.target_symbol)
-            || state.name == call.target
-    })
+    if !call.target_symbol.is_valid() {
+        return None;
+    }
+
+    machine
+        .states
+        .iter()
+        .find(|state| state.symbol == call.target_symbol)
 }
 
 fn expression_is_self_reference(expression: &Expression) -> bool {
