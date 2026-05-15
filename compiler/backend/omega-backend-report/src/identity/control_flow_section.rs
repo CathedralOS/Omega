@@ -20,7 +20,7 @@ pub(in crate::identity) fn count_control_flow_strings(
 
     for (_, state) in backend_plan.control_flow.states.iter() {
         storage.count_program_name_identity(&state.name);
-        for parameter in &state.parameters {
+        for parameter in backend_plan.control_flow.state_parameters(state) {
             storage.count_program_name_identity(&parameter.name);
         }
     }

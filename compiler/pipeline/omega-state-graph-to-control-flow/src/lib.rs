@@ -12,10 +12,13 @@ use omega_state_graph::{
 };
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
+    let (states, state_parameters) = remap_states(state_graph);
+
     Ok(ControlFlowPlan {
         expressions: state_graph.expressions.clone(),
         machines: remap_machines(state_graph),
-        states: remap_states(state_graph),
+        states,
+        state_parameters,
         proof_obligations: remap_proof_obligations(state_graph),
         invariants: remap_invariants(state_graph),
         borrow_writable_roots: remap_borrow_writable_roots(state_graph),
@@ -54,14 +57,15 @@ fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
     }
 }
 
-fn remap_states(state_graph: &StateGraph) -> Arena<StateFlow> {
+fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParameterFlow>) {
     let mut states = Arena::default();
+    let mut state_parameters = Arena::default();
 
     for (_, state) in state_graph.states.iter() {
-        states.append(remap_state(state));
+        states.append(remap_state(state, &mut state_parameters));
     }
 
-    states
+    (states, state_parameters)
 }
 
 fn remap_proof_obligations(state_graph: &StateGraph) -> Arena<ProofObligationFact> {
@@ -113,16 +117,25 @@ fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
     invariants
 }
 
-fn remap_state(state: &StateNode) -> StateFlow {
-    StateFlow {
+fn remap_state(
+    state: &StateNode,
+    state_parameters: &mut Arena<StateParameterFlow>,
+) -> StateFlow {
+    let mut state_flow = StateFlow {
         key: remap_state_key(state.key),
         name: state.name.clone(),
         index: state.index,
-        parameters: state.parameters.iter().map(remap_parameter).collect(),
+        parameters: HandleSpan::empty(),
         borrow: remap_borrow_summary(&state.borrow),
         operations: remap_operation_span(state.operations),
         transitions: remap_transition_span(state.transitions),
+    };
+
+    for parameter in &state.parameters {
+        state_parameters.append_to_span(&mut state_flow.parameters, remap_parameter(parameter));
     }
+
+    state_flow
 }
 
 fn remap_borrow_writable_roots(state_graph: &StateGraph) -> Arena<StateBorrowWritableRoot> {

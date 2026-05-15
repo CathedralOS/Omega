@@ -91,7 +91,7 @@ pub(super) fn state_parameters<'plan>(
     context
         .control_flow
         .state_by_key(state_key)
-        .map(|state| state.parameters.as_slice())
+        .map(|state| context.control_flow.state_parameters(state))
         .unwrap_or(&[])
 }
 

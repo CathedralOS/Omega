@@ -10,6 +10,7 @@ pub struct ControlFlowPlan {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineFlow>,
     pub states: Arena<StateFlow>,
+    pub state_parameters: Arena<StateParameterFlow>,
     pub proof_obligations: Arena<ProofObligationFact>,
     pub invariants: Arena<InvariantFact>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
@@ -48,6 +49,10 @@ impl ControlFlowPlan {
             .span(machine.states)?
             .iter()
             .find(|state| state.key == key)
+    }
+
+    pub fn state_parameters(&self, state: &StateFlow) -> &[StateParameterFlow] {
+        self.state_parameters.span_or_empty(state.parameters)
     }
 
     pub fn state_names_by_key(&self, key: StateKey) -> Option<(&ProgramName, &ProgramName)> {
@@ -125,7 +130,7 @@ pub struct StateFlow {
     pub key: StateKey,
     pub name: ProgramName,
     pub index: usize,
-    pub parameters: Vec<StateParameterFlow>,
+    pub parameters: HandleSpan<StateParameterFlow>,
     pub borrow: StateBorrowSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionFlow>,
@@ -137,7 +142,7 @@ impl Default for StateFlow {
             key: StateKey::default(),
             name: ProgramName::default(),
             index: 0,
-            parameters: Vec::new(),
+            parameters: HandleSpan::empty(),
             borrow: StateBorrowSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),

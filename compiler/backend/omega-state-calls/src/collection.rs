@@ -679,8 +679,8 @@ fn source_state_parameter_machine_symbol(
     let state = control_flow.states.iter().find_map(|(_, state)| {
         (state.key == source_key).then_some(state)
     })?;
-    state
-        .parameters
+    control_flow
+        .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
         .map(|parameter| parameter.type_symbol)

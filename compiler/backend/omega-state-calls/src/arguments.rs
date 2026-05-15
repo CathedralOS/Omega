@@ -67,7 +67,7 @@ fn state_parameters(
     target_key: StateKey,
 ) -> &[StateParameterFlow] {
     state_flow_from_key(context, target_key)
-        .map(|state| state.parameters.as_slice())
+        .map(|state| context.control_flow.state_parameters(state))
         .unwrap_or_default()
 }
 
