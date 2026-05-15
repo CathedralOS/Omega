@@ -74,25 +74,15 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut handles = HandleSpan::empty();
 
         for type_reference in type_references {
             let type_reference = self.insert_tree(type_reference, expressions, source_constraints);
-            let handle = self.type_reference_handles.append(type_reference);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type reference handle span count overflow");
+            self.type_reference_handles
+                .append_to_span(&mut handles, type_reference);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        handles
     }
 
     fn insert_constraint_span_from_tree(
@@ -101,26 +91,16 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeConstraintNode> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut nodes = HandleSpan::empty();
 
         for constraint in source_constraints.span_or_empty(constraints) {
-            let handle = self
-                .constraints
-                .append(TypeConstraintNode::from_tree(constraint, expressions));
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type constraint span count overflow");
+            self.constraints.append_to_span(
+                &mut nodes,
+                TypeConstraintNode::from_tree(constraint, expressions),
+            );
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        nodes
     }
 
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
@@ -397,7 +377,10 @@ impl TypeReference {
                 )
             }
             TypeReference::Slice { element_type } => {
-                format!("[{}]", element_type.display_name_with_constraints(type_constraints))
+                format!(
+                    "[{}]",
+                    element_type.display_name_with_constraints(type_constraints)
+                )
             }
             TypeReference::Generic {
                 base_name,
