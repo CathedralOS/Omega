@@ -195,7 +195,7 @@ fn symbol_definition_with_children<'name>(
 }
 
 fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
-    let mut root_children = child_handles(symbols, symbols.root()).into_iter();
+    let mut root_children = symbols.child_handles(symbols.root()).into_iter().flatten();
 
     for _ in 0..builtin_type_symbol_definitions().len() {
         let _ = root_children.next();
@@ -208,7 +208,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     for data_definition in &mut program.data_definitions {
         data_definition.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Data);
         let data_symbol = data_definition.symbol;
-        let mut data_children = child_handles(symbols, data_symbol).into_iter();
+        let mut data_children = symbols.child_handles(data_symbol).into_iter().flatten();
 
         for type_parameter in &mut data_definition.type_parameters {
             type_parameter.symbol =
@@ -229,20 +229,15 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         }
     }
 
-    let inherited_field_counts = program
-        .machines
-        .iter()
-        .map(|machine| inherited_field_count(&program.data_definitions, &machine.name))
-        .collect::<Vec<_>>();
-
-    for (machine, inherited_field_count) in program
-        .machines
-        .iter_mut()
-        .zip(inherited_field_counts.into_iter())
-    {
+    for machine_index in 0..program.machines.len() {
+        let inherited_field_count = {
+            let machine_name = &program.machines[machine_index].name;
+            inherited_field_count(&program.data_definitions, machine_name)
+        };
+        let machine = &mut program.machines[machine_index];
         machine.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Machine);
         let machine_symbol = machine.symbol;
-        let mut machine_children = child_handles(symbols, machine_symbol).into_iter();
+        let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
 
         for _ in 0..inherited_field_count {
             let _ = machine_children.next();
@@ -271,7 +266,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         for state in &mut machine.states {
             state.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
-            let mut state_children = child_handles(symbols, state_symbol).into_iter();
+            let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
 
             for parameter in &mut state.parameters {
                 parameter.symbol =
@@ -300,12 +295,12 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     for platform in &mut program.platforms {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
-        let mut platform_children = child_handles(symbols, platform_symbol).into_iter();
+        let mut platform_children = symbols.child_handles(platform_symbol).into_iter().flatten();
 
         for state in &mut platform.states {
             state.symbol = next_child_of_kind(&mut platform_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
-            let mut state_children = child_handles(symbols, state_symbol).into_iter();
+            let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
 
             for parameter in &mut state.parameters {
                 parameter.symbol =
@@ -322,14 +317,6 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             }
         }
     }
-}
-
-fn child_handles(symbols: &SymbolTable, parent: SymbolHandle) -> Vec<SymbolHandle> {
-    symbols
-        .child_handles(parent)
-        .into_iter()
-        .flatten()
-        .collect()
 }
 
 fn next_child_of_kind(

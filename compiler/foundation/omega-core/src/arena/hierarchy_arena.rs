@@ -119,15 +119,27 @@ impl<T: HierarchyNode> HierarchyArenaBuilder<T> {
             "hierarchy arena parent already has a child range"
         );
 
-        let children = children
-            .into_iter()
-            .map(|mut child| {
-                child.set_parent(parent);
-                child.set_children(HandleSpan::empty());
-                child
-            })
-            .collect::<Vec<_>>();
-        let span = self.nodes.insert_many(children);
+        let mut start = Handle::invalid();
+        let mut count = 0u32;
+
+        for mut child in children {
+            child.set_parent(parent);
+            child.set_children(HandleSpan::empty());
+
+            let child = self.nodes.append(child);
+            if count == 0 {
+                start = child;
+            }
+            count = count
+                .checked_add(1)
+                .expect("hierarchy child span count overflow");
+        }
+
+        let span = if count == 0 {
+            HandleSpan::empty()
+        } else {
+            HandleSpan::from_parts(start, count)
+        };
 
         self.nodes.get_mut(parent).set_children(span);
 
