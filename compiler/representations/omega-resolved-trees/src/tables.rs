@@ -45,7 +45,7 @@ impl SymbolResolvedTreeTables {
             state_parameters,
             state_statement_expressions,
             state_statements,
-            type_reference_arguments,
+            child_type_references,
             ..
         } = &mut source_tables.declarations;
 
@@ -56,7 +56,7 @@ impl SymbolResolvedTreeTables {
         for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
@@ -65,7 +65,7 @@ impl SymbolResolvedTreeTables {
             tables.insert_platform(
                 platform_state_signatures.span_or_empty(platform.states),
                 state_parameters,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
@@ -79,7 +79,7 @@ impl SymbolResolvedTreeTables {
                 state_parameters,
                 state_statement_expressions,
                 state_statements,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
@@ -90,14 +90,14 @@ impl SymbolResolvedTreeTables {
     fn insert_data_definition(
         &mut self,
         members: &[DataMember],
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for member in members {
             if let DataMember::Field(field) = member {
                 self.insert_type_reference(
                     &field.type_reference,
-                    type_reference_arguments,
+                    child_type_references,
                     type_constraints,
                 );
             }
@@ -108,14 +108,14 @@ impl SymbolResolvedTreeTables {
         &mut self,
         states: &[StateSignature],
         state_parameters: &Arena<StateParameter>,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for state in states {
             self.insert_state_signature(
                 state_parameters.span_or_empty(state.parameters),
                 state,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
@@ -130,11 +130,11 @@ impl SymbolResolvedTreeTables {
         state_parameters: &Arena<StateParameter>,
         state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
-            self.insert_owned_data(owned_data, type_reference_arguments, type_constraints);
+            self.insert_owned_data(owned_data, child_type_references, type_constraints);
         }
 
         for state in machine_state_handles
@@ -148,7 +148,7 @@ impl SymbolResolvedTreeTables {
                 state_parameters,
                 state_statement_expressions,
                 state_statements,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
@@ -157,12 +157,12 @@ impl SymbolResolvedTreeTables {
     fn insert_owned_data(
         &mut self,
         owned_data: &OwnedData,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         self.insert_type_reference(
             &owned_data.type_reference,
-            type_reference_arguments,
+            child_type_references,
             type_constraints,
         );
 
@@ -177,19 +177,19 @@ impl SymbolResolvedTreeTables {
         state_parameters: &Arena<StateParameter>,
         state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for parameter in state_parameters.span_or_empty(state.parameters) {
             self.insert_type_reference(
                 &parameter.type_reference,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
 
         if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type, type_reference_arguments, type_constraints);
+            self.insert_type_reference(return_type, child_type_references, type_constraints);
         }
 
         let mut statement_nodes = HandleSpan::empty();
@@ -199,7 +199,7 @@ impl SymbolResolvedTreeTables {
                 state_statement_expressions,
                 &mut self.bodies.expressions,
                 &mut self.types.references,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
             statement_nodes.push_contiguous(statement);
@@ -212,32 +212,32 @@ impl SymbolResolvedTreeTables {
         &mut self,
         parameters: &[StateParameter],
         signature: &StateSignature,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
                 &parameter.type_reference,
-                type_reference_arguments,
+                child_type_references,
                 type_constraints,
             );
         }
 
         if let Some(return_type) = &signature.return_type {
-            self.insert_type_reference(return_type, type_reference_arguments, type_constraints);
+            self.insert_type_reference(return_type, child_type_references, type_constraints);
         }
     }
 
     fn insert_type_reference(
         &mut self,
         type_reference: &TypeReference,
-        type_reference_arguments: &Arena<TypeReference>,
+        child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         self.types.references.insert_tree(
             type_reference,
             &mut self.bodies.expressions,
-            type_reference_arguments,
+            child_type_references,
             type_constraints,
         );
     }

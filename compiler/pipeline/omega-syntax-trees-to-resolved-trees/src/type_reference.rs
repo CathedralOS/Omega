@@ -22,11 +22,7 @@ pub(crate) fn lower_type_reference_handle(
             is_mutable,
         } => Ok(TypeReference::Reference(ReferenceTypeReference {
             storage: ReferenceTypeReferenceStorage {
-                referee: Box::new(lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    *referee,
-                )?),
+                referee: lower_type_reference_child(lowerer, syntax_trees, *referee)?,
                 is_mutable: *is_mutable,
             },
         })),
@@ -35,11 +31,7 @@ pub(crate) fn lower_type_reference_handle(
             constraints,
         } => Ok(TypeReference::Constrained(ConstrainedTypeReference {
             storage: ConstrainedTypeReferenceStorage {
-                base_type: Box::new(lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    *base_type,
-                )?),
+                base_type: lower_type_reference_child(lowerer, syntax_trees, *base_type)?,
                 constraints: lower_type_constraint_handles(lowerer, syntax_trees, *constraints)?,
             },
         })),
@@ -48,22 +40,14 @@ pub(crate) fn lower_type_reference_handle(
             length,
         } => Ok(TypeReference::FixedArray(FixedArrayTypeReference {
             storage: FixedArrayTypeReferenceStorage {
-                element_type: Box::new(lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    *element_type,
-                )?),
+                element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
                 length: *length,
             },
         })),
         syntax::types::TypeReferenceNode::Slice { element_type } => {
             Ok(TypeReference::Slice(SliceTypeReference {
                 storage: SliceTypeReferenceStorage {
-                    element_type: Box::new(lower_type_reference_handle(
-                        lowerer,
-                        syntax_trees,
-                        *element_type,
-                    )?),
+                    element_type: lower_type_reference_child(lowerer, syntax_trees, *element_type)?,
                 },
             }))
         }
@@ -74,7 +58,7 @@ pub(crate) fn lower_type_reference_handle(
             storage: GenericTypeReferenceStorage {
                 base_symbol: SymbolHandle::invalid(),
                 base_name: crate::name::lower_name(base_name),
-                arguments: lower_type_reference_arguments(lowerer, syntax_trees, *arguments)?,
+                arguments: lower_child_type_references(lowerer, syntax_trees, *arguments)?,
             },
         })),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
@@ -88,7 +72,22 @@ pub(crate) fn lower_type_reference_handle(
     }
 }
 
-fn lower_type_reference_arguments(
+fn lower_type_reference_child(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    type_reference: syntax::types::TypeReferenceHandle,
+) -> Result<omega_core::arena::Handle<TypeReference>, Diagnostic> {
+    let type_reference = lower_type_reference_handle(lowerer, syntax_trees, type_reference)?;
+
+    Ok(lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .child_type_references
+        .append(type_reference))
+}
+
+fn lower_child_type_references(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
@@ -104,7 +103,7 @@ fn lower_type_reference_arguments(
             .symbol_resolved_trees
             .tables
             .declarations
-            .type_reference_arguments
+            .child_type_references
             .append_to_span(&mut span, argument);
     }
 

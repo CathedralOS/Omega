@@ -211,7 +211,7 @@ impl StatementTable {
         source_expressions: &Arena<Expression>,
         expressions: &mut crate::expression::ExpressionTable,
         type_references: &mut crate::types::TypeReferenceTable,
-        source_type_reference_arguments: &Arena<crate::types::TypeReference>,
+        source_child_type_references: &Arena<crate::types::TypeReference>,
         source_constraints: &Arena<crate::types::TypeConstraint>,
     ) -> StatementHandle {
         match statement {
@@ -246,7 +246,7 @@ impl StatementTable {
                 let type_reference = type_references.insert_tree(
                     &local_data.type_reference,
                     expressions,
-                    source_type_reference_arguments,
+                    source_child_type_references,
                     source_constraints,
                 );
                 let initial_value = local_data
@@ -497,14 +497,14 @@ mod tests {
         let mut statements = StatementTable::new();
         let mut expressions = ExpressionTable::new();
         let mut type_references = TypeReferenceTable::new();
-        let type_reference_arguments = Arena::new();
+        let child_type_references = Arena::new();
         let type_constraints = Arena::new();
         let statement = statements.insert_tree(
             &statement,
             &source_expressions,
             &mut expressions,
             &mut type_references,
-            &type_reference_arguments,
+            &child_type_references,
             &type_constraints,
         );
 

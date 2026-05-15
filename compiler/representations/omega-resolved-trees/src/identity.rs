@@ -45,7 +45,7 @@ impl IdentityStorageCounts {
 
 pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
-    let type_reference_arguments = &program.tables.declarations.type_reference_arguments;
+    let child_type_references = &program.tables.declarations.child_type_references;
 
     for invariant in &program.invariant_definitions {
         count_declaration_name(&invariant.name, &mut counts);
@@ -59,7 +59,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                     count_declaration_name(&field.name, &mut counts);
                     count_type_reference(
                         &field.type_reference,
-                        type_reference_arguments,
+                        child_type_references,
                         &mut counts,
                     );
                 }
@@ -74,14 +74,14 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_declaration_name(&signature.name, &mut counts);
             count_optional_type_reference(
                 signature.return_type.as_ref(),
-                type_reference_arguments,
+                child_type_references,
                 &mut counts,
             );
             for parameter in program.state_parameters(signature.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(
                     &parameter.type_reference,
-                    type_reference_arguments,
+                    child_type_references,
                     &mut counts,
                 );
             }
@@ -98,7 +98,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference(
                 &owned_data.type_reference,
-                type_reference_arguments,
+                child_type_references,
                 &mut counts,
             );
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
@@ -111,14 +111,14 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_declaration_name(&state.name, &mut counts);
             count_optional_type_reference(
                 state.return_type.as_ref(),
-                type_reference_arguments,
+                child_type_references,
                 &mut counts,
             );
             for parameter in program.state_parameters(state.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(
                     &parameter.type_reference,
-                    type_reference_arguments,
+                    child_type_references,
                     &mut counts,
                 );
             }
@@ -420,16 +420,20 @@ fn count_type_reference(
 ) {
     match type_reference {
         TypeReference::Reference(reference) => {
-            count_type_reference(&reference.referee, generic_arguments, counts)
+            count_type_reference(generic_arguments.get(reference.referee), generic_arguments, counts)
         }
         TypeReference::Constrained(constrained) => {
-            count_type_reference(&constrained.base_type, generic_arguments, counts)
+            count_type_reference(generic_arguments.get(constrained.base_type), generic_arguments, counts)
         }
         TypeReference::FixedArray(fixed_array) => {
-            count_type_reference(&fixed_array.element_type, generic_arguments, counts);
+            count_type_reference(
+                generic_arguments.get(fixed_array.element_type),
+                generic_arguments,
+                counts,
+            );
         }
         TypeReference::Slice(slice) => {
-            count_type_reference(&slice.element_type, generic_arguments, counts);
+            count_type_reference(generic_arguments.get(slice.element_type), generic_arguments, counts);
         }
         TypeReference::Generic(generic) => {
             count_type_name(&generic.base_name, counts);

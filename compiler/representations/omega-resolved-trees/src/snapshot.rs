@@ -599,14 +599,14 @@ fn type_reference_snapshot_from_program(
         TypeReference::Reference(reference) => TypeReferenceSnapshot::Reference {
             referee: Box::new(type_reference_snapshot_from_program(
                 program,
-                &reference.referee,
+                program.child_type_reference(reference.referee),
             )),
             is_mutable: reference.is_mutable,
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_program(
                 program,
-                &constrained.base_type,
+                program.child_type_reference(constrained.base_type),
             )),
             constraints: program
                 .tables
@@ -620,20 +620,20 @@ fn type_reference_snapshot_from_program(
         TypeReference::FixedArray(fixed_array) => TypeReferenceSnapshot::FixedArray {
             element_type: Box::new(type_reference_snapshot_from_program(
                 program,
-                &fixed_array.element_type,
+                program.child_type_reference(fixed_array.element_type),
             )),
             length: fixed_array.length,
         },
         TypeReference::Slice(slice) => TypeReferenceSnapshot::Slice {
             element_type: Box::new(type_reference_snapshot_from_program(
                 program,
-                &slice.element_type,
+                program.child_type_reference(slice.element_type),
             )),
         },
         TypeReference::Generic(generic) => TypeReferenceSnapshot::Generic {
             base_name: generic.base_name.to_string(),
             arguments: program
-                .type_reference_arguments(generic.arguments)
+                .child_type_references(generic.arguments)
                 .iter()
                 .map(|argument| type_reference_snapshot_from_program(program, argument))
                 .collect(),
