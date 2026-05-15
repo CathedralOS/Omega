@@ -11,41 +11,41 @@ use crate::types::{TypeConstraint, TypeReference};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ResolvedProgramSnapshot {
+pub struct ResolvedTreesSnapshot {
     pub roots: ResolvedRootsSnapshot,
     pub tables: ResolvedTableSnapshot,
 }
 
-impl ResolvedProgramSnapshot {
-    pub fn from_program(program: &ResolvedTrees) -> Self {
+impl ResolvedTreesSnapshot {
+    pub fn from_resolved_trees(resolved_trees: &ResolvedTrees) -> Self {
         Self {
             roots: ResolvedRootsSnapshot {
-                data_definitions: program
+                data_definitions: resolved_trees
                     .data_definitions
                     .iter()
-                    .map(|data| data_definition_snapshot(program, data))
+                    .map(|data| data_definition_snapshot(resolved_trees, data))
                     .collect(),
-                invariant_definitions: program
+                invariant_definitions: resolved_trees
                     .invariant_definitions
                     .iter()
-                    .map(|invariant| invariant_definition_snapshot(program, invariant))
+                    .map(|invariant| invariant_definition_snapshot(resolved_trees, invariant))
                     .collect(),
-                machines: program
+                machines: resolved_trees
                     .machines
                     .iter()
-                    .map(|machine| machine_snapshot(program, machine))
+                    .map(|machine| machine_snapshot(resolved_trees, machine))
                     .collect(),
-                platforms: program
+                platforms: resolved_trees
                     .platforms
                     .iter()
-                    .map(|platform| platform_snapshot(program, platform))
+                    .map(|platform| platform_snapshot(resolved_trees, platform))
                     .collect(),
             },
             tables: ResolvedTableSnapshot {
-                type_constraint_count: program.tables.types.constraints.len(),
-                expression_count: program.tables.bodies.expressions.expression_count(),
-                statement_count: program.tables.bodies.statements.statement_count(),
-                type_reference_count: program.tables.types.references.type_reference_count(),
+                type_constraint_count: resolved_trees.tables.types.constraints.len(),
+                expression_count: resolved_trees.tables.bodies.expressions.expression_count(),
+                statement_count: resolved_trees.tables.bodies.statements.statement_count(),
+                type_reference_count: resolved_trees.tables.types.references.type_reference_count(),
             },
         }
     }
@@ -622,7 +622,7 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::ResolvedProgramSnapshot;
+    use super::ResolvedTreesSnapshot;
     use crate::ResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
@@ -663,7 +663,7 @@ mod tests {
         }];
         program.rebuild_tables();
 
-        let snapshot = ResolvedProgramSnapshot::from_program(&program);
+        let snapshot = ResolvedTreesSnapshot::from_resolved_trees(&program);
         assert_eq!(snapshot.roots.machines.len(), 1);
         assert_eq!(snapshot.roots.machines[0].states.len(), 1);
         assert_eq!(snapshot.tables.statement_count, 1);
