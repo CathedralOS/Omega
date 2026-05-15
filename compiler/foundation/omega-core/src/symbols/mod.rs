@@ -1,11 +1,11 @@
-mod definition;
+mod builtin;
 mod kind;
 mod name;
 mod path;
 mod symbol;
 mod table;
 
-pub use definition::{SymbolDefinition, builtin_type_symbol_definitions, builtin_type_symbols};
+pub use builtin::builtin_type_symbols;
 pub use kind::SymbolKind;
 pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
@@ -14,9 +14,7 @@ pub use table::{SymbolNameStorageCounts, SymbolTable, SymbolTableBuilder};
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        SymbolDefinition, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
-    };
+    use super::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
 
     #[test]
     fn invalid_symbol_resolves_to_dummy() {
@@ -29,15 +27,7 @@ mod tests {
 
     #[test]
     fn stores_symbols_with_parent_handles() {
-        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [SymbolDefinition::with_children(
-                SymbolKind::Machine,
-                "main",
-                [SymbolDefinition::named(SymbolKind::State, "entry")],
-            )],
-        ));
+        let symbols = main_entry_symbols();
         let root = symbols.root();
         let machine = symbols
             .find_child_by_name(root, "main")
@@ -86,15 +76,7 @@ mod tests {
 
     #[test]
     fn stores_paths_as_handle_spans() {
-        let mut symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [SymbolDefinition::with_children(
-                SymbolKind::Machine,
-                "main",
-                [SymbolDefinition::named(SymbolKind::State, "entry")],
-            )],
-        ));
+        let mut symbols = main_entry_symbols();
         let root = symbols.root();
         let machine = symbols
             .find_child_by_name(root, "main")
@@ -110,15 +92,7 @@ mod tests {
 
     #[test]
     fn resolves_child_paths_by_sibling_walk() {
-        let mut symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [SymbolDefinition::with_children(
-                SymbolKind::Machine,
-                "main",
-                [SymbolDefinition::named(SymbolKind::State, "entry")],
-            )],
-        ));
+        let mut symbols = main_entry_symbols();
         let root = symbols.root();
         let path = symbols.resolve_child_path(root, ["main", "entry"]);
         let names = symbols
@@ -134,15 +108,7 @@ mod tests {
 
     #[test]
     fn resolves_descendant_without_storing_path_members() {
-        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [SymbolDefinition::with_children(
-                SymbolKind::Machine,
-                "main",
-                [SymbolDefinition::named(SymbolKind::State, "entry")],
-            )],
-        ));
+        let symbols = main_entry_symbols();
         let root = symbols.root();
         let entry = symbols
             .find_descendant_by_path(root, ["main", "entry"])
@@ -158,19 +124,7 @@ mod tests {
 
     #[test]
     fn formats_symbol_display_path_from_parent_chain() {
-        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [SymbolDefinition::with_children(
-                SymbolKind::Machine,
-                "main",
-                [SymbolDefinition::with_children(
-                    SymbolKind::Object,
-                    "console",
-                    [SymbolDefinition::named(SymbolKind::State, "write_line")],
-                )],
-            )],
-        ));
+        let symbols = main_console_symbols();
         let write_line = symbols
             .find_descendant_by_path(symbols.root(), ["main", "console", "write_line"])
             .expect("write_line should resolve");
@@ -184,21 +138,7 @@ mod tests {
 
     #[test]
     fn child_ranges_are_exact_per_parent() {
-        let symbols = SymbolTable::from_definition(SymbolDefinition::with_children(
-            SymbolKind::Root,
-            "root",
-            [
-                SymbolDefinition::with_children(
-                    SymbolKind::Machine,
-                    "main",
-                    [
-                        SymbolDefinition::named(SymbolKind::State, "entry"),
-                        SymbolDefinition::named(SymbolKind::State, "running"),
-                    ],
-                ),
-                SymbolDefinition::named(SymbolKind::Data, "Inventory"),
-            ],
-        ));
+        let symbols = main_running_inventory_symbols();
         let root = symbols.root();
         let root_children = symbols
             .child_handles(root)
@@ -222,5 +162,68 @@ mod tests {
             main_children,
             vec!["entry".to_owned(), "running".to_owned()]
         );
+    }
+
+    fn main_entry_symbols() -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Borrowed("main"))],
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let main = children.next().expect("main should be present");
+        builder.insert_children(
+            main,
+            [(SymbolKind::State, SymbolNameRef::Borrowed("entry"))],
+        );
+
+        builder.finish()
+    }
+
+    fn main_console_symbols() -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [(SymbolKind::Machine, SymbolNameRef::Borrowed("main"))],
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let main = children.next().expect("main should be present");
+        let children = builder.insert_children(
+            main,
+            [(SymbolKind::Object, SymbolNameRef::Borrowed("console"))],
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let console = children.next().expect("console should be present");
+        builder.insert_children(
+            console,
+            [(SymbolKind::State, SymbolNameRef::Borrowed("write_line"))],
+        );
+
+        builder.finish()
+    }
+
+    fn main_running_inventory_symbols() -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("main")),
+                (SymbolKind::Data, SymbolNameRef::Borrowed("Inventory")),
+            ],
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+        let main = children.next().expect("main should be present");
+        builder.insert_children(
+            main,
+            [
+                (SymbolKind::State, SymbolNameRef::Borrowed("entry")),
+                (SymbolKind::State, SymbolNameRef::Borrowed("running")),
+            ],
+        );
+
+        builder.finish()
     }
 }

@@ -6,8 +6,7 @@ use crate::arena::{
 use crate::source::{SourceMap, SourceSpan};
 
 use super::{
-    Symbol, SymbolDefinition, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
-    SymbolNameStorageKind, SymbolPath,
+    Symbol, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef, SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -114,27 +113,6 @@ impl SymbolTableBuilder {
 impl SymbolTable {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn from_definition(root: SymbolDefinition<'_>) -> Self {
-        Self::from_definition_with_sources(root, None)
-    }
-
-    pub fn from_definition_with_sources(
-        root: SymbolDefinition<'_>,
-        sources: Option<Arc<SourceMap>>,
-    ) -> Self {
-        let mut builder = HierarchyArenaBuilder::new();
-        let mut names = Arena::new();
-        let root = insert_root_definition(&mut builder, &mut names, &root);
-
-        Self {
-            symbols: builder.finish(),
-            names,
-            path_members: Arena::new(),
-            sources,
-            root,
-        }
     }
 
     pub fn get(&self, symbol: SymbolHandle) -> &Symbol {
@@ -283,65 +261,5 @@ impl SymbolTable {
 
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members
-    }
-}
-
-fn insert_root_definition(
-    builder: &mut HierarchyArenaBuilder<Symbol>,
-    names: &mut Arena<SymbolName>,
-    definition: &SymbolDefinition<'_>,
-) -> SymbolHandle {
-    let root = builder.insert_root(symbol_from_definition(
-        SymbolHandle::invalid(),
-        names,
-        definition,
-    ));
-    insert_child_definitions(builder, names, root, &definition.children);
-
-    root
-}
-
-fn insert_child_definitions(
-    builder: &mut HierarchyArenaBuilder<Symbol>,
-    names: &mut Arena<SymbolName>,
-    parent: SymbolHandle,
-    definitions: &[SymbolDefinition<'_>],
-) {
-    if definitions.is_empty() {
-        return;
-    }
-
-    let children = builder.insert_children(
-        parent,
-        definitions
-            .iter()
-            .map(|definition| symbol_from_definition(parent, names, definition)),
-    );
-
-    for (offset, definition) in definitions.iter().enumerate() {
-        let offset = u32::try_from(offset).expect("symbol child offset overflow");
-        let child = SymbolHandle::from_parts(
-            children
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("symbol child handle overflow"),
-            children.start().generation(),
-        );
-
-        insert_child_definitions(builder, names, child, &definition.children);
-    }
-}
-
-fn symbol_from_definition(
-    parent: SymbolHandle,
-    names: &mut Arena<SymbolName>,
-    definition: &SymbolDefinition<'_>,
-) -> Symbol {
-    Symbol {
-        parent,
-        children: HandleSpan::empty(),
-        kind: definition.kind,
-        name: names.insert(SymbolName::from_ref(definition.name)),
     }
 }
