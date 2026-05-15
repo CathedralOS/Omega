@@ -32,32 +32,21 @@ fn lower_type_parameters(
     syntax_trees: &SyntaxTrees,
     type_parameters: HandleSpan<syntax::item::TypeParameter>,
 ) -> HandleSpan<TypeParameter> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    for parameter in syntax_trees.items.type_parameters(type_parameters) {
-        let parameter = lowerer
-            .program
-            .tables
-            .declarations
-            .data_type_parameters
-            .append(TypeParameter {
-                symbol: SymbolHandle::invalid(),
-                name: crate::name::lower_name(&parameter.name),
-            });
-        if count == 0 {
-            start = parameter;
-        }
-        count = count
-            .checked_add(1)
-            .expect("data type parameter span count overflow");
-    }
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
-    }
+    lowerer
+        .program
+        .tables
+        .declarations
+        .data_type_parameters
+        .insert_many(
+            syntax_trees
+                .items
+                .type_parameters(type_parameters)
+                .iter()
+                .map(|parameter| TypeParameter {
+                    symbol: SymbolHandle::invalid(),
+                    name: crate::name::lower_name(&parameter.name),
+                }),
+        )
 }
 
 fn lower_data_members(

@@ -126,6 +126,49 @@ impl<T: Default> Arena<T> {
         }
     }
 
+    pub fn try_insert_many<E>(
+        &mut self,
+        items: impl IntoIterator<Item = Result<T, E>>,
+    ) -> Result<HandleSpan<T>, E> {
+        // Spans promise contiguous storage, so bulk insert appends instead of
+        // consuming arbitrary free-list slots. On failure, discard the partial
+        // append so callers do not leave unreachable arena payloads behind.
+        let start_len = self.items.len();
+        let start_index = start_len.try_into().expect("arena index overflow");
+        let mut count = 0u32;
+
+        for item in items {
+            match item {
+                Ok(item) => {
+                    self.items.push(item);
+                    self.generations.push(1);
+                    self.occupied.push(true);
+                    count = count.checked_add(1).expect("arena span count overflow");
+                }
+                Err(error) => {
+                    self.items.truncate(start_len);
+                    self.generations.truncate(start_len);
+                    self.occupied.truncate(start_len);
+                    return Err(error);
+                }
+            }
+        }
+
+        if count == 0 {
+            Ok(HandleSpan::empty())
+        } else {
+            self.active_count = self
+                .active_count
+                .checked_add(usize::try_from(count).expect("arena span count overflow"))
+                .expect("arena active count overflow");
+
+            Ok(HandleSpan::from_parts(
+                Handle::from_arena_index(start_index),
+                count,
+            ))
+        }
+    }
+
     pub fn get(&self, handle: Handle<T>) -> &T {
         let index = self.index_from_valid_handle(handle);
 
@@ -395,6 +438,39 @@ mod tests {
         assert_eq!(
             arena.span(span).expect("span should resolve"),
             &["alpha".to_owned(), "bravo".to_owned(), "gamma".to_owned()]
+        );
+    }
+
+    #[test]
+    fn fallible_span_insert_rolls_back_partial_appends() {
+        let mut arena = Arena::new();
+        let first = arena.insert("alpha".to_owned());
+
+        let result =
+            arena.try_insert_many([Ok("beta".to_owned()), Err("boom"), Ok("gamma".to_owned())]);
+
+        assert_eq!(result, Err("boom"));
+        assert_eq!(arena.len(), 1);
+        assert_eq!(arena.get(first).as_str(), "alpha");
+
+        let next = arena.append("delta".to_owned());
+
+        assert_eq!(next.arena_index(), 2);
+        assert_eq!(arena.get(next).as_str(), "delta");
+    }
+
+    #[test]
+    fn fallible_span_insert_returns_contiguous_span_on_success() {
+        let mut arena = Arena::new();
+        let span = arena
+            .try_insert_many::<&str>([Ok("alpha".to_owned()), Ok("beta".to_owned())])
+            .expect("fallible insert should succeed");
+
+        assert_eq!(span.start().arena_index(), 1);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
         );
     }
 
