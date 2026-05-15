@@ -11,7 +11,7 @@ pub(crate) fn lower_data_definition(
     let mut typed_data_definition = typed::data::DataDefinition {
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
-        type_parameters: Vec::new(),
+        type_parameters: omega_core::arena::HandleSpan::empty(),
         members: omega_core::arena::HandleSpan::empty(),
     };
 
@@ -19,12 +19,13 @@ pub(crate) fn lower_data_definition(
         .source_program
         .data_type_parameters(data_definition.type_parameters)
     {
-        typed_data_definition
-            .type_parameters
-            .push(typed::data::TypeParameter {
-                symbol: parameter.symbol,
-                name: crate::name::lower_name(&parameter.name),
-            });
+        let type_parameter = typed::data::TypeParameter {
+            symbol: parameter.symbol,
+            name: crate::name::lower_name(&parameter.name),
+        };
+        lowerer
+            .typed_trees
+            .push_data_type_parameter(&mut typed_data_definition, type_parameter);
     }
 
     for member in lowerer.source_program.data_members(data_definition.members) {

@@ -7,7 +7,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub type_parameters: Vec<TypeParameter>,
+    pub type_parameters: HandleSpan<TypeParameter>,
     pub members: HandleSpan<DataMember>,
 }
 
@@ -16,7 +16,7 @@ impl Default for DataDefinition {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            type_parameters: Vec::new(),
+            type_parameters: HandleSpan::empty(),
             members: HandleSpan::empty(),
         }
     }
@@ -67,6 +67,15 @@ impl Default for DataMember {
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+}
+
+impl Default for TypeParameter {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
