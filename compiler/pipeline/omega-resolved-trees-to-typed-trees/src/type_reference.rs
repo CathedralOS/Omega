@@ -2,15 +2,19 @@ use crate::expression::lower_expression;
 use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees::SymbolResolvedTrees;
 use omega_resolved_trees as resolved;
+use omega_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees as typed;
 
 pub(crate) fn lower_type_reference(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReference, Diagnostic> {
-    lower_type_reference_with_context(lowerer.source_trees, &mut lowerer.typed_trees, type_reference)
+    lower_type_reference_with_context(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+        type_reference,
+    )
 }
 
 fn lower_type_reference_with_context(
@@ -110,7 +114,7 @@ fn lower_type_constraints_with_context(
         .constraints
         .span_or_empty(constraints)
     {
-        let constraint = lower_type_constraint(constraint)?;
+        let constraint = lower_type_constraint(source_trees, constraint)?;
         typed_trees
             .type_constraints
             .append_to_span(&mut span, constraint);
@@ -120,6 +124,7 @@ fn lower_type_constraints_with_context(
 }
 
 fn lower_type_constraint(
+    source_trees: &SymbolResolvedTrees,
     constraint: &resolved::types::TypeConstraint,
 ) -> Result<typed::types::TypeConstraint, Diagnostic> {
     match constraint {
@@ -128,8 +133,8 @@ fn lower_type_constraint(
         )),
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
             Ok(typed::types::TypeConstraint::Range {
-                minimum: lower_expression(minimum)?,
-                maximum: lower_expression(maximum)?,
+                minimum: lower_expression(source_trees.type_constraint_expression(*minimum))?,
+                maximum: lower_expression(source_trees.type_constraint_expression(*maximum))?,
             })
         }
     }
