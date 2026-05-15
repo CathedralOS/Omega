@@ -63,6 +63,7 @@ impl TypedProgramTables {
             machine_owned_data,
             machine_states,
             state_parameters,
+            state_statements,
             root_platforms,
             platforms,
             platform_state_signatures,
@@ -94,6 +95,7 @@ impl TypedProgramTables {
                 machine_owned_data.span_or_empty(machine.owned_data),
                 machine_states.span_mut_or_empty(machine.states),
                 state_parameters,
+                state_statements,
                 type_constraints,
             );
         }
@@ -158,6 +160,7 @@ impl TypedProgramTables {
             self.insert_state(
                 state,
                 typed_trees.state_parameters(state),
+                typed_trees.state_statements(state),
                 type_constraints,
             );
         }
@@ -168,6 +171,7 @@ impl TypedProgramTables {
         owned_data: &[OwnedData],
         states: &mut [State],
         state_parameters: &Arena<StateParameter>,
+        state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in owned_data {
@@ -178,6 +182,7 @@ impl TypedProgramTables {
             self.insert_state_with_statement_span(
                 state,
                 state_parameters.span_or_empty(state.parameters),
+                state_statements.span_or_empty(state.statements),
                 type_constraints,
             );
         }
@@ -199,6 +204,7 @@ impl TypedProgramTables {
         &mut self,
         state: &State,
         parameters: &[StateParameter],
+        statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for parameter in parameters {
@@ -209,7 +215,7 @@ impl TypedProgramTables {
             self.insert_type_reference(return_type, type_constraints);
         }
 
-        for statement in &state.statements {
+        for statement in statements {
             self.insert_statement(statement, type_constraints);
         }
     }
@@ -218,6 +224,7 @@ impl TypedProgramTables {
         &mut self,
         state: &mut State,
         parameters: &[StateParameter],
+        statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for parameter in parameters {
@@ -228,18 +235,18 @@ impl TypedProgramTables {
             self.insert_type_reference(return_type, type_constraints);
         }
 
-        let mut statements = HandleSpan::empty();
-        for statement in &state.statements {
+        let mut statement_nodes = HandleSpan::empty();
+        for statement in statements {
             let handle = self.statements.insert_tree(
                 statement,
                 &mut self.expressions,
                 &mut self.type_references,
                 type_constraints,
             );
-            statements.push_contiguous(handle);
+            statement_nodes.push_contiguous(handle);
         }
 
-        state.statement_nodes = statements;
+        state.statement_nodes = statement_nodes;
     }
 
     fn insert_state_signature(
@@ -319,24 +326,26 @@ mod tests {
             owned_data: Default::default(),
             states: Default::default(),
         };
-        typed_trees.push_machine_state(
-            &mut machine,
-            State {
+        let mut state = State {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::generated("entry"),
+            parameters: Default::default(),
+            return_type: Some(TypeReference::Named {
                 symbol: SymbolHandle::invalid(),
-                name: ProgramName::generated("entry"),
-                parameters: Default::default(),
-                return_type: Some(TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("i32"),
-                }),
-                statements: vec![Statement::Transition(Transition {
-                    target: TransitionTarget::Terminal,
-                    continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
-                })],
-                statement_nodes: HandleSpan::empty(),
-            },
+                name: ProgramName::generated("i32"),
+            }),
+            statements: Default::default(),
+            statement_nodes: HandleSpan::empty(),
+        };
+        typed_trees.push_state_statement(
+            &mut state,
+            Statement::Transition(Transition {
+                target: TransitionTarget::Terminal,
+                continuation: None,
+                guard: TransitionGuard::When(Expression::Integer(1)),
+            }),
         );
+        typed_trees.push_machine_state(&mut machine, state);
         typed_trees.push_machine(machine);
 
         typed_trees.rebuild_tables();

@@ -15,6 +15,12 @@ pub enum Statement {
     Transition(Transition),
 }
 
+impl Default for Statement {
+    fn default() -> Self {
+        Statement::Expression(Expression::Integer(0))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
     pub target: Expression,

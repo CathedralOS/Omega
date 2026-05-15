@@ -10,7 +10,7 @@ pub struct State {
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
-    pub statements: Vec<Statement>,
+    pub statements: HandleSpan<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
 }
 
@@ -21,7 +21,7 @@ impl Default for State {
             name: ProgramName::default(),
             parameters: HandleSpan::empty(),
             return_type: None,
-            statements: Vec::new(),
+            statements: HandleSpan::empty(),
             statement_nodes: HandleSpan::empty(),
         }
     }

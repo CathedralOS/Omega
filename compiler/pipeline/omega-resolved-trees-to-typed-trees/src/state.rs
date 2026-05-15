@@ -18,7 +18,7 @@ pub(crate) fn lower_state(
             .as_ref()
             .map(|type_reference| lower_type_reference(lowerer, type_reference))
             .transpose()?,
-        statements: Vec::new(),
+        statements: Default::default(),
         statement_nodes: Default::default(),
     };
 
@@ -30,9 +30,10 @@ pub(crate) fn lower_state(
     }
 
     for statement in lowerer.source_program.state_statements(state.statements) {
-        typed_state
-            .statements
-            .push(lower_statement(lowerer, statement)?);
+        let statement = lower_statement(lowerer, statement)?;
+        lowerer
+            .typed_trees
+            .push_state_statement(&mut typed_state, statement);
     }
 
     Ok(typed_state)
