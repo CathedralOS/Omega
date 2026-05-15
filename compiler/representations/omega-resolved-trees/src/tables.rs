@@ -2,7 +2,6 @@ use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
-use crate::platform::Platform;
 use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::StatementTable;
@@ -45,7 +44,10 @@ impl SymbolResolvedTreeTables {
         }
 
         for platform in &symbol_resolved_trees.platforms {
-            tables.insert_platform(platform, &type_constraints);
+            tables.insert_platform(
+                symbol_resolved_trees.platform_state_signatures(platform.states),
+                &type_constraints,
+            );
         }
 
         symbol_resolved_trees.machines.for_each_mut(|machine| {
@@ -67,8 +69,12 @@ impl SymbolResolvedTreeTables {
         }
     }
 
-    fn insert_platform(&mut self, platform: &Platform, type_constraints: &Arena<TypeConstraint>) {
-        for state in &platform.states {
+    fn insert_platform(
+        &mut self,
+        states: &[StateSignature],
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for state in states {
             self.insert_state_signature(state, type_constraints);
         }
     }

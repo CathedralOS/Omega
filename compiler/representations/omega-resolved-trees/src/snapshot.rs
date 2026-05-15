@@ -395,8 +395,8 @@ fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> Owne
 fn platform_snapshot(program: &SymbolResolvedTrees, platform: &Platform) -> PlatformSnapshot {
     PlatformSnapshot {
         name: platform.name.to_string(),
-        states: platform
-            .states
+        states: program
+            .platform_state_signatures(platform.states)
             .iter()
             .map(|signature| state_signature_snapshot(program, signature))
             .collect(),
