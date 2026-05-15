@@ -11,21 +11,21 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 pub enum Statement {
     Assignment(Assignment),
     Call(Call),
-    Expression(Expression),
+    Expression(Handle<Expression>),
     LocalData(LocalData),
     Transition(Transition),
 }
 
 impl Default for Statement {
     fn default() -> Self {
-        Self::Expression(Expression::default())
+        Self::Expression(Handle::invalid())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
-    pub target: Expression,
-    pub value: Expression,
+    pub target: Handle<Expression>,
+    pub value: Handle<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +38,7 @@ pub struct LocalData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<Expression>,
+    pub initial_value: Option<Handle<Expression>>,
 }
 
 impl Default for LocalDataStorage {
@@ -102,13 +102,13 @@ pub struct Transition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionGuard {
     Always,
-    When(Expression),
+    When(Handle<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named(NamedTransitionTarget),
-    Value(Expression),
+    Value(Handle<Expression>),
     SelfTarget,
     Terminal,
 }
@@ -216,8 +216,8 @@ impl StatementTable {
     ) -> StatementHandle {
         match statement {
             Statement::Assignment(assignment) => {
-                let target = expressions.insert_tree(&assignment.target);
-                let value = expressions.insert_tree(&assignment.value);
+                let target = expressions.insert_tree(source_expressions.get(assignment.target));
+                let value = expressions.insert_tree(source_expressions.get(assignment.value));
                 self.insert(StatementNode::Assignment(TableAssignment { target, value }))
             }
             Statement::Call(call) => {
@@ -239,7 +239,7 @@ impl StatementTable {
                 }))
             }
             Statement::Expression(expression) => {
-                let expression = expressions.insert_tree(expression);
+                let expression = expressions.insert_tree(source_expressions.get(*expression));
                 self.insert(StatementNode::Expression(expression))
             }
             Statement::LocalData(local_data) => {
@@ -251,8 +251,8 @@ impl StatementTable {
                 );
                 let initial_value = local_data
                     .initial_value
-                    .as_ref()
-                    .map(|value| expressions.insert_tree(value))
+                    .filter(|value| value.is_valid())
+                    .map(|value| expressions.insert_tree(source_expressions.get(value)))
                     .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
                 self.insert(StatementNode::LocalData(TableLocalData {
                     symbol: local_data.symbol,
@@ -276,9 +276,9 @@ impl StatementTable {
                     .unwrap_or_else(TransitionTargetHandle::invalid);
                 let guard = match &transition.guard {
                     TransitionGuard::Always => TransitionGuardNode::Always,
-                    TransitionGuard::When(expression) => {
-                        TransitionGuardNode::When(expressions.insert_tree(expression))
-                    }
+                    TransitionGuard::When(expression) => TransitionGuardNode::When(
+                        expressions.insert_tree(source_expressions.get(*expression)),
+                    ),
                 };
                 self.insert(StatementNode::Transition(TableTransition {
                     target,
@@ -336,9 +336,9 @@ impl StatementTable {
                     expressions,
                 ),
             },
-            TransitionTarget::Value(expression) => {
-                TransitionTargetNode::Value(expressions.insert_tree(expression))
-            }
+            TransitionTarget::Value(expression) => TransitionTargetNode::Value(
+                expressions.insert_tree(source_expressions.get(*expression)),
+            ),
             TransitionTarget::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
@@ -479,6 +479,7 @@ mod tests {
         let mut source_expressions = Arena::new();
         let arguments =
             source_expressions.insert_many([Expression::Integer(1), Expression::Integer(2)]);
+        let guard = source_expressions.append(Expression::Boolean(true));
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named(NamedTransitionTarget {
                 storage: NamedTransitionTargetStorage {
@@ -491,7 +492,7 @@ mod tests {
                 },
             }),
             continuation: None,
-            guard: TransitionGuard::When(Expression::Boolean(true)),
+            guard: TransitionGuard::When(guard),
         });
 
         let mut statements = StatementTable::new();

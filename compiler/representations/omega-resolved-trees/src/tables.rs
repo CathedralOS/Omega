@@ -262,19 +262,24 @@ impl SymbolResolvedTreeTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::SymbolResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
+    use crate::SymbolResolvedTrees;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
         let mut program = SymbolResolvedTrees::default();
+        let guard = program
+            .tables
+            .declarations
+            .state_statement_expressions
+            .append(Expression::Integer(1));
         let statements =
             program
                 .tables
@@ -283,7 +288,7 @@ mod tests {
                 .insert_many([Statement::Transition(Transition {
                     target: TransitionTarget::Terminal,
                     continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
+                    guard: TransitionGuard::When(guard),
                 })]);
         let state = program.tables.declarations.machine_states.append(State {
             symbol: SymbolHandle::invalid(),

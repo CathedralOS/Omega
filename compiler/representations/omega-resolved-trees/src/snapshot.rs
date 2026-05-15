@@ -1,4 +1,3 @@
-use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{BinaryOperator, Expression, NamePath};
 use crate::invariant::InvariantDefinition;
@@ -8,6 +7,7 @@ use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::types::{TypeConstraint, TypeReference};
+use crate::SymbolResolvedTrees;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -458,8 +458,8 @@ fn state_parameter_snapshot(
 fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> StatementSnapshot {
     match statement {
         Statement::Assignment(assignment) => StatementSnapshot::Assignment {
-            target: expression_snapshot(&assignment.target),
-            value: expression_snapshot(&assignment.value),
+            target: statement_expression_snapshot(program, assignment.target),
+            value: statement_expression_snapshot(program, assignment.value),
         },
         Statement::Call(call) => StatementSnapshot::Call {
             receiver: call.receiver.as_ref().map(name_path_snapshot),
@@ -471,12 +471,14 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
                 .collect(),
         },
         Statement::Expression(expression) => StatementSnapshot::Expression {
-            value: expression_snapshot(expression),
+            value: statement_expression_snapshot(program, *expression),
         },
         Statement::LocalData(local_data) => StatementSnapshot::LocalData {
             name: local_data.name.to_string(),
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
-            initial_value: local_data.initial_value.as_ref().map(expression_snapshot),
+            initial_value: local_data
+                .initial_value
+                .map(|expression| statement_expression_snapshot(program, expression)),
         },
         Statement::Transition(transition) => transition_snapshot(program, transition),
     }
@@ -495,7 +497,7 @@ fn transition_snapshot(
         guard: match &transition.guard {
             TransitionGuard::Always => TransitionGuardSnapshot::Always,
             TransitionGuard::When(expression) => TransitionGuardSnapshot::When {
-                value: expression_snapshot(expression),
+                value: statement_expression_snapshot(program, *expression),
             },
         },
     }
@@ -515,11 +517,18 @@ fn transition_target_snapshot(
                 .collect(),
         },
         TransitionTarget::Value(expression) => TransitionTargetSnapshot::Value {
-            value: expression_snapshot(expression),
+            value: statement_expression_snapshot(program, *expression),
         },
         TransitionTarget::SelfTarget => TransitionTargetSnapshot::SelfTarget,
         TransitionTarget::Terminal => TransitionTargetSnapshot::Terminal,
     }
+}
+
+fn statement_expression_snapshot(
+    program: &SymbolResolvedTrees,
+    expression: omega_core::arena::Handle<Expression>,
+) -> ExpressionSnapshot {
+    expression_snapshot(program.state_statement_expression(expression))
 }
 
 fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
@@ -685,19 +694,24 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::SymbolResolvedTreesSnapshot;
-    use crate::SymbolResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
+    use crate::SymbolResolvedTrees;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
         let mut program = SymbolResolvedTrees::default();
+        let guard = program
+            .tables
+            .declarations
+            .state_statement_expressions
+            .append(Expression::Integer(1));
         let statements =
             program
                 .tables
@@ -706,7 +720,7 @@ mod tests {
                 .insert_many([Statement::Transition(Transition {
                     target: TransitionTarget::Terminal,
                     continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
+                    guard: TransitionGuard::When(guard),
                 })]);
         let state = program.tables.declarations.machine_states.append(State {
             symbol: SymbolHandle::invalid(),

@@ -2,6 +2,7 @@ use crate::expression::lower_expression;
 use crate::name::lower_name_path;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference;
+use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -13,8 +14,8 @@ pub(crate) fn lower_statement(
     match statement {
         resolved::statement::Statement::Assignment(assignment) => Ok(
             typed::statement::Statement::Assignment(typed::statement::Assignment {
-                target: lower_expression(&assignment.target)?,
-                value: lower_expression(&assignment.value)?,
+                target: lower_statement_expression(lowerer, assignment.target)?,
+                value: lower_statement_expression(lowerer, assignment.value)?,
             }),
         ),
         resolved::statement::Statement::Call(call) => {
@@ -37,19 +38,22 @@ pub(crate) fn lower_statement(
                 arguments,
             }))
         }
-        resolved::statement::Statement::Expression(expression) => Ok(
-            typed::statement::Statement::Expression(lower_expression(expression)?),
-        ),
+        resolved::statement::Statement::Expression(expression) => {
+            Ok(typed::statement::Statement::Expression(
+                lower_statement_expression(lowerer, *expression)?,
+            ))
+        }
         resolved::statement::Statement::LocalData(local_data) => Ok(
             typed::statement::Statement::LocalData(typed::statement::LocalData {
                 symbol: local_data.symbol,
                 name: crate::name::lower_name(&local_data.name),
                 type_reference: lower_type_reference(lowerer, &local_data.type_reference)?,
-                initial_value: local_data
-                    .initial_value
-                    .as_ref()
-                    .map(lower_expression)
-                    .transpose()?,
+                initial_value: match local_data.initial_value {
+                    Some(initial_value) => {
+                        Some(lower_statement_expression(lowerer, initial_value)?)
+                    }
+                    None => None,
+                },
             }),
         ),
         resolved::statement::Statement::Transition(transition) => Ok(
@@ -60,22 +64,32 @@ pub(crate) fn lower_statement(
                     .as_ref()
                     .map(|target| lower_transition_target(lowerer, target))
                     .transpose()?,
-                guard: lower_transition_guard(&transition.guard)?,
+                guard: lower_transition_guard(lowerer, &transition.guard)?,
             }),
         ),
     }
 }
 
+fn lower_statement_expression(
+    lowerer: &Lowerer,
+    expression: Handle<resolved::expression::Expression>,
+) -> Result<typed::expression::Expression, Diagnostic> {
+    lower_expression(lowerer.source_trees.state_statement_expression(expression))
+}
+
 fn lower_transition_guard(
+    lowerer: &Lowerer,
     guard: &resolved::statement::TransitionGuard,
 ) -> Result<typed::statement::TransitionGuard, Diagnostic> {
     match guard {
         resolved::statement::TransitionGuard::Always => {
             Ok(typed::statement::TransitionGuard::Always)
         }
-        resolved::statement::TransitionGuard::When(expression) => Ok(
-            typed::statement::TransitionGuard::When(lower_expression(expression)?),
-        ),
+        resolved::statement::TransitionGuard::When(expression) => {
+            Ok(typed::statement::TransitionGuard::When(
+                lower_statement_expression(lowerer, *expression)?,
+            ))
+        }
     }
 }
 
@@ -101,9 +115,11 @@ fn lower_transition_target(
                 arguments,
             })
         }
-        resolved::statement::TransitionTarget::Value(expression) => Ok(
-            typed::statement::TransitionTarget::Value(lower_expression(expression)?),
-        ),
+        resolved::statement::TransitionTarget::Value(expression) => {
+            Ok(typed::statement::TransitionTarget::Value(
+                lower_statement_expression(lowerer, *expression)?,
+            ))
+        }
         resolved::statement::TransitionTarget::SelfTarget => {
             Ok(typed::statement::TransitionTarget::SelfTarget)
         }

@@ -2,7 +2,7 @@ use crate::expression::lower_expression_handle;
 use crate::name::lower_name_members;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
@@ -31,8 +31,8 @@ fn lower_statement_node(
     match statement {
         syntax::statement::StatementNode::Assignment(assignment) => {
             Ok(Statement::Assignment(Assignment {
-                target: lower_expression_handle(syntax_trees, assignment.target)?,
-                value: lower_expression_handle(syntax_trees, assignment.value)?,
+                target: lower_statement_expression(lowerer, syntax_trees, assignment.target)?,
+                value: lower_statement_expression(lowerer, syntax_trees, assignment.value)?,
             }))
         }
         syntax::statement::StatementNode::Call(call) => Ok(Statement::Call(Call {
@@ -54,7 +54,7 @@ fn lower_statement_node(
             },
         })),
         syntax::statement::StatementNode::Expression(expression) => Ok(Statement::Expression(
-            lower_expression_handle(syntax_trees, *expression)?,
+            lower_statement_expression(lowerer, syntax_trees, *expression)?,
         )),
         syntax::statement::StatementNode::LocalData(local_data) => {
             Ok(Statement::LocalData(LocalData {
@@ -67,7 +67,8 @@ fn lower_statement_node(
                         local_data.type_reference,
                     )?,
                     initial_value: if local_data.initial_value.is_valid() {
-                        Some(lower_expression_handle(
+                        Some(lower_statement_expression(
+                            lowerer,
                             syntax_trees,
                             local_data.initial_value,
                         )?)
@@ -89,10 +90,24 @@ fn lower_statement_node(
                 } else {
                     None
                 },
-                guard: lower_transition_guard_node(syntax_trees, transition.guard)?,
+                guard: lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?,
             }))
         }
     }
+}
+
+fn lower_statement_expression(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    expression: syntax::expression::ExpressionHandle,
+) -> Result<Handle<omega_resolved_trees::expression::Expression>, Diagnostic> {
+    let expression = lower_expression_handle(syntax_trees, expression)?;
+    Ok(lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .state_statement_expressions
+        .append(expression))
 }
 
 fn lower_statement_expressions(
@@ -116,13 +131,14 @@ fn lower_statement_expressions(
 }
 
 fn lower_transition_guard_node(
+    lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     guard: syntax::statement::TransitionGuardNode,
 ) -> Result<TransitionGuard, Diagnostic> {
     match guard {
         syntax::statement::TransitionGuardNode::Always => Ok(TransitionGuard::Always),
         syntax::statement::TransitionGuardNode::When(expression) => Ok(TransitionGuard::When(
-            lower_expression_handle(syntax_trees, expression)?,
+            lower_statement_expression(lowerer, syntax_trees, expression)?,
         )),
     }
 }
@@ -147,7 +163,7 @@ fn lower_transition_target_node(
             }))
         }
         syntax::statement::TransitionTargetNode::Value(expression) => Ok(TransitionTarget::Value(
-            lower_expression_handle(syntax_trees, *expression)?,
+            lower_statement_expression(lowerer, syntax_trees, *expression)?,
         )),
         syntax::statement::TransitionTargetNode::SelfTarget => Ok(TransitionTarget::SelfTarget),
         syntax::statement::TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
