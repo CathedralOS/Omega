@@ -1,58 +1,76 @@
+use std::sync::Arc;
+
+use omega_core::source::SourceMap;
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
 use omega_resolved_trees::SymbolResolvedTrees;
 
-pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees) {
-    program.symbols = build_symbol_table(program);
+pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
+    program.symbols = build_symbol_table(program, sources);
     let symbols = program.symbols.clone();
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     assign_statement_call_symbols(program, &symbols);
 }
 
-fn build_symbol_table(program: &SymbolResolvedTrees) -> SymbolTable {
+fn build_symbol_table(
+    program: &SymbolResolvedTrees,
+    sources: Option<Arc<SourceMap>>,
+) -> SymbolTable {
+    let has_sources = sources.is_some();
     let mut children = builtin_type_symbol_definitions().to_vec();
 
     children.extend(
         program.invariant_definitions.iter().map(|invariant| {
-            SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())
+            symbol_definition(SymbolKind::Invariant, &invariant.name, has_sources)
         }),
     );
-    children.extend(program.data_definitions.iter().map(data_symbol_definition));
+    children.extend(
+        program
+            .data_definitions
+            .iter()
+            .map(|data| data_symbol_definition(data, has_sources)),
+    );
     children.extend(
         program
             .machines
             .iter()
-            .map(|machine| machine_symbol_definition(program, machine)),
+            .map(|machine| machine_symbol_definition(program, machine, has_sources)),
     );
-    children.extend(program.platforms.iter().map(platform_symbol_definition));
+    children.extend(
+        program
+            .platforms
+            .iter()
+            .map(|platform| platform_symbol_definition(platform, has_sources)),
+    );
 
-    SymbolTable::from_definition(SymbolDefinition::with_children(
-        SymbolKind::Root,
-        "root",
-        children,
-    ))
+    SymbolTable::from_definition_with_sources(
+        SymbolDefinition::static_with_children(SymbolKind::Root, "root", children),
+        sources,
+    )
 }
 
 fn data_symbol_definition<'program>(
     data_definition: &'program omega_resolved_trees::data::DataDefinition,
+    has_sources: bool,
 ) -> SymbolDefinition<'program> {
-    SymbolDefinition::with_children(
+    symbol_definition_with_children(
         SymbolKind::Data,
-        data_definition.name.as_str(),
+        &data_definition.name,
+        has_sources,
         data_definition
             .type_parameters
             .iter()
             .map(|parameter| {
-                SymbolDefinition::named(SymbolKind::TypeParameter, parameter.name.as_str())
+                symbol_definition(SymbolKind::TypeParameter, &parameter.name, has_sources)
             })
             .chain(data_definition.members.iter().map(|member| match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
-                    SymbolDefinition::named(SymbolKind::Field, field.name.as_str())
+                    symbol_definition(SymbolKind::Field, &field.name, has_sources)
                 }
                 omega_resolved_trees::data::DataMember::Variant(variant) => {
-                    SymbolDefinition::named(SymbolKind::Variant, variant.name.as_str())
+                    symbol_definition(SymbolKind::Variant, &variant.name, has_sources)
                 }
             })),
     )
@@ -61,6 +79,7 @@ fn data_symbol_definition<'program>(
 fn machine_symbol_definition<'program>(
     program: &'program SymbolResolvedTrees,
     machine: &'program omega_resolved_trees::machine::Machine,
+    has_sources: bool,
 ) -> SymbolDefinition<'program> {
     let inherited_data_members = program
         .data_definitions
@@ -69,24 +88,29 @@ fn machine_symbol_definition<'program>(
         .into_iter()
         .flat_map(|data_definition| data_definition.members.iter())
         .filter_map(|member| match member {
-            omega_resolved_trees::data::DataMember::Field(field) => Some(SymbolDefinition::named(
+            omega_resolved_trees::data::DataMember::Field(field) => Some(symbol_definition(
                 SymbolKind::Field,
-                field.name.as_str(),
+                &field.name,
+                has_sources,
             )),
             omega_resolved_trees::data::DataMember::Variant(_) => None,
         });
     let contained_objects = machine.contains.iter().map(|contained_object| {
-        SymbolDefinition::named(SymbolKind::Object, contained_object.name.as_str())
+        symbol_definition(SymbolKind::Object, &contained_object.name, has_sources)
     });
     let owned_data = machine
         .owned_data
         .iter()
-        .map(|owned_data| SymbolDefinition::named(SymbolKind::Field, owned_data.name.as_str()));
-    let states = machine.states.iter().map(state_symbol_definition);
+        .map(|owned_data| symbol_definition(SymbolKind::Field, &owned_data.name, has_sources));
+    let states = machine
+        .states
+        .iter()
+        .map(|state| state_symbol_definition(state, has_sources));
 
-    SymbolDefinition::with_children(
+    symbol_definition_with_children(
         SymbolKind::Machine,
-        machine.name.as_str(),
+        &machine.name,
+        has_sources,
         inherited_data_members
             .chain(contained_objects)
             .chain(owned_data)
@@ -96,32 +120,35 @@ fn machine_symbol_definition<'program>(
 
 fn state_symbol_definition<'program>(
     state: &'program omega_resolved_trees::state::State,
+    has_sources: bool,
 ) -> SymbolDefinition<'program> {
-    SymbolDefinition::with_children(
+    symbol_definition_with_children(
         SymbolKind::State,
-        state.name.as_str(),
+        &state.name,
+        has_sources,
         state
             .parameters
             .iter()
-            .map(|parameter| {
-                SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-            })
-            .chain(local_symbol_definitions(&state.statements)),
+            .map(|parameter| symbol_definition(SymbolKind::Parameter, &parameter.name, has_sources))
+            .chain(local_symbol_definitions(&state.statements, has_sources)),
     )
 }
 
 fn platform_symbol_definition<'program>(
     platform: &'program omega_resolved_trees::platform::Platform,
+    has_sources: bool,
 ) -> SymbolDefinition<'program> {
-    SymbolDefinition::with_children(
+    symbol_definition_with_children(
         SymbolKind::Platform,
-        platform.name.as_str(),
+        &platform.name,
+        has_sources,
         platform.states.iter().map(|state| {
-            SymbolDefinition::with_children(
+            symbol_definition_with_children(
                 SymbolKind::State,
-                state.name.as_str(),
+                &state.name,
+                has_sources,
                 state.parameters.iter().map(|parameter| {
-                    SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+                    symbol_definition(SymbolKind::Parameter, &parameter.name, has_sources)
                 }),
             )
         }),
@@ -130,13 +157,41 @@ fn platform_symbol_definition<'program>(
 
 fn local_symbol_definitions<'program>(
     statements: &'program [omega_resolved_trees::statement::Statement],
+    has_sources: bool,
 ) -> impl Iterator<Item = SymbolDefinition<'program>> + 'program {
-    statements.iter().filter_map(|statement| match statement {
-        omega_resolved_trees::statement::Statement::LocalData(local_data) => Some(
-            SymbolDefinition::named(SymbolKind::Local, local_data.name.as_str()),
-        ),
-        _ => None,
-    })
+    statements
+        .iter()
+        .filter_map(move |statement| match statement {
+            omega_resolved_trees::statement::Statement::LocalData(local_data) => Some(
+                symbol_definition(SymbolKind::Local, &local_data.name, has_sources),
+            ),
+            _ => None,
+        })
+}
+
+fn symbol_definition<'name>(
+    kind: SymbolKind,
+    name: &'name omega_resolved_trees::name::DiagnosticName,
+    has_sources: bool,
+) -> SymbolDefinition<'name> {
+    if has_sources && name.is_source_backed() {
+        SymbolDefinition::source_named(kind, name.source_span())
+    } else {
+        SymbolDefinition::named(kind, name.as_str())
+    }
+}
+
+fn symbol_definition_with_children<'name>(
+    kind: SymbolKind,
+    name: &'name omega_resolved_trees::name::DiagnosticName,
+    has_sources: bool,
+    children: impl IntoIterator<Item = SymbolDefinition<'name>>,
+) -> SymbolDefinition<'name> {
+    if has_sources && name.is_source_backed() {
+        SymbolDefinition::source_with_children(kind, name.source_span(), children)
+    } else {
+        SymbolDefinition::with_children(kind, name.as_str(), children)
+    }
 }
 
 fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {

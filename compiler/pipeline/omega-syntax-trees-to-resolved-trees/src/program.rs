@@ -1,10 +1,26 @@
 use crate::item::lower_item;
 use omega_core::diagnostics::Diagnostic;
+use omega_core::source::SourceMap;
 use omega_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
+use std::sync::Arc;
 
 pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<SymbolResolvedTrees, Diagnostic> {
-    let mut lowerer = Lowerer::default();
+    lower_syntax_trees_with_optional_sources(syntax_trees, None)
+}
+
+pub fn lower_syntax_trees_with_sources(
+    syntax_trees: &SyntaxTrees,
+    sources: Arc<SourceMap>,
+) -> Result<SymbolResolvedTrees, Diagnostic> {
+    lower_syntax_trees_with_optional_sources(syntax_trees, Some(sources))
+}
+
+fn lower_syntax_trees_with_optional_sources(
+    syntax_trees: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+) -> Result<SymbolResolvedTrees, Diagnostic> {
+    let mut lowerer = Lowerer::new(sources);
 
     for item in syntax_trees.root_items() {
         lower_item(&mut lowerer, syntax_trees, item)?;
@@ -18,14 +34,21 @@ pub fn lower_program(items: &[syntax::item::Item]) -> Result<SymbolResolvedTrees
     lower_syntax_trees(&syntax_trees)
 }
 
-#[derive(Default)]
 pub(crate) struct Lowerer {
     pub(crate) program: SymbolResolvedTrees,
+    sources: Option<Arc<SourceMap>>,
 }
 
 impl Lowerer {
+    fn new(sources: Option<Arc<SourceMap>>) -> Self {
+        Self {
+            program: SymbolResolvedTrees::default(),
+            sources,
+        }
+    }
+
     pub(crate) fn finish(mut self) -> Result<SymbolResolvedTrees, Diagnostic> {
-        crate::symbols::assign_symbols(&mut self.program);
+        crate::symbols::assign_symbols(&mut self.program, self.sources);
         self.program.rebuild_tables();
         Ok(self.program)
     }
@@ -33,9 +56,13 @@ impl Lowerer {
 
 #[cfg(test)]
 mod tests {
-    use super::lower_syntax_trees;
+    use super::{lower_syntax_trees, lower_syntax_trees_with_sources};
+    use omega_core::source::SourceMap;
     use omega_source_files_to_tokens::Lexer;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
+    use omega_tokens_to_syntax_trees::parse_syntax_trees_with_id;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     #[test]
     fn lowers_dungeon_style_machine_program() {
@@ -140,5 +167,39 @@ mod tests {
         };
 
         assert_eq!(*symbol, machine.symbol);
+    }
+
+    #[test]
+    fn source_backed_names_are_used_when_sources_are_available() {
+        let source = r#"
+        data Inventory {
+            gold: u32;
+        }
+        "#;
+        let mut sources = SourceMap::default();
+        let source_id = sources
+            .add(PathBuf::from("main.omg"), source.to_owned())
+            .source_id;
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees =
+            parse_syntax_trees_with_id(source_id, &tokens).expect("parse should succeed");
+        let program = lower_syntax_trees_with_sources(&syntax_trees, Arc::new(sources))
+            .expect("lowering should succeed");
+        let counts = program.symbols.name_storage_counts();
+
+        assert!(
+            counts.source_names > 0,
+            "source identifiers should be stored by source span"
+        );
+        assert!(
+            counts.owned_names == 0,
+            "loaded source-backed identifiers should not allocate owned symbol names"
+        );
+        assert!(
+            counts.static_names > 0,
+            "builtins and synthetic roots should stay static"
+        );
     }
 }
