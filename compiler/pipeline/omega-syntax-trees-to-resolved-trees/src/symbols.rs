@@ -15,16 +15,24 @@ fn build_symbol_table(program: &ResolvedTrees) -> SymbolTable {
     let mut children = builtin_type_symbol_definitions().to_vec();
 
     children.extend(
-        program
-            .invariant_definitions
-            .iter()
-            .map(|invariant| SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())),
+        program.invariant_definitions.iter().map(|invariant| {
+            SymbolDefinition::named(SymbolKind::Invariant, invariant.name.as_str())
+        }),
     );
     children.extend(program.data_definitions.iter().map(data_symbol_definition));
-    children.extend(program.machines.iter().map(|machine| machine_symbol_definition(program, machine)));
+    children.extend(
+        program
+            .machines
+            .iter()
+            .map(|machine| machine_symbol_definition(program, machine)),
+    );
     children.extend(program.platforms.iter().map(platform_symbol_definition));
 
-    SymbolTable::from_definition(SymbolDefinition::with_children(SymbolKind::Root, "root", children))
+    SymbolTable::from_definition(SymbolDefinition::with_children(
+        SymbolKind::Root,
+        "root",
+        children,
+    ))
 }
 
 fn data_symbol_definition<'program>(
@@ -61,15 +69,15 @@ fn machine_symbol_definition<'program>(
         .into_iter()
         .flat_map(|data_definition| data_definition.members.iter())
         .filter_map(|member| match member {
-            omega_resolved_trees::data::DataMember::Field(field) => {
-                Some(SymbolDefinition::named(SymbolKind::Field, field.name.as_str()))
-            }
+            omega_resolved_trees::data::DataMember::Field(field) => Some(SymbolDefinition::named(
+                SymbolKind::Field,
+                field.name.as_str(),
+            )),
             omega_resolved_trees::data::DataMember::Variant(_) => None,
         });
-    let contained_objects = machine
-        .contains
-        .iter()
-        .map(|contained_object| SymbolDefinition::named(SymbolKind::Object, contained_object.name.as_str()));
+    let contained_objects = machine.contains.iter().map(|contained_object| {
+        SymbolDefinition::named(SymbolKind::Object, contained_object.name.as_str())
+    });
     let owned_data = machine
         .owned_data
         .iter()
@@ -95,7 +103,9 @@ fn state_symbol_definition<'program>(
         state
             .parameters
             .iter()
-            .map(|parameter| SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str()))
+            .map(|parameter| {
+                SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+            })
             .chain(local_symbol_definitions(&state.statements)),
     )
 }
@@ -110,12 +120,9 @@ fn platform_symbol_definition<'program>(
             SymbolDefinition::with_children(
                 SymbolKind::State,
                 state.name.as_str(),
-                state
-                    .parameters
-                    .iter()
-                    .map(|parameter| {
-                        SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
-                    }),
+                state.parameters.iter().map(|parameter| {
+                    SymbolDefinition::named(SymbolKind::Parameter, parameter.name.as_str())
+                }),
             )
         }),
     )
@@ -156,7 +163,8 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
         for member in &mut data_definition.members {
             match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
-                    field.symbol = next_child_of_kind(&mut data_children, symbols, SymbolKind::Field);
+                    field.symbol =
+                        next_child_of_kind(&mut data_children, symbols, SymbolKind::Field);
                 }
                 omega_resolved_trees::data::DataMember::Variant(variant) => {
                     variant.symbol =
@@ -188,13 +196,21 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
         for contained_object in &mut machine.contains {
             contained_object.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Object);
-            contained_object.type_symbol =
-                top_level_symbol(symbols, SymbolKind::Machine, contained_object.type_name.as_str());
+            contained_object.type_symbol = top_level_symbol(
+                symbols,
+                SymbolKind::Machine,
+                contained_object.type_name.as_str(),
+            );
         }
 
         for owned_data in &mut machine.owned_data {
-            owned_data.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
-            assign_type_reference_symbol(symbols, &mut owned_data.type_reference);
+            owned_data.symbol =
+                next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
+            assign_type_reference_symbol_with_self_type(
+                symbols,
+                machine_symbol,
+                &mut owned_data.type_reference,
+            );
         }
 
         for state in &mut machine.states {
@@ -205,18 +221,23 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
             for parameter in &mut state.parameters {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
-                assign_type_reference_symbol(symbols, &mut parameter.type_reference);
+                assign_type_reference_symbol_with_self_type(
+                    symbols,
+                    machine_symbol,
+                    &mut parameter.type_reference,
+                );
             }
 
             for statement in &mut state.statements {
-                if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement {
+                if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement
+                {
                     local_data.symbol =
                         next_child_of_kind(&mut state_children, symbols, SymbolKind::Local);
                 }
             }
 
             if let Some(return_type) = &mut state.return_type {
-                assign_type_reference_symbol(symbols, return_type);
+                assign_type_reference_symbol_with_self_type(symbols, machine_symbol, return_type);
             }
         }
     }
@@ -234,11 +255,15 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
             for parameter in &mut state.parameters {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
-                assign_type_reference_symbol(symbols, &mut parameter.type_reference);
+                assign_type_reference_symbol_with_self_type(
+                    symbols,
+                    platform_symbol,
+                    &mut parameter.type_reference,
+                );
             }
 
             if let Some(return_type) = &mut state.return_type {
-                assign_type_reference_symbol(symbols, return_type);
+                assign_type_reference_symbol_with_self_type(symbols, platform_symbol, return_type);
             }
         }
     }
@@ -279,18 +304,13 @@ fn inherited_field_count(
             data_definition
                 .members
                 .iter()
-                .filter(|member| {
-                    matches!(member, omega_resolved_trees::data::DataMember::Field(_))
-                })
+                .filter(|member| matches!(member, omega_resolved_trees::data::DataMember::Field(_)))
                 .count()
         })
         .unwrap_or(0)
 }
 
-fn assign_type_reference_symbols(
-    program: &mut ResolvedTrees,
-    symbols: &SymbolTable,
-) {
+fn assign_type_reference_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
     for data_definition in &mut program.data_definitions {
         let type_parameter_bindings = data_type_parameter_bindings(data_definition);
         for member in &mut data_definition.members {
@@ -327,7 +347,6 @@ fn assign_statement_call_symbols(program: &mut ResolvedTrees, symbols: &SymbolTa
             }
         }
     }
-
 }
 
 #[derive(Clone)]
@@ -400,9 +419,19 @@ fn assign_statement_symbols(
             assign_expression_symbols(symbols, machine, parameters, state_symbol, expression);
         }
         omega_resolved_trees::statement::Statement::LocalData(local_data) => {
-            assign_type_reference_symbol(symbols, &mut local_data.type_reference);
+            assign_type_reference_symbol_with_self_type(
+                symbols,
+                machine.symbol,
+                &mut local_data.type_reference,
+            );
             if let Some(initial_value) = &mut local_data.initial_value {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, initial_value);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    initial_value,
+                );
             }
         }
         omega_resolved_trees::statement::Statement::Transition(transition) => {
@@ -411,7 +440,12 @@ fn assign_statement_symbols(
             {
                 assign_expression_symbols(symbols, machine, parameters, state_symbol, expression);
             }
-            assign_transition_target_symbols(machine, state_symbol, &mut transition.target, symbols);
+            assign_transition_target_symbols(
+                machine,
+                state_symbol,
+                &mut transition.target,
+                symbols,
+            );
             if let Some(continuation) = &mut transition.continuation {
                 assign_transition_target_symbols(machine, state_symbol, continuation, symbols);
             }
@@ -434,7 +468,13 @@ fn assign_expression_symbols(
         }
         omega_resolved_trees::expression::Expression::Binary(binary) => {
             assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut binary.left);
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut binary.right);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                &mut binary.right,
+            );
         }
         omega_resolved_trees::expression::Expression::Boolean(_)
         | omega_resolved_trees::expression::Expression::Float(_)
@@ -459,20 +499,39 @@ fn assign_expression_symbols(
                     resolve_state_scoped_path(symbols, machine.symbol, state_symbol, &receiver_path)
                 {
                     if let Some(receiver) = &mut call.receiver {
-                        *receiver = Box::new(
-                            expression_from_path(receiver_path.with_symbols(head_symbol, symbol))
-                        );
+                        *receiver = Box::new(expression_from_path(
+                            receiver_path.with_symbols(head_symbol, symbol),
+                        ));
                     }
                 }
             }
-            call.target_symbol = resolve_expression_call_target_symbol(machine, parameters, call, symbols);
+            call.target_symbol =
+                resolve_expression_call_target_symbol(machine, parameters, call, symbols);
         }
         omega_resolved_trees::expression::Expression::Indexed(indexed) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut indexed.collection);
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut indexed.index);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                &mut indexed.collection,
+            );
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                &mut indexed.index,
+            );
         }
         omega_resolved_trees::expression::Expression::Member(member) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut member.receiver);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                &mut member.receiver,
+            );
             if let Some(path) = expression_name_path(
                 &omega_resolved_trees::expression::Expression::Member(member.clone()),
             ) && let Some((_, symbol)) =
@@ -493,7 +552,13 @@ fn assign_expression_symbols(
         }
         omega_resolved_trees::expression::Expression::StructLiteral(struct_literal) => {
             for field in &mut struct_literal.fields {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut field.value);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    &mut field.value,
+                );
             }
         }
     }
@@ -568,13 +633,15 @@ fn expression_name_path(
             Some(path)
         }
         omega_resolved_trees::expression::Expression::Indexed(indexed) => {
-            let omega_resolved_trees::expression::Expression::Integer(index) = &indexed.index else {
+            let omega_resolved_trees::expression::Expression::Integer(index) = &indexed.index
+            else {
                 return None;
             };
             let mut path = expression_name_path(&indexed.collection)?;
             let last_segment = path.last_mut()?;
-            *last_segment =
-                omega_resolved_trees::name::ProgramName::generated(format!("{last_segment}[{index}]"));
+            *last_segment = omega_resolved_trees::name::ProgramName::generated(format!(
+                "{last_segment}[{index}]"
+            ));
             Some(path)
         }
         omega_resolved_trees::expression::Expression::Mutable(inner) => expression_name_path(inner),
@@ -606,8 +673,12 @@ fn assign_transition_target_symbols(
     };
 
     if path.len() <= 2 {
-        let target_symbol =
-            child_symbol_by_kinds(symbols, machine.symbol, &[SymbolKind::State], target_name.as_str());
+        let target_symbol = child_symbol_by_kinds(
+            symbols,
+            machine.symbol,
+            &[SymbolKind::State],
+            target_name.as_str(),
+        );
         if target_symbol.is_valid() {
             *path = path.clone().with_symbols(target_symbol, target_symbol);
         }
@@ -727,7 +798,10 @@ fn resolve_state_scoped_path(
     let mut current = SymbolHandle::invalid();
     let head: SymbolHandle;
 
-    if members.first().is_some_and(|member| member.as_str() == "self") {
+    if members
+        .first()
+        .is_some_and(|member| member.as_str() == "self")
+    {
         current = machine_symbol;
         index = 1;
     }
@@ -782,8 +856,12 @@ fn resolve_base_symbol(
     member: &omega_resolved_trees::name::ProgramName,
 ) -> Option<SymbolHandle> {
     if state_symbol.is_valid() {
-        let parameter_symbol =
-            child_symbol_by_kinds(symbols, state_symbol, &[SymbolKind::Parameter], member.as_str());
+        let parameter_symbol = child_symbol_by_kinds(
+            symbols,
+            state_symbol,
+            &[SymbolKind::Parameter],
+            member.as_str(),
+        );
         if parameter_symbol.is_valid() {
             return Some(parameter_symbol);
         }
@@ -847,9 +925,7 @@ fn machine_field_bindings(
     fields
 }
 
-fn state_parameter_bindings(
-    state: &omega_resolved_trees::state::State,
-) -> Vec<ParameterBinding> {
+fn state_parameter_bindings(state: &omega_resolved_trees::state::State) -> Vec<ParameterBinding> {
     state
         .parameters
         .iter()
@@ -920,11 +996,12 @@ fn type_reference_name(
     }
 }
 
-fn assign_type_reference_symbol(
+fn assign_type_reference_symbol_with_self_type(
     symbols: &SymbolTable,
+    self_type_symbol: SymbolHandle,
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
-    assign_type_reference_symbol_with_locals(symbols, &[], type_reference);
+    assign_type_reference_symbol_with_context(symbols, &[], self_type_symbol, type_reference);
 }
 
 fn assign_type_reference_symbol_with_locals(
@@ -932,51 +1009,92 @@ fn assign_type_reference_symbol_with_locals(
     local_type_parameters: &[TypeParameterBinding],
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
+    assign_type_reference_symbol_with_context(
+        symbols,
+        local_type_parameters,
+        SymbolHandle::invalid(),
+        type_reference,
+    );
+}
+
+fn assign_type_reference_symbol_with_context(
+    symbols: &SymbolTable,
+    local_type_parameters: &[TypeParameterBinding],
+    self_type_symbol: SymbolHandle,
+    type_reference: &mut omega_resolved_trees::types::TypeReference,
+) {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference(reference) => {
-            assign_type_reference_symbol_with_locals(
+            assign_type_reference_symbol_with_context(
                 symbols,
                 local_type_parameters,
+                self_type_symbol,
                 &mut reference.referee,
             );
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
-            assign_type_reference_symbol_with_locals(
+            assign_type_reference_symbol_with_context(
                 symbols,
                 local_type_parameters,
+                self_type_symbol,
                 &mut constrained.base_type,
             );
         }
         omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
-            assign_type_reference_symbol_with_locals(
+            assign_type_reference_symbol_with_context(
                 symbols,
                 local_type_parameters,
+                self_type_symbol,
                 &mut fixed_array.element_type,
             );
         }
         omega_resolved_trees::types::TypeReference::Slice(slice) => {
-            assign_type_reference_symbol_with_locals(
+            assign_type_reference_symbol_with_context(
                 symbols,
                 local_type_parameters,
+                self_type_symbol,
                 &mut slice.element_type,
             );
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => {
-            generic.base_symbol = top_level_type_symbol(symbols, generic.base_name.as_str());
+            generic.base_symbol = resolve_type_symbol(
+                symbols,
+                local_type_parameters,
+                self_type_symbol,
+                &generic.base_name,
+            );
 
             for argument in &mut generic.arguments {
-                assign_type_reference_symbol_with_locals(symbols, local_type_parameters, argument);
+                assign_type_reference_symbol_with_context(
+                    symbols,
+                    local_type_parameters,
+                    self_type_symbol,
+                    argument,
+                );
             }
         }
         omega_resolved_trees::types::TypeReference::Named { symbol, name } => {
-            *symbol = local_type_parameters
-                .iter()
-                .find(|parameter| parameter.name.as_str() == name.as_str())
-                .map(|parameter| parameter.symbol)
-                .unwrap_or_else(|| top_level_type_symbol(symbols, name.as_str()));
+            *symbol = resolve_type_symbol(symbols, local_type_parameters, self_type_symbol, name);
         }
         omega_resolved_trees::types::TypeReference::Unit => {}
     }
+}
+
+fn resolve_type_symbol(
+    symbols: &SymbolTable,
+    local_type_parameters: &[TypeParameterBinding],
+    self_type_symbol: SymbolHandle,
+    name: &omega_resolved_trees::name::ProgramName,
+) -> SymbolHandle {
+    if name.as_str() == "Self" && self_type_symbol.is_valid() {
+        return self_type_symbol;
+    }
+
+    local_type_parameters
+        .iter()
+        .find(|parameter| parameter.name.as_str() == name.as_str())
+        .map(|parameter| parameter.symbol)
+        .unwrap_or_else(|| top_level_type_symbol(symbols, name.as_str()))
 }
 
 fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {

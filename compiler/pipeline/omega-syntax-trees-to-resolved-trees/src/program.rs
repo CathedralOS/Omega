@@ -14,8 +14,7 @@ pub fn lower_syntax_trees(syntax_trees: &SyntaxTrees) -> Result<ResolvedTrees, D
 }
 
 pub fn lower_program(items: &[syntax::item::Item]) -> Result<ResolvedTrees, Diagnostic> {
-    let syntax_trees =
-        SyntaxTrees::from_root_items(Default::default(), items.iter().cloned());
+    let syntax_trees = SyntaxTrees::from_root_items(Default::default(), items.iter().cloned());
     lower_syntax_trees(&syntax_trees)
 }
 
@@ -52,14 +51,21 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
         assert_eq!(program.data_definitions.len(), 1);
         assert_eq!(program.machines.len(), 1);
         assert_eq!(program.machines[0].states.len(), 1);
-        assert!(program.symbols.find_child_by_name(program.symbols.root(), "u32").is_some());
+        assert!(
+            program
+                .symbols
+                .find_child_by_name(program.symbols.root(), "u32")
+                .is_some()
+        );
     }
 
     #[test]
@@ -74,7 +80,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
@@ -91,7 +99,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
 
@@ -99,5 +109,37 @@ mod tests {
         assert_eq!(program.machines[0].name.as_str(), "main");
         assert_eq!(program.machines[0].states.len(), 1);
         assert_eq!(program.machines[0].states[0].name.as_str(), "entry");
+    }
+
+    #[test]
+    fn resolves_self_parameter_type_to_machine_symbol() {
+        let source = r#"
+        machine main {
+            pub entry(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
+        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
+        let machine = program.machines.first().expect("machine");
+        let parameter = machine
+            .states
+            .first()
+            .expect("entry state")
+            .parameters
+            .first()
+            .expect("self parameter");
+
+        let omega_resolved_trees::types::TypeReference::Named { symbol, name } =
+            &parameter.type_reference
+        else {
+            panic!("self parameter type should be named");
+        };
+
+        assert_eq!(name.as_str(), "Self");
+        assert_eq!(*symbol, machine.symbol);
     }
 }
