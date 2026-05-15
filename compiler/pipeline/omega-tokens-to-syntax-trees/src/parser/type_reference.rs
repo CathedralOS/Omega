@@ -4,7 +4,7 @@ use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use omega_tokens::PunctuationKind;
+use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
@@ -43,6 +43,11 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
                 .insert(TypeReferenceNode::Slice { element_type }),
             input,
         ));
+    }
+
+    if input.at_keyword(KeywordKind::SelfType) {
+        let input = input.take_keyword(KeywordKind::SelfType, "Self")?;
+        return Ok((syntax_trees.type_references.insert_self_type(), input));
     }
 
     let (base_name, mut input) = input.take_identifier()?;

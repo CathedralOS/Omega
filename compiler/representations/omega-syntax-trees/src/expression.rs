@@ -105,6 +105,7 @@ pub enum ExpressionNode {
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(HandleSpan<Identifier>),
+    SelfValue,
     StructLiteral(TableStructLiteral),
     String(SourceText),
 }
@@ -222,6 +223,7 @@ impl ExpressionNode {
             }
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_identifier_path(table.identifier_path_members(*path), "::"),
+            Self::SelfValue => "self".to_owned(),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
             Self::String(value) => format!("{:?}", value.as_str()),
         }

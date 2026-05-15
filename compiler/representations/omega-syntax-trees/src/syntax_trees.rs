@@ -582,6 +582,7 @@ impl SyntaxTrees {
                 self.type_references.insert_generic(base_name.clone(), arguments)
             }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
+            TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
             TypeReferenceNode::Unit => self.type_references.insert_unit(),
         }
     }
@@ -661,6 +662,7 @@ impl SyntaxTrees {
             ExpressionNode::Name(path) => {
                 ExpressionNode::Name(self.copy_expression_identifier_span(other, *path))
             }
+            ExpressionNode::SelfValue => ExpressionNode::SelfValue,
             ExpressionNode::StructLiteral(struct_literal) => {
                 ExpressionNode::StructLiteral(TableStructLiteral {
                     type_name: struct_literal.type_name.clone(),

@@ -51,6 +51,9 @@ pub fn parse_syntax_trees_with_id(
 mod tests {
     use super::parse_syntax_trees;
     use omega_source_files_to_tokens::Lexer;
+    use omega_syntax_trees::expression::ExpressionNode;
+    use omega_syntax_trees::statement::StatementNode;
+    use omega_syntax_trees::types::TypeReferenceNode;
 
     #[test]
     fn parses_dungeon_machine_surface() {
@@ -111,5 +114,95 @@ mod tests {
             .expect("entry state");
         let state = parsed.items.state(state_handle);
         assert_eq!(state.name.as_str(), "entry");
+    }
+
+    #[test]
+    fn parses_self_parameter_with_dedicated_self_type() {
+        let source = r#"
+        machine main {
+            pub entry(&mut self) {}
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = match parsed.root_items().next().expect("root item") {
+            omega_syntax_trees::item::Item::Machine(machine) => machine,
+            _ => panic!("expected machine root item"),
+        };
+        let state = parsed.items.state(
+            parsed
+                .items
+                .state_handles(machine.states)
+                .first()
+                .copied()
+                .expect("entry state"),
+        );
+        let parameter = parsed.items.state_parameter(
+            parsed
+                .items
+                .state_parameters(state.parameters)
+                .first()
+                .copied()
+                .expect("self parameter"),
+        );
+
+        assert!(parameter.is_self);
+        assert!(matches!(
+            parsed.type_references.type_reference(parameter.type_reference),
+            TypeReferenceNode::SelfType
+        ));
+    }
+
+    #[test]
+    fn parses_self_expression_as_dedicated_node() {
+        let source = r#"
+        machine main {
+            pub entry(&mut self) {
+                self;
+            }
+        }
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
+        let machine = match parsed.root_items().next().expect("root item") {
+            omega_syntax_trees::item::Item::Machine(machine) => machine,
+            _ => panic!("expected machine root item"),
+        };
+        let state = parsed.items.state(
+            parsed
+                .items
+                .state_handles(machine.states)
+                .first()
+                .copied()
+                .expect("entry state"),
+        );
+        let statement = parsed.statements.statement(
+            parsed
+                .items
+                .statements(state.statements)
+                .first()
+                .copied()
+                .expect("expression statement"),
+        );
+        let StatementNode::Expression(expression) = statement else {
+            panic!("expected expression statement");
+        };
+
+        assert!(matches!(
+            parsed.expressions.expression(*expression),
+            ExpressionNode::SelfValue
+        ));
+    }
+
+    #[test]
+    fn rejects_self_as_ordinary_declaration_name() {
+        let source = r#"
+        data self {}
+        "#;
+
+        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        assert!(parse_syntax_trees(&tokens).is_err());
     }
 }

@@ -336,6 +336,11 @@ fn parse_primary_expression_handle<'tokens, 'source>(
         return Ok((syntax_trees.expressions.insert(ExpressionNode::Boolean(false)), input));
     }
 
+    if input.at_keyword(KeywordKind::SelfValue) {
+        let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
+        return Ok((syntax_trees.expressions.insert(ExpressionNode::SelfValue), input));
+    }
+
     if input
         .tokens
         .first()

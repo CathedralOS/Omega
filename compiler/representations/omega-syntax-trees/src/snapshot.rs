@@ -273,6 +273,7 @@ pub enum TypeReferenceSnapshot {
     Named {
         name: IdentifierSnapshot,
     },
+    SelfType,
     Unit,
     Missing,
 }
@@ -332,6 +333,7 @@ pub enum ExpressionSnapshot {
     Name {
         path: Vec<IdentifierSnapshot>,
     },
+    SelfValue,
     StructLiteral {
         type_name: IdentifierSnapshot,
         fields: Vec<StructLiteralFieldSnapshot>,
@@ -760,6 +762,7 @@ fn snapshot_type_reference_handle(
         TypeReferenceNode::Named(name) => TypeReferenceSnapshot::Named {
             name: snapshot_identifier(name),
         },
+        TypeReferenceNode::SelfType => TypeReferenceSnapshot::SelfType,
         TypeReferenceNode::Unit => TypeReferenceSnapshot::Unit,
     }
 }
@@ -827,6 +830,7 @@ fn snapshot_expression_handle(
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
             path: snapshot_identifier_slice(syntax_trees.expressions.identifier_path_members(*path)),
         },
+        ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
             type_name: snapshot_identifier(&value.type_name),
             fields: syntax_trees
