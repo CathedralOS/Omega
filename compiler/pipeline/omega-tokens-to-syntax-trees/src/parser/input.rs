@@ -84,7 +84,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn take_identifier(self) -> Result<(Identifier, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
-        if matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_)) {
+        if is_identifier_token(token) {
             Ok((
                 Identifier::new(token.lexeme.as_str(), self.source_span(token)),
                 rest,
@@ -149,7 +149,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn at_name_like(&self) -> bool {
         self.tokens
             .first()
-            .is_some_and(|token| matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_)))
+            .is_some_and(is_identifier_token)
     }
 
     pub(super) fn split_at_top_level_punctuation(
@@ -273,6 +273,14 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
 
         None
+    }
+}
+
+fn is_identifier_token(token: &Token<'_>) -> bool {
+    match token.kind {
+        TokenKind::Identifier => true,
+        TokenKind::Keyword(keyword) => !keyword.is_strict_identifier_keyword(),
+        _ => false,
     }
 }
 

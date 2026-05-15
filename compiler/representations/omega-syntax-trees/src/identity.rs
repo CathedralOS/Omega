@@ -288,6 +288,7 @@ fn count_expression_handle(
                 count_identifier(member, counts);
             }
         }
+        crate::expression::ExpressionNode::SelfValue => {}
         crate::expression::ExpressionNode::StructLiteral(struct_literal) => {
             count_identifier(&struct_literal.type_name, counts);
             for field in syntax_trees
@@ -359,6 +360,7 @@ fn count_type_reference_handle(
             }
         }
         crate::types::TypeReferenceNode::Named(name) => count_identifier(name, counts),
+        crate::types::TypeReferenceNode::SelfType => {}
         crate::types::TypeReferenceNode::Unit => {}
     }
 }

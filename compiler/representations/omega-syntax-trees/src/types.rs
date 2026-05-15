@@ -31,6 +31,10 @@ impl TypeReferenceTable {
         self.insert_named(Identifier::generated(name))
     }
 
+    pub fn insert_self_type(&mut self) -> TypeReferenceHandle {
+        self.insert(TypeReferenceNode::SelfType)
+    }
+
     pub fn insert_unit(&mut self) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Unit)
     }
@@ -163,6 +167,7 @@ pub enum TypeReferenceNode {
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named(Identifier),
+    SelfType,
     Unit,
 }
 

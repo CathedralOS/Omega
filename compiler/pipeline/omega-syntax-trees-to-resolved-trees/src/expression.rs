@@ -115,6 +115,11 @@ fn lower_expression_node(
         syntax::expression::ExpressionNode::Name(path) => Ok(Expression::Name(lower_name_members(
             syntax_trees.expressions.identifier_path_members(*path).iter(),
         ))),
+        syntax::expression::ExpressionNode::SelfValue => Ok(Expression::Name(
+            omega_resolved_trees::expression::NamePath::unresolved(vec![
+                omega_resolved_trees::name::ProgramName::generated("self"),
+            ]),
+        )),
         syntax::expression::ExpressionNode::String(value) => {
             Ok(Expression::String(value.as_str().to_owned()))
         }
