@@ -1,6 +1,6 @@
-use omega_syntax_trees as syntax;
 use omega_resolved_trees::expression::NamePath;
 use omega_resolved_trees::name::ProgramName;
+use omega_syntax_trees as syntax;
 
 pub(crate) fn lower_name(name: &syntax::identifier::Identifier) -> ProgramName {
     ProgramName::generated(name.as_str())

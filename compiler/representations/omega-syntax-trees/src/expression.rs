@@ -287,10 +287,8 @@ impl TableBinaryExpression {
 
 impl TableCastExpression {
     pub fn display_name(&self, table: &ExpressionTable) -> String {
-        let target_type = display_identifier_path(
-            table.identifier_path_members(self.target_type),
-            "::",
-        );
+        let target_type =
+            display_identifier_path(table.identifier_path_members(self.target_type), "::");
         format!("{} as {}", table.display_name(self.value), target_type)
     }
 }

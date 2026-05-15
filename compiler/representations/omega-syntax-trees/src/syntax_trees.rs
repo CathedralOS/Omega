@@ -16,7 +16,9 @@ use crate::statement::{
     StatementHandle, StatementNode, StatementTable, TableAssignment, TableCall, TableLocalData,
     TableTransition, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
 };
-use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable};
+use crate::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceId;
 
@@ -205,9 +207,10 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TypeParameter>,
     ) -> HandleSpan<TypeParameter> {
-        self.copy_span(other.items.type_parameters(span).iter().cloned(), |this, parameter| {
-            this.items.append_type_parameter(parameter)
-        })
+        self.copy_span(
+            other.items.type_parameters(span).iter().cloned(),
+            |this, parameter| this.items.append_type_parameter(parameter),
+        )
     }
 
     fn copy_trust_level_span(
@@ -215,10 +218,17 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TrustLevel>,
     ) -> HandleSpan<TrustLevel> {
-        self.copy_span(other.items.trust_levels(span).iter().map(|level| match level {
-            TrustLevel::Host => TrustLevel::Host,
-            TrustLevel::Named(name) => TrustLevel::Named(name.clone()),
-        }), |this, trust_level| this.items.append_trust_level(trust_level))
+        self.copy_span(
+            other
+                .items
+                .trust_levels(span)
+                .iter()
+                .map(|level| match level {
+                    TrustLevel::Host => TrustLevel::Host,
+                    TrustLevel::Named(name) => TrustLevel::Named(name.clone()),
+                }),
+            |this, trust_level| this.items.append_trust_level(trust_level),
+        )
     }
 
     fn copy_library_function_span(
@@ -235,7 +245,9 @@ impl SyntaxTrees {
                 trusts: self.copy_trust_level_span(other, function.trusts),
             });
         }
-        self.copy_span(copied, |this, function| this.items.append_library_function(function))
+        self.copy_span(copied, |this, function| {
+            this.items.append_library_function(function)
+        })
     }
 
     fn copy_capability_member_span(
@@ -256,7 +268,9 @@ impl SyntaxTrees {
                 }),
             });
         }
-        self.copy_span(copied, |this, member| this.items.append_capability_member(member))
+        self.copy_span(copied, |this, member| {
+            this.items.append_capability_member(member)
+        })
     }
 
     fn copy_capability_contract_span(
@@ -281,7 +295,9 @@ impl SyntaxTrees {
                 },
                 token_count: contract.token_count,
             });
-        self.copy_span(contracts, |this, contract| this.items.append_capability_contract(contract))
+        self.copy_span(contracts, |this, contract| {
+            this.items.append_capability_contract(contract)
+        })
     }
 
     fn copy_data_member_span(
@@ -310,23 +326,28 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<TargetHostSetting>,
     ) -> HandleSpan<TargetHostSetting> {
-        let settings = other.items.target_host_settings(span).iter().map(|setting| {
-            TargetHostSetting {
+        let settings = other
+            .items
+            .target_host_settings(span)
+            .iter()
+            .map(|setting| TargetHostSetting {
                 name: setting.name.clone(),
                 value: match &setting.value {
-                    TargetHostSettingValue::Call { name, argument_tokens } => {
-                        TargetHostSettingValue::Call {
-                            name: name.clone(),
-                            argument_tokens: *argument_tokens,
-                        }
-                    }
+                    TargetHostSettingValue::Call {
+                        name,
+                        argument_tokens,
+                    } => TargetHostSettingValue::Call {
+                        name: name.clone(),
+                        argument_tokens: *argument_tokens,
+                    },
                     TargetHostSettingValue::Named(name) => {
                         TargetHostSettingValue::Named(name.clone())
                     }
                 },
-            }
-        });
-        self.copy_span(settings, |this, setting| this.items.append_target_host_setting(setting))
+            });
+        self.copy_span(settings, |this, setting| {
+            this.items.append_target_host_setting(setting)
+        })
     }
 
     fn copy_trust_policy_span(
@@ -344,7 +365,9 @@ impl SyntaxTrees {
                 path: self.copy_item_identifier_span(other, policy.path),
             });
         }
-        self.copy_span(copied, |this, policy| this.items.append_trust_policy(policy))
+        self.copy_span(copied, |this, policy| {
+            this.items.append_trust_policy(policy)
+        })
     }
 
     fn copy_state_handle_span(
@@ -388,9 +411,7 @@ impl SyntaxTrees {
         for handle in other.items.state_signatures(span).iter().copied() {
             let signature = other.items.state_signature(handle);
             let copied_signature = self.copy_state_signature_node(other, signature);
-            let copied = self
-                .items
-                .insert_state_signature(&copied_signature);
+            let copied = self.items.insert_state_signature(&copied_signature);
             let copied = self.items.append_state_signature_handle(copied);
             if count == 0 {
                 start = copied;
@@ -551,7 +572,10 @@ impl SyntaxTrees {
         }
 
         match other.type_references.type_reference(handle) {
-            TypeReferenceNode::Reference { referee, is_mutable } => {
+            TypeReferenceNode::Reference {
+                referee,
+                is_mutable,
+            } => {
                 let referee = self.copy_type_reference_handle(other, *referee);
                 self.type_references.insert_reference(referee, *is_mutable)
             }
@@ -561,14 +585,16 @@ impl SyntaxTrees {
             } => {
                 let base_type = self.copy_type_reference_handle(other, *base_type);
                 let constraints = self.copy_constraint_span(other, *constraints);
-                self.type_references.insert_constrained(base_type, constraints)
+                self.type_references
+                    .insert_constrained(base_type, constraints)
             }
             TypeReferenceNode::FixedArray {
                 element_type,
                 length,
             } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
-                self.type_references.insert_fixed_array(element_type, *length)
+                self.type_references
+                    .insert_fixed_array(element_type, *length)
             }
             TypeReferenceNode::Slice { element_type } => {
                 let element_type = self.copy_type_reference_handle(other, *element_type);
@@ -579,7 +605,8 @@ impl SyntaxTrees {
                 arguments,
             } => {
                 let arguments = self.copy_type_reference_handle_span(other, *arguments);
-                self.type_references.insert_generic(base_name.clone(), arguments)
+                self.type_references
+                    .insert_generic(base_name.clone(), arguments)
             }
             TypeReferenceNode::Named(name) => self.type_references.insert_named(name.clone()),
             TypeReferenceNode::SelfType => self.type_references.insert_self_type(),
@@ -593,11 +620,18 @@ impl SyntaxTrees {
         span: HandleSpan<TypeReferenceHandle>,
     ) -> HandleSpan<TypeReferenceHandle> {
         let mut copied = Vec::new();
-        for handle in other.type_references.type_reference_handles(span).iter().copied() {
+        for handle in other
+            .type_references
+            .type_reference_handles(span)
+            .iter()
+            .copied()
+        {
             let handle = self.copy_type_reference_handle(other, handle);
             copied.push(handle);
         }
-        self.copy_span(copied, |this, handle| this.type_references.append_type_reference_handle(handle))
+        self.copy_span(copied, |this, handle| {
+            this.type_references.append_type_reference_handle(handle)
+        })
     }
 
     fn copy_constraint_span(
@@ -615,7 +649,9 @@ impl SyntaxTrees {
                 },
             });
         }
-        self.copy_span(copied, |this, constraint| this.type_references.append_constraint(constraint))
+        self.copy_span(copied, |this, constraint| {
+            this.type_references.append_constraint(constraint)
+        })
     }
 
     fn copy_expression_handle(
@@ -684,7 +720,9 @@ impl SyntaxTrees {
         for handle in other.expressions.expression_handles(span).iter().copied() {
             copied.push(self.copy_expression_handle(other, handle));
         }
-        self.copy_span(copied, |this, handle| this.expressions.append_expression_handle(handle))
+        self.copy_span(copied, |this, handle| {
+            this.expressions.append_expression_handle(handle)
+        })
     }
 
     fn copy_struct_field_span(
@@ -699,7 +737,9 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, field.value),
             });
         }
-        self.copy_span(copied, |this, field| this.expressions.append_struct_field(field))
+        self.copy_span(copied, |this, field| {
+            this.expressions.append_struct_field(field)
+        })
     }
 
     fn copy_item_identifier_span(
@@ -719,7 +759,11 @@ impl SyntaxTrees {
         span: HandleSpan<Identifier>,
     ) -> HandleSpan<Identifier> {
         self.copy_span(
-            other.statements.identifier_path_members(span).iter().cloned(),
+            other
+                .statements
+                .identifier_path_members(span)
+                .iter()
+                .cloned(),
             |this, member| this.statements.append_identifier_path_member(member),
         )
     }
@@ -730,7 +774,11 @@ impl SyntaxTrees {
         span: HandleSpan<Identifier>,
     ) -> HandleSpan<Identifier> {
         self.copy_span(
-            other.expressions.identifier_path_members(span).iter().cloned(),
+            other
+                .expressions
+                .identifier_path_members(span)
+                .iter()
+                .cloned(),
             |this, member| this.expressions.append_identifier_path_member(member),
         )
     }
@@ -744,7 +792,9 @@ impl SyntaxTrees {
         for handle in other.statements.expression_handles(span).iter().copied() {
             copied.push(self.copy_expression_handle(other, handle));
         }
-        self.copy_span(copied, |this, handle| this.statements.append_expression_handle(handle))
+        self.copy_span(copied, |this, handle| {
+            this.statements.append_expression_handle(handle)
+        })
     }
 
     fn copy_span<T>(
@@ -871,7 +921,9 @@ mod tests {
             .statements
             .append_identifier_path_member(Identifier::generated("self"));
         let receiver = HandleSpan::from_parts(receiver, 1);
-        let argument = file.expressions.insert(crate::expression::ExpressionNode::Integer(0));
+        let argument = file
+            .expressions
+            .insert(crate::expression::ExpressionNode::Integer(0));
         let argument = file.statements.append_expression_handle(argument);
         let call = file.statements.insert(StatementNode::Call(TableCall {
             receiver,
@@ -913,6 +965,12 @@ mod tests {
         let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
             panic!("expected call statement");
         };
-        assert_eq!(assembled.statements.expression_handles(call.arguments).len(), 1);
+        assert_eq!(
+            assembled
+                .statements
+                .expression_handles(call.arguments)
+                .len(),
+            1
+        );
     }
 }

@@ -6,9 +6,9 @@ mod machine;
 mod name;
 mod platform;
 mod program;
-mod symbols;
 mod state;
 mod statement;
+mod symbols;
 mod type_reference;
 
 pub use program::{lower_program, lower_syntax_trees};

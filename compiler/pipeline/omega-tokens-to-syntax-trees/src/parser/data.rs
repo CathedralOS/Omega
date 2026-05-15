@@ -2,8 +2,8 @@ use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle;
 use omega_core::arena::{Handle, HandleSpan};
-use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
 use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::item::{DataDefinition, DataField, DataMember, DataVariant, TypeParameter};
 use omega_tokens::PunctuationKind;
 
 pub(super) fn parse_data_definition<'tokens, 'source>(
@@ -30,18 +30,23 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
                 let (expression, input) = parse_expression_handle(syntax_trees, input)?;
                 (expression, input)
             } else {
-                (omega_syntax_trees::expression::ExpressionHandle::invalid(), input)
+                (
+                    omega_syntax_trees::expression::ExpressionHandle::invalid(),
+                    input,
+                )
             };
             input = if next.at_punctuation(PunctuationKind::Semicolon) {
                 next.take_punctuation(PunctuationKind::Semicolon, ";")?
             } else {
                 next
             };
-            let handle = syntax_trees.items.append_data_member(DataMember::Field(DataField {
-                name: field_name,
-                type_reference,
-                initial_value,
-            }));
+            let handle = syntax_trees
+                .items
+                .append_data_member(DataMember::Field(DataField {
+                    name: field_name,
+                    type_reference,
+                    initial_value,
+                }));
             if member_count == 0 {
                 member_start = handle;
             }
@@ -72,7 +77,14 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(member_start, member_count)
     };
-    Ok((DataDefinition { name, type_parameters, members }, input))
+    Ok((
+        DataDefinition {
+            name,
+            type_parameters,
+            members,
+        },
+        input,
+    ))
 }
 
 pub(super) fn parse_enum_definition<'tokens, 'source>(
@@ -112,7 +124,14 @@ pub(super) fn parse_enum_definition<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(member_start, member_count)
     };
-    Ok((DataDefinition { name, type_parameters, members }, input))
+    Ok((
+        DataDefinition {
+            name,
+            type_parameters,
+            members,
+        },
+        input,
+    ))
 }
 
 fn parse_type_parameters<'tokens, 'source>(
@@ -130,7 +149,9 @@ fn parse_type_parameters<'tokens, 'source>(
     loop {
         let (name, next) = input.take_identifier()?;
         input = next;
-        let handle = syntax_trees.items.append_type_parameter(TypeParameter { name });
+        let handle = syntax_trees
+            .items
+            .append_type_parameter(TypeParameter { name });
         if type_parameter_count == 0 {
             type_parameter_start = handle;
         }

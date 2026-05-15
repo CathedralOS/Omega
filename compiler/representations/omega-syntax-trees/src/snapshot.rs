@@ -122,9 +122,7 @@ pub struct CapabilityContractSnapshot {
 pub enum CapabilityContractKindSnapshot {
     Ensures,
     Requires,
-    Trusted {
-        trust_level: TrustLevelSnapshot,
-    },
+    Trusted { trust_level: TrustLevelSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -139,9 +137,7 @@ pub struct LibraryFunctionSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TrustLevelSnapshot {
     Host,
-    Named {
-        name: IdentifierSnapshot,
-    },
+    Named { name: IdentifierSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -229,9 +225,7 @@ pub enum StatementSnapshot {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TransitionGuardSnapshot {
     Always,
-    When {
-        expression: ExpressionSnapshot,
-    },
+    When { expression: ExpressionSnapshot },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -512,9 +506,7 @@ fn snapshot_capability_member(
                 .iter()
                 .map(|contract| CapabilityContractSnapshot {
                     kind: match &contract.kind {
-                        CapabilityContractKind::Ensures => {
-                            CapabilityContractKindSnapshot::Ensures
-                        }
+                        CapabilityContractKind::Ensures => CapabilityContractKindSnapshot::Ensures,
                         CapabilityContractKind::Requires => {
                             CapabilityContractKindSnapshot::Requires
                         }
@@ -551,7 +543,10 @@ fn snapshot_library_function(
     LibraryFunctionSnapshot {
         signature: snapshot_state_signature(syntax_trees, &function.signature),
         symbol: function.symbol.clone(),
-        calling_convention: function.calling_convention.as_ref().map(snapshot_identifier),
+        calling_convention: function
+            .calling_convention
+            .as_ref()
+            .map(snapshot_identifier),
         trusts: syntax_trees
             .items
             .trust_levels(function.trusts)
@@ -580,14 +575,18 @@ fn snapshot_state_node(
             .items
             .state_parameters(state.parameters)
             .iter()
-            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .map(|handle| {
+                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+            })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, state.return_type),
         statements: syntax_trees
             .items
             .statements(state.statements)
             .iter()
-            .map(|handle| snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle)))
+            .map(|handle| {
+                snapshot_statement(syntax_trees, syntax_trees.statements.statement(*handle))
+            })
             .collect(),
     }
 }
@@ -602,7 +601,9 @@ fn snapshot_state_signature(
             .items
             .state_parameters(signature.parameters)
             .iter()
-            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .map(|handle| {
+                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+            })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
     }
@@ -618,7 +619,9 @@ fn snapshot_state_signature_node(
             .items
             .state_parameters(signature.parameters)
             .iter()
-            .map(|handle| snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle)))
+            .map(|handle| {
+                snapshot_state_parameter(syntax_trees, syntax_trees.items.state_parameter(*handle))
+            })
             .collect(),
         return_type: snapshot_type_reference_handle(syntax_trees, signature.return_type),
     }
@@ -645,7 +648,9 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
             receiver: snapshot_identifier_slice(
-                syntax_trees.statements.identifier_path_members(call.receiver),
+                syntax_trees
+                    .statements
+                    .identifier_path_members(call.receiver),
             ),
             target: snapshot_identifier(&call.target),
             arguments: syntax_trees
@@ -668,15 +673,14 @@ fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> 
                 syntax_trees,
                 syntax_trees.statements.transition_target(value.target),
             ),
-            continuation: value
-                .continuation
-                .is_valid()
-                .then(|| {
-                    snapshot_transition_target(
-                        syntax_trees,
-                        syntax_trees.statements.transition_target(value.continuation),
-                    )
-                }),
+            continuation: value.continuation.is_valid().then(|| {
+                snapshot_transition_target(
+                    syntax_trees,
+                    syntax_trees
+                        .statements
+                        .transition_target(value.continuation),
+                )
+            }),
             guard: match value.guard {
                 TransitionGuardNode::Always => TransitionGuardSnapshot::Always,
                 TransitionGuardNode::When(expression) => TransitionGuardSnapshot::When {
@@ -808,7 +812,9 @@ fn snapshot_expression_handle(
         ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
             value: Box::new(snapshot_expression_handle(syntax_trees, cast.value)),
             target_type: snapshot_identifier_slice(
-                syntax_trees.expressions.identifier_path_members(cast.target_type),
+                syntax_trees
+                    .expressions
+                    .identifier_path_members(cast.target_type),
             ),
         },
         ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
@@ -828,7 +834,9 @@ fn snapshot_expression_handle(
             value: Box::new(snapshot_expression_handle(syntax_trees, *value)),
         },
         ExpressionNode::Name(path) => ExpressionSnapshot::Name {
-            path: snapshot_identifier_slice(syntax_trees.expressions.identifier_path_members(*path)),
+            path: snapshot_identifier_slice(
+                syntax_trees.expressions.identifier_path_members(*path),
+            ),
         },
         ExpressionNode::SelfValue => ExpressionSnapshot::SelfValue,
         ExpressionNode::StructLiteral(value) => ExpressionSnapshot::StructLiteral {
@@ -942,11 +950,13 @@ mod tests {
             name: Identifier::generated("Example"),
             type_parameters: omega_core::arena::HandleSpan::empty(),
             members: omega_core::arena::HandleSpan::from_parts(
-                syntax_trees.items.append_data_member(DataMember::Field(DataField {
-                    name: Identifier::generated("field"),
-                    type_reference: i32_type,
-                    initial_value: struct_literal,
-                })),
+                syntax_trees
+                    .items
+                    .append_data_member(DataMember::Field(DataField {
+                        name: Identifier::generated("field"),
+                        type_reference: i32_type,
+                        initial_value: struct_literal,
+                    })),
                 1,
             ),
         });

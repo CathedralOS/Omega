@@ -1,5 +1,5 @@
-use crate::parser::diagnostics;
 use crate::parse_error::ParseError;
+use crate::parser::diagnostics;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::Identifier;
@@ -8,8 +8,7 @@ use omega_tokens::{
     TokenKind,
 };
 
-pub(super) type ParseResult<'tokens, 'source, T> =
-    Result<(T, Input<'tokens, 'source>), ParseError>;
+pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
 #[derive(Clone, Copy)]
 pub(super) struct Input<'tokens, 'source> {
@@ -97,9 +96,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn take_integer(self) -> Result<(i64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
-            let value = parse_integer_literal(token.lexeme.as_str(), kind).map_err(|message| {
-                ParseError::at_source_span(message, self.source_span(token))
-            })?;
+            let value = parse_integer_literal(token.lexeme.as_str(), kind)
+                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
             Ok((value, rest))
         } else {
             Err(diagnostics::expected(self, token, "integer literal"))
@@ -118,10 +116,12 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     pub(super) fn take_float_text(self) -> Result<(SourceText, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.float_literal_kind() {
-            validate_float_literal(kind).map_err(|message| {
-                ParseError::at_source_span(message, self.source_span(token))
-            })?;
-            Ok((SourceText::new(token.lexeme.as_str(), self.source_span(token)), rest))
+            validate_float_literal(kind)
+                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+            Ok((
+                SourceText::new(token.lexeme.as_str(), self.source_span(token)),
+                rest,
+            ))
         } else {
             Err(diagnostics::expected(self, token, "float literal"))
         }
@@ -147,9 +147,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(super) fn at_name_like(&self) -> bool {
-        self.tokens
-            .first()
-            .is_some_and(is_identifier_token)
+        self.tokens.first().is_some_and(is_identifier_token)
     }
 
     pub(super) fn split_at_top_level_punctuation(
@@ -294,10 +292,7 @@ fn skip_non_semantic_tokens<'tokens, 'source>(
     &tokens[index..]
 }
 
-fn parse_integer_literal(
-    text: &str,
-    kind: IntegerLiteralKind,
-) -> Result<i64, &'static str> {
+fn parse_integer_literal(text: &str, kind: IntegerLiteralKind) -> Result<i64, &'static str> {
     if kind.empty_digits {
         return Err("invalid integer literal");
     }
@@ -306,12 +301,19 @@ fn parse_integer_literal(
     }
 
     let (radix, body) = match kind.base {
-        NumericBase::Binary => (2, text.strip_prefix("0b").or_else(|| text.strip_prefix("0B"))),
-        NumericBase::Octal => (8, text.strip_prefix("0o").or_else(|| text.strip_prefix("0O"))),
+        NumericBase::Binary => (
+            2,
+            text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")),
+        ),
+        NumericBase::Octal => (
+            8,
+            text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")),
+        ),
         NumericBase::Decimal => (10, Some(text)),
-        NumericBase::Hexadecimal => {
-            (16, text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")))
-        }
+        NumericBase::Hexadecimal => (
+            16,
+            text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")),
+        ),
     };
 
     let body = body.ok_or("invalid integer literal")?;

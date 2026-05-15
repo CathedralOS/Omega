@@ -363,7 +363,9 @@ impl ItemTable {
     }
 
     pub fn library_functions(&self, span: HandleSpan<LibraryFunction>) -> &[LibraryFunction] {
-        self.declaration_storage.library_functions.span_or_empty(span)
+        self.declaration_storage
+            .library_functions
+            .span_or_empty(span)
     }
 
     pub fn trust_levels(&self, span: HandleSpan<TrustLevel>) -> &[TrustLevel] {
@@ -371,7 +373,9 @@ impl ItemTable {
     }
 
     pub fn capability_members(&self, span: HandleSpan<CapabilityMember>) -> &[CapabilityMember] {
-        self.declaration_storage.capability_members.span_or_empty(span)
+        self.declaration_storage
+            .capability_members
+            .span_or_empty(span)
     }
 
     pub fn capability_contracts(
@@ -471,15 +475,22 @@ impl ItemTable {
     }
 
     pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
-        self.declaration_storage.identifier_path_members.append(member)
+        self.declaration_storage
+            .identifier_path_members
+            .append(member)
     }
 
     pub fn append_trust_policy(&mut self, policy: TrustPolicy) -> Handle<TrustPolicy> {
         self.declaration_storage.trust_policies.append(policy)
     }
 
-    pub fn append_type_parameter(&mut self, type_parameter: TypeParameter) -> Handle<TypeParameter> {
-        self.declaration_storage.type_parameters.append(type_parameter)
+    pub fn append_type_parameter(
+        &mut self,
+        type_parameter: TypeParameter,
+    ) -> Handle<TypeParameter> {
+        self.declaration_storage
+            .type_parameters
+            .append(type_parameter)
     }
 
     pub fn append_trust_level(&mut self, trust_level: TrustLevel) -> Handle<TrustLevel> {
@@ -504,7 +515,9 @@ impl ItemTable {
         &mut self,
         contract: CapabilityContract,
     ) -> Handle<CapabilityContract> {
-        self.declaration_storage.capability_contracts.append(contract)
+        self.declaration_storage
+            .capability_contracts
+            .append(contract)
     }
 
     pub fn append_data_member(&mut self, member: DataMember) -> Handle<DataMember> {
@@ -515,7 +528,9 @@ impl ItemTable {
         &mut self,
         setting: TargetHostSetting,
     ) -> Handle<TargetHostSetting> {
-        self.declaration_storage.target_host_settings.append(setting)
+        self.declaration_storage
+            .target_host_settings
+            .append(setting)
     }
 
     pub fn state_count(&self) -> usize {
