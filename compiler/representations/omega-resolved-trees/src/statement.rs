@@ -69,7 +69,7 @@ pub struct Call {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
     pub receiver: Option<NamePath>,
-    pub arguments: Vec<Expression>,
+    pub arguments: Box<[Expression]>,
 }
 
 impl Deref for Call {
@@ -115,7 +115,7 @@ pub struct NamedTransitionTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
     pub path: NamePath,
-    pub arguments: Vec<Expression>,
+    pub arguments: Box<[Expression]>,
 }
 
 impl Deref for NamedTransitionTarget {
@@ -482,7 +482,8 @@ mod tests {
                         target_symbol,
                         target_symbol,
                     ),
-                    arguments: vec![Expression::Integer(1), Expression::Integer(2)],
+                    arguments: vec![Expression::Integer(1), Expression::Integer(2)]
+                        .into_boxed_slice(),
                 },
             }),
             continuation: None,

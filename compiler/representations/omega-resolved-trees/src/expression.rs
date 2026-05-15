@@ -30,7 +30,7 @@ pub struct ArrayLiteralExpression {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ArrayLiteralExpressionStorage {
-    pub values: Vec<Expression>,
+    pub values: Box<[Expression]>,
 }
 
 impl Deref for ArrayLiteralExpression {
@@ -854,7 +854,7 @@ pub struct CallExpression {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallExpressionStorage {
     pub receiver: Option<Box<Expression>>,
-    pub arguments: Vec<Expression>,
+    pub arguments: Box<[Expression]>,
 }
 
 impl Deref for CallExpression {
@@ -931,13 +931,15 @@ pub struct NamePath {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePathStorage {
-    members: Vec<ProgramName>,
+    members: Box<[ProgramName]>,
 }
 
 impl NamePath {
     pub fn unresolved(members: Vec<ProgramName>) -> Self {
         Self {
-            storage: NamePathStorage { members },
+            storage: NamePathStorage {
+                members: members.into_boxed_slice(),
+            },
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -949,7 +951,9 @@ impl NamePath {
         symbol: SymbolHandle,
     ) -> Self {
         Self {
-            storage: NamePathStorage { members },
+            storage: NamePathStorage {
+                members: members.into_boxed_slice(),
+            },
             head_symbol,
             symbol,
         }
@@ -964,16 +968,20 @@ impl NamePath {
     }
 
     pub fn into_members(self) -> Vec<ProgramName> {
-        self.storage.members
+        self.storage.members.into_vec()
     }
 
     pub fn push(&mut self, member: ProgramName) {
-        self.storage.members.push(member);
+        let mut members = self.storage.members.to_vec();
+        members.push(member);
+        self.storage.members = members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
     }
 
     pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
-        self.storage.members.extend_from_slice(members);
+        let mut owned_members = self.storage.members.to_vec();
+        owned_members.extend_from_slice(members);
+        self.storage.members = owned_members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
     }
 
@@ -1163,7 +1171,7 @@ pub struct StructLiteral {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructLiteralStorage {
     pub type_name: ProgramName,
-    pub fields: Vec<StructLiteralField>,
+    pub fields: Box<[StructLiteralField]>,
 }
 
 impl Deref for StructLiteral {
@@ -1482,7 +1490,8 @@ mod tests {
                             },
                         })),
                     },
-                ],
+                ]
+                .into_boxed_slice(),
             },
         });
 

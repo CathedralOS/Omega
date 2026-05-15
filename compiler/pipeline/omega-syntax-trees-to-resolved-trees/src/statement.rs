@@ -54,7 +54,8 @@ fn lower_statement_node(
                     .expression_handles(call.arguments)
                     .iter()
                     .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_boxed_slice(),
             },
         })),
         syntax::statement::StatementNode::Expression(expression) => Ok(Statement::Expression(
@@ -129,7 +130,8 @@ fn lower_transition_target_node(
                         .expression_handles(*arguments)
                         .iter()
                         .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
                 },
             }))
         }

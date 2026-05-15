@@ -31,7 +31,8 @@ fn lower_expression_node(
                         .expression_handles(*values)
                         .iter()
                         .map(|value| lower_expression_handle(syntax_trees, *value))
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
                 },
             }))
         }
@@ -76,7 +77,8 @@ fn lower_expression_node(
                         .expression_handles(call.arguments)
                         .iter()
                         .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect::<Result<Vec<_>, _>>()?
+                        .into_boxed_slice(),
                 },
             },
         ))),
@@ -130,7 +132,8 @@ fn lower_expression_node(
                                 value: lower_expression_handle(syntax_trees, field.value)?,
                             })
                         })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?,
+                        .collect::<Result<Vec<_>, Diagnostic>>()?
+                        .into_boxed_slice(),
                 },
             }))
         }

@@ -474,7 +474,7 @@ fn resolve_expression_call_target_symbol(
             target: call.target.clone(),
             storage: omega_resolved_trees::statement::CallStorage {
                 receiver: Some(receiver_path),
-                arguments: Vec::new(),
+                arguments: Vec::new().into_boxed_slice(),
             },
         };
         return resolve_call_target_symbol(machine, parameters, &statement_call, symbols);
@@ -486,7 +486,7 @@ fn resolve_expression_call_target_symbol(
         target: call.target.clone(),
         storage: omega_resolved_trees::statement::CallStorage {
             receiver: None,
-            arguments: Vec::new(),
+            arguments: Vec::new().into_boxed_slice(),
         },
     };
     resolve_call_target_symbol(machine, parameters, &statement_call, symbols)
