@@ -588,61 +588,54 @@ fn type_reference_snapshot(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
 ) -> TypeReferenceSnapshot {
-    type_reference_snapshot_from_constraints(type_reference, |constraints| {
-        program
-            .tables
-            .types
-            .constraints
-            .span_or_empty(*constraints)
-            .iter()
-            .map(type_constraint_snapshot)
-            .collect()
-    })
+    type_reference_snapshot_from_program(program, type_reference)
 }
 
-fn type_reference_snapshot_from_constraints(
+fn type_reference_snapshot_from_program(
+    program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
-    resolve_constraints: impl Fn(
-        &omega_core::arena::HandleSpan<TypeConstraint>,
-    ) -> Vec<TypeConstraintSnapshot>
-    + Copy,
 ) -> TypeReferenceSnapshot {
     match type_reference {
         TypeReference::Reference(reference) => TypeReferenceSnapshot::Reference {
-            referee: Box::new(type_reference_snapshot_from_constraints(
+            referee: Box::new(type_reference_snapshot_from_program(
+                program,
                 &reference.referee,
-                resolve_constraints,
             )),
             is_mutable: reference.is_mutable,
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
-            base_type: Box::new(type_reference_snapshot_from_constraints(
+            base_type: Box::new(type_reference_snapshot_from_program(
+                program,
                 &constrained.base_type,
-                resolve_constraints,
             )),
-            constraints: resolve_constraints(&constrained.constraints),
+            constraints: program
+                .tables
+                .types
+                .constraints
+                .span_or_empty(constrained.constraints)
+                .iter()
+                .map(type_constraint_snapshot)
+                .collect(),
         },
         TypeReference::FixedArray(fixed_array) => TypeReferenceSnapshot::FixedArray {
-            element_type: Box::new(type_reference_snapshot_from_constraints(
+            element_type: Box::new(type_reference_snapshot_from_program(
+                program,
                 &fixed_array.element_type,
-                resolve_constraints,
             )),
             length: fixed_array.length,
         },
         TypeReference::Slice(slice) => TypeReferenceSnapshot::Slice {
-            element_type: Box::new(type_reference_snapshot_from_constraints(
+            element_type: Box::new(type_reference_snapshot_from_program(
+                program,
                 &slice.element_type,
-                resolve_constraints,
             )),
         },
         TypeReference::Generic(generic) => TypeReferenceSnapshot::Generic {
             base_name: generic.base_name.to_string(),
-            arguments: generic
-                .arguments
+            arguments: program
+                .type_reference_arguments(generic.arguments)
                 .iter()
-                .map(|argument| {
-                    type_reference_snapshot_from_constraints(argument, resolve_constraints)
-                })
+                .map(|argument| type_reference_snapshot_from_program(program, argument))
                 .collect(),
         },
         TypeReference::Named { name, .. } => TypeReferenceSnapshot::Named {

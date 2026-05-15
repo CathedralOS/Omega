@@ -1,6 +1,6 @@
 use crate::expression::lower_expression_handle;
 use crate::program::Lowerer;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::types::{
@@ -74,12 +74,7 @@ pub(crate) fn lower_type_reference_handle(
             storage: GenericTypeReferenceStorage {
                 base_symbol: SymbolHandle::invalid(),
                 base_name: crate::name::lower_name(base_name),
-                arguments: syntax_trees
-                    .type_references
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .map(|argument| lower_type_reference_handle(lowerer, syntax_trees, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                arguments: lower_type_reference_arguments(lowerer, syntax_trees, *arguments)?,
             },
         })),
         syntax::types::TypeReferenceNode::Named(name) => Ok(TypeReference::Named {
@@ -90,6 +85,40 @@ pub(crate) fn lower_type_reference_handle(
             symbol: SymbolHandle::invalid(),
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
+    }
+}
+
+fn lower_type_reference_arguments(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    arguments: HandleSpan<syntax::types::TypeReferenceHandle>,
+) -> Result<HandleSpan<TypeReference>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for argument in syntax_trees
+        .type_references
+        .type_reference_handles(arguments)
+    {
+        let argument = lower_type_reference_handle(lowerer, syntax_trees, *argument)?;
+        let handle = lowerer
+            .program
+            .tables
+            .declarations
+            .type_reference_arguments
+            .append(argument);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("type reference argument span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
     }
 }
 
