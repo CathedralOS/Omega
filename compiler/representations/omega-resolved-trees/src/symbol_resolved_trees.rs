@@ -1,7 +1,8 @@
 use crate::{expression, snapshot, statement, tables, types};
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolTable;
-use std::ops::{Deref, DerefMut};
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut, Index};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTrees {
@@ -12,10 +13,116 @@ pub struct SymbolResolvedTrees {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedRoots {
-    pub data_definitions: Vec<crate::data::DataDefinition>,
+    pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub invariant_definitions: Vec<crate::invariant::InvariantDefinition>,
     pub machines: Vec<crate::machine::Machine>,
     pub platforms: Vec<crate::platform::Platform>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrderedRootArena<T: Default> {
+    handles: Arena<Handle<T>>,
+    roots: HandleSpan<Handle<T>>,
+    storage: Arena<T>,
+}
+
+impl<T: Default> OrderedRootArena<T> {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, value: T) -> Handle<T> {
+        let value = self.storage.append(value);
+        let handle = self.handles.append(value);
+
+        self.roots = if self.roots.is_empty() {
+            HandleSpan::from_parts(handle, 1)
+        } else {
+            HandleSpan::from_parts(
+                self.roots.start(),
+                self.roots
+                    .count()
+                    .checked_add(1)
+                    .expect("ordered root span count overflow"),
+            )
+        };
+
+        value
+    }
+
+    pub fn len(&self) -> usize {
+        self.roots.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.roots.is_empty()
+    }
+
+    pub fn first(&self) -> Option<&T> {
+        self.iter().next()
+    }
+
+    pub fn iter(&self) -> OrderedRootArenaIter<'_, T> {
+        OrderedRootArenaIter {
+            storage: &self.storage,
+            handles: self.handles.span_or_empty(self.roots).iter(),
+            marker: PhantomData,
+        }
+    }
+
+    pub fn for_each_mut(&mut self, mut visit: impl FnMut(&mut T)) {
+        let handles = self.handles.span_or_empty(self.roots);
+        let storage = &mut self.storage;
+
+        for handle in handles {
+            visit(storage.get_mut(*handle));
+        }
+    }
+}
+
+impl<T: Default> Default for OrderedRootArena<T> {
+    fn default() -> Self {
+        Self {
+            handles: Arena::new(),
+            roots: HandleSpan::empty(),
+            storage: Arena::new(),
+        }
+    }
+}
+
+impl<T: Default> Index<usize> for OrderedRootArena<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let handle = self.handles.span_or_empty(self.roots)[index];
+
+        self.storage.get(handle)
+    }
+}
+
+impl<'arena, T: Default> IntoIterator for &'arena OrderedRootArena<T> {
+    type Item = &'arena T;
+    type IntoIter = OrderedRootArenaIter<'arena, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+pub struct OrderedRootArenaIter<'arena, T: Default> {
+    storage: &'arena Arena<T>,
+    handles: std::slice::Iter<'arena, Handle<T>>,
+    marker: PhantomData<&'arena T>,
+}
+
+impl<'arena, T: Default> Iterator for OrderedRootArenaIter<'arena, T> {
+    type Item = &'arena T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let handle = self.handles.next()?;
+
+        Some(self.storage.get(*handle))
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
