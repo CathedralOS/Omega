@@ -314,6 +314,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     let data_members = &declarations.data_members;
     let machine_contained_objects = &mut declarations.machine_contained_objects;
     let machine_owned_data = &mut declarations.machine_owned_data;
+    let machine_owned_data_expressions = &mut declarations.machine_owned_data_expressions;
     let machine_state_handles = &declarations.machine_state_handles;
     let machine_states = &mut declarations.machine_states;
     let state_parameters = &mut declarations.state_parameters;
@@ -353,6 +354,21 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 machine_symbol,
                 &mut owned_data.type_reference,
             );
+            if let Some(initial_value) = owned_data.initial_value {
+                assign_expression_symbols(
+                    symbols,
+                    &MachineScope {
+                        symbol: machine_symbol,
+                        owned_data: &[],
+                        inherited_data_members: None,
+                        contains: &[],
+                    },
+                    &[],
+                    SymbolHandle::invalid(),
+                    child_type_references,
+                    machine_owned_data_expressions.get_mut(initial_value),
+                );
+            }
         }
 
         for state in machine_state_handles

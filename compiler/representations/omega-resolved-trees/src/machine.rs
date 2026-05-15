@@ -47,7 +47,7 @@ pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
-    pub initial_value: Option<Expression>,
+    pub initial_value: Option<Handle<Expression>>,
 }
 
 impl Default for OwnedData {

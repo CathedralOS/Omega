@@ -389,7 +389,9 @@ fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> Owne
     OwnedDataSnapshot {
         name: owned.name.to_string(),
         type_reference: type_reference_snapshot(program, &owned.type_reference),
-        initial_value: owned.initial_value.as_ref().map(expression_snapshot),
+        initial_value: owned.initial_value.map(|expression| {
+            expression_snapshot(program.machine_owned_data_expression(expression))
+        }),
     }
 }
 

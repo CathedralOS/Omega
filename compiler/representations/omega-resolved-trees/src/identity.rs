@@ -1,4 +1,3 @@
-use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::DiagnosticName;
@@ -6,6 +5,7 @@ use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, Trans
 use crate::types::{
     TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
 };
+use crate::SymbolResolvedTrees;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
@@ -46,6 +46,8 @@ impl IdentityStorageCounts {
 pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
     let child_type_references = &program.tables.declarations.child_type_references;
+    let machine_owned_data_expressions =
+        &program.tables.declarations.machine_owned_data_expressions;
 
     for invariant in &program.invariant_definitions {
         count_declaration_name(&invariant.name, &mut counts);
@@ -57,11 +59,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);
-                    count_type_reference(
-                        &field.type_reference,
-                        child_type_references,
-                        &mut counts,
-                    );
+                    count_type_reference(&field.type_reference, child_type_references, &mut counts);
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }
@@ -101,7 +99,12 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 child_type_references,
                 &mut counts,
             );
-            count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
+            if let Some(initial_value) = owned_data.initial_value {
+                count_expression(
+                    machine_owned_data_expressions.get(initial_value),
+                    &mut counts,
+                );
+            }
         }
         for state in program
             .machine_state_handles(machine.states)
@@ -397,12 +400,6 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
     }
 }
 
-fn count_optional_expression(expression: Option<&Expression>, counts: &mut IdentityStorageCounts) {
-    if let Some(expression) = expression {
-        count_expression(expression, counts);
-    }
-}
-
 fn count_optional_type_reference(
     type_reference: Option<&TypeReference>,
     generic_arguments: &omega_core::arena::Arena<TypeReference>,
@@ -419,12 +416,16 @@ fn count_type_reference(
     counts: &mut IdentityStorageCounts,
 ) {
     match type_reference {
-        TypeReference::Reference(reference) => {
-            count_type_reference(generic_arguments.get(reference.referee), generic_arguments, counts)
-        }
-        TypeReference::Constrained(constrained) => {
-            count_type_reference(generic_arguments.get(constrained.base_type), generic_arguments, counts)
-        }
+        TypeReference::Reference(reference) => count_type_reference(
+            generic_arguments.get(reference.referee),
+            generic_arguments,
+            counts,
+        ),
+        TypeReference::Constrained(constrained) => count_type_reference(
+            generic_arguments.get(constrained.base_type),
+            generic_arguments,
+            counts,
+        ),
         TypeReference::FixedArray(fixed_array) => {
             count_type_reference(
                 generic_arguments.get(fixed_array.element_type),
@@ -433,7 +434,11 @@ fn count_type_reference(
             );
         }
         TypeReference::Slice(slice) => {
-            count_type_reference(generic_arguments.get(slice.element_type), generic_arguments, counts);
+            count_type_reference(
+                generic_arguments.get(slice.element_type),
+                generic_arguments,
+                counts,
+            );
         }
         TypeReference::Generic(generic) => {
             count_type_name(&generic.base_name, counts);
