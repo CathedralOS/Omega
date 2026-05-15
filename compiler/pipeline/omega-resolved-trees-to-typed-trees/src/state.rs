@@ -45,7 +45,7 @@ pub(crate) fn lower_state_signature(
     let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
         name: crate::name::lower_name(&signature.name),
-        parameters: Vec::new(),
+        parameters: Default::default(),
         return_type: signature
             .return_type
             .as_ref()
@@ -54,9 +54,10 @@ pub(crate) fn lower_state_signature(
     };
 
     for parameter in lowerer.source_program.state_parameters(signature.parameters) {
-        typed_signature
-            .parameters
-            .push(lower_state_parameter(lowerer, parameter)?);
+        let parameter = lower_state_parameter(lowerer, parameter)?;
+        lowerer
+            .typed_trees
+            .push_state_signature_parameter(&mut typed_signature, parameter);
     }
 
     Ok(typed_signature)
