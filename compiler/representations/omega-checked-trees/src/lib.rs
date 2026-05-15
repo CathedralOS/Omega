@@ -111,20 +111,20 @@ pub struct CheckFacts {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Program {
-    pub typed: omega_typed_trees::Program,
+    pub typed: omega_typed_trees::TypedTrees,
     pub facts: CheckFacts,
 }
 
 impl std::ops::Deref for Program {
-    type Target = omega_typed_trees::Program;
+    type Target = omega_typed_trees::TypedTrees;
 
     fn deref(&self) -> &Self::Target {
         &self.typed
     }
 }
 
-impl AsRef<omega_typed_trees::Program> for Program {
-    fn as_ref(&self) -> &omega_typed_trees::Program {
+impl AsRef<omega_typed_trees::TypedTrees> for Program {
+    fn as_ref(&self) -> &omega_typed_trees::TypedTrees {
         &self.typed
     }
 }

@@ -1,8 +1,8 @@
-use crate::Program;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::ProgramName;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
+use crate::typed_trees::TypedTrees;
 use crate::types::{
     TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
 };
@@ -43,14 +43,14 @@ impl IdentityStorageCounts {
     }
 }
 
-pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
+pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
 
-    for invariant in &program.invariant_definitions {
+    for invariant in &typed_trees.invariant_definitions {
         count_declaration_name(&invariant.name, &mut counts);
     }
 
-    for data_definition in &program.data_definitions {
+    for data_definition in &typed_trees.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
         for member in &data_definition.members {
             match member {
@@ -63,7 +63,7 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
         }
     }
 
-    for platform in &program.platforms {
+    for platform in &typed_trees.platforms {
         count_declaration_name(&platform.name, &mut counts);
         for signature in &platform.states {
             count_declaration_name(&signature.name, &mut counts);
@@ -75,7 +75,7 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
         }
     }
 
-    for machine in &program.machines {
+    for machine in &typed_trees.machines {
         count_declaration_name(&machine.name, &mut counts);
         for contained in &machine.contains {
             count_declaration_name(&contained.name, &mut counts);
@@ -93,11 +93,11 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for statement in typed_trees.statement_table.statements(state.statement_nodes) {
                 count_statement_node(
-                    &program.statement_table,
-                    &program.expression_table,
-                    &program.type_reference_table,
+                    &typed_trees.statement_table,
+                    &typed_trees.expression_table,
+                    &typed_trees.type_reference_table,
                     statement,
                     &mut counts,
                 );
@@ -105,7 +105,7 @@ pub fn count_identity_storage(program: &Program) -> IdentityStorageCounts {
         }
     }
 
-    for (_, constraint) in program.type_constraints.iter() {
+    for (_, constraint) in typed_trees.type_constraints.iter() {
         count_type_constraint(constraint, &mut counts);
     }
 

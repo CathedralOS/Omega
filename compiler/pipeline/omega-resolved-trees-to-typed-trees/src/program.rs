@@ -4,56 +4,56 @@ use crate::machine::lower_machine;
 use crate::platform::lower_platform;
 use omega_core::diagnostics::Diagnostic;
 use omega_resolved_trees::SymbolResolvedTrees;
-use omega_typed_trees::Program as TypedProgram;
+use omega_typed_trees::TypedTrees;
 
 pub fn lower_symbol_resolved_trees(
     resolved_program: &SymbolResolvedTrees,
-) -> Result<TypedProgram, Diagnostic> {
+) -> Result<TypedTrees, Diagnostic> {
     let mut lowerer = Lowerer {
-        program: TypedProgram::default(),
+        typed_trees: TypedTrees::default(),
         source_program: resolved_program,
     };
 
     for invariant_definition in &resolved_program.invariant_definitions {
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
         lowerer
-            .program
+            .typed_trees
             .invariant_definitions
             .push(invariant_definition);
     }
 
     for data_definition in &resolved_program.data_definitions {
         let data_definition = lower_data_definition(&mut lowerer, data_definition)?;
-        lowerer.program.data_definitions.push(data_definition);
+        lowerer.typed_trees.data_definitions.push(data_definition);
     }
 
     for machine in &resolved_program.machines {
         let machine = lower_machine(&mut lowerer, machine)?;
-        lowerer.program.machines.push(machine);
+        lowerer.typed_trees.machines.push(machine);
     }
 
     for platform in &resolved_program.platforms {
         let platform = lower_platform(&mut lowerer, platform)?;
-        lowerer.program.platforms.push(platform);
+        lowerer.typed_trees.platforms.push(platform);
     }
 
     lowerer.finish()
 }
 
-pub fn lower_program(resolved_program: &SymbolResolvedTrees) -> Result<TypedProgram, Diagnostic> {
+pub fn lower_program(resolved_program: &SymbolResolvedTrees) -> Result<TypedTrees, Diagnostic> {
     lower_symbol_resolved_trees(resolved_program)
 }
 
 pub(crate) struct Lowerer<'source> {
-    pub(crate) program: TypedProgram,
+    pub(crate) typed_trees: TypedTrees,
     pub(crate) source_program: &'source SymbolResolvedTrees,
 }
 
 impl Lowerer<'_> {
-    pub(crate) fn finish(mut self) -> Result<TypedProgram, Diagnostic> {
-        self.program.symbols = self.source_program.symbols.clone();
-        self.program.rebuild_tables();
-        Ok(self.program)
+    pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
+        self.typed_trees.symbols = self.source_program.symbols.clone();
+        self.typed_trees.rebuild_tables();
+        Ok(self.typed_trees)
     }
 }
 
@@ -84,16 +84,16 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved_program =
             lower_syntax_trees(&syntax_trees).expect("resolution should succeed");
-        let program =
+        let typed_trees =
             lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
 
-        assert_eq!(program.data_definitions.len(), 1);
-        assert_eq!(program.machines.len(), 1);
-        assert_eq!(program.machines[0].states.len(), 1);
+        assert_eq!(typed_trees.data_definitions.len(), 1);
+        assert_eq!(typed_trees.machines.len(), 1);
+        assert_eq!(typed_trees.machines[0].states.len(), 1);
         assert!(
-            program
+            typed_trees
                 .symbols
-                .find_child_by_name(program.symbols.root(), "u32")
+                .find_child_by_name(typed_trees.symbols.root(), "u32")
                 .is_some()
         );
     }

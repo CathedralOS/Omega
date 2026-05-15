@@ -17,7 +17,7 @@ use omega_object::{ObjectContainerInput, SectionKind, emit_omega_object_containe
 use omega_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
-use omega_typed_trees::Program as TypedProgram;
+use omega_typed_trees::TypedTrees;
 use std::sync::Arc;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -180,12 +180,12 @@ fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<D
     .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedProgram, Vec<Diagnostic>> {
+fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
     omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn check_program(typed: &TypedProgram) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
+fn check_program(typed: &TypedTrees) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
     let program = omega_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
     Ok(CheckedProgramSurface { program })
 }
