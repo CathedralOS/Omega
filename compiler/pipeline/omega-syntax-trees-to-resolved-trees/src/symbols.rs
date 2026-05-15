@@ -448,9 +448,11 @@ fn expression_from_path(
     for member in members {
         expression = omega_resolved_trees::expression::Expression::Member(Box::new(
             omega_resolved_trees::expression::MemberExpression {
-                receiver: expression,
-                member_symbol: SymbolHandle::invalid(),
-                member,
+                storage: omega_resolved_trees::expression::MemberExpressionStorage {
+                    receiver: expression,
+                    member_symbol: SymbolHandle::invalid(),
+                    member,
+                },
             },
         ));
     }
