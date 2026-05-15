@@ -59,7 +59,12 @@ pub(super) fn bind_state_arguments_by_key(
         .expressions
         .expression_handles(arguments);
 
-    for (parameter, argument) in state.parameters.iter().zip(arguments) {
+    for (parameter, argument) in context
+        .control_flow
+        .state_parameters(state)
+        .iter()
+        .zip(arguments)
+    {
         let canonical_argument =
             argument_binding_place_key(&context.control_flow.expressions, *argument, aliases);
         if let Some(canonical_argument) = canonical_argument {
@@ -97,7 +102,12 @@ fn bind_state_call_arguments_by_key(
         .span(arguments)
         .unwrap_or(&[]);
 
-    for (parameter, argument) in state.parameters.iter().zip(arguments) {
+    for (parameter, argument) in context
+        .control_flow
+        .state_parameters(state)
+        .iter()
+        .zip(arguments)
+    {
         let canonical_argument =
             argument_binding_place_key(&context.state_calls.expressions, argument.expression, aliases);
         if let Some(canonical_argument) = canonical_argument {

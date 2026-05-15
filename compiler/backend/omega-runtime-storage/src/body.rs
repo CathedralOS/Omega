@@ -136,7 +136,7 @@ fn append_parameter_slots(
         return;
     };
 
-    for parameter in &state.parameters {
+    for parameter in context.control_flow.state_parameters(state) {
         let layout = layout_for_type(context, parameter.type_symbol, parameter.type_name.as_str());
         let byte_offset = align_to(*next_frame_offset, layout.alignment);
         *next_frame_offset = byte_offset

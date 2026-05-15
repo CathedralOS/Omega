@@ -211,7 +211,12 @@ fn select_runtime_dispatch_argument_materialization(
     let target_arguments = expressions.expression_handles(arguments);
     let source_dispatch_index = target_dispatch_index_for_source(input, source_key);
 
-    for (parameter_index, parameter) in target_state.parameters.iter().enumerate() {
+    for (parameter_index, parameter) in input
+        .control_flow
+        .state_parameters(target_state)
+        .iter()
+        .enumerate()
+    {
         let Some(argument) = target_arguments.get(parameter_index).copied() else {
             break;
         };
