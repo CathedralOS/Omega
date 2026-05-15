@@ -75,7 +75,7 @@ pub struct Call {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
     pub receiver: Option<NamePath>,
-    pub arguments: Box<[Expression]>,
+    pub arguments: HandleSpan<Expression>,
 }
 
 impl Deref for Call {
@@ -121,7 +121,7 @@ pub struct NamedTransitionTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
     pub path: NamePath,
-    pub arguments: Box<[Expression]>,
+    pub arguments: HandleSpan<Expression>,
 }
 
 impl Deref for NamedTransitionTarget {
@@ -208,6 +208,7 @@ impl StatementTable {
     pub fn insert_tree(
         &mut self,
         statement: &Statement,
+        source_expressions: &Arena<Expression>,
         expressions: &mut crate::expression::ExpressionTable,
         type_references: &mut crate::types::TypeReferenceTable,
         source_constraints: &Arena<crate::types::TypeConstraint>,
@@ -219,8 +220,10 @@ impl StatementTable {
                 self.insert(StatementNode::Assignment(TableAssignment { target, value }))
             }
             Statement::Call(call) => {
-                let arguments =
-                    self.insert_expression_handle_span_from_trees(&call.arguments, expressions);
+                let arguments = self.insert_expression_handle_span_from_trees(
+                    source_expressions.span_or_empty(call.arguments),
+                    expressions,
+                );
                 let receiver = call
                     .receiver
                     .as_ref()
@@ -257,11 +260,17 @@ impl StatementTable {
                 }))
             }
             Statement::Transition(transition) => {
-                let target = self.insert_transition_target_tree(&transition.target, expressions);
+                let target = self.insert_transition_target_tree(
+                    &transition.target,
+                    source_expressions,
+                    expressions,
+                );
                 let continuation = transition
                     .continuation
                     .as_ref()
-                    .map(|target| self.insert_transition_target_tree(target, expressions))
+                    .map(|target| {
+                        self.insert_transition_target_tree(target, source_expressions, expressions)
+                    })
                     .unwrap_or_else(TransitionTargetHandle::invalid);
                 let guard = match &transition.guard {
                     TransitionGuard::Always => TransitionGuardNode::Always,
@@ -328,6 +337,7 @@ impl StatementTable {
     fn insert_transition_target_tree(
         &mut self,
         target: &TransitionTarget,
+        source_expressions: &Arena<Expression>,
         expressions: &mut crate::expression::ExpressionTable,
     ) -> TransitionTargetHandle {
         let target = match target {
@@ -337,8 +347,10 @@ impl StatementTable {
                     head_symbol: named.path.head_symbol(),
                     symbol: named.path.symbol(),
                 },
-                arguments: self
-                    .insert_expression_handle_span_from_trees(&named.arguments, expressions),
+                arguments: self.insert_expression_handle_span_from_trees(
+                    source_expressions.span_or_empty(named.arguments),
+                    expressions,
+                ),
             },
             TransitionTarget::Value(expression) => {
                 TransitionTargetNode::Value(expressions.insert_tree(expression))
@@ -480,6 +492,9 @@ mod tests {
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
+        let mut source_expressions = Arena::new();
+        let arguments =
+            source_expressions.insert_many([Expression::Integer(1), Expression::Integer(2)]);
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named(NamedTransitionTarget {
                 storage: NamedTransitionTargetStorage {
@@ -488,8 +503,7 @@ mod tests {
                         target_symbol,
                         target_symbol,
                     ),
-                    arguments: vec![Expression::Integer(1), Expression::Integer(2)]
-                        .into_boxed_slice(),
+                    arguments,
                 },
             }),
             continuation: None,
@@ -502,6 +516,7 @@ mod tests {
         let type_constraints = Arena::new();
         let statement = statements.insert_tree(
             &statement,
+            &source_expressions,
             &mut expressions,
             &mut type_references,
             &type_constraints,

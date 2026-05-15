@@ -491,6 +491,8 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &tables.declarations.state_parameters;
+    let state_statement_expressions = &mut tables.declarations.state_statement_expressions;
+    let state_statements = &mut tables.declarations.state_statements;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let data_definition = data_definitions
@@ -513,15 +515,12 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
-            for statement in tables
-                .declarations
-                .state_statements
-                .span_mut_or_empty(state.statements)
-            {
+            for statement in state_statements.span_mut_or_empty(state.statements) {
                 assign_statement_symbols(
                     &machine_scope,
                     parameters,
                     state_symbol,
+                    state_statement_expressions,
                     statement,
                     symbols,
                 );
@@ -564,6 +563,9 @@ fn assign_statement_symbols(
     machine: &MachineScope<'_>,
     parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
+    statement_expressions: &mut omega_core::arena::Arena<
+        omega_resolved_trees::expression::Expression,
+    >,
     statement: &mut omega_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
 ) {
@@ -585,7 +587,7 @@ fn assign_statement_symbols(
             );
         }
         omega_resolved_trees::statement::Statement::Call(call) => {
-            for argument in &mut call.arguments {
+            for argument in statement_expressions.span_mut_or_empty(call.arguments) {
                 assign_expression_symbols(symbols, machine, parameters, state_symbol, argument);
             }
             if let Some(receiver) = &mut call.receiver {
@@ -633,12 +635,21 @@ fn assign_statement_symbols(
             }
             assign_transition_target_symbols(
                 machine,
+                parameters,
                 state_symbol,
+                statement_expressions,
                 &mut transition.target,
                 symbols,
             );
             if let Some(continuation) = &mut transition.continuation {
-                assign_transition_target_symbols(machine, state_symbol, continuation, symbols);
+                assign_transition_target_symbols(
+                    machine,
+                    parameters,
+                    state_symbol,
+                    statement_expressions,
+                    continuation,
+                    symbols,
+                );
             }
         }
     }
@@ -838,13 +849,21 @@ fn expression_name_path(
 
 fn assign_transition_target_symbols(
     machine: &MachineScope<'_>,
+    parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
+    statement_expressions: &mut omega_core::arena::Arena<
+        omega_resolved_trees::expression::Expression,
+    >,
     target: &mut omega_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
 ) {
     let omega_resolved_trees::statement::TransitionTarget::Named(named) = target else {
         return;
     };
+
+    for argument in statement_expressions.span_mut_or_empty(named.arguments) {
+        assign_expression_symbols(symbols, machine, parameters, state_symbol, argument);
+    }
 
     let path = &mut named.path;
     let target_name = path.last().cloned();

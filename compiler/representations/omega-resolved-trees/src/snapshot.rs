@@ -464,7 +464,11 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
         Statement::Call(call) => StatementSnapshot::Call {
             receiver: call.receiver.as_ref().map(name_path_snapshot),
             target: call.target.to_string(),
-            arguments: call.arguments.iter().map(expression_snapshot).collect(),
+            arguments: program
+                .state_statement_expressions(call.arguments)
+                .iter()
+                .map(expression_snapshot)
+                .collect(),
         },
         Statement::Expression(expression) => StatementSnapshot::Expression {
             value: expression_snapshot(expression),
@@ -474,17 +478,20 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             type_reference: type_reference_snapshot(program, &local_data.type_reference),
             initial_value: local_data.initial_value.as_ref().map(expression_snapshot),
         },
-        Statement::Transition(transition) => transition_snapshot(transition),
+        Statement::Transition(transition) => transition_snapshot(program, transition),
     }
 }
 
-fn transition_snapshot(transition: &Transition) -> StatementSnapshot {
+fn transition_snapshot(
+    program: &SymbolResolvedTrees,
+    transition: &Transition,
+) -> StatementSnapshot {
     StatementSnapshot::Transition {
-        target: transition_target_snapshot(&transition.target),
+        target: transition_target_snapshot(program, &transition.target),
         continuation: transition
             .continuation
             .as_ref()
-            .map(transition_target_snapshot),
+            .map(|target| transition_target_snapshot(program, target)),
         guard: match &transition.guard {
             TransitionGuard::Always => TransitionGuardSnapshot::Always,
             TransitionGuard::When(expression) => TransitionGuardSnapshot::When {
@@ -494,11 +501,18 @@ fn transition_snapshot(transition: &Transition) -> StatementSnapshot {
     }
 }
 
-fn transition_target_snapshot(target: &TransitionTarget) -> TransitionTargetSnapshot {
+fn transition_target_snapshot(
+    program: &SymbolResolvedTrees,
+    target: &TransitionTarget,
+) -> TransitionTargetSnapshot {
     match target {
         TransitionTarget::Named(named) => TransitionTargetSnapshot::Named {
             path: name_path_snapshot(&named.path),
-            arguments: named.arguments.iter().map(expression_snapshot).collect(),
+            arguments: program
+                .state_statement_expressions(named.arguments)
+                .iter()
+                .map(expression_snapshot)
+                .collect(),
         },
         TransitionTarget::Value(expression) => TransitionTargetSnapshot::Value {
             value: expression_snapshot(expression),

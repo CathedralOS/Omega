@@ -62,6 +62,7 @@ impl SymbolResolvedTreeTables {
         let machine_state_handles = &source_tables.declarations.machine_state_handles;
         let machine_states = &mut source_tables.declarations.machine_states;
         let machine_owned_data = &source_tables.declarations.machine_owned_data;
+        let state_statement_expressions = &source_tables.declarations.state_statement_expressions;
         let state_statements = &source_tables.declarations.state_statements;
         for machine in &roots.machines {
             tables.insert_machine_with_state_spans(
@@ -70,6 +71,7 @@ impl SymbolResolvedTreeTables {
                 machine_state_handles,
                 machine_states,
                 state_parameters,
+                state_statement_expressions,
                 state_statements,
                 &type_constraints,
             );
@@ -112,6 +114,7 @@ impl SymbolResolvedTreeTables {
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
+        state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
@@ -128,6 +131,7 @@ impl SymbolResolvedTreeTables {
             self.insert_state_with_statement_span(
                 state,
                 state_parameters,
+                state_statement_expressions,
                 state_statements,
                 type_constraints,
             );
@@ -150,6 +154,7 @@ impl SymbolResolvedTreeTables {
         &mut self,
         state: &mut State,
         state_parameters: &Arena<StateParameter>,
+        state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
@@ -166,6 +171,7 @@ impl SymbolResolvedTreeTables {
         for statement in state_statements.span_or_empty(state.statements) {
             let handle = self.bodies.statements.insert_tree(
                 statement,
+                state_statement_expressions,
                 &mut self.bodies.expressions,
                 &mut self.types.references,
                 type_constraints,

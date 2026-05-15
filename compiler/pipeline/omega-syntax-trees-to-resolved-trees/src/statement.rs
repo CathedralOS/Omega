@@ -2,6 +2,7 @@ use crate::expression::lower_expression_handle;
 use crate::name::lower_name_members;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
@@ -49,13 +50,7 @@ fn lower_statement_node(
                             .iter(),
                     ))
                 },
-                arguments: syntax_trees
-                    .statements
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_boxed_slice(),
+                arguments: lower_statement_expressions(lowerer, syntax_trees, call.arguments)?,
             },
         })),
         syntax::statement::StatementNode::Expression(expression) => Ok(Statement::Expression(
@@ -84,9 +79,10 @@ fn lower_statement_node(
         }
         syntax::statement::StatementNode::Transition(transition) => {
             Ok(Statement::Transition(Transition {
-                target: lower_transition_target_node(syntax_trees, transition.target)?,
+                target: lower_transition_target_node(lowerer, syntax_trees, transition.target)?,
                 continuation: if transition.continuation.is_valid() {
                     Some(lower_transition_target_node(
+                        lowerer,
                         syntax_trees,
                         transition.continuation,
                     )?)
@@ -96,6 +92,37 @@ fn lower_statement_node(
                 guard: lower_transition_guard_node(syntax_trees, transition.guard)?,
             }))
         }
+    }
+}
+
+fn lower_statement_expressions(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    expressions: HandleSpan<syntax::expression::ExpressionHandle>,
+) -> Result<HandleSpan<omega_resolved_trees::expression::Expression>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for expression in syntax_trees.statements.expression_handles(expressions) {
+        let expression = lower_expression_handle(syntax_trees, *expression)?;
+        let expression = lowerer
+            .program
+            .tables
+            .declarations
+            .state_statement_expressions
+            .append(expression);
+        if count == 0 {
+            start = expression;
+        }
+        count = count
+            .checked_add(1)
+            .expect("statement expression span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
     }
 }
 
@@ -112,6 +139,7 @@ fn lower_transition_guard_node(
 }
 
 fn lower_transition_target_node(
+    lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     target: syntax::statement::TransitionTargetHandle,
 ) -> Result<TransitionTarget, Diagnostic> {
@@ -125,13 +153,7 @@ fn lower_transition_target_node(
                             .identifier_path_members(*path)
                             .iter(),
                     ),
-                    arguments: syntax_trees
-                        .statements
-                        .expression_handles(*arguments)
-                        .iter()
-                        .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                        .collect::<Result<Vec<_>, _>>()?
-                        .into_boxed_slice(),
+                    arguments: lower_statement_expressions(lowerer, syntax_trees, *arguments)?,
                 },
             }))
         }
