@@ -25,13 +25,19 @@ pub enum TypeReference {
     Generic {
         base_symbol: SymbolHandle,
         base_name: ProgramName,
-        arguments: Vec<TypeReference>,
+        arguments: HandleSpan<TypeReference>,
     },
     Named {
         symbol: SymbolHandle,
         name: ProgramName,
     },
     Unit,
+}
+
+impl Default for TypeReference {
+    fn default() -> Self {
+        Self::Unit
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,11 +79,13 @@ impl TypeReferenceTable {
         type_references: impl IntoIterator<Item = &'type_reference TypeReference>,
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
+        source_arguments: &Arena<TypeReference>,
     ) -> HandleSpan<TypeReferenceHandle> {
         let mut handles = HandleSpan::empty();
 
         for type_reference in type_references {
-            let type_reference = self.insert_tree(type_reference, expressions, source_constraints);
+            let type_reference =
+                self.insert_tree(type_reference, expressions, source_constraints, source_arguments);
             self.type_reference_handles
                 .append_to_span(&mut handles, type_reference);
         }
@@ -131,13 +139,15 @@ impl TypeReferenceTable {
         type_reference: &TypeReference,
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
+        source_arguments: &Arena<TypeReference>,
     ) -> TypeReferenceHandle {
         match type_reference {
             TypeReference::Reference {
                 referee,
                 is_mutable,
             } => {
-                let referee = self.insert_tree(referee, expressions, source_constraints);
+                let referee =
+                    self.insert_tree(referee, expressions, source_constraints, source_arguments);
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: *is_mutable,
@@ -147,7 +157,8 @@ impl TypeReferenceTable {
                 base_type,
                 constraints,
             } => {
-                let base_type = self.insert_tree(base_type, expressions, source_constraints);
+                let base_type =
+                    self.insert_tree(base_type, expressions, source_constraints, source_arguments);
                 let constraints = self.insert_constraint_span_from_tree(
                     *constraints,
                     expressions,
@@ -162,14 +173,16 @@ impl TypeReferenceTable {
                 element_type,
                 length,
             } => {
-                let element_type = self.insert_tree(element_type, expressions, source_constraints);
+                let element_type =
+                    self.insert_tree(element_type, expressions, source_constraints, source_arguments);
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
                     length: *length,
                 })
             }
             TypeReference::Slice { element_type } => {
-                let element_type = self.insert_tree(element_type, expressions, source_constraints);
+                let element_type =
+                    self.insert_tree(element_type, expressions, source_constraints, source_arguments);
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
             TypeReference::Generic {
@@ -178,9 +191,10 @@ impl TypeReferenceTable {
                 arguments,
             } => {
                 let arguments = self.insert_type_reference_handle_span_from_trees(
-                    arguments,
+                    source_arguments.span_or_empty(*arguments),
                     expressions,
                     source_constraints,
+                    source_arguments,
                 );
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: *base_symbol,
@@ -332,8 +346,7 @@ impl TypeReference {
                 arguments,
                 ..
             } => {
-                let arguments = comma_join_display(arguments.iter(), TypeReference::display_name);
-                format!("{base_name}<{arguments}>")
+                format!("{base_name}<{} arguments>", arguments.count())
             }
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
@@ -387,10 +400,7 @@ impl TypeReference {
                 arguments,
                 ..
             } => {
-                let arguments = comma_join_display(arguments.iter(), |argument| {
-                    argument.display_name_with_constraints(type_constraints)
-                });
-                format!("{base_name}<{arguments}>")
+                format!("{base_name}<{} arguments>", arguments.count())
             }
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
@@ -509,28 +519,35 @@ mod tests {
 
     #[test]
     fn type_reference_table_stores_nested_typed_references_as_handles() {
+        let mut source_arguments = Arena::<TypeReference>::new();
+        let arguments = source_arguments.insert_many([
+            TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: ProgramName::generated("usize"),
+            },
+            TypeReference::FixedArray {
+                element_type: Box::new(TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: ProgramName::generated("u8"),
+                }),
+                length: 16,
+            },
+        ]);
         let type_reference = TypeReference::Generic {
             base_symbol: SymbolHandle::invalid(),
             base_name: ProgramName::generated("Result"),
-            arguments: vec![
-                TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("usize"),
-                },
-                TypeReference::FixedArray {
-                    element_type: Box::new(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("u8"),
-                    }),
-                    length: 16,
-                },
-            ],
+            arguments,
         };
 
         let source_constraints = Arena::<TypeConstraint>::new();
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions, &source_constraints);
+        let root = types.insert_tree(
+            &type_reference,
+            &mut expressions,
+            &source_constraints,
+            &source_arguments,
+        );
 
         assert_eq!(types.type_reference_count(), 4);
         let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
@@ -557,7 +574,13 @@ mod tests {
 
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions, &source_constraints);
+        let source_arguments = Arena::<TypeReference>::new();
+        let root = types.insert_tree(
+            &type_reference,
+            &mut expressions,
+            &source_constraints,
+            &source_arguments,
+        );
 
         assert_eq!(types.type_reference_count(), 2);
         assert_eq!(expressions.expression_count(), 2);

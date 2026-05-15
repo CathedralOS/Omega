@@ -17,6 +17,7 @@ pub struct TypedTrees {
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub state_statements: Arena<crate::statement::Statement>,
+    pub type_reference_arguments: Arena<types::TypeReference>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -216,6 +217,27 @@ impl TypedTrees {
         state: &crate::state::State,
     ) -> &[crate::statement::Statement] {
         self.state_statements.span_or_empty(state.statements)
+    }
+
+    pub fn push_type_reference_argument(
+        &mut self,
+        arguments: &mut HandleSpan<types::TypeReference>,
+        argument: types::TypeReference,
+    ) {
+        self.type_reference_arguments
+            .append_to_span(arguments, argument);
+    }
+
+    pub fn type_reference_arguments(
+        &self,
+        type_reference: &types::TypeReference,
+    ) -> &[types::TypeReference] {
+        match type_reference {
+            types::TypeReference::Generic { arguments, .. } => {
+                self.type_reference_arguments.span_or_empty(*arguments)
+            }
+            _ => &[],
+        }
     }
 
     pub fn rebuild_tables(&mut self) {

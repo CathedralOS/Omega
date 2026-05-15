@@ -27,6 +27,7 @@ impl TypedProgramTables {
             tables.insert_data_definition(
                 typed_trees.data_members(data_definition),
                 &typed_trees.type_constraints,
+                &typed_trees.type_reference_arguments,
             );
         }
 
@@ -35,6 +36,7 @@ impl TypedProgramTables {
                 typed_trees.platform_state_signatures(platform),
                 typed_trees,
                 &typed_trees.type_constraints,
+                &typed_trees.type_reference_arguments,
             );
         }
 
@@ -44,6 +46,7 @@ impl TypedProgramTables {
                 typed_trees.machine_states(machine),
                 typed_trees,
                 &typed_trees.type_constraints,
+                &typed_trees.type_reference_arguments,
             );
         }
 
@@ -64,6 +67,7 @@ impl TypedProgramTables {
             machine_states,
             state_parameters,
             state_statements,
+            type_reference_arguments,
             root_platforms,
             platforms,
             platform_state_signatures,
@@ -79,6 +83,7 @@ impl TypedProgramTables {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
                 type_constraints,
+                type_reference_arguments,
             );
         }
 
@@ -87,6 +92,7 @@ impl TypedProgramTables {
                 platform_state_signatures.span_or_empty(platform.states),
                 state_parameters,
                 type_constraints,
+                type_reference_arguments,
             );
         }
 
@@ -97,6 +103,7 @@ impl TypedProgramTables {
                 state_parameters,
                 state_statements,
                 type_constraints,
+                type_reference_arguments,
             );
         }
 
@@ -107,10 +114,15 @@ impl TypedProgramTables {
         &mut self,
         members: &[DataMember],
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for member in members {
             if let DataMember::Field(field) = member {
-                self.insert_type_reference(&field.type_reference, type_constraints);
+                self.insert_type_reference(
+                    &field.type_reference,
+                    type_constraints,
+                    type_reference_arguments,
+                );
             }
         }
     }
@@ -120,12 +132,14 @@ impl TypedProgramTables {
         states: &[StateSignature],
         typed_trees: &TypedTrees,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for state in states {
             self.insert_state_signature(
                 state,
                 typed_trees.state_signature_parameters(state),
                 type_constraints,
+                type_reference_arguments,
             );
         }
     }
@@ -135,12 +149,14 @@ impl TypedProgramTables {
         states: &[StateSignature],
         state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for state in states {
             self.insert_state_signature(
                 state,
                 state_parameters.span_or_empty(state.parameters),
                 type_constraints,
+                type_reference_arguments,
             );
         }
     }
@@ -151,9 +167,10 @@ impl TypedProgramTables {
         states: &[State],
         typed_trees: &TypedTrees,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for owned_data in owned_data {
-            self.insert_owned_data(owned_data, type_constraints);
+            self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
         }
 
         for state in states {
@@ -162,6 +179,7 @@ impl TypedProgramTables {
                 typed_trees.state_parameters(state),
                 typed_trees.state_statements(state),
                 type_constraints,
+                type_reference_arguments,
             );
         }
     }
@@ -173,9 +191,10 @@ impl TypedProgramTables {
         state_parameters: &Arena<StateParameter>,
         state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for owned_data in owned_data {
-            self.insert_owned_data(owned_data, type_constraints);
+            self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
         }
 
         for state in states {
@@ -184,6 +203,7 @@ impl TypedProgramTables {
                 state_parameters.span_or_empty(state.parameters),
                 state_statements.span_or_empty(state.statements),
                 type_constraints,
+                type_reference_arguments,
             );
         }
     }
@@ -192,8 +212,13 @@ impl TypedProgramTables {
         &mut self,
         owned_data: &OwnedData,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
-        self.insert_type_reference(&owned_data.type_reference, type_constraints);
+        self.insert_type_reference(
+            &owned_data.type_reference,
+            type_constraints,
+            type_reference_arguments,
+        );
 
         if let Some(initial_value) = &owned_data.initial_value {
             self.insert_expression(initial_value);
@@ -206,17 +231,22 @@ impl TypedProgramTables {
         parameters: &[StateParameter],
         statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for parameter in parameters {
-            self.insert_type_reference(&parameter.type_reference, type_constraints);
+            self.insert_type_reference(
+                &parameter.type_reference,
+                type_constraints,
+                type_reference_arguments,
+            );
         }
 
         if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type, type_constraints);
+            self.insert_type_reference(return_type, type_constraints, type_reference_arguments);
         }
 
         for statement in statements {
-            self.insert_statement(statement, type_constraints);
+            self.insert_statement(statement, type_constraints, type_reference_arguments);
         }
     }
 
@@ -226,13 +256,18 @@ impl TypedProgramTables {
         parameters: &[StateParameter],
         statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for parameter in parameters {
-            self.insert_type_reference(&parameter.type_reference, type_constraints);
+            self.insert_type_reference(
+                &parameter.type_reference,
+                type_constraints,
+                type_reference_arguments,
+            );
         }
 
         if let Some(return_type) = &state.return_type {
-            self.insert_type_reference(return_type, type_constraints);
+            self.insert_type_reference(return_type, type_constraints, type_reference_arguments);
         }
 
         let mut statement_nodes = HandleSpan::empty();
@@ -242,6 +277,7 @@ impl TypedProgramTables {
                 &mut self.expressions,
                 &mut self.type_references,
                 type_constraints,
+                type_reference_arguments,
             );
             statement_nodes.push_contiguous(handle);
         }
@@ -254,13 +290,18 @@ impl TypedProgramTables {
         signature: &StateSignature,
         parameters: &[StateParameter],
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         for parameter in parameters {
-            self.insert_type_reference(&parameter.type_reference, type_constraints);
+            self.insert_type_reference(
+                &parameter.type_reference,
+                type_constraints,
+                type_reference_arguments,
+            );
         }
 
         if let Some(return_type) = &signature.return_type {
-            self.insert_type_reference(return_type, type_constraints);
+            self.insert_type_reference(return_type, type_constraints, type_reference_arguments);
         }
     }
 
@@ -268,12 +309,14 @@ impl TypedProgramTables {
         &mut self,
         statement: &Statement,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
         self.statements.insert_tree(
             statement,
             &mut self.expressions,
             &mut self.type_references,
             type_constraints,
+            type_reference_arguments,
         );
     }
 
@@ -281,9 +324,14 @@ impl TypedProgramTables {
         &mut self,
         type_reference: &TypeReference,
         type_constraints: &Arena<TypeConstraint>,
+        type_reference_arguments: &Arena<TypeReference>,
     ) {
-        self.type_references
-            .insert_tree(type_reference, &mut self.expressions, type_constraints);
+        self.type_references.insert_tree(
+            type_reference,
+            &mut self.expressions,
+            type_constraints,
+            type_reference_arguments,
+        );
     }
 
     fn insert_type_constraints(
