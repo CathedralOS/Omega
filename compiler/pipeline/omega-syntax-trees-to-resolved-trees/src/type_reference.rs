@@ -115,21 +115,23 @@ pub(crate) fn lower_type_constraint_handles(
     syntax_trees: &SyntaxTrees,
     constraints: HandleSpan<syntax::types::TypeConstraintNode>,
 ) -> Result<HandleSpan<TypeConstraint>, Diagnostic> {
-    let constraints = syntax_trees
-        .type_references
-        .constraints(constraints)
-        .iter()
-        .map(|constraint| lower_type_constraint_handle(syntax_trees, constraint));
+    let mut span = HandleSpan::empty();
 
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .types
-        .constraints
-        .try_insert_many(constraints)
+    for constraint in syntax_trees.type_references.constraints(constraints) {
+        let constraint = lower_type_constraint_handle(lowerer, syntax_trees, constraint)?;
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .types
+            .constraints
+            .append_to_span(&mut span, constraint);
+    }
+
+    Ok(span)
 }
 
 fn lower_type_constraint_handle(
+    lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     constraint: &syntax::types::TypeConstraintNode,
 ) -> Result<TypeConstraint, Diagnostic> {
@@ -138,10 +140,21 @@ fn lower_type_constraint_handle(
             Ok(TypeConstraint::Named(crate::name::lower_name(name)))
         }
         syntax::types::TypeConstraintNode::Range { minimum, maximum } => {
-            Ok(TypeConstraint::Range {
-                minimum: lower_expression_handle(syntax_trees, *minimum)?,
-                maximum: lower_expression_handle(syntax_trees, *maximum)?,
-            })
+            let minimum = lower_expression_handle(syntax_trees, *minimum)?;
+            let minimum = lowerer
+                .symbol_resolved_trees
+                .tables
+                .types
+                .constraint_expressions
+                .append(minimum);
+            let maximum = lower_expression_handle(syntax_trees, *maximum)?;
+            let maximum = lowerer
+                .symbol_resolved_trees
+                .tables
+                .types
+                .constraint_expressions
+                .append(maximum);
+            Ok(TypeConstraint::Range { minimum, maximum })
         }
     }
 }

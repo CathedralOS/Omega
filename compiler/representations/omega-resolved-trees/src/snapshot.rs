@@ -355,7 +355,7 @@ fn invariant_definition_snapshot(
             .constraints
             .span_or_empty(invariant.constraints)
             .iter()
-            .map(type_constraint_snapshot)
+            .map(|constraint| type_constraint_snapshot(program, constraint))
             .collect(),
     }
 }
@@ -625,7 +625,7 @@ fn type_reference_snapshot_from_program(
                 .constraints
                 .span_or_empty(constrained.constraints)
                 .iter()
-                .map(type_constraint_snapshot)
+                .map(|constraint| type_constraint_snapshot(program, constraint))
                 .collect(),
         },
         TypeReference::FixedArray(fixed_array) => TypeReferenceSnapshot::FixedArray {
@@ -657,14 +657,17 @@ fn type_reference_snapshot_from_program(
     }
 }
 
-fn type_constraint_snapshot(constraint: &TypeConstraint) -> TypeConstraintSnapshot {
+fn type_constraint_snapshot(
+    program: &SymbolResolvedTrees,
+    constraint: &TypeConstraint,
+) -> TypeConstraintSnapshot {
     match constraint {
         TypeConstraint::Named(name) => TypeConstraintSnapshot::Named {
             name: name.to_string(),
         },
         TypeConstraint::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
-            minimum: expression_snapshot(minimum),
-            maximum: expression_snapshot(maximum),
+            minimum: expression_snapshot(program.type_constraint_expression(*minimum)),
+            maximum: expression_snapshot(program.type_constraint_expression(*maximum)),
         },
     }
 }

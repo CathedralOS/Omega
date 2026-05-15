@@ -245,6 +245,7 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_generic_arguments: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
+        source_constraint_expressions: &Arena<crate::expression::Expression>,
     ) -> HandleSpan<TypeReferenceHandle> {
         let mut span = HandleSpan::empty();
 
@@ -254,6 +255,7 @@ impl TypeReferenceTable {
                 expressions,
                 source_generic_arguments,
                 source_constraints,
+                source_constraint_expressions,
             );
             self.spans
                 .type_reference_handles
@@ -268,14 +270,16 @@ impl TypeReferenceTable {
         constraints: HandleSpan<TypeConstraint>,
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
+        source_constraint_expressions: &Arena<crate::expression::Expression>,
     ) -> HandleSpan<TypeConstraintNode> {
         let mut span = HandleSpan::empty();
 
         for constraint in source_constraints.span_or_empty(constraints) {
-            let handle = self
-                .spans
-                .constraints
-                .append(TypeConstraintNode::from_tree(constraint, expressions));
+            let handle = self.spans.constraints.append(TypeConstraintNode::from_tree(
+                constraint,
+                expressions,
+                source_constraint_expressions,
+            ));
             span.push_contiguous(handle);
         }
 
@@ -311,6 +315,7 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_generic_arguments: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
+        source_constraint_expressions: &Arena<crate::expression::Expression>,
     ) -> TypeReferenceHandle {
         match type_reference {
             TypeReference::Reference(reference) => {
@@ -319,6 +324,7 @@ impl TypeReferenceTable {
                     expressions,
                     source_generic_arguments,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 self.insert(TypeReferenceNode::Reference {
                     referee,
@@ -331,11 +337,13 @@ impl TypeReferenceTable {
                     expressions,
                     source_generic_arguments,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 let constraints = self.insert_constraint_span_from_tree(
                     constrained.constraints,
                     expressions,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 self.insert(TypeReferenceNode::Constrained {
                     base_type,
@@ -348,6 +356,7 @@ impl TypeReferenceTable {
                     expressions,
                     source_generic_arguments,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
@@ -360,6 +369,7 @@ impl TypeReferenceTable {
                     expressions,
                     source_generic_arguments,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
@@ -369,6 +379,7 @@ impl TypeReferenceTable {
                     expressions,
                     source_generic_arguments,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 self.insert(TypeReferenceNode::Generic {
                     base_symbol: generic.base_symbol,
@@ -436,8 +447,8 @@ impl Default for TypeReferenceNode {
 pub enum TypeConstraint {
     Named(DiagnosticName),
     Range {
-        minimum: crate::expression::Expression,
-        maximum: crate::expression::Expression,
+        minimum: Handle<crate::expression::Expression>,
+        maximum: Handle<crate::expression::Expression>,
     },
 }
 
@@ -454,12 +465,13 @@ impl TypeConstraintNode {
     fn from_tree(
         constraint: &TypeConstraint,
         expressions: &mut crate::expression::ExpressionTable,
+        source_constraint_expressions: &Arena<crate::expression::Expression>,
     ) -> Self {
         match constraint {
             TypeConstraint::Named(name) => Self::Named(name.clone()),
             TypeConstraint::Range { minimum, maximum } => Self::Range {
-                minimum: expressions.insert_tree(minimum),
-                maximum: expressions.insert_tree(maximum),
+                minimum: expressions.insert_tree(source_constraint_expressions.get(*minimum)),
+                maximum: expressions.insert_tree(source_constraint_expressions.get(*maximum)),
             },
         }
     }
@@ -582,11 +594,8 @@ impl TypeConstraint {
         match self {
             TypeConstraint::Named(name) => name.to_string(),
             TypeConstraint::Range { minimum, maximum } => {
-                format!(
-                    "range<{}, {}>",
-                    minimum.display_name(),
-                    maximum.display_name()
-                )
+                let _ = (minimum, maximum);
+                "range<expression, expression>".to_owned()
             }
         }
     }
@@ -704,6 +713,7 @@ mod tests {
         });
 
         let source_constraints = Arena::<TypeConstraint>::new();
+        let source_constraint_expressions = Arena::<Expression>::new();
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
         let root = types.insert_tree(
@@ -711,6 +721,7 @@ mod tests {
             &mut expressions,
             &source_arguments,
             &source_constraints,
+            &source_constraint_expressions,
         );
 
         assert_eq!(types.type_reference_count(), 4);
@@ -724,15 +735,16 @@ mod tests {
     #[test]
     fn type_reference_table_stores_typed_constraints_as_expression_handles() {
         let mut source_constraints = Arena::<TypeConstraint>::new();
+        let mut source_constraint_expressions = Arena::<Expression>::new();
         let mut source_arguments = Arena::<TypeReference>::new();
         let base_type = source_arguments.append(TypeReference::Named {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("i32"),
         });
-        let constraints = source_constraints.insert_many([TypeConstraint::Range {
-            minimum: Expression::Integer(0),
-            maximum: Expression::Integer(10),
-        }]);
+        let minimum = source_constraint_expressions.append(Expression::Integer(0));
+        let maximum = source_constraint_expressions.append(Expression::Integer(10));
+        let constraints =
+            source_constraints.insert_many([TypeConstraint::Range { minimum, maximum }]);
         let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
             storage: ConstrainedTypeReferenceStorage {
                 base_type,
@@ -747,6 +759,7 @@ mod tests {
             &mut expressions,
             &source_arguments,
             &source_constraints,
+            &source_constraint_expressions,
         );
 
         assert_eq!(types.type_reference_count(), 2);

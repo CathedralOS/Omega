@@ -213,6 +213,7 @@ impl StatementTable {
         type_references: &mut crate::types::TypeReferenceTable,
         source_child_type_references: &Arena<crate::types::TypeReference>,
         source_constraints: &Arena<crate::types::TypeConstraint>,
+        source_constraint_expressions: &Arena<Expression>,
     ) -> StatementHandle {
         match statement {
             Statement::Assignment(assignment) => {
@@ -248,6 +249,7 @@ impl StatementTable {
                     expressions,
                     source_child_type_references,
                     source_constraints,
+                    source_constraint_expressions,
                 );
                 let initial_value = local_data
                     .initial_value
@@ -500,6 +502,7 @@ mod tests {
         let mut type_references = TypeReferenceTable::new();
         let child_type_references = Arena::new();
         let type_constraints = Arena::new();
+        let type_constraint_expressions = Arena::new();
         let statement = statements.insert_tree(
             &statement,
             &source_expressions,
@@ -507,6 +510,7 @@ mod tests {
             &mut type_references,
             &child_type_references,
             &type_constraints,
+            &type_constraint_expressions,
         );
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {
