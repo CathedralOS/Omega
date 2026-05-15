@@ -905,8 +905,8 @@ fn type_reference_symbol(
         omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_symbol(referee)
         }
-        omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
-            type_reference_symbol(base_type)
+        omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
+            type_reference_symbol(&constrained.base_type)
         }
         omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_symbol(element_type)
@@ -914,7 +914,7 @@ fn type_reference_symbol(
         omega_resolved_trees::types::TypeReference::Slice { element_type } => {
             type_reference_symbol(element_type)
         }
-        omega_resolved_trees::types::TypeReference::Generic { base_symbol, .. } => *base_symbol,
+        omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
         omega_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
         omega_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
@@ -927,8 +927,8 @@ fn type_reference_name(
         omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
             type_reference_name(referee)
         }
-        omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
-            type_reference_name(base_type)
+        omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
+            type_reference_name(&constrained.base_type)
         }
         omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
             type_reference_name(element_type)
@@ -936,7 +936,7 @@ fn type_reference_name(
         omega_resolved_trees::types::TypeReference::Slice { element_type } => {
             type_reference_name(element_type)
         }
-        omega_resolved_trees::types::TypeReference::Generic { base_name, .. } => base_name.clone(),
+        omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_name.clone(),
         omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
         omega_resolved_trees::types::TypeReference::Unit => {
             omega_resolved_trees::name::ProgramName::default()
@@ -960,8 +960,12 @@ fn assign_type_reference_symbol_with_locals(
         omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
             assign_type_reference_symbol_with_locals(symbols, local_type_parameters, referee);
         }
-        omega_resolved_trees::types::TypeReference::Constrained { base_type, .. } => {
-            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, base_type);
+        omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
+            assign_type_reference_symbol_with_locals(
+                symbols,
+                local_type_parameters,
+                &mut constrained.base_type,
+            );
         }
         omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
             assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
@@ -969,14 +973,10 @@ fn assign_type_reference_symbol_with_locals(
         omega_resolved_trees::types::TypeReference::Slice { element_type } => {
             assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
         }
-        omega_resolved_trees::types::TypeReference::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-        } => {
-            *base_symbol = top_level_type_symbol(symbols, base_name.as_str());
+        omega_resolved_trees::types::TypeReference::Generic(generic) => {
+            generic.base_symbol = top_level_type_symbol(symbols, generic.base_name.as_str());
 
-            for argument in arguments {
+            for argument in &mut generic.arguments {
                 assign_type_reference_symbol_with_locals(symbols, local_type_parameters, argument);
             }
         }

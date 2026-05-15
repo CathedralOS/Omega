@@ -1,5 +1,6 @@
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
+use std::ops::{Deref, DerefMut};
 
 use crate::name::ProgramName;
 
@@ -11,10 +12,7 @@ pub enum TypeReference {
         referee: Box<TypeReference>,
         is_mutable: bool,
     },
-    Constrained {
-        base_type: Box<TypeReference>,
-        constraints: HandleSpan<TypeConstraint>,
-    },
+    Constrained(ConstrainedTypeReference),
     FixedArray {
         element_type: Box<TypeReference>,
         length: usize,
@@ -22,16 +20,72 @@ pub enum TypeReference {
     Slice {
         element_type: Box<TypeReference>,
     },
-    Generic {
-        base_symbol: SymbolHandle,
-        base_name: ProgramName,
-        arguments: Vec<TypeReference>,
-    },
+    Generic(GenericTypeReference),
     Named {
         symbol: SymbolHandle,
         name: ProgramName,
     },
     Unit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstrainedTypeReference {
+    pub storage: ConstrainedTypeReferenceStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstrainedTypeReferenceStorage {
+    pub base_type: Box<TypeReference>,
+    pub constraints: HandleSpan<TypeConstraint>,
+}
+
+impl Default for ConstrainedTypeReferenceStorage {
+    fn default() -> Self {
+        Self {
+            base_type: Box::new(TypeReference::Unit),
+            constraints: HandleSpan::empty(),
+        }
+    }
+}
+
+impl Deref for ConstrainedTypeReference {
+    type Target = ConstrainedTypeReferenceStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for ConstrainedTypeReference {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericTypeReference {
+    pub storage: GenericTypeReferenceStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GenericTypeReferenceStorage {
+    pub base_symbol: SymbolHandle,
+    pub base_name: ProgramName,
+    pub arguments: Vec<TypeReference>,
+}
+
+impl Deref for GenericTypeReference {
+    type Target = GenericTypeReferenceStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for GenericTypeReference {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,13 +232,11 @@ impl TypeReferenceTable {
                     is_mutable: *is_mutable,
                 })
             }
-            TypeReference::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let base_type = self.insert_tree(base_type, expressions, source_constraints);
+            TypeReference::Constrained(constrained) => {
+                let base_type =
+                    self.insert_tree(&constrained.base_type, expressions, source_constraints);
                 let constraints = self.insert_constraint_span_from_tree(
-                    *constraints,
+                    constrained.constraints,
                     expressions,
                     source_constraints,
                 );
@@ -207,19 +259,15 @@ impl TypeReferenceTable {
                 let element_type = self.insert_tree(element_type, expressions, source_constraints);
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
-            TypeReference::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-            } => {
+            TypeReference::Generic(generic) => {
                 let arguments = self.insert_type_reference_handle_span_from_trees(
-                    arguments,
+                    &generic.arguments,
                     expressions,
                     source_constraints,
                 );
                 self.insert(TypeReferenceNode::Generic {
-                    base_symbol: *base_symbol,
-                    base_name: base_name.clone(),
+                    base_symbol: generic.base_symbol,
+                    base_name: generic.base_name.clone(),
                     arguments,
                 })
             }
@@ -340,14 +388,11 @@ impl TypeReference {
                 let qualifier = if *is_mutable { "mut " } else { "" };
                 format!("&{qualifier}{}", referee.display_name())
             }
-            TypeReference::Constrained {
-                base_type,
-                constraints,
-            } => {
+            TypeReference::Constrained(constrained) => {
                 format!(
                     "{}[{}]",
-                    base_type.display_name(),
-                    match constraints.count() {
+                    constrained.base_type.display_name(),
+                    match constrained.constraints.count() {
                         1 => "1 constraint".to_owned(),
                         count => format!("{count} constraints"),
                     }
@@ -362,13 +407,10 @@ impl TypeReference {
             TypeReference::Slice { element_type } => {
                 format!("[{}]", element_type.display_name())
             }
-            TypeReference::Generic {
-                base_name,
-                arguments,
-                ..
-            } => {
-                let arguments = comma_join_display(arguments.iter(), TypeReference::display_name);
-                format!("{base_name}<{arguments}>")
+            TypeReference::Generic(generic) => {
+                let arguments =
+                    comma_join_display(generic.arguments.iter(), TypeReference::display_name);
+                format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
@@ -390,14 +432,12 @@ impl TypeReference {
                     referee.display_name_with_constraints(type_constraints)
                 )
             }
-            TypeReference::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let constraints = type_constraints.span(*constraints).unwrap_or(&[]);
+            TypeReference::Constrained(constrained) => {
+                let constraints =
+                    type_constraints.span(constrained.constraints).unwrap_or(&[]);
                 format!(
                     "{}[{}]",
-                    base_type.display_name_with_constraints(type_constraints),
+                    constrained.base_type.display_name_with_constraints(type_constraints),
                     comma_join_display(constraints.iter(), TypeConstraint::display_name)
                 )
             }
@@ -414,15 +454,11 @@ impl TypeReference {
             TypeReference::Slice { element_type } => {
                 format!("[{}]", element_type.display_name_with_constraints(type_constraints))
             }
-            TypeReference::Generic {
-                base_name,
-                arguments,
-                ..
-            } => {
-                let arguments = comma_join_display(arguments.iter(), |argument| {
+            TypeReference::Generic(generic) => {
+                let arguments = comma_join_display(generic.arguments.iter(), |argument| {
                     argument.display_name_with_constraints(type_constraints)
                 });
-                format!("{base_name}<{arguments}>")
+                format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
             TypeReference::Unit => "()".to_owned(),
@@ -432,11 +468,11 @@ impl TypeReference {
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
             TypeReference::Reference { .. } => None,
-            TypeReference::Constrained { base_type, .. } => base_type.primitive_type(),
+            TypeReference::Constrained(constrained) => constrained.base_type.primitive_type(),
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
             TypeReference::FixedArray { .. }
             | TypeReference::Slice { .. }
-            | TypeReference::Generic { .. }
+            | TypeReference::Generic(_)
             | TypeReference::Unit => None,
         }
     }
@@ -532,7 +568,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
+        ConstrainedTypeReference, ConstrainedTypeReferenceStorage, GenericTypeReference,
+        GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode, TypeReference,
+        TypeReferenceNode, TypeReferenceTable,
     };
     use crate::expression::{Expression, ExpressionTable};
     use crate::name::ProgramName;
@@ -541,23 +579,25 @@ mod tests {
 
     #[test]
     fn type_reference_table_stores_nested_typed_references_as_handles() {
-        let type_reference = TypeReference::Generic {
-            base_symbol: SymbolHandle::invalid(),
-            base_name: ProgramName::generated("Result"),
-            arguments: vec![
-                TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("usize"),
-                },
-                TypeReference::FixedArray {
-                    element_type: Box::new(TypeReference::Named {
+        let type_reference = TypeReference::Generic(GenericTypeReference {
+            storage: GenericTypeReferenceStorage {
+                base_symbol: SymbolHandle::invalid(),
+                base_name: ProgramName::generated("Result"),
+                arguments: vec![
+                    TypeReference::Named {
                         symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("u8"),
-                    }),
-                    length: 16,
-                },
-            ],
-        };
+                        name: ProgramName::generated("usize"),
+                    },
+                    TypeReference::FixedArray {
+                        element_type: Box::new(TypeReference::Named {
+                            symbol: SymbolHandle::invalid(),
+                            name: ProgramName::generated("u8"),
+                        }),
+                        length: 16,
+                    },
+                ],
+            },
+        });
 
         let source_constraints = Arena::<TypeConstraint>::new();
         let mut expressions = ExpressionTable::new();
@@ -579,13 +619,15 @@ mod tests {
             minimum: Expression::Integer(0),
             maximum: Expression::Integer(10),
         }]);
-        let type_reference = TypeReference::Constrained {
-            base_type: Box::new(TypeReference::Named {
-                symbol: SymbolHandle::invalid(),
-                name: ProgramName::generated("i32"),
-            }),
-            constraints,
-        };
+        let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
+            storage: ConstrainedTypeReferenceStorage {
+                base_type: Box::new(TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: ProgramName::generated("i32"),
+                }),
+                constraints,
+            },
+        });
 
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();

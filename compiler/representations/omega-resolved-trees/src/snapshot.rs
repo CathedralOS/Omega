@@ -547,15 +547,12 @@ fn type_reference_snapshot_from_constraints(
             )),
             is_mutable: *is_mutable,
         },
-        TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => TypeReferenceSnapshot::Constrained {
+        TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_constraints(
-                base_type,
+                &constrained.base_type,
                 resolve_constraints,
             )),
-            constraints: resolve_constraints(constraints),
+            constraints: resolve_constraints(&constrained.constraints),
         },
         TypeReference::FixedArray { element_type, length } => TypeReferenceSnapshot::FixedArray {
             element_type: Box::new(type_reference_snapshot_from_constraints(
@@ -570,13 +567,10 @@ fn type_reference_snapshot_from_constraints(
                 resolve_constraints,
             )),
         },
-        TypeReference::Generic {
-            base_symbol: _,
-            base_name,
-            arguments,
-        } => TypeReferenceSnapshot::Generic {
-            base_name: base_name.to_string(),
-            arguments: arguments
+        TypeReference::Generic(generic) => TypeReferenceSnapshot::Generic {
+            base_name: generic.base_name.to_string(),
+            arguments: generic
+                .arguments
                 .iter()
                 .map(|argument| {
                     type_reference_snapshot_from_constraints(argument, resolve_constraints)
