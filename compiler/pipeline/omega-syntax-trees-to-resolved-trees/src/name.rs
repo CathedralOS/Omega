@@ -9,5 +9,5 @@ pub(crate) fn lower_name(name: &syntax::identifier::Identifier) -> DiagnosticNam
 pub(crate) fn lower_name_members<'name>(
     members: impl IntoIterator<Item = &'name syntax::identifier::Identifier>,
 ) -> NamePath {
-    NamePath::unresolved(members.into_iter().map(lower_name).collect())
+    NamePath::unresolved_from_iter(members.into_iter().map(lower_name))
 }

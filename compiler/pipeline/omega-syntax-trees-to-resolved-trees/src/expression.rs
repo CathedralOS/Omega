@@ -120,9 +120,9 @@ fn lower_expression_node(
                 .iter(),
         ))),
         syntax::expression::ExpressionNode::SelfValue => Ok(Expression::Name(
-            omega_resolved_trees::expression::NamePath::unresolved(vec![
+            omega_resolved_trees::expression::NamePath::single_unresolved(
                 omega_resolved_trees::name::DiagnosticName::generated_static("self"),
-            ]),
+            ),
         )),
         syntax::expression::ExpressionNode::String(value) => {
             Ok(Expression::String(value.as_str().to_owned()))

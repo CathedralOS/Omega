@@ -807,7 +807,11 @@ fn expression_from_path(
         return omega_resolved_trees::expression::Expression::Name(path);
     };
     let mut expression = omega_resolved_trees::expression::Expression::Name(
-        omega_resolved_trees::expression::NamePath::resolved(vec![first], head_symbol, head_symbol),
+        omega_resolved_trees::expression::NamePath::single_resolved(
+            first,
+            head_symbol,
+            head_symbol,
+        ),
     );
     for member in members {
         expression = omega_resolved_trees::expression::Expression::Member(Box::new(
