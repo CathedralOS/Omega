@@ -72,25 +72,36 @@ impl<'name> SymbolDefinition<'name> {
 }
 
 pub fn builtin_type_symbol_definitions() -> [SymbolDefinition<'static>; 19] {
+    builtin_type_symbols().map(|(kind, name)| SymbolDefinition {
+        kind,
+        name,
+        children: Vec::new(),
+    })
+}
+
+pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); 19] {
     [
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "bool"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i8"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i16"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i32"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "i64"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "isize"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u8"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u16"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u32"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "u64"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "usize"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "f32"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "f64"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "String"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Slice"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Result"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "SyscallResult"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Terminal"),
-        SymbolDefinition::static_named(SymbolKind::BuiltinType, "Never"),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("i8")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("i16")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("i32")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("i64")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("isize")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("u16")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("u32")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("usize")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("String")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("Slice")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("Result")),
+        (
+            SymbolKind::BuiltinType,
+            SymbolNameRef::Static("SyscallResult"),
+        ),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("Terminal")),
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("Never")),
     ]
 }

@@ -5,16 +5,18 @@ mod path;
 mod symbol;
 mod table;
 
-pub use definition::{SymbolDefinition, builtin_type_symbol_definitions};
+pub use definition::{SymbolDefinition, builtin_type_symbol_definitions, builtin_type_symbols};
 pub use kind::SymbolKind;
 pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
 pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
-pub use table::{SymbolNameStorageCounts, SymbolTable};
+pub use table::{SymbolNameStorageCounts, SymbolTable, SymbolTableBuilder};
 
 #[cfg(test)]
 mod tests {
-    use super::{SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable};
+    use super::{
+        SymbolDefinition, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    };
 
     #[test]
     fn invalid_symbol_resolves_to_dummy() {
@@ -49,6 +51,37 @@ mod tests {
         assert_eq!(symbols.get(root).children.count(), 1);
         assert_eq!(symbols.get(machine).children.count(), 1);
         assert_eq!(symbols.name(state), "entry");
+    }
+
+    #[test]
+    fn builder_stores_symbols_without_definition_tree() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Borrowed("main")),
+                (SymbolKind::Data, SymbolNameRef::Borrowed("Inventory")),
+            ],
+        );
+        let mut child_handles = SymbolTableBuilder::child_handles(children);
+        let main = child_handles.next().expect("main should be present");
+        let inventory = child_handles.next().expect("inventory should be present");
+
+        builder.insert_children(
+            main,
+            [(SymbolKind::State, SymbolNameRef::Borrowed("entry"))],
+        );
+        let symbols = builder.finish();
+        let entry = symbols
+            .find_child_by_name(main, "entry")
+            .expect("entry should resolve");
+
+        assert_eq!(symbols.root(), root);
+        assert_eq!(symbols.get(main).parent, root);
+        assert_eq!(symbols.get(inventory).parent, root);
+        assert_eq!(symbols.get(entry).parent, main);
+        assert_eq!(symbols.name(inventory), "Inventory");
     }
 
     #[test]
