@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use omega_core::source::SourceMap;
 use omega_core::symbols::{
-    SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
+    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_type_symbols,
 };
 use omega_resolved_trees::SymbolResolvedTrees;
+
+type SymbolSeed<'name> = (SymbolKind, SymbolNameRef<'name>);
 
 pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
     program.symbols = build_symbol_table(program, sources);
@@ -19,185 +21,224 @@ fn build_symbol_table(
     sources: Option<Arc<SourceMap>>,
 ) -> SymbolTable {
     let has_sources = sources.is_some();
-    let mut children = builtin_type_symbol_definitions().to_vec();
+    let mut builder = SymbolTableBuilder::with_sources(sources);
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let root_children =
+        builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(program.invariant_definitions.iter().map(|invariant| {
+                    symbol_seed(SymbolKind::Invariant, &invariant.name, has_sources)
+                }))
+                .chain(
+                    program
+                        .data_definitions
+                        .iter()
+                        .map(|data| symbol_seed(SymbolKind::Data, &data.name, has_sources)),
+                )
+                .chain(
+                    program.machines.iter().map(|machine| {
+                        symbol_seed(SymbolKind::Machine, &machine.name, has_sources)
+                    }),
+                )
+                .chain(program.platforms.iter().map(|platform| {
+                    symbol_seed(SymbolKind::Platform, &platform.name, has_sources)
+                })),
+        );
+    let mut root_children = SymbolTableBuilder::child_handles(root_children);
 
-    children.extend(
-        program.invariant_definitions.iter().map(|invariant| {
-            symbol_definition(SymbolKind::Invariant, &invariant.name, has_sources)
-        }),
-    );
-    children.extend(
-        program
-            .data_definitions
-            .iter()
-            .map(|data| data_symbol_definition(data, has_sources)),
-    );
-    children.extend(
-        program
-            .machines
-            .iter()
-            .map(|machine| machine_symbol_definition(program, machine, has_sources)),
-    );
-    children.extend(
-        program
-            .platforms
-            .iter()
-            .map(|platform| platform_symbol_definition(platform, has_sources)),
-    );
+    for _ in 0..builtin_type_symbols().len() {
+        let _ = root_children.next();
+    }
+    for _ in &program.invariant_definitions {
+        let _ = root_children.next();
+    }
+    for data_definition in &program.data_definitions {
+        if let Some(data_symbol) = root_children.next() {
+            insert_data_symbol_children(&mut builder, data_symbol, data_definition, has_sources);
+        }
+    }
+    for machine in &program.machines {
+        if let Some(machine_symbol) = root_children.next() {
+            insert_machine_symbol_children(
+                &mut builder,
+                program,
+                machine_symbol,
+                machine,
+                has_sources,
+            );
+        }
+    }
+    for platform in &program.platforms {
+        if let Some(platform_symbol) = root_children.next() {
+            insert_platform_symbol_children(&mut builder, platform_symbol, platform, has_sources);
+        }
+    }
 
-    SymbolTable::from_definition_with_sources(
-        SymbolDefinition::static_with_children(SymbolKind::Root, "root", children),
-        sources,
-    )
+    builder.finish()
 }
 
-fn data_symbol_definition<'program>(
-    data_definition: &'program omega_resolved_trees::data::DataDefinition,
+fn insert_data_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    data_symbol: SymbolHandle,
+    data_definition: &omega_resolved_trees::data::DataDefinition,
     has_sources: bool,
-) -> SymbolDefinition<'program> {
-    symbol_definition_with_children(
-        SymbolKind::Data,
-        &data_definition.name,
-        has_sources,
+) {
+    builder.insert_children(
+        data_symbol,
         data_definition
             .type_parameters
             .iter()
-            .map(|parameter| {
-                symbol_definition(SymbolKind::TypeParameter, &parameter.name, has_sources)
-            })
+            .map(|parameter| symbol_seed(SymbolKind::TypeParameter, &parameter.name, has_sources))
             .chain(data_definition.members.iter().map(|member| match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
-                    symbol_definition(SymbolKind::Field, &field.name, has_sources)
+                    symbol_seed(SymbolKind::Field, &field.name, has_sources)
                 }
                 omega_resolved_trees::data::DataMember::Variant(variant) => {
-                    symbol_definition(SymbolKind::Variant, &variant.name, has_sources)
+                    symbol_seed(SymbolKind::Variant, &variant.name, has_sources)
                 }
             })),
-    )
+    );
 }
 
-fn machine_symbol_definition<'program>(
+fn insert_machine_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
+    machine_symbol: SymbolHandle,
+    machine: &omega_resolved_trees::machine::Machine,
+    has_sources: bool,
+) {
+    let inherited_field_count = inherited_data_field_symbols(program, machine, has_sources).count();
+    let machine_children =
+        builder.insert_children(
+            machine_symbol,
+            inherited_data_field_symbols(program, machine, has_sources)
+                .chain(machine.contains.iter().map(|contained_object| {
+                    symbol_seed(SymbolKind::Object, &contained_object.name, has_sources)
+                }))
+                .chain(machine.owned_data.iter().map(|owned_data| {
+                    symbol_seed(SymbolKind::Field, &owned_data.name, has_sources)
+                }))
+                .chain(
+                    machine
+                        .states
+                        .iter()
+                        .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
+                ),
+        );
+    let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
+
+    for _ in 0..inherited_field_count {
+        let _ = machine_children.next();
+    }
+    for _ in &machine.contains {
+        let _ = machine_children.next();
+    }
+    for _ in &machine.owned_data {
+        let _ = machine_children.next();
+    }
+    for state in &machine.states {
+        if let Some(state_symbol) = machine_children.next() {
+            insert_state_symbol_children(builder, state_symbol, state, has_sources);
+        }
+    }
+}
+
+fn insert_state_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    state_symbol: SymbolHandle,
+    state: &omega_resolved_trees::state::State,
+    has_sources: bool,
+) {
+    builder.insert_children(
+        state_symbol,
+        state
+            .parameters
+            .iter()
+            .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources))
+            .chain(local_symbol_seeds(&state.statements, has_sources)),
+    );
+}
+
+fn insert_platform_symbol_children(
+    builder: &mut SymbolTableBuilder,
+    platform_symbol: SymbolHandle,
+    platform: &omega_resolved_trees::platform::Platform,
+    has_sources: bool,
+) {
+    let platform_children = builder.insert_children(
+        platform_symbol,
+        platform
+            .states
+            .iter()
+            .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
+    );
+
+    for (state_symbol, state) in
+        SymbolTableBuilder::child_handles(platform_children).zip(platform.states.iter())
+    {
+        builder.insert_children(
+            state_symbol,
+            state
+                .parameters
+                .iter()
+                .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
+        );
+    }
+}
+
+fn inherited_data_field_symbols<'program>(
     program: &'program SymbolResolvedTrees,
     machine: &'program omega_resolved_trees::machine::Machine,
     has_sources: bool,
-) -> SymbolDefinition<'program> {
-    let inherited_data_members = program
+) -> impl Iterator<Item = SymbolSeed<'program>> + 'program {
+    program
         .data_definitions
         .iter()
         .find(|data_definition| data_definition.name == machine.name)
         .into_iter()
         .flat_map(|data_definition| data_definition.members.iter())
-        .filter_map(|member| match member {
-            omega_resolved_trees::data::DataMember::Field(field) => Some(symbol_definition(
-                SymbolKind::Field,
-                &field.name,
-                has_sources,
-            )),
+        .filter_map(move |member| match member {
+            omega_resolved_trees::data::DataMember::Field(field) => {
+                Some(symbol_seed(SymbolKind::Field, &field.name, has_sources))
+            }
             omega_resolved_trees::data::DataMember::Variant(_) => None,
-        });
-    let contained_objects = machine.contains.iter().map(|contained_object| {
-        symbol_definition(SymbolKind::Object, &contained_object.name, has_sources)
-    });
-    let owned_data = machine
-        .owned_data
-        .iter()
-        .map(|owned_data| symbol_definition(SymbolKind::Field, &owned_data.name, has_sources));
-    let states = machine
-        .states
-        .iter()
-        .map(|state| state_symbol_definition(state, has_sources));
-
-    symbol_definition_with_children(
-        SymbolKind::Machine,
-        &machine.name,
-        has_sources,
-        inherited_data_members
-            .chain(contained_objects)
-            .chain(owned_data)
-            .chain(states),
-    )
+        })
 }
 
-fn state_symbol_definition<'program>(
-    state: &'program omega_resolved_trees::state::State,
-    has_sources: bool,
-) -> SymbolDefinition<'program> {
-    symbol_definition_with_children(
-        SymbolKind::State,
-        &state.name,
-        has_sources,
-        state
-            .parameters
-            .iter()
-            .map(|parameter| symbol_definition(SymbolKind::Parameter, &parameter.name, has_sources))
-            .chain(local_symbol_definitions(&state.statements, has_sources)),
-    )
-}
-
-fn platform_symbol_definition<'program>(
-    platform: &'program omega_resolved_trees::platform::Platform,
-    has_sources: bool,
-) -> SymbolDefinition<'program> {
-    symbol_definition_with_children(
-        SymbolKind::Platform,
-        &platform.name,
-        has_sources,
-        platform.states.iter().map(|state| {
-            symbol_definition_with_children(
-                SymbolKind::State,
-                &state.name,
-                has_sources,
-                state.parameters.iter().map(|parameter| {
-                    symbol_definition(SymbolKind::Parameter, &parameter.name, has_sources)
-                }),
-            )
-        }),
-    )
-}
-
-fn local_symbol_definitions<'program>(
+fn local_symbol_seeds<'program>(
     statements: &'program [omega_resolved_trees::statement::Statement],
     has_sources: bool,
-) -> impl Iterator<Item = SymbolDefinition<'program>> + 'program {
+) -> impl Iterator<Item = SymbolSeed<'program>> + 'program {
     statements
         .iter()
         .filter_map(move |statement| match statement {
-            omega_resolved_trees::statement::Statement::LocalData(local_data) => Some(
-                symbol_definition(SymbolKind::Local, &local_data.name, has_sources),
-            ),
+            omega_resolved_trees::statement::Statement::LocalData(local_data) => Some(symbol_seed(
+                SymbolKind::Local,
+                &local_data.name,
+                has_sources,
+            )),
             _ => None,
         })
 }
 
-fn symbol_definition<'name>(
+fn symbol_seed<'name>(
     kind: SymbolKind,
     name: &'name omega_resolved_trees::name::DiagnosticName,
     has_sources: bool,
-) -> SymbolDefinition<'name> {
+) -> SymbolSeed<'name> {
     if has_sources && name.is_source_backed() {
-        SymbolDefinition::source_named(kind, name.source_span())
+        (kind, SymbolNameRef::Source(name.source_span()))
     } else {
-        SymbolDefinition::named(kind, name.as_str())
-    }
-}
-
-fn symbol_definition_with_children<'name>(
-    kind: SymbolKind,
-    name: &'name omega_resolved_trees::name::DiagnosticName,
-    has_sources: bool,
-    children: impl IntoIterator<Item = SymbolDefinition<'name>>,
-) -> SymbolDefinition<'name> {
-    if has_sources && name.is_source_backed() {
-        SymbolDefinition::source_with_children(kind, name.source_span(), children)
-    } else {
-        SymbolDefinition::with_children(kind, name.as_str(), children)
+        (kind, SymbolNameRef::Borrowed(name.as_str()))
     }
 }
 
 fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let mut root_children = symbols.child_handles(symbols.root()).into_iter().flatten();
 
-    for _ in 0..builtin_type_symbol_definitions().len() {
+    for _ in 0..builtin_type_symbols().len() {
         let _ = root_children.next();
     }
 

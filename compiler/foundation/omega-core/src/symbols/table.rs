@@ -6,7 +6,8 @@ use crate::arena::{
 use crate::source::{SourceMap, SourceSpan};
 
 use super::{
-    Symbol, SymbolDefinition, SymbolHandle, SymbolName, SymbolNameStorageKind, SymbolPath,
+    Symbol, SymbolDefinition, SymbolHandle, SymbolKind, SymbolName, SymbolNameRef,
+    SymbolNameStorageKind, SymbolPath,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -18,12 +19,96 @@ pub struct SymbolTable {
     root: SymbolHandle,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SymbolTableBuilder {
+    symbols: HierarchyArenaBuilder<Symbol>,
+    names: Arena<SymbolName>,
+    sources: Option<Arc<SourceMap>>,
+    root: SymbolHandle,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SymbolNameStorageCounts {
     pub missing: usize,
     pub source_names: usize,
     pub static_names: usize,
     pub owned_names: usize,
+}
+
+impl SymbolTableBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_sources(sources: Option<Arc<SourceMap>>) -> Self {
+        Self {
+            sources,
+            ..Self::default()
+        }
+    }
+
+    pub fn insert_root(&mut self, kind: SymbolKind, name: SymbolNameRef<'_>) -> SymbolHandle {
+        let symbol = self.symbol_from_parts(SymbolHandle::invalid(), kind, name);
+        let root = self.symbols.insert_root(symbol);
+        self.root = root;
+
+        root
+    }
+
+    pub fn insert_children<'name>(
+        &mut self,
+        parent: SymbolHandle,
+        children: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'name>)>,
+    ) -> HandleSpan<Symbol> {
+        let names = &mut self.names;
+        self.symbols.insert_children(
+            parent,
+            children.into_iter().map(|(kind, name)| Symbol {
+                parent,
+                children: HandleSpan::empty(),
+                kind,
+                name: names.insert(SymbolName::from_ref(name)),
+            }),
+        )
+    }
+
+    pub fn child_handles(span: HandleSpan<Symbol>) -> impl Iterator<Item = SymbolHandle> {
+        let start = span.start();
+
+        (0..span.count()).map(move |offset| {
+            SymbolHandle::from_parts(
+                start
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("symbol child handle overflow"),
+                start.generation(),
+            )
+        })
+    }
+
+    pub fn finish(self) -> SymbolTable {
+        SymbolTable {
+            symbols: self.symbols.finish(),
+            names: self.names,
+            path_members: Arena::new(),
+            sources: self.sources,
+            root: self.root,
+        }
+    }
+
+    fn symbol_from_parts(
+        &mut self,
+        parent: SymbolHandle,
+        kind: SymbolKind,
+        name: SymbolNameRef<'_>,
+    ) -> Symbol {
+        Symbol {
+            parent,
+            children: HandleSpan::empty(),
+            kind,
+            name: self.names.insert(SymbolName::from_ref(name)),
+        }
+    }
 }
 
 impl SymbolTable {
