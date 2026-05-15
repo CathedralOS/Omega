@@ -334,7 +334,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         }
     });
 
-    for platform in &mut program.platforms {
+    program.platforms.for_each_mut(|platform| {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
         let mut platform_children = symbols.child_handles(platform_symbol).into_iter().flatten();
@@ -358,7 +358,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 assign_type_reference_symbol_with_self_type(symbols, platform_symbol, return_type);
             }
         }
-    }
+    });
 }
 
 fn next_child_of_kind(

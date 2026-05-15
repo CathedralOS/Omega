@@ -16,7 +16,7 @@ pub struct SymbolResolvedRoots {
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
     pub machines: OrderedRootArena<crate::machine::Machine>,
-    pub platforms: Vec<crate::platform::Platform>,
+    pub platforms: OrderedRootArena<crate::platform::Platform>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
