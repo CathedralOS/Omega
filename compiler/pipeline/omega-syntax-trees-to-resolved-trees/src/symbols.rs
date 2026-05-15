@@ -839,9 +839,7 @@ fn assign_expression_symbols(
                     resolve_state_scoped_path(symbols, machine.symbol, state_symbol, &receiver_path)
                 {
                     if let Some(receiver) = &mut call.receiver {
-                        *receiver = Box::new(expression_from_path(
-                            receiver_path.with_symbols(head_symbol, symbol),
-                        ));
+                        stamp_receiver_path_symbols(receiver, head_symbol, symbol);
                     }
                 }
             }
@@ -923,33 +921,47 @@ fn assign_expression_symbols(
     }
 }
 
-fn expression_from_path(
-    path: omega_resolved_trees::expression::NamePath,
-) -> omega_resolved_trees::expression::Expression {
-    let head_symbol = path.head_symbol();
-    let mut members = path.members().iter().cloned();
-    let Some(first) = members.next() else {
-        return omega_resolved_trees::expression::Expression::Name(path);
-    };
-    let mut expression = omega_resolved_trees::expression::Expression::Name(
-        omega_resolved_trees::expression::NamePath::single_resolved(
-            first,
-            head_symbol,
-            head_symbol,
-        ),
-    );
-    for member in members {
-        expression = omega_resolved_trees::expression::Expression::Member(Box::new(
-            omega_resolved_trees::expression::MemberExpression {
-                storage: omega_resolved_trees::expression::MemberExpressionStorage {
-                    receiver: expression,
-                    member_symbol: SymbolHandle::invalid(),
-                    member,
-                },
-            },
-        ));
+fn stamp_receiver_path_symbols(
+    expression: &mut omega_resolved_trees::expression::Expression,
+    head_symbol: SymbolHandle,
+    symbol: SymbolHandle,
+) {
+    match expression {
+        omega_resolved_trees::expression::Expression::Name(path) => {
+            path.set_symbols(head_symbol, symbol);
+        }
+        omega_resolved_trees::expression::Expression::Indexed(indexed) => {
+            stamp_receiver_path_head_symbol(&mut indexed.collection, head_symbol);
+        }
+        omega_resolved_trees::expression::Expression::Member(member) => {
+            stamp_receiver_path_head_symbol(&mut member.receiver, head_symbol);
+        }
+        omega_resolved_trees::expression::Expression::Mutable(inner) => {
+            stamp_receiver_path_symbols(inner, head_symbol, symbol);
+        }
+        _ => {}
     }
-    expression
+}
+
+fn stamp_receiver_path_head_symbol(
+    expression: &mut omega_resolved_trees::expression::Expression,
+    head_symbol: SymbolHandle,
+) {
+    match expression {
+        omega_resolved_trees::expression::Expression::Name(path) => {
+            path.set_symbols(head_symbol, head_symbol);
+        }
+        omega_resolved_trees::expression::Expression::Indexed(indexed) => {
+            stamp_receiver_path_head_symbol(&mut indexed.collection, head_symbol);
+        }
+        omega_resolved_trees::expression::Expression::Member(member) => {
+            stamp_receiver_path_head_symbol(&mut member.receiver, head_symbol);
+        }
+        omega_resolved_trees::expression::Expression::Mutable(inner) => {
+            stamp_receiver_path_head_symbol(inner, head_symbol);
+        }
+        _ => {}
+    }
 }
 
 fn resolve_expression_call_target_symbol(
