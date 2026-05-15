@@ -157,8 +157,8 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     })
                 }))
                 .chain(
-                    state
-                        .parameters
+                    program
+                        .state_parameters(state)
                         .iter()
                         .filter(|parameter| parameter.is_mutable)
                         .map(|parameter| BorrowWritableRootFact {
@@ -202,8 +202,8 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
 
             let writable_roots_span = writable_roots.insert_many(state_writable_roots);
             let calls_span = calls.insert_many(state_calls);
-            let mutable_parameter_count = state
-                .parameters
+            let mutable_parameter_count = program
+                .state_parameters(state)
                 .iter()
                 .filter(|parameter| parameter.is_mutable)
                 .count();
@@ -624,8 +624,8 @@ fn resolve_state_call_target(
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
-    if let Some(type_symbol) = state
-        .parameters
+    if let Some(type_symbol) = program
+        .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == receiver_symbol)
         .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
@@ -671,8 +671,8 @@ fn receiver_can_dispatch_to_machine(
     }
 
     machine_by_symbol(program, receiver_symbol).is_some()
-        || state
-            .parameters
+        || program
+            .state_parameters(state)
             .iter()
             .find(|parameter| parameter.symbol == receiver_symbol)
             .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
@@ -874,36 +874,38 @@ mod tests {
             owned_data: Default::default(),
             states: Default::default(),
         };
-        program.push_machine_state(
-            &mut machine,
-            State {
-                symbol: entry_symbol,
-                name: ProgramName::generated("entry"),
-                parameters: vec![StateParameter {
-                    symbol: item_symbol,
-                    name: ProgramName::generated("item"),
-                    type_reference: TypeReference::Unit,
-                    is_const: false,
-                    is_mutable: true,
-                    is_self: false,
-                }],
-                return_type: None,
-                statements: vec![Statement::Call(Call {
-                    receiver_symbol: SymbolHandle::invalid(),
-                    target_symbol: outer_symbol,
-                    receiver: None,
-                    target: ProgramName::generated("outer"),
-                    arguments: vec![nested_call],
-                })],
-                statement_nodes: Default::default(),
+        let mut entry_state = State {
+            symbol: entry_symbol,
+            name: ProgramName::generated("entry"),
+            parameters: Default::default(),
+            return_type: None,
+            statements: vec![Statement::Call(Call {
+                receiver_symbol: SymbolHandle::invalid(),
+                target_symbol: outer_symbol,
+                receiver: None,
+                target: ProgramName::generated("outer"),
+                arguments: vec![nested_call],
+            })],
+            statement_nodes: Default::default(),
+        };
+        program.push_state_parameter(
+            &mut entry_state,
+            StateParameter {
+                symbol: item_symbol,
+                name: ProgramName::generated("item"),
+                type_reference: TypeReference::Unit,
+                is_const: false,
+                is_mutable: true,
+                is_self: false,
             },
         );
+        program.push_machine_state(&mut machine, entry_state);
         program.push_machine_state(
             &mut machine,
             State {
                 symbol: outer_symbol,
                 name: ProgramName::generated("outer"),
-                parameters: Vec::new(),
+                parameters: Default::default(),
                 return_type: None,
                 statements: Vec::new(),
                 statement_nodes: Default::default(),
@@ -914,7 +916,7 @@ mod tests {
             State {
                 symbol: inner_symbol,
                 name: ProgramName::generated("inner"),
-                parameters: Vec::new(),
+                parameters: Default::default(),
                 return_type: None,
                 statements: Vec::new(),
                 statement_nodes: Default::default(),

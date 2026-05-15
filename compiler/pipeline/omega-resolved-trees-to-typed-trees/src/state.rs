@@ -12,7 +12,7 @@ pub(crate) fn lower_state(
     let mut typed_state = typed::state::State {
         symbol: state.symbol,
         name: crate::name::lower_name(&state.name),
-        parameters: Vec::new(),
+        parameters: Default::default(),
         return_type: state
             .return_type
             .as_ref()
@@ -23,9 +23,10 @@ pub(crate) fn lower_state(
     };
 
     for parameter in lowerer.source_program.state_parameters(state.parameters) {
-        typed_state
-            .parameters
-            .push(lower_state_parameter(lowerer, parameter)?);
+        let parameter = lower_state_parameter(lowerer, parameter)?;
+        lowerer
+            .typed_trees
+            .push_state_parameter(&mut typed_state, parameter);
     }
 
     for statement in lowerer.source_program.state_statements(state.statements) {

@@ -15,6 +15,7 @@ pub struct TypedTrees {
     pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_states: Arena<crate::state::State>,
+    pub state_parameters: Arena<signature::StateParameter>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -166,6 +167,22 @@ impl TypedTrees {
         machine: &machine::Machine,
     ) -> &mut [crate::state::State] {
         self.machine_states.span_mut_or_empty(machine.states)
+    }
+
+    pub fn push_state_parameter(
+        &mut self,
+        state: &mut crate::state::State,
+        parameter: signature::StateParameter,
+    ) {
+        self.state_parameters
+            .append_to_span(&mut state.parameters, parameter);
+    }
+
+    pub fn state_parameters(
+        &self,
+        state: &crate::state::State,
+    ) -> &[signature::StateParameter] {
+        self.state_parameters.span_or_empty(state.parameters)
     }
 
     pub fn rebuild_tables(&mut self) {

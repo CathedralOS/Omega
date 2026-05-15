@@ -1,7 +1,7 @@
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::OwnedData;
-use crate::signature::StateSignature;
+use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::typed_trees::TypedTrees;
@@ -41,6 +41,7 @@ impl TypedProgramTables {
             tables.insert_machine(
                 typed_trees.machine_owned_data(machine),
                 typed_trees.machine_states(machine),
+                typed_trees,
                 &typed_trees.type_constraints,
             );
         }
@@ -60,6 +61,7 @@ impl TypedProgramTables {
             machines,
             machine_owned_data,
             machine_states,
+            state_parameters,
             root_platforms,
             platforms,
             platform_state_signatures,
@@ -89,6 +91,7 @@ impl TypedProgramTables {
             tables.insert_machine_with_state_spans(
                 machine_owned_data.span_or_empty(machine.owned_data),
                 machine_states.span_mut_or_empty(machine.states),
+                state_parameters,
                 type_constraints,
             );
         }
@@ -122,6 +125,7 @@ impl TypedProgramTables {
         &mut self,
         owned_data: &[OwnedData],
         states: &[State],
+        typed_trees: &TypedTrees,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in owned_data {
@@ -129,7 +133,11 @@ impl TypedProgramTables {
         }
 
         for state in states {
-            self.insert_state(state, type_constraints);
+            self.insert_state(
+                state,
+                typed_trees.state_parameters(state),
+                type_constraints,
+            );
         }
     }
 
@@ -137,6 +145,7 @@ impl TypedProgramTables {
         &mut self,
         owned_data: &[OwnedData],
         states: &mut [State],
+        state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in owned_data {
@@ -144,7 +153,11 @@ impl TypedProgramTables {
         }
 
         for state in states {
-            self.insert_state_with_statement_span(state, type_constraints);
+            self.insert_state_with_statement_span(
+                state,
+                state_parameters.span_or_empty(state.parameters),
+                type_constraints,
+            );
         }
     }
 
@@ -160,8 +173,13 @@ impl TypedProgramTables {
         }
     }
 
-    fn insert_state(&mut self, state: &State, type_constraints: &Arena<TypeConstraint>) {
-        for parameter in &state.parameters {
+    fn insert_state(
+        &mut self,
+        state: &State,
+        parameters: &[StateParameter],
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for parameter in parameters {
             self.insert_type_reference(&parameter.type_reference, type_constraints);
         }
 
@@ -177,9 +195,10 @@ impl TypedProgramTables {
     fn insert_state_with_statement_span(
         &mut self,
         state: &mut State,
+        parameters: &[StateParameter],
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for parameter in &state.parameters {
+        for parameter in parameters {
             self.insert_type_reference(&parameter.type_reference, type_constraints);
         }
 
@@ -282,7 +301,7 @@ mod tests {
             State {
                 symbol: SymbolHandle::invalid(),
                 name: ProgramName::generated("entry"),
-                parameters: Vec::new(),
+                parameters: Default::default(),
                 return_type: Some(TypeReference::Named {
                     symbol: SymbolHandle::invalid(),
                     name: ProgramName::generated("i32"),
