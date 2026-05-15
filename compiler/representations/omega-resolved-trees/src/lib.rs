@@ -14,6 +14,7 @@ pub mod tables;
 pub mod types;
 
 pub use symbol_resolved_trees::{
-    OrderedRootArena, SymbolResolvedBodyStorage, SymbolResolvedRoots, SymbolResolvedTableStorage,
-    SymbolResolvedTrees, SymbolResolvedTypeStorage,
+    OrderedRootArena, SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage,
+    SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees,
+    SymbolResolvedTypeStorage,
 };

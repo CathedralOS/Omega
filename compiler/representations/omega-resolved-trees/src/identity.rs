@@ -52,7 +52,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for data_definition in &program.data_definitions {
         count_declaration_name(&data_definition.name, &mut counts);
-        for member in &data_definition.members {
+        for member in program.data_members(data_definition.members) {
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);

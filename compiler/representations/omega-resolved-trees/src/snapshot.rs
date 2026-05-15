@@ -318,13 +318,13 @@ fn data_definition_snapshot(
 ) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
         name: data.name.to_string(),
-        type_parameters: data
-            .type_parameters
+        type_parameters: program
+            .data_type_parameters(data.type_parameters)
             .iter()
             .map(|parameter| parameter.name.to_string())
             .collect(),
-        members: data
-            .members
+        members: program
+            .data_members(data.members)
             .iter()
             .map(|member| data_member_snapshot(program, member))
             .collect(),

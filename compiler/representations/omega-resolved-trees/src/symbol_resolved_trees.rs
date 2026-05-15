@@ -1,4 +1,4 @@
-use crate::{expression, snapshot, statement, tables, types};
+use crate::{data, expression, snapshot, statement, tables, types};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolTable;
 use std::marker::PhantomData;
@@ -140,8 +140,15 @@ impl<'arena, T: Default> Iterator for OrderedRootArenaIter<'arena, T> {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTableStorage {
+    pub declarations: SymbolResolvedDeclarationStorage,
     pub bodies: SymbolResolvedBodyStorage,
     pub types: SymbolResolvedTypeStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SymbolResolvedDeclarationStorage {
+    pub data_members: Arena<data::DataMember>,
+    pub data_type_parameters: Arena<data::TypeParameter>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -157,6 +164,20 @@ pub struct SymbolResolvedBodyStorage {
 }
 
 impl SymbolResolvedTrees {
+    pub fn data_members(&self, span: HandleSpan<data::DataMember>) -> &[data::DataMember] {
+        self.tables.declarations.data_members.span_or_empty(span)
+    }
+
+    pub fn data_type_parameters(
+        &self,
+        span: HandleSpan<data::TypeParameter>,
+    ) -> &[data::TypeParameter] {
+        self.tables
+            .declarations
+            .data_type_parameters
+            .span_or_empty(span)
+    }
+
     pub fn rebuild_tables(&mut self) {
         let tables =
             tables::SymbolResolvedTreeTables::from_symbol_resolved_trees_with_state_spans(self);

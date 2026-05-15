@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
@@ -12,8 +13,8 @@ pub struct DataDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataDefinitionStorage {
-    pub type_parameters: Vec<TypeParameter>,
-    pub members: Vec<DataMember>,
+    pub type_parameters: HandleSpan<TypeParameter>,
+    pub members: HandleSpan<DataMember>,
 }
 
 impl Deref for DataDefinition {
@@ -31,11 +32,11 @@ impl DerefMut for DataDefinition {
 }
 
 impl DataDefinition {
-    pub fn shape_kind(&self) -> DataShapeKind {
+    pub fn shape_kind_from_members(members: &[DataMember]) -> DataShapeKind {
         let mut has_fields = false;
         let mut has_variants = false;
 
-        for member in &self.members {
+        for member in members {
             match member {
                 DataMember::Field(_) => has_fields = true,
                 DataMember::Variant(_) => has_variants = true,
@@ -65,7 +66,13 @@ pub enum DataMember {
     Variant(DataVariant),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Default for DataMember {
+    fn default() -> Self {
+        Self::Variant(DataVariant::default())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
@@ -78,7 +85,17 @@ pub struct DataField {
     pub type_reference: TypeReference,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Default for DataField {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::default(),
+            type_reference: TypeReference::Unit,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataVariant {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
