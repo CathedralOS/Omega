@@ -696,7 +696,7 @@ mod tests {
     use omega_state_graph::build_runtime_flow_plan;
     use omega_state_graph_to_control_flow::build_control_flow_plan;
     use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
-    use omega_resolved_trees_to_typed_trees::lower_resolved_trees;
+    use omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
     use omega_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -723,7 +723,7 @@ mod tests {
         let tokens = Lexer::new(source).tokenize().expect("tokenize");
         let syntax = parse_syntax_trees(&tokens).expect("parse");
         let resolved = lower_syntax_trees(&syntax).expect("resolve");
-        let typed = lower_resolved_trees(&resolved).expect("type");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(&typed).expect("check");
         let state_graph =
             omega_checked_trees_to_state_graph::build_state_graph(&checked).expect("state graph");

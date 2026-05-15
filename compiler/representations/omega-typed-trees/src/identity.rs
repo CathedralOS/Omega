@@ -56,7 +56,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);
-                    count_type_reference(&field.type_reference, &mut counts);
+                    count_type_reference(typed_trees, &field.type_reference, &mut counts);
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }
@@ -67,10 +67,10 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         count_declaration_name(&platform.name, &mut counts);
         for signature in typed_trees.platform_state_signatures(platform) {
             count_declaration_name(&signature.name, &mut counts);
-            count_optional_type_reference(signature.return_type.as_ref(), &mut counts);
+            count_optional_type_reference(typed_trees, signature.return_type.as_ref(), &mut counts);
             for parameter in typed_trees.state_signature_parameters(signature) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(&parameter.type_reference, &mut counts);
+                count_type_reference(typed_trees, &parameter.type_reference, &mut counts);
             }
         }
     }
@@ -83,15 +83,15 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
         for owned_data in typed_trees.machine_owned_data(machine) {
             count_declaration_name(&owned_data.name, &mut counts);
-            count_type_reference(&owned_data.type_reference, &mut counts);
+            count_type_reference(typed_trees, &owned_data.type_reference, &mut counts);
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
         }
         for state in typed_trees.machine_states(machine) {
             count_declaration_name(&state.name, &mut counts);
-            count_optional_type_reference(state.return_type.as_ref(), &mut counts);
+            count_optional_type_reference(typed_trees, state.return_type.as_ref(), &mut counts);
             for parameter in typed_trees.state_parameters(state) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(&parameter.type_reference, &mut counts);
+                count_type_reference(typed_trees, &parameter.type_reference, &mut counts);
             }
             for statement in typed_trees.statement_table.statements(state.statement_nodes) {
                 count_statement_node(
@@ -369,32 +369,40 @@ fn count_optional_expression(expression: Option<&Expression>, counts: &mut Ident
 }
 
 fn count_optional_type_reference(
+    typed_trees: &TypedTrees,
     type_reference: Option<&TypeReference>,
     counts: &mut IdentityStorageCounts,
 ) {
     if let Some(type_reference) = type_reference {
-        count_type_reference(type_reference, counts);
+        count_type_reference(typed_trees, type_reference, counts);
     }
 }
 
-fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentityStorageCounts) {
+fn count_type_reference(
+    typed_trees: &TypedTrees,
+    type_reference: &TypeReference,
+    counts: &mut IdentityStorageCounts,
+) {
     match type_reference {
-        TypeReference::Reference { referee, .. } => count_type_reference(referee, counts),
-        TypeReference::Constrained { base_type, .. } => count_type_reference(base_type, counts),
+        TypeReference::Reference { referee, .. } => {
+            count_type_reference(typed_trees, referee, counts)
+        }
+        TypeReference::Constrained { base_type, .. } => {
+            count_type_reference(typed_trees, base_type, counts)
+        }
         TypeReference::FixedArray { element_type, .. } => {
-            count_type_reference(element_type, counts);
+            count_type_reference(typed_trees, element_type, counts);
         }
         TypeReference::Slice { element_type } => {
-            count_type_reference(element_type, counts);
+            count_type_reference(typed_trees, element_type, counts);
         }
         TypeReference::Generic {
             base_name,
-            arguments,
             ..
         } => {
             count_type_name(base_name, counts);
-            for argument in arguments {
-                count_type_reference(argument, counts);
+            for argument in typed_trees.type_reference_arguments(type_reference) {
+                count_type_reference(typed_trees, argument, counts);
             }
         }
         TypeReference::Named { name, .. } => count_type_name(name, counts),

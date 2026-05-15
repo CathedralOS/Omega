@@ -456,11 +456,7 @@ fn validate_type_reference(
         TypeReference::Slice { element_type } => {
             validate_type_reference(program, element_type, symbols, diagnostics, owner);
         }
-        TypeReference::Generic {
-            base_name,
-            arguments,
-            ..
-        } => {
+        TypeReference::Generic { base_name, .. } => {
             if !symbols.has_type(base_name) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{owner} references unknown generic type `{base_name}`"
@@ -468,7 +464,7 @@ fn validate_type_reference(
             }
 
             if base_name != "IndexOf" {
-                for argument in arguments {
+                for argument in program.type_reference_arguments(type_reference) {
                     validate_type_reference(
                         program,
                         argument,
@@ -558,7 +554,7 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
 #[cfg(test)]
 mod tests {
     use super::validate_program;
-    use omega_resolved_trees_to_typed_trees::lower_resolved_trees;
+    use omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_source_files_to_tokens::Lexer;
     use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
@@ -574,7 +570,7 @@ mod tests {
         let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
-        let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         assert_eq!(typed.machines().len(), 1);
         assert_eq!(typed.machines()[0].name.as_str(), "main");
@@ -591,7 +587,7 @@ mod tests {
         let source = r#"
         machine main {
             pub entry(&mut self) {
-                self.take_non_negative(0);
+                take_non_negative(0);
             }
 
             state take_non_negative(
@@ -605,17 +601,25 @@ mod tests {
         let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
-        let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("typed lowering should succeed");
 
         let entry = typed
             .machine_states(&typed.machines()[0])
             .iter()
             .find(|state| state.name.as_str() == "entry")
             .expect("entry state");
-        let omega_typed_trees::statement::Statement::Call(call) = &entry.statements[0] else {
-            panic!("expected call statement");
-        };
-        assert_eq!(call.arguments.len(), 1);
+        let call_argument_count = typed
+            .state_statements(entry)
+            .iter()
+            .find_map(|statement| match statement {
+                omega_typed_trees::statement::Statement::Call(call) => Some(call.arguments.len()),
+                omega_typed_trees::statement::Statement::Expression(
+                    omega_typed_trees::expression::Expression::Call(call),
+                ) => Some(call.arguments.len()),
+                _ => None,
+            })
+            .expect("expected call statement");
+        assert_eq!(call_argument_count, 1);
         validate_program(&typed).expect("validation should succeed");
     }
 }
