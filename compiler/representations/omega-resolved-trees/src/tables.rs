@@ -10,7 +10,7 @@ use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ResolvedProgramTables {
+pub struct ResolvedTreeTables {
     pub bodies: ResolvedBodyTables,
     pub types: ResolvedTypeTables,
 }
@@ -26,24 +26,24 @@ pub struct ResolvedTypeTables {
     pub references: TypeReferenceTable,
 }
 
-impl ResolvedProgramTables {
-    pub fn from_program_with_state_spans(program: &mut ResolvedTrees) -> Self {
+impl ResolvedTreeTables {
+    pub fn from_resolved_trees_with_state_spans(resolved_trees: &mut ResolvedTrees) -> Self {
         let mut tables = Self::default();
-        let type_constraints = program.tables.types.constraints.clone();
+        let type_constraints = resolved_trees.tables.types.constraints.clone();
 
-        for invariant in &program.invariant_definitions {
+        for invariant in &resolved_trees.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, &type_constraints);
         }
 
-        for data_definition in &program.data_definitions {
+        for data_definition in &resolved_trees.data_definitions {
             tables.insert_data_definition(data_definition, &type_constraints);
         }
 
-        for platform in &program.platforms {
+        for platform in &resolved_trees.platforms {
             tables.insert_platform(platform, &type_constraints);
         }
 
-        for machine in &mut program.machines {
+        for machine in &mut resolved_trees.machines {
             tables.insert_machine_with_state_spans(machine, &type_constraints);
         }
 
