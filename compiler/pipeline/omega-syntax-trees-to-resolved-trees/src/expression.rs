@@ -124,9 +124,7 @@ fn lower_expression_node(
                 omega_resolved_trees::name::DiagnosticName::generated_static("self"),
             ),
         )),
-        syntax::expression::ExpressionNode::String(value) => {
-            Ok(Expression::String(value.as_str().to_owned()))
-        }
+        syntax::expression::ExpressionNode::String(value) => Ok(Expression::String(value.clone())),
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
             Ok(Expression::StructLiteral(StructLiteral {
                 storage: StructLiteralStorage {

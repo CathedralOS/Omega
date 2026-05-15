@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::source::SourceText;
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
@@ -20,7 +21,7 @@ pub enum Expression {
     Mutable(Box<Expression>),
     Name(NamePath),
     StructLiteral(StructLiteral),
-    String(String),
+    String(SourceText),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -742,7 +743,7 @@ pub enum ExpressionNode {
     Mutable(ExpressionHandle),
     Name(TableNamePath),
     StructLiteral(TableStructLiteral),
-    String(String),
+    String(SourceText),
 }
 
 impl Default for ExpressionNode {
@@ -1218,7 +1219,7 @@ impl Expression {
             Expression::Mutable(expression) => format!("mut {}", expression.display_name()),
             Expression::Name(path) => display_name_path(path, "::"),
             Expression::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Expression::String(value) => format!("{value:?}"),
+            Expression::String(value) => format!("{:?}", value.as_str()),
         }
     }
 }
@@ -1250,7 +1251,7 @@ impl ExpressionNode {
             Self::Mutable(expression) => format!("mut {}", table.display_name(*expression)),
             Self::Name(path) => display_name_path(table.name_path_members(path.members), "::"),
             Self::StructLiteral(struct_literal) => struct_literal.type_name.to_string(),
-            Self::String(value) => format!("{value:?}"),
+            Self::String(value) => format!("{:?}", value.as_str()),
         }
     }
 }
@@ -1420,6 +1421,7 @@ mod tests {
         TableBinaryExpression, TableNamePath,
     };
     use crate::name::DiagnosticName;
+    use omega_core::source::SourceText;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -1487,7 +1489,7 @@ mod tests {
                 fields: vec![
                     StructLiteralField {
                         name: DiagnosticName::generated("name"),
-                        value: Expression::String("Hall".to_string()),
+                        value: Expression::String(SourceText::generated("Hall")),
                     },
                     StructLiteralField {
                         name: DiagnosticName::generated("open"),
