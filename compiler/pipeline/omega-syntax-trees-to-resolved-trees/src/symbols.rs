@@ -521,10 +521,11 @@ fn assign_transition_target_symbols(
     target: &mut omega_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
 ) {
-    let omega_resolved_trees::statement::TransitionTarget::Named { path, .. } = target else {
+    let omega_resolved_trees::statement::TransitionTarget::Named(named) = target else {
         return;
     };
 
+    let path = &mut named.path;
     let target_name = path.last().cloned();
     if let Some((head_symbol, symbol)) =
         resolve_state_scoped_path(symbols, machine.symbol, state_symbol, path)

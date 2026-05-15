@@ -80,10 +80,11 @@ fn lower_transition_target(
     target: &resolved::statement::TransitionTarget,
 ) -> Result<typed::statement::TransitionTarget, Diagnostic> {
     match target {
-        resolved::statement::TransitionTarget::Named { path, arguments } => {
+        resolved::statement::TransitionTarget::Named(named) => {
             Ok(typed::statement::TransitionTarget::Named {
-                path: lower_name_path(path),
-                arguments: arguments
+                path: lower_name_path(&named.path),
+                arguments: named
+                    .arguments
                     .iter()
                     .map(lower_expression)
                     .collect::<Result<Vec<_>, _>>()?,

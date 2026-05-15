@@ -455,9 +455,9 @@ fn transition_snapshot(transition: &Transition) -> StatementSnapshot {
 
 fn transition_target_snapshot(target: &TransitionTarget) -> TransitionTargetSnapshot {
     match target {
-        TransitionTarget::Named { path, arguments } => TransitionTargetSnapshot::Named {
-            path: name_path_snapshot(path),
-            arguments: arguments.iter().map(expression_snapshot).collect(),
+        TransitionTarget::Named(named) => TransitionTargetSnapshot::Named {
+            path: name_path_snapshot(&named.path),
+            arguments: named.arguments.iter().map(expression_snapshot).collect(),
         },
         TransitionTarget::Value(expression) => TransitionTargetSnapshot::Value {
             value: expression_snapshot(expression),
