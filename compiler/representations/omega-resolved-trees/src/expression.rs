@@ -555,8 +555,8 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => Expression::Cast(Box::new(CastExpression {
                 storage: CastExpressionStorage {
                     value: self.to_tree(cast.value),
-                    target_type: NamePath::unresolved(
-                        self.name_path_members(cast.target_type).to_vec(),
+                    target_type: NamePath::unresolved_from_iter(
+                        self.name_path_members(cast.target_type).iter().cloned(),
                     ),
                 },
             })),
@@ -593,8 +593,8 @@ impl ExpressionTable {
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
             }
-            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved(
-                self.name_path_members(path.members).to_vec(),
+            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved_from_iter(
+                self.name_path_members(path.members).iter().cloned(),
                 path.head_symbol,
                 path.symbol,
             )),
@@ -648,8 +648,8 @@ impl ExpressionTable {
     }
 
     fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
-        NamePath::resolved(
-            self.name_path_members(path.members).to_vec(),
+        NamePath::resolved_from_iter(
+            self.name_path_members(path.members).iter().cloned(),
             path.head_symbol,
             path.symbol,
         )
@@ -856,10 +856,20 @@ pub struct NamePathStorage {
 
 impl NamePath {
     pub fn unresolved(members: Vec<DiagnosticName>) -> Self {
+        Self::unresolved_from_boxed_slice(members.into_boxed_slice())
+    }
+
+    pub fn unresolved_from_iter(members: impl IntoIterator<Item = DiagnosticName>) -> Self {
+        Self::unresolved_from_boxed_slice(members.into_iter().collect())
+    }
+
+    pub fn single_unresolved(member: DiagnosticName) -> Self {
+        Self::unresolved_from_boxed_slice(Box::new([member]))
+    }
+
+    fn unresolved_from_boxed_slice(members: Box<[DiagnosticName]>) -> Self {
         Self {
-            storage: NamePathStorage {
-                members: members.into_boxed_slice(),
-            },
+            storage: NamePathStorage { members },
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -870,10 +880,32 @@ impl NamePath {
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
+        Self::resolved_from_boxed_slice(members.into_boxed_slice(), head_symbol, symbol)
+    }
+
+    pub fn resolved_from_iter(
+        members: impl IntoIterator<Item = DiagnosticName>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self::resolved_from_boxed_slice(members.into_iter().collect(), head_symbol, symbol)
+    }
+
+    pub fn single_resolved(
+        member: DiagnosticName,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self::resolved_from_boxed_slice(Box::new([member]), head_symbol, symbol)
+    }
+
+    fn resolved_from_boxed_slice(
+        members: Box<[DiagnosticName]>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
         Self {
-            storage: NamePathStorage {
-                members: members.into_boxed_slice(),
-            },
+            storage: NamePathStorage { members },
             head_symbol,
             symbol,
         }
