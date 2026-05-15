@@ -4,8 +4,10 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::types::{
-    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, GenericTypeReference,
-    GenericTypeReferenceStorage, TypeConstraint, TypeReference,
+    ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
+    FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
+    ReferenceTypeReference, ReferenceTypeReferenceStorage, SliceTypeReference,
+    SliceTypeReferenceStorage, TypeConstraint, TypeReference,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -18,14 +20,16 @@ pub(crate) fn lower_type_reference_handle(
         syntax::types::TypeReferenceNode::Reference {
             referee,
             is_mutable,
-        } => Ok(TypeReference::Reference {
-            referee: Box::new(lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *referee,
-            )?),
-            is_mutable: *is_mutable,
-        }),
+        } => Ok(TypeReference::Reference(ReferenceTypeReference {
+            storage: ReferenceTypeReferenceStorage {
+                referee: Box::new(lower_type_reference_handle(
+                    lowerer,
+                    syntax_trees,
+                    *referee,
+                )?),
+                is_mutable: *is_mutable,
+            },
+        })),
         syntax::types::TypeReferenceNode::Constrained {
             base_type,
             constraints,
@@ -42,21 +46,27 @@ pub(crate) fn lower_type_reference_handle(
         syntax::types::TypeReferenceNode::FixedArray {
             element_type,
             length,
-        } => Ok(TypeReference::FixedArray {
-            element_type: Box::new(lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *element_type,
-            )?),
-            length: *length,
-        }),
-        syntax::types::TypeReferenceNode::Slice { element_type } => Ok(TypeReference::Slice {
-            element_type: Box::new(lower_type_reference_handle(
-                lowerer,
-                syntax_trees,
-                *element_type,
-            )?),
-        }),
+        } => Ok(TypeReference::FixedArray(FixedArrayTypeReference {
+            storage: FixedArrayTypeReferenceStorage {
+                element_type: Box::new(lower_type_reference_handle(
+                    lowerer,
+                    syntax_trees,
+                    *element_type,
+                )?),
+                length: *length,
+            },
+        })),
+        syntax::types::TypeReferenceNode::Slice { element_type } => {
+            Ok(TypeReference::Slice(SliceTypeReference {
+                storage: SliceTypeReferenceStorage {
+                    element_type: Box::new(lower_type_reference_handle(
+                        lowerer,
+                        syntax_trees,
+                        *element_type,
+                    )?),
+                },
+            }))
+        }
         syntax::types::TypeReferenceNode::Generic {
             base_name,
             arguments,
