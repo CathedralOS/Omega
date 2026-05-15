@@ -304,8 +304,8 @@ fn build_machine_graph(
 }
 
 fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph> {
-    let mut contains = machine
-        .contains
+    let mut contains = program
+        .machine_contained_objects(machine)
         .iter()
         .map(|contained| ContainedGraph {
             symbol: contained.symbol,

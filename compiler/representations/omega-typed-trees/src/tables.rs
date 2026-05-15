@@ -250,7 +250,7 @@ mod tests {
         typed_trees.push_machine(Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),
-            contains: Vec::new(),
+            contains: Default::default(),
             owned_data: Vec::new(),
             states: vec![State {
                 symbol: SymbolHandle::invalid(),

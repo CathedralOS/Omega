@@ -514,8 +514,8 @@ fn resolve_call_target_machine<'program>(
         return None;
     }
 
-    let contained = current_machine
-        .contains
+    let contained = program
+        .machine_contained_objects(current_machine)
         .iter()
         .find(|contained| contained.symbol == contained_symbol)?;
 
@@ -1329,7 +1329,7 @@ mod tests {
         let machine = Machine {
             symbol: machine_symbol,
             name: "RoomEvents".into(),
-            contains: vec![],
+            contains: Default::default(),
             owned_data: vec![],
             states: vec![helper],
         };
@@ -1437,7 +1437,7 @@ mod tests {
         let machine = Machine {
             symbol: SymbolHandle::invalid(),
             name: "main".into(),
-            contains: vec![],
+            contains: Default::default(),
             owned_data: vec![],
             states: vec![],
         };
@@ -1503,7 +1503,7 @@ mod tests {
         let machine = Machine {
             symbol: machine_symbol,
             name: "InventorySystem".into(),
-            contains: vec![],
+            contains: Default::default(),
             owned_data: vec![],
             states: vec![find],
         };

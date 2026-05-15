@@ -263,7 +263,7 @@ impl<'program> MachineSymbols<'program> {
             }
         }
 
-        for contained_object in &machine.contains {
+        for contained_object in program.machine_contained_objects(machine) {
             if symbols.has_member(contained_object.name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate member `{}`",

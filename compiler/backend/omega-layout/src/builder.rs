@@ -39,6 +39,7 @@ struct LayoutBuilder<'program> {
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: Vec<SymbolHandle>,
     platform_definitions: &'program [Platform],
+    program: &'program Program,
     target: NativeTarget,
     type_constraints: &'program Arena<TypeConstraint>,
 }
@@ -54,6 +55,7 @@ impl<'program> LayoutBuilder<'program> {
             machine_layouts: Arena::new(),
             machine_visiting: Vec::new(),
             platform_definitions: program.platforms(),
+            program,
             target,
             type_constraints: &program.type_constraints,
         }
@@ -221,7 +223,7 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        for contained_object in &machine.contains {
+        for contained_object in self.program.machine_contained_objects(machine) {
             if self
                 .machine_definition_by_symbol(contained_object.type_symbol)
                 .is_ok()

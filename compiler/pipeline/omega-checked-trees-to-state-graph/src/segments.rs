@@ -315,8 +315,8 @@ fn branch_call_target_with_visited<'program>(
         current_machine
     } else {
         let receiver_name = call.receiver.as_ref().and_then(|receiver| receiver.last());
-        let contained_symbol = current_machine
-            .contains
+        let contained_symbol = program
+            .machine_contained_objects(current_machine)
             .iter()
             .find(|contained| {
                 contained.symbol == call.receiver_symbol

@@ -609,8 +609,8 @@ fn resolve_state_call_target(
         return None;
     }
 
-    if let Some(contained) = machine
-        .contains
+    if let Some(contained) = program
+        .machine_contained_objects(machine)
         .iter()
         .find(|contained| contained.symbol == receiver_symbol)
     {
@@ -660,8 +660,8 @@ fn receiver_can_dispatch_to_machine(
         return false;
     }
 
-    if machine
-        .contains
+    if program
+        .machine_contained_objects(machine)
         .iter()
         .any(|contained| contained.symbol == receiver_symbol)
     {
@@ -867,7 +867,7 @@ mod tests {
         program.push_machine(Machine {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
-            contains: Vec::new(),
+            contains: Default::default(),
             owned_data: Vec::new(),
             states: vec![
                 State {

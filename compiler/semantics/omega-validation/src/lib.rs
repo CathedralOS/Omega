@@ -21,7 +21,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
-        validate_contained_types(machine, &symbols, &mut diagnostics);
+        validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
 
         for state in &machine.states {
@@ -615,11 +615,12 @@ mod tests {
 }
 
 fn validate_contained_types(
+    program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for contained_object in &machine.contains {
+    for contained_object in program.machine_contained_objects(machine) {
         if !symbols.is_callable_receiver_type(&contained_object.type_name) {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` contains `{}` with unknown type `{}`",
