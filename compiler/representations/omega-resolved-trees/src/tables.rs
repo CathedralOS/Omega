@@ -6,7 +6,7 @@ use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTreeTables {
@@ -189,10 +189,9 @@ impl SymbolResolvedTreeTables {
             self.insert_type_reference(return_type, type_reference_arguments, type_constraints);
         }
 
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut statement_nodes = HandleSpan::empty();
         for statement in state_statements.span_or_empty(state.statements) {
-            let handle = self.bodies.statements.insert_tree(
+            let statement = self.bodies.statements.insert_tree(
                 statement,
                 state_statement_expressions,
                 &mut self.bodies.expressions,
@@ -200,17 +199,10 @@ impl SymbolResolvedTreeTables {
                 type_reference_arguments,
                 type_constraints,
             );
-            if count == 0 {
-                start = handle;
-            }
-            count = count.checked_add(1).expect("state statement span overflow");
+            statement_nodes.push_contiguous(statement);
         }
 
-        state.statement_nodes = if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        };
+        state.statement_nodes = statement_nodes;
     }
 
     fn insert_state_signature(

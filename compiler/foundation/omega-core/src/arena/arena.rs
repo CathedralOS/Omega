@@ -83,6 +83,34 @@ impl<T: Default> Arena<T> {
         Handle::from_arena_index(arena_index)
     }
 
+    pub fn append_to_span(&mut self, span: &mut HandleSpan<T>, item: T) -> Handle<T> {
+        let next_index: u32 = self.items.len().try_into().expect("arena index overflow");
+        if !span.is_empty() {
+            let expected_index = span
+                .start()
+                .arena_index()
+                .checked_add(span.count())
+                .expect("arena span index overflow");
+            assert_eq!(
+                next_index, expected_index,
+                "arena span append must be contiguous"
+            );
+        }
+
+        let handle = self.append(item);
+        *span = if span.is_empty() {
+            HandleSpan::from_parts(handle, 1)
+        } else {
+            HandleSpan::from_parts(
+                span.start(),
+                span.count()
+                    .checked_add(1)
+                    .expect("arena span count overflow"),
+            )
+        };
+        handle
+    }
+
     pub fn pop_last_appended(&mut self, handle: Handle<T>) -> Option<T> {
         let index = usize::try_from(handle.arena_index()).ok()?;
         if index == 0 || index.checked_add(1)? != self.items.len() {
@@ -485,6 +513,35 @@ mod tests {
             arena.span(span).expect("span should resolve"),
             &["alpha".to_owned(), "bravo".to_owned(), "gamma".to_owned()]
         );
+    }
+
+    #[test]
+    fn appends_directly_to_contiguous_handle_spans() {
+        let mut arena = Arena::new();
+        let mut span = crate::arena::HandleSpan::empty();
+
+        let alpha = arena.append_to_span(&mut span, "alpha".to_owned());
+        let beta = arena.append_to_span(&mut span, "beta".to_owned());
+
+        assert_eq!(alpha.arena_index(), 1);
+        assert_eq!(beta.arena_index(), 2);
+        assert_eq!(span.start(), alpha);
+        assert_eq!(span.count(), 2);
+        assert_eq!(
+            arena.span(span).expect("span should resolve"),
+            &["alpha".to_owned(), "beta".to_owned()]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "arena span append must be contiguous")]
+    fn panics_when_extending_stale_contiguous_spans() {
+        let mut arena = Arena::new();
+        let mut span = crate::arena::HandleSpan::empty();
+        arena.append_to_span(&mut span, "alpha".to_owned());
+        arena.append("gap".to_owned());
+
+        arena.append_to_span(&mut span, "beta".to_owned());
     }
 
     #[test]
