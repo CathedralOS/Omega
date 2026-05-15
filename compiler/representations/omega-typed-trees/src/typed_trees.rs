@@ -11,6 +11,7 @@ pub struct TypedTrees {
     pub root_machines: HandleSpan<machine::Machine>,
     pub machines: Arena<machine::Machine>,
     pub machine_contained_objects: Arena<machine::ContainedObject>,
+    pub machine_owned_data: Arena<machine::OwnedData>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -99,6 +100,19 @@ impl TypedTrees {
     ) -> &[machine::ContainedObject] {
         self.machine_contained_objects
             .span_or_empty(machine.contains)
+    }
+
+    pub fn push_machine_owned_data(
+        &mut self,
+        machine: &mut machine::Machine,
+        owned_data: machine::OwnedData,
+    ) {
+        self.machine_owned_data
+            .append_to_span(&mut machine.owned_data, owned_data);
+    }
+
+    pub fn machine_owned_data(&self, machine: &machine::Machine) -> &[machine::OwnedData] {
+        self.machine_owned_data.span_or_empty(machine.owned_data)
     }
 
     pub fn rebuild_tables(&mut self) {

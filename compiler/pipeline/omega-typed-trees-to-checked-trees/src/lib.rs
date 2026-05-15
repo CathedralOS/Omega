@@ -138,8 +138,8 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
 
     for machine in program.machines() {
         for state in &machine.states {
-            let state_writable_roots = machine
-                .owned_data
+            let state_writable_roots = program
+                .machine_owned_data(machine)
                 .iter()
                 .map(|owned| BorrowWritableRootFact {
                     symbol: owned.symbol,
@@ -868,7 +868,7 @@ mod tests {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
             contains: Default::default(),
-            owned_data: Vec::new(),
+            owned_data: Default::default(),
             states: vec![
                 State {
                     symbol: entry_symbol,

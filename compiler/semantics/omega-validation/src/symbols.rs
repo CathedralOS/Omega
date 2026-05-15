@@ -293,7 +293,7 @@ impl<'program> MachineSymbols<'program> {
             });
         }
 
-        for owned_data in &machine.owned_data {
+        for owned_data in program.machine_owned_data(machine) {
             if symbols.has_member(owned_data.name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate member `{}`",

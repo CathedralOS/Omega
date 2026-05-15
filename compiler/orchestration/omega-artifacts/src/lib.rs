@@ -825,7 +825,7 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
     report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
         contained_objects: program.machine_contained_objects(machine).len(),
-        owned_data: machine.owned_data.len(),
+        owned_data: program.machine_owned_data(machine).len(),
         states: machine.states.len(),
     });
 
@@ -941,7 +941,7 @@ mod tests {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),
             contains: Default::default(),
-            owned_data: Vec::new(),
+            owned_data: Default::default(),
             states: vec![State {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("entry"),

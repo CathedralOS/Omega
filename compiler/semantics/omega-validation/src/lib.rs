@@ -636,7 +636,7 @@ fn validate_owned_data(
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for owned_data in &machine.owned_data {
+    for owned_data in program.machine_owned_data(machine) {
         validate_type_reference(
             program,
             &owned_data.type_reference,

@@ -211,7 +211,7 @@ impl<'program> LayoutBuilder<'program> {
             }
         }
 
-        for owned_data in &machine.owned_data {
+        for owned_data in self.program.machine_owned_data(machine) {
             fields.push(PlannedField {
                 symbol: owned_data.symbol,
                 name: owned_data.name.clone(),
