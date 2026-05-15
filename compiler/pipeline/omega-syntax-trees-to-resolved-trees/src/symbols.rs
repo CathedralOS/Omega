@@ -242,9 +242,9 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         let _ = root_children.next();
     }
 
-    for invariant in &mut program.invariant_definitions {
+    program.invariant_definitions.for_each_mut(|invariant| {
         invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
-    }
+    });
 
     program.data_definitions.for_each_mut(|data_definition| {
         data_definition.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Data);
