@@ -518,7 +518,14 @@ fn assign_statement_symbols(
                 }
             }
 
-            call.target_symbol = resolve_call_target_symbol(machine, parameters, call, symbols);
+            call.target_symbol = resolve_call_target_symbol(
+                machine,
+                parameters,
+                call.receiver.is_some(),
+                call.receiver_symbol,
+                &call.target,
+                symbols,
+            );
         }
         omega_resolved_trees::statement::Statement::Expression(expression) => {
             assign_expression_symbols(symbols, machine, parameters, state_symbol, expression);
@@ -703,28 +710,24 @@ fn resolve_expression_call_target_symbol(
     if let Some(receiver) = &call.receiver
         && let Some(receiver_path) = expression_name_path(receiver)
     {
-        let statement_call = omega_resolved_trees::statement::Call {
-            receiver_symbol: receiver_path.symbol(),
-            target_symbol: call.target_symbol,
-            target: call.target.clone(),
-            storage: omega_resolved_trees::statement::CallStorage {
-                receiver: Some(receiver_path),
-                arguments: Vec::new().into_boxed_slice(),
-            },
-        };
-        return resolve_call_target_symbol(machine, parameters, &statement_call, symbols);
+        return resolve_call_target_symbol(
+            machine,
+            parameters,
+            true,
+            receiver_path.symbol(),
+            &call.target,
+            symbols,
+        );
     }
 
-    let statement_call = omega_resolved_trees::statement::Call {
-        receiver_symbol: SymbolHandle::invalid(),
-        target_symbol: call.target_symbol,
-        target: call.target.clone(),
-        storage: omega_resolved_trees::statement::CallStorage {
-            receiver: None,
-            arguments: Vec::new().into_boxed_slice(),
-        },
-    };
-    resolve_call_target_symbol(machine, parameters, &statement_call, symbols)
+    resolve_call_target_symbol(
+        machine,
+        parameters,
+        false,
+        SymbolHandle::invalid(),
+        &call.target,
+        symbols,
+    )
 }
 
 fn expression_name_path(
@@ -793,42 +796,41 @@ fn assign_transition_target_symbols(
 fn resolve_call_target_symbol(
     machine: &MachineScope<'_>,
     parameters: &[omega_resolved_trees::signature::StateParameter],
-    call: &omega_resolved_trees::statement::Call,
+    has_receiver: bool,
+    receiver_symbol: SymbolHandle,
+    target: &omega_resolved_trees::name::DiagnosticName,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
-    if call.receiver.is_some() {
-        if call.receiver_symbol.is_valid() {
+    if has_receiver {
+        if receiver_symbol.is_valid() {
             if let Some(contained) = machine
                 .contains
                 .iter()
-                .find(|contained| contained.symbol == call.receiver_symbol)
+                .find(|contained| contained.symbol == receiver_symbol)
             {
                 return child_symbol_by_kinds(
                     symbols,
                     contained.type_symbol,
                     &[SymbolKind::State],
-                    call.target.as_str(),
+                    target.as_str(),
                 );
             }
 
-            if let Some(field_type_reference) = machine.field_type_reference(call.receiver_symbol) {
-                let symbol = call_target_for_type_reference(
-                    symbols,
-                    field_type_reference,
-                    call.target.as_str(),
-                );
+            if let Some(field_type_reference) = machine.field_type_reference(receiver_symbol) {
+                let symbol =
+                    call_target_for_type_reference(symbols, field_type_reference, target.as_str());
                 return symbol;
             }
 
-            let receiver_kind = symbols.get(call.receiver_symbol).kind;
+            let receiver_kind = symbols.get(receiver_symbol).kind;
             if let Some(parameter) = parameters
                 .iter()
-                .find(|parameter| parameter.symbol == call.receiver_symbol)
+                .find(|parameter| parameter.symbol == receiver_symbol)
             {
                 let direct = call_target_for_type_reference(
                     symbols,
                     &parameter.type_reference,
-                    call.target.as_str(),
+                    target.as_str(),
                 );
                 if direct.is_valid() {
                     return direct;
@@ -837,9 +839,9 @@ fn resolve_call_target_symbol(
             if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Platform) {
                 return child_symbol_by_kinds(
                     symbols,
-                    call.receiver_symbol,
+                    receiver_symbol,
                     &[SymbolKind::State],
-                    call.target.as_str(),
+                    target.as_str(),
                 );
             }
         }
@@ -849,7 +851,7 @@ fn resolve_call_target_symbol(
         symbols,
         machine.symbol,
         &[SymbolKind::State],
-        call.target.as_str(),
+        target.as_str(),
     )
 }
 
