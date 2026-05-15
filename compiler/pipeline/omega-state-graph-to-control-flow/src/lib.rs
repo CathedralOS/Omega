@@ -62,7 +62,7 @@ fn remap_states(state_graph: &StateGraph) -> (Arena<StateFlow>, Arena<StateParam
     let mut state_parameters = Arena::default();
 
     for (_, state) in state_graph.states.iter() {
-        states.append(remap_state(state, &mut state_parameters));
+        states.append(remap_state(state_graph, state, &mut state_parameters));
     }
 
     (states, state_parameters)
@@ -118,6 +118,7 @@ fn remap_invariants(state_graph: &StateGraph) -> Arena<InvariantFact> {
 }
 
 fn remap_state(
+    state_graph: &StateGraph,
     state: &StateNode,
     state_parameters: &mut Arena<StateParameterFlow>,
 ) -> StateFlow {
@@ -131,7 +132,7 @@ fn remap_state(
         transitions: remap_transition_span(state.transitions),
     };
 
-    for parameter in &state.parameters {
+    for parameter in state_graph.state_parameters(state) {
         state_parameters.append_to_span(&mut state_flow.parameters, remap_parameter(parameter));
     }
 

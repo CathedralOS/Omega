@@ -10,6 +10,7 @@ use omega_checked_trees::statement::{
 };
 use omega_checked_trees::types::TypeReference;
 
+use omega_core::arena::HandleSpan;
 use omega_state_graph::{
     Operation, OperationExpressionRefs, OperationKind, StateGraph, StateKey, StateParameterNode,
 };
@@ -18,7 +19,7 @@ use omega_state_graph::{
 pub(super) struct StateSegment<'program> {
     pub key: StateKey,
     pub name: ProgramName,
-    pub parameters: Vec<StateParameterNode>,
+    pub parameters: HandleSpan<StateParameterNode>,
     pub operations: Vec<Operation>,
     pub transitions: Vec<SegmentTransition<'program>>,
     pub next_segment_name: Option<ProgramName>,
@@ -77,7 +78,7 @@ pub(super) fn split_state_segments<'program>(
                     segment_index,
                 },
                 name: segment_name(&state.name, segment_index),
-                parameters: state_parameters_for_segment(program, state, segment_index),
+                parameters: state_parameters_for_segment(state_graph, program, state, segment_index),
                 operations,
                 transitions: vec![SegmentTransition::BranchCall {
                     call,
@@ -102,7 +103,7 @@ pub(super) fn split_state_segments<'program>(
                     segment_index,
                 },
                 name: segment_name(&state.name, segment_index),
-                parameters: state_parameters_for_segment(program, state, segment_index),
+                parameters: state_parameters_for_segment(state_graph, program, state, segment_index),
                 operations,
                 transitions,
                 next_segment_name: None,
@@ -137,7 +138,7 @@ pub(super) fn split_state_segments<'program>(
             segment_index,
         },
         name: segment_name(&state.name, segment_index),
-        parameters: state_parameters_for_segment(program, state, segment_index),
+        parameters: state_parameters_for_segment(state_graph, program, state, segment_index),
         operations,
         transitions,
         next_segment_name: None,
@@ -169,32 +170,40 @@ fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
 }
 
 fn state_parameters_for_segment(
+    state_graph: &mut StateGraph,
     program: &Program,
     state: &State,
     segment_index: usize,
-) -> Vec<StateParameterNode> {
+) -> HandleSpan<StateParameterNode> {
     if segment_index > 0 {
-        return Vec::new();
+        return HandleSpan::empty();
     }
 
-    program
+    let mut parameters = HandleSpan::empty();
+    for parameter in program
         .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .map(|parameter| StateParameterNode {
-            symbol: parameter.symbol,
-            name: parameter.name.clone(),
-            type_symbol: type_reference_symbol(&parameter.type_reference),
-            type_name: ProgramName::generated(parameter.type_reference.display_name()),
-            is_mutable_reference: matches!(
-                parameter.type_reference,
-                TypeReference::Reference {
-                    is_mutable: true,
-                    ..
-                }
-            ),
-        })
-        .collect()
+    {
+        state_graph.state_parameters.append_to_span(
+            &mut parameters,
+            StateParameterNode {
+                symbol: parameter.symbol,
+                name: parameter.name.clone(),
+                type_symbol: type_reference_symbol(&parameter.type_reference),
+                type_name: ProgramName::generated(parameter.type_reference.display_name()),
+                is_mutable_reference: matches!(
+                    parameter.type_reference,
+                    TypeReference::Reference {
+                        is_mutable: true,
+                        ..
+                    }
+                ),
+            },
+        );
+    }
+
+    parameters
 }
 
 fn operation_kind(statement: &Statement) -> OperationKind {
