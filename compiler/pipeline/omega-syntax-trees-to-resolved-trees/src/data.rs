@@ -1,6 +1,6 @@
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::data::{
@@ -54,30 +54,19 @@ fn lower_data_members(
     syntax_trees: &SyntaxTrees,
     members: HandleSpan<syntax::item::DataMember>,
 ) -> Result<HandleSpan<DataMember>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for member in syntax_trees.items.data_members(members) {
         let member = lower_data_member(lowerer, syntax_trees, member)?;
-        let member = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .data_members
-            .append(member);
-        if count == 0 {
-            start = member;
-        }
-        count = count
-            .checked_add(1)
-            .expect("data member span count overflow");
+            .append_to_span(&mut span, member);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }
 
 fn lower_data_member(

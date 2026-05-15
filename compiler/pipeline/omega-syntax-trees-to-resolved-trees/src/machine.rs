@@ -53,8 +53,7 @@ fn lower_machine_states(
     syntax_trees: &SyntaxTrees,
     states: HandleSpan<syntax::item::StateHandle>,
 ) -> Result<HandleSpan<Handle<State>>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for state in syntax_trees.items.state_handles(states) {
         let state = lower_state_node(lowerer, syntax_trees, syntax_trees.items.state(*state))?;
@@ -64,25 +63,15 @@ fn lower_machine_states(
             .declarations
             .machine_states
             .append(state);
-        let state = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .machine_state_handles
-            .append(state);
-        if count == 0 {
-            start = state;
-        }
-        count = count
-            .checked_add(1)
-            .expect("machine state handle span count overflow");
+            .append_to_span(&mut span, state);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }
 
 fn merge_machine_state_spans(
