@@ -43,7 +43,7 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
     source_machine: SymbolHandle,
     path: &'path NamePath,
 ) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
-    let [root_name, suffix @ ..] = path.as_slice() else {
+    let [root_name, suffix @ ..] = path.members() else {
         return None;
     };
 

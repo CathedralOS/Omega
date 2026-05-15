@@ -57,7 +57,7 @@ pub(super) fn resolve_runtime_storage_place(
     if path.is_empty() {
         return None;
     }
-    let suffix = &path.as_slice()[1..];
+    let suffix = &path.members()[1..];
     let slot = input
         .runtime_storage
         .frame_slots
@@ -221,7 +221,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
     if path.is_empty() {
         return None;
     }
-    let suffix = &path.as_slice()[1..];
+    let suffix = &path.members()[1..];
     let slot = input
         .runtime_storage
         .frame_slots
@@ -322,7 +322,7 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
     let Expression::Name(path) = &normalized_expression else {
         return None;
     };
-    let [root_name, suffix @ ..] = path.as_slice() else {
+    let [root_name, suffix @ ..] = path.members() else {
         return None;
     };
     let root_path = NamePath::unresolved(vec![root_name.clone()]);

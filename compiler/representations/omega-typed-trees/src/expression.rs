@@ -2,7 +2,7 @@ use crate::name::ProgramName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
 pub type ExpressionHandle = Handle<ExpressionNode>;
 
@@ -764,12 +764,25 @@ impl NamePath {
         &self.members
     }
 
-    pub fn as_slice(&self) -> &[ProgramName] {
-        self.members()
+    pub fn len(&self) -> usize {
+        self.members.len()
     }
 
-    pub fn into_members(self) -> Vec<ProgramName> {
-        self.members
+    pub fn is_empty(&self) -> bool {
+        self.members.is_empty()
+    }
+
+    pub fn first(&self) -> Option<&ProgramName> {
+        self.members.first()
+    }
+
+    pub fn last(&self) -> Option<&ProgramName> {
+        self.members.last()
+    }
+
+    pub fn last_mut(&mut self) -> Option<&mut ProgramName> {
+        self.symbol = SymbolHandle::invalid();
+        self.members.last_mut()
     }
 
     pub fn push(&mut self, member: ProgramName) {
@@ -778,7 +791,9 @@ impl NamePath {
     }
 
     pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
-        self.members.extend_from_slice(members);
+        let mut path = std::mem::take(&mut self.members);
+        path.extend_from_slice(members);
+        self.members = path;
         self.symbol = SymbolHandle::invalid();
     }
 
@@ -797,24 +812,11 @@ impl NamePath {
     }
 }
 
-impl From<Vec<ProgramName>> for NamePath {
-    fn from(members: Vec<ProgramName>) -> Self {
-        Self::unresolved(members)
-    }
-}
-
 impl Deref for NamePath {
     type Target = [ProgramName];
 
     fn deref(&self) -> &Self::Target {
         self.members()
-    }
-}
-
-impl DerefMut for NamePath {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.symbol = SymbolHandle::invalid();
-        &mut self.members
     }
 }
 

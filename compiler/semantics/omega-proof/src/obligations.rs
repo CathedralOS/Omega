@@ -510,7 +510,7 @@ fn call_target_parameters<'program>(
 }
 
 fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
-    path.as_slice()
+    path.members()
         .iter()
         .map(|member| member.as_str())
         .collect::<Vec<_>>()
@@ -527,7 +527,7 @@ fn transition_target_state_and_arguments<'program>(
     };
 
     state_by_symbol(program, path.symbol())
-        .or_else(|| (path.as_slice() == ["self"]).then_some(state))
+        .or_else(|| (path.members() == ["self"]).then_some(state))
         .map(|target_state| (target_state, arguments.as_slice()))
 }
 
@@ -603,7 +603,7 @@ fn expressions_equivalent_for_precondition(left: &Expression, right: &Expression
     match (left, right) {
         (Expression::Mutable(left), _) => expressions_equivalent_for_precondition(left, right),
         (_, Expression::Mutable(right)) => expressions_equivalent_for_precondition(left, right),
-        (Expression::Name(left), Expression::Name(right)) => left.as_slice() == right.as_slice(),
+        (Expression::Name(left), Expression::Name(right)) => left.members() == right.members(),
         (Expression::Call(left), Expression::Call(right)) => {
             left.target == right.target
                 && left.arguments.len() == right.arguments.len()
@@ -685,7 +685,7 @@ fn expression_constraints(
         Expression::Cast(cast) => expression_constraints(program, machine, state, &cast.value),
         Expression::Float(value) => float_literal_constraints(*value),
         Expression::Integer(value) => integer_literal_constraints(*value),
-        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => {
+        Expression::Name(path) if path.members() == ["u32", "MAX"] => {
             integer_literal_constraints(u32::MAX as i64)
         }
         Expression::Member(_) | Expression::Mutable(_) | Expression::Name(_) => {
@@ -716,7 +716,7 @@ fn expression_type_reference<'program>(
                 return type_reference_for_symbol(program, machine, state, path.symbol());
             }
 
-            let name = match path.as_slice() {
+            let name = match path.members() {
                 [name] => name,
                 [receiver, name] if receiver == "self" => name,
                 _ => return None,
@@ -1316,7 +1316,7 @@ fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> boo
     target == "from"
         && matches!(
             receiver,
-            Some(Expression::Name(path)) if path.as_slice() == ["Real"]
+            Some(Expression::Name(path)) if path.members() == ["Real"]
         )
 }
 
@@ -1567,7 +1567,7 @@ fn float_binary_range(
 fn integer_constant_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Integer(value) => Some(*value),
-        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as i64),
+        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as i64),
         _ => None,
     }
 }
@@ -1576,7 +1576,7 @@ fn float_constant_value(expression: &Expression) -> Option<f64> {
     match expression {
         Expression::Float(value) => Some(value.value()),
         Expression::Integer(value) => Some(*value as f64),
-        Expression::Name(path) if path.as_slice() == ["u32", "MAX"] => Some(u32::MAX as f64),
+        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as f64),
         _ => None,
     }
 }

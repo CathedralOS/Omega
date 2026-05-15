@@ -559,7 +559,7 @@ fn statement_call_can_dispatch_to_machine(
         state,
         call.receiver_symbol,
         call.target_symbol,
-        call.receiver.as_ref().map(|receiver| receiver.as_slice()),
+        call.receiver.as_ref().map(|receiver| receiver.members()),
         &call.target,
     )
     .is_some()
@@ -568,7 +568,7 @@ fn statement_call_can_dispatch_to_machine(
             machine,
             state,
             call.receiver_symbol,
-            call.receiver.as_ref().map(|receiver| receiver.as_slice()),
+            call.receiver.as_ref().map(|receiver| receiver.members()),
         )
 }
 

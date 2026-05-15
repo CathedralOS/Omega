@@ -48,7 +48,7 @@ pub(super) fn resolve_guard_operand_layout(
     let path = normalized_guard_name_path(table, expression)?;
     let root_symbol = path.head_symbol();
     let root_name = path.first()?.clone();
-    let suffix = path.as_slice().get(1..).unwrap_or(&[]);
+    let suffix = path.members().get(1..).unwrap_or(&[]);
 
     if let Some(slot_layout) = runtime_frame_operand_layout(
         layouts,
@@ -523,7 +523,7 @@ fn fallback_machine_named_path_layout(
     entry_machine: SymbolHandle,
     path: &NamePath,
 ) -> Option<(usize, TypeLayout)> {
-    let mut segments = path.as_slice();
+    let mut segments = path.members();
     if matches!(segments.first(), Some(name) if name.as_str() == "self") {
         segments = segments.get(1..)?;
     }
