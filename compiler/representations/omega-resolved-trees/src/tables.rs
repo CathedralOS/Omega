@@ -50,14 +50,6 @@ impl SymbolResolvedTreeTables {
             ..
         } = &mut source_tables.declarations;
 
-        for invariant in &roots.invariant_definitions {
-            tables.insert_type_constraints(
-                invariant.constraints,
-                type_constraints,
-                source_expressions,
-            );
-        }
-
         for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
@@ -271,24 +263,6 @@ impl SymbolResolvedTreeTables {
             type_constraints,
             source_expressions,
         );
-    }
-
-    fn insert_type_constraints(
-        &mut self,
-        constraints: omega_core::arena::HandleSpan<TypeConstraint>,
-        type_constraints: &Arena<TypeConstraint>,
-        source_expressions: &ExpressionTable,
-    ) {
-        for constraint in type_constraints.span_or_empty(constraints) {
-            if let TypeConstraint::Range { minimum, maximum } = constraint {
-                self.bodies
-                    .expressions
-                    .copy_from(source_expressions, *minimum);
-                self.bodies
-                    .expressions
-                    .copy_from(source_expressions, *maximum);
-            }
-        }
     }
 }
 
