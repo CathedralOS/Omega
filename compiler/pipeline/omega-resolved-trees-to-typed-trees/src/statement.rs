@@ -23,8 +23,9 @@ pub(crate) fn lower_statement(
                 target_symbol: call.target_symbol,
                 receiver: call.receiver.as_ref().map(lower_name_path),
                 target: crate::name::lower_name(&call.target),
-                arguments: call
-                    .arguments
+                arguments: lowerer
+                    .source_program
+                    .state_statement_expressions(call.arguments)
                     .iter()
                     .map(lower_expression)
                     .collect::<Result<Vec<_>, _>>()?,
@@ -47,11 +48,11 @@ pub(crate) fn lower_statement(
         ),
         resolved::statement::Statement::Transition(transition) => Ok(
             typed::statement::Statement::Transition(typed::statement::Transition {
-                target: lower_transition_target(&transition.target)?,
+                target: lower_transition_target(lowerer, &transition.target)?,
                 continuation: transition
                     .continuation
                     .as_ref()
-                    .map(lower_transition_target)
+                    .map(|target| lower_transition_target(lowerer, target))
                     .transpose()?,
                 guard: lower_transition_guard(&transition.guard)?,
             }),
@@ -73,14 +74,16 @@ fn lower_transition_guard(
 }
 
 fn lower_transition_target(
+    lowerer: &mut Lowerer,
     target: &resolved::statement::TransitionTarget,
 ) -> Result<typed::statement::TransitionTarget, Diagnostic> {
     match target {
         resolved::statement::TransitionTarget::Named(named) => {
             Ok(typed::statement::TransitionTarget::Named {
                 path: lower_name_path(&named.path),
-                arguments: named
-                    .arguments
+                arguments: lowerer
+                    .source_program
+                    .state_statement_expressions(named.arguments)
                     .iter()
                     .map(lower_expression)
                     .collect::<Result<Vec<_>, _>>()?,
