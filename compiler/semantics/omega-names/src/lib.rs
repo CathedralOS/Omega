@@ -8,15 +8,17 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::source::{SourceMap, SourceSpan};
 use omega_core::symbols::{
-    SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
+    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_type_symbols,
 };
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{CapabilityMember, DataMember, Item};
 use omega_syntax_trees::statement::{StatementHandle, StatementNode, TransitionTargetHandle};
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-use omega_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
+
+type SymbolSeed<'name> = (SymbolKind, SymbolNameRef<'name>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ResolveReport {
@@ -316,7 +318,11 @@ fn insert_definition(report: &mut ResolveReport, name: &str, kind: ResolvedDefin
         .insert(ResolvedDefinition { kind, symbol });
 }
 
-fn collect_machine_references(report: &mut ResolveReport, syntax_trees: &SyntaxTrees, machine: &omega_syntax_trees::item::Machine) {
+fn collect_machine_references(
+    report: &mut ResolveReport,
+    syntax_trees: &SyntaxTrees,
+    machine: &omega_syntax_trees::item::Machine,
+) {
     let machine_symbol = report
         .symbols
         .find_child_by_name(report.symbols.root(), machine.name.as_str())
@@ -409,7 +415,12 @@ fn collect_state_signature_parts(
     }
 
     if return_type.is_valid() {
-        collect_type_reference(report, syntax_trees, return_type, &format!("{owner} return type"));
+        collect_type_reference(
+            report,
+            syntax_trees,
+            return_type,
+            &format!("{owner} return type"),
+        );
     }
 }
 
@@ -422,21 +433,37 @@ fn collect_statement(
 ) {
     match syntax_trees.statements.statement(statement) {
         StatementNode::Assignment(assignment) => {
-            collect_expression(report, syntax_trees, assignment.target, &format!("{owner} assignment target"), context);
-            collect_expression(report, syntax_trees, assignment.value, &format!("{owner} assignment value"), context);
+            collect_expression(
+                report,
+                syntax_trees,
+                assignment.target,
+                &format!("{owner} assignment target"),
+                context,
+            );
+            collect_expression(
+                report,
+                syntax_trees,
+                assignment.value,
+                &format!("{owner} assignment value"),
+                context,
+            );
         }
         StatementNode::Call(call) => {
-            let receiver = syntax_trees.statements.identifier_path_members(call.receiver);
+            let receiver = syntax_trees
+                .statements
+                .identifier_path_members(call.receiver);
             let symbol = context.resolve_call_target(
                 &report.symbols,
-                if receiver.is_empty() { None } else { Some(receiver) },
+                if receiver.is_empty() {
+                    None
+                } else {
+                    Some(receiver)
+                },
                 call.target.as_str(),
             );
 
-            let name = insert_name_members(
-                report,
-                receiver.iter().chain(std::iter::once(&call.target)),
-            );
+            let name =
+                insert_name_members(report, receiver.iter().chain(std::iter::once(&call.target)));
             report.references.insert(ResolvedReference {
                 name,
                 kind: ResolvedReferenceKind::CallTarget,
@@ -445,7 +472,13 @@ fn collect_statement(
             });
 
             for argument in syntax_trees.statements.expression_handles(call.arguments) {
-                collect_expression(report, syntax_trees, *argument, &format!("{owner} call argument"), context);
+                collect_expression(
+                    report,
+                    syntax_trees,
+                    *argument,
+                    &format!("{owner} call argument"),
+                    context,
+                );
             }
         }
         StatementNode::Expression(expression) => {
@@ -463,11 +496,25 @@ fn collect_statement(
             collect_transition_target(report, syntax_trees, transition.target, owner, context);
 
             if transition.continuation.is_valid() {
-                collect_transition_target(report, syntax_trees, transition.continuation, owner, context);
+                collect_transition_target(
+                    report,
+                    syntax_trees,
+                    transition.continuation,
+                    owner,
+                    context,
+                );
             }
 
-            if let omega_syntax_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                collect_expression(report, syntax_trees, guard, &format!("{owner} transition guard"), context);
+            if let omega_syntax_trees::statement::TransitionGuardNode::When(guard) =
+                transition.guard
+            {
+                collect_expression(
+                    report,
+                    syntax_trees,
+                    guard,
+                    &format!("{owner} transition guard"),
+                    context,
+                );
             }
         }
     }
@@ -515,7 +562,10 @@ fn collect_type_reference(
         TypeReferenceNode::Reference { referee, .. } => {
             collect_type_reference(report, syntax_trees, *referee, owner);
         }
-        TypeReferenceNode::Constrained { base_type, constraints } => {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
             collect_type_reference(report, syntax_trees, *base_type, owner);
             collect_constraints(report, syntax_trees, *constraints, owner);
         }
@@ -525,10 +575,22 @@ fn collect_type_reference(
         TypeReferenceNode::Slice { element_type } => {
             collect_type_reference(report, syntax_trees, *element_type, owner);
         }
-        TypeReferenceNode::Generic { base_name, arguments } => {
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
             let symbol = resolve_global_name(report, base_name.as_str());
-            insert_reference(report, base_name, ResolvedReferenceKind::Type, owner, symbol);
-            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+            insert_reference(
+                report,
+                base_name,
+                ResolvedReferenceKind::Type,
+                owner,
+                symbol,
+            );
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(*arguments)
+            {
                 collect_type_reference(report, syntax_trees, *argument, owner);
             }
         }
@@ -536,7 +598,7 @@ fn collect_type_reference(
             let symbol = resolve_global_name(report, name.as_str());
             insert_reference(report, name, ResolvedReferenceKind::Type, owner, symbol);
         }
-        TypeReferenceNode::Unit => {}
+        TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -550,11 +612,29 @@ fn collect_constraints(
         match constraint {
             TypeConstraintNode::Named(name) => {
                 let symbol = resolve_global_name(report, name.as_str());
-                insert_reference(report, name, ResolvedReferenceKind::Invariant, owner, symbol);
+                insert_reference(
+                    report,
+                    name,
+                    ResolvedReferenceKind::Invariant,
+                    owner,
+                    symbol,
+                );
             }
             TypeConstraintNode::Range { minimum, maximum } => {
-                collect_expression(report, syntax_trees, *minimum, &format!("{owner} range minimum"), ResolveContext::default());
-                collect_expression(report, syntax_trees, *maximum, &format!("{owner} range maximum"), ResolveContext::default());
+                collect_expression(
+                    report,
+                    syntax_trees,
+                    *minimum,
+                    &format!("{owner} range minimum"),
+                    ResolveContext::default(),
+                );
+                collect_expression(
+                    report,
+                    syntax_trees,
+                    *maximum,
+                    &format!("{owner} range maximum"),
+                    ResolveContext::default(),
+                );
             }
         }
     }
@@ -580,6 +660,7 @@ fn collect_expression(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)
+        | ExpressionNode::SelfValue
         | ExpressionNode::String(_) => {}
         ExpressionNode::Call(call) => {
             if call.receiver.is_valid() {
@@ -605,8 +686,15 @@ fn collect_expression(
                     _ => collect_expression(report, syntax_trees, call.receiver, owner, context),
                 }
             } else {
-                let symbol = context.resolve_call_target(&report.symbols, None, call.target.as_str());
-                insert_reference(report, &call.target, ResolvedReferenceKind::CallTarget, owner, symbol);
+                let symbol =
+                    context.resolve_call_target(&report.symbols, None, call.target.as_str());
+                insert_reference(
+                    report,
+                    &call.target,
+                    ResolvedReferenceKind::CallTarget,
+                    owner,
+                    symbol,
+                );
             }
 
             for argument in syntax_trees.expressions.expression_handles(call.arguments) {
@@ -615,7 +703,10 @@ fn collect_expression(
         }
         ExpressionNode::Cast(cast) => {
             collect_expression(report, syntax_trees, cast.value, owner, context);
-            for member in syntax_trees.expressions.identifier_path_members(cast.target_type) {
+            for member in syntax_trees
+                .expressions
+                .identifier_path_members(cast.target_type)
+            {
                 let symbol = resolve_global_name(report, member.as_str());
                 insert_reference(report, member, ResolvedReferenceKind::Type, owner, symbol);
             }
@@ -651,7 +742,10 @@ fn collect_expression(
                 symbol,
             );
 
-            for field in syntax_trees.expressions.struct_fields(struct_literal.fields) {
+            for field in syntax_trees
+                .expressions
+                .struct_fields(struct_literal.fields)
+            {
                 collect_expression(report, syntax_trees, field.value, owner, context);
             }
         }
@@ -688,9 +782,11 @@ fn insert_name_members<'identifier>(
     report: &mut ResolveReport,
     identifiers: impl IntoIterator<Item = &'identifier Identifier>,
 ) -> HandleSpan<ResolvedNameMember> {
-    report
-        .name_members
-        .insert_many(identifiers.into_iter().map(ResolvedNameMember::from_identifier))
+    report.name_members.insert_many(
+        identifiers
+            .into_iter()
+            .map(ResolvedNameMember::from_identifier),
+    )
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -722,7 +818,11 @@ impl ResolveContext {
         self.resolve_symbol(symbols, [target])
     }
 
-    fn resolve_identifier_members(self, symbols: &SymbolTable, path: &[Identifier]) -> SymbolHandle {
+    fn resolve_identifier_members(
+        self,
+        symbols: &SymbolTable,
+        path: &[Identifier],
+    ) -> SymbolHandle {
         let Some(first_member) = path.first().map(|member| member.as_str()) else {
             return SymbolHandle::invalid();
         };
@@ -789,46 +889,24 @@ fn resolve_global_name(report: &ResolveReport, name: &str) -> SymbolHandle {
         .unwrap_or_else(SymbolHandle::invalid)
 }
 
-fn build_source_symbol_table(syntax_trees: &SyntaxTrees, sources: Option<Arc<SourceMap>>) -> SymbolTable {
-    let builder = SourceSymbolDefinitionBuilder { syntax_trees };
-
-    SymbolTable::from_definition_with_sources(
-        SymbolDefinition::static_with_children(
-            SymbolKind::Root,
-            "program",
-            builtin_type_symbol_definitions()
-                .into_iter()
-                .chain(syntax_trees.root_items().filter_map(|item| builder.item_symbol_definition(item))),
-        ),
-        sources,
-    )
+fn build_source_symbol_table(
+    syntax_trees: &SyntaxTrees,
+    sources: Option<Arc<SourceMap>>,
+) -> SymbolTable {
+    SourceSymbolTableBuilder::new(syntax_trees, sources).build()
 }
 
-#[derive(Debug, Clone, Copy)]
-struct SourceSymbolDefinitionBuilder<'syntax> {
+#[derive(Debug)]
+struct SourceSymbolTableBuilder<'syntax> {
     syntax_trees: &'syntax SyntaxTrees,
+    builder: SymbolTableBuilder,
 }
 
-fn source_symbol<'items>(
-    kind: SymbolKind,
-    identifier: &'items Identifier,
-) -> SymbolDefinition<'items> {
+fn source_symbol_seed(kind: SymbolKind, identifier: &Identifier) -> SymbolSeed<'_> {
     if has_source_name(identifier.source_span()) {
-        SymbolDefinition::source_named(kind, identifier.source_span())
+        (kind, SymbolNameRef::Source(identifier.source_span()))
     } else {
-        SymbolDefinition::named(kind, identifier.as_str())
-    }
-}
-
-fn source_symbol_with_children<'items>(
-    kind: SymbolKind,
-    identifier: &'items Identifier,
-    children: impl IntoIterator<Item = SymbolDefinition<'items>>,
-) -> SymbolDefinition<'items> {
-    if has_source_name(identifier.source_span()) {
-        SymbolDefinition::source_with_children(kind, identifier.source_span(), children)
-    } else {
-        SymbolDefinition::with_children(kind, identifier.as_str(), children)
+        (kind, SymbolNameRef::Borrowed(identifier.as_str()))
     }
 }
 
@@ -836,212 +914,305 @@ fn has_source_name(source_span: SourceSpan) -> bool {
     source_span.span.start != source_span.span.end
 }
 
-impl<'syntax> SourceSymbolDefinitionBuilder<'syntax> {
-    fn item_symbol_definition(self, item: &'syntax Item) -> Option<SymbolDefinition<'syntax>> {
-        match item {
-            Item::Capability(capability) => Some(source_symbol_with_children(
-                SymbolKind::HostCapability,
-                &capability.name,
-                self.syntax_trees
-                    .items
-                    .capability_members(capability.members)
-                    .iter()
-                    .map(|member| match member {
-                        CapabilityMember::Field(field) => source_symbol_with_children(
-                            SymbolKind::Field,
-                            &field.name,
-                            self.type_children(field.type_reference, 0),
-                        ),
-                        CapabilityMember::State(state) => {
-                            self.inline_state_signature_symbol_definition(
-                                &state.signature,
-                                SymbolKind::State,
-                            )
-                        }
-                    }),
-            )),
-            Item::Data(data_definition) => Some(source_symbol_with_children(
-                SymbolKind::Data,
-                &data_definition.name,
-                self.syntax_trees
-                    .items
-                    .data_members(data_definition.members)
-                    .iter()
-                    .map(|member| self.data_member_symbol_definition(member, 0)),
-            )),
-            Item::Invariant(invariant) => Some(source_symbol(SymbolKind::Invariant, &invariant.name)),
-            Item::Library(library) => library.name.as_ref().map(|name| {
-                source_symbol_with_children(
-                    SymbolKind::Import,
-                    name,
-                    self.syntax_trees
-                        .items
-                        .library_functions(library.functions)
-                        .iter()
-                        .map(|function| {
-                            self.inline_state_signature_symbol_definition(
-                                &function.signature,
-                                SymbolKind::Function,
-                            )
-                        }),
-                )
-            }),
-            Item::Machine(machine) => Some(source_symbol_with_children(
-                SymbolKind::Machine,
-                &machine.name,
-                self.syntax_trees
-                    .items
-                    .state_handles(machine.states)
-                    .iter()
-                    .map(|state| self.state_symbol_definition(*state)),
-            )),
-            Item::Platform(platform) => Some(source_symbol_with_children(
-                SymbolKind::Platform,
-                &platform.name,
-                self.syntax_trees
-                    .items
-                    .state_signatures(platform.states)
-                    .iter()
-                    .map(|signature| self.state_signature_symbol_definition(*signature)),
-            )),
-            Item::Target(target) => Some(source_symbol(SymbolKind::Object, &target.name)),
-            Item::TrustDefinition(trust_definition) => {
-                Some(source_symbol(SymbolKind::Object, &trust_definition.name))
+impl<'syntax> SourceSymbolTableBuilder<'syntax> {
+    fn new(syntax_trees: &'syntax SyntaxTrees, sources: Option<Arc<SourceMap>>) -> Self {
+        Self {
+            syntax_trees,
+            builder: SymbolTableBuilder::with_sources(sources),
+        }
+    }
+
+    fn build(mut self) -> SymbolTable {
+        let root = self
+            .builder
+            .insert_root(SymbolKind::Root, SymbolNameRef::Static("program"));
+        let syntax_trees = self.syntax_trees;
+        let root_children = self.builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(syntax_trees.root_items().filter_map(item_symbol_seed)),
+        );
+        let mut root_children = SymbolTableBuilder::child_handles(root_children);
+
+        for _ in 0..builtin_type_symbols().len() {
+            let _ = root_children.next();
+        }
+        for item in syntax_trees.root_items() {
+            if item_symbol_seed(item).is_none() {
+                continue;
             }
-            Item::Use(_) => None,
+            if let Some(item_symbol) = root_children.next() {
+                self.insert_item_children(item_symbol, item);
+            }
+        }
+
+        self.builder.finish()
+    }
+
+    fn insert_item_children(&mut self, parent: SymbolHandle, item: &'syntax Item) {
+        match item {
+            Item::Capability(capability) => {
+                self.insert_capability_children(parent, capability.members, 0);
+            }
+            Item::Data(data_definition) => {
+                self.insert_data_children(parent, data_definition.members, 0);
+            }
+            Item::Library(library) => {
+                self.insert_library_children(parent, library.functions);
+            }
+            Item::Machine(machine) => {
+                self.insert_machine_children(parent, machine.states);
+            }
+            Item::Platform(platform) => {
+                self.insert_platform_children(parent, platform.states);
+            }
+            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
         }
     }
 
-    fn state_symbol_definition(
-        self,
-        state_handle: omega_syntax_trees::item::StateHandle,
-    ) -> SymbolDefinition<'syntax> {
-        let state = self.syntax_trees.items.state(state_handle);
-        source_symbol_with_children(
-            SymbolKind::State,
-            &state.name,
-            self.syntax_trees
-                .items
-                .state_parameters(state.parameters)
-                .iter()
-                .map(|parameter| {
-                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
-                    source_symbol_with_children(
-                        SymbolKind::Parameter,
-                        &parameter.name,
-                        self.type_children(parameter.type_reference, 0),
-                    )
-                })
-                .chain(
-                    self.syntax_trees
-                        .items
-                        .statements(state.statements)
-                        .iter()
-                        .filter_map(|statement| self.local_data_symbol_definition(*statement)),
-                ),
-        )
-    }
-
-    fn local_data_symbol_definition(
-        self,
-        statement: StatementHandle,
-    ) -> Option<SymbolDefinition<'syntax>> {
-        let StatementNode::LocalData(local_data) = self.syntax_trees.statements.statement(statement) else {
-            return None;
-        };
-
-        Some(source_symbol_with_children(
-            SymbolKind::Local,
-            &local_data.name,
-            self.type_children(local_data.type_reference, 0),
-        ))
-    }
-
-    fn state_signature_symbol_definition(
-        self,
-        signature_handle: omega_syntax_trees::item::StateSignatureHandle,
-    ) -> SymbolDefinition<'syntax> {
-        let signature = self.syntax_trees.items.state_signature(signature_handle);
-        source_symbol_with_children(
-            SymbolKind::State,
-            &signature.name,
-            self.syntax_trees
-                .items
-                .state_parameters(signature.parameters)
-                .iter()
-                .map(|parameter| {
-                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
-                    source_symbol_with_children(
-                        SymbolKind::Parameter,
-                        &parameter.name,
-                        self.type_children(parameter.type_reference, 0),
-                    )
-                }),
-        )
-    }
-
-    fn inline_state_signature_symbol_definition(
-        self,
-        signature: &'syntax omega_syntax_trees::item::StateSignature,
-        kind: SymbolKind,
-    ) -> SymbolDefinition<'syntax> {
-        source_symbol_with_children(
-            kind,
-            &signature.name,
-            self.syntax_trees
-                .items
-                .state_parameters(signature.parameters)
-                .iter()
-                .map(|parameter| {
-                    let parameter = self.syntax_trees.items.state_parameter(*parameter);
-                    source_symbol_with_children(
-                        SymbolKind::Parameter,
-                        &parameter.name,
-                        self.type_children(parameter.type_reference, 0),
-                    )
-                }),
-        )
-    }
-
-    fn data_member_symbol_definition(
-        self,
-        member: &'syntax DataMember,
+    fn insert_capability_children(
+        &mut self,
+        parent: SymbolHandle,
+        members: HandleSpan<omega_syntax_trees::item::CapabilityMember>,
         depth: usize,
-    ) -> SymbolDefinition<'syntax> {
-        match member {
-            DataMember::Field(field) => source_symbol_with_children(
-                SymbolKind::Field,
-                &field.name,
-                self.type_children(field.type_reference, depth + 1),
-            ),
-            DataMember::Variant(variant) => source_symbol(SymbolKind::Variant, &variant.name),
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let members = syntax_trees.items.capability_members(members);
+        let children = self.builder.insert_children(
+            parent,
+            members.iter().map(|member| match member {
+                CapabilityMember::Field(field) => {
+                    source_symbol_seed(SymbolKind::Field, &field.name)
+                }
+                CapabilityMember::State(state) => {
+                    source_symbol_seed(SymbolKind::State, &state.signature.name)
+                }
+            }),
+        );
+
+        for (child, member) in SymbolTableBuilder::child_handles(children).zip(members.iter()) {
+            match member {
+                CapabilityMember::Field(field) => {
+                    self.insert_type_children(child, field.type_reference, depth);
+                }
+                CapabilityMember::State(state) => {
+                    self.insert_inline_state_signature_children(child, &state.signature);
+                }
+            }
         }
     }
 
-    fn type_children(
-        self,
+    fn insert_data_children(
+        &mut self,
+        parent: SymbolHandle,
+        members: HandleSpan<omega_syntax_trees::item::DataMember>,
+        member_depth: usize,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let members = syntax_trees.items.data_members(members);
+        let children = self.builder.insert_children(
+            parent,
+            members.iter().map(|member| match member {
+                DataMember::Field(field) => source_symbol_seed(SymbolKind::Field, &field.name),
+                DataMember::Variant(variant) => {
+                    source_symbol_seed(SymbolKind::Variant, &variant.name)
+                }
+            }),
+        );
+
+        for (child, member) in SymbolTableBuilder::child_handles(children).zip(members.iter()) {
+            if let DataMember::Field(field) = member {
+                self.insert_type_children(child, field.type_reference, member_depth + 1);
+            }
+        }
+    }
+
+    fn insert_library_children(
+        &mut self,
+        parent: SymbolHandle,
+        functions: HandleSpan<omega_syntax_trees::item::LibraryFunction>,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let functions = syntax_trees.items.library_functions(functions);
+        let children = self.builder.insert_children(
+            parent,
+            functions
+                .iter()
+                .map(|function| source_symbol_seed(SymbolKind::Function, &function.signature.name)),
+        );
+
+        for (child, function) in SymbolTableBuilder::child_handles(children).zip(functions.iter()) {
+            self.insert_inline_state_signature_children(child, &function.signature);
+        }
+    }
+
+    fn insert_machine_children(
+        &mut self,
+        parent: SymbolHandle,
+        states: HandleSpan<omega_syntax_trees::item::StateHandle>,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let state_handles = syntax_trees.items.state_handles(states);
+        let children = self.builder.insert_children(
+            parent,
+            state_handles.iter().map(|state| {
+                let state = syntax_trees.items.state(*state);
+                source_symbol_seed(SymbolKind::State, &state.name)
+            }),
+        );
+
+        for (child, state) in SymbolTableBuilder::child_handles(children).zip(state_handles.iter())
+        {
+            self.insert_state_children(child, *state);
+        }
+    }
+
+    fn insert_platform_children(
+        &mut self,
+        parent: SymbolHandle,
+        signatures: HandleSpan<omega_syntax_trees::item::StateSignatureHandle>,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let signatures = syntax_trees.items.state_signatures(signatures);
+        let children = self.builder.insert_children(
+            parent,
+            signatures.iter().map(|signature| {
+                let signature = syntax_trees.items.state_signature(*signature);
+                source_symbol_seed(SymbolKind::State, &signature.name)
+            }),
+        );
+
+        for (child, signature) in SymbolTableBuilder::child_handles(children).zip(signatures.iter())
+        {
+            self.insert_state_signature_children(child, *signature);
+        }
+    }
+
+    fn insert_state_children(
+        &mut self,
+        parent: SymbolHandle,
+        state_handle: omega_syntax_trees::item::StateHandle,
+    ) {
+        let state = self.syntax_trees.items.state(state_handle);
+        let syntax_trees = self.syntax_trees;
+        let parameters = syntax_trees.items.state_parameters(state.parameters);
+        let statements = syntax_trees.items.statements(state.statements);
+        let children = self.builder.insert_children(
+            parent,
+            parameters
+                .iter()
+                .map(|parameter| {
+                    let parameter = syntax_trees.items.state_parameter(*parameter);
+                    source_symbol_seed(SymbolKind::Parameter, &parameter.name)
+                })
+                .chain(statements.iter().filter_map(|statement| {
+                    let StatementNode::LocalData(local_data) =
+                        syntax_trees.statements.statement(*statement)
+                    else {
+                        return None;
+                    };
+                    Some(source_symbol_seed(SymbolKind::Local, &local_data.name))
+                })),
+        );
+        let mut children = SymbolTableBuilder::child_handles(children);
+
+        for parameter in parameters {
+            let Some(parameter_symbol) = children.next() else {
+                return;
+            };
+            let parameter = syntax_trees.items.state_parameter(*parameter);
+            self.insert_type_children(parameter_symbol, parameter.type_reference, 0);
+        }
+        for statement in statements {
+            let StatementNode::LocalData(local_data) =
+                syntax_trees.statements.statement(*statement)
+            else {
+                continue;
+            };
+            let Some(local_symbol) = children.next() else {
+                return;
+            };
+            self.insert_type_children(local_symbol, local_data.type_reference, 0);
+        }
+    }
+
+    fn insert_state_signature_children(
+        &mut self,
+        parent: SymbolHandle,
+        signature_handle: omega_syntax_trees::item::StateSignatureHandle,
+    ) {
+        let signature = self.syntax_trees.items.state_signature(signature_handle);
+        self.insert_state_signature_parts(parent, signature.parameters);
+    }
+
+    fn insert_inline_state_signature_children(
+        &mut self,
+        parent: SymbolHandle,
+        signature: &'syntax omega_syntax_trees::item::StateSignature,
+    ) {
+        self.insert_state_signature_parts(parent, signature.parameters);
+    }
+
+    fn insert_state_signature_parts(
+        &mut self,
+        parent: SymbolHandle,
+        parameters: HandleSpan<omega_syntax_trees::item::StateParameterHandle>,
+    ) {
+        let syntax_trees = self.syntax_trees;
+        let parameters = syntax_trees.items.state_parameters(parameters);
+        let children = self.builder.insert_children(
+            parent,
+            parameters.iter().map(|parameter| {
+                let parameter = syntax_trees.items.state_parameter(*parameter);
+                source_symbol_seed(SymbolKind::Parameter, &parameter.name)
+            }),
+        );
+
+        for (child, parameter) in SymbolTableBuilder::child_handles(children).zip(parameters.iter())
+        {
+            let parameter = syntax_trees.items.state_parameter(*parameter);
+            self.insert_type_children(child, parameter.type_reference, 0);
+        }
+    }
+
+    fn insert_type_children(
+        &mut self,
+        parent: SymbolHandle,
         type_reference: TypeReferenceHandle,
         depth: usize,
-    ) -> Vec<SymbolDefinition<'syntax>> {
+    ) {
         if !type_reference.is_valid() || depth > 8 {
-            return Vec::new();
+            return;
         }
 
-        match self.syntax_trees.type_references.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => self.type_children(*referee, depth),
-            TypeReferenceNode::Constrained { base_type, .. } => self.type_children(*base_type, depth),
-            TypeReferenceNode::FixedArray { element_type, .. } => self.type_children(*element_type, depth + 1),
-            TypeReferenceNode::Slice { element_type } => self.type_children(*element_type, depth + 1),
-            TypeReferenceNode::Generic { base_name, .. } | TypeReferenceNode::Named(base_name) => {
-                self.named_type_children(base_name.as_str(), depth + 1)
+        match self
+            .syntax_trees
+            .type_references
+            .type_reference(type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => {
+                self.insert_type_children(parent, *referee, depth);
             }
-            TypeReferenceNode::Unit => Vec::new(),
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                self.insert_type_children(parent, *base_type, depth);
+            }
+            TypeReferenceNode::FixedArray { element_type, .. } => {
+                self.insert_type_children(parent, *element_type, depth + 1);
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                self.insert_type_children(parent, *element_type, depth + 1);
+            }
+            TypeReferenceNode::Generic { base_name, .. } | TypeReferenceNode::Named(base_name) => {
+                self.insert_named_type_children(parent, base_name.as_str(), depth + 1);
+            }
+            TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
         }
     }
 
-    fn named_type_children(self, type_name: &str, depth: usize) -> Vec<SymbolDefinition<'syntax>> {
+    fn insert_named_type_children(&mut self, parent: SymbolHandle, type_name: &str, depth: usize) {
         if depth > 8 {
-            return Vec::new();
+            return;
         }
 
         let Some(item) = self
@@ -1049,66 +1220,54 @@ impl<'syntax> SourceSymbolDefinitionBuilder<'syntax> {
             .root_items()
             .find(|item| top_level_item_name(item) == Some(type_name))
         else {
-            return Vec::new();
+            return;
         };
 
         match item {
-            Item::Capability(capability) => self
-                .syntax_trees
-                .items
-                .capability_members(capability.members)
-                .iter()
-                .map(|member| match member {
-                    CapabilityMember::Field(field) => source_symbol_with_children(
-                        SymbolKind::Field,
-                        &field.name,
-                        self.type_children(field.type_reference, depth + 1),
-                    ),
-                    CapabilityMember::State(state) => {
-                        self.inline_state_signature_symbol_definition(
-                            &state.signature,
-                            SymbolKind::State,
-                        )
-                    }
-                })
-                .collect(),
-            Item::Data(data_definition) => self
-                .syntax_trees
-                .items
-                .data_members(data_definition.members)
-                .iter()
-                .map(|member| self.data_member_symbol_definition(member, depth + 1))
-                .collect(),
-            Item::Library(library) => self
-                .syntax_trees
-                .items
-                .library_functions(library.functions)
-                .iter()
-                .map(|function| {
-                    self.inline_state_signature_symbol_definition(
-                        &function.signature,
-                        SymbolKind::Function,
-                    )
-                })
-                .collect(),
-            Item::Machine(machine) => self
-                .syntax_trees
-                .items
-                .state_handles(machine.states)
-                .iter()
-                .map(|state| self.state_symbol_definition(*state))
-                .collect(),
-            Item::Platform(platform) => self
-                .syntax_trees
-                .items
-                .state_signatures(platform.states)
-                .iter()
-                .map(|signature| self.state_signature_symbol_definition(*signature))
-                .collect(),
-            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {
-                Vec::new()
+            Item::Capability(capability) => {
+                self.insert_capability_children(parent, capability.members, depth + 1);
             }
+            Item::Data(data_definition) => {
+                self.insert_data_children(parent, data_definition.members, depth + 1);
+            }
+            Item::Library(library) => {
+                self.insert_library_children(parent, library.functions);
+            }
+            Item::Machine(machine) => {
+                self.insert_machine_children(parent, machine.states);
+            }
+            Item::Platform(platform) => {
+                self.insert_platform_children(parent, platform.states);
+            }
+            Item::Invariant(_) | Item::Target(_) | Item::TrustDefinition(_) | Item::Use(_) => {}
         }
+    }
+}
+
+fn item_symbol_seed(item: &Item) -> Option<SymbolSeed<'_>> {
+    match item {
+        Item::Capability(capability) => Some(source_symbol_seed(
+            SymbolKind::HostCapability,
+            &capability.name,
+        )),
+        Item::Data(data_definition) => {
+            Some(source_symbol_seed(SymbolKind::Data, &data_definition.name))
+        }
+        Item::Invariant(invariant) => {
+            Some(source_symbol_seed(SymbolKind::Invariant, &invariant.name))
+        }
+        Item::Library(library) => library
+            .name
+            .as_ref()
+            .map(|name| source_symbol_seed(SymbolKind::Import, name)),
+        Item::Machine(machine) => Some(source_symbol_seed(SymbolKind::Machine, &machine.name)),
+        Item::Platform(platform) => Some(source_symbol_seed(SymbolKind::Platform, &platform.name)),
+        Item::Target(target) => Some(source_symbol_seed(SymbolKind::Object, &target.name)),
+        Item::TrustDefinition(trust_definition) => Some(source_symbol_seed(
+            SymbolKind::Object,
+            &trust_definition.name,
+        )),
+        Item::Use(_) => None,
     }
 }
 
@@ -1132,11 +1291,13 @@ mod tests {
         ResolvedDefinitionKind, ResolvedReferenceKind, build_resolve_report_without_sources,
     };
     use omega_core::arena::HandleSpan;
+    use omega_syntax_trees::SyntaxTrees;
     use omega_syntax_trees::identifier::Identifier;
     use omega_syntax_trees::item::{Item, Machine, StateParameterNode, UseItem};
-    use omega_syntax_trees::statement::{StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode};
+    use omega_syntax_trees::statement::{
+        StatementNode, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    };
     use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-    use omega_syntax_trees::SyntaxTrees;
 
     #[test]
     fn collects_definitions_imports_and_references() {
@@ -1166,35 +1327,41 @@ mod tests {
             .statements
             .append_identifier_path_member(Identifier::generated("finish"));
         let target_path = HandleSpan::from_parts(target_path_start, 1);
-        let target = syntax_trees
-            .statements
-            .insert_transition_target(TransitionTargetNode::Named {
-                path: target_path,
-                arguments: HandleSpan::empty(),
-            });
-        let transition = syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
-                guard: TransitionGuardNode::Always,
-            }));
+        let target =
+            syntax_trees
+                .statements
+                .insert_transition_target(TransitionTargetNode::Named {
+                    path: target_path,
+                    arguments: HandleSpan::empty(),
+                });
+        let transition =
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: omega_syntax_trees::statement::TransitionTargetHandle::invalid(),
+                    guard: TransitionGuardNode::Always,
+                }));
         let transition = syntax_trees.items.append_statement_handle(transition);
 
-        let entry_state = syntax_trees.items.insert_state(&omega_syntax_trees::item::State {
-            name: Identifier::generated("entry"),
-            parameters: HandleSpan::from_parts(parameter, 1),
-            return_type: TypeReferenceHandle::invalid(),
-            statements: HandleSpan::from_parts(transition, 1),
-        });
+        let entry_state = syntax_trees
+            .items
+            .insert_state(&omega_syntax_trees::item::State {
+                name: Identifier::generated("entry"),
+                parameters: HandleSpan::from_parts(parameter, 1),
+                return_type: TypeReferenceHandle::invalid(),
+                statements: HandleSpan::from_parts(transition, 1),
+            });
         let entry_state = syntax_trees.items.append_state_handle(entry_state);
 
-        let finish_state = syntax_trees.items.insert_state(&omega_syntax_trees::item::State {
-            name: Identifier::generated("finish"),
-            parameters: HandleSpan::empty(),
-            return_type: TypeReferenceHandle::invalid(),
-            statements: HandleSpan::empty(),
-        });
+        let finish_state = syntax_trees
+            .items
+            .insert_state(&omega_syntax_trees::item::State {
+                name: Identifier::generated("finish"),
+                parameters: HandleSpan::empty(),
+                return_type: TypeReferenceHandle::invalid(),
+                statements: HandleSpan::empty(),
+            });
         let _finish_state = syntax_trees.items.append_state_handle(finish_state);
 
         syntax_trees.push_root_item(Item::Machine(Machine {
@@ -1224,6 +1391,5 @@ mod tests {
             }),
             "state transition target should be collected and bound to a symbol"
         );
-
     }
 }
