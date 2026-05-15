@@ -246,7 +246,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
     }
 
-    for data_definition in &mut program.data_definitions {
+    program.data_definitions.for_each_mut(|data_definition| {
         data_definition.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Data);
         let data_symbol = data_definition.symbol;
         let mut data_children = symbols.child_handles(data_symbol).into_iter().flatten();
@@ -268,12 +268,12 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 }
             }
         }
-    }
+    });
 
     for machine_index in 0..program.machines.len() {
         let inherited_field_count = {
             let machine_name = &program.machines[machine_index].name;
-            inherited_field_count(&program.data_definitions, machine_name)
+            inherited_field_count(program.data_definitions.iter(), machine_name)
         };
         let machine = &mut program.machines[machine_index];
         machine.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Machine);
@@ -376,12 +376,12 @@ fn next_child_of_kind(
     }
 }
 
-fn inherited_field_count(
-    data_definitions: &[omega_resolved_trees::data::DataDefinition],
+fn inherited_field_count<'data>(
+    data_definitions: impl IntoIterator<Item = &'data omega_resolved_trees::data::DataDefinition>,
     machine_name: &omega_resolved_trees::name::DiagnosticName,
 ) -> usize {
     data_definitions
-        .iter()
+        .into_iter()
         .find(|data_definition| data_definition.name == *machine_name)
         .map(|data_definition| {
             data_definition
@@ -394,9 +394,10 @@ fn inherited_field_count(
 }
 
 fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
-    for data_definition in &mut program.data_definitions {
-        let type_parameters = data_definition.storage.type_parameters.as_slice();
-        for member in &mut data_definition.storage.members {
+    program.data_definitions.for_each_mut(|data_definition| {
+        let storage = &mut data_definition.storage;
+        let type_parameters = storage.type_parameters.as_slice();
+        for member in &mut storage.members {
             if let omega_resolved_trees::data::DataMember::Field(field) = member {
                 assign_type_reference_symbol_with_locals(
                     symbols,
@@ -405,7 +406,7 @@ fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                 );
             }
         }
-    }
+    });
 }
 
 fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
@@ -418,7 +419,6 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             },
         ..
     } = program;
-    let data_definitions = data_definitions.as_slice();
     for machine in machines {
         let machine_symbol = machine.symbol;
         let data_definition = data_definitions
