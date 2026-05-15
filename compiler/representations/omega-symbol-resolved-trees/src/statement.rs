@@ -1,4 +1,3 @@
-use crate::expression::NamePath;
 use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -74,7 +73,7 @@ pub struct Call {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
-    pub receiver: Option<NamePath>,
+    pub receiver: HandleSpan<DiagnosticName>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -115,12 +114,14 @@ pub enum TransitionTarget {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NamedTransitionTarget {
+    pub head_symbol: SymbolHandle,
+    pub symbol: SymbolHandle,
     pub storage: NamedTransitionTargetStorage,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
-    pub path: NamePath,
+    pub path: HandleSpan<DiagnosticName>,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -214,6 +215,7 @@ impl StatementTable {
         source_child_type_references: &Arena<crate::types::TypeReference>,
         source_constraints: &Arena<crate::types::TypeConstraint>,
         source_expression_table: &crate::expression::ExpressionTable,
+        source_statement_path_members: &Arena<DiagnosticName>,
         copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
@@ -239,11 +241,9 @@ impl StatementTable {
                     expressions,
                     copy_expression_handles,
                 );
-                let receiver = call
-                    .receiver
-                    .as_ref()
-                    .map(|path| self.insert_name_path_members(path))
-                    .unwrap_or_else(HandleSpan::empty);
+                let receiver = self.insert_name_path_members(
+                    source_statement_path_members.span_or_empty(call.receiver),
+                );
                 self.insert(StatementNode::Call(TableCall {
                     receiver_symbol: call.receiver_symbol,
                     target_symbol: call.target_symbol,
@@ -293,6 +293,7 @@ impl StatementTable {
                     &transition.target,
                     source_expressions,
                     expressions,
+                    source_statement_path_members,
                     copy_expression_handles,
                 );
                 let continuation = transition
@@ -303,6 +304,7 @@ impl StatementTable {
                             target,
                             source_expressions,
                             expressions,
+                            source_statement_path_members,
                             copy_expression_handles,
                         )
                     })
@@ -351,10 +353,10 @@ impl StatementTable {
         span
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
+    fn insert_name_path_members(&mut self, path: &[DiagnosticName]) -> HandleSpan<DiagnosticName> {
         let mut span = HandleSpan::empty();
 
-        for member in path.members() {
+        for member in path {
             self.paths
                 .name_path_members
                 .append_to_span(&mut span, member.clone());
@@ -368,14 +370,17 @@ impl StatementTable {
         target: &TransitionTarget,
         source_expressions: &crate::expression::ExpressionTable,
         expressions: &mut crate::expression::ExpressionTable,
+        source_statement_path_members: &Arena<DiagnosticName>,
         copy_expression_handles: bool,
     ) -> TransitionTargetHandle {
         let target = match target {
             TransitionTarget::Named(named) => TransitionTargetNode::Named {
                 path: TableNamePath {
-                    members: self.insert_name_path_members(&named.path),
-                    head_symbol: named.path.head_symbol(),
-                    symbol: named.path.symbol(),
+                    members: self.insert_name_path_members(
+                        source_statement_path_members.span_or_empty(named.path),
+                    ),
+                    head_symbol: named.head_symbol,
+                    symbol: named.symbol,
                 },
                 arguments: self.insert_expression_handle_span_from_trees(
                     source_expressions,
@@ -533,7 +538,7 @@ mod tests {
         NamedTransitionTarget, NamedTransitionTargetStorage, Statement, StatementNode,
         StatementTable, Transition, TransitionGuard, TransitionTarget, TransitionTargetNode,
     };
-    use crate::expression::{ExpressionNode, ExpressionTable, NamePath};
+    use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
     use omega_core::arena::Arena;
@@ -549,16 +554,13 @@ mod tests {
         let second_argument = source_expressions.insert(ExpressionNode::Integer(2));
         source_expressions.push_expression_handle(&mut arguments, second_argument);
         let guard = source_expressions.insert(ExpressionNode::Boolean(true));
+        let mut source_statement_path_members = Arena::new();
+        let path = source_statement_path_members.insert_many([DiagnosticName::generated("next")]);
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named(NamedTransitionTarget {
-                storage: NamedTransitionTargetStorage {
-                    path: NamePath::resolved(
-                        vec![DiagnosticName::generated("next")],
-                        target_symbol,
-                        target_symbol,
-                    ),
-                    arguments,
-                },
+                head_symbol: target_symbol,
+                symbol: target_symbol,
+                storage: NamedTransitionTargetStorage { path, arguments },
             }),
             continuation: None,
             guard: TransitionGuard::When(guard),
@@ -577,6 +579,7 @@ mod tests {
             &child_type_references,
             &type_constraints,
             &source_expressions,
+            &source_statement_path_members,
             true,
         );
 

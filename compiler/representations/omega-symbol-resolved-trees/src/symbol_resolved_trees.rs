@@ -143,6 +143,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_states: Arena<state::State>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
     pub state_parameters: Arena<signature::StateParameter>,
+    pub statement_path_members: Arena<crate::name::DiagnosticName>,
     pub state_statements: Arena<statement::Statement>,
     pub child_type_references: Arena<types::TypeReference>,
 }

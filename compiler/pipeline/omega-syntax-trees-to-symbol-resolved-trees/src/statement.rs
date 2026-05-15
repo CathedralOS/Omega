@@ -1,10 +1,10 @@
 use crate::expression::lower_expression_into_table;
-use crate::name::lower_name_members;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
+use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_symbol_resolved_trees::statement::{
     Assignment, Call, CallStorage, LocalData, LocalDataStorage, NamedTransitionTarget,
     NamedTransitionTargetStorage, Statement, Transition, TransitionGuard, TransitionTarget,
@@ -40,16 +40,7 @@ fn lower_statement_node(
             target_symbol: SymbolHandle::invalid(),
             target: crate::name::lower_name(&call.target),
             storage: CallStorage {
-                receiver: if call.receiver.is_empty() {
-                    None
-                } else {
-                    Some(lower_name_members(
-                        syntax_trees
-                            .statements
-                            .identifier_path_members(call.receiver)
-                            .iter(),
-                    ))
-                },
+                receiver: lower_statement_path_members(lowerer, syntax_trees, call.receiver),
                 arguments: lower_statement_expressions(lowerer, syntax_trees, call.arguments)?,
             },
         })),
@@ -153,13 +144,10 @@ fn lower_transition_target_node(
     match syntax_trees.statements.transition_target(target) {
         syntax::statement::TransitionTargetNode::Named { path, arguments } => {
             Ok(TransitionTarget::Named(NamedTransitionTarget {
+                head_symbol: SymbolHandle::invalid(),
+                symbol: SymbolHandle::invalid(),
                 storage: NamedTransitionTargetStorage {
-                    path: lower_name_members(
-                        syntax_trees
-                            .statements
-                            .identifier_path_members(*path)
-                            .iter(),
-                    ),
+                    path: lower_statement_path_members(lowerer, syntax_trees, *path),
                     arguments: lower_statement_expressions(lowerer, syntax_trees, *arguments)?,
                 },
             }))
@@ -170,4 +158,23 @@ fn lower_transition_target_node(
         syntax::statement::TransitionTargetNode::SelfTarget => Ok(TransitionTarget::SelfTarget),
         syntax::statement::TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
     }
+}
+
+fn lower_statement_path_members(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    members: HandleSpan<syntax::identifier::Identifier>,
+) -> HandleSpan<DiagnosticName> {
+    let mut span = HandleSpan::empty();
+
+    for member in syntax_trees.statements.identifier_path_members(members) {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .statement_path_members
+            .append_to_span(&mut span, crate::name::lower_name(member));
+    }
+
+    span
 }
