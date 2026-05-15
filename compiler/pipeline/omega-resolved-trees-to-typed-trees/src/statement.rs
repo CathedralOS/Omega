@@ -11,14 +11,12 @@ pub(crate) fn lower_statement(
     statement: &resolved::statement::Statement,
 ) -> Result<typed::statement::Statement, Diagnostic> {
     match statement {
-        resolved::statement::Statement::Assignment(assignment) => {
-            Ok(typed::statement::Statement::Assignment(
-                typed::statement::Assignment {
-                    target: lower_expression(&assignment.target)?,
-                    value: lower_expression(&assignment.value)?,
-                },
-            ))
-        }
+        resolved::statement::Statement::Assignment(assignment) => Ok(
+            typed::statement::Statement::Assignment(typed::statement::Assignment {
+                target: lower_expression(&assignment.target)?,
+                value: lower_expression(&assignment.value)?,
+            }),
+        ),
         resolved::statement::Statement::Call(call) => {
             Ok(typed::statement::Statement::Call(typed::statement::Call {
                 receiver_symbol: call.receiver_symbol,
@@ -32,36 +30,32 @@ pub(crate) fn lower_statement(
                     .collect::<Result<Vec<_>, _>>()?,
             }))
         }
-        resolved::statement::Statement::Expression(expression) => {
-            Ok(typed::statement::Statement::Expression(lower_expression(expression)?))
-        }
-        resolved::statement::Statement::LocalData(local_data) => {
-            Ok(typed::statement::Statement::LocalData(
-                typed::statement::LocalData {
-                    symbol: local_data.symbol,
-                    name: crate::name::lower_name(&local_data.name),
-                    type_reference: lower_type_reference(lowerer, &local_data.type_reference)?,
-                    initial_value: local_data
-                        .initial_value
-                        .as_ref()
-                        .map(lower_expression)
-                        .transpose()?,
-                },
-            ))
-        }
-        resolved::statement::Statement::Transition(transition) => {
-            Ok(typed::statement::Statement::Transition(
-                typed::statement::Transition {
-                    target: lower_transition_target(&transition.target)?,
-                    continuation: transition
-                        .continuation
-                        .as_ref()
-                        .map(lower_transition_target)
-                        .transpose()?,
-                    guard: lower_transition_guard(&transition.guard)?,
-                },
-            ))
-        }
+        resolved::statement::Statement::Expression(expression) => Ok(
+            typed::statement::Statement::Expression(lower_expression(expression)?),
+        ),
+        resolved::statement::Statement::LocalData(local_data) => Ok(
+            typed::statement::Statement::LocalData(typed::statement::LocalData {
+                symbol: local_data.symbol,
+                name: crate::name::lower_name(&local_data.name),
+                type_reference: lower_type_reference(lowerer, &local_data.type_reference)?,
+                initial_value: local_data
+                    .initial_value
+                    .as_ref()
+                    .map(lower_expression)
+                    .transpose()?,
+            }),
+        ),
+        resolved::statement::Statement::Transition(transition) => Ok(
+            typed::statement::Statement::Transition(typed::statement::Transition {
+                target: lower_transition_target(&transition.target)?,
+                continuation: transition
+                    .continuation
+                    .as_ref()
+                    .map(lower_transition_target)
+                    .transpose()?,
+                guard: lower_transition_guard(&transition.guard)?,
+            }),
+        ),
     }
 }
 
@@ -69,10 +63,12 @@ fn lower_transition_guard(
     guard: &resolved::statement::TransitionGuard,
 ) -> Result<typed::statement::TransitionGuard, Diagnostic> {
     match guard {
-        resolved::statement::TransitionGuard::Always => Ok(typed::statement::TransitionGuard::Always),
-        resolved::statement::TransitionGuard::When(expression) => {
-            Ok(typed::statement::TransitionGuard::When(lower_expression(expression)?))
+        resolved::statement::TransitionGuard::Always => {
+            Ok(typed::statement::TransitionGuard::Always)
         }
+        resolved::statement::TransitionGuard::When(expression) => Ok(
+            typed::statement::TransitionGuard::When(lower_expression(expression)?),
+        ),
     }
 }
 
@@ -90,9 +86,9 @@ fn lower_transition_target(
                     .collect::<Result<Vec<_>, _>>()?,
             })
         }
-        resolved::statement::TransitionTarget::Value(expression) => {
-            Ok(typed::statement::TransitionTarget::Value(lower_expression(expression)?))
-        }
+        resolved::statement::TransitionTarget::Value(expression) => Ok(
+            typed::statement::TransitionTarget::Value(lower_expression(expression)?),
+        ),
         resolved::statement::TransitionTarget::SelfTarget => {
             Ok(typed::statement::TransitionTarget::SelfTarget)
         }

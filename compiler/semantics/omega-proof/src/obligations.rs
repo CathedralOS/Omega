@@ -477,8 +477,7 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let Some(omega_typed_trees::statement::Statement::Expression(value)) =
-        state.statements.last()
+    let Some(omega_typed_trees::statement::Statement::Expression(value)) = state.statements.last()
     else {
         return;
     };
@@ -572,7 +571,9 @@ fn incoming_state_guard(
             };
 
             match &guard {
-                Some(existing) if !guards_equivalent_for_precondition(existing, &transition.guard) => {
+                Some(existing)
+                    if !guards_equivalent_for_precondition(existing, &transition.guard) =>
+                {
                     return None;
                 }
                 Some(_) => {}
@@ -613,13 +614,11 @@ fn expressions_equivalent_for_precondition(left: &Expression, right: &Expression
                     (None, None) => true,
                     _ => false,
                 }
-                && left
-                    .arguments
-                    .iter()
-                    .zip(&right.arguments)
-                    .all(|(left_argument, right_argument)| {
+                && left.arguments.iter().zip(&right.arguments).all(
+                    |(left_argument, right_argument)| {
                         expressions_equivalent_for_precondition(left_argument, right_argument)
-                    })
+                    },
+                )
         }
         (Expression::Member(left), Expression::Member(right)) => {
             left.member == right.member
@@ -668,7 +667,8 @@ fn expression_constraints(
                         collect_constraints_in_state(program, machine, state, return_type)
                     })
                     .unwrap_or_default();
-                let argument_constraints = expression_constraints(program, machine, state, argument);
+                let argument_constraints =
+                    expression_constraints(program, machine, state, argument);
                 constraints.extend(derived_real_from_constraints(&argument_constraints));
 
                 if !constraints.is_empty() {
@@ -746,23 +746,20 @@ fn expression_type_reference<'program>(
                         .map(|owned_data| &owned_data.type_reference)
                 })
         }
-        Expression::Member(member) => expression_type_reference(
-            program,
-            machine,
-            state,
-            &member.receiver,
-        )
-        .and_then(|receiver_type| {
-            data_field_type_reference(
-                program,
-                receiver_type,
-                member.member_symbol,
-                &member.member,
-            )
-        })
-        .or_else(|| {
-            type_reference_for_symbol(program, machine, state, member.member_symbol)
-        }),
+        Expression::Member(member) => {
+            expression_type_reference(program, machine, state, &member.receiver)
+                .and_then(|receiver_type| {
+                    data_field_type_reference(
+                        program,
+                        receiver_type,
+                        member.member_symbol,
+                        &member.member,
+                    )
+                })
+                .or_else(|| {
+                    type_reference_for_symbol(program, machine, state, member.member_symbol)
+                })
+        }
         _ => None,
     }
 }
@@ -866,7 +863,8 @@ fn collection_length_for_binding(
         })
         .or_else(|| {
             state.statements.iter().find_map(|statement| {
-                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement else {
+                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
+                else {
                     return None;
                 };
 
@@ -877,7 +875,9 @@ fn collection_length_for_binding(
                 local_data
                     .initial_value
                     .as_ref()
-                    .and_then(|value| collection_length_from_expression(program, machine, state, value))
+                    .and_then(|value| {
+                        collection_length_from_expression(program, machine, state, value)
+                    })
                     .or_else(|| {
                         collection_length_from_type_reference(
                             program,
@@ -914,14 +914,19 @@ fn collection_length_from_expression(
         Expression::Mutable(inner) => {
             collection_length_from_expression(program, machine, state, inner)
         }
-        Expression::Call(call)
-            if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") =>
-        {
+        Expression::Call(call) if matches!(call.target.as_str(), "as_slice" | "as_mut_slice") => {
             let receiver = call.receiver.as_deref()?;
             collection_length_from_expression(program, machine, state, receiver).or_else(|| {
-                expression_type_reference(program, machine, state, receiver).and_then(|type_reference| {
-                    collection_length_from_type_reference(program, machine, state, type_reference)
-                })
+                expression_type_reference(program, machine, state, receiver).and_then(
+                    |type_reference| {
+                        collection_length_from_type_reference(
+                            program,
+                            machine,
+                            state,
+                            type_reference,
+                        )
+                    },
+                )
             })
         }
         _ => expression_type_reference(program, machine, state, expression).and_then(
@@ -1025,17 +1030,17 @@ fn data_field_type_reference<'program>(
             base_symbol,
             base_name,
             ..
-        } => {
-            data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
-                |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
-            )
-        }
+        } => data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
+            |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
+        ),
         TypeReference::Named { symbol, name } => {
-            data_definition_by_symbol_or_name(program, *symbol, name).and_then(
-                |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
-            )
+            data_definition_by_symbol_or_name(program, *symbol, name).and_then(|data_definition| {
+                data_field_in_definition(data_definition, member_symbol, member_name)
+            })
         }
-        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => None,
+        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => {
+            None
+        }
     }
 }
 
@@ -1074,7 +1079,9 @@ fn integer_literal_constraints(value: i64) -> Vec<TypeConstraint> {
     ];
 
     if value >= 0 {
-        constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+        constraints.push(TypeConstraint::Named(ProgramName::generated(
+            "non_negative",
+        )));
     }
 
     if value > 0 {
@@ -1145,7 +1152,9 @@ fn derived_binary_constraints(
             maximum: Expression::Integer(range.maximum),
         });
         if range.minimum >= 0 {
-            constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+            constraints.push(TypeConstraint::Named(ProgramName::generated(
+                "non_negative",
+            )));
         }
         if range.minimum > 0 {
             constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
@@ -1321,20 +1330,25 @@ fn augment_constraints_with_named_facts(constraints: &mut Vec<TypeConstraint>) {
 
     if let Some(range) = integer_range_from_constraints(constraints) {
         if range.minimum >= 0 && !has_named_constraint(constraints, "non_negative") {
-            constraints.push(TypeConstraint::Named(ProgramName::generated("non_negative")));
+            constraints.push(TypeConstraint::Named(ProgramName::generated(
+                "non_negative",
+            )));
         }
         if range.minimum > 0 && !has_named_constraint(constraints, "positive") {
             constraints.push(TypeConstraint::Named(ProgramName::generated("positive")));
         }
     }
 
-    if float_range_from_constraints(constraints).is_some() && !has_named_constraint(constraints, "finite") {
+    if float_range_from_constraints(constraints).is_some()
+        && !has_named_constraint(constraints, "finite")
+    {
         constraints.push(TypeConstraint::Named(ProgramName::generated("finite")));
     }
 }
 
 fn integer_constraints_are_exact(constraints: &[TypeConstraint]) -> bool {
-    has_named_constraint(constraints, "exact") || integer_range_from_constraints(constraints).is_some()
+    has_named_constraint(constraints, "exact")
+        || integer_range_from_constraints(constraints).is_some()
 }
 
 fn integer_constraints_are_wrapping(constraints: &[TypeConstraint]) -> bool {
@@ -1533,10 +1547,7 @@ fn float_binary_range(
             ];
             Some(FloatRange {
                 minimum: quotients.iter().copied().fold(f64::INFINITY, f64::min),
-                maximum: quotients
-                    .iter()
-                    .copied()
-                    .fold(f64::NEG_INFINITY, f64::max),
+                maximum: quotients.iter().copied().fold(f64::NEG_INFINITY, f64::max),
             })
         }
         BinaryOperator::And

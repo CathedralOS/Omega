@@ -3,9 +3,7 @@
 use omega_core::arena::Arena;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::item::{DataMember, Item, Machine, Platform, StateSignature};
-use omega_syntax_trees::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub mod checker;
 pub mod obligations;
@@ -229,8 +227,7 @@ fn collect_bounded_type_site(
                 collect_bounded_type_site(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::Named(_) => {}
-        TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -262,11 +259,14 @@ fn collect_bounded_type_site_tree(
             collect_bounded_type_site_tree(report, syntax_trees, *element_type, owner);
         }
         TypeReferenceNode::Generic { arguments, .. } => {
-            for argument in syntax_trees.type_references.type_reference_handles(*arguments) {
+            for argument in syntax_trees
+                .type_references
+                .type_reference_handles(*arguments)
+            {
                 collect_bounded_type_site_tree(report, syntax_trees, *argument, owner);
             }
         }
-        TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
+        TypeReferenceNode::Named(_) | TypeReferenceNode::SelfType | TypeReferenceNode::Unit => {}
     }
 }
 
@@ -311,10 +311,10 @@ fn type_reference_name(syntax_trees: &SyntaxTrees, type_reference: TypeReference
             format!("{base_name}<{arguments}>")
         }
         TypeReferenceNode::Named(name) => name.to_string(),
+        TypeReferenceNode::SelfType => "Self".to_owned(),
         TypeReferenceNode::Unit => "()".to_owned(),
     }
 }
-
 
 fn constraint_handle_name(
     syntax_trees: &SyntaxTrees,
@@ -371,11 +371,12 @@ mod tests {
             .insert_named(Identifier::generated("f32"));
         let constraint = syntax_trees
             .type_references
-            .append_constraint(TypeConstraintNode::Named(Identifier::generated("speed_range")));
-        let parameter_type = syntax_trees.type_references.insert_constrained(
-            base_type,
-            HandleSpan::from_parts(constraint, 1),
-        );
+            .append_constraint(TypeConstraintNode::Named(Identifier::generated(
+                "speed_range",
+            )));
+        let parameter_type = syntax_trees
+            .type_references
+            .insert_constrained(base_type, HandleSpan::from_parts(constraint, 1));
         let parameter = syntax_trees
             .items
             .insert_state_parameter_node(StateParameterNode {

@@ -5,14 +5,15 @@ pub mod invariant;
 pub mod machine;
 pub mod name;
 pub mod platform;
-pub mod resolved_trees;
-pub mod snapshot;
 pub mod signature;
+pub mod snapshot;
 pub mod state;
 pub mod statement;
+pub mod symbol_resolved_trees;
 pub mod tables;
 pub mod types;
 
-pub use resolved_trees::{
-    ResolvedBodyStorage, ResolvedRoots, ResolvedTableStorage, ResolvedTrees, ResolvedTypeStorage,
+pub use symbol_resolved_trees::{
+    SymbolResolvedBodyStorage, SymbolResolvedRoots, SymbolResolvedTableStorage,
+    SymbolResolvedTrees, SymbolResolvedTypeStorage,
 };

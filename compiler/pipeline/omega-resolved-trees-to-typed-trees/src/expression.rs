@@ -16,45 +16,39 @@ pub(crate) fn lower_expression(
                     .collect::<Result<Vec<_>, _>>()?,
             ))
         }
-        resolved::expression::Expression::Binary(binary) => {
-            Ok(typed::expression::Expression::Binary(Box::new(
-                typed::expression::BinaryExpression {
-                    left: lower_expression(&binary.left)?,
-                    operator: lower_binary_operator(binary.operator),
-                    right: lower_expression(&binary.right)?,
-                },
-            )))
-        }
+        resolved::expression::Expression::Binary(binary) => Ok(
+            typed::expression::Expression::Binary(Box::new(typed::expression::BinaryExpression {
+                left: lower_expression(&binary.left)?,
+                operator: lower_binary_operator(binary.operator),
+                right: lower_expression(&binary.right)?,
+            })),
+        ),
         resolved::expression::Expression::Boolean(value) => {
             Ok(typed::expression::Expression::Boolean(*value))
         }
-        resolved::expression::Expression::Cast(cast) => {
-            Ok(typed::expression::Expression::Cast(Box::new(
-                typed::expression::CastExpression {
-                    value: lower_expression(&cast.value)?,
-                    target_type: lower_name_path(&cast.target_type),
-                },
-            )))
-        }
-        resolved::expression::Expression::Call(call) => {
-            Ok(typed::expression::Expression::Call(Box::new(
-                typed::expression::CallExpression {
-                    receiver: call
-                        .receiver
-                        .as_deref()
-                        .map(lower_expression)
-                        .transpose()?
-                        .map(Box::new),
-                    target_symbol: call.target_symbol,
-                    target: lower_name(&call.target),
-                    arguments: call
-                        .arguments
-                        .iter()
-                        .map(lower_expression)
-                        .collect::<Result<Vec<_>, _>>()?,
-                },
-            )))
-        }
+        resolved::expression::Expression::Cast(cast) => Ok(typed::expression::Expression::Cast(
+            Box::new(typed::expression::CastExpression {
+                value: lower_expression(&cast.value)?,
+                target_type: lower_name_path(&cast.target_type),
+            }),
+        )),
+        resolved::expression::Expression::Call(call) => Ok(typed::expression::Expression::Call(
+            Box::new(typed::expression::CallExpression {
+                receiver: call
+                    .receiver
+                    .as_deref()
+                    .map(lower_expression)
+                    .transpose()?
+                    .map(Box::new),
+                target_symbol: call.target_symbol,
+                target: lower_name(&call.target),
+                arguments: call
+                    .arguments
+                    .iter()
+                    .map(lower_expression)
+                    .collect::<Result<Vec<_>, _>>()?,
+            }),
+        )),
         resolved::expression::Expression::Float(value) => Ok(typed::expression::Expression::Float(
             typed::expression::FloatLiteral::new(value.value()),
         )),
@@ -69,40 +63,34 @@ pub(crate) fn lower_expression(
         resolved::expression::Expression::Integer(value) => {
             Ok(typed::expression::Expression::Integer(*value))
         }
-        resolved::expression::Expression::Member(member) => {
-            Ok(typed::expression::Expression::Member(Box::new(
-                typed::expression::MemberExpression {
-                    receiver: lower_expression(&member.receiver)?,
-                    member_symbol: member.member_symbol,
-                    member: lower_name(&member.member),
-                },
-            )))
-        }
-        resolved::expression::Expression::Mutable(expression) => {
-            Ok(typed::expression::Expression::Mutable(Box::new(
-                lower_expression(expression)?,
-            )))
-        }
+        resolved::expression::Expression::Member(member) => Ok(
+            typed::expression::Expression::Member(Box::new(typed::expression::MemberExpression {
+                receiver: lower_expression(&member.receiver)?,
+                member_symbol: member.member_symbol,
+                member: lower_name(&member.member),
+            })),
+        ),
+        resolved::expression::Expression::Mutable(expression) => Ok(
+            typed::expression::Expression::Mutable(Box::new(lower_expression(expression)?)),
+        ),
         resolved::expression::Expression::Name(path) => {
             Ok(typed::expression::Expression::Name(lower_name_path(path)))
         }
-        resolved::expression::Expression::StructLiteral(struct_literal) => {
-            Ok(typed::expression::Expression::StructLiteral(
-                typed::expression::StructLiteral {
-                    type_name: lower_name(&struct_literal.type_name),
-                    fields: struct_literal
-                        .fields
-                        .iter()
-                        .map(|field| {
-                            Ok(typed::expression::StructLiteralField {
-                                name: lower_name(&field.name),
-                                value: lower_expression(&field.value)?,
-                            })
+        resolved::expression::Expression::StructLiteral(struct_literal) => Ok(
+            typed::expression::Expression::StructLiteral(typed::expression::StructLiteral {
+                type_name: lower_name(&struct_literal.type_name),
+                fields: struct_literal
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        Ok(typed::expression::StructLiteralField {
+                            name: lower_name(&field.name),
+                            value: lower_expression(&field.value)?,
                         })
-                        .collect::<Result<Vec<_>, Diagnostic>>()?,
-                },
-            ))
-        }
+                    })
+                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+            }),
+        ),
         resolved::expression::Expression::String(value) => {
             Ok(typed::expression::Expression::String(value.clone()))
         }

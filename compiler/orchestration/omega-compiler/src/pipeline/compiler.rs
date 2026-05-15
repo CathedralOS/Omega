@@ -10,9 +10,11 @@ use omega_checked_trees::Program as CheckedProgram;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 use omega_emission_planning::{EmissionPlanningInput, build_emission_plan};
-use omega_image_emission::{ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image};
+use omega_image_emission::{
+    ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
+};
 use omega_object::{ObjectContainerInput, SectionKind, emit_omega_object_container};
-use omega_resolved_trees::ResolvedTrees;
+use omega_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::Program as TypedProgram;
@@ -45,8 +47,11 @@ impl Compiler {
             let sources = load_sources(frontier, first_source_id)?;
             let lexed = lex_sources(sources)?;
             let parsed = parse_sources(lexed)?;
-            let discovered_imports =
-                discover_imports(&parsed, &self.options.root_path, self.options.target_name.as_deref())?;
+            let discovered_imports = discover_imports(
+                &parsed,
+                &self.options.root_path,
+                self.options.target_name.as_deref(),
+            )?;
 
             imports.enqueue(discovered_imports)?;
             extend_source_storage(&mut source_storage, parsed)?;
@@ -90,7 +95,8 @@ fn project_roots(root_path: &std::path::Path) -> Vec<std::path::PathBuf> {
         return roots;
     };
 
-    for companion_name in companion_root_names(root_path.file_name().and_then(|name| name.to_str())) {
+    for companion_name in companion_root_names(root_path.file_name().and_then(|name| name.to_str()))
+    {
         let companion = parent.join(companion_name);
         if companion != root_path && companion.is_file() {
             roots.push(companion);
@@ -158,18 +164,16 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
         syntax_trees.extend_from(&file.syntax_trees);
     }
 
-    Ok(AssembledSyntax {
-        syntax_trees,
-    })
+    Ok(AssembledSyntax { syntax_trees })
 }
 
-fn resolve_program(syntax: AssembledSyntax) -> Result<ResolvedTrees, Vec<Diagnostic>> {
+fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
     omega_syntax_trees_to_resolved_trees::lower_syntax_trees(&syntax.syntax_trees)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
-fn typecheck_program(resolved: ResolvedTrees) -> Result<TypedProgram, Vec<Diagnostic>> {
-    omega_resolved_trees_to_typed_trees::lower_resolved_trees(&resolved)
+fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedProgram, Vec<Diagnostic>> {
+    omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])
 }
 
@@ -191,9 +195,8 @@ fn plan_backend(
         workers.clone(),
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let control_flow =
-        omega_state_graph_to_control_flow::build_control_flow_plan(&state_graph)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let control_flow = omega_state_graph_to_control_flow::build_control_flow_plan(&state_graph)
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked_program,
@@ -298,7 +301,8 @@ fn write_emission_plan(
     options: &CompileOptions,
     emission_plan: &omega_artifacts::EmissionPlan,
 ) -> Result<(), Vec<Diagnostic>> {
-    let writer = ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
+    let writer =
+        ArtifactWriter::new(&options.build_dir()).map_err(|diagnostic| vec![diagnostic])?;
     writer
         .write_emission_plan(emission_plan)
         .map_err(|diagnostic| vec![diagnostic])
@@ -375,7 +379,10 @@ fn mark_executable_if_needed(path: &std::path::Path) -> Result<(), Diagnostic> {
         .permissions();
     permissions.set_mode(0o755);
     std::fs::set_permissions(path, permissions).map_err(|error| {
-        Diagnostic::error(format!("failed to mark {} executable: {error}", path.display()))
+        Diagnostic::error(format!(
+            "failed to mark {} executable: {error}",
+            path.display()
+        ))
     })
 }
 

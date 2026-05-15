@@ -1,4 +1,4 @@
-use crate::ResolvedTrees;
+use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::ProgramName;
@@ -43,7 +43,7 @@ impl IdentityStorageCounts {
     }
 }
 
-pub fn count_identity_storage(program: &ResolvedTrees) -> IdentityStorageCounts {
+pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
 
     for invariant in &program.invariant_definitions {
@@ -93,7 +93,12 @@ pub fn count_identity_storage(program: &ResolvedTrees) -> IdentityStorageCounts 
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
-            for statement in program.tables.bodies.statements.statements(state.statement_nodes) {
+            for statement in program
+                .tables
+                .bodies
+                .statements
+                .statements(state.statement_nodes)
+            {
                 count_statement_node(
                     &program.tables.bodies.statements,
                     &program.tables.bodies.expressions,

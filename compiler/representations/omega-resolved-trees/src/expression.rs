@@ -146,7 +146,10 @@ impl ExpressionTable {
             ExpressionNode::Cast(cast) => {
                 let value = self.copy_from(source, cast.value);
                 let target_type = self.copy_name_path_members(source, cast.target_type);
-                self.insert(ExpressionNode::Cast(TableCastExpression { value, target_type }))
+                self.insert(ExpressionNode::Cast(TableCastExpression {
+                    value,
+                    target_type,
+                }))
             }
             ExpressionNode::Call(call) => {
                 let receiver = call
@@ -154,8 +157,7 @@ impl ExpressionTable {
                     .is_valid()
                     .then(|| self.copy_from(source, call.receiver))
                     .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments =
-                    self.copy_expression_handles_from(source, call.arguments);
+                let arguments = self.copy_expression_handles_from(source, call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
                     receiver,
                     target_symbol: call.target_symbol,
@@ -554,7 +556,10 @@ impl ExpressionTable {
             Expression::Cast(cast) => {
                 let value = self.insert_tree(&cast.value);
                 let target_type = self.insert_name_path_members(&cast.target_type);
-                self.insert(ExpressionNode::Cast(TableCastExpression { value, target_type }))
+                self.insert(ExpressionNode::Cast(TableCastExpression {
+                    value,
+                    target_type,
+                }))
             }
             Expression::Call(call) => {
                 let receiver = call
@@ -1296,7 +1301,11 @@ impl TableBinaryExpression {
 
 impl CastExpression {
     pub fn display_name(&self) -> String {
-        format!("{} as {}", self.value.display_name(), display_name_path(&self.target_type, "::"))
+        format!(
+            "{} as {}",
+            self.value.display_name(),
+            display_name_path(&self.target_type, "::")
+        )
     }
 }
 
