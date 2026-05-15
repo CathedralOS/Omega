@@ -599,31 +599,27 @@ fn resolve_state_call_target(
     receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
-    target_state: &ProgramName,
+    _target_state: &ProgramName,
 ) -> Option<SymbolHandle> {
     if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
-        return resolve_state_symbol_in_machine(machine, target_symbol, target_state);
+        return resolve_state_symbol_in_machine(machine, target_symbol);
     }
 
     if !receiver_symbol.is_valid() {
-        let _ = target_state;
         return None;
     }
 
-    let receiver_name = receiver.and_then(|receiver| receiver.last());
-
-    if let Some(contained) = machine.contains.iter().find(|contained| {
-        contained.symbol == receiver_symbol
-            || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
-    }) {
+    if let Some(contained) = machine
+        .contains
+        .iter()
+        .find(|contained| contained.symbol == receiver_symbol)
+    {
         return machine_by_symbol(program, contained.type_symbol)
-            .and_then(|target_machine| {
-                resolve_state_symbol_in_machine(target_machine, target_symbol, target_state)
-            });
+            .and_then(|target_machine| resolve_state_symbol_in_machine(target_machine, target_symbol));
     }
 
     if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
-        return resolve_state_symbol_in_machine(target_machine, target_symbol, target_state);
+        return resolve_state_symbol_in_machine(target_machine, target_symbol);
     }
 
     if let Some(type_symbol) = state
@@ -633,7 +629,7 @@ fn resolve_state_call_target(
         .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)
     {
-        return resolve_state_symbol_in_machine(target_machine, target_symbol, target_state);
+        return resolve_state_symbol_in_machine(target_machine, target_symbol);
     }
 
     if target_symbol.is_valid()
@@ -685,21 +681,16 @@ fn receiver_can_dispatch_to_machine(
 fn resolve_state_symbol_in_machine(
     machine: &omega_typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
-    state_name: &ProgramName,
 ) -> Option<SymbolHandle> {
-    if state_symbol.is_valid() {
-        machine
-            .states
-            .iter()
-            .find(|state| state.symbol == state_symbol)
-            .map(|state| state.symbol)
-    } else {
-        machine
-            .states
-            .iter()
-            .find(|state| state.name == *state_name)
-            .map(|state| state.symbol)
+    if !state_symbol.is_valid() {
+        return None;
     }
+
+    machine
+        .states
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+        .map(|state| state.symbol)
 }
 
 fn machine_by_symbol(
