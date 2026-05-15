@@ -340,7 +340,6 @@ struct MachineScope {
 #[derive(Clone)]
 struct FieldBinding {
     symbol: SymbolHandle,
-    name: omega_resolved_trees::name::ProgramName,
     type_name: omega_resolved_trees::name::ProgramName,
     type_symbol: SymbolHandle,
 }
@@ -348,7 +347,6 @@ struct FieldBinding {
 #[derive(Clone)]
 struct ParameterBinding {
     symbol: SymbolHandle,
-    name: omega_resolved_trees::name::ProgramName,
     type_name: omega_resolved_trees::name::ProgramName,
     type_symbol: SymbolHandle,
 }
@@ -622,7 +620,7 @@ fn resolve_call_target_symbol(
     call: &omega_resolved_trees::statement::Call,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
-    if let Some(receiver) = &call.receiver {
+    if call.receiver.is_some() {
         if call.receiver_symbol.is_valid() {
             if let Some(contained) = machine
                 .contains
@@ -699,94 +697,6 @@ fn resolve_call_target_symbol(
                 return child_symbol_by_kinds(
                     symbols,
                     call.receiver_symbol,
-                    &[SymbolKind::State],
-                    call.target.as_str(),
-                );
-            }
-        }
-
-        if let Some(receiver_name) = receiver.last() {
-            if let Some(contained) = machine
-                .contains
-                .iter()
-                .find(|contained| contained.name == *receiver_name)
-            {
-                return child_symbol_by_kinds(
-                    symbols,
-                    contained.type_symbol,
-                    &[SymbolKind::State],
-                    call.target.as_str(),
-                );
-            }
-
-            if let Some(field) = machine
-                .fields
-                .iter()
-                .find(|field| field.name == *receiver_name)
-            {
-                let direct = child_symbol_by_kinds(
-                    symbols,
-                    field.type_symbol,
-                    &[SymbolKind::State],
-                    call.target.as_str(),
-                );
-                if direct.is_valid() {
-                    return direct;
-                }
-                let callable_type = top_level_symbol_by_kinds(
-                    symbols,
-                    &[SymbolKind::Machine, SymbolKind::Platform],
-                    field.type_name.as_str(),
-                );
-                if callable_type.is_valid() {
-                    return child_symbol_by_kinds(
-                        symbols,
-                        callable_type,
-                        &[SymbolKind::State],
-                        call.target.as_str(),
-                    );
-                }
-                return direct;
-            }
-
-            if let Some(parameter) = parameters
-                .iter()
-                .find(|parameter| parameter.name == *receiver_name)
-            {
-                let direct = child_symbol_by_kinds(
-                    symbols,
-                    parameter.type_symbol,
-                    &[SymbolKind::State],
-                    call.target.as_str(),
-                );
-                if direct.is_valid() {
-                    return direct;
-                }
-                let callable_type = top_level_symbol_by_kinds(
-                    symbols,
-                    &[SymbolKind::Machine, SymbolKind::Platform],
-                    parameter.type_name.as_str(),
-                );
-                if callable_type.is_valid() {
-                    return child_symbol_by_kinds(
-                        symbols,
-                        callable_type,
-                        &[SymbolKind::State],
-                        call.target.as_str(),
-                    );
-                }
-                return direct;
-            }
-
-            let top_level_receiver = top_level_symbol_by_kinds(
-                symbols,
-                &[SymbolKind::Machine, SymbolKind::Platform],
-                receiver_name.as_str(),
-            );
-            if top_level_receiver.is_valid() {
-                return child_symbol_by_kinds(
-                    symbols,
-                    top_level_receiver,
                     &[SymbolKind::State],
                     call.target.as_str(),
                 );
@@ -920,7 +830,6 @@ fn machine_field_bindings(
 
             fields.push(FieldBinding {
                 symbol: field.symbol,
-                name: field.name.clone(),
                 type_name: type_reference_name(&field.type_reference),
                 type_symbol: type_reference_symbol(&field.type_reference),
             });
@@ -930,7 +839,6 @@ fn machine_field_bindings(
     for owned_data in &machine.owned_data {
         fields.push(FieldBinding {
             symbol: owned_data.symbol,
-            name: owned_data.name.clone(),
             type_name: type_reference_name(&owned_data.type_reference),
             type_symbol: type_reference_symbol(&owned_data.type_reference),
         });
@@ -947,7 +855,6 @@ fn state_parameter_bindings(
         .iter()
         .map(|parameter| ParameterBinding {
             symbol: parameter.symbol,
-            name: parameter.name.clone(),
             type_name: type_reference_name(&parameter.type_reference),
             type_symbol: type_reference_symbol(&parameter.type_reference),
         })
