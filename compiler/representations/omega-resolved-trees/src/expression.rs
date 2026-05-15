@@ -926,9 +926,13 @@ impl NamePath {
         self.symbol
     }
 
-    pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
+    pub fn set_symbols(&mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) {
         self.head_symbol = head_symbol;
         self.symbol = symbol;
+    }
+
+    pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
+        self.set_symbols(head_symbol, symbol);
         self
     }
 }
