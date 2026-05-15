@@ -7,7 +7,7 @@ use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
-use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedProgramTables {
@@ -143,8 +143,7 @@ impl TypedProgramTables {
             self.insert_type_reference(return_type, type_constraints);
         }
 
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut statements = HandleSpan::empty();
         for statement in &state.statements {
             let handle = self.statements.insert_tree(
                 statement,
@@ -152,17 +151,10 @@ impl TypedProgramTables {
                 &mut self.type_references,
                 type_constraints,
             );
-            if count == 0 {
-                start = handle;
-            }
-            count = count.checked_add(1).expect("state statement span overflow");
+            statements.push_contiguous(handle);
         }
 
-        state.statement_nodes = if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        };
+        state.statement_nodes = statements;
     }
 
     fn insert_state_signature(
