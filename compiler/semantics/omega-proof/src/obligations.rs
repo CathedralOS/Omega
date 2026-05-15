@@ -377,7 +377,7 @@ fn collect_bounded_transition_argument_obligations(
     proof_plan: &mut ProofPlan,
 ) {
     let Some((target_state, arguments)) =
-        transition_target_state_and_arguments(program, machine, state, &transition.target)
+        transition_target_state_and_arguments(program, state, &transition.target)
     else {
         return;
     };
@@ -422,7 +422,7 @@ fn collect_bounded_call_argument_obligations(
     call: &Call,
     proof_plan: &mut ProofPlan,
 ) {
-    let Some(parameters) = call_target_parameters(program, machine, call) else {
+    let Some(parameters) = call_target_parameters(program, call) else {
         return;
     };
 
@@ -505,44 +505,9 @@ fn collect_bounded_state_return_obligation(
 
 fn call_target_parameters<'program>(
     program: &'program Program,
-    machine: &'program Machine,
     call: &Call,
 ) -> Option<&'program [StateParameter]> {
-    let Some(receiver_path) = call.receiver.as_ref() else {
-        return machine
-            .states
-            .iter()
-            .find(|state| state.name == call.target)
-            .map(|state| state.parameters.as_slice());
-    };
-
-    if receiver_path.as_slice() == ["self"] {
-        return machine
-            .states
-            .iter()
-            .find(|state| state.name == call.target)
-            .map(|state| state.parameters.as_slice());
-    }
-
-    let receiver = receiver_path
-        .as_slice()
-        .last()
-        .map(|member| member.as_str())?;
-    let receiver_type = machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == receiver)
-        .map(|contained| contained.type_name.as_str());
-
-    if let Some(parameters) = receiver_type
-        .and_then(|type_name| platform_state_parameters(program, type_name, &call.target))
-    {
-        return Some(parameters);
-    }
-
-    receiver_type
-        .and_then(|type_name| machine_state_parameters(program, type_name, &call.target))
-        .or_else(|| machine_state_parameters(program, receiver, &call.target))
+    state_by_symbol(program, call.target_symbol).map(|state| state.parameters.as_slice())
 }
 
 fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
@@ -553,39 +518,8 @@ fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
         .join(".")
 }
 
-fn platform_state_parameters<'program>(
-    program: &'program Program,
-    platform_name: &str,
-    state_name: &str,
-) -> Option<&'program [StateParameter]> {
-    program
-        .platforms
-        .iter()
-        .find(|platform| platform.name == platform_name)?
-        .states
-        .iter()
-        .find(|state| state.name == state_name)
-        .map(|state| state.parameters.as_slice())
-}
-
-fn machine_state_parameters<'program>(
-    program: &'program Program,
-    machine_name: &str,
-    state_name: &str,
-) -> Option<&'program [StateParameter]> {
-    program
-        .machines
-        .iter()
-        .find(|machine| machine.name == machine_name)?
-        .states
-        .iter()
-        .find(|state| state.name == state_name)
-        .map(|state| state.parameters.as_slice())
-}
-
 fn transition_target_state_and_arguments<'program>(
     program: &'program Program,
-    machine: &'program Machine,
     state: &'program State,
     target: &'program TransitionTarget,
 ) -> Option<(&'program State, &'program [Expression])> {
@@ -593,35 +527,21 @@ fn transition_target_state_and_arguments<'program>(
         return None;
     };
 
-    let target_state = match path.as_slice() {
-        [state_name] => machine
-            .states
-            .iter()
-            .find(|candidate| candidate.name == *state_name),
-        [receiver, state_name] if receiver == "self" => machine
-            .states
-            .iter()
-            .find(|candidate| candidate.name == *state_name),
-        [receiver, state_name] => {
-            contained_machine(program, machine, receiver).and_then(|target_machine| {
-                target_machine
-                    .states
-                    .iter()
-                    .find(|candidate| candidate.name == *state_name)
-            })
-        }
-        _ => None,
-    };
-
-    target_state
-        .or_else(|| {
-            if path.as_slice() == ["self"] {
-                Some(state)
-            } else {
-                None
-            }
-        })
+    state_by_symbol(program, path.symbol())
+        .or_else(|| (path.as_slice() == ["self"]).then_some(state))
         .map(|target_state| (target_state, arguments.as_slice()))
+}
+
+fn state_by_symbol(program: &Program, symbol: SymbolHandle) -> Option<&State> {
+    if !symbol.is_valid() {
+        return None;
+    }
+
+    program
+        .machines
+        .iter()
+        .flat_map(|machine| machine.states.iter())
+        .find(|state| state.symbol == symbol)
 }
 
 fn incoming_state_guard(
@@ -637,12 +557,9 @@ fn incoming_state_guard(
                 continue;
             };
 
-            let Some((resolved_target, _)) = transition_target_state_and_arguments(
-                program,
-                machine,
-                source_state,
-                &transition.target,
-            ) else {
+            let Some((resolved_target, _)) =
+                transition_target_state_and_arguments(program, source_state, &transition.target)
+            else {
                 continue;
             };
 
@@ -715,22 +632,6 @@ fn expressions_equivalent_for_precondition(left: &Expression, right: &Expression
         }
         _ => false,
     }
-}
-
-fn contained_machine<'program>(
-    program: &'program Program,
-    machine: &Machine,
-    receiver: &str,
-) -> Option<&'program Machine> {
-    let contained = machine
-        .contains
-        .iter()
-        .find(|contained| contained.name == receiver)?;
-
-    program
-        .machines
-        .iter()
-        .find(|machine| machine.name == contained.type_name)
 }
 
 fn callable_parameters(state: &State) -> impl Iterator<Item = &StateParameter> {
