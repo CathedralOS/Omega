@@ -362,8 +362,8 @@ fn assign_expression_symbols(
     expression: &mut omega_resolved_trees::expression::Expression,
 ) {
     match expression {
-        omega_resolved_trees::expression::Expression::ArrayLiteral(values) => {
-            for value in values {
+        omega_resolved_trees::expression::Expression::ArrayLiteral(array_literal) => {
+            for value in &mut array_literal.values {
                 assign_expression_symbols(symbols, machine, parameters, state_symbol, value);
             }
         }

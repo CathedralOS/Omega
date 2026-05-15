@@ -7,9 +7,10 @@ pub(crate) fn lower_expression(
     expression: &resolved::expression::Expression,
 ) -> Result<typed::expression::Expression, Diagnostic> {
     match expression {
-        resolved::expression::Expression::ArrayLiteral(values) => {
+        resolved::expression::Expression::ArrayLiteral(array_literal) => {
             Ok(typed::expression::Expression::ArrayLiteral(
-                values
+                array_literal
+                    .values
                     .iter()
                     .map(lower_expression)
                     .collect::<Result<Vec<_>, _>>()?,
