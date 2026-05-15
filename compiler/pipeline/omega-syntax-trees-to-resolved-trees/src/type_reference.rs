@@ -1,6 +1,6 @@
 use crate::expression::lower_expression_handle;
 use crate::program::Lowerer;
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::types::{
@@ -98,18 +98,25 @@ pub(crate) fn lower_type_constraint_handles(
     syntax_trees: &SyntaxTrees,
     constraints: HandleSpan<syntax::types::TypeConstraintNode>,
 ) -> Result<HandleSpan<TypeConstraint>, Diagnostic> {
-    let lowered = syntax_trees
-        .type_references
-        .constraints(constraints)
-        .iter()
-        .map(|constraint| lower_type_constraint_handle(syntax_trees, constraint))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(lowerer
-        .program
-        .tables
-        .types
-        .constraints
-        .insert_many(lowered))
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for constraint in syntax_trees.type_references.constraints(constraints) {
+        let constraint = lower_type_constraint_handle(syntax_trees, constraint)?;
+        let handle = lowerer.program.tables.types.constraints.append(constraint);
+        if count == 0 {
+            start = handle;
+        }
+        count = count
+            .checked_add(1)
+            .expect("type constraint span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
+    }
 }
 
 fn lower_type_constraint_handle(
