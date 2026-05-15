@@ -709,7 +709,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            &call.arguments,
+            program.call_arguments(call),
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -731,7 +731,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            &call.arguments,
+            program.call_arguments(call),
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -761,7 +761,7 @@ fn validate_call(
 
         validate_call_arguments(
             program,
-            &call.arguments,
+            program.call_arguments(call),
             &state_signature.name,
             program.state_signature_parameters(state_signature),
             writable_roots,
@@ -781,7 +781,7 @@ fn validate_call(
         {
             validate_call_arguments(
                 program,
-                &call.arguments,
+                program.call_arguments(call),
                 &state.name,
                 program.state_parameters(state),
                 writable_roots,
@@ -1156,7 +1156,7 @@ fn validate_transition_target(
 
         validate_transition_arguments(
             program,
-            arguments,
+            program.statement_expressions(*arguments),
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -1176,7 +1176,7 @@ fn validate_transition_target(
 
         validate_transition_arguments(
             program,
-            arguments,
+            program.statement_expressions(*arguments),
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -1208,7 +1208,7 @@ fn validate_transition_target(
 
         validate_transition_arguments(
             program,
-            arguments,
+            program.statement_expressions(*arguments),
             &state.name,
             program.state_parameters(state),
             writable_roots,

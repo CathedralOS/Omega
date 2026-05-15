@@ -41,7 +41,7 @@ pub struct Call {
     pub target_symbol: SymbolHandle,
     pub receiver: Option<NamePath>,
     pub target: ProgramName,
-    pub arguments: Vec<Expression>,
+    pub arguments: HandleSpan<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +61,7 @@ pub enum TransitionGuard {
 pub enum TransitionTarget {
     Named {
         path: NamePath,
-        arguments: Vec<Expression>,
+        arguments: HandleSpan<Expression>,
     },
     Value(Expression),
     SelfTarget,
@@ -128,6 +128,7 @@ impl StatementTable {
         type_references: &mut crate::types::TypeReferenceTable,
         source_constraints: &Arena<crate::types::TypeConstraint>,
         source_type_reference_arguments: &Arena<crate::types::TypeReference>,
+        source_statement_expressions: &Arena<Expression>,
     ) -> StatementHandle {
         match statement {
             Statement::Assignment(assignment) => {
@@ -136,8 +137,11 @@ impl StatementTable {
                 self.insert(StatementNode::Assignment(TableAssignment { target, value }))
             }
             Statement::Call(call) => {
-                let arguments =
-                    self.insert_expression_handle_span_from_trees(&call.arguments, expressions);
+                let arguments = self.insert_expression_handle_span_from_trees(
+                    call.arguments,
+                    expressions,
+                    source_statement_expressions,
+                );
                 let receiver = call
                     .receiver
                     .as_ref()
@@ -175,11 +179,21 @@ impl StatementTable {
                 }))
             }
             Statement::Transition(transition) => {
-                let target = self.insert_transition_target_tree(&transition.target, expressions);
+                let target = self.insert_transition_target_tree(
+                    &transition.target,
+                    expressions,
+                    source_statement_expressions,
+                );
                 let continuation = transition
                     .continuation
                     .as_ref()
-                    .map(|target| self.insert_transition_target_tree(target, expressions))
+                    .map(|target| {
+                        self.insert_transition_target_tree(
+                            target,
+                            expressions,
+                            source_statement_expressions,
+                        )
+                    })
                     .unwrap_or_else(TransitionTargetHandle::invalid);
                 let guard = match &transition.guard {
                     TransitionGuard::Always => TransitionGuardNode::Always,
@@ -198,12 +212,13 @@ impl StatementTable {
 
     fn insert_expression_handle_span_from_trees(
         &mut self,
-        arguments: &[Expression],
+        arguments: HandleSpan<Expression>,
         expressions: &mut crate::expression::ExpressionTable,
+        source_statement_expressions: &Arena<Expression>,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
         let mut handles = HandleSpan::empty();
 
-        for argument in arguments {
+        for argument in source_statement_expressions.span_or_empty(arguments) {
             let argument = expressions.insert_tree(argument);
             self.expression_handles
                 .append_to_span(&mut handles, argument);
@@ -227,6 +242,7 @@ impl StatementTable {
         &mut self,
         target: &TransitionTarget,
         expressions: &mut crate::expression::ExpressionTable,
+        source_statement_expressions: &Arena<Expression>,
     ) -> TransitionTargetHandle {
         let target = match target {
             TransitionTarget::Named { path, arguments } => TransitionTargetNode::Named {
@@ -235,7 +251,11 @@ impl StatementTable {
                     head_symbol: path.head_symbol(),
                     symbol: path.symbol(),
                 },
-                arguments: self.insert_expression_handle_span_from_trees(arguments, expressions),
+                arguments: self.insert_expression_handle_span_from_trees(
+                    *arguments,
+                    expressions,
+                    source_statement_expressions,
+                ),
             },
             TransitionTarget::Value(expression) => {
                 TransitionTargetNode::Value(expressions.insert_tree(expression))
@@ -377,6 +397,9 @@ mod tests {
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
+        let mut source_statement_expressions = Arena::<Expression>::new();
+        let arguments = source_statement_expressions
+            .insert_many([Expression::Integer(1), Expression::Integer(2)]);
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named {
                 path: NamePath::resolved(
@@ -384,7 +407,7 @@ mod tests {
                     target_symbol,
                     target_symbol,
                 ),
-                arguments: vec![Expression::Integer(1), Expression::Integer(2)],
+                arguments,
             },
             continuation: None,
             guard: TransitionGuard::When(Expression::Boolean(true)),
@@ -401,6 +424,7 @@ mod tests {
             &mut type_references,
             &type_constraints,
             &type_reference_arguments,
+            &source_statement_expressions,
         );
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {

@@ -58,7 +58,7 @@ fn collect_state_host_calls(
                     &static_values,
                     plan,
                 )?;
-                apply_call_static_effects(&mut static_values, call);
+                apply_call_static_effects(&mut static_values, program, call);
             }
             _ => {}
         }
@@ -106,7 +106,7 @@ fn collect_call_host_lowering(
         .unwrap_or_else(HandleSpan::empty);
     let arguments = plan
         .arguments
-        .insert_many(lower_host_call_arguments(call, static_values));
+        .insert_many(lower_host_call_arguments(program, call, static_values));
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,

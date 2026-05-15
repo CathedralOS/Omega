@@ -47,6 +47,7 @@ impl TypedProgramTables {
                 typed_trees,
                 &typed_trees.type_constraints,
                 &typed_trees.type_reference_arguments,
+                &typed_trees.statement_expressions,
             );
         }
 
@@ -67,6 +68,7 @@ impl TypedProgramTables {
             machine_states,
             state_parameters,
             state_statements,
+            statement_expressions,
             type_reference_arguments,
             root_platforms,
             platforms,
@@ -104,6 +106,7 @@ impl TypedProgramTables {
                 state_statements,
                 type_constraints,
                 type_reference_arguments,
+                statement_expressions,
             );
         }
 
@@ -168,6 +171,7 @@ impl TypedProgramTables {
         typed_trees: &TypedTrees,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
+        statement_expressions: &Arena<Expression>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
@@ -180,6 +184,7 @@ impl TypedProgramTables {
                 typed_trees.state_statements(state),
                 type_constraints,
                 type_reference_arguments,
+                statement_expressions,
             );
         }
     }
@@ -192,6 +197,7 @@ impl TypedProgramTables {
         state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
+        statement_expressions: &Arena<Expression>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints, type_reference_arguments);
@@ -204,6 +210,7 @@ impl TypedProgramTables {
                 state_statements.span_or_empty(state.statements),
                 type_constraints,
                 type_reference_arguments,
+                statement_expressions,
             );
         }
     }
@@ -232,6 +239,7 @@ impl TypedProgramTables {
         statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
+        statement_expressions: &Arena<Expression>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
@@ -246,7 +254,12 @@ impl TypedProgramTables {
         }
 
         for statement in statements {
-            self.insert_statement(statement, type_constraints, type_reference_arguments);
+            self.insert_statement(
+                statement,
+                type_constraints,
+                type_reference_arguments,
+                statement_expressions,
+            );
         }
     }
 
@@ -257,6 +270,7 @@ impl TypedProgramTables {
         statements: &[Statement],
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
+        statement_expressions: &Arena<Expression>,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
@@ -278,6 +292,7 @@ impl TypedProgramTables {
                 &mut self.type_references,
                 type_constraints,
                 type_reference_arguments,
+                statement_expressions,
             );
             statement_nodes.push_contiguous(handle);
         }
@@ -310,6 +325,7 @@ impl TypedProgramTables {
         statement: &Statement,
         type_constraints: &Arena<TypeConstraint>,
         type_reference_arguments: &Arena<TypeReference>,
+        statement_expressions: &Arena<Expression>,
     ) {
         self.statements.insert_tree(
             statement,
@@ -317,6 +333,7 @@ impl TypedProgramTables {
             &mut self.type_references,
             type_constraints,
             type_reference_arguments,
+            statement_expressions,
         );
     }
 

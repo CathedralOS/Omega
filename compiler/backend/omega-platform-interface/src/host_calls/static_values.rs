@@ -71,9 +71,10 @@ pub(crate) fn apply_static_assignment(
 
 pub(crate) fn apply_call_static_effects(
     static_values: &mut Vec<(PlaceKey, StaticValue)>,
+    program: &Program,
     call: &Call,
 ) {
-    for argument in &call.arguments {
+    for argument in program.call_arguments(call) {
         let Expression::Mutable(target) = argument else {
             continue;
         };

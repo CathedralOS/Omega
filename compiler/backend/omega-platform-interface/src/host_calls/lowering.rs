@@ -110,10 +110,12 @@ pub(crate) fn host_operation(operation_key: HostOperationKey) -> LoweredHostOper
 }
 
 pub(crate) fn lower_host_call_arguments(
+    program: &Program,
     call: &Call,
     static_values: &[(PlaceKey, StaticValue)],
 ) -> Vec<HostCallArgument> {
-    call.arguments
+    program
+        .call_arguments(call)
         .iter()
         .map(|argument| HostCallArgument {
             kind: lower_host_call_argument(argument, static_values),
