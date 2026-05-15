@@ -38,9 +38,11 @@ pub(crate) fn lower_machine(
         })
         .collect::<Result<Vec<_>, Diagnostic>>()?;
 
-    let states = machine
-        .states
+    let states = lowerer
+        .source_program
+        .machine_state_handles(machine.states)
         .iter()
+        .map(|state| lowerer.source_program.machine_state(*state))
         .map(|state| lower_state(lowerer, state))
         .collect::<Result<Vec<_>, _>>()?;
 

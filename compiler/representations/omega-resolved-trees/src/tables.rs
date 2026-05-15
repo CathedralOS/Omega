@@ -36,35 +36,40 @@ impl SymbolResolvedTreeTables {
             ..
         } = symbol_resolved_trees;
         let type_constraints = source_tables.types.constraints.clone();
-        let declarations = &source_tables.declarations;
 
         for invariant in &roots.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, &type_constraints);
         }
 
+        let data_members = &source_tables.declarations.data_members;
         for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
-                declarations
-                    .data_members
-                    .span_or_empty(data_definition.members),
+                data_members.span_or_empty(data_definition.members),
                 &type_constraints,
             );
         }
 
+        let platform_state_signatures = &source_tables.declarations.platform_state_signatures;
+        let state_parameters = &source_tables.declarations.state_parameters;
         for platform in &roots.platforms {
             tables.insert_platform(
-                declarations
-                    .platform_state_signatures
-                    .span_or_empty(platform.states),
-                &declarations.state_parameters,
+                platform_state_signatures.span_or_empty(platform.states),
+                state_parameters,
                 &type_constraints,
             );
         }
 
-        let state_parameters = &declarations.state_parameters;
-        roots.machines.for_each_mut(|machine| {
-            tables.insert_machine_with_state_spans(machine, state_parameters, &type_constraints);
-        });
+        let machine_state_handles = &source_tables.declarations.machine_state_handles;
+        let machine_states = &mut source_tables.declarations.machine_states;
+        for machine in &roots.machines {
+            tables.insert_machine_with_state_spans(
+                machine,
+                machine_state_handles,
+                machine_states,
+                state_parameters,
+                &type_constraints,
+            );
+        }
 
         tables
     }
@@ -98,7 +103,9 @@ impl SymbolResolvedTreeTables {
 
     fn insert_machine_with_state_spans(
         &mut self,
-        machine: &mut Machine,
+        machine: &Machine,
+        machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
+        machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
@@ -106,7 +113,12 @@ impl SymbolResolvedTreeTables {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
-        for state in &mut machine.states {
+        for state in machine_state_handles
+            .span_or_empty(machine.states)
+            .iter()
+            .copied()
+        {
+            let state = machine_states.get_mut(state);
             self.insert_state_with_statement_span(state, state_parameters, type_constraints);
         }
     }
@@ -219,29 +231,35 @@ mod tests {
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
         let mut program = SymbolResolvedTrees::default();
+        let state = program.tables.declarations.machine_states.append(State {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("entry"),
+            storage: StateStorage {
+                parameters: HandleSpan::empty(),
+                return_type: Some(TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: DiagnosticName::generated("i32"),
+                }),
+                statements: vec![Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })],
+                statement_nodes: HandleSpan::empty(),
+            },
+        });
+        let states = program
+            .tables
+            .declarations
+            .machine_state_handles
+            .insert_many([state]);
         program.machines.push(Machine {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
                 contains: Vec::new(),
                 owned_data: Vec::new(),
-                states: vec![State {
-                    symbol: SymbolHandle::invalid(),
-                    name: DiagnosticName::generated("entry"),
-                    storage: StateStorage {
-                        parameters: HandleSpan::empty(),
-                        return_type: Some(TypeReference::Named {
-                            symbol: SymbolHandle::invalid(),
-                            name: DiagnosticName::generated("i32"),
-                        }),
-                        statements: vec![Statement::Transition(Transition {
-                            target: TransitionTarget::Terminal,
-                            continuation: None,
-                            guard: TransitionGuard::When(Expression::Integer(1)),
-                        })],
-                        statement_nodes: HandleSpan::empty(),
-                    },
-                }],
+                states,
             },
         });
 
@@ -250,6 +268,11 @@ mod tests {
         assert_eq!(program.tables.types.references.type_reference_count(), 1);
         assert_eq!(program.tables.bodies.expressions.expression_count(), 1);
         assert_eq!(program.tables.bodies.statements.statement_count(), 1);
-        assert_eq!(program.machines[0].states[0].statement_nodes.count(), 1);
+        let state = program
+            .machine_state_handles(program.machines[0].states)
+            .first()
+            .map(|state| program.machine_state(*state))
+            .expect("entry state");
+        assert_eq!(state.statement_nodes.count(), 1);
     }
 }

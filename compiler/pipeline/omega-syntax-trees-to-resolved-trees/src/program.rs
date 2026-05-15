@@ -86,7 +86,12 @@ mod tests {
 
         assert_eq!(program.data_definitions.len(), 1);
         assert_eq!(program.machines.len(), 1);
-        assert_eq!(program.machines[0].states.len(), 1);
+        assert_eq!(
+            program
+                .machine_state_handles(program.machines[0].states)
+                .len(),
+            1
+        );
         assert!(
             program
                 .symbols
@@ -115,7 +120,12 @@ mod tests {
 
         assert_eq!(program.machines.len(), 1);
         assert_eq!(program.machines[0].name.as_str(), "Game");
-        assert_eq!(program.machines[0].states.len(), 2);
+        assert_eq!(
+            program
+                .machine_state_handles(program.machines[0].states)
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -134,8 +144,12 @@ mod tests {
 
         assert_eq!(program.machines.len(), 1);
         assert_eq!(program.machines[0].name.as_str(), "main");
-        assert_eq!(program.machines[0].states.len(), 1);
-        assert_eq!(program.machines[0].states[0].name.as_str(), "entry");
+        let state = program
+            .machine_state_handles(program.machines[0].states)
+            .first()
+            .map(|state| program.machine_state(*state))
+            .expect("entry state");
+        assert_eq!(state.name.as_str(), "entry");
     }
 
     #[test]
@@ -152,7 +166,11 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
         let machine = program.machines.first().expect("machine");
-        let entry = machine.states.first().expect("entry state");
+        let entry = program
+            .machine_state_handles(machine.states)
+            .first()
+            .map(|state| program.machine_state(*state))
+            .expect("entry state");
         let parameter = program
             .state_parameters(entry.parameters)
             .first()
