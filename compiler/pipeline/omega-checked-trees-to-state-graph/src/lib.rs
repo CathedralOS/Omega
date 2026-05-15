@@ -139,10 +139,14 @@ fn append_remapped_states(
     let mut count = 0u32;
 
     for state in source.states.span_or_empty(states) {
+        let parameters = target
+            .state_parameters
+            .insert_many(source.state_parameters(state).iter().cloned());
         let operations = append_remapped_operations(target, source, state.operations);
         let transitions = append_remapped_transitions(target, source, state.transitions);
         let borrow = remap_state_borrow_summary(target, source, &state.borrow);
         let handle = target.states.append(StateNode {
+            parameters,
             borrow,
             operations,
             transitions,

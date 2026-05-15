@@ -17,6 +17,7 @@ pub struct StateGraph {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineGraph>,
     pub states: Arena<StateNode>,
+    pub state_parameters: Arena<StateParameterNode>,
     pub proof_obligations: Arena<ProofObligationFact>,
     pub invariants: Arena<InvariantFact>,
     pub borrow_writable_roots: Arena<StateBorrowWritableRoot>,
@@ -55,6 +56,10 @@ impl StateGraph {
             .span(machine.states)?
             .iter()
             .find(|state| state.key == key)
+    }
+
+    pub fn state_parameters(&self, state: &StateNode) -> &[StateParameterNode] {
+        self.state_parameters.span_or_empty(state.parameters)
     }
 
     pub fn state_names_by_key(&self, key: StateKey) -> Option<(&ProgramName, &ProgramName)> {
@@ -132,7 +137,7 @@ pub struct StateNode {
     pub key: StateKey,
     pub name: ProgramName,
     pub index: usize,
-    pub parameters: Vec<StateParameterNode>,
+    pub parameters: HandleSpan<StateParameterNode>,
     pub borrow: StateBorrowSummary,
     pub operations: HandleSpan<Operation>,
     pub transitions: HandleSpan<TransitionEdge>,
@@ -144,7 +149,7 @@ impl Default for StateNode {
             key: StateKey::default(),
             name: ProgramName::default(),
             index: 0,
-            parameters: Vec::new(),
+            parameters: HandleSpan::empty(),
             borrow: StateBorrowSummary::default(),
             operations: HandleSpan::empty(),
             transitions: HandleSpan::empty(),
