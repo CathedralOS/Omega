@@ -26,8 +26,36 @@ pub struct Assignment {
 pub struct LocalData {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+    pub storage: LocalDataStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
     pub initial_value: Option<Expression>,
+}
+
+impl Default for LocalDataStorage {
+    fn default() -> Self {
+        Self {
+            type_reference: crate::types::TypeReference::Unit,
+            initial_value: None,
+        }
+    }
+}
+
+impl Deref for LocalData {
+    type Target = LocalDataStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for LocalData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,13 +101,35 @@ pub enum TransitionGuard {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
-    Named {
-        path: NamePath,
-        arguments: Vec<Expression>,
-    },
+    Named(NamedTransitionTarget),
     Value(Expression),
     SelfTarget,
     Terminal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamedTransitionTarget {
+    pub storage: NamedTransitionTargetStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NamedTransitionTargetStorage {
+    pub path: NamePath,
+    pub arguments: Vec<Expression>,
+}
+
+impl Deref for NamedTransitionTarget {
+    type Target = NamedTransitionTargetStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for NamedTransitionTarget {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -275,13 +325,14 @@ impl StatementTable {
         expressions: &mut crate::expression::ExpressionTable,
     ) -> TransitionTargetHandle {
         let target = match target {
-            TransitionTarget::Named { path, arguments } => TransitionTargetNode::Named {
+            TransitionTarget::Named(named) => TransitionTargetNode::Named {
                 path: TableNamePath {
-                    members: self.insert_name_path_members(path),
-                    head_symbol: path.head_symbol(),
-                    symbol: path.symbol(),
+                    members: self.insert_name_path_members(&named.path),
+                    head_symbol: named.path.head_symbol(),
+                    symbol: named.path.symbol(),
                 },
-                arguments: self.insert_expression_handle_span_from_trees(arguments, expressions),
+                arguments: self
+                    .insert_expression_handle_span_from_trees(&named.arguments, expressions),
             },
             TransitionTarget::Value(expression) => {
                 TransitionTargetNode::Value(expressions.insert_tree(expression))
@@ -411,8 +462,8 @@ pub struct TableNamePath {
 #[cfg(test)]
 mod tests {
     use super::{
-        Statement, StatementNode, StatementTable, Transition, TransitionGuard, TransitionTarget,
-        TransitionTargetNode,
+        NamedTransitionTarget, NamedTransitionTargetStorage, Statement, StatementNode,
+        StatementTable, Transition, TransitionGuard, TransitionTarget, TransitionTargetNode,
     };
     use crate::expression::{Expression, ExpressionTable, NamePath};
     use crate::name::ProgramName;
@@ -424,14 +475,16 @@ mod tests {
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
         let statement = Statement::Transition(Transition {
-            target: TransitionTarget::Named {
-                path: NamePath::resolved(
-                    vec![ProgramName::generated("next")],
-                    target_symbol,
-                    target_symbol,
-                ),
-                arguments: vec![Expression::Integer(1), Expression::Integer(2)],
-            },
+            target: TransitionTarget::Named(NamedTransitionTarget {
+                storage: NamedTransitionTargetStorage {
+                    path: NamePath::resolved(
+                        vec![ProgramName::generated("next")],
+                        target_symbol,
+                        target_symbol,
+                    ),
+                    arguments: vec![Expression::Integer(1), Expression::Integer(2)],
+                },
+            }),
             continuation: None,
             guard: TransitionGuard::When(Expression::Boolean(true)),
         });

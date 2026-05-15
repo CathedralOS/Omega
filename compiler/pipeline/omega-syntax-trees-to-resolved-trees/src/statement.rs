@@ -5,8 +5,8 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
-    Assignment, Call, CallStorage, LocalData, Statement, Transition, TransitionGuard,
-    TransitionTarget,
+    Assignment, Call, CallStorage, LocalData, LocalDataStorage, NamedTransitionTarget,
+    NamedTransitionTargetStorage, Statement, Transition, TransitionGuard, TransitionTarget,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
@@ -64,18 +64,20 @@ fn lower_statement_node(
             Ok(Statement::LocalData(LocalData {
                 symbol: SymbolHandle::invalid(),
                 name: crate::name::lower_name(&local_data.name),
-                type_reference: lower_type_reference_handle(
-                    lowerer,
-                    syntax_trees,
-                    local_data.type_reference,
-                )?,
-                initial_value: if local_data.initial_value.is_valid() {
-                    Some(lower_expression_handle(
+                storage: LocalDataStorage {
+                    type_reference: lower_type_reference_handle(
+                        lowerer,
                         syntax_trees,
-                        local_data.initial_value,
-                    )?)
-                } else {
-                    None
+                        local_data.type_reference,
+                    )?,
+                    initial_value: if local_data.initial_value.is_valid() {
+                        Some(lower_expression_handle(
+                            syntax_trees,
+                            local_data.initial_value,
+                        )?)
+                    } else {
+                        None
+                    },
                 },
             }))
         }
@@ -114,20 +116,22 @@ fn lower_transition_target_node(
 ) -> Result<TransitionTarget, Diagnostic> {
     match syntax_trees.statements.transition_target(target) {
         syntax::statement::TransitionTargetNode::Named { path, arguments } => {
-            Ok(TransitionTarget::Named {
-                path: lower_name_members(
-                    syntax_trees
+            Ok(TransitionTarget::Named(NamedTransitionTarget {
+                storage: NamedTransitionTargetStorage {
+                    path: lower_name_members(
+                        syntax_trees
+                            .statements
+                            .identifier_path_members(*path)
+                            .iter(),
+                    ),
+                    arguments: syntax_trees
                         .statements
-                        .identifier_path_members(*path)
-                        .iter(),
-                ),
-                arguments: syntax_trees
-                    .statements
-                    .expression_handles(*arguments)
-                    .iter()
-                    .map(|argument| lower_expression_handle(syntax_trees, *argument))
-                    .collect::<Result<Vec<_>, _>>()?,
-            })
+                        .expression_handles(*arguments)
+                        .iter()
+                        .map(|argument| lower_expression_handle(syntax_trees, *argument))
+                        .collect::<Result<Vec<_>, _>>()?,
+                },
+            }))
         }
         syntax::statement::TransitionTargetNode::Value(expression) => Ok(TransitionTarget::Value(
             lower_expression_handle(syntax_trees, *expression)?,
