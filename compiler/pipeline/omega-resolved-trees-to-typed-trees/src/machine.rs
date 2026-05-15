@@ -19,7 +19,7 @@ pub(crate) fn lower_machine(
     };
 
     for contained_object in lowerer
-        .source_program
+        .source_trees
         .machine_contained_objects(machine.contains)
     {
         let contained_object = typed::machine::ContainedObject {
@@ -34,7 +34,7 @@ pub(crate) fn lower_machine(
     }
 
     for owned_data in lowerer
-        .source_program
+        .source_trees
         .machine_owned_data(machine.owned_data)
     {
         let owned_data = typed::machine::OwnedData {
@@ -53,10 +53,10 @@ pub(crate) fn lower_machine(
     }
 
     for state in lowerer
-        .source_program
+        .source_trees
         .machine_state_handles(machine.states)
     {
-        let state = lowerer.source_program.machine_state(*state);
+        let state = lowerer.source_trees.machine_state(*state);
         let state = lower_state(lowerer, state)?;
         lowerer
             .typed_trees

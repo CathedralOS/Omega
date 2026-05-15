@@ -20,7 +20,7 @@ pub(crate) fn lower_statement(
         resolved::statement::Statement::Call(call) => {
             let mut arguments = Vec::new();
             for argument in lowerer
-                .source_program
+                .source_trees
                 .state_statement_expressions(call.arguments)
             {
                 arguments.push(lower_expression(argument)?);
@@ -84,7 +84,7 @@ fn lower_transition_target(
         resolved::statement::TransitionTarget::Named(named) => {
             let mut arguments = Vec::new();
             for argument in lowerer
-                .source_program
+                .source_trees
                 .state_statement_expressions(named.arguments)
             {
                 arguments.push(lower_expression(argument)?);

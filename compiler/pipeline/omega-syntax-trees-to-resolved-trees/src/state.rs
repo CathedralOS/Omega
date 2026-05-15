@@ -98,7 +98,7 @@ fn lower_state_statements(
     for statement in syntax_trees.items.statements(statements) {
         let statement = lower_statement_handle(lowerer, syntax_trees, *statement)?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .state_statements
@@ -118,7 +118,7 @@ fn lower_state_parameters(
     for parameter in syntax_trees.items.state_parameters(parameters) {
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .state_parameters

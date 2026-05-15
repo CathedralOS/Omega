@@ -22,14 +22,14 @@ pub(crate) fn lower_state(
         statement_nodes: Default::default(),
     };
 
-    for parameter in lowerer.source_program.state_parameters(state.parameters) {
+    for parameter in lowerer.source_trees.state_parameters(state.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
         lowerer
             .typed_trees
             .push_state_parameter(&mut typed_state, parameter);
     }
 
-    for statement in lowerer.source_program.state_statements(state.statements) {
+    for statement in lowerer.source_trees.state_statements(state.statements) {
         let statement = lower_statement(lowerer, statement)?;
         lowerer
             .typed_trees
@@ -54,7 +54,7 @@ pub(crate) fn lower_state_signature(
             .transpose()?,
     };
 
-    for parameter in lowerer.source_program.state_parameters(signature.parameters) {
+    for parameter in lowerer.source_trees.state_parameters(signature.parameters) {
         let parameter = lower_state_parameter(lowerer, parameter)?;
         lowerer
             .typed_trees

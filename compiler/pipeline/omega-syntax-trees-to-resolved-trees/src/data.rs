@@ -33,7 +33,7 @@ fn lower_type_parameters(
     type_parameters: HandleSpan<syntax::item::TypeParameter>,
 ) -> HandleSpan<TypeParameter> {
     lowerer
-        .program
+        .symbol_resolved_trees
         .tables
         .declarations
         .data_type_parameters
@@ -59,7 +59,7 @@ fn lower_data_members(
     for member in syntax_trees.items.data_members(members) {
         let member = lower_data_member(lowerer, syntax_trees, member)?;
         lowerer
-            .program
+            .symbol_resolved_trees
             .tables
             .declarations
             .data_members

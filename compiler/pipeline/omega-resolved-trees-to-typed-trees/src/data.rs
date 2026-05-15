@@ -16,7 +16,7 @@ pub(crate) fn lower_data_definition(
     };
 
     for parameter in lowerer
-        .source_program
+        .source_trees
         .data_type_parameters(data_definition.type_parameters)
     {
         let type_parameter = typed::data::TypeParameter {
@@ -28,7 +28,7 @@ pub(crate) fn lower_data_definition(
             .push_data_type_parameter(&mut typed_data_definition, type_parameter);
     }
 
-    for member in lowerer.source_program.data_members(data_definition.members) {
+    for member in lowerer.source_trees.data_members(data_definition.members) {
         let member = lower_data_member(lowerer, member)?;
         lowerer
             .typed_trees
