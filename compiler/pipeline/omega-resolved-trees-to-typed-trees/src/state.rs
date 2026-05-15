@@ -9,56 +9,56 @@ pub(crate) fn lower_state(
     lowerer: &mut Lowerer,
     state: &resolved::state::State,
 ) -> Result<typed::state::State, Diagnostic> {
-    let parameters = lowerer
-        .source_program
-        .state_parameters(state.parameters)
-        .iter()
-        .map(|parameter| lower_state_parameter(lowerer, parameter))
-        .collect::<Result<Vec<_>, _>>()?;
-    let return_type = state
-        .return_type
-        .as_ref()
-        .map(|type_reference| lower_type_reference(lowerer, type_reference))
-        .transpose()?;
-    let statements = lowerer
-        .source_program
-        .state_statements(state.statements)
-        .iter()
-        .map(|statement| lower_statement(lowerer, statement))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(typed::state::State {
+    let mut typed_state = typed::state::State {
         symbol: state.symbol,
         name: crate::name::lower_name(&state.name),
-        parameters,
-        return_type,
-        statements,
+        parameters: Vec::new(),
+        return_type: state
+            .return_type
+            .as_ref()
+            .map(|type_reference| lower_type_reference(lowerer, type_reference))
+            .transpose()?,
+        statements: Vec::new(),
         statement_nodes: Default::default(),
-    })
+    };
+
+    for parameter in lowerer.source_program.state_parameters(state.parameters) {
+        typed_state
+            .parameters
+            .push(lower_state_parameter(lowerer, parameter)?);
+    }
+
+    for statement in lowerer.source_program.state_statements(state.statements) {
+        typed_state
+            .statements
+            .push(lower_statement(lowerer, statement)?);
+    }
+
+    Ok(typed_state)
 }
 
 pub(crate) fn lower_state_signature(
     lowerer: &mut Lowerer,
     signature: &resolved::signature::StateSignature,
 ) -> Result<typed::signature::StateSignature, Diagnostic> {
-    let parameters = lowerer
-        .source_program
-        .state_parameters(signature.parameters)
-        .iter()
-        .map(|parameter| lower_state_parameter(lowerer, parameter))
-        .collect::<Result<Vec<_>, _>>()?;
-    let return_type = signature
-        .return_type
-        .as_ref()
-        .map(|type_reference| lower_type_reference(lowerer, type_reference))
-        .transpose()?;
-
-    Ok(typed::signature::StateSignature {
+    let mut typed_signature = typed::signature::StateSignature {
         symbol: signature.symbol,
         name: crate::name::lower_name(&signature.name),
-        parameters,
-        return_type,
-    })
+        parameters: Vec::new(),
+        return_type: signature
+            .return_type
+            .as_ref()
+            .map(|type_reference| lower_type_reference(lowerer, type_reference))
+            .transpose()?,
+    };
+
+    for parameter in lowerer.source_program.state_parameters(signature.parameters) {
+        typed_signature
+            .parameters
+            .push(lower_state_parameter(lowerer, parameter)?);
+    }
+
+    Ok(typed_signature)
 }
 
 fn lower_state_parameter(
