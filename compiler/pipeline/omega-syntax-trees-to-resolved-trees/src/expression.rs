@@ -2,10 +2,10 @@ use crate::name::{lower_name, lower_name_members};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::expression::{
-    BinaryExpression, BinaryOperator, CallExpression, CallExpressionStorage, CastExpression,
-    Expression, FloatLiteral, IndexedExpression, MemberExpression, StructLiteral,
-    StructLiteralStorage,
-    StructLiteralField,
+    BinaryExpression, BinaryExpressionStorage, BinaryOperator, CallExpression,
+    CallExpressionStorage, CastExpression, CastExpressionStorage, Expression, FloatLiteral,
+    IndexedExpression, IndexedExpressionStorage, MemberExpression, MemberExpressionStorage,
+    StructLiteral, StructLiteralField, StructLiteralStorage,
 };
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
@@ -32,21 +32,25 @@ fn lower_expression_node(
         )),
         syntax::expression::ExpressionNode::Binary(binary) => Ok(Expression::Binary(Box::new(
             BinaryExpression {
-                left: lower_expression_handle(syntax_trees, binary.left)?,
-                operator: lower_binary_operator(binary.operator),
-                right: lower_expression_handle(syntax_trees, binary.right)?,
+                storage: BinaryExpressionStorage {
+                    left: lower_expression_handle(syntax_trees, binary.left)?,
+                    operator: lower_binary_operator(binary.operator),
+                    right: lower_expression_handle(syntax_trees, binary.right)?,
+                },
             },
         ))),
         syntax::expression::ExpressionNode::Boolean(value) => Ok(Expression::Boolean(*value)),
         syntax::expression::ExpressionNode::Cast(cast) => Ok(Expression::Cast(Box::new(
             CastExpression {
-                value: lower_expression_handle(syntax_trees, cast.value)?,
-                target_type: lower_name_members(
-                    syntax_trees
-                        .expressions
-                        .identifier_path_members(cast.target_type)
-                        .iter(),
-                ),
+                storage: CastExpressionStorage {
+                    value: lower_expression_handle(syntax_trees, cast.value)?,
+                    target_type: lower_name_members(
+                        syntax_trees
+                            .expressions
+                            .identifier_path_members(cast.target_type)
+                            .iter(),
+                    ),
+                },
             },
         ))),
         syntax::expression::ExpressionNode::Call(call) => Ok(Expression::Call(Box::new(
@@ -82,16 +86,20 @@ fn lower_expression_node(
         }
         syntax::expression::ExpressionNode::Indexed(indexed) => Ok(Expression::Indexed(Box::new(
             IndexedExpression {
-                collection: lower_expression_handle(syntax_trees, indexed.collection)?,
-                index: lower_expression_handle(syntax_trees, indexed.index)?,
+                storage: IndexedExpressionStorage {
+                    collection: lower_expression_handle(syntax_trees, indexed.collection)?,
+                    index: lower_expression_handle(syntax_trees, indexed.index)?,
+                },
             },
         ))),
         syntax::expression::ExpressionNode::Integer(value) => Ok(Expression::Integer(*value)),
         syntax::expression::ExpressionNode::Member(member) => Ok(Expression::Member(Box::new(
             MemberExpression {
-                receiver: lower_expression_handle(syntax_trees, member.receiver)?,
-                member_symbol: SymbolHandle::invalid(),
-                member: lower_name(&member.member),
+                storage: MemberExpressionStorage {
+                    receiver: lower_expression_handle(syntax_trees, member.receiver)?,
+                    member_symbol: SymbolHandle::invalid(),
+                    member: lower_name(&member.member),
+                },
             },
         ))),
         syntax::expression::ExpressionNode::Mutable(expression) => Ok(Expression::Mutable(

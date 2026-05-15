@@ -596,14 +596,20 @@ impl ExpressionTable {
                     .collect(),
             ),
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
-                left: self.to_tree(binary.left),
-                operator: binary.operator,
-                right: self.to_tree(binary.right),
+                storage: BinaryExpressionStorage {
+                    left: self.to_tree(binary.left),
+                    operator: binary.operator,
+                    right: self.to_tree(binary.right),
+                },
             })),
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
             ExpressionNode::Cast(cast) => Expression::Cast(Box::new(CastExpression {
-                value: self.to_tree(cast.value),
-                target_type: NamePath::unresolved(self.name_path_members(cast.target_type).to_vec()),
+                storage: CastExpressionStorage {
+                    value: self.to_tree(cast.value),
+                    target_type: NamePath::unresolved(
+                        self.name_path_members(cast.target_type).to_vec(),
+                    ),
+                },
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
                 target_symbol: call.target_symbol,
@@ -622,14 +628,18 @@ impl ExpressionTable {
             })),
             ExpressionNode::Float(value) => Expression::Float(*value),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
-                collection: self.to_tree(indexed.collection),
-                index: self.to_tree(indexed.index),
+                storage: IndexedExpressionStorage {
+                    collection: self.to_tree(indexed.collection),
+                    index: self.to_tree(indexed.index),
+                },
             })),
             ExpressionNode::Integer(value) => Expression::Integer(*value),
             ExpressionNode::Member(member) => Expression::Member(Box::new(MemberExpression {
-                receiver: self.to_tree(member.receiver),
-                member_symbol: member.member_symbol,
-                member: member.member.clone(),
+                storage: MemberExpressionStorage {
+                    receiver: self.to_tree(member.receiver),
+                    member_symbol: member.member_symbol,
+                    member: member.member.clone(),
+                },
             })),
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
@@ -774,9 +784,28 @@ pub struct TableIndexedExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemberExpression {
+    pub storage: MemberExpressionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MemberExpressionStorage {
     pub receiver: Expression,
     pub member_symbol: SymbolHandle,
     pub member: ProgramName,
+}
+
+impl Deref for MemberExpression {
+    type Target = MemberExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for MemberExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -994,9 +1023,38 @@ impl fmt::Display for FloatLiteral {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BinaryExpression {
+    pub storage: BinaryExpressionStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinaryExpressionStorage {
     pub left: Expression,
     pub operator: BinaryOperator,
     pub right: Expression,
+}
+
+impl Default for BinaryExpressionStorage {
+    fn default() -> Self {
+        Self {
+            left: Expression::Integer(0),
+            operator: BinaryOperator::Add,
+            right: Expression::Integer(0),
+        }
+    }
+}
+
+impl Deref for BinaryExpression {
+    type Target = BinaryExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for BinaryExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1020,14 +1078,52 @@ pub enum BinaryOperator {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CastExpression {
+    pub storage: CastExpressionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CastExpressionStorage {
     pub value: Expression,
     pub target_type: NamePath,
 }
 
+impl Deref for CastExpression {
+    type Target = CastExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for CastExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedExpression {
+    pub storage: IndexedExpressionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IndexedExpressionStorage {
     pub collection: Expression,
     pub index: Expression,
+}
+
+impl Deref for IndexedExpression {
+    type Target = IndexedExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for IndexedExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1262,9 +1358,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryExpression, BinaryOperator, Expression, ExpressionNode, ExpressionTable, NamePath,
-        StructLiteral, StructLiteralField, StructLiteralStorage, TableBinaryExpression,
-        TableNamePath,
+        BinaryExpression, BinaryExpressionStorage, BinaryOperator, Expression, ExpressionNode,
+        ExpressionTable, NamePath, StructLiteral, StructLiteralField, StructLiteralStorage,
+        TableBinaryExpression, TableNamePath,
     };
     use crate::name::ProgramName;
     use omega_core::symbols::SymbolHandle;
@@ -1272,13 +1368,17 @@ mod tests {
     #[test]
     fn expression_table_stores_recursive_typed_expressions_as_handles() {
         let expression = Expression::Binary(Box::new(BinaryExpression {
-            left: Expression::Integer(1),
-            operator: BinaryOperator::Add,
-            right: Expression::Binary(Box::new(BinaryExpression {
-                left: Expression::Integer(2),
+            storage: BinaryExpressionStorage {
+                left: Expression::Integer(1),
                 operator: BinaryOperator::Add,
-                right: Expression::Integer(3),
-            })),
+                right: Expression::Binary(Box::new(BinaryExpression {
+                    storage: BinaryExpressionStorage {
+                        left: Expression::Integer(2),
+                        operator: BinaryOperator::Add,
+                        right: Expression::Integer(3),
+                    },
+                })),
+            },
         }));
 
         let mut table = ExpressionTable::new();
@@ -1335,20 +1435,22 @@ mod tests {
                     StructLiteralField {
                         name: ProgramName::generated("open"),
                         value: Expression::Binary(Box::new(BinaryExpression {
-                            left: Expression::Name(NamePath::resolved(
-                                vec![ProgramName::generated("room")],
-                                room_symbol,
-                                room_symbol,
-                            )),
-                            operator: BinaryOperator::Equal,
-                            right: Expression::Name(NamePath::resolved(
-                                vec![
-                                    ProgramName::generated("room"),
-                                    ProgramName::generated("field"),
-                                ],
-                                room_symbol,
-                                field_symbol,
-                            )),
+                            storage: BinaryExpressionStorage {
+                                left: Expression::Name(NamePath::resolved(
+                                    vec![ProgramName::generated("room")],
+                                    room_symbol,
+                                    room_symbol,
+                                )),
+                                operator: BinaryOperator::Equal,
+                                right: Expression::Name(NamePath::resolved(
+                                    vec![
+                                        ProgramName::generated("room"),
+                                        ProgramName::generated("field"),
+                                    ],
+                                    room_symbol,
+                                    field_symbol,
+                                )),
+                            },
                         })),
                     },
                 ],
