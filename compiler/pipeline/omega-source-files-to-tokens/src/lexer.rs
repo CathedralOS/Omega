@@ -745,12 +745,13 @@ mod tests {
     #[test]
     fn tokenizes_keywords_and_identifiers_distinctly() {
         assert_eq!(
-            semantic_kinds("machine game entry self true false custom"),
+            semantic_kinds("machine game entry self Self true false custom"),
             vec![
                 TokenKind::Keyword(KeywordKind::Machine),
                 TokenKind::Identifier,
                 TokenKind::Keyword(KeywordKind::Entry),
                 TokenKind::Keyword(KeywordKind::SelfValue),
+                TokenKind::Keyword(KeywordKind::SelfType),
                 TokenKind::Keyword(KeywordKind::True),
                 TokenKind::Keyword(KeywordKind::False),
                 TokenKind::Identifier,
