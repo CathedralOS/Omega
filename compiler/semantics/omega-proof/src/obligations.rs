@@ -1,6 +1,6 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::Program;
+use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::{BinaryOperator, Expression, FloatLiteral};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
@@ -128,7 +128,7 @@ struct FloatRange {
     maximum: f64,
 }
 
-pub fn build_proof_plan(program: &Program) -> ProofPlan {
+pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
     let mut proof_plan = ProofPlan::default();
 
     for machine in &program.machines {
@@ -244,7 +244,7 @@ pub fn build_proof_plan(program: &Program) -> ProofPlan {
 }
 
 fn collect_bounded_value_obligation(
-    program: &Program,
+    program: &TypedTrees,
     owner: String,
     type_reference: &TypeReference,
     proof_plan: &mut ProofPlan,
@@ -283,7 +283,7 @@ fn collect_bounded_value_obligation(
 }
 
 fn collect_bounded_initializer_obligation(
-    program: &Program,
+    program: &TypedTrees,
     owner: String,
     type_reference: &TypeReference,
     value: &Expression,
@@ -332,7 +332,7 @@ fn collect_bounded_initializer_obligation(
 }
 
 fn collect_bounded_assignment_obligation(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     assignment: &Assignment,
@@ -370,7 +370,7 @@ fn collect_bounded_assignment_obligation(
 }
 
 fn collect_bounded_transition_argument_obligations(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     transition: &Transition,
@@ -416,7 +416,7 @@ fn collect_bounded_transition_argument_obligations(
 }
 
 fn collect_bounded_call_argument_obligations(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     call: &Call,
@@ -464,7 +464,7 @@ fn collect_bounded_call_argument_obligations(
 }
 
 fn collect_bounded_state_return_obligation(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     return_type: &TypeReference,
@@ -503,7 +503,7 @@ fn collect_bounded_state_return_obligation(
 }
 
 fn call_target_parameters<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     call: &Call,
 ) -> Option<&'program [StateParameter]> {
     state_by_symbol(program, call.target_symbol).map(|state| state.parameters.as_slice())
@@ -518,7 +518,7 @@ fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
 }
 
 fn transition_target_state_and_arguments<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     state: &'program State,
     target: &'program TransitionTarget,
 ) -> Option<(&'program State, &'program [Expression])> {
@@ -531,7 +531,7 @@ fn transition_target_state_and_arguments<'program>(
         .map(|target_state| (target_state, arguments.as_slice()))
 }
 
-fn state_by_symbol(program: &Program, symbol: SymbolHandle) -> Option<&State> {
+fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {
     if !symbol.is_valid() {
         return None;
     }
@@ -544,7 +544,7 @@ fn state_by_symbol(program: &Program, symbol: SymbolHandle) -> Option<&State> {
 }
 
 fn incoming_state_guard(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     target_state: &State,
 ) -> Option<TransitionGuard> {
@@ -641,7 +641,7 @@ fn callable_parameters(state: &State) -> impl Iterator<Item = &StateParameter> {
 }
 
 fn expression_constraints(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: &Expression,
@@ -704,7 +704,7 @@ fn expression_constraints(
 }
 
 fn expression_type_reference<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     machine: &'program Machine,
     state: &'program State,
     expression: &Expression,
@@ -764,7 +764,7 @@ fn expression_type_reference<'program>(
     }
 }
 
-fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec<TypeConstraint> {
+fn collect_constraints(program: &TypedTrees, type_reference: &TypeReference) -> Vec<TypeConstraint> {
     match type_reference {
         TypeReference::Reference { referee, .. } => collect_constraints(program, referee),
         TypeReference::Constrained {
@@ -790,7 +790,7 @@ fn collect_constraints(program: &Program, type_reference: &TypeReference) -> Vec
 }
 
 fn collect_constraints_in_state(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     type_reference: &TypeReference,
@@ -803,7 +803,7 @@ fn collect_constraints_in_state(
 }
 
 fn index_of_constraints(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     type_reference: &TypeReference,
@@ -844,7 +844,7 @@ fn index_of_constraints(
 }
 
 fn collection_length_for_binding(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     name: &ProgramName,
@@ -905,7 +905,7 @@ fn collection_length_for_binding(
 }
 
 fn collection_length_from_expression(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: &Expression,
@@ -938,7 +938,7 @@ fn collection_length_from_expression(
 }
 
 fn collection_length_from_type_reference(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     type_reference: &TypeReference,
@@ -973,7 +973,7 @@ fn primitive_constraints(name: &ProgramName) -> Vec<TypeConstraint> {
 }
 
 fn type_reference_for_symbol<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     machine: &'program Machine,
     state: &'program State,
     symbol: SymbolHandle,
@@ -1014,7 +1014,7 @@ fn type_reference_for_symbol<'program>(
 }
 
 fn data_field_type_reference<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     type_reference: &'program TypeReference,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
@@ -1045,7 +1045,7 @@ fn data_field_type_reference<'program>(
 }
 
 fn data_definition_by_symbol_or_name<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     symbol: SymbolHandle,
     name: &ProgramName,
 ) -> Option<&'program omega_typed_trees::data::DataDefinition> {
@@ -1191,7 +1191,7 @@ fn derived_real_from_constraints(argument_constraints: &[TypeConstraint]) -> Vec
 }
 
 fn derived_builtin_call_constraints(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
@@ -1205,7 +1205,7 @@ fn derived_builtin_call_constraints(
 }
 
 fn derived_extrema_call_constraints(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
@@ -1256,7 +1256,7 @@ fn derived_extrema_call_constraints(
 }
 
 fn derived_range_call_constraints(
-    program: &Program,
+    program: &TypedTrees,
     machine: &Machine,
     state: &State,
     call: &omega_typed_trees::expression::CallExpression,
@@ -1280,7 +1280,7 @@ fn derived_range_call_constraints(
 }
 
 fn call_expression_return_type<'program>(
-    program: &'program Program,
+    program: &'program TypedTrees,
     _machine: &'program Machine,
     _state: &'program State,
     call: &'program omega_typed_trees::expression::CallExpression,
@@ -1289,7 +1289,7 @@ fn call_expression_return_type<'program>(
 }
 
 fn callable_return_type_by_symbol(
-    program: &Program,
+    program: &TypedTrees,
     target_symbol: SymbolHandle,
 ) -> Option<&TypeReference> {
     if !target_symbol.is_valid() {
@@ -1582,7 +1582,7 @@ fn float_constant_value(expression: &Expression) -> Option<f64> {
 }
 
 fn type_constraints(
-    program: &Program,
+    program: &TypedTrees,
     constraints: omega_core::arena::HandleSpan<TypeConstraint>,
 ) -> &[TypeConstraint] {
     program.type_constraints.span(constraints).unwrap_or(&[])

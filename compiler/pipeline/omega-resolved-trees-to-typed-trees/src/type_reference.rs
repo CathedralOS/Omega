@@ -75,7 +75,7 @@ pub(crate) fn lower_type_constraints(
     {
         let constraint = lower_type_constraint(constraint)?;
         lowerer
-            .program
+            .typed_trees
             .type_constraints
             .append_to_span(&mut span, constraint);
     }

@@ -34,7 +34,7 @@ impl Default for StateEffects {
     }
 }
 
-pub fn infer_effects(program: &omega_typed_trees::Program) -> EffectPlan {
+pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
     let mut effect_plan = EffectPlan::default();
 
     for machine in &program.machines {
@@ -54,7 +54,7 @@ pub fn infer_effects(program: &omega_typed_trees::Program) -> EffectPlan {
 }
 
 fn infer_state_effect(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
 ) -> Effect {
@@ -76,7 +76,7 @@ fn infer_state_effect(
 }
 
 fn infer_statement_effect(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     statement: &omega_typed_trees::statement::Statement,
 ) -> Effect {
@@ -92,7 +92,7 @@ fn infer_statement_effect(
 }
 
 fn infer_call_effect(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     call: &omega_typed_trees::statement::Call,
 ) -> Effect {

@@ -8,7 +8,7 @@ use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::statement::{Statement, TransitionGuard, TransitionTarget};
 use omega_core::symbols::SymbolHandle;
 
-pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
+pub fn lower_typed_trees(program: &omega_typed_trees::TypedTrees) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     omega_validation::validate_program(program)?;
 
     let proof_plan = omega_proof::obligations::build_proof_plan(program);
@@ -25,13 +25,13 @@ pub fn lower_typed_trees(program: &omega_typed_trees::Program) -> Result<Program
 }
 
 pub fn lower_typed_program(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
 ) -> Result<Program, Vec<omega_core::diagnostics::Diagnostic>> {
     lower_typed_trees(program)
 }
 
 fn build_proof_facts(
-    _program: &omega_typed_trees::Program,
+    _program: &omega_typed_trees::TypedTrees,
     proof_plan: &omega_proof::obligations::ProofPlan,
 ) -> ProofFacts {
     let obligations = proof_plan
@@ -111,7 +111,7 @@ fn build_proof_facts(
     }
 }
 
-fn build_invariant_facts(program: &omega_typed_trees::Program) -> InvariantFacts {
+fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
     let definitions = program
         .invariant_definitions
         .iter()
@@ -130,7 +130,7 @@ fn build_invariant_facts(program: &omega_typed_trees::Program) -> InvariantFacts
     }
 }
 
-fn build_borrow_facts(program: &omega_typed_trees::Program) -> BorrowFacts {
+fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     let mut writable_roots = omega_core::arena::Arena::new();
     let mut argument_accesses = omega_core::arena::Arena::new();
     let mut calls = omega_core::arena::Arena::new();
@@ -240,7 +240,7 @@ struct BorrowCallDraft {
 }
 
 fn collect_statement_borrow_calls(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     statement_index: usize,
@@ -345,7 +345,7 @@ fn collect_statement_borrow_calls(
 }
 
 fn collect_transition_target_borrow_calls(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     statement_index: usize,
@@ -381,7 +381,7 @@ fn collect_transition_target_borrow_calls(
 }
 
 fn collect_expression_borrow_calls(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     statement_index: usize,
@@ -548,7 +548,7 @@ fn collect_expression_borrow_calls(
 }
 
 fn statement_call_can_dispatch_to_machine(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     call: &omega_checked_trees::statement::Call,
@@ -593,7 +593,7 @@ fn call_receiver_parts(
 }
 
 fn resolve_state_call_target(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -646,7 +646,7 @@ fn resolve_state_call_target(
 }
 
 fn receiver_can_dispatch_to_machine(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: &omega_typed_trees::state::State,
     receiver_symbol: SymbolHandle,
@@ -694,7 +694,7 @@ fn resolve_state_symbol_in_machine(
 }
 
 fn machine_by_symbol(
-    program: &omega_typed_trees::Program,
+    program: &omega_typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&omega_typed_trees::machine::Machine> {
     program.machines.iter().find(|machine| machine.symbol == symbol)
@@ -863,7 +863,7 @@ mod tests {
             arguments: vec![item_argument],
         }));
 
-        let mut program = omega_typed_trees::Program {
+        let mut program = omega_typed_trees::TypedTrees {
             machines: vec![Machine {
                 symbol: machine_symbol,
                 name: ProgramName::generated("Game"),

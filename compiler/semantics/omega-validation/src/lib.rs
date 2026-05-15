@@ -2,14 +2,14 @@ mod symbols;
 
 use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::Program;
+use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
 use omega_typed_trees::expression::Expression;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::statement::{Statement, TransitionTarget};
 use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
 
-pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
+pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let symbols = ProgramSymbols::build(program, &mut diagnostics);
 
@@ -60,7 +60,7 @@ pub fn validate_program(program: &Program) -> Result<(), Vec<Diagnostic>> {
     }
 }
 
-fn validate_invariant_definitions(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_invariant_definitions(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     for invariant in &program.invariant_definitions {
         let Some(constraints) = program.type_constraints.span(invariant.constraints) else {
             diagnostics.push(Diagnostic::error(format!(
@@ -140,7 +140,7 @@ fn validate_local_data_names(
 }
 
 fn validate_state_statement(
-    program: &Program,
+    program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
@@ -248,7 +248,7 @@ fn validate_assignment_target(
 }
 
 fn validate_callable_state_signatures(
-    program: &Program,
+    program: &TypedTrees,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -291,7 +291,7 @@ struct StateSignatureView<'program> {
 
 fn validate_state_signature_types<'program>(
     signatures: impl Iterator<Item = StateSignatureView<'program>>,
-    program: &Program,
+    program: &TypedTrees,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
@@ -366,7 +366,7 @@ fn validate_state_parameter_names(
 }
 
 fn validate_data_field_types(
-    program: &Program,
+    program: &TypedTrees,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -428,7 +428,7 @@ fn validate_data_member_names(
 }
 
 fn validate_type_reference(
-    program: &Program,
+    program: &TypedTrees,
     type_reference: &TypeReference,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -486,7 +486,7 @@ fn validate_type_reference(
 }
 
 fn validate_type_constraints(
-    program: &Program,
+    program: &TypedTrees,
     base_type: &TypeReference,
     constraints: omega_core::arena::HandleSpan<TypeConstraint>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -531,7 +531,7 @@ fn validate_type_constraints(
     }
 }
 
-fn validate_entry_point(program: &Program, diagnostics: &mut Vec<Diagnostic>) {
+fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let Some(main_machine) = program
         .machines
         .iter()
@@ -628,7 +628,7 @@ fn validate_contained_types(
 }
 
 fn validate_owned_data(
-    program: &Program,
+    program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -661,7 +661,7 @@ fn validate_owned_data(
 }
 
 fn validate_initial_value(
-    program: &Program,
+    program: &TypedTrees,
     type_reference: &TypeReference,
     initial_value: &Expression,
     diagnostics: &mut Vec<Diagnostic>,
@@ -677,7 +677,7 @@ fn validate_initial_value(
 }
 
 fn validate_call(
-    program: &Program,
+    program: &TypedTrees,
     call: &omega_typed_trees::statement::Call,
     current_machine: &omega_typed_trees::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
@@ -788,7 +788,7 @@ fn validate_call(
 }
 
 fn validate_call_arguments(
-    program: &Program,
+    program: &TypedTrees,
     arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],
@@ -1088,7 +1088,7 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
 }
 
 fn validate_expression_type(
-    program: &Program,
+    program: &TypedTrees,
     expression: &Expression,
     type_reference: &TypeReference,
     diagnostics: &mut Vec<Diagnostic>,
@@ -1122,7 +1122,7 @@ fn expression_type_name(argument: &Expression) -> &'static str {
 }
 
 fn validate_transition_target(
-    program: &Program,
+    program: &TypedTrees,
     target: &TransitionTarget,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
@@ -1201,7 +1201,7 @@ fn validate_transition_target(
 }
 
 fn validate_transition_arguments(
-    program: &Program,
+    program: &TypedTrees,
     arguments: &[Expression],
     target_name: &str,
     parameters: &[StateParameter],

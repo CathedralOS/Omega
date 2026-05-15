@@ -1,6 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::{SymbolHandle, SymbolKind};
-use omega_typed_trees::Program;
+use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::DataMember;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::platform::Platform;
@@ -42,7 +42,7 @@ struct TypeSymbol<'program> {
 }
 
 impl<'program> ProgramSymbols<'program> {
-    pub fn build(program: &'program Program, diagnostics: &mut Vec<Diagnostic>) -> Self {
+    pub fn build(program: &'program TypedTrees, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let mut symbols = Self {
             data_definitions: Vec::new(),
             machines: Vec::new(),
@@ -213,7 +213,7 @@ struct StateSymbol<'program> {
 
 impl<'program> MachineSymbols<'program> {
     pub fn build(
-        program: &'program Program,
+        program: &'program TypedTrees,
         machine: &'program Machine,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Self {
@@ -407,11 +407,11 @@ fn callable_receiver_type_name(type_reference: &TypeReference) -> Option<&str> {
     }
 }
 
-fn top_level_symbol(program: &Program, name: &str) -> SymbolHandle {
+fn top_level_symbol(program: &TypedTrees, name: &str) -> SymbolHandle {
     child_symbol(program, program.symbols.root(), name)
 }
 
-fn builtin_type_symbols(program: &Program) -> Vec<TypeSymbol<'_>> {
+fn builtin_type_symbols(program: &TypedTrees) -> Vec<TypeSymbol<'_>> {
     let Some(root_children) = program.symbols.child_handles(program.symbols.root()) else {
         return Vec::new();
     };
@@ -432,7 +432,7 @@ fn builtin_type_symbols(program: &Program) -> Vec<TypeSymbol<'_>> {
         .collect()
 }
 
-fn child_symbol(program: &Program, parent: SymbolHandle, name: &str) -> SymbolHandle {
+fn child_symbol(program: &TypedTrees, parent: SymbolHandle, name: &str) -> SymbolHandle {
     if !parent.is_valid() {
         return SymbolHandle::invalid();
     }

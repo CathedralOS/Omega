@@ -1,4 +1,3 @@
-use crate::Program;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
@@ -6,6 +5,7 @@ use crate::platform::Platform;
 use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
+use crate::typed_trees::TypedTrees;
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, HandleSpan};
 
@@ -17,45 +17,45 @@ pub struct TypedProgramTables {
 }
 
 impl TypedProgramTables {
-    pub fn from_program(program: &Program) -> Self {
+    pub fn from_typed_trees(typed_trees: &TypedTrees) -> Self {
         let mut tables = Self::default();
 
-        for invariant in &program.invariant_definitions {
-            tables.insert_type_constraints(invariant.constraints, &program.type_constraints);
+        for invariant in &typed_trees.invariant_definitions {
+            tables.insert_type_constraints(invariant.constraints, &typed_trees.type_constraints);
         }
 
-        for data_definition in &program.data_definitions {
-            tables.insert_data_definition(data_definition, &program.type_constraints);
+        for data_definition in &typed_trees.data_definitions {
+            tables.insert_data_definition(data_definition, &typed_trees.type_constraints);
         }
 
-        for platform in &program.platforms {
-            tables.insert_platform(platform, &program.type_constraints);
+        for platform in &typed_trees.platforms {
+            tables.insert_platform(platform, &typed_trees.type_constraints);
         }
 
-        for machine in &program.machines {
-            tables.insert_machine(machine, &program.type_constraints);
+        for machine in &typed_trees.machines {
+            tables.insert_machine(machine, &typed_trees.type_constraints);
         }
 
         tables
     }
 
-    pub fn from_program_with_state_spans(program: &mut Program) -> Self {
+    pub fn from_typed_trees_with_state_spans(typed_trees: &mut TypedTrees) -> Self {
         let mut tables = Self::default();
-        let type_constraints = &program.type_constraints;
+        let type_constraints = &typed_trees.type_constraints;
 
-        for invariant in &program.invariant_definitions {
+        for invariant in &typed_trees.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, type_constraints);
         }
 
-        for data_definition in &program.data_definitions {
+        for data_definition in &typed_trees.data_definitions {
             tables.insert_data_definition(data_definition, type_constraints);
         }
 
-        for platform in &program.platforms {
+        for platform in &typed_trees.platforms {
             tables.insert_platform(platform, type_constraints);
         }
 
-        for machine in &mut program.machines {
+        for machine in &mut typed_trees.machines {
             tables.insert_machine_with_state_spans(machine, type_constraints);
         }
 
@@ -213,19 +213,19 @@ impl TypedProgramTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::Program;
     use crate::expression::Expression;
     use crate::machine::Machine;
     use crate::name::ProgramName;
     use crate::state::State;
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
+    use crate::typed_trees::TypedTrees;
     use crate::types::TypeReference;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut program = Program {
+        let mut typed_trees = TypedTrees {
             machines: vec![Machine {
                 symbol: SymbolHandle::invalid(),
                 name: ProgramName::generated("main"),
@@ -247,14 +247,14 @@ mod tests {
                     statement_nodes: HandleSpan::empty(),
                 }],
             }],
-            ..Program::default()
+            ..TypedTrees::default()
         };
 
-        program.rebuild_tables();
+        typed_trees.rebuild_tables();
 
-        assert_eq!(program.type_reference_table.type_reference_count(), 1);
-        assert_eq!(program.expression_table.expression_count(), 1);
-        assert_eq!(program.statement_table.statement_count(), 1);
-        assert_eq!(program.machines[0].states[0].statement_nodes.count(), 1);
+        assert_eq!(typed_trees.type_reference_table.type_reference_count(), 1);
+        assert_eq!(typed_trees.expression_table.expression_count(), 1);
+        assert_eq!(typed_trees.statement_table.statement_count(), 1);
+        assert_eq!(typed_trees.machines[0].states[0].statement_nodes.count(), 1);
     }
 }
