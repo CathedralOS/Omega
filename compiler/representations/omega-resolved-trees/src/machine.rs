@@ -1,4 +1,4 @@
-use crate::expression::Expression;
+use crate::expression::ExpressionHandle;
 use crate::name::DiagnosticName;
 use crate::state::State;
 use crate::types::TypeReference;
@@ -47,7 +47,7 @@ pub struct OwnedData {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
-    pub initial_value: Option<Handle<Expression>>,
+    pub initial_value: Option<ExpressionHandle>,
 }
 
 impl Default for OwnedData {

@@ -1,87 +1,7 @@
-use crate::name::{lower_name, lower_name_path};
+use crate::name::lower_name;
 use omega_core::diagnostics::Diagnostic;
 use omega_resolved_trees as resolved;
 use omega_typed_trees as typed;
-
-pub(crate) fn lower_expression(
-    expression: &resolved::expression::Expression,
-) -> Result<typed::expression::Expression, Diagnostic> {
-    match expression {
-        resolved::expression::Expression::ArrayLiteral(array_literal) => {
-            let mut values = Vec::new();
-            for value in &array_literal.values {
-                values.push(lower_expression(value)?);
-            }
-
-            Ok(typed::expression::Expression::ArrayLiteral(values))
-        }
-        resolved::expression::Expression::Binary(binary) => Ok(
-            typed::expression::Expression::Binary(Box::new(typed::expression::BinaryExpression {
-                left: lower_expression(&binary.left)?,
-                operator: lower_binary_operator(binary.operator),
-                right: lower_expression(&binary.right)?,
-            })),
-        ),
-        resolved::expression::Expression::Boolean(value) => {
-            Ok(typed::expression::Expression::Boolean(*value))
-        }
-        resolved::expression::Expression::Cast(cast) => Ok(typed::expression::Expression::Cast(
-            Box::new(typed::expression::CastExpression {
-                value: lower_expression(&cast.value)?,
-                target_type: lower_name_path(&cast.target_type),
-            }),
-        )),
-        resolved::expression::Expression::Call(call) => Ok(typed::expression::Expression::Call(
-            Box::new(typed::expression::CallExpression {
-                receiver: call
-                    .receiver
-                    .as_deref()
-                    .map(lower_expression)
-                    .transpose()?
-                    .map(Box::new),
-                target_symbol: call.target_symbol,
-                target: lower_name(&call.target),
-                arguments: lower_expressions(&call.arguments)?,
-            }),
-        )),
-        resolved::expression::Expression::Float(value) => Ok(typed::expression::Expression::Float(
-            typed::expression::FloatLiteral::new(value.value()),
-        )),
-        resolved::expression::Expression::Indexed(indexed) => {
-            Ok(typed::expression::Expression::Indexed(Box::new(
-                typed::expression::IndexedExpression {
-                    collection: lower_expression(&indexed.collection)?,
-                    index: lower_expression(&indexed.index)?,
-                },
-            )))
-        }
-        resolved::expression::Expression::Integer(value) => {
-            Ok(typed::expression::Expression::Integer(*value))
-        }
-        resolved::expression::Expression::Member(member) => Ok(
-            typed::expression::Expression::Member(Box::new(typed::expression::MemberExpression {
-                receiver: lower_expression(&member.receiver)?,
-                member_symbol: member.member_symbol,
-                member: lower_name(&member.member),
-            })),
-        ),
-        resolved::expression::Expression::Mutable(expression) => Ok(
-            typed::expression::Expression::Mutable(Box::new(lower_expression(expression)?)),
-        ),
-        resolved::expression::Expression::Name(path) => {
-            Ok(typed::expression::Expression::Name(lower_name_path(path)))
-        }
-        resolved::expression::Expression::StructLiteral(struct_literal) => Ok(
-            typed::expression::Expression::StructLiteral(typed::expression::StructLiteral {
-                type_name: lower_name(&struct_literal.type_name),
-                fields: lower_struct_literal_fields(&struct_literal.fields)?,
-            }),
-        ),
-        resolved::expression::Expression::String(value) => Ok(
-            typed::expression::Expression::String(value.as_str().to_owned()),
-        ),
-    }
-}
 
 pub(crate) fn lower_expression_from_table(
     table: &resolved::expression::ExpressionTable,
@@ -167,18 +87,6 @@ pub(crate) fn lower_expression_from_table(
     }
 }
 
-fn lower_expressions(
-    expressions: &[resolved::expression::Expression],
-) -> Result<Vec<typed::expression::Expression>, Diagnostic> {
-    let mut lowered = Vec::new();
-
-    for expression in expressions {
-        lowered.push(lower_expression(expression)?);
-    }
-
-    Ok(lowered)
-}
-
 fn lower_expression_span_from_table(
     table: &resolved::expression::ExpressionTable,
     expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
@@ -234,21 +142,6 @@ fn lower_table_name_path_node(
         path.head_symbol,
         path.symbol,
     )
-}
-
-fn lower_struct_literal_fields(
-    fields: &[resolved::expression::StructLiteralField],
-) -> Result<Vec<typed::expression::StructLiteralField>, Diagnostic> {
-    let mut lowered = Vec::new();
-
-    for field in fields {
-        lowered.push(typed::expression::StructLiteralField {
-            name: lower_name(&field.name),
-            value: lower_expression(&field.value)?,
-        });
-    }
-
-    Ok(lowered)
 }
 
 fn lower_binary_operator(

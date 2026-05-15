@@ -1,5 +1,5 @@
 use crate::data::DataMember;
-use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
+use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::DiagnosticName;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
 use crate::types::{
@@ -46,8 +46,6 @@ impl IdentityStorageCounts {
 pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
     let child_type_references = &program.tables.declarations.child_type_references;
-    let machine_owned_data_expressions =
-        &program.tables.declarations.machine_owned_data_expressions;
     let expression_table = &program.tables.bodies.expressions;
 
     for invariant in &program.invariant_definitions {
@@ -109,10 +107,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 &mut counts,
             );
             if let Some(initial_value) = owned_data.initial_value {
-                count_expression(
-                    machine_owned_data_expressions.get(initial_value),
-                    &mut counts,
-                );
+                count_expression_handle(expression_table, initial_value, &mut counts);
             }
         }
         for state in program
@@ -351,63 +346,6 @@ fn count_expression_node(
             }
         }
         ExpressionNode::String(_) => counts.string_literals += 1,
-    }
-}
-
-fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts) {
-    match expression {
-        Expression::ArrayLiteral(array_literal) => {
-            for value in &array_literal.values {
-                count_expression(value, counts);
-            }
-        }
-        Expression::Binary(binary) => {
-            count_expression(&binary.left, counts);
-            count_expression(&binary.right, counts);
-        }
-        Expression::Cast(cast) => {
-            count_expression(&cast.value, counts);
-            for name in cast.target_type.members() {
-                count_expression_path_member(name, counts);
-            }
-        }
-        Expression::Call(call) => {
-            count_call_name(&call.target, counts);
-            if let Some(receiver) = &call.receiver {
-                count_expression(receiver, counts);
-            }
-            for argument in &call.arguments {
-                count_expression(argument, counts);
-            }
-        }
-        Expression::Boolean(_) | Expression::Integer(_) => {}
-        Expression::Float(value) => {
-            counts.float_literals += 1;
-            let _ = value;
-            counts.parsed_float_literals += 1;
-        }
-        Expression::Indexed(indexed) => {
-            count_expression(&indexed.collection, counts);
-            count_expression(&indexed.index, counts);
-        }
-        Expression::Member(member) => {
-            count_expression(&member.receiver, counts);
-            count_expression_path_member(&member.member, counts);
-        }
-        Expression::Mutable(expression) => count_expression(expression, counts),
-        Expression::Name(path) => {
-            for name in path.members() {
-                count_expression_path_member(name, counts);
-            }
-        }
-        Expression::StructLiteral(struct_literal) => {
-            count_struct_literal_name(&struct_literal.type_name, counts);
-            for field in &struct_literal.fields {
-                count_struct_literal_name(&field.name, counts);
-                count_expression(&field.value, counts);
-            }
-        }
-        Expression::String(_) => counts.string_literals += 1,
     }
 }
 
