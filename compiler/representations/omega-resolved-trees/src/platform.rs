@@ -3,7 +3,7 @@ use crate::signature::StateSignature;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Platform {
     pub symbol: SymbolHandle,
     pub name: DiagnosticName,
