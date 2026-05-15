@@ -861,19 +861,19 @@ fn assign_expression_table_symbols(
                 child_type_references,
                 call.arguments,
             );
-            if let Some(receiver_path) =
-                expression_name_path_from_table(expression_table, call.receiver)
-            {
-                if let Some((head_symbol, symbol)) =
-                    resolve_state_scoped_path(symbols, machine.symbol, state_symbol, &receiver_path)
-                {
-                    stamp_receiver_path_symbols_in_table(
-                        expression_table,
-                        call.receiver,
-                        head_symbol,
-                        symbol,
-                    );
-                }
+            if let Some((head_symbol, symbol)) = resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine.symbol,
+                state_symbol,
+                expression_table,
+                call.receiver,
+            ) {
+                stamp_receiver_path_symbols_in_table(
+                    expression_table,
+                    call.receiver,
+                    head_symbol,
+                    symbol,
+                );
             }
             let target_symbol = resolve_expression_table_call_target_symbol(
                 machine,
@@ -1091,46 +1091,6 @@ fn resolve_expression_table_call_target_symbol(
     )
 }
 
-fn expression_name_path_from_table(
-    expression_table: &omega_resolved_trees::expression::ExpressionTable,
-    expression: omega_resolved_trees::expression::ExpressionHandle,
-) -> Option<omega_resolved_trees::expression::NamePath> {
-    match expression_table.expression(expression) {
-        omega_resolved_trees::expression::ExpressionNode::Name(path) => Some(
-            omega_resolved_trees::expression::NamePath::resolved_from_iter(
-                expression_table
-                    .name_path_members(path.members)
-                    .iter()
-                    .cloned(),
-                path.head_symbol,
-                path.symbol,
-            ),
-        ),
-        omega_resolved_trees::expression::ExpressionNode::Member(member) => {
-            let mut path = expression_name_path_from_table(expression_table, member.receiver)?;
-            path.push(member.member.clone());
-            Some(path)
-        }
-        omega_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
-            let omega_resolved_trees::expression::ExpressionNode::Integer(index) =
-                expression_table.expression(indexed.index)
-            else {
-                return None;
-            };
-            let mut path = expression_name_path_from_table(expression_table, indexed.collection)?;
-            let last_segment = path.last_mut()?;
-            *last_segment = omega_resolved_trees::name::DiagnosticName::generated(format!(
-                "{last_segment}[{index}]"
-            ));
-            Some(path)
-        }
-        omega_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
-            expression_name_path_from_table(expression_table, *inner)
-        }
-        _ => None,
-    }
-}
-
 fn resolve_expression_table_member_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
@@ -1160,6 +1120,136 @@ fn resolve_expression_table_member_symbol(
     );
 
     member_symbol.is_valid().then_some(member_symbol)
+}
+
+fn resolve_expression_table_receiver_path_symbols(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &omega_resolved_trees::expression::ExpressionTable,
+    receiver: omega_resolved_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    match expression_table.expression(receiver) {
+        omega_resolved_trees::expression::ExpressionNode::Name(path) => {
+            resolve_state_scoped_table_path(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                path,
+            )
+        }
+        omega_resolved_trees::expression::ExpressionNode::Member(member) => {
+            let (head_symbol, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                member.receiver,
+            )?;
+            let member_symbol = child_symbol_by_kinds(
+                symbols,
+                receiver_symbol,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.member.as_str(),
+            );
+
+            member_symbol
+                .is_valid()
+                .then_some((head_symbol, member_symbol))
+        }
+        omega_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+            resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                *inner,
+            )
+        }
+        omega_resolved_trees::expression::ExpressionNode::Indexed(indexed) => {
+            let omega_resolved_trees::expression::ExpressionNode::Integer(index) =
+                expression_table.expression(indexed.index)
+            else {
+                return None;
+            };
+
+            resolve_indexed_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                indexed.collection,
+                *index,
+            )
+        }
+        _ => None,
+    }
+}
+
+fn resolve_indexed_expression_table_receiver_path_symbols(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &omega_resolved_trees::expression::ExpressionTable,
+    collection: omega_resolved_trees::expression::ExpressionHandle,
+    index: i64,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    match expression_table.expression(collection) {
+        omega_resolved_trees::expression::ExpressionNode::Name(path) => {
+            resolve_state_scoped_table_path_with_indexed_last_member(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                path,
+                index,
+            )
+        }
+        omega_resolved_trees::expression::ExpressionNode::Member(member) => {
+            let (head_symbol, receiver_symbol) = resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                member.receiver,
+            )?;
+            let member_symbol = child_indexed_symbol_by_kinds(
+                symbols,
+                receiver_symbol,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.member.as_str(),
+                index,
+            );
+
+            member_symbol
+                .is_valid()
+                .then_some((head_symbol, member_symbol))
+        }
+        omega_resolved_trees::expression::ExpressionNode::Mutable(inner) => {
+            resolve_indexed_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                *inner,
+                index,
+            )
+        }
+        _ => None,
+    }
 }
 
 fn resolve_expression_table_receiver_symbol(
@@ -1200,9 +1290,14 @@ fn resolve_expression_table_receiver_symbol(
             )
         }
         omega_resolved_trees::expression::ExpressionNode::Indexed(_) => {
-            let path = expression_name_path_from_table(expression_table, receiver)?;
-            resolve_state_scoped_path(symbols, machine_symbol, state_symbol, &path)
-                .map(|(_, symbol)| symbol)
+            resolve_expression_table_receiver_path_symbols(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                expression_table,
+                receiver,
+            )
+            .map(|(_, symbol)| symbol)
         }
         _ => None,
     }
@@ -1216,6 +1311,28 @@ fn resolve_state_scoped_table_path(
     path: &omega_resolved_trees::expression::TableNamePath,
 ) -> Option<(SymbolHandle, SymbolHandle)> {
     let members = expression_table.name_path_members(path.members);
+    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, None)
+}
+
+fn resolve_state_scoped_table_path_with_indexed_last_member(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression_table: &omega_resolved_trees::expression::ExpressionTable,
+    path: &omega_resolved_trees::expression::TableNamePath,
+    index: i64,
+) -> Option<(SymbolHandle, SymbolHandle)> {
+    let members = expression_table.name_path_members(path.members);
+    resolve_state_scoped_table_members(symbols, machine_symbol, state_symbol, members, Some(index))
+}
+
+fn resolve_state_scoped_table_members(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    members: &[omega_resolved_trees::name::DiagnosticName],
+    indexed_last_member: Option<i64>,
+) -> Option<(SymbolHandle, SymbolHandle)> {
     if members.is_empty() {
         return None;
     }
@@ -1237,16 +1354,36 @@ fn resolve_state_scoped_table_path(
     }
 
     if !current.is_valid() {
-        current = resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index])?;
+        current = if indexed_last_member.is_some() && index + 1 == members.len() {
+            resolve_base_indexed_symbol(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                members[index].as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            )?
+        } else {
+            resolve_base_symbol(symbols, machine_symbol, state_symbol, &members[index])?
+        };
         head = current;
         index += 1;
     } else {
-        current = child_symbol_by_kinds(
-            symbols,
-            current,
-            &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
-            members[index].as_str(),
-        );
+        current = if indexed_last_member.is_some() && index + 1 == members.len() {
+            child_indexed_symbol_by_kinds(
+                symbols,
+                current,
+                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                members[index].as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            )
+        } else {
+            child_symbol_by_kinds(
+                symbols,
+                current,
+                &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+                members[index].as_str(),
+            )
+        };
         if !current.is_valid() {
             return None;
         }
@@ -1254,25 +1391,72 @@ fn resolve_state_scoped_table_path(
         index += 1;
     }
 
-    for member in &members[index..] {
-        current = child_symbol_by_kinds(
-            symbols,
-            current,
-            &[
-                SymbolKind::Field,
-                SymbolKind::Object,
-                SymbolKind::State,
-                SymbolKind::Parameter,
-                SymbolKind::Variant,
-            ],
-            member.as_str(),
-        );
+    for (offset, member) in members[index..].iter().enumerate() {
+        let is_last = index + offset + 1 == members.len();
+        current = if indexed_last_member.is_some() && is_last {
+            child_indexed_symbol_by_kinds(
+                symbols,
+                current,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.as_str(),
+                indexed_last_member.expect("indexed last member should be present"),
+            )
+        } else {
+            child_symbol_by_kinds(
+                symbols,
+                current,
+                &[
+                    SymbolKind::Field,
+                    SymbolKind::Object,
+                    SymbolKind::State,
+                    SymbolKind::Parameter,
+                    SymbolKind::Variant,
+                ],
+                member.as_str(),
+            )
+        };
         if !current.is_valid() {
             return None;
         }
     }
 
     Some((head, current))
+}
+
+fn resolve_base_indexed_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    member: &str,
+    index: i64,
+) -> Option<SymbolHandle> {
+    if state_symbol.is_valid() {
+        let parameter_symbol = child_indexed_symbol_by_kinds(
+            symbols,
+            state_symbol,
+            &[SymbolKind::Parameter],
+            member,
+            index,
+        );
+        if parameter_symbol.is_valid() {
+            return Some(parameter_symbol);
+        }
+    }
+
+    let machine_child = child_indexed_symbol_by_kinds(
+        symbols,
+        machine_symbol,
+        &[SymbolKind::Field, SymbolKind::Object, SymbolKind::State],
+        member,
+        index,
+    );
+    machine_child.is_valid().then_some(machine_child)
 }
 
 fn assign_transition_target_symbols(
@@ -1753,16 +1937,51 @@ fn child_symbol_by_kinds(
     kinds: &[SymbolKind],
     name: &str,
 ) -> SymbolHandle {
+    child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
+}
+
+fn child_indexed_symbol_by_kinds(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kinds: &[SymbolKind],
+    name: &str,
+    index: i64,
+) -> SymbolHandle {
+    child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| {
+        symbol_name_matches_indexed_member(symbol_name, name, index)
+    })
+}
+
+fn child_symbol_by_kinds_matching(
+    symbols: &SymbolTable,
+    parent: SymbolHandle,
+    kinds: &[SymbolKind],
+    mut matches_name: impl FnMut(&str) -> bool,
+) -> SymbolHandle {
     let Some(children) = symbols.child_handles(parent) else {
         return SymbolHandle::invalid();
     };
 
     for child in children {
         let symbol = symbols.get(child);
-        if symbols.name(child) == name && kinds.contains(&symbol.kind) {
+        if matches_name(symbols.name(child)) && kinds.contains(&symbol.kind) {
             return child;
         }
     }
 
     SymbolHandle::invalid()
+}
+
+fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i64) -> bool {
+    let Some(suffix) = symbol_name.strip_prefix(member) else {
+        return false;
+    };
+    let Some(suffix) = suffix.strip_prefix('[') else {
+        return false;
+    };
+    let Some(index_text) = suffix.strip_suffix(']') else {
+        return false;
+    };
+
+    index_text.parse::<i64>().ok() == Some(index)
 }
