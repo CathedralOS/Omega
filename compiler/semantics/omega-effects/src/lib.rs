@@ -38,7 +38,7 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
     let mut effect_plan = EffectPlan::default();
 
     for machine in program.machines() {
-        let states = machine.states.iter().map(|state| StateEffects {
+        let states = program.machine_states(machine).iter().map(|state| StateEffects {
             name: state.name.to_string(),
             effect: infer_state_effect(program, machine, state),
         });

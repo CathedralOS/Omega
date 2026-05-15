@@ -226,8 +226,9 @@ fn state_return_type(
         .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)?;
-    let state = machine
-        .states
+    let state = context
+        .program
+        .machine_states(machine)
         .iter()
         .find(|state| state.symbol == target_key.state)?;
     let return_type = state.return_type.as_ref()?;

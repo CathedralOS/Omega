@@ -377,7 +377,7 @@ fn simplify_call_expression(
         machine,
         receiver.as_ref(),
     )
-        && let Some(state) = resolve_call_target_state(target_machine, call)
+        && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
         let argument_bindings: Vec<_> = state
             .parameters
@@ -461,7 +461,7 @@ fn simplify_helper_call_comparison(
             simplify_expression_with_bindings(program, machine, receiver, bindings, false)
         });
     let target_machine = resolve_call_target_machine(program, machine, receiver.as_ref())?;
-    let state = resolve_call_target_state(target_machine, call)?;
+    let state = resolve_call_target_state(program, target_machine, call)?;
     let argument_values: Vec<_> = call
         .arguments
         .iter()
@@ -533,6 +533,7 @@ fn strip_mutable_expression_ref(mut expression: &Expression) -> &Expression {
 }
 
 fn resolve_call_target_state<'machine>(
+    program: &'machine Program,
     machine: &'machine Machine,
     call: &CallExpression,
 ) -> Option<&'machine omega_checked_trees::state::State> {
@@ -540,8 +541,8 @@ fn resolve_call_target_state<'machine>(
         return None;
     }
 
-    machine
-        .states
+    program
+        .machine_states(machine)
         .iter()
         .find(|state| state.symbol == call.target_symbol)
 }
@@ -654,7 +655,7 @@ fn expression_match_condition_with_stack(
 
     let receiver = call.receiver.as_deref();
     let target_machine = resolve_call_target_machine(program, machine, receiver)?;
-    let state = resolve_call_target_state(target_machine, call)?;
+    let state = resolve_call_target_state(program, target_machine, call)?;
     let argument_bindings: Vec<_> = state
         .parameters
         .iter()
@@ -1326,14 +1327,16 @@ mod tests {
             statement_nodes: Default::default(),
         };
 
-        let machine = Machine {
+        let mut machine = Machine {
             symbol: machine_symbol,
             name: "RoomEvents".into(),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![helper],
+            states: Default::default(),
         };
-        let program = checked_program_with_machines(vec![machine.clone()]);
+        let mut program = Program::default();
+        program.typed.push_machine_state(&mut machine, helper);
+        program.typed.push_machine(machine.clone());
 
         let quiet_guard = Expression::Binary(Box::new(BinaryExpression {
             left: Expression::Call(Box::new(CallExpression {
@@ -1439,7 +1442,7 @@ mod tests {
             name: "main".into(),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![],
+            states: Default::default(),
         };
         let program = Program::default();
         let roll_symbol = SymbolHandle::from_arena_index(99);
@@ -1500,14 +1503,16 @@ mod tests {
             statement_nodes: Default::default(),
         };
 
-        let machine = Machine {
+        let mut machine = Machine {
             symbol: machine_symbol,
             name: "InventorySystem".into(),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![find],
+            states: Default::default(),
         };
-        let program = checked_program_with_machines(vec![machine.clone()]);
+        let mut program = Program::default();
+        program.typed.push_machine_state(&mut machine, find);
+        program.typed.push_machine(machine.clone());
 
         let is_some_guard = Expression::Call(Box::new(CallExpression {
             receiver: Some(Box::new(Expression::Call(Box::new(CallExpression {

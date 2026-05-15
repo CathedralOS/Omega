@@ -82,7 +82,7 @@ fn build_machine_state_storage_plan(
 ) -> StateStoragePlan {
     let mut plan = StateStoragePlan::default();
 
-    for state in &machine.states {
+    for state in program.machine_states(machine) {
         let source_key = StateKey {
             machine: machine.symbol,
             state: state.symbol,

@@ -826,10 +826,15 @@ fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine
         name: machine.name.to_string(),
         contained_objects: program.machine_contained_objects(machine).len(),
         owned_data: program.machine_owned_data(machine).len(),
-        states: machine.states.len(),
+        states: program.machine_states(machine).len(),
     });
 
-    if machine.name == "main" && machine.states.iter().any(|state| state.name == "entry") {
+    if machine.name == "main"
+        && program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.name == "entry")
+    {
         report.entry_points.insert(BackendEntryPoint {
             machine: "main".to_owned(),
             state: "entry".to_owned(),
@@ -937,20 +942,25 @@ mod tests {
             },
         );
         program.typed.push_platform(platform);
-        program.typed.push_machine(Machine {
+        let mut machine = Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![State {
+            states: Default::default(),
+        };
+        program.typed.push_machine_state(
+            &mut machine,
+            State {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("entry"),
                 parameters: Vec::new(),
                 return_type: None,
                 statements: Vec::new(),
                 statement_nodes: HandleSpan::empty(),
-            }],
-        });
+            },
+        );
+        program.typed.push_machine(machine);
 
         let report = build_backend_surface_report(&program);
 

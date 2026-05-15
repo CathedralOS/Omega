@@ -319,7 +319,7 @@ impl<'program> MachineSymbols<'program> {
             });
         }
 
-        for state in &machine.states {
+        for state in program.machine_states(machine) {
             if symbols.has_state(state.name.as_str()) {
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` has duplicate state `{}`",

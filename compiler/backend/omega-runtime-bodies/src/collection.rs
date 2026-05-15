@@ -284,8 +284,9 @@ fn terminal_state_value_expression(
         .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)?;
-    let state = machine
-        .states
+    let state = context
+        .program
+        .machine_states(machine)
         .iter()
         .find(|state| state.symbol == target_key.state)?;
     let statements = context.program.statement_table.statements(state.statement_nodes);

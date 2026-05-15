@@ -281,8 +281,8 @@ fn build_machine_graph(
         )));
     }
 
-    let segments = machine
-        .states
+    let segments = program
+        .machine_states(machine)
         .iter()
         .map(|state| split_state_segments(machine, state, program, state_graph))
         .collect::<Vec<_>>();

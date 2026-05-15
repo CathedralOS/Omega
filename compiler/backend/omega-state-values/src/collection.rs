@@ -17,7 +17,7 @@ pub(super) fn build_machine_state_value_plan(
 ) -> StateValuePlan {
     let mut plan = StateValuePlan::default();
 
-    for state in &machine.states {
+    for state in program.machine_states(machine) {
         let source_key = StateKey {
             machine: machine.symbol,
             state: state.symbol,

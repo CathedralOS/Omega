@@ -24,7 +24,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
 
-        for state in &machine.states {
+        for state in program.machine_states(machine) {
             validate_local_data_names(
                 &state.statements,
                 &machine_symbols,
@@ -254,7 +254,7 @@ fn validate_callable_state_signatures(
 ) {
     for machine in program.machines() {
         validate_state_signature_types(
-            machine.states.iter().map(|state| StateSignatureView {
+            program.machine_states(machine).iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
                 parameters: &state.parameters,
                 return_type: state.return_type.as_ref(),
@@ -543,8 +543,8 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
         return;
     };
 
-    if !main_machine
-        .states
+    if !program
+        .machine_states(main_machine)
         .iter()
         .any(|state| state.name == "entry")
     {
@@ -575,8 +575,11 @@ mod tests {
 
         assert_eq!(typed.machines().len(), 1);
         assert_eq!(typed.machines()[0].name.as_str(), "main");
-        assert_eq!(typed.machines()[0].states.len(), 1);
-        assert_eq!(typed.machines()[0].states[0].name.as_str(), "entry");
+        assert_eq!(typed.machine_states(&typed.machines()[0]).len(), 1);
+        assert_eq!(
+            typed.machine_states(&typed.machines()[0])[0].name.as_str(),
+            "entry"
+        );
         validate_program(&typed).expect("validation should succeed");
     }
 
@@ -601,8 +604,8 @@ mod tests {
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
         let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-        let entry = typed.machines()[0]
-            .states
+        let entry = typed
+            .machine_states(&typed.machines()[0])
             .iter()
             .find(|state| state.name.as_str() == "entry")
             .expect("entry state");
@@ -764,8 +767,8 @@ fn validate_call(
         .and_then(|type_name| symbols.machine(type_name))
         .or_else(|| symbols.machine(receiver))
     {
-        if let Some(state) = machine
-            .states
+        if let Some(state) = program
+            .machine_states(machine)
             .iter()
             .find(|state| state.name == call.target)
         {
@@ -1184,7 +1187,11 @@ fn validate_transition_target(
             return;
         };
 
-        let Some(state) = machine.states.iter().find(|state| state.name == path[1]) else {
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.name == path[1])
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no state `{}`",
                 machine.name, path[1]
