@@ -469,8 +469,8 @@ fn transition_target_snapshot(target: &TransitionTarget) -> TransitionTargetSnap
 
 fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
     match expression {
-        Expression::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
-            values: values.iter().map(expression_snapshot).collect(),
+        Expression::ArrayLiteral(array_literal) => ExpressionSnapshot::ArrayLiteral {
+            values: array_literal.values.iter().map(expression_snapshot).collect(),
         },
         Expression::Binary(binary) => ExpressionSnapshot::Binary {
             left: Box::new(expression_snapshot(&binary.left)),

@@ -8,7 +8,7 @@ pub type ExpressionHandle = Handle<ExpressionNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
-    ArrayLiteral(Vec<Expression>),
+    ArrayLiteral(ArrayLiteralExpression),
     Binary(Box<BinaryExpression>),
     Boolean(bool),
     Cast(Box<CastExpression>),
@@ -21,6 +21,30 @@ pub enum Expression {
     Name(NamePath),
     StructLiteral(StructLiteral),
     String(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayLiteralExpression {
+    pub storage: ArrayLiteralExpressionStorage,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ArrayLiteralExpressionStorage {
+    pub values: Vec<Expression>,
+}
+
+impl Deref for ArrayLiteralExpression {
+    type Target = ArrayLiteralExpressionStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for ArrayLiteralExpression {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -513,8 +537,8 @@ impl ExpressionTable {
 
     pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
         match expression {
-            Expression::ArrayLiteral(values) => {
-                let values = self.insert_expression_handle_span_from_trees(values);
+            Expression::ArrayLiteral(array_literal) => {
+                let values = self.insert_expression_handle_span_from_trees(&array_literal.values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
             Expression::Binary(binary) => {
@@ -589,12 +613,17 @@ impl ExpressionTable {
 
     pub fn to_tree(&self, expression: ExpressionHandle) -> Expression {
         match self.expression(expression) {
-            ExpressionNode::ArrayLiteral(values) => Expression::ArrayLiteral(
-                self.expression_handles(*values)
-                    .iter()
-                    .map(|value| self.to_tree(*value))
-                    .collect(),
-            ),
+            ExpressionNode::ArrayLiteral(values) => {
+                Expression::ArrayLiteral(ArrayLiteralExpression {
+                    storage: ArrayLiteralExpressionStorage {
+                        values: self
+                            .expression_handles(*values)
+                            .iter()
+                            .map(|value| self.to_tree(*value))
+                            .collect(),
+                    },
+                })
+            }
             ExpressionNode::Binary(binary) => Expression::Binary(Box::new(BinaryExpression {
                 storage: BinaryExpressionStorage {
                     left: self.to_tree(binary.left),
@@ -1160,8 +1189,8 @@ pub struct StructLiteralField {
 impl Expression {
     pub fn display_name(&self) -> String {
         match self {
-            Expression::ArrayLiteral(values) => {
-                bracketed_display_names(values.iter(), Expression::display_name)
+            Expression::ArrayLiteral(array_literal) => {
+                bracketed_display_names(array_literal.values.iter(), Expression::display_name)
             }
             Expression::Binary(binary) => binary.display_name(),
             Expression::Boolean(value) => value.to_string(),

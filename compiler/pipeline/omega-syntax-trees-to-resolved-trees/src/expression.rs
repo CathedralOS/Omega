@@ -2,10 +2,11 @@ use crate::name::{lower_name, lower_name_members};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::expression::{
-    BinaryExpression, BinaryExpressionStorage, BinaryOperator, CallExpression,
-    CallExpressionStorage, CastExpression, CastExpressionStorage, Expression, FloatLiteral,
-    IndexedExpression, IndexedExpressionStorage, MemberExpression, MemberExpressionStorage,
-    StructLiteral, StructLiteralField, StructLiteralStorage,
+    ArrayLiteralExpression, ArrayLiteralExpressionStorage, BinaryExpression,
+    BinaryExpressionStorage, BinaryOperator, CallExpression, CallExpressionStorage,
+    CastExpression, CastExpressionStorage, Expression, FloatLiteral, IndexedExpression,
+    IndexedExpressionStorage, MemberExpression, MemberExpressionStorage, StructLiteral,
+    StructLiteralField, StructLiteralStorage,
 };
 use omega_syntax_trees as syntax;
 use omega_syntax_trees::SyntaxTrees;
@@ -22,14 +23,18 @@ fn lower_expression_node(
     expression: &syntax::expression::ExpressionNode,
 ) -> Result<Expression, Diagnostic> {
     match expression {
-        syntax::expression::ExpressionNode::ArrayLiteral(values) => Ok(Expression::ArrayLiteral(
-            syntax_trees
-                .expressions
-                .expression_handles(*values)
-                .iter()
-                .map(|value| lower_expression_handle(syntax_trees, *value))
-                .collect::<Result<Vec<_>, _>>()?,
-        )),
+        syntax::expression::ExpressionNode::ArrayLiteral(values) => {
+            Ok(Expression::ArrayLiteral(ArrayLiteralExpression {
+                storage: ArrayLiteralExpressionStorage {
+                    values: syntax_trees
+                        .expressions
+                        .expression_handles(*values)
+                        .iter()
+                        .map(|value| lower_expression_handle(syntax_trees, *value))
+                        .collect::<Result<Vec<_>, _>>()?,
+                },
+            }))
+        }
         syntax::expression::ExpressionNode::Binary(binary) => Ok(Expression::Binary(Box::new(
             BinaryExpression {
                 storage: BinaryExpressionStorage {

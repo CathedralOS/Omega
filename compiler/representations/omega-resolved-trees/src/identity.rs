@@ -307,8 +307,8 @@ fn count_expression_node(
 
 fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts) {
     match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
+        Expression::ArrayLiteral(array_literal) => {
+            for value in &array_literal.values {
                 count_expression(value, counts);
             }
         }
