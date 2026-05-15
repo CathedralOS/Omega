@@ -1,5 +1,5 @@
 use crate::data::{DataDefinition, DataMember};
-use crate::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionNode, NamePath};
+use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, NamePath};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
@@ -389,9 +389,9 @@ fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> Owne
     OwnedDataSnapshot {
         name: owned.name.to_string(),
         type_reference: type_reference_snapshot(program, &owned.type_reference),
-        initial_value: owned.initial_value.map(|expression| {
-            expression_snapshot(program.machine_owned_data_expression(expression))
-        }),
+        initial_value: owned
+            .initial_value
+            .map(|expression| table_expression_snapshot(program, expression)),
     }
 }
 
@@ -537,68 +537,6 @@ fn statement_expression_snapshot(
     expression: ExpressionHandle,
 ) -> ExpressionSnapshot {
     table_expression_snapshot(program, expression)
-}
-
-fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
-    match expression {
-        Expression::ArrayLiteral(array_literal) => ExpressionSnapshot::ArrayLiteral {
-            values: array_literal
-                .values
-                .iter()
-                .map(expression_snapshot)
-                .collect(),
-        },
-        Expression::Binary(binary) => ExpressionSnapshot::Binary {
-            left: Box::new(expression_snapshot(&binary.left)),
-            operator: binary_operator_name(binary.operator),
-            right: Box::new(expression_snapshot(&binary.right)),
-        },
-        Expression::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
-        Expression::Cast(cast) => ExpressionSnapshot::Cast {
-            value: Box::new(expression_snapshot(&cast.value)),
-            target_type: name_path_snapshot(&cast.target_type),
-        },
-        Expression::Call(call) => ExpressionSnapshot::Call {
-            receiver: call
-                .receiver
-                .as_ref()
-                .map(|receiver| Box::new(expression_snapshot(receiver))),
-            target: call.target.to_string(),
-            arguments: call.arguments.iter().map(expression_snapshot).collect(),
-        },
-        Expression::Float(value) => ExpressionSnapshot::Float {
-            value: value.to_string(),
-        },
-        Expression::Indexed(indexed) => ExpressionSnapshot::Indexed {
-            collection: Box::new(expression_snapshot(&indexed.collection)),
-            index: Box::new(expression_snapshot(&indexed.index)),
-        },
-        Expression::Integer(value) => ExpressionSnapshot::Integer { value: *value },
-        Expression::Member(member) => ExpressionSnapshot::Member {
-            receiver: Box::new(expression_snapshot(&member.receiver)),
-            member: member.member.to_string(),
-        },
-        Expression::Mutable(value) => ExpressionSnapshot::Mutable {
-            value: Box::new(expression_snapshot(value)),
-        },
-        Expression::Name(path) => ExpressionSnapshot::Name {
-            path: name_path_snapshot(path),
-        },
-        Expression::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
-            type_name: struct_literal.type_name.to_string(),
-            fields: struct_literal
-                .fields
-                .iter()
-                .map(|field| StructLiteralFieldSnapshot {
-                    name: field.name.to_string(),
-                    value: expression_snapshot(&field.value),
-                })
-                .collect(),
-        },
-        Expression::String(value) => ExpressionSnapshot::String {
-            value: value.as_str().to_owned(),
-        },
-    }
 }
 
 fn table_expression_snapshot(

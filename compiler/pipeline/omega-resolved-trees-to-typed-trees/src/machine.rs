@@ -1,4 +1,4 @@
-use crate::expression::lower_expression;
+use crate::expression::lower_expression_from_table;
 use crate::program::Lowerer;
 use crate::state::lower_state;
 use crate::type_reference::lower_type_reference;
@@ -39,10 +39,9 @@ pub(crate) fn lower_machine(
             name: crate::name::lower_name(&owned_data.name),
             type_reference: lower_type_reference(lowerer, &owned_data.type_reference)?,
             initial_value: match owned_data.initial_value {
-                Some(initial_value) => Some(lower_expression(
-                    lowerer
-                        .source_trees
-                        .machine_owned_data_expression(initial_value),
+                Some(initial_value) => Some(lower_expression_from_table(
+                    &lowerer.source_trees.tables.bodies.expressions,
+                    initial_value,
                 )?),
                 None => None,
             },
