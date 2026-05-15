@@ -18,6 +18,7 @@ use omega_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::Program as TypedProgram;
+use std::sync::Arc;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
     Compiler::new(options).compile()
@@ -142,6 +143,7 @@ fn validate_selected_target(
 
 struct AssembledSyntax {
     syntax_trees: SyntaxTrees,
+    sources: Arc<omega_core::source::SourceMap>,
 }
 
 struct CheckedProgramSurface {
@@ -164,12 +166,18 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
         syntax_trees.extend_from(&file.syntax_trees);
     }
 
-    Ok(AssembledSyntax { syntax_trees })
+    Ok(AssembledSyntax {
+        syntax_trees,
+        sources: Arc::new(_sources.sources.clone()),
+    })
 }
 
 fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    omega_syntax_trees_to_resolved_trees::lower_syntax_trees(&syntax.syntax_trees)
-        .map_err(|diagnostic| vec![diagnostic])
+    omega_syntax_trees_to_resolved_trees::lower_syntax_trees_with_sources(
+        &syntax.syntax_trees,
+        syntax.sources,
+    )
+    .map_err(|diagnostic| vec![diagnostic])
 }
 
 fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedProgram, Vec<Diagnostic>> {

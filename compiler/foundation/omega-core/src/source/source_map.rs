@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::source::{SourceFile, SourceId, SourceSpan};
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceMap {
     files: Vec<SourceFile>,
 }
