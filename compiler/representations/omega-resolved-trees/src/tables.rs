@@ -39,6 +39,7 @@ impl SymbolResolvedTreeTables {
         let SymbolResolvedDeclarationStorage {
             data_members,
             machine_owned_data,
+            machine_owned_data_expressions,
             machine_state_handles,
             machine_states,
             platform_state_signatures,
@@ -74,6 +75,7 @@ impl SymbolResolvedTreeTables {
             tables.insert_machine_with_state_spans(
                 machine,
                 machine_owned_data,
+                machine_owned_data_expressions,
                 machine_state_handles,
                 machine_states,
                 state_parameters,
@@ -125,6 +127,7 @@ impl SymbolResolvedTreeTables {
         &mut self,
         machine: &Machine,
         machine_owned_data: &Arena<OwnedData>,
+        machine_owned_data_expressions: &Arena<Expression>,
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
@@ -134,7 +137,12 @@ impl SymbolResolvedTreeTables {
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
-            self.insert_owned_data(owned_data, child_type_references, type_constraints);
+            self.insert_owned_data(
+                owned_data,
+                machine_owned_data_expressions,
+                child_type_references,
+                type_constraints,
+            );
         }
 
         for state in machine_state_handles
@@ -157,6 +165,7 @@ impl SymbolResolvedTreeTables {
     fn insert_owned_data(
         &mut self,
         owned_data: &OwnedData,
+        machine_owned_data_expressions: &Arena<Expression>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
@@ -166,8 +175,8 @@ impl SymbolResolvedTreeTables {
             type_constraints,
         );
 
-        if let Some(initial_value) = &owned_data.initial_value {
-            self.insert_expression(initial_value);
+        if let Some(initial_value) = owned_data.initial_value {
+            self.insert_expression(machine_owned_data_expressions.get(initial_value));
         }
     }
 

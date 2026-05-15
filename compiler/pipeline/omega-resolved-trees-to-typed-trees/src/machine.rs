@@ -33,29 +33,26 @@ pub(crate) fn lower_machine(
             .push_machine_contained_object(&mut typed_machine, contained_object);
     }
 
-    for owned_data in lowerer
-        .source_trees
-        .machine_owned_data(machine.owned_data)
-    {
+    for owned_data in lowerer.source_trees.machine_owned_data(machine.owned_data) {
         let owned_data = typed::machine::OwnedData {
             symbol: owned_data.symbol,
             name: crate::name::lower_name(&owned_data.name),
             type_reference: lower_type_reference(lowerer, &owned_data.type_reference)?,
-            initial_value: owned_data
-                .initial_value
-                .as_ref()
-                .map(lower_expression)
-                .transpose()?,
+            initial_value: match owned_data.initial_value {
+                Some(initial_value) => Some(lower_expression(
+                    lowerer
+                        .source_trees
+                        .machine_owned_data_expression(initial_value),
+                )?),
+                None => None,
+            },
         };
         lowerer
             .typed_trees
             .push_machine_owned_data(&mut typed_machine, owned_data);
     }
 
-    for state in lowerer
-        .source_trees
-        .machine_state_handles(machine.states)
-    {
+    for state in lowerer.source_trees.machine_state_handles(machine.states) {
         let state = lowerer.source_trees.machine_state(*state);
         let state = lower_state(lowerer, state)?;
         lowerer
