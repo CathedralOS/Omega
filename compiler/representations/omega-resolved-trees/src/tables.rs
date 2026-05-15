@@ -45,9 +45,9 @@ impl SymbolResolvedTreeTables {
             tables.insert_platform(platform, &type_constraints);
         }
 
-        for machine in &mut symbol_resolved_trees.machines {
+        symbol_resolved_trees.machines.for_each_mut(|machine| {
             tables.insert_machine_with_state_spans(machine, &type_constraints);
-        }
+        });
 
         tables
     }
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
         let mut program = SymbolResolvedTrees::default();
-        program.machines = vec![Machine {
+        program.machines.push(Machine {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
@@ -214,7 +214,7 @@ mod tests {
                     },
                 }],
             },
-        }];
+        });
 
         program.rebuild_tables();
 

@@ -690,7 +690,7 @@ mod tests {
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
         let mut program = SymbolResolvedTrees::default();
-        program.machines = vec![Machine {
+        program.machines.push(Machine {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
@@ -714,7 +714,7 @@ mod tests {
                     },
                 }],
             },
-        }];
+        });
         program.rebuild_tables();
 
         let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);

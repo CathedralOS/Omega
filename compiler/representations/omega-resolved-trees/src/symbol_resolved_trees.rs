@@ -15,7 +15,7 @@ pub struct SymbolResolvedTrees {
 pub struct SymbolResolvedRoots {
     pub data_definitions: OrderedRootArena<crate::data::DataDefinition>,
     pub invariant_definitions: OrderedRootArena<crate::invariant::InvariantDefinition>,
-    pub machines: Vec<crate::machine::Machine>,
+    pub machines: OrderedRootArena<crate::machine::Machine>,
     pub platforms: Vec<crate::platform::Platform>,
 }
 
@@ -77,6 +77,19 @@ impl<T: Default> OrderedRootArena<T> {
         for handle in handles {
             visit(storage.get_mut(*handle));
         }
+    }
+
+    pub fn find_mut(&mut self, mut matches: impl FnMut(&T) -> bool) -> Option<&mut T> {
+        let handles = self.handles.span_or_empty(self.roots);
+        let storage = &mut self.storage;
+
+        for handle in handles {
+            if matches(storage.get(*handle)) {
+                return Some(storage.get_mut(*handle));
+            }
+        }
+
+        None
     }
 }
 
