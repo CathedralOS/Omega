@@ -294,46 +294,28 @@ impl StatementTable {
         arguments: &[Expression],
         expressions: &mut crate::expression::ExpressionTable,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for argument in arguments {
             let argument = expressions.insert_tree(argument);
-            let handle = self.paths.expression_handles.append(argument);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("statement expression span count overflow");
+            self.paths
+                .expression_handles
+                .append_to_span(&mut span, argument);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for member in path.members() {
-            let handle = self.paths.name_path_members.append(member.clone());
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("transition target path member span count overflow");
+            self.paths
+                .name_path_members
+                .append_to_span(&mut span, member.clone());
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_transition_target_tree(

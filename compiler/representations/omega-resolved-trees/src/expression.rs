@@ -111,27 +111,16 @@ impl ExpressionTable {
     ) -> ExpressionHandle {
         match source.expression(expression) {
             ExpressionNode::ArrayLiteral(values) => {
-                let mut start = Handle::invalid();
-                let mut count = 0u32;
+                let mut copied_values = HandleSpan::empty();
 
                 for value in source.expression_handles(*values) {
                     let value = self.copy_from(source, *value);
-                    let handle = self.spans.expression_handles.append(value);
-                    if count == 0 {
-                        start = handle;
-                    }
-                    count = count
-                        .checked_add(1)
-                        .expect("expression handle span count overflow");
+                    self.spans
+                        .expression_handles
+                        .append_to_span(&mut copied_values, value);
                 }
 
-                let values = if count == 0 {
-                    HandleSpan::empty()
-                } else {
-                    HandleSpan::from_parts(start, count)
-                };
-
-                self.insert(ExpressionNode::ArrayLiteral(values))
+                self.insert(ExpressionNode::ArrayLiteral(copied_values))
             }
             ExpressionNode::Binary(binary) => {
                 let left = self.copy_from(source, binary.left);
@@ -219,46 +208,28 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expressions: &[ExpressionHandle],
     ) -> HandleSpan<ExpressionHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for expression in expressions {
             let expression = self.copy_from(source, *expression);
-            let handle = self.spans.expression_handles.append(expression);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("expression handle span count overflow");
+            self.spans
+                .expression_handles
+                .append_to_span(&mut span, expression);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for member in path.members() {
-            let handle = self.spans.name_path_members.append(member.clone());
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("name path member span count overflow");
+            self.spans
+                .name_path_members
+                .append_to_span(&mut span, member.clone());
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn copy_name_path_members(
@@ -266,24 +237,15 @@ impl ExpressionTable {
         source: &ExpressionTable,
         members: HandleSpan<DiagnosticName>,
     ) -> HandleSpan<DiagnosticName> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for member in source.name_path_members(members) {
-            let handle = self.spans.name_path_members.append(member.clone());
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("name path member span count overflow");
+            self.spans
+                .name_path_members
+                .append_to_span(&mut span, member.clone());
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn copy_struct_literal_fields(
@@ -291,81 +253,56 @@ impl ExpressionTable {
         source: &ExpressionTable,
         fields: HandleSpan<TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for field in source.struct_fields(fields) {
             let value = self.copy_from(source, field.value);
-            let handle = self.spans.struct_fields.append(TableStructLiteralField {
-                name: field.name.clone(),
-                value,
-            });
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("struct field span count overflow");
+            self.spans.struct_fields.append_to_span(
+                &mut span,
+                TableStructLiteralField {
+                    name: field.name.clone(),
+                    value,
+                },
+            );
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_expression_handle_span_from_trees<'expression>(
         &mut self,
         expressions: impl IntoIterator<Item = &'expression Expression>,
     ) -> HandleSpan<ExpressionHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for expression in expressions {
             let expression = self.insert_tree(expression);
-            let handle = self.spans.expression_handles.append(expression);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("expression handle span count overflow");
+            self.spans
+                .expression_handles
+                .append_to_span(&mut span, expression);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_struct_field_span_from_tree(
         &mut self,
         fields: &[StructLiteralField],
     ) -> HandleSpan<TableStructLiteralField> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for field in fields {
             let value = self.insert_tree(&field.value);
-            let handle = self.spans.struct_fields.append(TableStructLiteralField {
-                name: field.name.clone(),
-                value,
-            });
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("struct field span count overflow");
+            self.spans.struct_fields.append_to_span(
+                &mut span,
+                TableStructLiteralField {
+                    name: field.name.clone(),
+                    value,
+                },
+            );
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
@@ -392,8 +329,7 @@ impl ExpressionTable {
         members: HandleSpan<DiagnosticName>,
         suffix: DiagnosticName,
     ) -> HandleSpan<DiagnosticName> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for offset in 0..members.count() {
             let member = self
@@ -408,24 +344,16 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            let handle = self.spans.name_path_members.append(member);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("name path member span count overflow");
+            self.spans
+                .name_path_members
+                .append_to_span(&mut span, member);
         }
 
-        let handle = self.spans.name_path_members.append(suffix);
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("name path member span count overflow");
+        self.spans
+            .name_path_members
+            .append_to_span(&mut span, suffix);
 
-        HandleSpan::from_parts(start, count)
+        span
     }
 
     pub fn copy_name_path_members_with_member_suffix(
@@ -434,8 +362,7 @@ impl ExpressionTable {
         suffix_members: HandleSpan<DiagnosticName>,
         suffix_start_offset: u32,
     ) -> HandleSpan<DiagnosticName> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for offset in 0..members.count() {
             let member = self
@@ -450,13 +377,9 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            let handle = self.spans.name_path_members.append(member);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("name path member span count overflow");
+            self.spans
+                .name_path_members
+                .append_to_span(&mut span, member);
         }
 
         for offset in suffix_start_offset..suffix_members.count() {
@@ -472,20 +395,12 @@ impl ExpressionTable {
                     suffix_members.start().generation(),
                 ))
                 .clone();
-            let handle = self.spans.name_path_members.append(member);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("name path member span count overflow");
+            self.spans
+                .name_path_members
+                .append_to_span(&mut span, member);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     pub fn insert_copy_with_member_suffix(
