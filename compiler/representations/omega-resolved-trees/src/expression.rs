@@ -98,11 +98,37 @@ impl ExpressionTable {
         self.spans.expression_handles.insert_many(expressions)
     }
 
+    pub fn push_expression_handle(
+        &mut self,
+        span: &mut HandleSpan<ExpressionHandle>,
+        expression: ExpressionHandle,
+    ) {
+        self.spans
+            .expression_handles
+            .append_to_span(span, expression);
+    }
+
     pub fn insert_struct_fields(
         &mut self,
         fields: impl IntoIterator<Item = TableStructLiteralField>,
     ) -> HandleSpan<TableStructLiteralField> {
         self.spans.struct_fields.insert_many(fields)
+    }
+
+    pub fn push_struct_field(
+        &mut self,
+        span: &mut HandleSpan<TableStructLiteralField>,
+        field: TableStructLiteralField,
+    ) {
+        self.spans.struct_fields.append_to_span(span, field);
+    }
+
+    pub fn push_name_path_member(
+        &mut self,
+        span: &mut HandleSpan<DiagnosticName>,
+        member: DiagnosticName,
+    ) {
+        self.spans.name_path_members.append_to_span(span, member);
     }
 
     pub fn copy_from(

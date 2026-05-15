@@ -152,7 +152,6 @@ pub struct SymbolResolvedDeclarationStorage {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SymbolResolvedTypeStorage {
     pub constraints: Arena<types::TypeConstraint>,
-    pub constraint_expressions: Arena<expression::Expression>,
     pub references: types::TypeReferenceTable,
 }
 
@@ -286,13 +285,6 @@ impl SymbolResolvedTrees {
         handle: Handle<types::TypeReference>,
     ) -> &types::TypeReference {
         self.tables.declarations.child_type_references.get(handle)
-    }
-
-    pub fn type_constraint_expression(
-        &self,
-        handle: Handle<expression::Expression>,
-    ) -> &expression::Expression {
-        self.tables.types.constraint_expressions.get(handle)
     }
 
     pub fn rebuild_tables(&mut self) {

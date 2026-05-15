@@ -1,5 +1,5 @@
 use crate::data::{DataDefinition, DataMember};
-use crate::expression::{BinaryOperator, Expression, NamePath};
+use crate::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionNode, NamePath};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
@@ -595,6 +595,85 @@ fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
     }
 }
 
+fn table_expression_snapshot(
+    program: &SymbolResolvedTrees,
+    expression: ExpressionHandle,
+) -> ExpressionSnapshot {
+    let table = &program.tables.bodies.expressions;
+
+    match table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => ExpressionSnapshot::ArrayLiteral {
+            values: table
+                .expression_handles(*values)
+                .iter()
+                .map(|value| table_expression_snapshot(program, *value))
+                .collect(),
+        },
+        ExpressionNode::Binary(binary) => ExpressionSnapshot::Binary {
+            left: Box::new(table_expression_snapshot(program, binary.left)),
+            operator: binary_operator_name(binary.operator),
+            right: Box::new(table_expression_snapshot(program, binary.right)),
+        },
+        ExpressionNode::Boolean(value) => ExpressionSnapshot::Boolean { value: *value },
+        ExpressionNode::Cast(cast) => ExpressionSnapshot::Cast {
+            value: Box::new(table_expression_snapshot(program, cast.value)),
+            target_type: table
+                .name_path_members(cast.target_type)
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
+        ExpressionNode::Call(call) => ExpressionSnapshot::Call {
+            receiver: call
+                .receiver
+                .is_valid()
+                .then(|| Box::new(table_expression_snapshot(program, call.receiver))),
+            target: call.target.to_string(),
+            arguments: table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| table_expression_snapshot(program, *argument))
+                .collect(),
+        },
+        ExpressionNode::Float(value) => ExpressionSnapshot::Float {
+            value: value.to_string(),
+        },
+        ExpressionNode::Indexed(indexed) => ExpressionSnapshot::Indexed {
+            collection: Box::new(table_expression_snapshot(program, indexed.collection)),
+            index: Box::new(table_expression_snapshot(program, indexed.index)),
+        },
+        ExpressionNode::Integer(value) => ExpressionSnapshot::Integer { value: *value },
+        ExpressionNode::Member(member) => ExpressionSnapshot::Member {
+            receiver: Box::new(table_expression_snapshot(program, member.receiver)),
+            member: member.member.to_string(),
+        },
+        ExpressionNode::Mutable(value) => ExpressionSnapshot::Mutable {
+            value: Box::new(table_expression_snapshot(program, *value)),
+        },
+        ExpressionNode::Name(path) => ExpressionSnapshot::Name {
+            path: table
+                .name_path_members(path.members)
+                .iter()
+                .map(ToString::to_string)
+                .collect(),
+        },
+        ExpressionNode::StructLiteral(struct_literal) => ExpressionSnapshot::StructLiteral {
+            type_name: struct_literal.type_name.to_string(),
+            fields: table
+                .struct_fields(struct_literal.fields)
+                .iter()
+                .map(|field| StructLiteralFieldSnapshot {
+                    name: field.name.to_string(),
+                    value: table_expression_snapshot(program, field.value),
+                })
+                .collect(),
+        },
+        ExpressionNode::String(value) => ExpressionSnapshot::String {
+            value: value.as_str().to_owned(),
+        },
+    }
+}
+
 fn type_reference_snapshot(
     program: &SymbolResolvedTrees,
     type_reference: &TypeReference,
@@ -666,8 +745,8 @@ fn type_constraint_snapshot(
             name: name.to_string(),
         },
         TypeConstraint::Range { minimum, maximum } => TypeConstraintSnapshot::Range {
-            minimum: expression_snapshot(program.type_constraint_expression(*minimum)),
-            maximum: expression_snapshot(program.type_constraint_expression(*maximum)),
+            minimum: table_expression_snapshot(program, *minimum),
+            maximum: table_expression_snapshot(program, *maximum),
         },
     }
 }
