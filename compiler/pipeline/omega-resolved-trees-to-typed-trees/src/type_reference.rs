@@ -10,31 +10,27 @@ pub(crate) fn lower_type_reference(
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReference, Diagnostic> {
     match type_reference {
-        resolved::types::TypeReference::Reference {
-            referee,
-            is_mutable,
-        } => Ok(typed::types::TypeReference::Reference {
-            referee: Box::new(lower_type_reference(lowerer, referee)?),
-            is_mutable: *is_mutable,
-        }),
+        resolved::types::TypeReference::Reference(reference) => {
+            Ok(typed::types::TypeReference::Reference {
+                referee: Box::new(lower_type_reference(lowerer, &reference.referee)?),
+                is_mutable: reference.is_mutable,
+            })
+        }
         resolved::types::TypeReference::Constrained(constrained) => {
             Ok(typed::types::TypeReference::Constrained {
                 base_type: Box::new(lower_type_reference(lowerer, &constrained.base_type)?),
                 constraints: lower_type_constraints(lowerer, constrained.constraints)?,
             })
         }
-        resolved::types::TypeReference::FixedArray {
-            element_type,
-            length,
-        } => Ok(typed::types::TypeReference::FixedArray {
-            element_type: Box::new(lower_type_reference(lowerer, element_type)?),
-            length: *length,
-        }),
-        resolved::types::TypeReference::Slice { element_type } => {
-            Ok(typed::types::TypeReference::Slice {
-                element_type: Box::new(lower_type_reference(lowerer, element_type)?),
+        resolved::types::TypeReference::FixedArray(fixed_array) => {
+            Ok(typed::types::TypeReference::FixedArray {
+                element_type: Box::new(lower_type_reference(lowerer, &fixed_array.element_type)?),
+                length: fixed_array.length,
             })
         }
+        resolved::types::TypeReference::Slice(slice) => Ok(typed::types::TypeReference::Slice {
+            element_type: Box::new(lower_type_reference(lowerer, &slice.element_type)?),
+        }),
         resolved::types::TypeReference::Generic(generic) => {
             Ok(typed::types::TypeReference::Generic {
                 base_symbol: generic.base_symbol,

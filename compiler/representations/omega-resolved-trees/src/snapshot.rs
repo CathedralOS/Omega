@@ -540,12 +540,12 @@ fn type_reference_snapshot_from_constraints(
     resolve_constraints: impl Fn(&omega_core::arena::HandleSpan<TypeConstraint>) -> Vec<TypeConstraintSnapshot> + Copy,
 ) -> TypeReferenceSnapshot {
     match type_reference {
-        TypeReference::Reference { referee, is_mutable } => TypeReferenceSnapshot::Reference {
+        TypeReference::Reference(reference) => TypeReferenceSnapshot::Reference {
             referee: Box::new(type_reference_snapshot_from_constraints(
-                referee,
+                &reference.referee,
                 resolve_constraints,
             )),
-            is_mutable: *is_mutable,
+            is_mutable: reference.is_mutable,
         },
         TypeReference::Constrained(constrained) => TypeReferenceSnapshot::Constrained {
             base_type: Box::new(type_reference_snapshot_from_constraints(
@@ -554,16 +554,16 @@ fn type_reference_snapshot_from_constraints(
             )),
             constraints: resolve_constraints(&constrained.constraints),
         },
-        TypeReference::FixedArray { element_type, length } => TypeReferenceSnapshot::FixedArray {
+        TypeReference::FixedArray(fixed_array) => TypeReferenceSnapshot::FixedArray {
             element_type: Box::new(type_reference_snapshot_from_constraints(
-                element_type,
+                &fixed_array.element_type,
                 resolve_constraints,
             )),
-            length: *length,
+            length: fixed_array.length,
         },
-        TypeReference::Slice { element_type } => TypeReferenceSnapshot::Slice {
+        TypeReference::Slice(slice) => TypeReferenceSnapshot::Slice {
             element_type: Box::new(type_reference_snapshot_from_constraints(
-                element_type,
+                &slice.element_type,
                 resolve_constraints,
             )),
         },

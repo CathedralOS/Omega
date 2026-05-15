@@ -8,24 +8,50 @@ pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeReference {
-    Reference {
-        referee: Box<TypeReference>,
-        is_mutable: bool,
-    },
+    Reference(ReferenceTypeReference),
     Constrained(ConstrainedTypeReference),
-    FixedArray {
-        element_type: Box<TypeReference>,
-        length: usize,
-    },
-    Slice {
-        element_type: Box<TypeReference>,
-    },
+    FixedArray(FixedArrayTypeReference),
+    Slice(SliceTypeReference),
     Generic(GenericTypeReference),
     Named {
         symbol: SymbolHandle,
         name: ProgramName,
     },
     Unit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceTypeReference {
+    pub storage: ReferenceTypeReferenceStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReferenceTypeReferenceStorage {
+    pub referee: Box<TypeReference>,
+    pub is_mutable: bool,
+}
+
+impl Default for ReferenceTypeReferenceStorage {
+    fn default() -> Self {
+        Self {
+            referee: Box::new(TypeReference::Unit),
+            is_mutable: false,
+        }
+    }
+}
+
+impl Deref for ReferenceTypeReference {
+    type Target = ReferenceTypeReferenceStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for ReferenceTypeReference {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +83,72 @@ impl Deref for ConstrainedTypeReference {
 }
 
 impl DerefMut for ConstrainedTypeReference {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedArrayTypeReference {
+    pub storage: FixedArrayTypeReferenceStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FixedArrayTypeReferenceStorage {
+    pub element_type: Box<TypeReference>,
+    pub length: usize,
+}
+
+impl Default for FixedArrayTypeReferenceStorage {
+    fn default() -> Self {
+        Self {
+            element_type: Box::new(TypeReference::Unit),
+            length: 0,
+        }
+    }
+}
+
+impl Deref for FixedArrayTypeReference {
+    type Target = FixedArrayTypeReferenceStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for FixedArrayTypeReference {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.storage
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SliceTypeReference {
+    pub storage: SliceTypeReferenceStorage,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SliceTypeReferenceStorage {
+    pub element_type: Box<TypeReference>,
+}
+
+impl Default for SliceTypeReferenceStorage {
+    fn default() -> Self {
+        Self {
+            element_type: Box::new(TypeReference::Unit),
+        }
+    }
+}
+
+impl Deref for SliceTypeReference {
+    type Target = SliceTypeReferenceStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
+    }
+}
+
+impl DerefMut for SliceTypeReference {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.storage
     }
@@ -222,14 +314,12 @@ impl TypeReferenceTable {
         source_constraints: &Arena<TypeConstraint>,
     ) -> TypeReferenceHandle {
         match type_reference {
-            TypeReference::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let referee = self.insert_tree(referee, expressions, source_constraints);
+            TypeReference::Reference(reference) => {
+                let referee =
+                    self.insert_tree(&reference.referee, expressions, source_constraints);
                 self.insert(TypeReferenceNode::Reference {
                     referee,
-                    is_mutable: *is_mutable,
+                    is_mutable: reference.is_mutable,
                 })
             }
             TypeReference::Constrained(constrained) => {
@@ -245,18 +335,17 @@ impl TypeReferenceTable {
                     constraints,
                 })
             }
-            TypeReference::FixedArray {
-                element_type,
-                length,
-            } => {
-                let element_type = self.insert_tree(element_type, expressions, source_constraints);
+            TypeReference::FixedArray(fixed_array) => {
+                let element_type =
+                    self.insert_tree(&fixed_array.element_type, expressions, source_constraints);
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
-                    length: *length,
+                    length: fixed_array.length,
                 })
             }
-            TypeReference::Slice { element_type } => {
-                let element_type = self.insert_tree(element_type, expressions, source_constraints);
+            TypeReference::Slice(slice) => {
+                let element_type =
+                    self.insert_tree(&slice.element_type, expressions, source_constraints);
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
             TypeReference::Generic(generic) => {
@@ -381,12 +470,9 @@ pub enum PrimitiveType {
 impl TypeReference {
     pub fn display_name(&self) -> String {
         match self {
-            TypeReference::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
-                format!("&{qualifier}{}", referee.display_name())
+            TypeReference::Reference(reference) => {
+                let qualifier = if reference.is_mutable { "mut " } else { "" };
+                format!("&{qualifier}{}", reference.referee.display_name())
             }
             TypeReference::Constrained(constrained) => {
                 format!(
@@ -398,14 +484,15 @@ impl TypeReference {
                     }
                 )
             }
-            TypeReference::FixedArray {
-                element_type,
-                length,
-            } => {
-                format!("[{}; {}]", element_type.display_name(), length)
+            TypeReference::FixedArray(fixed_array) => {
+                format!(
+                    "[{}; {}]",
+                    fixed_array.element_type.display_name(),
+                    fixed_array.length
+                )
             }
-            TypeReference::Slice { element_type } => {
-                format!("[{}]", element_type.display_name())
+            TypeReference::Slice(slice) => {
+                format!("[{}]", slice.element_type.display_name())
             }
             TypeReference::Generic(generic) => {
                 let arguments =
@@ -422,14 +509,13 @@ impl TypeReference {
         type_constraints: &Arena<TypeConstraint>,
     ) -> String {
         match self {
-            TypeReference::Reference {
-                referee,
-                is_mutable,
-            } => {
-                let qualifier = if *is_mutable { "mut " } else { "" };
+            TypeReference::Reference(reference) => {
+                let qualifier = if reference.is_mutable { "mut " } else { "" };
                 format!(
                     "&{qualifier}{}",
-                    referee.display_name_with_constraints(type_constraints)
+                    reference
+                        .referee
+                        .display_name_with_constraints(type_constraints)
                 )
             }
             TypeReference::Constrained(constrained) => {
@@ -441,18 +527,20 @@ impl TypeReference {
                     comma_join_display(constraints.iter(), TypeConstraint::display_name)
                 )
             }
-            TypeReference::FixedArray {
-                element_type,
-                length,
-            } => {
+            TypeReference::FixedArray(fixed_array) => {
                 format!(
                     "[{}; {}]",
-                    element_type.display_name_with_constraints(type_constraints),
-                    length
+                    fixed_array
+                        .element_type
+                        .display_name_with_constraints(type_constraints),
+                    fixed_array.length
                 )
             }
-            TypeReference::Slice { element_type } => {
-                format!("[{}]", element_type.display_name_with_constraints(type_constraints))
+            TypeReference::Slice(slice) => {
+                format!(
+                    "[{}]",
+                    slice.element_type.display_name_with_constraints(type_constraints)
+                )
             }
             TypeReference::Generic(generic) => {
                 let arguments = comma_join_display(generic.arguments.iter(), |argument| {
@@ -467,11 +555,11 @@ impl TypeReference {
 
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
-            TypeReference::Reference { .. } => None,
+            TypeReference::Reference(_) => None,
             TypeReference::Constrained(constrained) => constrained.base_type.primitive_type(),
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
-            TypeReference::FixedArray { .. }
-            | TypeReference::Slice { .. }
+            TypeReference::FixedArray(_)
+            | TypeReference::Slice(_)
             | TypeReference::Generic(_)
             | TypeReference::Unit => None,
         }
@@ -568,9 +656,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        ConstrainedTypeReference, ConstrainedTypeReferenceStorage, GenericTypeReference,
-        GenericTypeReferenceStorage, TypeConstraint, TypeConstraintNode, TypeReference,
-        TypeReferenceNode, TypeReferenceTable,
+        ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
+        FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
+        TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
     };
     use crate::expression::{Expression, ExpressionTable};
     use crate::name::ProgramName;
@@ -588,13 +676,15 @@ mod tests {
                         symbol: SymbolHandle::invalid(),
                         name: ProgramName::generated("usize"),
                     },
-                    TypeReference::FixedArray {
-                        element_type: Box::new(TypeReference::Named {
-                            symbol: SymbolHandle::invalid(),
-                            name: ProgramName::generated("u8"),
-                        }),
-                        length: 16,
-                    },
+                    TypeReference::FixedArray(FixedArrayTypeReference {
+                        storage: FixedArrayTypeReferenceStorage {
+                            element_type: Box::new(TypeReference::Named {
+                                symbol: SymbolHandle::invalid(),
+                                name: ProgramName::generated("u8"),
+                            }),
+                            length: 16,
+                        },
+                    }),
                 ],
             },
         });

@@ -379,15 +379,15 @@ fn count_optional_type_reference(
 
 fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentityStorageCounts) {
     match type_reference {
-        TypeReference::Reference { referee, .. } => count_type_reference(referee, counts),
+        TypeReference::Reference(reference) => count_type_reference(&reference.referee, counts),
         TypeReference::Constrained(constrained) => {
             count_type_reference(&constrained.base_type, counts)
         }
-        TypeReference::FixedArray { element_type, .. } => {
-            count_type_reference(element_type, counts);
+        TypeReference::FixedArray(fixed_array) => {
+            count_type_reference(&fixed_array.element_type, counts);
         }
-        TypeReference::Slice { element_type } => {
-            count_type_reference(element_type, counts);
+        TypeReference::Slice(slice) => {
+            count_type_reference(&slice.element_type, counts);
         }
         TypeReference::Generic(generic) => {
             count_type_name(&generic.base_name, counts);

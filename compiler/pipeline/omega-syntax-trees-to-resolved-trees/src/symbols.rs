@@ -902,17 +902,17 @@ fn type_reference_symbol(
     type_reference: &omega_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
-        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
-            type_reference_symbol(referee)
+        omega_resolved_trees::types::TypeReference::Reference(reference) => {
+            type_reference_symbol(&reference.referee)
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
             type_reference_symbol(&constrained.base_type)
         }
-        omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            type_reference_symbol(element_type)
+        omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
+            type_reference_symbol(&fixed_array.element_type)
         }
-        omega_resolved_trees::types::TypeReference::Slice { element_type } => {
-            type_reference_symbol(element_type)
+        omega_resolved_trees::types::TypeReference::Slice(slice) => {
+            type_reference_symbol(&slice.element_type)
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
         omega_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
@@ -924,17 +924,17 @@ fn type_reference_name(
     type_reference: &omega_resolved_trees::types::TypeReference,
 ) -> omega_resolved_trees::name::ProgramName {
     match type_reference {
-        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
-            type_reference_name(referee)
+        omega_resolved_trees::types::TypeReference::Reference(reference) => {
+            type_reference_name(&reference.referee)
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
             type_reference_name(&constrained.base_type)
         }
-        omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            type_reference_name(element_type)
+        omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
+            type_reference_name(&fixed_array.element_type)
         }
-        omega_resolved_trees::types::TypeReference::Slice { element_type } => {
-            type_reference_name(element_type)
+        omega_resolved_trees::types::TypeReference::Slice(slice) => {
+            type_reference_name(&slice.element_type)
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_name.clone(),
         omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
@@ -957,8 +957,12 @@ fn assign_type_reference_symbol_with_locals(
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
     match type_reference {
-        omega_resolved_trees::types::TypeReference::Reference { referee, .. } => {
-            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, referee);
+        omega_resolved_trees::types::TypeReference::Reference(reference) => {
+            assign_type_reference_symbol_with_locals(
+                symbols,
+                local_type_parameters,
+                &mut reference.referee,
+            );
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
             assign_type_reference_symbol_with_locals(
@@ -967,11 +971,19 @@ fn assign_type_reference_symbol_with_locals(
                 &mut constrained.base_type,
             );
         }
-        omega_resolved_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
+        omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
+            assign_type_reference_symbol_with_locals(
+                symbols,
+                local_type_parameters,
+                &mut fixed_array.element_type,
+            );
         }
-        omega_resolved_trees::types::TypeReference::Slice { element_type } => {
-            assign_type_reference_symbol_with_locals(symbols, local_type_parameters, element_type);
+        omega_resolved_trees::types::TypeReference::Slice(slice) => {
+            assign_type_reference_symbol_with_locals(
+                symbols,
+                local_type_parameters,
+                &mut slice.element_type,
+            );
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => {
             generic.base_symbol = top_level_type_symbol(symbols, generic.base_name.as_str());
