@@ -53,7 +53,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::Span;
-    use crate::source::{SourceId, SourceFile};
+    use crate::source::{SourceFile, SourceId};
 
     #[test]
     fn source_span_carries_source_identity() {

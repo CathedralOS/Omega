@@ -6,7 +6,6 @@ use super::{SymbolKind, SymbolNameRef};
 pub struct SymbolDefinition<'name> {
     pub kind: SymbolKind,
     pub name: SymbolNameRef<'name>,
-    pub debug_name: Option<SymbolNameRef<'name>>,
     pub children: Vec<SymbolDefinition<'name>>,
 }
 
@@ -15,7 +14,6 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Borrowed(name),
-            debug_name: None,
             children: Vec::new(),
         }
     }
@@ -24,7 +22,6 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Static(name),
-            debug_name: None,
             children: Vec::new(),
         }
     }
@@ -33,7 +30,6 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Source(source_span),
-            debug_name: None,
             children: Vec::new(),
         }
     }
@@ -46,7 +42,6 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Borrowed(name),
-            debug_name: None,
             children: children.into_iter().collect(),
         }
     }
@@ -59,7 +54,6 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Static(name),
-            debug_name: None,
             children: children.into_iter().collect(),
         }
     }
@@ -72,19 +66,8 @@ impl<'name> SymbolDefinition<'name> {
         Self {
             kind,
             name: SymbolNameRef::Source(source_span),
-            debug_name: None,
             children: children.into_iter().collect(),
         }
-    }
-
-    pub fn with_debug_name(mut self, debug_name: &'name str) -> Self {
-        self.debug_name = Some(SymbolNameRef::Borrowed(debug_name));
-        self
-    }
-
-    pub fn with_static_debug_name(mut self, debug_name: &'static str) -> Self {
-        self.debug_name = Some(SymbolNameRef::Static(debug_name));
-        self
     }
 }
 
