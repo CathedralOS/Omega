@@ -33,19 +33,7 @@ impl<T: Default> OrderedRootArena<T> {
 
     pub fn push(&mut self, value: T) -> Handle<T> {
         let value = self.storage.append(value);
-        let handle = self.handles.append(value);
-
-        self.roots = if self.roots.is_empty() {
-            HandleSpan::from_parts(handle, 1)
-        } else {
-            HandleSpan::from_parts(
-                self.roots.start(),
-                self.roots
-                    .count()
-                    .checked_add(1)
-                    .expect("ordered root span count overflow"),
-            )
-        };
+        self.handles.append_to_span(&mut self.roots, value);
 
         value
     }
