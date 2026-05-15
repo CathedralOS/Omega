@@ -811,7 +811,7 @@ pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
     let mut report = BackendSurfaceReport::default();
 
     for machine in program.machines() {
-        collect_machine(&mut report, machine);
+        collect_machine(&mut report, program, machine);
     }
 
     for platform in program.platforms() {
@@ -821,10 +821,10 @@ pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
     report
 }
 
-fn collect_machine(report: &mut BackendSurfaceReport, machine: &Machine) {
+fn collect_machine(report: &mut BackendSurfaceReport, program: &Program, machine: &Machine) {
     report.machines.insert(BackendMachineSurface {
         name: machine.name.to_string(),
-        contained_objects: machine.contains.len(),
+        contained_objects: program.machine_contained_objects(machine).len(),
         owned_data: machine.owned_data.len(),
         states: machine.states.len(),
     });
@@ -940,7 +940,7 @@ mod tests {
         program.typed.push_machine(Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),
-            contains: Vec::new(),
+            contains: Default::default(),
             owned_data: Vec::new(),
             states: vec![State {
                 symbol: SymbolHandle::default(),

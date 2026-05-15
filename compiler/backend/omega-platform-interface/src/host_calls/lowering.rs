@@ -17,8 +17,8 @@ pub(crate) fn platform_call_receiver_type(
         return None;
     }
 
-    let receiver_type_symbol = machine
-        .contains
+    let receiver_type_symbol = program
+        .machine_contained_objects(machine)
         .iter()
         .find(|contained_object| contained_object.symbol == call.receiver_symbol)
         .map(|contained_object| contained_object.type_symbol)

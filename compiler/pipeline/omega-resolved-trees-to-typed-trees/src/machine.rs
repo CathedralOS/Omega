@@ -13,7 +13,7 @@ pub(crate) fn lower_machine(
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
-        contains: Vec::new(),
+        contains: omega_core::arena::HandleSpan::empty(),
         owned_data: Vec::new(),
         states: Vec::new(),
     };
@@ -22,12 +22,15 @@ pub(crate) fn lower_machine(
         .source_program
         .machine_contained_objects(machine.contains)
     {
-        typed_machine.contains.push(typed::machine::ContainedObject {
+        let contained_object = typed::machine::ContainedObject {
             symbol: contained_object.symbol,
             type_symbol: contained_object.type_symbol,
             name: crate::name::lower_name(&contained_object.name),
             type_name: crate::name::lower_name(&contained_object.type_name),
-        });
+        };
+        lowerer
+            .typed_trees
+            .push_machine_contained_object(&mut typed_machine, contained_object);
     }
 
     for owned_data in lowerer

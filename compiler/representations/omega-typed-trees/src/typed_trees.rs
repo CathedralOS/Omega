@@ -10,6 +10,7 @@ pub struct TypedTrees {
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
     pub machines: Arena<machine::Machine>,
+    pub machine_contained_objects: Arena<machine::ContainedObject>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -81,6 +82,23 @@ impl TypedTrees {
 
     pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
         self.machines.span_mut_or_empty(self.root_machines)
+    }
+
+    pub fn push_machine_contained_object(
+        &mut self,
+        machine: &mut machine::Machine,
+        contained_object: machine::ContainedObject,
+    ) {
+        self.machine_contained_objects
+            .append_to_span(&mut machine.contains, contained_object);
+    }
+
+    pub fn machine_contained_objects(
+        &self,
+        machine: &machine::Machine,
+    ) -> &[machine::ContainedObject] {
+        self.machine_contained_objects
+            .span_or_empty(machine.contains)
     }
 
     pub fn rebuild_tables(&mut self) {
