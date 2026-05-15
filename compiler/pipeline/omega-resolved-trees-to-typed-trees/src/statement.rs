@@ -18,17 +18,20 @@ pub(crate) fn lower_statement(
             }),
         ),
         resolved::statement::Statement::Call(call) => {
+            let mut arguments = Vec::new();
+            for argument in lowerer
+                .source_program
+                .state_statement_expressions(call.arguments)
+            {
+                arguments.push(lower_expression(argument)?);
+            }
+
             Ok(typed::statement::Statement::Call(typed::statement::Call {
                 receiver_symbol: call.receiver_symbol,
                 target_symbol: call.target_symbol,
                 receiver: call.receiver.as_ref().map(lower_name_path),
                 target: crate::name::lower_name(&call.target),
-                arguments: lowerer
-                    .source_program
-                    .state_statement_expressions(call.arguments)
-                    .iter()
-                    .map(lower_expression)
-                    .collect::<Result<Vec<_>, _>>()?,
+                arguments,
             }))
         }
         resolved::statement::Statement::Expression(expression) => Ok(
@@ -79,14 +82,17 @@ fn lower_transition_target(
 ) -> Result<typed::statement::TransitionTarget, Diagnostic> {
     match target {
         resolved::statement::TransitionTarget::Named(named) => {
+            let mut arguments = Vec::new();
+            for argument in lowerer
+                .source_program
+                .state_statement_expressions(named.arguments)
+            {
+                arguments.push(lower_expression(argument)?);
+            }
+
             Ok(typed::statement::TransitionTarget::Named {
                 path: lower_name_path(&named.path),
-                arguments: lowerer
-                    .source_program
-                    .state_statement_expressions(named.arguments)
-                    .iter()
-                    .map(lower_expression)
-                    .collect::<Result<Vec<_>, _>>()?,
+                arguments,
             })
         }
         resolved::statement::TransitionTarget::Value(expression) => Ok(

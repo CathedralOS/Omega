@@ -32,12 +32,14 @@ pub(crate) fn lower_type_reference(
             element_type: Box::new(lower_type_reference(lowerer, &slice.element_type)?),
         }),
         resolved::types::TypeReference::Generic(generic) => {
-            let arguments = lowerer
+            let mut arguments = Vec::new();
+            for argument in lowerer
                 .source_program
                 .type_reference_arguments(generic.arguments)
-                .iter()
-                .map(|argument| lower_type_reference(lowerer, argument))
-                .collect::<Result<Vec<_>, _>>()?;
+            {
+                arguments.push(lower_type_reference(lowerer, argument)?);
+            }
+
             Ok(typed::types::TypeReference::Generic {
                 base_symbol: generic.base_symbol,
                 base_name: crate::name::lower_name(&generic.base_name),
