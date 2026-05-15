@@ -395,12 +395,12 @@ fn inherited_field_count(
 
 fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     for data_definition in &mut program.data_definitions {
-        let type_parameter_bindings = data_type_parameter_bindings(data_definition);
-        for member in &mut data_definition.members {
+        let type_parameters = data_definition.storage.type_parameters.as_slice();
+        for member in &mut data_definition.storage.members {
             if let omega_resolved_trees::data::DataMember::Field(field) = member {
                 assign_type_reference_symbol_with_locals(
                     symbols,
-                    &type_parameter_bindings,
+                    type_parameters,
                     &mut field.type_reference,
                 );
             }
@@ -409,20 +409,39 @@ fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
 }
 
 fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
-    let data_definitions = program.data_definitions.clone();
-    for machine in &mut program.machines {
+    let SymbolResolvedTrees {
+        roots:
+            omega_resolved_trees::SymbolResolvedRoots {
+                data_definitions,
+                machines,
+                ..
+            },
+        ..
+    } = program;
+    let data_definitions = data_definitions.as_slice();
+    for machine in machines {
+        let machine_symbol = machine.symbol;
+        let data_definition = data_definitions
+            .iter()
+            .find(|data_definition| data_definition.name == machine.name);
+        let omega_resolved_trees::machine::MachineStorage {
+            contains,
+            owned_data,
+            states,
+        } = &mut machine.storage;
         let machine_scope = MachineScope {
-            symbol: machine.symbol,
-            contains: machine.contains.clone(),
-            fields: machine_field_bindings(&data_definitions, machine),
+            symbol: machine_symbol,
+            contains: contains.as_slice(),
+            data_definition,
+            owned_data: owned_data.as_slice(),
         };
-        for state in &mut machine.states {
-            let parameter_bindings = state_parameter_bindings(state);
+        for state in states {
             let state_symbol = state.symbol;
-            for statement in &mut state.statements {
+            let parameters = state.storage.parameters.as_slice();
+            for statement in &mut state.storage.statements {
                 assign_statement_symbols(
                     &machine_scope,
-                    &parameter_bindings,
+                    parameters,
                     state_symbol,
                     statement,
                     symbols,
@@ -432,36 +451,39 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
     }
 }
 
-#[derive(Clone)]
-struct MachineScope {
+struct MachineScope<'program> {
     symbol: SymbolHandle,
-    contains: Vec<omega_resolved_trees::machine::ContainedObject>,
-    fields: Vec<FieldBinding>,
+    contains: &'program [omega_resolved_trees::machine::ContainedObject],
+    data_definition: Option<&'program omega_resolved_trees::data::DataDefinition>,
+    owned_data: &'program [omega_resolved_trees::machine::OwnedData],
 }
 
-#[derive(Clone)]
-struct FieldBinding {
-    symbol: SymbolHandle,
-    type_name: omega_resolved_trees::name::DiagnosticName,
-    type_symbol: SymbolHandle,
-}
+impl MachineScope<'_> {
+    fn field_type_reference(
+        &self,
+        field_symbol: SymbolHandle,
+    ) -> Option<&omega_resolved_trees::types::TypeReference> {
+        if let Some(data_definition) = self.data_definition {
+            for member in &data_definition.members {
+                let omega_resolved_trees::data::DataMember::Field(field) = member else {
+                    continue;
+                };
+                if field.symbol == field_symbol {
+                    return Some(&field.type_reference);
+                }
+            }
+        }
 
-#[derive(Clone)]
-struct ParameterBinding {
-    symbol: SymbolHandle,
-    type_name: omega_resolved_trees::name::DiagnosticName,
-    type_symbol: SymbolHandle,
-}
-
-#[derive(Clone)]
-struct TypeParameterBinding {
-    symbol: SymbolHandle,
-    name: omega_resolved_trees::name::DiagnosticName,
+        self.owned_data
+            .iter()
+            .find(|owned_data| owned_data.symbol == field_symbol)
+            .map(|owned_data| &owned_data.type_reference)
+    }
 }
 
 fn assign_statement_symbols(
-    machine: &MachineScope,
-    parameters: &[ParameterBinding],
+    machine: &MachineScope<'_>,
+    parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     statement: &mut omega_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
@@ -538,8 +560,8 @@ fn assign_statement_symbols(
 
 fn assign_expression_symbols(
     symbols: &SymbolTable,
-    machine: &MachineScope,
-    parameters: &[ParameterBinding],
+    machine: &MachineScope<'_>,
+    parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     expression: &mut omega_resolved_trees::expression::Expression,
 ) {
@@ -673,8 +695,8 @@ fn expression_from_path(
 }
 
 fn resolve_expression_call_target_symbol(
-    machine: &MachineScope,
-    parameters: &[ParameterBinding],
+    machine: &MachineScope<'_>,
+    parameters: &[omega_resolved_trees::signature::StateParameter],
     call: &omega_resolved_trees::expression::CallExpression,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
@@ -733,7 +755,7 @@ fn expression_name_path(
 }
 
 fn assign_transition_target_symbols(
-    machine: &MachineScope,
+    machine: &MachineScope<'_>,
     state_symbol: SymbolHandle,
     target: &mut omega_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
@@ -769,8 +791,8 @@ fn assign_transition_target_symbols(
 }
 
 fn resolve_call_target_symbol(
-    machine: &MachineScope,
-    parameters: &[ParameterBinding],
+    machine: &MachineScope<'_>,
+    parameters: &[omega_resolved_trees::signature::StateParameter],
     call: &omega_resolved_trees::statement::Call,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
@@ -789,33 +811,12 @@ fn resolve_call_target_symbol(
                 );
             }
 
-            if let Some(field) = machine
-                .fields
-                .iter()
-                .find(|field| field.symbol == call.receiver_symbol)
-            {
-                let symbol = child_symbol_by_kinds(
+            if let Some(field_type_reference) = machine.field_type_reference(call.receiver_symbol) {
+                let symbol = call_target_for_type_reference(
                     symbols,
-                    field.type_symbol,
-                    &[SymbolKind::State],
+                    field_type_reference,
                     call.target.as_str(),
                 );
-                if symbol.is_valid() {
-                    return symbol;
-                }
-                let callable_type = top_level_symbol_by_kinds(
-                    symbols,
-                    &[SymbolKind::Machine, SymbolKind::Platform],
-                    field.type_name.as_str(),
-                );
-                if callable_type.is_valid() {
-                    return child_symbol_by_kinds(
-                        symbols,
-                        callable_type,
-                        &[SymbolKind::State],
-                        call.target.as_str(),
-                    );
-                }
                 return symbol;
             }
 
@@ -824,27 +825,13 @@ fn resolve_call_target_symbol(
                 .iter()
                 .find(|parameter| parameter.symbol == call.receiver_symbol)
             {
-                let direct = child_symbol_by_kinds(
+                let direct = call_target_for_type_reference(
                     symbols,
-                    parameter.type_symbol,
-                    &[SymbolKind::State],
+                    &parameter.type_reference,
                     call.target.as_str(),
                 );
                 if direct.is_valid() {
                     return direct;
-                }
-                let callable_type = top_level_symbol_by_kinds(
-                    symbols,
-                    &[SymbolKind::Machine, SymbolKind::Platform],
-                    parameter.type_name.as_str(),
-                );
-                if callable_type.is_valid() {
-                    return child_symbol_by_kinds(
-                        symbols,
-                        callable_type,
-                        &[SymbolKind::State],
-                        call.target.as_str(),
-                    );
                 }
             }
             if matches!(receiver_kind, SymbolKind::Machine | SymbolKind::Platform) {
@@ -974,65 +961,6 @@ fn resolve_base_symbol(
     top_level.is_valid().then_some(top_level)
 }
 
-fn machine_field_bindings(
-    data_definitions: &[omega_resolved_trees::data::DataDefinition],
-    machine: &omega_resolved_trees::machine::Machine,
-) -> Vec<FieldBinding> {
-    let mut fields = Vec::new();
-
-    if let Some(data_definition) = data_definitions
-        .iter()
-        .find(|data_definition| data_definition.name == machine.name)
-    {
-        for member in &data_definition.members {
-            let omega_resolved_trees::data::DataMember::Field(field) = member else {
-                continue;
-            };
-
-            fields.push(FieldBinding {
-                symbol: field.symbol,
-                type_name: type_reference_name(&field.type_reference),
-                type_symbol: type_reference_symbol(&field.type_reference),
-            });
-        }
-    }
-
-    for owned_data in &machine.owned_data {
-        fields.push(FieldBinding {
-            symbol: owned_data.symbol,
-            type_name: type_reference_name(&owned_data.type_reference),
-            type_symbol: type_reference_symbol(&owned_data.type_reference),
-        });
-    }
-
-    fields
-}
-
-fn state_parameter_bindings(state: &omega_resolved_trees::state::State) -> Vec<ParameterBinding> {
-    state
-        .parameters
-        .iter()
-        .map(|parameter| ParameterBinding {
-            symbol: parameter.symbol,
-            type_name: type_reference_name(&parameter.type_reference),
-            type_symbol: type_reference_symbol(&parameter.type_reference),
-        })
-        .collect()
-}
-
-fn data_type_parameter_bindings(
-    data_definition: &omega_resolved_trees::data::DataDefinition,
-) -> Vec<TypeParameterBinding> {
-    data_definition
-        .type_parameters
-        .iter()
-        .map(|parameter| TypeParameterBinding {
-            symbol: parameter.symbol,
-            name: parameter.name.clone(),
-        })
-        .collect()
-}
-
 fn type_reference_symbol(
     type_reference: &omega_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
@@ -1058,7 +986,7 @@ fn type_reference_symbol(
 
 fn type_reference_name(
     type_reference: &omega_resolved_trees::types::TypeReference,
-) -> omega_resolved_trees::name::DiagnosticName {
+) -> Option<&omega_resolved_trees::name::DiagnosticName> {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference(reference) => {
             type_reference_name(&reference.referee)
@@ -1072,15 +1000,41 @@ fn type_reference_name(
         omega_resolved_trees::types::TypeReference::Slice(slice) => {
             type_reference_name(&slice.element_type)
         }
-        omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_name.clone(),
-        omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
-        omega_resolved_trees::types::TypeReference::SelfType { .. } => {
-            omega_resolved_trees::name::DiagnosticName::generated("Self")
-        }
-        omega_resolved_trees::types::TypeReference::Unit => {
-            omega_resolved_trees::name::DiagnosticName::default()
-        }
+        omega_resolved_trees::types::TypeReference::Generic(generic) => Some(&generic.base_name),
+        omega_resolved_trees::types::TypeReference::Named { name, .. } => Some(name),
+        omega_resolved_trees::types::TypeReference::SelfType { .. }
+        | omega_resolved_trees::types::TypeReference::Unit => None,
     }
+}
+
+fn call_target_for_type_reference(
+    symbols: &SymbolTable,
+    type_reference: &omega_resolved_trees::types::TypeReference,
+    target_name: &str,
+) -> SymbolHandle {
+    let direct = child_symbol_by_kinds(
+        symbols,
+        type_reference_symbol(type_reference),
+        &[SymbolKind::State],
+        target_name,
+    );
+    if direct.is_valid() {
+        return direct;
+    }
+
+    let Some(type_name) = type_reference_name(type_reference) else {
+        return direct;
+    };
+    let callable_type = top_level_symbol_by_kinds(
+        symbols,
+        &[SymbolKind::Machine, SymbolKind::Platform],
+        type_name.as_str(),
+    );
+    if callable_type.is_valid() {
+        return child_symbol_by_kinds(symbols, callable_type, &[SymbolKind::State], target_name);
+    }
+
+    direct
 }
 
 fn assign_type_reference_symbol_with_self_type(
@@ -1093,7 +1047,7 @@ fn assign_type_reference_symbol_with_self_type(
 
 fn assign_type_reference_symbol_with_locals(
     symbols: &SymbolTable,
-    local_type_parameters: &[TypeParameterBinding],
+    local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
     assign_type_reference_symbol_with_context(
@@ -1106,7 +1060,7 @@ fn assign_type_reference_symbol_with_locals(
 
 fn assign_type_reference_symbol_with_context(
     symbols: &SymbolTable,
-    local_type_parameters: &[TypeParameterBinding],
+    local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     type_reference: &mut omega_resolved_trees::types::TypeReference,
 ) {
@@ -1168,7 +1122,7 @@ fn assign_type_reference_symbol_with_context(
 
 fn resolve_type_symbol(
     symbols: &SymbolTable,
-    local_type_parameters: &[TypeParameterBinding],
+    local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
     name: &omega_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     local_type_parameters
