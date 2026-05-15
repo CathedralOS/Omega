@@ -9,11 +9,11 @@ use omega_resolved_trees::SymbolResolvedTrees;
 type SymbolSeed<'name> = (SymbolKind, SymbolNameRef<'name>);
 
 pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees, sources: Option<Arc<SourceMap>>) {
-    program.symbols = build_symbol_table(program, sources);
-    let symbols = program.symbols.clone();
+    let symbols = build_symbol_table(program, sources);
     assign_top_level_symbols(program, &symbols);
     assign_type_reference_symbols(program, &symbols);
     assign_statement_call_symbols(program, &symbols);
+    program.symbols = symbols;
 }
 
 fn build_symbol_table(
