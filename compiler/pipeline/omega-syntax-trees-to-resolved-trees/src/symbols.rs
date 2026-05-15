@@ -79,7 +79,13 @@ fn build_symbol_table(
     }
     for platform in &program.platforms {
         if let Some(platform_symbol) = root_children.next() {
-            insert_platform_symbol_children(&mut builder, platform_symbol, platform, has_sources);
+            insert_platform_symbol_children(
+                &mut builder,
+                program,
+                platform_symbol,
+                platform,
+                has_sources,
+            );
         }
     }
 
@@ -173,20 +179,21 @@ fn insert_state_symbol_children(
 
 fn insert_platform_symbol_children(
     builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
     platform_symbol: SymbolHandle,
     platform: &omega_resolved_trees::platform::Platform,
     has_sources: bool,
 ) {
     let platform_children = builder.insert_children(
         platform_symbol,
-        platform
-            .states
+        program
+            .platform_state_signatures(platform.states)
             .iter()
             .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
     );
 
-    for (state_symbol, state) in
-        SymbolTableBuilder::child_handles(platform_children).zip(platform.states.iter())
+    for (state_symbol, state) in SymbolTableBuilder::child_handles(platform_children)
+        .zip(program.platform_state_signatures(platform.states).iter())
     {
         builder.insert_children(
             state_symbol,
@@ -354,12 +361,13 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         }
     });
 
-    program.platforms.for_each_mut(|platform| {
+    let platform_state_signatures = &mut program.tables.declarations.platform_state_signatures;
+    program.roots.platforms.for_each_mut(|platform| {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
         let mut platform_children = symbols.child_handles(platform_symbol).into_iter().flatten();
 
-        for state in &mut platform.states {
+        for state in platform_state_signatures.span_mut_or_empty(platform.states) {
             state.symbol = next_child_of_kind(&mut platform_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
             let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();

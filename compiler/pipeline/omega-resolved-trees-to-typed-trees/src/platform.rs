@@ -8,8 +8,9 @@ pub(crate) fn lower_platform(
     lowerer: &mut Lowerer,
     platform: &resolved::platform::Platform,
 ) -> Result<typed::platform::Platform, Diagnostic> {
-    let states = platform
-        .states
+    let states = lowerer
+        .source_program
+        .platform_state_signatures(platform.states)
         .iter()
         .map(|signature| lower_state_signature(lowerer, signature))
         .collect::<Result<Vec<_>, _>>()?;

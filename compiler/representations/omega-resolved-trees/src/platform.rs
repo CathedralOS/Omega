@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use crate::signature::StateSignature;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
@@ -12,7 +13,7 @@ pub struct Platform {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PlatformStorage {
-    pub states: Vec<StateSignature>,
+    pub states: HandleSpan<StateSignature>,
 }
 
 impl Deref for Platform {

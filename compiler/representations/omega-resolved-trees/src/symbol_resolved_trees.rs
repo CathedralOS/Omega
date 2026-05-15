@@ -1,4 +1,4 @@
-use crate::{data, expression, snapshot, statement, tables, types};
+use crate::{data, expression, signature, snapshot, statement, tables, types};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolTable;
 use std::marker::PhantomData;
@@ -149,6 +149,7 @@ pub struct SymbolResolvedTableStorage {
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub platform_state_signatures: Arena<signature::StateSignature>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -175,6 +176,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .data_type_parameters
+            .span_or_empty(span)
+    }
+
+    pub fn platform_state_signatures(
+        &self,
+        span: HandleSpan<signature::StateSignature>,
+    ) -> &[signature::StateSignature] {
+        self.tables
+            .declarations
+            .platform_state_signatures
             .span_or_empty(span)
     }
 
