@@ -157,6 +157,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub state_parameters: Arena<signature::StateParameter>,
     pub state_statement_expressions: Arena<expression::Expression>,
     pub state_statements: Arena<statement::Statement>,
+    pub type_reference_arguments: Arena<types::TypeReference>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -257,6 +258,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .state_statement_expressions
+            .span_or_empty(span)
+    }
+
+    pub fn type_reference_arguments(
+        &self,
+        span: HandleSpan<types::TypeReference>,
+    ) -> &[types::TypeReference] {
+        self.tables
+            .declarations
+            .type_reference_arguments
             .span_or_empty(span)
     }
 

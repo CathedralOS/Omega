@@ -23,6 +23,12 @@ pub enum TypeReference {
     Unit,
 }
 
+impl Default for TypeReference {
+    fn default() -> Self {
+        Self::Unit
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceTypeReference {
     pub storage: ReferenceTypeReferenceStorage,
@@ -166,7 +172,7 @@ pub struct GenericTypeReference {
 pub struct GenericTypeReferenceStorage {
     pub base_symbol: SymbolHandle,
     pub base_name: DiagnosticName,
-    pub arguments: Vec<TypeReference>,
+    pub arguments: HandleSpan<TypeReference>,
 }
 
 impl Deref for GenericTypeReference {
@@ -237,13 +243,19 @@ impl TypeReferenceTable {
         &mut self,
         type_references: impl IntoIterator<Item = &'type_reference TypeReference>,
         expressions: &mut crate::expression::ExpressionTable,
+        source_generic_arguments: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeReferenceHandle> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
         for type_reference in type_references {
-            let type_reference = self.insert_tree(type_reference, expressions, source_constraints);
+            let type_reference = self.insert_tree(
+                type_reference,
+                expressions,
+                source_generic_arguments,
+                source_constraints,
+            );
             let handle = self.spans.type_reference_handles.append(type_reference);
             if count == 0 {
                 start = handle;
@@ -316,19 +328,29 @@ impl TypeReferenceTable {
         &mut self,
         type_reference: &TypeReference,
         expressions: &mut crate::expression::ExpressionTable,
+        source_generic_arguments: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
     ) -> TypeReferenceHandle {
         match type_reference {
             TypeReference::Reference(reference) => {
-                let referee = self.insert_tree(&reference.referee, expressions, source_constraints);
+                let referee = self.insert_tree(
+                    &reference.referee,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                );
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
                 })
             }
             TypeReference::Constrained(constrained) => {
-                let base_type =
-                    self.insert_tree(&constrained.base_type, expressions, source_constraints);
+                let base_type = self.insert_tree(
+                    &constrained.base_type,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                );
                 let constraints = self.insert_constraint_span_from_tree(
                     constrained.constraints,
                     expressions,
@@ -340,22 +362,31 @@ impl TypeReferenceTable {
                 })
             }
             TypeReference::FixedArray(fixed_array) => {
-                let element_type =
-                    self.insert_tree(&fixed_array.element_type, expressions, source_constraints);
+                let element_type = self.insert_tree(
+                    &fixed_array.element_type,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                );
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
                     length: fixed_array.length,
                 })
             }
             TypeReference::Slice(slice) => {
-                let element_type =
-                    self.insert_tree(&slice.element_type, expressions, source_constraints);
+                let element_type = self.insert_tree(
+                    &slice.element_type,
+                    expressions,
+                    source_generic_arguments,
+                    source_constraints,
+                );
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
             TypeReference::Generic(generic) => {
                 let arguments = self.insert_type_reference_handle_span_from_trees(
-                    &generic.arguments,
+                    source_generic_arguments.span_or_empty(generic.arguments),
                     expressions,
+                    source_generic_arguments,
                     source_constraints,
                 );
                 self.insert(TypeReferenceNode::Generic {
@@ -505,8 +536,10 @@ impl TypeReference {
                 format!("[{}]", slice.element_type.display_name())
             }
             TypeReference::Generic(generic) => {
-                let arguments =
-                    comma_join_display(generic.arguments.iter(), TypeReference::display_name);
+                let arguments = match generic.arguments.count() {
+                    1 => "1 argument".to_owned(),
+                    count => format!("{count} arguments"),
+                };
                 format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
@@ -559,9 +592,10 @@ impl TypeReference {
                 )
             }
             TypeReference::Generic(generic) => {
-                let arguments = comma_join_display(generic.arguments.iter(), |argument| {
-                    argument.display_name_with_constraints(type_constraints)
-                });
+                let arguments = match generic.arguments.count() {
+                    1 => "1 argument".to_owned(),
+                    count => format!("{count} arguments"),
+                };
                 format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
@@ -685,32 +719,39 @@ mod tests {
 
     #[test]
     fn type_reference_table_stores_nested_typed_references_as_handles() {
+        let mut source_arguments = Arena::<TypeReference>::new();
+        let arguments = source_arguments.insert_many([
+            TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: DiagnosticName::generated("usize"),
+            },
+            TypeReference::FixedArray(FixedArrayTypeReference {
+                storage: FixedArrayTypeReferenceStorage {
+                    element_type: Box::new(TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: DiagnosticName::generated("u8"),
+                    }),
+                    length: 16,
+                },
+            }),
+        ]);
         let type_reference = TypeReference::Generic(GenericTypeReference {
             storage: GenericTypeReferenceStorage {
                 base_symbol: SymbolHandle::invalid(),
                 base_name: DiagnosticName::generated("Result"),
-                arguments: vec![
-                    TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: DiagnosticName::generated("usize"),
-                    },
-                    TypeReference::FixedArray(FixedArrayTypeReference {
-                        storage: FixedArrayTypeReferenceStorage {
-                            element_type: Box::new(TypeReference::Named {
-                                symbol: SymbolHandle::invalid(),
-                                name: DiagnosticName::generated("u8"),
-                            }),
-                            length: 16,
-                        },
-                    }),
-                ],
+                arguments,
             },
         });
 
         let source_constraints = Arena::<TypeConstraint>::new();
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions, &source_constraints);
+        let root = types.insert_tree(
+            &type_reference,
+            &mut expressions,
+            &source_arguments,
+            &source_constraints,
+        );
 
         assert_eq!(types.type_reference_count(), 4);
         let TypeReferenceNode::Generic { arguments, .. } = types.type_reference(root) else {
@@ -739,7 +780,13 @@ mod tests {
 
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let root = types.insert_tree(&type_reference, &mut expressions, &source_constraints);
+        let source_arguments = Arena::<TypeReference>::new();
+        let root = types.insert_tree(
+            &type_reference,
+            &mut expressions,
+            &source_arguments,
+            &source_constraints,
+        );
 
         assert_eq!(types.type_reference_count(), 2);
         assert_eq!(expressions.expression_count(), 2);

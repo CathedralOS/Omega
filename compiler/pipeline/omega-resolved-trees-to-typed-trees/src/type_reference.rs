@@ -32,14 +32,16 @@ pub(crate) fn lower_type_reference(
             element_type: Box::new(lower_type_reference(lowerer, &slice.element_type)?),
         }),
         resolved::types::TypeReference::Generic(generic) => {
+            let arguments = lowerer
+                .source_program
+                .type_reference_arguments(generic.arguments)
+                .iter()
+                .map(|argument| lower_type_reference(lowerer, argument))
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(typed::types::TypeReference::Generic {
                 base_symbol: generic.base_symbol,
                 base_name: crate::name::lower_name(&generic.base_name),
-                arguments: generic
-                    .arguments
-                    .iter()
-                    .map(|argument| lower_type_reference(lowerer, argument))
-                    .collect::<Result<Vec<_>, _>>()?,
+                arguments,
             })
         }
         resolved::types::TypeReference::Named { symbol, name } => {

@@ -45,6 +45,7 @@ impl IdentityStorageCounts {
 
 pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
+    let type_reference_arguments = &program.tables.declarations.type_reference_arguments;
 
     for invariant in &program.invariant_definitions {
         count_declaration_name(&invariant.name, &mut counts);
@@ -56,7 +57,11 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);
-                    count_type_reference(&field.type_reference, &mut counts);
+                    count_type_reference(
+                        &field.type_reference,
+                        type_reference_arguments,
+                        &mut counts,
+                    );
                 }
                 DataMember::Variant(variant) => count_declaration_name(&variant.name, &mut counts),
             }
@@ -67,10 +72,18 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         count_declaration_name(&platform.name, &mut counts);
         for signature in program.platform_state_signatures(platform.states) {
             count_declaration_name(&signature.name, &mut counts);
-            count_optional_type_reference(signature.return_type.as_ref(), &mut counts);
+            count_optional_type_reference(
+                signature.return_type.as_ref(),
+                type_reference_arguments,
+                &mut counts,
+            );
             for parameter in program.state_parameters(signature.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(&parameter.type_reference, &mut counts);
+                count_type_reference(
+                    &parameter.type_reference,
+                    type_reference_arguments,
+                    &mut counts,
+                );
             }
         }
     }
@@ -83,7 +96,11 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         }
         for owned_data in program.machine_owned_data(machine.owned_data) {
             count_declaration_name(&owned_data.name, &mut counts);
-            count_type_reference(&owned_data.type_reference, &mut counts);
+            count_type_reference(
+                &owned_data.type_reference,
+                type_reference_arguments,
+                &mut counts,
+            );
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);
         }
         for state in program
@@ -92,10 +109,18 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             .map(|state| program.machine_state(*state))
         {
             count_declaration_name(&state.name, &mut counts);
-            count_optional_type_reference(state.return_type.as_ref(), &mut counts);
+            count_optional_type_reference(
+                state.return_type.as_ref(),
+                type_reference_arguments,
+                &mut counts,
+            );
             for parameter in program.state_parameters(state.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
-                count_type_reference(&parameter.type_reference, &mut counts);
+                count_type_reference(
+                    &parameter.type_reference,
+                    type_reference_arguments,
+                    &mut counts,
+                );
             }
             for statement in program
                 .tables
@@ -380,29 +405,36 @@ fn count_optional_expression(expression: Option<&Expression>, counts: &mut Ident
 
 fn count_optional_type_reference(
     type_reference: Option<&TypeReference>,
+    generic_arguments: &omega_core::arena::Arena<TypeReference>,
     counts: &mut IdentityStorageCounts,
 ) {
     if let Some(type_reference) = type_reference {
-        count_type_reference(type_reference, counts);
+        count_type_reference(type_reference, generic_arguments, counts);
     }
 }
 
-fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentityStorageCounts) {
+fn count_type_reference(
+    type_reference: &TypeReference,
+    generic_arguments: &omega_core::arena::Arena<TypeReference>,
+    counts: &mut IdentityStorageCounts,
+) {
     match type_reference {
-        TypeReference::Reference(reference) => count_type_reference(&reference.referee, counts),
+        TypeReference::Reference(reference) => {
+            count_type_reference(&reference.referee, generic_arguments, counts)
+        }
         TypeReference::Constrained(constrained) => {
-            count_type_reference(&constrained.base_type, counts)
+            count_type_reference(&constrained.base_type, generic_arguments, counts)
         }
         TypeReference::FixedArray(fixed_array) => {
-            count_type_reference(&fixed_array.element_type, counts);
+            count_type_reference(&fixed_array.element_type, generic_arguments, counts);
         }
         TypeReference::Slice(slice) => {
-            count_type_reference(&slice.element_type, counts);
+            count_type_reference(&slice.element_type, generic_arguments, counts);
         }
         TypeReference::Generic(generic) => {
             count_type_name(&generic.base_name, counts);
-            for argument in &generic.arguments {
-                count_type_reference(argument, counts);
+            for argument in generic_arguments.span_or_empty(generic.arguments) {
+                count_type_reference(argument, generic_arguments, counts);
             }
         }
         TypeReference::Named { name, .. } => count_type_name(name, counts),
