@@ -520,7 +520,7 @@ fn resolve_call_target_machine<'program>(
         .find(|contained| contained.symbol == contained_symbol)?;
 
     program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.symbol == contained.type_symbol)
 }
@@ -1550,7 +1550,9 @@ mod tests {
 
     fn checked_program_with_machines(machines: Vec<Machine>) -> Program {
         let mut program = Program::default();
-        program.typed.machines = machines;
+        for machine in machines {
+            program.typed.push_machine(machine);
+        }
         program
     }
 }

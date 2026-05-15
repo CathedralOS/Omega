@@ -50,14 +50,14 @@ pub fn build_state_value_plan_with_workers(
     context: Arc<StateValuePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateValuePlan {
-    if program.machines.is_empty() {
+    if program.machines().is_empty() {
         return StateValuePlan::default();
     }
 
-    let machine_count = program.machines.len();
+    let machine_count = program.machines().len();
     let machine_plans = workers.map_ordered(machine_count, move |index| {
         let machine = program
-            .machines
+            .machines()
             .get(index)
             .expect("state-value worker index should be in range");
 

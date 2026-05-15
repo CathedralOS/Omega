@@ -18,7 +18,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_data_field_types(program, &symbols, &mut diagnostics);
     validate_entry_point(program, &mut diagnostics);
 
-    for machine in &program.machines {
+    for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
         validate_contained_types(machine, &symbols, &mut diagnostics);
@@ -252,7 +252,7 @@ fn validate_callable_state_signatures(
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for machine in &program.machines {
+    for machine in program.machines() {
         validate_state_signature_types(
             machine.states.iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
@@ -533,7 +533,7 @@ fn validate_type_constraints(
 
 fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let Some(main_machine) = program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.name == "main")
     else {
@@ -571,10 +571,10 @@ mod tests {
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
         let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-        assert_eq!(typed.machines.len(), 1);
-        assert_eq!(typed.machines[0].name.as_str(), "main");
-        assert_eq!(typed.machines[0].states.len(), 1);
-        assert_eq!(typed.machines[0].states[0].name.as_str(), "entry");
+        assert_eq!(typed.machines().len(), 1);
+        assert_eq!(typed.machines()[0].name.as_str(), "main");
+        assert_eq!(typed.machines()[0].states.len(), 1);
+        assert_eq!(typed.machines()[0].states[0].name.as_str(), "entry");
         validate_program(&typed).expect("validation should succeed");
     }
 
@@ -599,7 +599,7 @@ mod tests {
         let resolved = lower_syntax_trees(&syntax_trees).expect("resolve should succeed");
         let typed = lower_resolved_trees(&resolved).expect("typed lowering should succeed");
 
-        let entry = typed.machines[0]
+        let entry = typed.machines()[0]
             .states
             .iter()
             .find(|state| state.name.as_str() == "entry")

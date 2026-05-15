@@ -810,7 +810,7 @@ pub struct BackendPlatformSurface {
 pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
     let mut report = BackendSurfaceReport::default();
 
-    for machine in &program.machines {
+    for machine in program.machines() {
         collect_machine(&mut report, machine);
     }
 
@@ -932,7 +932,7 @@ mod tests {
                 return_type: None,
             }],
         });
-        program.typed.machines = vec![Machine {
+        program.typed.push_machine(Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),
             contains: Vec::new(),
@@ -945,7 +945,7 @@ mod tests {
                 statements: Vec::new(),
                 statement_nodes: HandleSpan::empty(),
             }],
-        }];
+        });
 
         let report = build_backend_surface_report(&program);
 

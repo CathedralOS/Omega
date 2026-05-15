@@ -8,7 +8,8 @@ pub struct TypedTrees {
     pub data_definitions: Arena<data::DataDefinition>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
-    pub machines: Vec<machine::Machine>,
+    pub root_machines: HandleSpan<machine::Machine>,
+    pub machines: Arena<machine::Machine>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub type_constraints: Arena<types::TypeConstraint>,
@@ -49,6 +50,19 @@ impl TypedTrees {
 
     pub fn platforms(&self) -> &[platform::Platform] {
         self.platforms.span_or_empty(self.root_platforms)
+    }
+
+    pub fn push_machine(&mut self, machine: machine::Machine) {
+        self.machines
+            .append_to_span(&mut self.root_machines, machine);
+    }
+
+    pub fn machines(&self) -> &[machine::Machine] {
+        self.machines.span_or_empty(self.root_machines)
+    }
+
+    pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
+        self.machines.span_mut_or_empty(self.root_machines)
     }
 
     pub fn rebuild_tables(&mut self) {

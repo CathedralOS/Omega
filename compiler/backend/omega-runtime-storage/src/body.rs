@@ -223,7 +223,7 @@ fn state_return_type(
 ) -> Option<(SymbolHandle, String)> {
     let machine = context
         .program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)?;
     let state = machine

@@ -131,7 +131,7 @@ struct FloatRange {
 pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
     let mut proof_plan = ProofPlan::default();
 
-    for machine in &program.machines {
+    for machine in program.machines() {
         for owned_data in &machine.owned_data {
             collect_bounded_value_obligation(
                 program,
@@ -537,7 +537,7 @@ fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State>
     }
 
     program
-        .machines
+        .machines()
         .iter()
         .flat_map(|machine| machine.states.iter())
         .find(|state| state.symbol == symbol)
@@ -1297,7 +1297,7 @@ fn callable_return_type_by_symbol(
     }
 
     program
-        .machines
+        .machines()
         .iter()
         .flat_map(|machine| machine.states.iter())
         .find(|candidate| candidate.symbol == target_symbol)

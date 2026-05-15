@@ -136,7 +136,7 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     let mut calls = omega_core::arena::Arena::new();
     let mut states = omega_core::arena::Arena::new();
 
-    for machine in &program.machines {
+    for machine in program.machines() {
         for state in &machine.states {
             let state_writable_roots = machine
                 .owned_data
@@ -634,7 +634,7 @@ fn resolve_state_call_target(
 
     if target_symbol.is_valid()
         && program
-            .machines
+            .machines()
             .iter()
             .flat_map(|machine| machine.states.iter())
             .any(|state| state.symbol == target_symbol)
@@ -697,7 +697,7 @@ fn machine_by_symbol(
     program: &omega_typed_trees::TypedTrees,
     symbol: SymbolHandle,
 ) -> Option<&omega_typed_trees::machine::Machine> {
-    program.machines.iter().find(|machine| machine.symbol == symbol)
+    program.machines().iter().find(|machine| machine.symbol == symbol)
 }
 
 fn machine_symbol_from_type_reference(
@@ -863,54 +863,52 @@ mod tests {
             arguments: vec![item_argument],
         }));
 
-        let mut program = omega_typed_trees::TypedTrees {
-            machines: vec![Machine {
-                symbol: machine_symbol,
-                name: ProgramName::generated("Game"),
-                contains: Vec::new(),
-                owned_data: Vec::new(),
-                states: vec![
-                    State {
-                        symbol: entry_symbol,
-                        name: ProgramName::generated("entry"),
-                        parameters: vec![StateParameter {
-                            symbol: item_symbol,
-                            name: ProgramName::generated("item"),
-                            type_reference: TypeReference::Unit,
-                            is_const: false,
-                            is_mutable: true,
-                            is_self: false,
-                        }],
-                        return_type: None,
-                        statements: vec![Statement::Call(Call {
-                            receiver_symbol: SymbolHandle::invalid(),
-                            target_symbol: outer_symbol,
-                            receiver: None,
-                            target: ProgramName::generated("outer"),
-                            arguments: vec![nested_call],
-                        })],
-                        statement_nodes: Default::default(),
-                    },
-                    State {
-                        symbol: outer_symbol,
-                        name: ProgramName::generated("outer"),
-                        parameters: Vec::new(),
-                        return_type: None,
-                        statements: Vec::new(),
-                        statement_nodes: Default::default(),
-                    },
-                    State {
-                        symbol: inner_symbol,
-                        name: ProgramName::generated("inner"),
-                        parameters: Vec::new(),
-                        return_type: None,
-                        statements: Vec::new(),
-                        statement_nodes: Default::default(),
-                    },
-                ],
-            }],
-            ..Default::default()
-        };
+        let mut program = omega_typed_trees::TypedTrees::default();
+        program.push_machine(Machine {
+            symbol: machine_symbol,
+            name: ProgramName::generated("Game"),
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states: vec![
+                State {
+                    symbol: entry_symbol,
+                    name: ProgramName::generated("entry"),
+                    parameters: vec![StateParameter {
+                        symbol: item_symbol,
+                        name: ProgramName::generated("item"),
+                        type_reference: TypeReference::Unit,
+                        is_const: false,
+                        is_mutable: true,
+                        is_self: false,
+                    }],
+                    return_type: None,
+                    statements: vec![Statement::Call(Call {
+                        receiver_symbol: SymbolHandle::invalid(),
+                        target_symbol: outer_symbol,
+                        receiver: None,
+                        target: ProgramName::generated("outer"),
+                        arguments: vec![nested_call],
+                    })],
+                    statement_nodes: Default::default(),
+                },
+                State {
+                    symbol: outer_symbol,
+                    name: ProgramName::generated("outer"),
+                    parameters: Vec::new(),
+                    return_type: None,
+                    statements: Vec::new(),
+                    statement_nodes: Default::default(),
+                },
+                State {
+                    symbol: inner_symbol,
+                    name: ProgramName::generated("inner"),
+                    parameters: Vec::new(),
+                    return_type: None,
+                    statements: Vec::new(),
+                    statement_nodes: Default::default(),
+                },
+            ],
+        });
         program.rebuild_tables();
 
         let facts = build_borrow_facts(&program);

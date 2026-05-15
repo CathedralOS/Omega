@@ -71,7 +71,7 @@ impl<'program> ProgramSymbols<'program> {
             });
         }
 
-        for machine in &program.machines {
+        for machine in program.machines() {
             if symbols.machine(machine.name.as_str()).is_some() {
                 diagnostics.push(Diagnostic::error(format!(
                     "duplicate machine `{}`",

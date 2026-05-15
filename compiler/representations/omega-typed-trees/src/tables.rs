@@ -32,7 +32,7 @@ impl TypedProgramTables {
             tables.insert_platform(platform, &typed_trees.type_constraints);
         }
 
-        for machine in &typed_trees.machines {
+        for machine in typed_trees.machines() {
             tables.insert_machine(machine, &typed_trees.type_constraints);
         }
 
@@ -41,21 +41,32 @@ impl TypedProgramTables {
 
     pub fn from_typed_trees_with_state_spans(typed_trees: &mut TypedTrees) -> Self {
         let mut tables = Self::default();
-        let type_constraints = &typed_trees.type_constraints;
+        let TypedTrees {
+            root_data_definitions,
+            data_definitions,
+            root_invariants,
+            invariant_definitions,
+            root_machines,
+            machines,
+            root_platforms,
+            platforms,
+            type_constraints,
+            ..
+        } = typed_trees;
 
-        for invariant in typed_trees.invariant_definitions() {
+        for invariant in invariant_definitions.span_or_empty(*root_invariants) {
             tables.insert_type_constraints(invariant.constraints, type_constraints);
         }
 
-        for data_definition in typed_trees.data_definitions() {
+        for data_definition in data_definitions.span_or_empty(*root_data_definitions) {
             tables.insert_data_definition(data_definition, type_constraints);
         }
 
-        for platform in typed_trees.platforms() {
+        for platform in platforms.span_or_empty(*root_platforms) {
             tables.insert_platform(platform, type_constraints);
         }
 
-        for machine in &mut typed_trees.machines {
+        for machine in machines.span_mut_or_empty(*root_machines) {
             tables.insert_machine_with_state_spans(machine, type_constraints);
         }
 
@@ -225,36 +236,34 @@ mod tests {
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut typed_trees = TypedTrees {
-            machines: vec![Machine {
+        let mut typed_trees = TypedTrees::default();
+        typed_trees.push_machine(Machine {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::generated("main"),
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states: vec![State {
                 symbol: SymbolHandle::invalid(),
-                name: ProgramName::generated("main"),
-                contains: Vec::new(),
-                owned_data: Vec::new(),
-                states: vec![State {
+                name: ProgramName::generated("entry"),
+                parameters: Vec::new(),
+                return_type: Some(TypeReference::Named {
                     symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("entry"),
-                    parameters: Vec::new(),
-                    return_type: Some(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("i32"),
-                    }),
-                    statements: vec![Statement::Transition(Transition {
-                        target: TransitionTarget::Terminal,
-                        continuation: None,
-                        guard: TransitionGuard::When(Expression::Integer(1)),
-                    })],
-                    statement_nodes: HandleSpan::empty(),
-                }],
+                    name: ProgramName::generated("i32"),
+                }),
+                statements: vec![Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })],
+                statement_nodes: HandleSpan::empty(),
             }],
-            ..TypedTrees::default()
-        };
+        });
 
         typed_trees.rebuild_tables();
 
         assert_eq!(typed_trees.type_reference_table.type_reference_count(), 1);
         assert_eq!(typed_trees.expression_table.expression_count(), 1);
         assert_eq!(typed_trees.statement_table.statement_count(), 1);
-        assert_eq!(typed_trees.machines[0].states[0].statement_nodes.count(), 1);
+        assert_eq!(typed_trees.machines()[0].states[0].statement_nodes.count(), 1);
     }
 }

@@ -30,15 +30,15 @@ pub fn build_state_graph_with_workers(
     program: Arc<Program>,
     workers: WorkerPoolHandle,
 ) -> Result<StateGraph, Diagnostic> {
-    if program.machines.is_empty() {
+    if program.machines().is_empty() {
         return Ok(StateGraph::default());
     }
 
-    let machine_count = program.machines.len();
+    let machine_count = program.machines().len();
     let program_for_machines = Arc::clone(&program);
     let machine_graphs = workers.map_ordered(machine_count, move |index| {
         let machine = program_for_machines
-            .machines
+            .machines()
             .get(index)
             .expect("state-graph worker index should be in range");
         let mut local_state_graph = StateGraph::default();
@@ -330,7 +330,7 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
 
         let field_type_name = type_reference_name(&field.type_reference);
         let Some(target_machine) = program
-            .machines
+            .machines()
             .iter()
             .find(|candidate| candidate.name == field_type_name)
         else {

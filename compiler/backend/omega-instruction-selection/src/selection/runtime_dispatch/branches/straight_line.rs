@@ -407,7 +407,7 @@ fn leaf_local_initializer(
 ) -> Option<Expression> {
     let machine = input
         .program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)?;
     let state = machine

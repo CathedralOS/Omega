@@ -28,7 +28,7 @@ pub fn lower_symbol_resolved_trees(
 
     for machine in &resolved_program.machines {
         let machine = lower_machine(&mut lowerer, machine)?;
-        lowerer.typed_trees.machines.push(machine);
+        lowerer.typed_trees.push_machine(machine);
     }
 
     for platform in &resolved_program.platforms {
@@ -87,8 +87,8 @@ mod tests {
             lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
 
         assert_eq!(typed_trees.data_definitions().len(), 1);
-        assert_eq!(typed_trees.machines.len(), 1);
-        assert_eq!(typed_trees.machines[0].states.len(), 1);
+        assert_eq!(typed_trees.machines().len(), 1);
+        assert_eq!(typed_trees.machines()[0].states.len(), 1);
         assert!(
             typed_trees
                 .symbols

@@ -23,7 +23,7 @@ pub fn build_layout_plan(
         builder.layout_data_definition(data_definition.symbol)?;
     }
 
-    for machine in &program.machines {
+    for machine in program.machines() {
         builder.layout_machine(machine.symbol)?;
     }
 
@@ -50,7 +50,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: Arena::new(),
             data_visiting: Vec::new(),
             fields: Arena::new(),
-            machine_definitions: &program.machines,
+            machine_definitions: program.machines(),
             machine_layouts: Arena::new(),
             machine_visiting: Vec::new(),
             platform_definitions: program.platforms(),
