@@ -18,6 +18,7 @@ pub struct DiagnosticName {
 enum DiagnosticNameText {
     #[default]
     Missing,
+    Static(&'static str),
     Generated(String),
 }
 
@@ -36,9 +37,17 @@ impl DiagnosticName {
         }
     }
 
+    pub fn generated_static(text: &'static str) -> Self {
+        Self {
+            text: DiagnosticNameText::Static(text),
+            source_span: SourceSpan::default(),
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         match &self.text {
             DiagnosticNameText::Missing => "",
+            DiagnosticNameText::Static(text) => text,
             DiagnosticNameText::Generated(text) => text.as_str(),
         }
     }
@@ -99,5 +108,19 @@ impl PartialEq<str> for DiagnosticName {
 impl PartialEq<DiagnosticName> for &str {
     fn eq(&self, other: &DiagnosticName) -> bool {
         *self == other.as_str()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DiagnosticName;
+
+    #[test]
+    fn static_generated_names_do_not_allocate_owned_text() {
+        let name = DiagnosticName::generated_static("self");
+
+        assert_eq!(name.as_str(), "self");
+        assert_eq!(name, "self");
+        assert!(!name.is_source_backed());
     }
 }
