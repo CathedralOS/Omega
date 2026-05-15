@@ -883,14 +883,6 @@ impl NamePath {
         &self.storage.members
     }
 
-    pub fn as_slice(&self) -> &[DiagnosticName] {
-        self.members()
-    }
-
-    pub fn into_members(self) -> Vec<DiagnosticName> {
-        self.storage.members.into_vec()
-    }
-
     pub fn push(&mut self, member: DiagnosticName) {
         let mut members = self.storage.members.to_vec();
         members.push(member);
@@ -903,6 +895,27 @@ impl NamePath {
         owned_members.extend_from_slice(members);
         self.storage.members = owned_members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
+    }
+
+    pub fn len(&self) -> usize {
+        self.storage.members.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.storage.members.is_empty()
+    }
+
+    pub fn first(&self) -> Option<&DiagnosticName> {
+        self.storage.members.first()
+    }
+
+    pub fn last(&self) -> Option<&DiagnosticName> {
+        self.storage.members.last()
+    }
+
+    pub fn last_mut(&mut self) -> Option<&mut DiagnosticName> {
+        self.symbol = SymbolHandle::invalid();
+        self.storage.members.last_mut()
     }
 
     pub fn head_symbol(&self) -> SymbolHandle {
@@ -920,24 +933,11 @@ impl NamePath {
     }
 }
 
-impl From<Vec<DiagnosticName>> for NamePath {
-    fn from(members: Vec<DiagnosticName>) -> Self {
-        Self::unresolved(members)
-    }
-}
-
 impl Deref for NamePath {
     type Target = [DiagnosticName];
 
     fn deref(&self) -> &Self::Target {
         self.members()
-    }
-}
-
-impl DerefMut for NamePath {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.symbol = SymbolHandle::invalid();
-        &mut self.storage.members
     }
 }
 
