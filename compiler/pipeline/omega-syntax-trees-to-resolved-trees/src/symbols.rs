@@ -758,10 +758,13 @@ fn assign_expression_symbols(
                 state_symbol,
                 &mut member.receiver,
             );
-            if let Some(path) = expression_name_path(
-                &omega_resolved_trees::expression::Expression::Member(member.clone()),
-            ) && let Some((_, symbol)) =
-                resolve_state_scoped_path(symbols, machine.symbol, state_symbol, &path)
+            if let Some(symbol) = resolve_expression_member_symbol(
+                symbols,
+                machine.symbol,
+                state_symbol,
+                &member.receiver,
+                &member.member,
+            )
             {
                 member.member_symbol = symbol;
             }
@@ -867,6 +870,63 @@ fn expression_name_path(
             Some(path)
         }
         omega_resolved_trees::expression::Expression::Mutable(inner) => expression_name_path(inner),
+        _ => None,
+    }
+}
+
+fn resolve_expression_member_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    receiver: &omega_resolved_trees::expression::Expression,
+    member: &omega_resolved_trees::name::DiagnosticName,
+) -> Option<SymbolHandle> {
+    let receiver_symbol =
+        resolve_expression_receiver_symbol(symbols, machine_symbol, state_symbol, receiver)?;
+    let member_symbol = child_symbol_by_kinds(
+        symbols,
+        receiver_symbol,
+        &[
+            SymbolKind::Field,
+            SymbolKind::Object,
+            SymbolKind::State,
+            SymbolKind::Parameter,
+            SymbolKind::Variant,
+        ],
+        member.as_str(),
+    );
+
+    member_symbol.is_valid().then_some(member_symbol)
+}
+
+fn resolve_expression_receiver_symbol(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    receiver: &omega_resolved_trees::expression::Expression,
+) -> Option<SymbolHandle> {
+    match receiver {
+        omega_resolved_trees::expression::Expression::Name(path) => {
+            resolve_state_scoped_path(symbols, machine_symbol, state_symbol, path)
+                .map(|(_, symbol)| symbol)
+        }
+        omega_resolved_trees::expression::Expression::Member(member) => {
+            resolve_expression_member_symbol(
+                symbols,
+                machine_symbol,
+                state_symbol,
+                &member.receiver,
+                &member.member,
+            )
+        }
+        omega_resolved_trees::expression::Expression::Mutable(inner) => {
+            resolve_expression_receiver_symbol(symbols, machine_symbol, state_symbol, inner)
+        }
+        omega_resolved_trees::expression::Expression::Indexed(_) => {
+            let path = expression_name_path(receiver)?;
+            resolve_state_scoped_path(symbols, machine_symbol, state_symbol, &path)
+                .map(|(_, symbol)| symbol)
+        }
         _ => None,
     }
 }
