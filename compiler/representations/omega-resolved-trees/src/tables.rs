@@ -4,7 +4,7 @@ use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
 use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
-use crate::statement::StatementTable;
+use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
@@ -62,6 +62,7 @@ impl SymbolResolvedTreeTables {
         let machine_state_handles = &source_tables.declarations.machine_state_handles;
         let machine_states = &mut source_tables.declarations.machine_states;
         let machine_owned_data = &source_tables.declarations.machine_owned_data;
+        let state_statements = &source_tables.declarations.state_statements;
         for machine in &roots.machines {
             tables.insert_machine_with_state_spans(
                 machine,
@@ -69,6 +70,7 @@ impl SymbolResolvedTreeTables {
                 machine_state_handles,
                 machine_states,
                 state_parameters,
+                state_statements,
                 &type_constraints,
             );
         }
@@ -110,6 +112,7 @@ impl SymbolResolvedTreeTables {
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
+        state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
@@ -122,7 +125,12 @@ impl SymbolResolvedTreeTables {
             .copied()
         {
             let state = machine_states.get_mut(state);
-            self.insert_state_with_statement_span(state, state_parameters, type_constraints);
+            self.insert_state_with_statement_span(
+                state,
+                state_parameters,
+                state_statements,
+                type_constraints,
+            );
         }
     }
 
@@ -142,6 +150,7 @@ impl SymbolResolvedTreeTables {
         &mut self,
         state: &mut State,
         state_parameters: &Arena<StateParameter>,
+        state_statements: &Arena<Statement>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for parameter in state_parameters.span_or_empty(state.parameters) {
@@ -154,7 +163,7 @@ impl SymbolResolvedTreeTables {
 
         let mut start = Handle::invalid();
         let mut count = 0u32;
-        for statement in &state.statements {
+        for statement in state_statements.span_or_empty(state.statements) {
             let handle = self.bodies.statements.insert_tree(
                 statement,
                 &mut self.bodies.expressions,
@@ -234,6 +243,16 @@ mod tests {
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
         let mut program = SymbolResolvedTrees::default();
+        let statements =
+            program
+                .tables
+                .declarations
+                .state_statements
+                .insert_many([Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })]);
         let state = program.tables.declarations.machine_states.append(State {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("entry"),
@@ -243,11 +262,7 @@ mod tests {
                     symbol: SymbolHandle::invalid(),
                     name: DiagnosticName::generated("i32"),
                 }),
-                statements: vec![Statement::Transition(Transition {
-                    target: TransitionTarget::Terminal,
-                    continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
-                })],
+                statements,
                 statement_nodes: HandleSpan::empty(),
             },
         });

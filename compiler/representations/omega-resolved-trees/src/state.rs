@@ -16,7 +16,7 @@ pub struct State {
 pub struct StateStorage {
     pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
-    pub statements: Vec<Statement>,
+    pub statements: HandleSpan<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
 }
 

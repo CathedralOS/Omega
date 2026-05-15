@@ -185,7 +185,10 @@ fn insert_state_symbol_children(
             .state_parameters(state.parameters)
             .iter()
             .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources))
-            .chain(local_symbol_seeds(&state.statements, has_sources)),
+            .chain(local_symbol_seeds(
+                program.state_statements(state.statements),
+                has_sources,
+            )),
     );
 }
 
@@ -370,7 +373,10 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 );
             }
 
-            for statement in &mut state.statements {
+            for statement in declarations
+                .state_statements
+                .span_mut_or_empty(state.statements)
+            {
                 if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement
                 {
                     local_data.symbol =
@@ -507,7 +513,11 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             let state = machine_states.get_mut(state);
             let state_symbol = state.symbol;
             let parameters = state_parameters.span_or_empty(state.parameters);
-            for statement in &mut state.storage.statements {
+            for statement in tables
+                .declarations
+                .state_statements
+                .span_mut_or_empty(state.statements)
+            {
                 assign_statement_symbols(
                     &machine_scope,
                     parameters,

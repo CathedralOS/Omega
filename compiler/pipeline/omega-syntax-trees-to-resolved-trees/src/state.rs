@@ -6,6 +6,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
 use omega_resolved_trees::state::{State, StateStorage};
+use omega_resolved_trees::statement::Statement;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_state_node(
@@ -36,12 +37,7 @@ fn lower_state_parts(
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
-    let statements = syntax_trees
-        .items
-        .statements(statements)
-        .iter()
-        .map(|statement| lower_statement_handle(lowerer, syntax_trees, *statement))
-        .collect::<Result<Vec<_>, _>>()?;
+    let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
 
     Ok(State {
         symbol: SymbolHandle::invalid(),
@@ -90,6 +86,37 @@ fn lower_state_signature_parts(
             return_type,
         },
     })
+}
+
+fn lower_state_statements(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    statements: HandleSpan<syntax::statement::StatementHandle>,
+) -> Result<HandleSpan<Statement>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for statement in syntax_trees.items.statements(statements) {
+        let statement = lower_statement_handle(lowerer, syntax_trees, *statement)?;
+        let statement = lowerer
+            .program
+            .tables
+            .declarations
+            .state_statements
+            .append(statement);
+        if count == 0 {
+            start = statement;
+        }
+        count = count
+            .checked_add(1)
+            .expect("state statement span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
+    }
 }
 
 fn lower_state_parameters(

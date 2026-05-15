@@ -20,8 +20,9 @@ pub(crate) fn lower_state(
         .as_ref()
         .map(|type_reference| lower_type_reference(lowerer, type_reference))
         .transpose()?;
-    let statements = state
-        .statements
+    let statements = lowerer
+        .source_program
+        .state_statements(state.statements)
         .iter()
         .map(|statement| lower_statement(lowerer, statement))
         .collect::<Result<Vec<_>, _>>()?;

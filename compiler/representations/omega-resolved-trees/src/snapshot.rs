@@ -416,8 +416,8 @@ fn state_snapshot(program: &SymbolResolvedTrees, state: &State) -> StateSnapshot
             .return_type
             .as_ref()
             .map(|type_reference| type_reference_snapshot(program, type_reference)),
-        statements: state
-            .statements
+        statements: program
+            .state_statements(state.statements)
             .iter()
             .map(|statement| statement_snapshot(program, statement))
             .collect(),
@@ -691,6 +691,16 @@ mod tests {
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
         let mut program = SymbolResolvedTrees::default();
+        let statements =
+            program
+                .tables
+                .declarations
+                .state_statements
+                .insert_many([Statement::Transition(Transition {
+                    target: TransitionTarget::Terminal,
+                    continuation: None,
+                    guard: TransitionGuard::When(Expression::Integer(1)),
+                })]);
         let state = program.tables.declarations.machine_states.append(State {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("entry"),
@@ -700,11 +710,7 @@ mod tests {
                     symbol: SymbolHandle::invalid(),
                     name: DiagnosticName::generated("i32"),
                 }),
-                statements: vec![Statement::Transition(Transition {
-                    target: TransitionTarget::Terminal,
-                    continuation: None,
-                    guard: TransitionGuard::When(Expression::Integer(1)),
-                })],
+                statements,
                 statement_nodes: HandleSpan::empty(),
             },
         });
