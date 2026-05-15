@@ -1,4 +1,4 @@
-use crate::expression::lower_expression;
+use crate::expression::lower_expression_from_table;
 use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -133,8 +133,14 @@ fn lower_type_constraint(
         )),
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
             Ok(typed::types::TypeConstraint::Range {
-                minimum: lower_expression(source_trees.type_constraint_expression(*minimum))?,
-                maximum: lower_expression(source_trees.type_constraint_expression(*maximum))?,
+                minimum: lower_expression_from_table(
+                    &source_trees.tables.bodies.expressions,
+                    *minimum,
+                )?,
+                maximum: lower_expression_from_table(
+                    &source_trees.tables.bodies.expressions,
+                    *maximum,
+                )?,
             })
         }
     }

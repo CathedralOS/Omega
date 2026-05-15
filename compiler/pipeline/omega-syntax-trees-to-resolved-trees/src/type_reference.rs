@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_handle;
+use crate::expression::lower_expression_into_table;
 use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -140,20 +140,9 @@ fn lower_type_constraint_handle(
             Ok(TypeConstraint::Named(crate::name::lower_name(name)))
         }
         syntax::types::TypeConstraintNode::Range { minimum, maximum } => {
-            let minimum = lower_expression_handle(syntax_trees, *minimum)?;
-            let minimum = lowerer
-                .symbol_resolved_trees
-                .tables
-                .types
-                .constraint_expressions
-                .append(minimum);
-            let maximum = lower_expression_handle(syntax_trees, *maximum)?;
-            let maximum = lowerer
-                .symbol_resolved_trees
-                .tables
-                .types
-                .constraint_expressions
-                .append(maximum);
+            let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
+            let minimum = lower_expression_into_table(syntax_trees, expressions, *minimum)?;
+            let maximum = lower_expression_into_table(syntax_trees, expressions, *maximum)?;
             Ok(TypeConstraint::Range { minimum, maximum })
         }
     }

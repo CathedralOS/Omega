@@ -48,7 +48,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     let child_type_references = &program.tables.declarations.child_type_references;
     let machine_owned_data_expressions =
         &program.tables.declarations.machine_owned_data_expressions;
-    let type_constraint_expressions = &program.tables.types.constraint_expressions;
+    let expression_table = &program.tables.bodies.expressions;
 
     for invariant in &program.invariant_definitions {
         count_declaration_name(&invariant.name, &mut counts);
@@ -63,7 +63,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                     count_type_reference(
                         &field.type_reference,
                         child_type_references,
-                        type_constraint_expressions,
+                        expression_table,
                         &mut counts,
                     );
                 }
@@ -79,7 +79,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_optional_type_reference(
                 signature.return_type.as_ref(),
                 child_type_references,
-                type_constraint_expressions,
+                expression_table,
                 &mut counts,
             );
             for parameter in program.state_parameters(signature.parameters) {
@@ -87,7 +87,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 count_type_reference(
                     &parameter.type_reference,
                     child_type_references,
-                    type_constraint_expressions,
+                    expression_table,
                     &mut counts,
                 );
             }
@@ -105,7 +105,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_type_reference(
                 &owned_data.type_reference,
                 child_type_references,
-                type_constraint_expressions,
+                expression_table,
                 &mut counts,
             );
             if let Some(initial_value) = owned_data.initial_value {
@@ -124,7 +124,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
             count_optional_type_reference(
                 state.return_type.as_ref(),
                 child_type_references,
-                type_constraint_expressions,
+                expression_table,
                 &mut counts,
             );
             for parameter in program.state_parameters(state.parameters) {
@@ -132,7 +132,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
                 count_type_reference(
                     &parameter.type_reference,
                     child_type_references,
-                    type_constraint_expressions,
+                    expression_table,
                     &mut counts,
                 );
             }
@@ -154,7 +154,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
     }
 
     for (_, constraint) in program.tables.types.constraints.iter() {
-        count_type_constraint(constraint, type_constraint_expressions, &mut counts);
+        count_type_constraint(constraint, expression_table, &mut counts);
     }
 
     counts
@@ -414,43 +414,38 @@ fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts)
 fn count_optional_type_reference(
     type_reference: Option<&TypeReference>,
     generic_arguments: &omega_core::arena::Arena<TypeReference>,
-    constraint_expressions: &omega_core::arena::Arena<Expression>,
+    expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
     if let Some(type_reference) = type_reference {
-        count_type_reference(
-            type_reference,
-            generic_arguments,
-            constraint_expressions,
-            counts,
-        );
+        count_type_reference(type_reference, generic_arguments, expression_table, counts);
     }
 }
 
 fn count_type_reference(
     type_reference: &TypeReference,
     generic_arguments: &omega_core::arena::Arena<TypeReference>,
-    constraint_expressions: &omega_core::arena::Arena<Expression>,
+    expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
     match type_reference {
         TypeReference::Reference(reference) => count_type_reference(
             generic_arguments.get(reference.referee),
             generic_arguments,
-            constraint_expressions,
+            expression_table,
             counts,
         ),
         TypeReference::Constrained(constrained) => count_type_reference(
             generic_arguments.get(constrained.base_type),
             generic_arguments,
-            constraint_expressions,
+            expression_table,
             counts,
         ),
         TypeReference::FixedArray(fixed_array) => {
             count_type_reference(
                 generic_arguments.get(fixed_array.element_type),
                 generic_arguments,
-                constraint_expressions,
+                expression_table,
                 counts,
             );
         }
@@ -458,14 +453,14 @@ fn count_type_reference(
             count_type_reference(
                 generic_arguments.get(slice.element_type),
                 generic_arguments,
-                constraint_expressions,
+                expression_table,
                 counts,
             );
         }
         TypeReference::Generic(generic) => {
             count_type_name(&generic.base_name, counts);
             for argument in generic_arguments.span_or_empty(generic.arguments) {
-                count_type_reference(argument, generic_arguments, constraint_expressions, counts);
+                count_type_reference(argument, generic_arguments, expression_table, counts);
             }
         }
         TypeReference::Named { name, .. } => count_type_name(name, counts),
@@ -476,14 +471,14 @@ fn count_type_reference(
 
 fn count_type_constraint(
     constraint: &TypeConstraint,
-    constraint_expressions: &omega_core::arena::Arena<Expression>,
+    expression_table: &ExpressionTable,
     counts: &mut IdentityStorageCounts,
 ) {
     match constraint {
         TypeConstraint::Named(name) => count_type_name(name, counts),
         TypeConstraint::Range { minimum, maximum } => {
-            count_expression(constraint_expressions.get(*minimum), counts);
-            count_expression(constraint_expressions.get(*maximum), counts);
+            count_expression_handle(expression_table, *minimum, counts);
+            count_expression_handle(expression_table, *maximum, counts);
         }
     }
 }

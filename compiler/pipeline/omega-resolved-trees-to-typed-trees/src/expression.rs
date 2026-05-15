@@ -83,6 +83,90 @@ pub(crate) fn lower_expression(
     }
 }
 
+pub(crate) fn lower_expression_from_table(
+    table: &resolved::expression::ExpressionTable,
+    expression: resolved::expression::ExpressionHandle,
+) -> Result<typed::expression::Expression, Diagnostic> {
+    match table.expression(expression) {
+        resolved::expression::ExpressionNode::ArrayLiteral(values) => {
+            let mut lowered = Vec::new();
+            for value in table.expression_handles(*values) {
+                lowered.push(lower_expression_from_table(table, *value)?);
+            }
+            Ok(typed::expression::Expression::ArrayLiteral(lowered))
+        }
+        resolved::expression::ExpressionNode::Binary(binary) => Ok(
+            typed::expression::Expression::Binary(Box::new(typed::expression::BinaryExpression {
+                left: lower_expression_from_table(table, binary.left)?,
+                operator: lower_binary_operator(binary.operator),
+                right: lower_expression_from_table(table, binary.right)?,
+            })),
+        ),
+        resolved::expression::ExpressionNode::Boolean(value) => {
+            Ok(typed::expression::Expression::Boolean(*value))
+        }
+        resolved::expression::ExpressionNode::Cast(cast) => Ok(
+            typed::expression::Expression::Cast(Box::new(typed::expression::CastExpression {
+                value: lower_expression_from_table(table, cast.value)?,
+                target_type: lower_table_name_path(table, cast.target_type),
+            })),
+        ),
+        resolved::expression::ExpressionNode::Call(call) => Ok(
+            typed::expression::Expression::Call(Box::new(typed::expression::CallExpression {
+                receiver: call
+                    .receiver
+                    .is_valid()
+                    .then(|| lower_expression_from_table(table, call.receiver))
+                    .transpose()?
+                    .map(Box::new),
+                target_symbol: call.target_symbol,
+                target: lower_name(&call.target),
+                arguments: lower_expression_span_from_table(table, call.arguments)?,
+            })),
+        ),
+        resolved::expression::ExpressionNode::Float(value) => {
+            Ok(typed::expression::Expression::Float(
+                typed::expression::FloatLiteral::new(value.value()),
+            ))
+        }
+        resolved::expression::ExpressionNode::Indexed(indexed) => {
+            Ok(typed::expression::Expression::Indexed(Box::new(
+                typed::expression::IndexedExpression {
+                    collection: lower_expression_from_table(table, indexed.collection)?,
+                    index: lower_expression_from_table(table, indexed.index)?,
+                },
+            )))
+        }
+        resolved::expression::ExpressionNode::Integer(value) => {
+            Ok(typed::expression::Expression::Integer(*value))
+        }
+        resolved::expression::ExpressionNode::Member(member) => Ok(
+            typed::expression::Expression::Member(Box::new(typed::expression::MemberExpression {
+                receiver: lower_expression_from_table(table, member.receiver)?,
+                member_symbol: member.member_symbol,
+                member: lower_name(&member.member),
+            })),
+        ),
+        resolved::expression::ExpressionNode::Mutable(expression) => {
+            Ok(typed::expression::Expression::Mutable(Box::new(
+                lower_expression_from_table(table, *expression)?,
+            )))
+        }
+        resolved::expression::ExpressionNode::Name(path) => Ok(
+            typed::expression::Expression::Name(lower_table_name_path_node(table, path)),
+        ),
+        resolved::expression::ExpressionNode::StructLiteral(struct_literal) => Ok(
+            typed::expression::Expression::StructLiteral(typed::expression::StructLiteral {
+                type_name: lower_name(&struct_literal.type_name),
+                fields: lower_struct_literal_fields_from_table(table, struct_literal.fields)?,
+            }),
+        ),
+        resolved::expression::ExpressionNode::String(value) => Ok(
+            typed::expression::Expression::String(value.as_str().to_owned()),
+        ),
+    }
+}
+
 fn lower_expressions(
     expressions: &[resolved::expression::Expression],
 ) -> Result<Vec<typed::expression::Expression>, Diagnostic> {
@@ -93,6 +177,63 @@ fn lower_expressions(
     }
 
     Ok(lowered)
+}
+
+fn lower_expression_span_from_table(
+    table: &resolved::expression::ExpressionTable,
+    expressions: omega_core::arena::HandleSpan<resolved::expression::ExpressionHandle>,
+) -> Result<Vec<typed::expression::Expression>, Diagnostic> {
+    let mut lowered = Vec::new();
+
+    for expression in table.expression_handles(expressions) {
+        lowered.push(lower_expression_from_table(table, *expression)?);
+    }
+
+    Ok(lowered)
+}
+
+fn lower_struct_literal_fields_from_table(
+    table: &resolved::expression::ExpressionTable,
+    fields: omega_core::arena::HandleSpan<resolved::expression::TableStructLiteralField>,
+) -> Result<Vec<typed::expression::StructLiteralField>, Diagnostic> {
+    let mut lowered = Vec::new();
+
+    for field in table.struct_fields(fields) {
+        lowered.push(typed::expression::StructLiteralField {
+            name: lower_name(&field.name),
+            value: lower_expression_from_table(table, field.value)?,
+        });
+    }
+
+    Ok(lowered)
+}
+
+fn lower_table_name_path(
+    table: &resolved::expression::ExpressionTable,
+    members: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
+) -> typed::expression::NamePath {
+    typed::expression::NamePath::unresolved(
+        table
+            .name_path_members(members)
+            .iter()
+            .map(lower_name)
+            .collect(),
+    )
+}
+
+fn lower_table_name_path_node(
+    table: &resolved::expression::ExpressionTable,
+    path: &resolved::expression::TableNamePath,
+) -> typed::expression::NamePath {
+    typed::expression::NamePath::resolved(
+        table
+            .name_path_members(path.members)
+            .iter()
+            .map(lower_name)
+            .collect(),
+        path.head_symbol,
+        path.symbol,
+    )
 }
 
 fn lower_struct_literal_fields(

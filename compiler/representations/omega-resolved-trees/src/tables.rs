@@ -36,7 +36,7 @@ impl SymbolResolvedTreeTables {
             ..
         } = symbol_resolved_trees;
         let type_constraints = &source_tables.types.constraints;
-        let type_constraint_expressions = &source_tables.types.constraint_expressions;
+        let source_expressions = &source_tables.bodies.expressions;
         let SymbolResolvedDeclarationStorage {
             data_members,
             machine_owned_data,
@@ -55,7 +55,7 @@ impl SymbolResolvedTreeTables {
             tables.insert_type_constraints(
                 invariant.constraints,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -64,7 +64,7 @@ impl SymbolResolvedTreeTables {
                 data_members.span_or_empty(data_definition.members),
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -74,7 +74,7 @@ impl SymbolResolvedTreeTables {
                 state_parameters,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -90,7 +90,7 @@ impl SymbolResolvedTreeTables {
                 state_statements,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -102,7 +102,7 @@ impl SymbolResolvedTreeTables {
         members: &[DataMember],
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for member in members {
             if let DataMember::Field(field) = member {
@@ -110,7 +110,7 @@ impl SymbolResolvedTreeTables {
                     &field.type_reference,
                     child_type_references,
                     type_constraints,
-                    type_constraint_expressions,
+                    source_expressions,
                 );
             }
         }
@@ -122,7 +122,7 @@ impl SymbolResolvedTreeTables {
         state_parameters: &Arena<StateParameter>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for state in states {
             self.insert_state_signature(
@@ -130,7 +130,7 @@ impl SymbolResolvedTreeTables {
                 state,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
     }
@@ -147,7 +147,7 @@ impl SymbolResolvedTreeTables {
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
             self.insert_owned_data(
@@ -155,7 +155,7 @@ impl SymbolResolvedTreeTables {
                 machine_owned_data_expressions,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -172,7 +172,7 @@ impl SymbolResolvedTreeTables {
                 state_statements,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
     }
@@ -183,13 +183,13 @@ impl SymbolResolvedTreeTables {
         machine_owned_data_expressions: &Arena<Expression>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         self.insert_type_reference(
             &owned_data.type_reference,
             child_type_references,
             type_constraints,
-            type_constraint_expressions,
+            source_expressions,
         );
 
         if let Some(initial_value) = owned_data.initial_value {
@@ -205,14 +205,14 @@ impl SymbolResolvedTreeTables {
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for parameter in state_parameters.span_or_empty(state.parameters) {
             self.insert_type_reference(
                 &parameter.type_reference,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -221,7 +221,7 @@ impl SymbolResolvedTreeTables {
                 return_type,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -234,7 +234,7 @@ impl SymbolResolvedTreeTables {
                 &mut self.types.references,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
             statement_nodes.push_contiguous(statement);
         }
@@ -248,14 +248,14 @@ impl SymbolResolvedTreeTables {
         signature: &StateSignature,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for parameter in parameters {
             self.insert_type_reference(
                 &parameter.type_reference,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
 
@@ -264,7 +264,7 @@ impl SymbolResolvedTreeTables {
                 return_type,
                 child_type_references,
                 type_constraints,
-                type_constraint_expressions,
+                source_expressions,
             );
         }
     }
@@ -274,14 +274,14 @@ impl SymbolResolvedTreeTables {
         type_reference: &TypeReference,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         self.types.references.insert_tree(
             type_reference,
             &mut self.bodies.expressions,
             child_type_references,
             type_constraints,
-            type_constraint_expressions,
+            source_expressions,
         );
     }
 
@@ -289,12 +289,16 @@ impl SymbolResolvedTreeTables {
         &mut self,
         constraints: omega_core::arena::HandleSpan<TypeConstraint>,
         type_constraints: &Arena<TypeConstraint>,
-        type_constraint_expressions: &Arena<Expression>,
+        source_expressions: &ExpressionTable,
     ) {
         for constraint in type_constraints.span_or_empty(constraints) {
             if let TypeConstraint::Range { minimum, maximum } = constraint {
-                self.insert_expression(type_constraint_expressions.get(*minimum));
-                self.insert_expression(type_constraint_expressions.get(*maximum));
+                self.bodies
+                    .expressions
+                    .copy_from(source_expressions, *minimum);
+                self.bodies
+                    .expressions
+                    .copy_from(source_expressions, *maximum);
             }
         }
     }
