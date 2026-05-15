@@ -11,13 +11,14 @@ pub(crate) fn lower_platform(
     let mut typed_platform = typed::platform::Platform {
         symbol: platform.symbol,
         name: crate::name::lower_name(&platform.name),
-        states: Vec::new(),
+        states: omega_core::arena::HandleSpan::empty(),
     };
 
     for signature in lowerer.source_program.platform_state_signatures(platform.states) {
-        typed_platform
-            .states
-            .push(lower_state_signature(lowerer, signature)?);
+        let signature = lower_state_signature(lowerer, signature)?;
+        lowerer
+            .typed_trees
+            .push_platform_state_signature(&mut typed_platform, signature);
     }
 
     Ok(typed_platform)

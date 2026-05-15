@@ -815,7 +815,7 @@ pub fn build_backend_surface_report(program: &Program) -> BackendSurfaceReport {
     }
 
     for platform in program.platforms() {
-        collect_platform(&mut report, platform);
+        collect_platform(&mut report, program, platform);
     }
 
     report
@@ -837,10 +837,10 @@ fn collect_machine(report: &mut BackendSurfaceReport, machine: &Machine) {
     }
 }
 
-fn collect_platform(report: &mut BackendSurfaceReport, platform: &Platform) {
+fn collect_platform(report: &mut BackendSurfaceReport, program: &Program, platform: &Platform) {
     report.platforms.insert(BackendPlatformSurface {
         name: platform.name.to_string(),
-        states: platform.states.len(),
+        states: program.platform_state_signatures(platform).len(),
     });
 }
 
@@ -922,16 +922,21 @@ mod tests {
     #[test]
     fn collects_entry_machine_and_platforms() {
         let mut program = Program::default();
-        program.typed.push_platform(Platform {
+        let mut platform = Platform {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("Console"),
-            states: vec![StateSignature {
+            states: Default::default(),
+        };
+        program.typed.push_platform_state_signature(
+            &mut platform,
+            StateSignature {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("write_line"),
                 parameters: Vec::new(),
                 return_type: None,
-            }],
-        });
+            },
+        );
+        program.typed.push_platform(platform);
         program.typed.push_machine(Machine {
             symbol: SymbolHandle::default(),
             name: ProgramName::generated("main"),

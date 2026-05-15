@@ -10,6 +10,17 @@ pub struct StateSignature {
     pub return_type: Option<TypeReference>,
 }
 
+impl Default for StateSignature {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            parameters: Vec::new(),
+            return_type: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,

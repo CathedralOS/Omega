@@ -1,4 +1,4 @@
-use crate::{data, expression, invariant, machine, platform, tables, types};
+use crate::{data, expression, invariant, machine, platform, signature, tables, types};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolTable;
 
@@ -12,6 +12,7 @@ pub struct TypedTrees {
     pub machines: Arena<machine::Machine>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
+    pub platform_state_signatures: Arena<signature::StateSignature>,
     pub type_constraints: Arena<types::TypeConstraint>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
@@ -50,6 +51,23 @@ impl TypedTrees {
 
     pub fn platforms(&self) -> &[platform::Platform] {
         self.platforms.span_or_empty(self.root_platforms)
+    }
+
+    pub fn push_platform_state_signature(
+        &mut self,
+        platform: &mut platform::Platform,
+        signature: signature::StateSignature,
+    ) {
+        self.platform_state_signatures
+            .append_to_span(&mut platform.states, signature);
+    }
+
+    pub fn platform_state_signatures(
+        &self,
+        platform: &platform::Platform,
+    ) -> &[signature::StateSignature] {
+        self.platform_state_signatures
+            .span_or_empty(platform.states)
     }
 
     pub fn push_machine(&mut self, machine: machine::Machine) {
