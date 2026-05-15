@@ -884,14 +884,14 @@ impl NamePath {
     }
 
     pub fn push(&mut self, member: DiagnosticName) {
-        let mut members = self.storage.members.to_vec();
+        let mut members = std::mem::take(&mut self.storage.members).into_vec();
         members.push(member);
         self.storage.members = members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
     }
 
     pub fn extend_from_slice(&mut self, members: &[DiagnosticName]) {
-        let mut owned_members = self.storage.members.to_vec();
+        let mut owned_members = std::mem::take(&mut self.storage.members).into_vec();
         owned_members.extend_from_slice(members);
         self.storage.members = owned_members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
