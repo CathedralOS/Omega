@@ -162,7 +162,7 @@ Omega/
 |   |
 |   |-- frontend/
 |   |   |-- [CRATE] omega-concrete-syntax-tree/         # Comments and lossless parse nodes (CST).
-|   |   |-- [CRATE] omega-syntax-trees/         # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
+|   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure; expressions and child lists should be arena handles, not recursive boxes.
 |   |   `-- [CRATE] omega-format/                       # Formatter and syntax-preserving rewrites.
 |   |
 |   |-- packages/
@@ -188,7 +188,7 @@ Omega/
 |   |   |-- [CRATE] omega-source-files/                 # Discovered and loaded source files with stable source identity.
 |   |   |-- [CRATE] omega-tokens/                       # Per-file token streams and token-set ownership.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
-|   |   |-- [CRATE] omega-symbol-resolved-trees/               # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
+|   |   |-- [CRATE] omega-symbol-resolved-trees/        # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
 |   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
@@ -198,15 +198,15 @@ Omega/
 |   |   `-- [CRATE] omega-machine-bytes/                # Encoded machine bytes and relocation-ready emission payload.
 |   |
 |   |-- pipeline/
-|   |   |-- [CRATE] omega-source-files-to-tokens/               # Source files to per-file token streams.
-|   |   |-- [CRATE] omega-tokens-to-syntax-trees/               # Token streams to parsed syntax trees.
-|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/       # Syntax trees to SymbolResolvedTrees with symbol identity attached.
-|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/        # SymbolResolvedTrees to typed/effect-annotated trees.
-|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/         # Typed trees to validated/proof-checked trees with semantic facts.
-|   |   |-- [CRATE] omega-checked-trees-to-state-graph/         # Checked trees to explicit machine/state graph.
-|   |   |-- [CRATE] omega-state-graph-to-control-flow/          # State graph to control-flow/data-flow graph.
-|   |   |-- [CRATE] omega-control-flow-to-target-operations/    # Control flow to target-aware operations.
-|   |   `-- [CRATE] omega-target-operations-to-machine-program/ # Target-aware operations to symbolic machine program, before bytes.
+|   |   |-- [CRATE] omega-source-files-to-tokens/                # Source files to per-file token streams.
+|   |   |-- [CRATE] omega-tokens-to-syntax-trees/                # Token streams to parsed syntax trees.
+|   |   |-- [CRATE] omega-syntax-trees-to-symbol-resolved-trees/ # Syntax trees to SymbolResolvedTrees with symbol identity attached.
+|   |   |-- [CRATE] omega-symbol-resolved-trees-to-typed-trees/  # SymbolResolvedTrees to typed/effect-annotated trees.
+|   |   |-- [CRATE] omega-typed-trees-to-checked-trees/          # Typed trees to validated/proof-checked trees with semantic facts.
+|   |   |-- [CRATE] omega-checked-trees-to-state-graph/          # Checked trees to explicit machine/state graph.
+|   |   |-- [CRATE] omega-state-graph-to-control-flow/           # State graph to control-flow/data-flow graph.
+|   |   |-- [CRATE] omega-control-flow-to-target-operations/     # Control flow to target-aware operations.
+|   |   `-- [CRATE] omega-target-operations-to-machine-program/  # Target-aware operations to symbolic machine program, before bytes.
 |   |
 |   |-- backend/
 |   |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
