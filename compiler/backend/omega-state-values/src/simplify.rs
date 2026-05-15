@@ -379,8 +379,8 @@ fn simplify_call_expression(
     )
         && let Some(state) = resolve_call_target_state(program, target_machine, call)
     {
-        let argument_bindings: Vec<_> = state
-            .parameters
+        let argument_bindings: Vec<_> = program
+            .state_parameters(state)
             .iter()
             .zip(simplified_arguments.iter())
             .map(|(parameter, argument)| Binding {
@@ -469,8 +469,8 @@ fn simplify_helper_call_comparison(
             simplify_expression_with_bindings(program, machine, argument, bindings, false)
         })
         .collect();
-    let argument_bindings: Vec<_> = state
-        .parameters
+    let argument_bindings: Vec<_> = program
+        .state_parameters(state)
         .iter()
         .zip(argument_values.iter())
         .map(|(parameter, argument)| Binding {
@@ -656,8 +656,8 @@ fn expression_match_condition_with_stack(
     let receiver = call.receiver.as_deref();
     let target_machine = resolve_call_target_machine(program, machine, receiver)?;
     let state = resolve_call_target_state(program, target_machine, call)?;
-    let argument_bindings: Vec<_> = state
-        .parameters
+    let argument_bindings: Vec<_> = program
+        .state_parameters(state)
         .iter()
         .zip(call.arguments.iter())
         .map(|(parameter, argument)| Binding {

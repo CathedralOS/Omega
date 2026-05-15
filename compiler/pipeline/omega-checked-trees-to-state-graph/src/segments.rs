@@ -77,7 +77,7 @@ pub(super) fn split_state_segments<'program>(
                     segment_index,
                 },
                 name: segment_name(&state.name, segment_index),
-                parameters: state_parameters_for_segment(state, segment_index),
+                parameters: state_parameters_for_segment(program, state, segment_index),
                 operations,
                 transitions: vec![SegmentTransition::BranchCall {
                     call,
@@ -102,7 +102,7 @@ pub(super) fn split_state_segments<'program>(
                     segment_index,
                 },
                 name: segment_name(&state.name, segment_index),
-                parameters: state_parameters_for_segment(state, segment_index),
+                parameters: state_parameters_for_segment(program, state, segment_index),
                 operations,
                 transitions,
                 next_segment_name: None,
@@ -137,7 +137,7 @@ pub(super) fn split_state_segments<'program>(
             segment_index,
         },
         name: segment_name(&state.name, segment_index),
-        parameters: state_parameters_for_segment(state, segment_index),
+        parameters: state_parameters_for_segment(program, state, segment_index),
         operations,
         transitions,
         next_segment_name: None,
@@ -168,13 +168,17 @@ fn segment_name(state_name: &ProgramName, segment_index: usize) -> ProgramName {
     }
 }
 
-fn state_parameters_for_segment(state: &State, segment_index: usize) -> Vec<StateParameterNode> {
+fn state_parameters_for_segment(
+    program: &Program,
+    state: &State,
+    segment_index: usize,
+) -> Vec<StateParameterNode> {
     if segment_index > 0 {
         return Vec::new();
     }
 
-    state
-        .parameters
+    program
+        .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_self)
         .map(|parameter| StateParameterNode {

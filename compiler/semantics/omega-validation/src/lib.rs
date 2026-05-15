@@ -28,14 +28,14 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             validate_local_data_names(
                 &state.statements,
                 &machine_symbols,
-                &state.parameters,
+                program.state_parameters(state),
                 format!("machine `{}` state `{}`", machine.name, state.name),
                 &mut diagnostics,
             );
             let writable_roots = WritableRoots {
                 machine_symbols: &machine_symbols,
                 statements: &state.statements,
-                parameters: &state.parameters,
+                parameters: program.state_parameters(state),
             };
 
             for statement in &state.statements {
@@ -256,7 +256,7 @@ fn validate_callable_state_signatures(
         validate_state_signature_types(
             program.machine_states(machine).iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
-                parameters: &state.parameters,
+                parameters: program.state_parameters(state),
                 return_type: state.return_type.as_ref(),
             }),
             program,
@@ -707,7 +707,7 @@ fn validate_call(
             program,
             &call.arguments,
             state.name.as_str(),
-            &state.parameters,
+            program.state_parameters(state),
             writable_roots,
             diagnostics,
         );
@@ -729,7 +729,7 @@ fn validate_call(
             program,
             &call.arguments,
             state.name.as_str(),
-            &state.parameters,
+            program.state_parameters(state),
             writable_roots,
             diagnostics,
         );
@@ -779,7 +779,7 @@ fn validate_call(
                 program,
                 &call.arguments,
                 &state.name,
-                &state.parameters,
+                program.state_parameters(state),
                 writable_roots,
                 diagnostics,
             );
@@ -1154,7 +1154,7 @@ fn validate_transition_target(
             program,
             arguments,
             state.name.as_str(),
-            &state.parameters,
+            program.state_parameters(state),
             writable_roots,
             diagnostics,
         );
@@ -1174,7 +1174,7 @@ fn validate_transition_target(
             program,
             arguments,
             state.name.as_str(),
-            &state.parameters,
+            program.state_parameters(state),
             writable_roots,
             diagnostics,
         );
@@ -1206,7 +1206,7 @@ fn validate_transition_target(
             program,
             arguments,
             &state.name,
-            &state.parameters,
+            program.state_parameters(state),
             writable_roots,
             diagnostics,
         );

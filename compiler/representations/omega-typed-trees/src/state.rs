@@ -8,7 +8,7 @@ use omega_core::symbols::SymbolHandle;
 pub struct State {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub parameters: Vec<StateParameter>,
+    pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
     pub statements: Vec<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
@@ -19,7 +19,7 @@ impl Default for State {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            parameters: Vec::new(),
+            parameters: HandleSpan::empty(),
             return_type: None,
             statements: Vec::new(),
             statement_nodes: HandleSpan::empty(),

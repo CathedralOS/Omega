@@ -157,7 +157,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
         }
 
         for state in program.machine_states(machine) {
-            for parameter in &state.parameters {
+            for parameter in program.state_parameters(state) {
                 collect_bounded_value_obligation(
                     program,
                     format!(
@@ -382,7 +382,7 @@ fn collect_bounded_transition_argument_obligations(
         return;
     };
 
-    for (parameter, argument) in callable_parameters(target_state).zip(arguments.iter()) {
+    for (parameter, argument) in callable_parameters(program, target_state).zip(arguments.iter()) {
         let TypeReference::Constrained {
             base_type,
             constraints,
@@ -506,7 +506,7 @@ fn call_target_parameters<'program>(
     program: &'program TypedTrees,
     call: &Call,
 ) -> Option<&'program [StateParameter]> {
-    state_by_symbol(program, call.target_symbol).map(|state| state.parameters.as_slice())
+    state_by_symbol(program, call.target_symbol).map(|state| program.state_parameters(state))
 }
 
 fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
@@ -633,9 +633,12 @@ fn expressions_equivalent_for_precondition(left: &Expression, right: &Expression
     }
 }
 
-fn callable_parameters(state: &State) -> impl Iterator<Item = &StateParameter> {
-    state
-        .parameters
+fn callable_parameters<'program>(
+    program: &'program TypedTrees,
+    state: &'program State,
+) -> impl Iterator<Item = &'program StateParameter> {
+    program
+        .state_parameters(state)
         .iter()
         .filter(|parameter| !parameter.is_self)
 }
@@ -722,8 +725,8 @@ fn expression_type_reference<'program>(
                 _ => return None,
             };
 
-            state
-                .parameters
+            program
+                .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.name == *name)
                 .map(|parameter| &parameter.type_reference)
@@ -849,8 +852,8 @@ fn collection_length_for_binding(
     state: &State,
     name: &ProgramName,
 ) -> Option<usize> {
-    state
-        .parameters
+    program
+        .state_parameters(state)
         .iter()
         .find(|parameter| parameter.name == *name)
         .and_then(|parameter| {
@@ -978,8 +981,8 @@ fn type_reference_for_symbol<'program>(
     state: &'program State,
     symbol: SymbolHandle,
 ) -> Option<&'program TypeReference> {
-    state
-        .parameters
+    program
+        .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| &parameter.type_reference)

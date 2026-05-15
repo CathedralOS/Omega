@@ -30,3 +30,16 @@ pub struct StateParameter {
     pub is_mutable: bool,
     pub is_self: bool,
 }
+
+impl Default for StateParameter {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            type_reference: TypeReference::Unit,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        }
+    }
+}

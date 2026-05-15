@@ -89,7 +89,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         for state in typed_trees.machine_states(machine) {
             count_declaration_name(&state.name, &mut counts);
             count_optional_type_reference(state.return_type.as_ref(), &mut counts);
-            for parameter in &state.parameters {
+            for parameter in typed_trees.state_parameters(state) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
