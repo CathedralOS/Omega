@@ -13,6 +13,18 @@ pub struct Machine {
     pub states: Vec<State>,
 }
 
+impl Default for Machine {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            contains: Vec::new(),
+            owned_data: Vec::new(),
+            states: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContainedObject {
     pub symbol: SymbolHandle,

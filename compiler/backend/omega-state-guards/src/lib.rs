@@ -260,7 +260,7 @@ fn machine_by_symbol<'program>(
     machine_symbol: SymbolHandle,
 ) -> Option<&'program Machine> {
     program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.symbol == machine_symbol)
 }

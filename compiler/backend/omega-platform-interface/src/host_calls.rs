@@ -33,14 +33,14 @@ pub fn build_host_call_plan_with_workers(
     host_abi: Arc<HostAbiPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<HostCallPlan, Diagnostic> {
-    if program.machines.is_empty() {
+    if program.machines().is_empty() {
         return Ok(HostCallPlan::default());
     }
 
-    let machine_count = program.machines.len();
+    let machine_count = program.machines().len();
     let machine_plans = workers.map_ordered(machine_count, move |index| {
         let machine = program
-            .machines
+            .machines()
             .get(index)
             .expect("host-call worker index should be in range");
         let mut machine_plan = HostCallPlan::default();

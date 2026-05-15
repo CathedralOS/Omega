@@ -75,7 +75,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
         }
     }
 
-    for machine in &typed_trees.machines {
+    for machine in typed_trees.machines() {
         count_declaration_name(&machine.name, &mut counts);
         for contained in &machine.contains {
             count_declaration_name(&contained.name, &mut counts);

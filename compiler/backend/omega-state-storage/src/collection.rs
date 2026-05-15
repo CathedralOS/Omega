@@ -30,14 +30,14 @@ pub fn build_state_storage_plan_with_workers(
     context: Arc<StateStoragePlanningContext>,
     workers: WorkerPoolHandle,
 ) -> StateStoragePlan {
-    if program.machines.is_empty() {
+    if program.machines().is_empty() {
         return StateStoragePlan::default();
     }
 
-    let machine_count = program.machines.len();
+    let machine_count = program.machines().len();
     let machine_plans = workers.map_ordered(machine_count, move |index| {
         let machine = program
-            .machines
+            .machines()
             .get(index)
             .expect("state-storage worker index should be in range");
 

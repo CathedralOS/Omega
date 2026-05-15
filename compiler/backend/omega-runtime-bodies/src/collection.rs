@@ -281,7 +281,7 @@ fn terminal_state_value_expression(
 ) -> Option<omega_checked_trees::expression::ExpressionHandle> {
     let machine = context
         .program
-        .machines
+        .machines()
         .iter()
         .find(|machine| machine.symbol == target_key.machine)?;
     let state = machine

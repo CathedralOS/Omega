@@ -340,7 +340,7 @@ fn branch_call_target_with_visited<'program>(
                             }
                             let field_type_name = type_reference_name(&field.type_reference);
                             program
-                                .machines
+                                .machines()
                                 .iter()
                                 .find(|candidate| candidate.name == field_type_name)
                                 .map(|candidate| candidate.symbol)
@@ -348,7 +348,7 @@ fn branch_call_target_with_visited<'program>(
                     })
             })?;
         program
-            .machines
+            .machines()
             .iter()
             .find(|machine| machine.symbol == contained_symbol)?
     };
