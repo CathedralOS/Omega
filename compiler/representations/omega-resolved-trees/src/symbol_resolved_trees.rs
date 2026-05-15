@@ -249,6 +249,16 @@ impl SymbolResolvedTrees {
             .span_or_empty(span)
     }
 
+    pub fn state_statement_expression(
+        &self,
+        handle: Handle<expression::Expression>,
+    ) -> &expression::Expression {
+        self.tables
+            .declarations
+            .state_statement_expressions
+            .get(handle)
+    }
+
     pub fn child_type_references(
         &self,
         span: HandleSpan<types::TypeReference>,
@@ -263,10 +273,7 @@ impl SymbolResolvedTrees {
         &self,
         handle: Handle<types::TypeReference>,
     ) -> &types::TypeReference {
-        self.tables
-            .declarations
-            .child_type_references
-            .get(handle)
+        self.tables.declarations.child_type_references.get(handle)
     }
 
     pub fn rebuild_tables(&mut self) {
