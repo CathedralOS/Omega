@@ -10,8 +10,9 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
-    let contains = machine
-        .contains
+    let contains = lowerer
+        .source_program
+        .machine_contained_objects(machine.contains)
         .iter()
         .map(|contained_object| typed::machine::ContainedObject {
             symbol: contained_object.symbol,
@@ -21,8 +22,9 @@ pub(crate) fn lower_machine(
         })
         .collect();
 
-    let owned_data = machine
-        .owned_data
+    let owned_data = lowerer
+        .source_program
+        .machine_owned_data(machine.owned_data)
         .iter()
         .map(|owned_data| {
             Ok(typed::machine::OwnedData {

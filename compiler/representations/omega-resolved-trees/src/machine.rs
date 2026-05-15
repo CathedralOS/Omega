@@ -15,8 +15,8 @@ pub struct Machine {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineStorage {
-    pub contains: Vec<ContainedObject>,
-    pub owned_data: Vec<OwnedData>,
+    pub contains: HandleSpan<ContainedObject>,
+    pub owned_data: HandleSpan<OwnedData>,
     pub states: HandleSpan<Handle<State>>,
 }
 
@@ -34,7 +34,7 @@ impl DerefMut for Machine {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContainedObject {
     pub symbol: SymbolHandle,
     pub type_symbol: SymbolHandle,
@@ -48,4 +48,15 @@ pub struct OwnedData {
     pub name: DiagnosticName,
     pub type_reference: TypeReference,
     pub initial_value: Option<Expression>,
+}
+
+impl Default for OwnedData {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::default(),
+            type_reference: TypeReference::Unit,
+            initial_value: None,
+        }
+    }
 }

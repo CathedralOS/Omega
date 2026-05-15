@@ -40,8 +40,8 @@ pub(crate) fn lower_machine_into(
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         storage: MachineStorage {
-            contains: Vec::new(),
-            owned_data: Vec::new(),
+            contains: HandleSpan::empty(),
+            owned_data: HandleSpan::empty(),
             states,
         },
     });

@@ -363,16 +363,16 @@ fn invariant_definition_snapshot(
 fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
-        contains: machine
-            .contains
+        contains: program
+            .machine_contained_objects(machine.contains)
             .iter()
             .map(|contained| ContainedObjectSnapshot {
                 name: contained.name.to_string(),
                 type_name: contained.type_name.to_string(),
             })
             .collect(),
-        owned_data: machine
-            .owned_data
+        owned_data: program
+            .machine_owned_data(machine.owned_data)
             .iter()
             .map(|owned| owned_data_snapshot(program, owned))
             .collect(),
@@ -717,8 +717,8 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
-                contains: Vec::new(),
-                owned_data: Vec::new(),
+                contains: HandleSpan::empty(),
+                owned_data: HandleSpan::empty(),
                 states,
             },
         });

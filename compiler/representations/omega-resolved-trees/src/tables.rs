@@ -61,9 +61,11 @@ impl SymbolResolvedTreeTables {
 
         let machine_state_handles = &source_tables.declarations.machine_state_handles;
         let machine_states = &mut source_tables.declarations.machine_states;
+        let machine_owned_data = &source_tables.declarations.machine_owned_data;
         for machine in &roots.machines {
             tables.insert_machine_with_state_spans(
                 machine,
+                machine_owned_data,
                 machine_state_handles,
                 machine_states,
                 state_parameters,
@@ -104,12 +106,13 @@ impl SymbolResolvedTreeTables {
     fn insert_machine_with_state_spans(
         &mut self,
         machine: &Machine,
+        machine_owned_data: &Arena<OwnedData>,
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for owned_data in &machine.owned_data {
+        for owned_data in machine_owned_data.span_or_empty(machine.owned_data) {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
@@ -257,8 +260,8 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: DiagnosticName::generated("main"),
             storage: MachineStorage {
-                contains: Vec::new(),
-                owned_data: Vec::new(),
+                contains: HandleSpan::empty(),
+                owned_data: HandleSpan::empty(),
                 states,
             },
         });
