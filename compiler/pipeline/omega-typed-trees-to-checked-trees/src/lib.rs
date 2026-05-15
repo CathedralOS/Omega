@@ -113,7 +113,7 @@ fn build_proof_facts(
 
 fn build_invariant_facts(program: &omega_typed_trees::TypedTrees) -> InvariantFacts {
     let definitions = program
-        .invariant_definitions
+        .invariant_definitions()
         .iter()
         .map(|definition| InvariantFact {
             symbol: definition.symbol,

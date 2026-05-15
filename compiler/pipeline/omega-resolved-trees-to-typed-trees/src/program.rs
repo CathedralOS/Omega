@@ -18,8 +18,7 @@ pub fn lower_symbol_resolved_trees(
         let invariant_definition = lower_invariant_definition(&mut lowerer, invariant_definition)?;
         lowerer
             .typed_trees
-            .invariant_definitions
-            .push(invariant_definition);
+            .push_invariant_definition(invariant_definition);
     }
 
     for data_definition in &resolved_program.data_definitions {

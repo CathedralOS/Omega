@@ -20,7 +20,7 @@ impl TypedProgramTables {
     pub fn from_typed_trees(typed_trees: &TypedTrees) -> Self {
         let mut tables = Self::default();
 
-        for invariant in &typed_trees.invariant_definitions {
+        for invariant in typed_trees.invariant_definitions() {
             tables.insert_type_constraints(invariant.constraints, &typed_trees.type_constraints);
         }
 
@@ -43,7 +43,7 @@ impl TypedProgramTables {
         let mut tables = Self::default();
         let type_constraints = &typed_trees.type_constraints;
 
-        for invariant in &typed_trees.invariant_definitions {
+        for invariant in typed_trees.invariant_definitions() {
             tables.insert_type_constraints(invariant.constraints, type_constraints);
         }
 

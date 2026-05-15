@@ -8,3 +8,13 @@ pub struct InvariantDefinition {
     pub name: ProgramName,
     pub constraints: HandleSpan<crate::types::TypeConstraint>,
 }
+
+impl Default for InvariantDefinition {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            constraints: HandleSpan::empty(),
+        }
+    }
+}

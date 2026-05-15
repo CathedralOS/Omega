@@ -46,7 +46,7 @@ impl IdentityStorageCounts {
 pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts {
     let mut counts = IdentityStorageCounts::default();
 
-    for invariant in &typed_trees.invariant_definitions {
+    for invariant in typed_trees.invariant_definitions() {
         count_declaration_name(&invariant.name, &mut counts);
     }
 
