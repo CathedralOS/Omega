@@ -191,13 +191,13 @@ fn parse_state_parameter<'tokens, 'source>(
 
             return Ok((
                 syntax_trees.items.insert_state_parameter_node(
-                omega_syntax_trees::item::StateParameterNode {
-                    name: Identifier::generated("self"),
-                    type_reference: syntax_trees.type_references.insert_self_type(),
-                    is_const,
-                    is_mutable: is_mutable || is_leading_mutable,
-                    is_self: true,
-                },
+                    omega_syntax_trees::item::StateParameterNode {
+                        name: Identifier::generated("self"),
+                        type_reference: syntax_trees.type_references.insert_self_type(),
+                        is_const,
+                        is_mutable: is_mutable || is_leading_mutable,
+                        is_self: true,
+                    },
                 ),
                 input,
             ));

@@ -1,18 +1,17 @@
+use crate::parse_error::ParseError;
 use crate::parser::expression::{
     parse_expression_handle, parse_expression_handle_without_struct_literals,
 };
 use crate::parser::input::{Input, ParseResult};
-use crate::parse_error::ParseError;
 use omega_core::arena::{Handle, HandleSpan};
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
-    TableCallExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
 };
 use omega_syntax_trees::statement::{
     StatementHandle, StatementNode, TableTransition, TransitionGuardNode, TransitionTargetHandle,
     TransitionTargetNode,
 };
-use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_transition_statement_handle<'tokens, 'source>(
@@ -88,7 +87,10 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<StatementHandle>> {
     let (subject, mut input) = if input.at_punctuation(PunctuationKind::LeftBrace) {
-        (ExpressionHandle::invalid(), input.take_punctuation(PunctuationKind::LeftBrace, "{")?)
+        (
+            ExpressionHandle::invalid(),
+            input.take_punctuation(PunctuationKind::LeftBrace, "{")?,
+        )
     } else {
         let (expression, rest) = parse_expression_handle_until_punctuation(
             syntax_trees,
@@ -139,13 +141,14 @@ pub(super) fn parse_transition_block_handles<'tokens, 'source>(
         };
         input = rest;
 
-        let statement = syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: TransitionTargetHandle::invalid(),
-                guard,
-            }));
+        let statement =
+            syntax_trees
+                .statements
+                .insert(StatementNode::Transition(TableTransition {
+                    target,
+                    continuation: TransitionTargetHandle::invalid(),
+                    guard,
+                }));
         let handle = syntax_trees.items.append_statement_handle(statement);
         if count == 0 {
             start = handle;
@@ -169,7 +172,10 @@ pub(super) fn parse_transition_target_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TransitionTargetHandle> {
     let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-    Ok((classify_transition_target_handle(syntax_trees, expression)?, rest))
+    Ok((
+        classify_transition_target_handle(syntax_trees, expression)?,
+        rest,
+    ))
 }
 
 fn parse_expression_handle_until_punctuation<'tokens, 'source>(
@@ -230,11 +236,9 @@ fn classify_call_target_handle(
         ));
     }
     let path = if call.receiver.is_valid() {
-        let receiver = copy_expression_identifier_path_to_statement_table(
-            syntax_trees,
-            call.receiver,
-        )
-        .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
+        let receiver =
+            copy_expression_identifier_path_to_statement_table(syntax_trees, call.receiver)
+                .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
         append_statement_identifier_path_member(syntax_trees, receiver, call.target.clone())
     } else {
         let handle = syntax_trees
@@ -248,10 +252,7 @@ fn classify_call_target_handle(
         Ok(TransitionTargetNode::SelfTarget)
     } else {
         let arguments = copy_expression_handles_to_statement_table(syntax_trees, call.arguments);
-        Ok(TransitionTargetNode::Named {
-            path,
-            arguments,
-        })
+        Ok(TransitionTargetNode::Named { path, arguments })
     }
 }
 
@@ -260,7 +261,12 @@ fn expression_handle_identifier_depth(
     expression: ExpressionHandle,
 ) -> Option<usize> {
     match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name(path) => Some(syntax_trees.expressions.identifier_path_members(*path).len()),
+        ExpressionNode::Name(path) => Some(
+            syntax_trees
+                .expressions
+                .identifier_path_members(*path)
+                .len(),
+        ),
         ExpressionNode::Member(member) => {
             let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
             Some(depth + 1)
@@ -325,7 +331,9 @@ fn append_statement_identifier_path_member(
     path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
     member: omega_syntax_trees::identifier::Identifier,
 ) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
-    let handle = syntax_trees.statements.append_identifier_path_member(member);
+    let handle = syntax_trees
+        .statements
+        .append_identifier_path_member(member);
 
     if path.is_empty() {
         HandleSpan::from_parts(handle, 1)

@@ -8,7 +8,8 @@ pub(super) fn unexpected_eof<'tokens, 'source>(
 ) -> ParseError {
     ParseError::at_source_span(
         format!("expected {}, found EOF", expected.into()),
-        input.tokens
+        input
+            .tokens
             .first()
             .map(|token| input.source_span(token))
             .unwrap_or_default(),

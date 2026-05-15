@@ -1,14 +1,14 @@
-use crate::parser::context::ExpressionContext;
 use crate::parse_error::ParseError;
+use crate::parser::context::ExpressionContext;
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
 use omega_core::arena::{Handle, HandleSpan};
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
-    TableCallExpression, TableCastExpression, TableIndexedExpression, TableMemberExpression,
-    TableStructLiteral, TableStructLiteralField,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCallExpression,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableStructLiteral,
+    TableStructLiteralField,
 };
 use omega_syntax_trees::identifier::Identifier;
-use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{KeywordKind, NumericLiteralKind, PunctuationKind, TokenKind};
 
 pub(super) fn parse_expression_handle<'tokens, 'source>(
@@ -43,7 +43,9 @@ pub(super) fn parse_argument_list_after_open_paren_handle<'tokens, 'source>(
     if !input.at_punctuation(PunctuationKind::RightParen) {
         loop {
             let (expression, rest) = parse_expression_handle(syntax_trees, input)?;
-            let handle = syntax_trees.expressions.append_expression_handle(expression);
+            let handle = syntax_trees
+                .expressions
+                .append_expression_handle(expression);
             if count == 0 {
                 start = handle;
             }
@@ -130,7 +132,10 @@ fn parse_comparison_expression_handle<'tokens, 'source>(
         parse_shift_expression_handle,
         &[
             (PunctuationKind::LessEqual, BinaryOperator::LessOrEqual),
-            (PunctuationKind::GreaterEqual, BinaryOperator::GreaterOrEqual),
+            (
+                PunctuationKind::GreaterEqual,
+                BinaryOperator::GreaterOrEqual,
+            ),
             (PunctuationKind::Less, BinaryOperator::Less),
             (PunctuationKind::Greater, BinaryOperator::Greater),
         ],
@@ -214,13 +219,14 @@ fn parse_binary_chain_handle<'tokens, 'source>(
         input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
         let (right, rest) = lower(syntax_trees, input, context)?;
         input = rest;
-        expression = syntax_trees
-            .expressions
-            .insert(ExpressionNode::Binary(TableBinaryExpression {
-                left: expression,
-                operator,
-                right,
-            }));
+        expression =
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: expression,
+                    operator,
+                    right,
+                }));
     }
 
     Ok((expression, input))
@@ -259,12 +265,14 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    let (mut expression, mut input) = parse_primary_expression_handle(syntax_trees, input, context)?;
+    let (mut expression, mut input) =
+        parse_primary_expression_handle(syntax_trees, input, context)?;
 
     loop {
         if input.at_punctuation(PunctuationKind::LeftParen) {
             input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-            let (arguments, rest) = parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
+            let (arguments, rest) =
+                parse_argument_list_after_open_paren_handle(syntax_trees, input)?;
             input = rest;
             expression = build_call_expression_handle(syntax_trees, expression, arguments)?;
             continue;
@@ -272,18 +280,16 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
 
         if input.at_punctuation(PunctuationKind::LeftBracket) {
             input = input.take_punctuation(PunctuationKind::LeftBracket, "[")?;
-            let (index, rest) = parse_expression_handle_in(
-                syntax_trees,
-                input,
-                ExpressionContext::Default,
-            )?;
+            let (index, rest) =
+                parse_expression_handle_in(syntax_trees, input, ExpressionContext::Default)?;
             input = rest.take_punctuation(PunctuationKind::RightBracket, "]")?;
-            expression = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection: expression,
-                    index,
-                }));
+            expression =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Indexed(TableIndexedExpression {
+                        collection: expression,
+                        index,
+                    }));
             continue;
         }
 
@@ -291,27 +297,31 @@ fn parse_postfix_expression_handle<'tokens, 'source>(
             input = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = input.take_identifier()?;
             input = rest;
-            expression = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver: expression,
-                    member,
-                }));
+            expression =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Member(TableMemberExpression {
+                        receiver: expression,
+                        member,
+                    }));
             continue;
         }
 
         if input.at_keyword(KeywordKind::As) {
             input = input.take_keyword(KeywordKind::As, "as")?;
             let (target_type, rest) = parse_path_handle_span(input, |member| {
-                syntax_trees.expressions.append_identifier_path_member(member)
+                syntax_trees
+                    .expressions
+                    .append_identifier_path_member(member)
             })?;
             input = rest;
-            expression = syntax_trees
-                .expressions
-                .insert(ExpressionNode::Cast(TableCastExpression {
-                    value: expression,
-                    target_type,
-                }));
+            expression =
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Cast(TableCastExpression {
+                        value: expression,
+                        target_type,
+                    }));
             continue;
         }
 
@@ -328,35 +338,60 @@ fn parse_primary_expression_handle<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
     if input.at_keyword(KeywordKind::True) {
         let input = input.take_keyword(KeywordKind::True, "true")?;
-        return Ok((syntax_trees.expressions.insert(ExpressionNode::Boolean(true)), input));
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Boolean(true)),
+            input,
+        ));
     }
 
     if input.at_keyword(KeywordKind::False) {
         let input = input.take_keyword(KeywordKind::False, "false")?;
-        return Ok((syntax_trees.expressions.insert(ExpressionNode::Boolean(false)), input));
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Boolean(false)),
+            input,
+        ));
     }
 
     if input.at_keyword(KeywordKind::SelfValue) {
         let input = input.take_keyword(KeywordKind::SelfValue, "self")?;
-        return Ok((syntax_trees.expressions.insert(ExpressionNode::SelfValue), input));
+        return Ok((
+            syntax_trees.expressions.insert(ExpressionNode::SelfValue),
+            input,
+        ));
     }
 
-    if input
-        .tokens
-        .first()
-        .is_some_and(|token| matches!(token.kind, TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))))
-    {
+    if input.tokens.first().is_some_and(|token| {
+        matches!(
+            token.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
+        )
+    }) {
         let (value, input) = input.take_integer()?;
-        return Ok((syntax_trees.expressions.insert(ExpressionNode::Integer(value)), input));
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Integer(value)),
+            input,
+        ));
     }
 
-    if input
-        .tokens
-        .first()
-        .is_some_and(|token| matches!(token.kind, TokenKind::NumericLiteral(NumericLiteralKind::Float(_))))
-    {
+    if input.tokens.first().is_some_and(|token| {
+        matches!(
+            token.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Float(_))
+        )
+    }) {
         let (value, input) = input.take_float_text()?;
-        return Ok((syntax_trees.expressions.insert(ExpressionNode::Float(value)), input));
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::Float(value)),
+            input,
+        ));
     }
 
     if input
@@ -424,7 +459,9 @@ fn parse_primary_expression_handle<'tokens, 'source>(
 
     if input.at_name_like() {
         let (path, input) = parse_path_handle_span(input, |member| {
-            syntax_trees.expressions.append_identifier_path_member(member)
+            syntax_trees
+                .expressions
+                .append_identifier_path_member(member)
         })?;
 
         if context != ExpressionContext::NoStructLiteral
@@ -530,14 +567,18 @@ fn build_call_expression_handle(
                     arguments,
                 })))
         }
-        ExpressionNode::Member(member) => Ok(syntax_trees
-            .expressions
-            .insert(ExpressionNode::Call(TableCallExpression {
-                receiver: member.receiver,
-                target: member.member,
-                arguments,
-            }))),
-        _ => Err(ParseError::new("call target must be a path or member access")),
+        ExpressionNode::Member(member) => {
+            Ok(syntax_trees
+                .expressions
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: member.receiver,
+                    target: member.member,
+                    arguments,
+                })))
+        }
+        _ => Err(ParseError::new(
+            "call target must be a path or member access",
+        )),
     }
 }
 

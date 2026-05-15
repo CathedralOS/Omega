@@ -1,10 +1,10 @@
-mod input;
-mod context;
-mod diagnostics;
 mod capability;
+mod context;
 mod data;
+mod diagnostics;
 mod expression;
 mod file;
+mod input;
 mod invariant;
 mod item;
 mod library;
@@ -66,7 +66,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         assert_eq!(parsed.root_item_count(), 1);
     }
@@ -87,7 +89,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         assert_eq!(parsed.root_item_count(), 1);
     }
@@ -100,7 +104,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         let machine = match parsed.root_items().next().expect("root item") {
             omega_syntax_trees::item::Item::Machine(machine) => machine,
@@ -124,7 +130,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         let machine = match parsed.root_items().next().expect("root item") {
             omega_syntax_trees::item::Item::Machine(machine) => machine,
@@ -149,7 +157,9 @@ mod tests {
 
         assert!(parameter.is_self);
         assert!(matches!(
-            parsed.type_references.type_reference(parameter.type_reference),
+            parsed
+                .type_references
+                .type_reference(parameter.type_reference),
             TypeReferenceNode::SelfType
         ));
     }
@@ -164,7 +174,9 @@ mod tests {
         }
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
         let machine = match parsed.root_items().next().expect("root item") {
             omega_syntax_trees::item::Item::Machine(machine) => machine,
@@ -202,7 +214,9 @@ mod tests {
         data self {}
         "#;
 
-        let tokens = Lexer::new(source).tokenize().expect("tokenize should succeed");
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize should succeed");
         assert!(parse_syntax_trees(&tokens).is_err());
     }
 }

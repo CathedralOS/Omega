@@ -2,11 +2,11 @@ use crate::parser::expression::parse_expression_handle;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::type_reference::parse_type_reference_handle_allowing_borrow;
 use omega_core::arena::{Handle, HandleSpan};
-use omega_syntax_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableCallExpression,
-};
-use omega_syntax_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData};
 use omega_syntax_trees::SyntaxTrees;
+use omega_syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use omega_syntax_trees::statement::{
+    StatementHandle, StatementNode, TableAssignment, TableCall, TableLocalData,
+};
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_statement_handle<'tokens, 'source>(
@@ -107,7 +107,10 @@ fn expression_handle_to_statement_call(
 fn split_expression_call_handle(
     syntax_trees: &mut SyntaxTrees,
     call: &TableCallExpression,
-) -> Option<(HandleSpan<omega_syntax_trees::identifier::Identifier>, omega_syntax_trees::identifier::Identifier)> {
+) -> Option<(
+    HandleSpan<omega_syntax_trees::identifier::Identifier>,
+    omega_syntax_trees::identifier::Identifier,
+)> {
     let receiver = if call.receiver.is_valid() {
         expression_handle_to_identifier_path_span(syntax_trees, call.receiver)?
     } else {
@@ -123,10 +126,12 @@ fn expression_handle_to_identifier_path_span(
 ) -> Option<HandleSpan<omega_syntax_trees::identifier::Identifier>> {
     match syntax_trees.expressions.expression(expression).clone() {
         ExpressionNode::Name(path) => Some(copy_expression_identifier_path_to_statement_table(
-            syntax_trees, path,
+            syntax_trees,
+            path,
         )),
         ExpressionNode::Member(member) => {
-            let receiver = expression_handle_to_identifier_path_span(syntax_trees, member.receiver)?;
+            let receiver =
+                expression_handle_to_identifier_path_span(syntax_trees, member.receiver)?;
             Some(append_statement_identifier_path_member(
                 syntax_trees,
                 receiver,
@@ -171,7 +176,9 @@ fn append_statement_identifier_path_member(
     path: HandleSpan<omega_syntax_trees::identifier::Identifier>,
     member: omega_syntax_trees::identifier::Identifier,
 ) -> HandleSpan<omega_syntax_trees::identifier::Identifier> {
-    let handle = syntax_trees.statements.append_identifier_path_member(member);
+    let handle = syntax_trees
+        .statements
+        .append_identifier_path_member(member);
 
     if path.is_empty() {
         HandleSpan::from_parts(handle, 1)

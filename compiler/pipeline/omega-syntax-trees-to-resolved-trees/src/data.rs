@@ -2,10 +2,10 @@ use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_syntax_trees::{self as syntax, SyntaxTrees};
 use omega_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant, TypeParameter,
 };
+use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
@@ -46,7 +46,11 @@ fn lower_data_member(
         syntax::item::DataMember::Field(field) => Ok(DataMember::Field(DataField {
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(&field.name),
-            type_reference: lower_type_reference_handle(lowerer, syntax_trees, field.type_reference)?,
+            type_reference: lower_type_reference_handle(
+                lowerer,
+                syntax_trees,
+                field.type_reference,
+            )?,
         })),
         syntax::item::DataMember::Variant(variant) => Ok(DataMember::Variant(DataVariant {
             symbol: SymbolHandle::invalid(),

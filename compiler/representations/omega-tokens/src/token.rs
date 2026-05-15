@@ -1,8 +1,8 @@
+use crate::TokenText;
 use crate::{
     CommentKind, FloatLiteralKind, IntegerLiteralKind, KeywordKind, NumericLiteralKind,
     PunctuationKind, Span, TokenKind,
 };
-use crate::TokenText;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token<'source> {
@@ -17,11 +17,17 @@ impl<'source> Token<'source> {
     }
 
     pub fn is_integer_literal(&self) -> bool {
-        matches!(self.kind, TokenKind::NumericLiteral(NumericLiteralKind::Integer(_)))
+        matches!(
+            self.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
+        )
     }
 
     pub fn is_float_literal(&self) -> bool {
-        matches!(self.kind, TokenKind::NumericLiteral(NumericLiteralKind::Float(_)))
+        matches!(
+            self.kind,
+            TokenKind::NumericLiteral(NumericLiteralKind::Float(_))
+        )
     }
 
     pub fn is_string_literal(&self) -> bool {

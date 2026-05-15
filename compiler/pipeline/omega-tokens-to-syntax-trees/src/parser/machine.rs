@@ -12,7 +12,9 @@ pub(super) fn parse_machine<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Machine> {
     let (path, input) = parse_path_handle_span(input, |member| {
-        syntax_trees.expressions.append_identifier_path_member(member)
+        syntax_trees
+            .expressions
+            .append_identifier_path_member(member)
     })?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (name, entry_name) = split_machine_path(syntax_trees, path);
@@ -61,7 +63,9 @@ pub(super) fn parse_machine<'tokens, 'source>(
         if state_count == 0 {
             state_start = handle;
         }
-        state_count = state_count.checked_add(1).expect("machine state span count overflow");
+        state_count = state_count
+            .checked_add(1)
+            .expect("machine state span count overflow");
         input = rest;
     }
 

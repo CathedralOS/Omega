@@ -48,9 +48,9 @@ pub(super) fn parse_capability_definition<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_capability_member(CapabilityMember::Field(CapabilityField {
-                name: field_name,
-                type_reference,
-            }));
+                    name: field_name,
+                    type_reference,
+                }));
             if member_count == 0 {
                 member_start = handle;
             }

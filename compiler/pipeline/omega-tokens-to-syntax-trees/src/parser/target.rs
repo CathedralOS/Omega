@@ -3,8 +3,7 @@ use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{
-    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TrustMode,
-    TrustPolicy,
+    TargetDefinition, TargetHost, TargetHostSetting, TargetHostSettingValue, TrustMode, TrustPolicy,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
@@ -104,13 +103,7 @@ fn parse_target_host<'tokens, 'source>(
     } else {
         HandleSpan::from_parts(setting_start, setting_count)
     };
-    Ok((
-        TargetHost {
-            provider,
-            settings,
-        },
-        input,
-    ))
+    Ok((TargetHost { provider, settings }, input))
 }
 
 fn parse_trust_policy<'tokens, 'source>(
@@ -132,7 +125,9 @@ fn parse_trust_policy<'tokens, 'source>(
             input,
         )
     } else {
-        parse_path_handle_span(input, |member| syntax_trees.items.append_identifier_path_member(member))?
+        parse_path_handle_span(input, |member| {
+            syntax_trees.items.append_identifier_path_member(member)
+        })?
     };
 
     Ok((TrustPolicy { mode, path }, input))

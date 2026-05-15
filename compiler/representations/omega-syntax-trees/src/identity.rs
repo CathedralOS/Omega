@@ -74,7 +74,10 @@ fn count_item(syntax_trees: &SyntaxTrees, item: &Item, counts: &mut AstIdentityS
         }
         Item::Invariant(invariant) => {
             count_identifier(&invariant.name, counts);
-            for constraint in syntax_trees.type_references.constraints(invariant.constraints) {
+            for constraint in syntax_trees
+                .type_references
+                .constraints(invariant.constraints)
+            {
                 count_type_constraint_handle(syntax_trees, constraint, counts);
             }
         }

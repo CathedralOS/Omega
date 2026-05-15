@@ -66,8 +66,7 @@ fn parse_library_function<'tokens, 'source>(
     let mut trust_count = 0u32;
 
     loop {
-        if input.at_keyword(KeywordKind::Entry)
-            || input.at_punctuation(PunctuationKind::RightBrace)
+        if input.at_keyword(KeywordKind::Entry) || input.at_punctuation(PunctuationKind::RightBrace)
         {
             break;
         }

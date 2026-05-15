@@ -175,7 +175,9 @@ impl Default for TransitionTargetNode {
 
 #[cfg(test)]
 mod tests {
-    use super::{StatementNode, StatementTable, TableTransition, TransitionGuardNode, TransitionTargetNode};
+    use super::{
+        StatementNode, StatementTable, TableTransition, TransitionGuardNode, TransitionTargetNode,
+    };
     use crate::expression::{ExpressionNode, ExpressionTable};
     use crate::identifier::Identifier;
     use omega_core::arena::HandleSpan;
@@ -191,7 +193,8 @@ mod tests {
         let argument_two = expressions.insert(ExpressionNode::Integer(2));
         let _argument_two = statements.append_expression_handle(argument_two);
         let arguments = HandleSpan::from_parts(argument_one, 2);
-        let target = statements.insert_transition_target(TransitionTargetNode::Named { path, arguments });
+        let target =
+            statements.insert_transition_target(TransitionTargetNode::Named { path, arguments });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
         let statement = statements.insert(StatementNode::Transition(TableTransition {
             target,
