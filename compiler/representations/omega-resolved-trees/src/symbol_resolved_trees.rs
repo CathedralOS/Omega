@@ -155,6 +155,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub machine_states: Arena<state::State>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
     pub state_parameters: Arena<signature::StateParameter>,
+    pub state_statements: Arena<statement::Statement>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -235,6 +236,16 @@ impl SymbolResolvedTrees {
         self.tables
             .declarations
             .machine_owned_data
+            .span_or_empty(span)
+    }
+
+    pub fn state_statements(
+        &self,
+        span: HandleSpan<statement::Statement>,
+    ) -> &[statement::Statement] {
+        self.tables
+            .declarations
+            .state_statements
             .span_or_empty(span)
     }
 
