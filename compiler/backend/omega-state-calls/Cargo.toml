@@ -19,10 +19,10 @@ omega-state-graph = { path = "../../representations/omega-state-graph" }
 omega-calling-conventions = { path = "../omega-calling-conventions" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 omega-platform-interface = { path = "../omega-platform-interface" }
-omega-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-resolved-trees-to-typed-trees" }
+omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }
 omega-source-files-to-tokens = { path = "../../pipeline/omega-source-files-to-tokens" }
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
-omega-syntax-trees-to-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-resolved-trees" }
+omega-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-symbol-resolved-trees" }
 omega-target = { path = "../omega-target" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
 omega-typed-trees-to-checked-trees = { path = "../../pipeline/omega-typed-trees-to-checked-trees" }

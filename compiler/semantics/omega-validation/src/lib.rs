@@ -554,9 +554,9 @@ fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>)
 #[cfg(test)]
 mod tests {
     use super::validate_program;
-    use omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use omega_source_files_to_tokens::Lexer;
-    use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]

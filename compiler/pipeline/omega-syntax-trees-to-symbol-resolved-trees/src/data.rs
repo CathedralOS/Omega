@@ -3,7 +3,7 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::data::{
+use omega_symbol_resolved_trees::data::{
     DataDefinition, DataDefinitionStorage, DataField, DataMember, DataVariant, TypeParameter,
 };
 use omega_syntax_trees::{self as syntax, SyntaxTrees};

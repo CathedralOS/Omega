@@ -5,7 +5,7 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::statement::{
+use omega_symbol_resolved_trees::statement::{
     Assignment, Call, CallStorage, LocalData, LocalDataStorage, NamedTransitionTarget,
     NamedTransitionTargetStorage, Statement, Transition, TransitionGuard, TransitionTarget,
 };
@@ -100,7 +100,7 @@ fn lower_statement_expression(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
-) -> Result<omega_resolved_trees::expression::ExpressionHandle, Diagnostic> {
+) -> Result<omega_symbol_resolved_trees::expression::ExpressionHandle, Diagnostic> {
     lower_expression_into_table(
         syntax_trees,
         &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
@@ -112,7 +112,7 @@ fn lower_statement_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
-) -> Result<HandleSpan<omega_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
+) -> Result<HandleSpan<omega_symbol_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for expression in syntax_trees.statements.expression_handles(expressions) {

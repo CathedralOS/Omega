@@ -2,8 +2,8 @@ use crate::expression::lower_expression_from_table;
 use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees as resolved;
-use omega_resolved_trees::SymbolResolvedTrees;
+use omega_symbol_resolved_trees as resolved;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees as typed;
 
 pub(crate) fn lower_type_reference(

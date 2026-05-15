@@ -2,7 +2,7 @@ use crate::program::Lowerer;
 use crate::type_reference::lower_type_constraint_handles;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::invariant::{InvariantDefinition, InvariantDefinitionStorage};
+use omega_symbol_resolved_trees::invariant::{InvariantDefinition, InvariantDefinitionStorage};
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_invariant_definition(

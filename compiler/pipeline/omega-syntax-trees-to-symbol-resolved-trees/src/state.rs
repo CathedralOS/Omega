@@ -4,9 +4,9 @@ use crate::type_reference::lower_type_reference_handle;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
-use omega_resolved_trees::state::{State, StateStorage};
-use omega_resolved_trees::statement::Statement;
+use omega_symbol_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
+use omega_symbol_resolved_trees::state::{State, StateStorage};
+use omega_symbol_resolved_trees::statement::Statement;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_state_node(

@@ -3,7 +3,7 @@ use crate::program::Lowerer;
 use crate::state::lower_state;
 use crate::type_reference::lower_type_reference;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees as resolved;
+use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
 
 pub(crate) fn lower_machine(

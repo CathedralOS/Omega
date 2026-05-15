@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../foundation/omega-core" }
 omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
-omega-syntax-trees-to-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-resolved-trees" }
+omega-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/omega-syntax-trees-to-symbol-resolved-trees" }
 omega-calling-conventions = { path = "../../backend/omega-calling-conventions" }
 omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-emission-planning = { path = "../../backend/omega-emission-planning" }
@@ -28,8 +28,8 @@ omega-artifacts = { path = "../omega-artifacts" }
 omega-object = { path = "../../backend/object/omega-object" }
 omega-checked-trees = { path = "../../representations/omega-checked-trees" }
 omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
-omega-resolved-trees = { path = "../../representations/omega-resolved-trees" }
-omega-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-resolved-trees-to-typed-trees" }
+omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
+omega-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/omega-symbol-resolved-trees-to-typed-trees" }
 omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 omega-tokens-to-syntax-trees = { path = "../../pipeline/omega-tokens-to-syntax-trees" }
 omega-typed-trees-to-checked-trees = { path = "../../pipeline/omega-typed-trees-to-checked-trees" }

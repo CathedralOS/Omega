@@ -1,11 +1,11 @@
 [package]
-name = "omega-resolved-trees"
+name = "omega-symbol-resolved-trees"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_resolved_trees"
+name = "omega_symbol_resolved_trees"
 path = "src/lib.rs"
 
 [dependencies]

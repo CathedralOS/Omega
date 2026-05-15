@@ -14,7 +14,7 @@ use omega_image_emission::{
     ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
 };
 use omega_object::{ObjectContainerInput, SectionKind, emit_omega_object_container};
-use omega_resolved_trees::SymbolResolvedTrees;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use omega_target::NativeTarget;
 use omega_typed_trees::TypedTrees;
@@ -173,7 +173,7 @@ fn assemble_syntax(_sources: &SourceStorage) -> Result<AssembledSyntax, Vec<Diag
 }
 
 fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
-    omega_syntax_trees_to_resolved_trees::lower_syntax_trees_with_sources(
+    omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees_with_sources(
         &syntax.syntax_trees,
         syntax.sources,
     )
@@ -181,7 +181,7 @@ fn resolve_program(syntax: AssembledSyntax) -> Result<SymbolResolvedTrees, Vec<D
 }
 
 fn typecheck_program(resolved: SymbolResolvedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
-    omega_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    omega_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .map_err(|diagnostic| vec![diagnostic])
 }
 

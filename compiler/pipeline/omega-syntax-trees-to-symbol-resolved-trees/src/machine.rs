@@ -3,8 +3,8 @@ use crate::state::lower_state_node;
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::machine::{Machine, MachineStorage};
-use omega_resolved_trees::state::State;
+use omega_symbol_resolved_trees::machine::{Machine, MachineStorage};
+use omega_symbol_resolved_trees::state::State;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_machine_into(
