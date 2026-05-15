@@ -7,9 +7,9 @@ mod table;
 
 pub use definition::{SymbolDefinition, builtin_type_symbol_definitions};
 pub use kind::SymbolKind;
-pub use name::{SymbolDebugName, SymbolName, SymbolNameRef, SymbolNameStorageKind};
+pub use name::{SymbolName, SymbolNameRef, SymbolNameStorageKind};
 pub use path::SymbolPath;
-pub use symbol::{Symbol, SymbolDebugNameHandle, SymbolHandle, SymbolNameHandle, SymbolSpan};
+pub use symbol::{Symbol, SymbolHandle, SymbolNameHandle, SymbolSpan};
 pub use table::{SymbolNameStorageCounts, SymbolTable};
 
 #[cfg(test)]
@@ -23,7 +23,6 @@ mod tests {
 
         assert_eq!(symbols.get(invalid).kind, SymbolKind::Unknown);
         assert_eq!(symbols.name(invalid), "");
-        assert_eq!(symbols.debug_name(invalid), "");
     }
 
     #[test]
@@ -50,7 +49,6 @@ mod tests {
         assert_eq!(symbols.get(root).children.count(), 1);
         assert_eq!(symbols.get(machine).children.count(), 1);
         assert_eq!(symbols.name(state), "entry");
-        assert_eq!(symbols.debug_name(state), "entry");
     }
 
     #[test]
@@ -172,7 +170,7 @@ mod tests {
         let root_children = symbols
             .child_handles(root)
             .expect("root children should resolve")
-            .map(|child| symbols.debug_name(child).to_owned())
+            .map(|child| symbols.name(child).to_owned())
             .collect::<Vec<_>>();
         let main = symbols
             .find_child_by_name(root, "main")
@@ -180,7 +178,7 @@ mod tests {
         let main_children = symbols
             .child_handles(main)
             .expect("main children should resolve")
-            .map(|child| symbols.debug_name(child).to_owned())
+            .map(|child| symbols.name(child).to_owned())
             .collect::<Vec<_>>();
 
         assert_eq!(
@@ -191,30 +189,5 @@ mod tests {
             main_children,
             vec!["entry".to_owned(), "running".to_owned()]
         );
-    }
-
-    #[test]
-    fn debug_names_can_be_purged_without_invalidating_symbols_or_lookup_names() {
-        let mut symbols =
-            SymbolTable::from_definition(SymbolDefinition::named(SymbolKind::Root, "root"));
-        let root = symbols.root();
-
-        assert_eq!(symbols.name(root), "root");
-        assert_eq!(symbols.debug_name(root), "root");
-        symbols.clear_debug_names();
-        assert!(root.is_valid());
-        assert_eq!(symbols.name(root), "root");
-        assert_eq!(symbols.debug_name(root), "root");
-    }
-
-    #[test]
-    fn lookup_name_can_differ_from_debug_name() {
-        let symbols = SymbolTable::from_definition(
-            SymbolDefinition::named(SymbolKind::Root, "root").with_debug_name("root display only"),
-        );
-        let root = symbols.root();
-
-        assert_eq!(symbols.name(root), "root");
-        assert_eq!(symbols.debug_name(root), "root display only");
     }
 }

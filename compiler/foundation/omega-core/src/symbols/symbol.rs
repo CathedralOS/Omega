@@ -1,11 +1,10 @@
 use crate::arena::{Handle, HandleSpan, HierarchyNode};
 
-use super::{SymbolDebugName, SymbolKind, SymbolName};
+use super::{SymbolKind, SymbolName};
 
 pub type SymbolHandle = Handle<Symbol>;
 pub type SymbolSpan = HandleSpan<SymbolHandle>;
 pub type SymbolNameHandle = Handle<SymbolName>;
-pub type SymbolDebugNameHandle = Handle<SymbolDebugName>;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Symbol {
@@ -13,7 +12,6 @@ pub struct Symbol {
     pub children: HandleSpan<Symbol>,
     pub kind: SymbolKind,
     pub name: SymbolNameHandle,
-    pub debug_name: SymbolDebugNameHandle,
 }
 
 impl HierarchyNode for Symbol {

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::source::{SourceId, SourceFile, SourceSpan};
+use crate::source::{SourceFile, SourceId, SourceSpan};
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SourceMap {
@@ -48,8 +48,8 @@ impl SourceMap {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::source::{SourceId, SourceMap, SourceSpan};
     use crate::Span;
+    use crate::source::{SourceId, SourceMap, SourceSpan};
 
     #[test]
     fn resolves_source_span_text() {

@@ -55,11 +55,6 @@ impl SymbolName {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SymbolDebugName {
-    pub value: String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymbolNameRef<'name> {
     Borrowed(&'name str),
