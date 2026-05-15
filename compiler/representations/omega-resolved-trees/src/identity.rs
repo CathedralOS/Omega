@@ -207,6 +207,7 @@ fn count_type_reference_node(
             }
         }
         TypeReferenceNode::Named { name, .. } => count_type_name(name, counts),
+        TypeReferenceNode::SelfType { .. } => {}
         TypeReferenceNode::Unit => {}
     }
 }
@@ -401,6 +402,7 @@ fn count_type_reference(type_reference: &TypeReference, counts: &mut IdentitySto
             }
         }
         TypeReference::Named { name, .. } => count_type_name(name, counts),
+        TypeReference::SelfType { .. } => {}
         TypeReference::Unit => {}
     }
 }

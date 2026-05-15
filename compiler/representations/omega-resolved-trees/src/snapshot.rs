@@ -296,6 +296,7 @@ pub enum TypeReferenceSnapshot {
     Named {
         name: String,
     },
+    SelfType,
     Unit,
 }
 
@@ -632,6 +633,7 @@ fn type_reference_snapshot_from_constraints(
         TypeReference::Named { name, .. } => TypeReferenceSnapshot::Named {
             name: name.to_string(),
         },
+        TypeReference::SelfType { .. } => TypeReferenceSnapshot::SelfType,
         TypeReference::Unit => TypeReferenceSnapshot::Unit,
     }
 }

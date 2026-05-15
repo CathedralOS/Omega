@@ -48,6 +48,12 @@ pub(crate) fn lower_type_reference(
                 name: crate::name::lower_name(name),
             })
         }
+        resolved::types::TypeReference::SelfType { symbol } => {
+            Ok(typed::types::TypeReference::Named {
+                symbol: *symbol,
+                name: typed::name::ProgramName::generated("Self"),
+            })
+        }
         resolved::types::TypeReference::Unit => Ok(typed::types::TypeReference::Unit),
     }
 }
