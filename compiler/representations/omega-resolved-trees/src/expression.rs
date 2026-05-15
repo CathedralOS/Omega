@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::fmt;
@@ -61,7 +61,7 @@ struct ExpressionNodeStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ExpressionSpanStorage {
     expression_handles: Arena<ExpressionHandle>,
-    name_path_members: Arena<ProgramName>,
+    name_path_members: Arena<DiagnosticName>,
     struct_fields: Arena<TableStructLiteralField>,
 }
 
@@ -240,7 +240,7 @@ impl ExpressionTable {
         }
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
+    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
@@ -264,8 +264,8 @@ impl ExpressionTable {
     fn copy_name_path_members(
         &mut self,
         source: &ExpressionTable,
-        members: HandleSpan<ProgramName>,
-    ) -> HandleSpan<ProgramName> {
+        members: HandleSpan<DiagnosticName>,
+    ) -> HandleSpan<DiagnosticName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
@@ -383,15 +383,15 @@ impl ExpressionTable {
         self.spans.struct_fields.span_or_empty(span)
     }
 
-    pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
+    pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.spans.name_path_members.span_or_empty(span)
     }
 
     pub fn copy_name_path_members_with_suffix(
         &mut self,
-        members: HandleSpan<ProgramName>,
-        suffix: ProgramName,
-    ) -> HandleSpan<ProgramName> {
+        members: HandleSpan<DiagnosticName>,
+        suffix: DiagnosticName,
+    ) -> HandleSpan<DiagnosticName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
@@ -430,10 +430,10 @@ impl ExpressionTable {
 
     pub fn copy_name_path_members_with_member_suffix(
         &mut self,
-        members: HandleSpan<ProgramName>,
-        suffix_members: HandleSpan<ProgramName>,
+        members: HandleSpan<DiagnosticName>,
+        suffix_members: HandleSpan<DiagnosticName>,
         suffix_start_offset: u32,
-    ) -> HandleSpan<ProgramName> {
+    ) -> HandleSpan<DiagnosticName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
@@ -491,7 +491,7 @@ impl ExpressionTable {
     pub fn insert_copy_with_member_suffix(
         &mut self,
         expression: ExpressionHandle,
-        suffix_members: HandleSpan<ProgramName>,
+        suffix_members: HandleSpan<DiagnosticName>,
         suffix_start_offset: u32,
     ) -> ExpressionHandle {
         if suffix_start_offset >= suffix_members.count() {
@@ -705,7 +705,7 @@ impl ExpressionTable {
     pub fn to_tree_with_place_suffix(
         &self,
         expression: ExpressionHandle,
-        suffix: &[ProgramName],
+        suffix: &[DiagnosticName],
     ) -> Expression {
         if suffix.is_empty() {
             return self.to_tree(expression);
@@ -752,7 +752,7 @@ impl ExpressionTable {
             _ => return None,
         };
         let last_segment = path.last_mut()?;
-        *last_segment = ProgramName::generated(format!("{last_segment}[{index}]"));
+        *last_segment = DiagnosticName::generated(format!("{last_segment}[{index}]"));
         Some(path)
     }
 
@@ -807,7 +807,7 @@ pub struct TableBinaryExpression {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TableCastExpression {
     pub value: ExpressionHandle,
-    pub target_type: HandleSpan<ProgramName>,
+    pub target_type: HandleSpan<DiagnosticName>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -825,7 +825,7 @@ pub struct MemberExpression {
 pub struct MemberExpressionStorage {
     pub receiver: Expression,
     pub member_symbol: SymbolHandle,
-    pub member: ProgramName,
+    pub member: DiagnosticName,
 }
 
 impl Deref for MemberExpression {
@@ -846,13 +846,13 @@ impl DerefMut for MemberExpression {
 pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub member_symbol: SymbolHandle,
-    pub member: ProgramName,
+    pub member: DiagnosticName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: DiagnosticName,
     pub storage: CallExpressionStorage,
 }
 
@@ -880,27 +880,27 @@ impl DerefMut for CallExpression {
 pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: DiagnosticName,
     pub arguments: HandleSpan<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
-    pub members: HandleSpan<ProgramName>,
+    pub members: HandleSpan<DiagnosticName>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteral {
-    pub type_name: ProgramName,
+    pub type_name: DiagnosticName,
     pub fields: HandleSpan<TableStructLiteralField>,
 }
 
 impl Default for TableStructLiteral {
     fn default() -> Self {
         Self {
-            type_name: ProgramName::default(),
+            type_name: DiagnosticName::default(),
             fields: HandleSpan::empty(),
         }
     }
@@ -908,14 +908,14 @@ impl Default for TableStructLiteral {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableStructLiteralField {
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub value: ExpressionHandle,
 }
 
 impl Default for TableStructLiteralField {
     fn default() -> Self {
         Self {
-            name: ProgramName::default(),
+            name: DiagnosticName::default(),
             value: ExpressionHandle::invalid(),
         }
     }
@@ -936,11 +936,11 @@ pub struct NamePath {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePathStorage {
-    members: Box<[ProgramName]>,
+    members: Box<[DiagnosticName]>,
 }
 
 impl NamePath {
-    pub fn unresolved(members: Vec<ProgramName>) -> Self {
+    pub fn unresolved(members: Vec<DiagnosticName>) -> Self {
         Self {
             storage: NamePathStorage {
                 members: members.into_boxed_slice(),
@@ -951,7 +951,7 @@ impl NamePath {
     }
 
     pub fn resolved(
-        members: Vec<ProgramName>,
+        members: Vec<DiagnosticName>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
@@ -964,26 +964,26 @@ impl NamePath {
         }
     }
 
-    pub fn members(&self) -> &[ProgramName] {
+    pub fn members(&self) -> &[DiagnosticName] {
         &self.storage.members
     }
 
-    pub fn as_slice(&self) -> &[ProgramName] {
+    pub fn as_slice(&self) -> &[DiagnosticName] {
         self.members()
     }
 
-    pub fn into_members(self) -> Vec<ProgramName> {
+    pub fn into_members(self) -> Vec<DiagnosticName> {
         self.storage.members.into_vec()
     }
 
-    pub fn push(&mut self, member: ProgramName) {
+    pub fn push(&mut self, member: DiagnosticName) {
         let mut members = self.storage.members.to_vec();
         members.push(member);
         self.storage.members = members.into_boxed_slice();
         self.symbol = SymbolHandle::invalid();
     }
 
-    pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
+    pub fn extend_from_slice(&mut self, members: &[DiagnosticName]) {
         let mut owned_members = self.storage.members.to_vec();
         owned_members.extend_from_slice(members);
         self.storage.members = owned_members.into_boxed_slice();
@@ -1005,14 +1005,14 @@ impl NamePath {
     }
 }
 
-impl From<Vec<ProgramName>> for NamePath {
-    fn from(members: Vec<ProgramName>) -> Self {
+impl From<Vec<DiagnosticName>> for NamePath {
+    fn from(members: Vec<DiagnosticName>) -> Self {
         Self::unresolved(members)
     }
 }
 
 impl Deref for NamePath {
-    type Target = [ProgramName];
+    type Target = [DiagnosticName];
 
     fn deref(&self) -> &Self::Target {
         self.members()
@@ -1027,8 +1027,8 @@ impl DerefMut for NamePath {
 }
 
 impl<'path> IntoIterator for &'path NamePath {
-    type Item = &'path ProgramName;
-    type IntoIter = std::slice::Iter<'path, ProgramName>;
+    type Item = &'path DiagnosticName;
+    type IntoIter = std::slice::Iter<'path, DiagnosticName>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.storage.members.iter()
@@ -1175,7 +1175,7 @@ pub struct StructLiteral {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StructLiteralStorage {
-    pub type_name: ProgramName,
+    pub type_name: DiagnosticName,
     pub fields: Box<[StructLiteralField]>,
 }
 
@@ -1195,7 +1195,7 @@ impl DerefMut for StructLiteral {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StructLiteralField {
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub value: Expression,
 }
 
@@ -1261,7 +1261,7 @@ impl ExpressionNode {
     }
 }
 
-pub fn display_name_path(path: &[ProgramName], separator: &str) -> String {
+pub fn display_name_path(path: &[DiagnosticName], separator: &str) -> String {
     let byte_count = path.iter().map(|name| name.as_str().len()).sum::<usize>()
         + separator.len().saturating_mul(path.len().saturating_sub(1));
     let mut display_name = String::with_capacity(byte_count);
@@ -1408,7 +1408,7 @@ mod tests {
         ExpressionTable, NamePath, StructLiteral, StructLiteralField, StructLiteralStorage,
         TableBinaryExpression, TableNamePath,
     };
-    use crate::name::ProgramName;
+    use crate::name::DiagnosticName;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -1447,8 +1447,8 @@ mod tests {
     fn expression_table_stores_name_paths_as_member_spans() {
         let expression = Expression::Name(NamePath::resolved(
             vec![
-                ProgramName::generated("player"),
-                ProgramName::generated("inventory"),
+                DiagnosticName::generated("player"),
+                DiagnosticName::generated("inventory"),
             ],
             SymbolHandle::from_arena_index(1),
             SymbolHandle::from_arena_index(2),
@@ -1472,26 +1472,26 @@ mod tests {
         let field_symbol = SymbolHandle::from_arena_index(4);
         let expression = Expression::StructLiteral(StructLiteral {
             storage: StructLiteralStorage {
-                type_name: ProgramName::generated("Room"),
+                type_name: DiagnosticName::generated("Room"),
                 fields: vec![
                     StructLiteralField {
-                        name: ProgramName::generated("name"),
+                        name: DiagnosticName::generated("name"),
                         value: Expression::String("Hall".to_string()),
                     },
                     StructLiteralField {
-                        name: ProgramName::generated("open"),
+                        name: DiagnosticName::generated("open"),
                         value: Expression::Binary(Box::new(BinaryExpression {
                             storage: BinaryExpressionStorage {
                                 left: Expression::Name(NamePath::resolved(
-                                    vec![ProgramName::generated("room")],
+                                    vec![DiagnosticName::generated("room")],
                                     room_symbol,
                                     room_symbol,
                                 )),
                                 operator: BinaryOperator::Equal,
                                 right: Expression::Name(NamePath::resolved(
                                     vec![
-                                        ProgramName::generated("room"),
-                                        ProgramName::generated("field"),
+                                        DiagnosticName::generated("room"),
+                                        DiagnosticName::generated("field"),
                                     ],
                                     room_symbol,
                                     field_symbol,

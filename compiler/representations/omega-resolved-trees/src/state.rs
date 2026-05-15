@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use crate::signature::StateParameter;
 use crate::statement::{Statement, StatementNode};
 use omega_core::arena::HandleSpan;
@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct State {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: StateStorage,
 }
 

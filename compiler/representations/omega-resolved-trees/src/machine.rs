@@ -1,5 +1,5 @@
 use crate::expression::Expression;
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use crate::state::State;
 use crate::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Machine {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: MachineStorage,
 }
 
@@ -37,14 +37,14 @@ impl DerefMut for Machine {
 pub struct ContainedObject {
     pub symbol: SymbolHandle,
     pub type_symbol: SymbolHandle,
-    pub name: ProgramName,
-    pub type_name: ProgramName,
+    pub name: DiagnosticName,
+    pub type_name: DiagnosticName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedData {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub type_reference: TypeReference,
     pub initial_value: Option<Expression>,
 }

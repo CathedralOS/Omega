@@ -180,7 +180,7 @@ mod tests {
     use crate::SymbolResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
-    use crate::name::ProgramName;
+    use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
@@ -192,18 +192,18 @@ mod tests {
         let mut program = SymbolResolvedTrees::default();
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::generated("main"),
+            name: DiagnosticName::generated("main"),
             storage: MachineStorage {
                 contains: Vec::new(),
                 owned_data: Vec::new(),
                 states: vec![State {
                     symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("entry"),
+                    name: DiagnosticName::generated("entry"),
                     storage: StateStorage {
                         parameters: Vec::new(),
                         return_type: Some(TypeReference::Named {
                             symbol: SymbolHandle::invalid(),
-                            name: ProgramName::generated("i32"),
+                            name: DiagnosticName::generated("i32"),
                         }),
                         statements: vec![Statement::Transition(Transition {
                             target: TransitionTarget::Terminal,

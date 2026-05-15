@@ -2,7 +2,7 @@ use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
 
@@ -15,7 +15,7 @@ pub enum TypeReference {
     Generic(GenericTypeReference),
     Named {
         symbol: SymbolHandle,
-        name: ProgramName,
+        name: DiagnosticName,
     },
     SelfType {
         symbol: SymbolHandle,
@@ -165,7 +165,7 @@ pub struct GenericTypeReference {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GenericTypeReferenceStorage {
     pub base_symbol: SymbolHandle,
-    pub base_name: ProgramName,
+    pub base_name: DiagnosticName,
     pub arguments: Vec<TypeReference>,
 }
 
@@ -401,12 +401,12 @@ pub enum TypeReferenceNode {
     },
     Generic {
         base_symbol: SymbolHandle,
-        base_name: ProgramName,
+        base_name: DiagnosticName,
         arguments: HandleSpan<TypeReferenceHandle>,
     },
     Named {
         symbol: SymbolHandle,
-        name: ProgramName,
+        name: DiagnosticName,
     },
     SelfType {
         symbol: SymbolHandle,
@@ -422,7 +422,7 @@ impl Default for TypeReferenceNode {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraint {
-    Named(ProgramName),
+    Named(DiagnosticName),
     Range {
         minimum: crate::expression::Expression,
         maximum: crate::expression::Expression,
@@ -431,7 +431,7 @@ pub enum TypeConstraint {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraintNode {
-    Named(ProgramName),
+    Named(DiagnosticName),
     Range {
         minimum: crate::expression::ExpressionHandle,
         maximum: crate::expression::ExpressionHandle,
@@ -455,13 +455,13 @@ impl TypeConstraintNode {
 
 impl Default for TypeConstraintNode {
     fn default() -> Self {
-        Self::Named(ProgramName::default())
+        Self::Named(DiagnosticName::default())
     }
 }
 
 impl Default for TypeConstraint {
     fn default() -> Self {
-        Self::Named(ProgramName::default())
+        Self::Named(DiagnosticName::default())
     }
 }
 
@@ -679,7 +679,7 @@ mod tests {
         TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
     };
     use crate::expression::{Expression, ExpressionTable};
-    use crate::name::ProgramName;
+    use crate::name::DiagnosticName;
     use omega_core::arena::Arena;
     use omega_core::symbols::SymbolHandle;
 
@@ -688,17 +688,17 @@ mod tests {
         let type_reference = TypeReference::Generic(GenericTypeReference {
             storage: GenericTypeReferenceStorage {
                 base_symbol: SymbolHandle::invalid(),
-                base_name: ProgramName::generated("Result"),
+                base_name: DiagnosticName::generated("Result"),
                 arguments: vec![
                     TypeReference::Named {
                         symbol: SymbolHandle::invalid(),
-                        name: ProgramName::generated("usize"),
+                        name: DiagnosticName::generated("usize"),
                     },
                     TypeReference::FixedArray(FixedArrayTypeReference {
                         storage: FixedArrayTypeReferenceStorage {
                             element_type: Box::new(TypeReference::Named {
                                 symbol: SymbolHandle::invalid(),
-                                name: ProgramName::generated("u8"),
+                                name: DiagnosticName::generated("u8"),
                             }),
                             length: 16,
                         },
@@ -731,7 +731,7 @@ mod tests {
             storage: ConstrainedTypeReferenceStorage {
                 base_type: Box::new(TypeReference::Named {
                     symbol: SymbolHandle::invalid(),
-                    name: ProgramName::generated("i32"),
+                    name: DiagnosticName::generated("i32"),
                 }),
                 constraints,
             },
