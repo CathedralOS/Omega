@@ -968,6 +968,7 @@ fn type_reference_symbol(
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
         omega_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
+        omega_resolved_trees::types::TypeReference::SelfType { symbol } => *symbol,
         omega_resolved_trees::types::TypeReference::Unit => SymbolHandle::invalid(),
     }
 }
@@ -990,6 +991,9 @@ fn type_reference_name(
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_name.clone(),
         omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
+        omega_resolved_trees::types::TypeReference::SelfType { .. } => {
+            omega_resolved_trees::name::ProgramName::generated("Self")
+        }
         omega_resolved_trees::types::TypeReference::Unit => {
             omega_resolved_trees::name::ProgramName::default()
         }
@@ -1057,12 +1061,8 @@ fn assign_type_reference_symbol_with_context(
             );
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => {
-            generic.base_symbol = resolve_type_symbol(
-                symbols,
-                local_type_parameters,
-                self_type_symbol,
-                &generic.base_name,
-            );
+            generic.base_symbol =
+                resolve_type_symbol(symbols, local_type_parameters, &generic.base_name);
 
             for argument in &mut generic.arguments {
                 assign_type_reference_symbol_with_context(
@@ -1074,7 +1074,10 @@ fn assign_type_reference_symbol_with_context(
             }
         }
         omega_resolved_trees::types::TypeReference::Named { symbol, name } => {
-            *symbol = resolve_type_symbol(symbols, local_type_parameters, self_type_symbol, name);
+            *symbol = resolve_type_symbol(symbols, local_type_parameters, name);
+        }
+        omega_resolved_trees::types::TypeReference::SelfType { symbol } => {
+            *symbol = self_type_symbol;
         }
         omega_resolved_trees::types::TypeReference::Unit => {}
     }
@@ -1083,13 +1086,8 @@ fn assign_type_reference_symbol_with_context(
 fn resolve_type_symbol(
     symbols: &SymbolTable,
     local_type_parameters: &[TypeParameterBinding],
-    self_type_symbol: SymbolHandle,
     name: &omega_resolved_trees::name::ProgramName,
 ) -> SymbolHandle {
-    if name.as_str() == "Self" && self_type_symbol.is_valid() {
-        return self_type_symbol;
-    }
-
     local_type_parameters
         .iter()
         .find(|parameter| parameter.name.as_str() == name.as_str())

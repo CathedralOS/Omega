@@ -86,9 +86,8 @@ pub(crate) fn lower_type_reference_handle(
             symbol: SymbolHandle::invalid(),
             name: crate::name::lower_name(name),
         }),
-        syntax::types::TypeReferenceNode::SelfType => Ok(TypeReference::Named {
+        syntax::types::TypeReferenceNode::SelfType => Ok(TypeReference::SelfType {
             symbol: SymbolHandle::invalid(),
-            name: omega_resolved_trees::name::ProgramName::generated("Self"),
         }),
         syntax::types::TypeReferenceNode::Unit => Ok(TypeReference::Unit),
     }

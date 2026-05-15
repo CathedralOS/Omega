@@ -17,6 +17,9 @@ pub enum TypeReference {
         symbol: SymbolHandle,
         name: ProgramName,
     },
+    SelfType {
+        symbol: SymbolHandle,
+    },
     Unit,
 }
 
@@ -365,6 +368,9 @@ impl TypeReferenceTable {
                 symbol: *symbol,
                 name: name.clone(),
             }),
+            TypeReference::SelfType { symbol } => {
+                self.insert(TypeReferenceNode::SelfType { symbol: *symbol })
+            }
             TypeReference::Unit => self.insert(TypeReferenceNode::Unit),
         }
     }
@@ -401,6 +407,9 @@ pub enum TypeReferenceNode {
     Named {
         symbol: SymbolHandle,
         name: ProgramName,
+    },
+    SelfType {
+        symbol: SymbolHandle,
     },
     Unit,
 }
@@ -501,6 +510,7 @@ impl TypeReference {
                 format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
+            TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -555,6 +565,7 @@ impl TypeReference {
                 format!("{}<{arguments}>", generic.base_name)
             }
             TypeReference::Named { name, .. } => name.to_string(),
+            TypeReference::SelfType { .. } => "Self".to_owned(),
             TypeReference::Unit => "()".to_owned(),
         }
     }
@@ -567,6 +578,7 @@ impl TypeReference {
             TypeReference::FixedArray(_)
             | TypeReference::Slice(_)
             | TypeReference::Generic(_)
+            | TypeReference::SelfType { .. }
             | TypeReference::Unit => None,
         }
     }

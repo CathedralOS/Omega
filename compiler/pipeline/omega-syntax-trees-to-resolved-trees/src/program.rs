@@ -133,13 +133,12 @@ mod tests {
             .first()
             .expect("self parameter");
 
-        let omega_resolved_trees::types::TypeReference::Named { symbol, name } =
+        let omega_resolved_trees::types::TypeReference::SelfType { symbol } =
             &parameter.type_reference
         else {
-            panic!("self parameter type should be named");
+            panic!("self parameter type should stay explicit");
         };
 
-        assert_eq!(name.as_str(), "Self");
         assert_eq!(*symbol, machine.symbol);
     }
 }
