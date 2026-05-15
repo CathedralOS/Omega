@@ -77,9 +77,9 @@ pub(crate) fn lower_expression(
                 fields: lower_struct_literal_fields(&struct_literal.fields)?,
             }),
         ),
-        resolved::expression::Expression::String(value) => {
-            Ok(typed::expression::Expression::String(value.clone()))
-        }
+        resolved::expression::Expression::String(value) => Ok(
+            typed::expression::Expression::String(value.as_str().to_owned()),
+        ),
     }
 }
 
