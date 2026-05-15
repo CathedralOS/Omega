@@ -617,7 +617,7 @@ fn assign_statement_symbols(
                 if let Some((head_symbol, symbol)) =
                     resolve_state_scoped_path(symbols, machine.symbol, state_symbol, receiver)
                 {
-                    *receiver = receiver.clone().with_symbols(head_symbol, symbol);
+                    receiver.set_symbols(head_symbol, symbol);
                     call.receiver_symbol = symbol;
                 }
             }
@@ -773,7 +773,7 @@ fn assign_expression_symbols(
             if let Some((head_symbol, symbol)) =
                 resolve_state_scoped_path(symbols, machine.symbol, state_symbol, path)
             {
-                *path = path.clone().with_symbols(head_symbol, symbol);
+                path.set_symbols(head_symbol, symbol);
             }
         }
         omega_resolved_trees::expression::Expression::StructLiteral(struct_literal) => {
@@ -894,7 +894,7 @@ fn assign_transition_target_symbols(
     if let Some((head_symbol, symbol)) =
         resolve_state_scoped_path(symbols, machine.symbol, state_symbol, path)
     {
-        *path = path.clone().with_symbols(head_symbol, symbol);
+        path.set_symbols(head_symbol, symbol);
         return;
     }
 
@@ -910,7 +910,7 @@ fn assign_transition_target_symbols(
             target_name.as_str(),
         );
         if target_symbol.is_valid() {
-            *path = path.clone().with_symbols(target_symbol, target_symbol);
+            path.set_symbols(target_symbol, target_symbol);
         }
     }
 }
