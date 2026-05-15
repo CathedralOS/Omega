@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use crate::types::TypeReference;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
 
@@ -12,7 +13,7 @@ pub struct StateSignature {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateSignatureStorage {
-    pub parameters: Vec<StateParameter>,
+    pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
 }
 
@@ -38,4 +39,17 @@ pub struct StateParameter {
     pub is_const: bool,
     pub is_mutable: bool,
     pub is_self: bool,
+}
+
+impl Default for StateParameter {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::default(),
+            type_reference: TypeReference::Unit,
+            is_const: false,
+            is_mutable: false,
+            is_self: false,
+        }
+    }
 }

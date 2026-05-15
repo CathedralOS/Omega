@@ -152,11 +152,9 @@ mod tests {
         let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
         let program = lower_syntax_trees(&syntax_trees).expect("lowering should succeed");
         let machine = program.machines.first().expect("machine");
-        let parameter = machine
-            .states
-            .first()
-            .expect("entry state")
-            .parameters
+        let entry = machine.states.first().expect("entry state");
+        let parameter = program
+            .state_parameters(entry.parameters)
             .first()
             .expect("self parameter");
 

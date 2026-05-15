@@ -68,7 +68,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         for signature in program.platform_state_signatures(platform.states) {
             count_declaration_name(&signature.name, &mut counts);
             count_optional_type_reference(signature.return_type.as_ref(), &mut counts);
-            for parameter in &signature.parameters {
+            for parameter in program.state_parameters(signature.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }
@@ -89,7 +89,7 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
         for state in &machine.states {
             count_declaration_name(&state.name, &mut counts);
             count_optional_type_reference(state.return_type.as_ref(), &mut counts);
-            for parameter in &state.parameters {
+            for parameter in program.state_parameters(state.parameters) {
                 count_declaration_name(&parameter.name, &mut counts);
                 count_type_reference(&parameter.type_reference, &mut counts);
             }

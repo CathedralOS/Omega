@@ -9,8 +9,9 @@ pub(crate) fn lower_state(
     lowerer: &mut Lowerer,
     state: &resolved::state::State,
 ) -> Result<typed::state::State, Diagnostic> {
-    let parameters = state
-        .parameters
+    let parameters = lowerer
+        .source_program
+        .state_parameters(state.parameters)
         .iter()
         .map(|parameter| lower_state_parameter(lowerer, parameter))
         .collect::<Result<Vec<_>, _>>()?;
@@ -39,8 +40,9 @@ pub(crate) fn lower_state_signature(
     lowerer: &mut Lowerer,
     signature: &resolved::signature::StateSignature,
 ) -> Result<typed::signature::StateSignature, Diagnostic> {
-    let parameters = signature
-        .parameters
+    let parameters = lowerer
+        .source_program
+        .state_parameters(signature.parameters)
         .iter()
         .map(|parameter| lower_state_parameter(lowerer, parameter))
         .collect::<Result<Vec<_>, _>>()?;

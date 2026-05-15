@@ -2,7 +2,7 @@ use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
-use crate::signature::StateSignature;
+use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::StatementTable;
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
@@ -30,28 +30,40 @@ impl SymbolResolvedTreeTables {
         symbol_resolved_trees: &mut SymbolResolvedTrees,
     ) -> Self {
         let mut tables = Self::default();
-        let type_constraints = symbol_resolved_trees.tables.types.constraints.clone();
+        let SymbolResolvedTrees {
+            roots,
+            tables: source_tables,
+            ..
+        } = symbol_resolved_trees;
+        let type_constraints = source_tables.types.constraints.clone();
+        let declarations = &source_tables.declarations;
 
-        for invariant in &symbol_resolved_trees.invariant_definitions {
+        for invariant in &roots.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, &type_constraints);
         }
 
-        for data_definition in &symbol_resolved_trees.data_definitions {
+        for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
-                symbol_resolved_trees.data_members(data_definition.members),
+                declarations
+                    .data_members
+                    .span_or_empty(data_definition.members),
                 &type_constraints,
             );
         }
 
-        for platform in &symbol_resolved_trees.platforms {
+        for platform in &roots.platforms {
             tables.insert_platform(
-                symbol_resolved_trees.platform_state_signatures(platform.states),
+                declarations
+                    .platform_state_signatures
+                    .span_or_empty(platform.states),
+                &declarations.state_parameters,
                 &type_constraints,
             );
         }
 
-        symbol_resolved_trees.machines.for_each_mut(|machine| {
-            tables.insert_machine_with_state_spans(machine, &type_constraints);
+        let state_parameters = &declarations.state_parameters;
+        roots.machines.for_each_mut(|machine| {
+            tables.insert_machine_with_state_spans(machine, state_parameters, &type_constraints);
         });
 
         tables
@@ -72,16 +84,22 @@ impl SymbolResolvedTreeTables {
     fn insert_platform(
         &mut self,
         states: &[StateSignature],
+        state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for state in states {
-            self.insert_state_signature(state, type_constraints);
+            self.insert_state_signature(
+                state_parameters.span_or_empty(state.parameters),
+                state,
+                type_constraints,
+            );
         }
     }
 
     fn insert_machine_with_state_spans(
         &mut self,
         machine: &mut Machine,
+        state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in &machine.owned_data {
@@ -89,7 +107,7 @@ impl SymbolResolvedTreeTables {
         }
 
         for state in &mut machine.states {
-            self.insert_state_with_statement_span(state, type_constraints);
+            self.insert_state_with_statement_span(state, state_parameters, type_constraints);
         }
     }
 
@@ -108,9 +126,10 @@ impl SymbolResolvedTreeTables {
     fn insert_state_with_statement_span(
         &mut self,
         state: &mut State,
+        state_parameters: &Arena<StateParameter>,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for parameter in &state.parameters {
+        for parameter in state_parameters.span_or_empty(state.parameters) {
             self.insert_type_reference(&parameter.type_reference, type_constraints);
         }
 
@@ -142,10 +161,11 @@ impl SymbolResolvedTreeTables {
 
     fn insert_state_signature(
         &mut self,
+        parameters: &[StateParameter],
         signature: &StateSignature,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for parameter in &signature.parameters {
+        for parameter in parameters {
             self.insert_type_reference(&parameter.type_reference, type_constraints);
         }
 
@@ -209,7 +229,7 @@ mod tests {
                     symbol: SymbolHandle::invalid(),
                     name: DiagnosticName::generated("entry"),
                     storage: StateStorage {
-                        parameters: Vec::new(),
+                        parameters: HandleSpan::empty(),
                         return_type: Some(TypeReference::Named {
                             symbol: SymbolHandle::invalid(),
                             name: DiagnosticName::generated("i32"),
