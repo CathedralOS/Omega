@@ -659,7 +659,7 @@ fn type_constraint_snapshot(constraint: &TypeConstraint) -> TypeConstraintSnapsh
 }
 
 fn name_path_snapshot(path: &NamePath) -> Vec<String> {
-    path.as_slice().iter().map(ToString::to_string).collect()
+    path.members().iter().map(ToString::to_string).collect()
 }
 
 fn binary_operator_name(operator: BinaryOperator) -> &'static str {
