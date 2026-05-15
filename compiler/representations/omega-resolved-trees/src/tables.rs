@@ -1,4 +1,3 @@
-use crate::SymbolResolvedTrees;
 use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
@@ -6,6 +5,7 @@ use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
 use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
+use crate::{SymbolResolvedDeclarationStorage, SymbolResolvedTrees};
 use omega_core::arena::{Arena, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -35,38 +35,41 @@ impl SymbolResolvedTreeTables {
             tables: source_tables,
             ..
         } = symbol_resolved_trees;
-        let type_constraints = source_tables.types.constraints.clone();
-        let type_reference_arguments = source_tables.declarations.type_reference_arguments.clone();
+        let type_constraints = &source_tables.types.constraints;
+        let SymbolResolvedDeclarationStorage {
+            data_members,
+            machine_owned_data,
+            machine_state_handles,
+            machine_states,
+            platform_state_signatures,
+            state_parameters,
+            state_statement_expressions,
+            state_statements,
+            type_reference_arguments,
+            ..
+        } = &mut source_tables.declarations;
 
         for invariant in &roots.invariant_definitions {
-            tables.insert_type_constraints(invariant.constraints, &type_constraints);
+            tables.insert_type_constraints(invariant.constraints, type_constraints);
         }
 
-        let data_members = &source_tables.declarations.data_members;
         for data_definition in &roots.data_definitions {
             tables.insert_data_definition(
                 data_members.span_or_empty(data_definition.members),
-                &type_reference_arguments,
-                &type_constraints,
+                type_reference_arguments,
+                type_constraints,
             );
         }
 
-        let platform_state_signatures = &source_tables.declarations.platform_state_signatures;
-        let state_parameters = &source_tables.declarations.state_parameters;
         for platform in &roots.platforms {
             tables.insert_platform(
                 platform_state_signatures.span_or_empty(platform.states),
                 state_parameters,
-                &type_reference_arguments,
-                &type_constraints,
+                type_reference_arguments,
+                type_constraints,
             );
         }
 
-        let machine_state_handles = &source_tables.declarations.machine_state_handles;
-        let machine_states = &mut source_tables.declarations.machine_states;
-        let machine_owned_data = &source_tables.declarations.machine_owned_data;
-        let state_statement_expressions = &source_tables.declarations.state_statement_expressions;
-        let state_statements = &source_tables.declarations.state_statements;
         for machine in &roots.machines {
             tables.insert_machine_with_state_spans(
                 machine,
@@ -76,8 +79,8 @@ impl SymbolResolvedTreeTables {
                 state_parameters,
                 state_statement_expressions,
                 state_statements,
-                &type_reference_arguments,
-                &type_constraints,
+                type_reference_arguments,
+                type_constraints,
             );
         }
 
