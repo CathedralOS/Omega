@@ -406,8 +406,8 @@ fn platform_snapshot(program: &SymbolResolvedTrees, platform: &Platform) -> Plat
 fn state_snapshot(program: &SymbolResolvedTrees, state: &State) -> StateSnapshot {
     StateSnapshot {
         name: state.name.to_string(),
-        parameters: state
-            .parameters
+        parameters: program
+            .state_parameters(state.parameters)
             .iter()
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
@@ -430,8 +430,8 @@ fn state_signature_snapshot(
 ) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
-        parameters: signature
-            .parameters
+        parameters: program
+            .state_parameters(signature.parameters)
             .iter()
             .map(|parameter| state_parameter_snapshot(program, parameter))
             .collect(),
@@ -700,7 +700,7 @@ mod tests {
                     symbol: SymbolHandle::invalid(),
                     name: DiagnosticName::generated("entry"),
                     storage: StateStorage {
-                        parameters: Vec::new(),
+                        parameters: HandleSpan::empty(),
                         return_type: Some(TypeReference::Named {
                             symbol: SymbolHandle::invalid(),
                             name: DiagnosticName::generated("i32"),

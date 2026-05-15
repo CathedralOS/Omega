@@ -1,6 +1,7 @@
 use crate::program::Lowerer;
 use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
+use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
@@ -26,16 +27,11 @@ fn lower_state_parts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: &syntax::identifier::Identifier,
-    parameters: omega_core::arena::HandleSpan<syntax::item::StateParameterHandle>,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
     statements: omega_core::arena::HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<State, Diagnostic> {
-    let parameters = syntax_trees
-        .items
-        .state_parameters(parameters)
-        .iter()
-        .map(|parameter| lower_state_parameter(lowerer, syntax_trees, *parameter))
-        .collect::<Result<Vec<_>, _>>()?;
+    let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
@@ -77,15 +73,10 @@ fn lower_state_signature_parts(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     name: &syntax::identifier::Identifier,
-    parameters: omega_core::arena::HandleSpan<syntax::item::StateParameterHandle>,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
     return_type_handle: syntax::types::TypeReferenceHandle,
 ) -> Result<StateSignature, Diagnostic> {
-    let parameters = syntax_trees
-        .items
-        .state_parameters(parameters)
-        .iter()
-        .map(|parameter| lower_state_parameter(lowerer, syntax_trees, *parameter))
-        .collect::<Result<Vec<_>, _>>()?;
+    let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
@@ -99,6 +90,37 @@ fn lower_state_signature_parts(
             return_type,
         },
     })
+}
+
+fn lower_state_parameters(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    parameters: HandleSpan<syntax::item::StateParameterHandle>,
+) -> Result<HandleSpan<StateParameter>, Diagnostic> {
+    let mut start = Handle::invalid();
+    let mut count = 0u32;
+
+    for parameter in syntax_trees.items.state_parameters(parameters) {
+        let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;
+        let parameter = lowerer
+            .program
+            .tables
+            .declarations
+            .state_parameters
+            .append(parameter);
+        if count == 0 {
+            start = parameter;
+        }
+        count = count
+            .checked_add(1)
+            .expect("state parameter span count overflow");
+    }
+
+    if count == 0 {
+        Ok(HandleSpan::empty())
+    } else {
+        Ok(HandleSpan::from_parts(start, count))
+    }
 }
 
 fn lower_state_parameter(

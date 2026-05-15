@@ -156,21 +156,22 @@ fn insert_machine_symbol_children(
     }
     for state in &machine.states {
         if let Some(state_symbol) = machine_children.next() {
-            insert_state_symbol_children(builder, state_symbol, state, has_sources);
+            insert_state_symbol_children(builder, program, state_symbol, state, has_sources);
         }
     }
 }
 
 fn insert_state_symbol_children(
     builder: &mut SymbolTableBuilder,
+    program: &SymbolResolvedTrees,
     state_symbol: SymbolHandle,
     state: &omega_resolved_trees::state::State,
     has_sources: bool,
 ) {
     builder.insert_children(
         state_symbol,
-        state
-            .parameters
+        program
+            .state_parameters(state.parameters)
             .iter()
             .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources))
             .chain(local_symbol_seeds(&state.statements, has_sources)),
@@ -197,8 +198,8 @@ fn insert_platform_symbol_children(
     {
         builder.insert_children(
             state_symbol,
-            state
-                .parameters
+            program
+                .state_parameters(state.parameters)
                 .iter()
                 .map(|parameter| symbol_seed(SymbolKind::Parameter, &parameter.name, has_sources)),
         );
@@ -296,6 +297,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         });
 
     let data_members = &program.tables.declarations.data_members;
+    let state_parameters = &mut program.tables.declarations.state_parameters;
     let omega_resolved_trees::SymbolResolvedRoots {
         data_definitions,
         machines,
@@ -337,7 +339,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             let state_symbol = state.symbol;
             let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
 
-            for parameter in &mut state.parameters {
+            for parameter in state_parameters.span_mut_or_empty(state.parameters) {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol_with_self_type(
@@ -362,6 +364,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     });
 
     let platform_state_signatures = &mut program.tables.declarations.platform_state_signatures;
+    let state_parameters = &mut program.tables.declarations.state_parameters;
     program.roots.platforms.for_each_mut(|platform| {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
@@ -372,7 +375,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             let state_symbol = state.symbol;
             let mut state_children = symbols.child_handles(state_symbol).into_iter().flatten();
 
-            for parameter in &mut state.parameters {
+            for parameter in state_parameters.span_mut_or_empty(state.parameters) {
                 parameter.symbol =
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol_with_self_type(
@@ -456,6 +459,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         ..
     } = program;
     let data_members = &tables.declarations.data_members;
+    let state_parameters = &tables.declarations.state_parameters;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let data_definition = data_definitions
@@ -476,7 +480,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         };
         for state in states {
             let state_symbol = state.symbol;
-            let parameters = state.storage.parameters.as_slice();
+            let parameters = state_parameters.span_or_empty(state.parameters);
             for statement in &mut state.storage.statements {
                 assign_statement_symbols(
                     &machine_scope,

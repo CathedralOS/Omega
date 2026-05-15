@@ -14,7 +14,7 @@ pub struct State {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateStorage {
-    pub parameters: Vec<StateParameter>,
+    pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<crate::types::TypeReference>,
     pub statements: Vec<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
