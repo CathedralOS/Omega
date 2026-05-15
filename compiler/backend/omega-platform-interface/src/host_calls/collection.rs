@@ -40,7 +40,7 @@ fn collect_state_host_calls(
 ) -> Result<(), Diagnostic> {
     let mut static_values = initial_static_values(program, machine);
 
-    for (statement_index, statement) in state.statements.iter().enumerate() {
+    for (statement_index, statement) in program.state_statements(state).iter().enumerate() {
         match statement {
             Statement::Assignment(assignment) => {
                 apply_static_assignment(&mut static_values, &assignment.target, &assignment.value);

@@ -188,7 +188,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 );
             }
 
-            for statement in &state.statements {
+            for statement in program.state_statements(state) {
                 let transition = match statement {
                     omega_typed_trees::statement::Statement::Assignment(assignment) => {
                         collect_bounded_assignment_obligation(
@@ -477,7 +477,8 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let Some(omega_typed_trees::statement::Statement::Expression(value)) = state.statements.last()
+    let Some(omega_typed_trees::statement::Statement::Expression(value)) =
+        program.state_statements(state).last()
     else {
         return;
     };
@@ -551,7 +552,7 @@ fn incoming_state_guard(
     let mut guard: Option<TransitionGuard> = None;
 
     for source_state in program.machine_states(machine) {
-        for statement in &source_state.statements {
+        for statement in program.state_statements(source_state) {
             let omega_typed_trees::statement::Statement::Transition(transition) = statement else {
                 continue;
             };
@@ -731,7 +732,7 @@ fn expression_type_reference<'program>(
                 .find(|parameter| parameter.name == *name)
                 .map(|parameter| &parameter.type_reference)
                 .or_else(|| {
-                    state.statements.iter().find_map(|statement| {
+                    program.state_statements(state).iter().find_map(|statement| {
                         let omega_typed_trees::statement::Statement::LocalData(local_data) =
                             statement
                         else {
@@ -865,7 +866,7 @@ fn collection_length_for_binding(
             )
         })
         .or_else(|| {
-            state.statements.iter().find_map(|statement| {
+            program.state_statements(state).iter().find_map(|statement| {
                 let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
                 else {
                     return None;
@@ -987,7 +988,7 @@ fn type_reference_for_symbol<'program>(
         .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| &parameter.type_reference)
         .or_else(|| {
-            state.statements.iter().find_map(|statement| {
+            program.state_statements(state).iter().find_map(|statement| {
                 let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
                 else {
                     return None;

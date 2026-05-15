@@ -60,7 +60,7 @@ fn infer_state_effect(
 ) -> Effect {
     let mut effect = Effect::Pure;
 
-    for statement in &state.statements {
+    for statement in program.state_statements(state) {
         let statement_effect = infer_statement_effect(program, machine, statement);
 
         if statement_effect == Effect::Platform {

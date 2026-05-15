@@ -146,7 +146,7 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                     name: owned.name.clone(),
                     kind: BorrowRootKind::OwnedData,
                 })
-                .chain(state.statements.iter().filter_map(|statement| {
+                .chain(program.state_statements(state).iter().filter_map(|statement| {
                     let Statement::LocalData(local_data) = statement else {
                         return None;
                     };
@@ -170,7 +170,9 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
                 .collect::<Vec<_>>();
 
             let mut state_calls = Vec::new();
-            for (statement_index, statement) in state.statements.iter().enumerate() {
+            for (statement_index, statement) in
+                program.state_statements(state).iter().enumerate()
+            {
                 let mut call_ordinal = 0usize;
                 collect_statement_borrow_calls(
                     program,
@@ -879,15 +881,19 @@ mod tests {
             name: ProgramName::generated("entry"),
             parameters: Default::default(),
             return_type: None,
-            statements: vec![Statement::Call(Call {
+            statements: Default::default(),
+            statement_nodes: Default::default(),
+        };
+        program.push_state_statement(
+            &mut entry_state,
+            Statement::Call(Call {
                 receiver_symbol: SymbolHandle::invalid(),
                 target_symbol: outer_symbol,
                 receiver: None,
                 target: ProgramName::generated("outer"),
                 arguments: vec![nested_call],
-            })],
-            statement_nodes: Default::default(),
-        };
+            }),
+        );
         program.push_state_parameter(
             &mut entry_state,
             StateParameter {
@@ -907,7 +913,7 @@ mod tests {
                 name: ProgramName::generated("outer"),
                 parameters: Default::default(),
                 return_type: None,
-                statements: Vec::new(),
+                statements: Default::default(),
                 statement_nodes: Default::default(),
             },
         );
@@ -918,7 +924,7 @@ mod tests {
                 name: ProgramName::generated("inner"),
                 parameters: Default::default(),
                 return_type: None,
-                statements: Vec::new(),
+                statements: Default::default(),
                 statement_nodes: Default::default(),
             },
         );

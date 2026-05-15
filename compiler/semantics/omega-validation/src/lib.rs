@@ -26,7 +26,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
         for state in program.machine_states(machine) {
             validate_local_data_names(
-                &state.statements,
+                program.state_statements(state),
                 &machine_symbols,
                 program.state_parameters(state),
                 format!("machine `{}` state `{}`", machine.name, state.name),
@@ -34,11 +34,11 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             );
             let writable_roots = WritableRoots {
                 machine_symbols: &machine_symbols,
-                statements: &state.statements,
+                statements: program.state_statements(state),
                 parameters: program.state_parameters(state),
             };
 
-            for statement in &state.statements {
+            for statement in program.state_statements(state) {
                 validate_state_statement(
                     program,
                     machine,

@@ -41,7 +41,7 @@ pub(super) enum SegmentTransition<'program> {
 pub(super) fn split_state_segments<'program>(
     machine: &'program Machine,
     state: &'program State,
-    program: &Program,
+    program: &'program Program,
     state_graph: &mut StateGraph,
 ) -> Vec<StateSegment<'program>> {
     let machine_symbol = machine.symbol;
@@ -54,7 +54,8 @@ pub(super) fn split_state_segments<'program>(
 
     let table_statements = program.statement_table.statements(state.statement_nodes);
 
-    for (statement_index, statement) in state.statements.iter().enumerate() {
+    let state_statements = program.state_statements(state);
+    for (statement_index, statement) in state_statements.iter().enumerate() {
         let table_statement = table_statements.get(statement_index);
         if let Statement::Transition(transition) = statement {
             transition_section_started = true;
@@ -83,7 +84,7 @@ pub(super) fn split_state_segments<'program>(
                 transitions: vec![SegmentTransition::BranchCall {
                     call,
                     table: table_call.clone(),
-                    has_continuation_segment: statement_index + 1 < state.statements.len(),
+                    has_continuation_segment: statement_index + 1 < state_statements.len(),
                 }],
                 next_segment_name: None,
             });
@@ -439,7 +440,7 @@ fn state_has_branching_flow(
     }
     visiting.push(visit_key);
 
-    let has_branching_flow = state.statements.iter().any(|statement| match statement {
+    let has_branching_flow = program.state_statements(state).iter().any(|statement| match statement {
         Statement::Transition(_) => true,
         Statement::Call(call) => {
             branch_call_target_with_visited(program, current_machine, call, visiting).is_some()

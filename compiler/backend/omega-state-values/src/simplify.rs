@@ -718,7 +718,7 @@ fn helper_state_model(
     let mut transitions = Vec::new();
     let mut saw_terminal_expression = false;
 
-    for statement in &state.statements {
+    for statement in program.state_statements(state) {
         match statement {
             Statement::LocalData(local) => {
                 if saw_terminal_expression {
@@ -1259,7 +1259,22 @@ mod tests {
             name: "event_action".into(),
             parameters: Default::default(),
             return_type: None,
-            statements: vec![
+            statements: Default::default(),
+            statement_nodes: Default::default(),
+        };
+
+        let mut machine = Machine {
+            symbol: machine_symbol,
+            name: "RoomEvents".into(),
+            contains: Default::default(),
+            owned_data: Default::default(),
+            states: Default::default(),
+        };
+        let mut program = Program::default();
+        push_state_statements(
+            &mut program,
+            &mut helper,
+            [
                 Statement::LocalData(LocalData {
                     symbol: is_quiet_symbol,
                     name: "is_quiet".into(),
@@ -1320,17 +1335,7 @@ mod tests {
                     guard: TransitionGuard::Always,
                 }),
             ],
-            statement_nodes: Default::default(),
-        };
-
-        let mut machine = Machine {
-            symbol: machine_symbol,
-            name: "RoomEvents".into(),
-            contains: Default::default(),
-            owned_data: Default::default(),
-            states: Default::default(),
-        };
-        let mut program = Program::default();
+        );
         program.typed.push_state_parameter(
             &mut helper,
             StateParameter {
@@ -1488,18 +1493,7 @@ mod tests {
             name: "find_item".into(),
             parameters: Default::default(),
             return_type: None,
-            statements: vec![
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(Expression::Integer(1)),
-                    continuation: None,
-                    guard: TransitionGuard::When(name("found", found_symbol)),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["None"])),
-                    continuation: None,
-                    guard: TransitionGuard::Always,
-                }),
-            ],
+            statements: Default::default(),
             statement_nodes: Default::default(),
         };
 
@@ -1511,6 +1505,22 @@ mod tests {
             states: Default::default(),
         };
         let mut program = Program::default();
+        push_state_statements(
+            &mut program,
+            &mut find,
+            [
+                Statement::Transition(Transition {
+                    target: TransitionTarget::Value(Expression::Integer(1)),
+                    continuation: None,
+                    guard: TransitionGuard::When(name("found", found_symbol)),
+                }),
+                Statement::Transition(Transition {
+                    target: TransitionTarget::Value(path_expression(&["None"])),
+                    continuation: None,
+                    guard: TransitionGuard::Always,
+                }),
+            ],
+        );
         program.typed.push_state_parameter(
             &mut find,
             StateParameter {
@@ -1550,6 +1560,16 @@ mod tests {
         );
     }
 
+    fn push_state_statements<const N: usize>(
+        program: &mut Program,
+        state: &mut State,
+        statements: [Statement; N],
+    ) {
+        for statement in statements {
+            program.typed.push_state_statement(state, statement);
+        }
+    }
+
     fn name(name: &str, symbol: SymbolHandle) -> Expression {
         Expression::Name(NamePath::resolved(vec![name.into()], symbol, symbol))
     }
@@ -1567,11 +1587,4 @@ mod tests {
         )
     }
 
-    fn checked_program_with_machines(machines: Vec<Machine>) -> Program {
-        let mut program = Program::default();
-        for machine in machines {
-            program.typed.push_machine(machine);
-        }
-        program
-    }
 }
