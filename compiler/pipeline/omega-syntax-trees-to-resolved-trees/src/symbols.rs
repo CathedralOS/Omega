@@ -1108,57 +1108,17 @@ fn type_reference_symbol(
     }
 }
 
-fn type_reference_name(
-    type_reference: &omega_resolved_trees::types::TypeReference,
-) -> Option<&omega_resolved_trees::name::DiagnosticName> {
-    match type_reference {
-        omega_resolved_trees::types::TypeReference::Reference(reference) => {
-            type_reference_name(&reference.referee)
-        }
-        omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
-            type_reference_name(&constrained.base_type)
-        }
-        omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
-            type_reference_name(&fixed_array.element_type)
-        }
-        omega_resolved_trees::types::TypeReference::Slice(slice) => {
-            type_reference_name(&slice.element_type)
-        }
-        omega_resolved_trees::types::TypeReference::Generic(generic) => Some(&generic.base_name),
-        omega_resolved_trees::types::TypeReference::Named { name, .. } => Some(name),
-        omega_resolved_trees::types::TypeReference::SelfType { .. }
-        | omega_resolved_trees::types::TypeReference::Unit => None,
-    }
-}
-
 fn call_target_for_type_reference(
     symbols: &SymbolTable,
     type_reference: &omega_resolved_trees::types::TypeReference,
     target_name: &str,
 ) -> SymbolHandle {
-    let direct = child_symbol_by_kinds(
+    child_symbol_by_kinds(
         symbols,
         type_reference_symbol(type_reference),
         &[SymbolKind::State],
         target_name,
-    );
-    if direct.is_valid() {
-        return direct;
-    }
-
-    let Some(type_name) = type_reference_name(type_reference) else {
-        return direct;
-    };
-    let callable_type = top_level_symbol_by_kinds(
-        symbols,
-        &[SymbolKind::Machine, SymbolKind::Platform],
-        type_name.as_str(),
-    );
-    if callable_type.is_valid() {
-        return child_symbol_by_kinds(symbols, callable_type, &[SymbolKind::State], target_name);
-    }
-
-    direct
+    )
 }
 
 fn assign_type_reference_symbol_with_self_type(
