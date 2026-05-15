@@ -925,16 +925,8 @@ pub struct NamePathStorage {
 }
 
 impl NamePath {
-    pub fn unresolved(members: Vec<DiagnosticName>) -> Self {
-        Self::unresolved_from_boxed_slice(members.into_boxed_slice())
-    }
-
     pub fn unresolved_from_iter(members: impl IntoIterator<Item = DiagnosticName>) -> Self {
         Self::unresolved_from_boxed_slice(members.into_iter().collect())
-    }
-
-    pub fn single_unresolved(member: DiagnosticName) -> Self {
-        Self::unresolved_from_boxed_slice(Box::new([member]))
     }
 
     fn unresolved_from_boxed_slice(members: Box<[DiagnosticName]>) -> Self {
@@ -945,28 +937,12 @@ impl NamePath {
         }
     }
 
-    pub fn resolved(
-        members: Vec<DiagnosticName>,
-        head_symbol: SymbolHandle,
-        symbol: SymbolHandle,
-    ) -> Self {
-        Self::resolved_from_boxed_slice(members.into_boxed_slice(), head_symbol, symbol)
-    }
-
     pub fn resolved_from_iter(
         members: impl IntoIterator<Item = DiagnosticName>,
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
         Self::resolved_from_boxed_slice(members.into_iter().collect(), head_symbol, symbol)
-    }
-
-    pub fn single_resolved(
-        member: DiagnosticName,
-        head_symbol: SymbolHandle,
-        symbol: SymbolHandle,
-    ) -> Self {
-        Self::resolved_from_boxed_slice(Box::new([member]), head_symbol, symbol)
     }
 
     fn resolved_from_boxed_slice(
@@ -983,13 +959,6 @@ impl NamePath {
 
     pub fn members(&self) -> &[DiagnosticName] {
         &self.storage.members
-    }
-
-    pub fn push(&mut self, member: DiagnosticName) {
-        let mut members = std::mem::take(&mut self.storage.members).into_vec();
-        members.push(member);
-        self.storage.members = members.into_boxed_slice();
-        self.symbol = SymbolHandle::invalid();
     }
 
     pub fn extend_from_slice(&mut self, members: &[DiagnosticName]) {
@@ -1488,8 +1457,8 @@ mod tests {
 
     #[test]
     fn expression_table_stores_name_paths_as_member_spans() {
-        let expression = Expression::Name(NamePath::resolved(
-            vec![
+        let expression = Expression::Name(NamePath::resolved_from_iter(
+            [
                 DiagnosticName::generated("player"),
                 DiagnosticName::generated("inventory"),
             ],
@@ -1525,14 +1494,14 @@ mod tests {
                         name: DiagnosticName::generated("open"),
                         value: Expression::Binary(Box::new(BinaryExpression {
                             storage: BinaryExpressionStorage {
-                                left: Expression::Name(NamePath::resolved(
-                                    vec![DiagnosticName::generated("room")],
+                                left: Expression::Name(NamePath::resolved_from_iter(
+                                    [DiagnosticName::generated("room")],
                                     room_symbol,
                                     room_symbol,
                                 )),
                                 operator: BinaryOperator::Equal,
-                                right: Expression::Name(NamePath::resolved(
-                                    vec![
+                                right: Expression::Name(NamePath::resolved_from_iter(
+                                    [
                                         DiagnosticName::generated("room"),
                                         DiagnosticName::generated("field"),
                                     ],
