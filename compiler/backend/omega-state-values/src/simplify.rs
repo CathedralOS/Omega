@@ -1254,20 +1254,10 @@ mod tests {
         let is_fountain_symbol = SymbolHandle::from_arena_index(5);
         let is_reward_symbol = SymbolHandle::from_arena_index(6);
 
-        let helper = State {
+        let mut helper = State {
             symbol: helper_symbol,
             name: "event_action".into(),
-            parameters: vec![StateParameter {
-                symbol: roll_symbol,
-                name: "roll".into(),
-                type_reference: TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: "u32".into(),
-                },
-                is_const: true,
-                is_mutable: false,
-                is_self: false,
-            }],
+            parameters: Default::default(),
             return_type: None,
             statements: vec![
                 Statement::LocalData(LocalData {
@@ -1341,6 +1331,20 @@ mod tests {
             states: Default::default(),
         };
         let mut program = Program::default();
+        program.typed.push_state_parameter(
+            &mut helper,
+            StateParameter {
+                symbol: roll_symbol,
+                name: "roll".into(),
+                type_reference: TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: "u32".into(),
+                },
+                is_const: true,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
         program.typed.push_machine_state(&mut machine, helper);
         program.typed.push_machine(machine.clone());
 
@@ -1479,20 +1483,10 @@ mod tests {
         let find_symbol = SymbolHandle::from_arena_index(21);
         let found_symbol = SymbolHandle::from_arena_index(22);
 
-        let find = State {
+        let mut find = State {
             symbol: find_symbol,
             name: "find_item".into(),
-            parameters: vec![StateParameter {
-                symbol: found_symbol,
-                name: "found".into(),
-                type_reference: TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: "bool".into(),
-                },
-                is_const: true,
-                is_mutable: false,
-                is_self: false,
-            }],
+            parameters: Default::default(),
             return_type: None,
             statements: vec![
                 Statement::Transition(Transition {
@@ -1517,6 +1511,20 @@ mod tests {
             states: Default::default(),
         };
         let mut program = Program::default();
+        program.typed.push_state_parameter(
+            &mut find,
+            StateParameter {
+                symbol: found_symbol,
+                name: "found".into(),
+                type_reference: TypeReference::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: "bool".into(),
+                },
+                is_const: true,
+                is_mutable: false,
+                is_self: false,
+            },
+        );
         program.typed.push_machine_state(&mut machine, find);
         program.typed.push_machine(machine.clone());
 

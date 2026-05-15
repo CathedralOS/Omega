@@ -937,7 +937,7 @@ mod tests {
             StateSignature {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("write_line"),
-                parameters: Vec::new(),
+                parameters: Default::default(),
                 return_type: None,
             },
         );
@@ -954,7 +954,7 @@ mod tests {
             State {
                 symbol: SymbolHandle::default(),
                 name: ProgramName::generated("entry"),
-                parameters: Vec::new(),
+                parameters: Default::default(),
                 return_type: None,
                 statements: Vec::new(),
                 statement_nodes: HandleSpan::empty(),
