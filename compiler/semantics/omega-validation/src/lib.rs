@@ -267,9 +267,10 @@ fn validate_callable_state_signatures(
     }
 
     for platform in program.platforms() {
-        validate_platform_state_names(platform, diagnostics);
+        let platform_states = program.platform_state_signatures(platform);
+        validate_platform_state_names(platform, platform_states, diagnostics);
         validate_state_signature_types(
-            platform.states.iter().map(|state| StateSignatureView {
+            platform_states.iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
                 parameters: &state.parameters,
                 return_type: state.return_type.as_ref(),
@@ -330,11 +331,12 @@ fn validate_state_signature_types<'program>(
 
 fn validate_platform_state_names(
     platform: &omega_typed_trees::platform::Platform,
+    platform_states: &[omega_typed_trees::signature::StateSignature],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut state_names = Vec::new();
 
-    for state in &platform.states {
+    for state in platform_states {
         if state_names.contains(&state.name.as_str()) {
             diagnostics.push(Diagnostic::error(format!(
                 "platform `{}` has duplicate state `{}`",
@@ -734,8 +736,8 @@ fn validate_call(
     let receiver_type = machine_symbols.contained_type(receiver);
 
     if let Some(platform) = receiver_type.and_then(|type_name| symbols.platform(type_name)) {
-        let Some(state_signature) = platform
-            .states
+        let Some(state_signature) = program
+            .platform_state_signatures(platform)
             .iter()
             .find(|state| state.name == call.target)
         else {

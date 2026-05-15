@@ -50,7 +50,12 @@ pub(crate) fn platform_call_receiver_type(
                 program
                     .platforms()
                     .iter()
-                    .find(|platform| platform.states.iter().any(|state| state.symbol == call.target_symbol))
+                    .find(|platform| {
+                        program
+                            .platform_state_signatures(platform)
+                            .iter()
+                            .any(|state| state.symbol == call.target_symbol)
+                    })
                     .map(|platform| platform.symbol)
             }).flatten()
         })?;

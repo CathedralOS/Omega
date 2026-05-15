@@ -1306,7 +1306,7 @@ fn callable_return_type_by_symbol(
             program
                 .platforms()
                 .iter()
-                .flat_map(|platform| platform.states.iter())
+                .flat_map(|platform| program.platform_state_signatures(platform).iter())
                 .find(|candidate| candidate.symbol == target_symbol)
                 .and_then(|candidate| candidate.return_type.as_ref())
         })

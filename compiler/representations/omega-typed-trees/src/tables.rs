@@ -1,7 +1,6 @@
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
-use crate::platform::Platform;
 use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
@@ -29,7 +28,10 @@ impl TypedProgramTables {
         }
 
         for platform in typed_trees.platforms() {
-            tables.insert_platform(platform, &typed_trees.type_constraints);
+            tables.insert_platform(
+                typed_trees.platform_state_signatures(platform),
+                &typed_trees.type_constraints,
+            );
         }
 
         for machine in typed_trees.machines() {
@@ -50,6 +52,7 @@ impl TypedProgramTables {
             machines,
             root_platforms,
             platforms,
+            platform_state_signatures,
             type_constraints,
             ..
         } = typed_trees;
@@ -63,7 +66,10 @@ impl TypedProgramTables {
         }
 
         for platform in platforms.span_or_empty(*root_platforms) {
-            tables.insert_platform(platform, type_constraints);
+            tables.insert_platform(
+                platform_state_signatures.span_or_empty(platform.states),
+                type_constraints,
+            );
         }
 
         for machine in machines.span_mut_or_empty(*root_machines) {
@@ -85,8 +91,12 @@ impl TypedProgramTables {
         }
     }
 
-    fn insert_platform(&mut self, platform: &Platform, type_constraints: &Arena<TypeConstraint>) {
-        for state in &platform.states {
+    fn insert_platform(
+        &mut self,
+        states: &[StateSignature],
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for state in states {
             self.insert_state_signature(state, type_constraints);
         }
     }
