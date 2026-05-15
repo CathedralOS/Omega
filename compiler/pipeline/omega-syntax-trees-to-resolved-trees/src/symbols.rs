@@ -731,8 +731,13 @@ fn assign_expression_symbols(
                     }
                 }
             }
-            call.target_symbol =
-                resolve_expression_call_target_symbol(machine, parameters, call, symbols);
+            call.target_symbol = resolve_expression_call_target_symbol(
+                machine,
+                parameters,
+                state_symbol,
+                call,
+                symbols,
+            );
         }
         omega_resolved_trees::expression::Expression::Indexed(indexed) => {
             assign_expression_symbols(
@@ -821,17 +826,29 @@ fn expression_from_path(
 fn resolve_expression_call_target_symbol(
     machine: &MachineScope<'_>,
     parameters: &[omega_resolved_trees::signature::StateParameter],
+    state_symbol: SymbolHandle,
     call: &omega_resolved_trees::expression::CallExpression,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
-    if let Some(receiver) = &call.receiver
-        && let Some(receiver_path) = expression_name_path(receiver)
-    {
+    if let Some(receiver) = &call.receiver {
+        let receiver_symbol =
+            resolve_expression_receiver_symbol(symbols, machine.symbol, state_symbol, receiver);
+        if let Some(receiver_symbol) = receiver_symbol {
+            return resolve_call_target_symbol(
+                machine,
+                parameters,
+                true,
+                receiver_symbol,
+                &call.target,
+                symbols,
+            );
+        }
+
         return resolve_call_target_symbol(
             machine,
             parameters,
             true,
-            receiver_path.symbol(),
+            SymbolHandle::invalid(),
             &call.target,
             symbols,
         );
