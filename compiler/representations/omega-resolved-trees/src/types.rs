@@ -36,14 +36,14 @@ pub struct ReferenceTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceTypeReferenceStorage {
-    pub referee: Box<TypeReference>,
+    pub referee: Handle<TypeReference>,
     pub is_mutable: bool,
 }
 
 impl Default for ReferenceTypeReferenceStorage {
     fn default() -> Self {
         Self {
-            referee: Box::new(TypeReference::Unit),
+            referee: Handle::invalid(),
             is_mutable: false,
         }
     }
@@ -70,14 +70,14 @@ pub struct ConstrainedTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConstrainedTypeReferenceStorage {
-    pub base_type: Box<TypeReference>,
+    pub base_type: Handle<TypeReference>,
     pub constraints: HandleSpan<TypeConstraint>,
 }
 
 impl Default for ConstrainedTypeReferenceStorage {
     fn default() -> Self {
         Self {
-            base_type: Box::new(TypeReference::Unit),
+            base_type: Handle::invalid(),
             constraints: HandleSpan::empty(),
         }
     }
@@ -104,14 +104,14 @@ pub struct FixedArrayTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedArrayTypeReferenceStorage {
-    pub element_type: Box<TypeReference>,
+    pub element_type: Handle<TypeReference>,
     pub length: usize,
 }
 
 impl Default for FixedArrayTypeReferenceStorage {
     fn default() -> Self {
         Self {
-            element_type: Box::new(TypeReference::Unit),
+            element_type: Handle::invalid(),
             length: 0,
         }
     }
@@ -138,13 +138,13 @@ pub struct SliceTypeReference {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SliceTypeReferenceStorage {
-    pub element_type: Box<TypeReference>,
+    pub element_type: Handle<TypeReference>,
 }
 
 impl Default for SliceTypeReferenceStorage {
     fn default() -> Self {
         Self {
-            element_type: Box::new(TypeReference::Unit),
+            element_type: Handle::invalid(),
         }
     }
 }
@@ -315,7 +315,7 @@ impl TypeReferenceTable {
         match type_reference {
             TypeReference::Reference(reference) => {
                 let referee = self.insert_tree(
-                    &reference.referee,
+                    source_generic_arguments.get(reference.referee),
                     expressions,
                     source_generic_arguments,
                     source_constraints,
@@ -327,7 +327,7 @@ impl TypeReferenceTable {
             }
             TypeReference::Constrained(constrained) => {
                 let base_type = self.insert_tree(
-                    &constrained.base_type,
+                    source_generic_arguments.get(constrained.base_type),
                     expressions,
                     source_generic_arguments,
                     source_constraints,
@@ -344,7 +344,7 @@ impl TypeReferenceTable {
             }
             TypeReference::FixedArray(fixed_array) => {
                 let element_type = self.insert_tree(
-                    &fixed_array.element_type,
+                    source_generic_arguments.get(fixed_array.element_type),
                     expressions,
                     source_generic_arguments,
                     source_constraints,
@@ -356,7 +356,7 @@ impl TypeReferenceTable {
             }
             TypeReference::Slice(slice) => {
                 let element_type = self.insert_tree(
-                    &slice.element_type,
+                    source_generic_arguments.get(slice.element_type),
                     expressions,
                     source_generic_arguments,
                     source_constraints,
@@ -494,12 +494,11 @@ impl TypeReference {
         match self {
             TypeReference::Reference(reference) => {
                 let qualifier = if reference.is_mutable { "mut " } else { "" };
-                format!("&{qualifier}{}", reference.referee.display_name())
+                format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
                 format!(
-                    "{}[{}]",
-                    constrained.base_type.display_name(),
+                    "<type>[{}]",
                     match constrained.constraints.count() {
                         1 => "1 constraint".to_owned(),
                         count => format!("{count} constraints"),
@@ -507,14 +506,11 @@ impl TypeReference {
                 )
             }
             TypeReference::FixedArray(fixed_array) => {
-                format!(
-                    "[{}; {}]",
-                    fixed_array.element_type.display_name(),
-                    fixed_array.length
-                )
+                format!("[<type>; {}]", fixed_array.length)
             }
             TypeReference::Slice(slice) => {
-                format!("[{}]", slice.element_type.display_name())
+                let _ = slice;
+                "[<type>]".to_owned()
             }
             TypeReference::Generic(generic) => {
                 let arguments = match generic.arguments.count() {
@@ -536,41 +532,23 @@ impl TypeReference {
         match self {
             TypeReference::Reference(reference) => {
                 let qualifier = if reference.is_mutable { "mut " } else { "" };
-                format!(
-                    "&{qualifier}{}",
-                    reference
-                        .referee
-                        .display_name_with_constraints(type_constraints)
-                )
+                format!("&{qualifier}<type>")
             }
             TypeReference::Constrained(constrained) => {
                 let constraints = type_constraints
                     .span(constrained.constraints)
                     .unwrap_or(&[]);
                 format!(
-                    "{}[{}]",
-                    constrained
-                        .base_type
-                        .display_name_with_constraints(type_constraints),
+                    "<type>[{}]",
                     comma_join_display(constraints.iter(), TypeConstraint::display_name)
                 )
             }
             TypeReference::FixedArray(fixed_array) => {
-                format!(
-                    "[{}; {}]",
-                    fixed_array
-                        .element_type
-                        .display_name_with_constraints(type_constraints),
-                    fixed_array.length
-                )
+                format!("[<type>; {}]", fixed_array.length)
             }
             TypeReference::Slice(slice) => {
-                format!(
-                    "[{}]",
-                    slice
-                        .element_type
-                        .display_name_with_constraints(type_constraints)
-                )
+                let _ = slice;
+                "[<type>]".to_owned()
             }
             TypeReference::Generic(generic) => {
                 let arguments = match generic.arguments.count() {
@@ -588,7 +566,7 @@ impl TypeReference {
     pub fn primitive_type(&self) -> Option<PrimitiveType> {
         match self {
             TypeReference::Reference(_) => None,
-            TypeReference::Constrained(constrained) => constrained.base_type.primitive_type(),
+            TypeReference::Constrained(_) => None,
             TypeReference::Named { name, .. } => PrimitiveType::from_name(name),
             TypeReference::FixedArray(_)
             | TypeReference::Slice(_)
@@ -701,6 +679,10 @@ mod tests {
     #[test]
     fn type_reference_table_stores_nested_typed_references_as_handles() {
         let mut source_arguments = Arena::<TypeReference>::new();
+        let fixed_array_element = source_arguments.append(TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("u8"),
+        });
         let arguments = source_arguments.insert_many([
             TypeReference::Named {
                 symbol: SymbolHandle::invalid(),
@@ -708,10 +690,7 @@ mod tests {
             },
             TypeReference::FixedArray(FixedArrayTypeReference {
                 storage: FixedArrayTypeReferenceStorage {
-                    element_type: Box::new(TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: DiagnosticName::generated("u8"),
-                    }),
+                    element_type: fixed_array_element,
                     length: 16,
                 },
             }),
@@ -745,23 +724,24 @@ mod tests {
     #[test]
     fn type_reference_table_stores_typed_constraints_as_expression_handles() {
         let mut source_constraints = Arena::<TypeConstraint>::new();
+        let mut source_arguments = Arena::<TypeReference>::new();
+        let base_type = source_arguments.append(TypeReference::Named {
+            symbol: SymbolHandle::invalid(),
+            name: DiagnosticName::generated("i32"),
+        });
         let constraints = source_constraints.insert_many([TypeConstraint::Range {
             minimum: Expression::Integer(0),
             maximum: Expression::Integer(10),
         }]);
         let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
             storage: ConstrainedTypeReferenceStorage {
-                base_type: Box::new(TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: DiagnosticName::generated("i32"),
-                }),
+                base_type,
                 constraints,
             },
         });
 
         let mut expressions = ExpressionTable::new();
         let mut types = TypeReferenceTable::new();
-        let source_arguments = Arena::<TypeReference>::new();
         let root = types.insert_tree(
             &type_reference,
             &mut expressions,

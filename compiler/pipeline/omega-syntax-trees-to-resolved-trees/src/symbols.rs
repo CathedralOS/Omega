@@ -317,7 +317,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     let machine_state_handles = &declarations.machine_state_handles;
     let machine_states = &mut declarations.machine_states;
     let state_parameters = &mut declarations.state_parameters;
-    let type_reference_arguments = &mut declarations.type_reference_arguments;
+    let child_type_references = &mut declarations.child_type_references;
     let omega_resolved_trees::SymbolResolvedRoots {
         data_definitions,
         machines,
@@ -349,7 +349,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
             assign_type_reference_symbol_with_self_type(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 machine_symbol,
                 &mut owned_data.type_reference,
             );
@@ -370,7 +370,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol_with_self_type(
                     symbols,
-                    type_reference_arguments,
+                    child_type_references,
                     machine_symbol,
                     &mut parameter.type_reference,
                 );
@@ -390,7 +390,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             if let Some(return_type) = &mut state.return_type {
                 assign_type_reference_symbol_with_self_type(
                     symbols,
-                    type_reference_arguments,
+                    child_type_references,
                     machine_symbol,
                     return_type,
                 );
@@ -401,7 +401,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
     let declarations = &mut program.tables.declarations;
     let platform_state_signatures = &mut declarations.platform_state_signatures;
     let state_parameters = &mut declarations.state_parameters;
-    let type_reference_arguments = &mut declarations.type_reference_arguments;
+    let child_type_references = &mut declarations.child_type_references;
     program.roots.platforms.for_each_mut(|platform| {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
@@ -417,7 +417,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                     next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol_with_self_type(
                     symbols,
-                    type_reference_arguments,
+                    child_type_references,
                     platform_symbol,
                     &mut parameter.type_reference,
                 );
@@ -426,7 +426,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             if let Some(return_type) = &mut state.return_type {
                 assign_type_reference_symbol_with_self_type(
                     symbols,
-                    type_reference_arguments,
+                    child_type_references,
                     platform_symbol,
                     return_type,
                 );
@@ -472,7 +472,7 @@ fn inherited_field_count<'data>(
 fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let data_type_parameters = &program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
-    let type_reference_arguments = &mut program.tables.declarations.type_reference_arguments;
+    let child_type_references = &mut program.tables.declarations.child_type_references;
     program
         .roots
         .data_definitions
@@ -483,7 +483,7 @@ fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                 if let omega_resolved_trees::data::DataMember::Field(field) = member {
                     assign_type_reference_symbol_with_locals(
                         symbols,
-                        type_reference_arguments,
+                        child_type_references,
                         type_parameters,
                         &mut field.type_reference,
                     );
@@ -511,7 +511,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
     let state_parameters = &tables.declarations.state_parameters;
     let state_statement_expressions = &mut tables.declarations.state_statement_expressions;
     let state_statements = &mut tables.declarations.state_statements;
-    let type_reference_arguments = &mut tables.declarations.type_reference_arguments;
+    let child_type_references = &mut tables.declarations.child_type_references;
     machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let data_definition = data_definitions
@@ -540,7 +540,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                     parameters,
                     state_symbol,
                     state_statement_expressions,
-                    type_reference_arguments,
+                    child_type_references,
                     statement,
                     symbols,
                 );
@@ -586,7 +586,7 @@ fn assign_statement_symbols(
     statement_expressions: &mut omega_core::arena::Arena<
         omega_resolved_trees::expression::Expression,
     >,
-    type_reference_arguments: &mut omega_core::arena::Arena<
+    child_type_references: &mut omega_core::arena::Arena<
         omega_resolved_trees::types::TypeReference,
     >,
     statement: &mut omega_resolved_trees::statement::Statement,
@@ -599,6 +599,7 @@ fn assign_statement_symbols(
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
                 &mut assignment.target,
             );
             assign_expression_symbols(
@@ -606,12 +607,20 @@ fn assign_statement_symbols(
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
                 &mut assignment.value,
             );
         }
         omega_resolved_trees::statement::Statement::Call(call) => {
             for argument in statement_expressions.span_mut_or_empty(call.arguments) {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, argument);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    child_type_references,
+                    argument,
+                );
             }
             if let Some(receiver) = &mut call.receiver {
                 if let Some((head_symbol, symbol)) =
@@ -628,16 +637,24 @@ fn assign_statement_symbols(
                 call.receiver.is_some(),
                 call.receiver_symbol,
                 &call.target,
+                child_type_references,
                 symbols,
             );
         }
         omega_resolved_trees::statement::Statement::Expression(expression) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, expression);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                child_type_references,
+                expression,
+            );
         }
         omega_resolved_trees::statement::Statement::LocalData(local_data) => {
             assign_type_reference_symbol_with_self_type(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 machine.symbol,
                 &mut local_data.type_reference,
             );
@@ -647,6 +664,7 @@ fn assign_statement_symbols(
                     machine,
                     parameters,
                     state_symbol,
+                    child_type_references,
                     initial_value,
                 );
             }
@@ -655,13 +673,21 @@ fn assign_statement_symbols(
             if let omega_resolved_trees::statement::TransitionGuard::When(expression) =
                 &mut transition.guard
             {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, expression);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    child_type_references,
+                    expression,
+                );
             }
             assign_transition_target_symbols(
                 machine,
                 parameters,
                 state_symbol,
                 statement_expressions,
+                child_type_references,
                 &mut transition.target,
                 symbols,
             );
@@ -671,6 +697,7 @@ fn assign_statement_symbols(
                     parameters,
                     state_symbol,
                     statement_expressions,
+                    child_type_references,
                     continuation,
                     symbols,
                 );
@@ -684,21 +711,39 @@ fn assign_expression_symbols(
     machine: &MachineScope<'_>,
     parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
+    child_type_references: &mut omega_core::arena::Arena<
+        omega_resolved_trees::types::TypeReference,
+    >,
     expression: &mut omega_resolved_trees::expression::Expression,
 ) {
     match expression {
         omega_resolved_trees::expression::Expression::ArrayLiteral(array_literal) => {
             for value in &mut array_literal.values {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, value);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    child_type_references,
+                    value,
+                );
             }
         }
         omega_resolved_trees::expression::Expression::Binary(binary) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut binary.left);
             assign_expression_symbols(
                 symbols,
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
+                &mut binary.left,
+            );
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                child_type_references,
                 &mut binary.right,
             );
         }
@@ -707,14 +752,35 @@ fn assign_expression_symbols(
         | omega_resolved_trees::expression::Expression::Integer(_)
         | omega_resolved_trees::expression::Expression::String(_) => {}
         omega_resolved_trees::expression::Expression::Cast(cast) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, &mut cast.value);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                child_type_references,
+                &mut cast.value,
+            );
         }
         omega_resolved_trees::expression::Expression::Call(call) => {
             if let Some(receiver) = &mut call.receiver {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, receiver);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    child_type_references,
+                    receiver,
+                );
             }
             for argument in &mut call.arguments {
-                assign_expression_symbols(symbols, machine, parameters, state_symbol, argument);
+                assign_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    child_type_references,
+                    argument,
+                );
             }
             if let Some(receiver_path) = call
                 .receiver
@@ -736,6 +802,7 @@ fn assign_expression_symbols(
                 parameters,
                 state_symbol,
                 call,
+                child_type_references,
                 symbols,
             );
         }
@@ -745,6 +812,7 @@ fn assign_expression_symbols(
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
                 &mut indexed.collection,
             );
             assign_expression_symbols(
@@ -752,6 +820,7 @@ fn assign_expression_symbols(
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
                 &mut indexed.index,
             );
         }
@@ -761,6 +830,7 @@ fn assign_expression_symbols(
                 machine,
                 parameters,
                 state_symbol,
+                child_type_references,
                 &mut member.receiver,
             );
             if let Some(symbol) = resolve_expression_member_symbol(
@@ -775,7 +845,14 @@ fn assign_expression_symbols(
             }
         }
         omega_resolved_trees::expression::Expression::Mutable(inner) => {
-            assign_expression_symbols(symbols, machine, parameters, state_symbol, inner);
+            assign_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                child_type_references,
+                inner,
+            );
         }
         omega_resolved_trees::expression::Expression::Name(path) => {
             if let Some((head_symbol, symbol)) =
@@ -791,6 +868,7 @@ fn assign_expression_symbols(
                     machine,
                     parameters,
                     state_symbol,
+                    child_type_references,
                     &mut field.value,
                 );
             }
@@ -832,6 +910,7 @@ fn resolve_expression_call_target_symbol(
     parameters: &[omega_resolved_trees::signature::StateParameter],
     state_symbol: SymbolHandle,
     call: &omega_resolved_trees::expression::CallExpression,
+    child_type_references: &omega_core::arena::Arena<omega_resolved_trees::types::TypeReference>,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if let Some(receiver) = &call.receiver {
@@ -844,6 +923,7 @@ fn resolve_expression_call_target_symbol(
                 true,
                 receiver_symbol,
                 &call.target,
+                child_type_references,
                 symbols,
             );
         }
@@ -854,6 +934,7 @@ fn resolve_expression_call_target_symbol(
             true,
             SymbolHandle::invalid(),
             &call.target,
+            child_type_references,
             symbols,
         );
     }
@@ -864,6 +945,7 @@ fn resolve_expression_call_target_symbol(
         false,
         SymbolHandle::invalid(),
         &call.target,
+        child_type_references,
         symbols,
     )
 }
@@ -959,6 +1041,9 @@ fn assign_transition_target_symbols(
     statement_expressions: &mut omega_core::arena::Arena<
         omega_resolved_trees::expression::Expression,
     >,
+    child_type_references: &mut omega_core::arena::Arena<
+        omega_resolved_trees::types::TypeReference,
+    >,
     target: &mut omega_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
 ) {
@@ -967,7 +1052,14 @@ fn assign_transition_target_symbols(
     };
 
     for argument in statement_expressions.span_mut_or_empty(named.arguments) {
-        assign_expression_symbols(symbols, machine, parameters, state_symbol, argument);
+        assign_expression_symbols(
+            symbols,
+            machine,
+            parameters,
+            state_symbol,
+            child_type_references,
+            argument,
+        );
     }
 
     let path = &mut named.path;
@@ -1002,6 +1094,7 @@ fn resolve_call_target_symbol(
     has_receiver: bool,
     receiver_symbol: SymbolHandle,
     target: &omega_resolved_trees::name::DiagnosticName,
+    child_type_references: &omega_core::arena::Arena<omega_resolved_trees::types::TypeReference>,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if has_receiver {
@@ -1020,8 +1113,12 @@ fn resolve_call_target_symbol(
             }
 
             if let Some(field_type_reference) = machine.field_type_reference(receiver_symbol) {
-                let symbol =
-                    call_target_for_type_reference(symbols, field_type_reference, target.as_str());
+                let symbol = call_target_for_type_reference(
+                    symbols,
+                    child_type_references,
+                    field_type_reference,
+                    target.as_str(),
+                );
                 return symbol;
             }
 
@@ -1032,6 +1129,7 @@ fn resolve_call_target_symbol(
             {
                 let direct = call_target_for_type_reference(
                     symbols,
+                    child_type_references,
                     &parameter.type_reference,
                     target.as_str(),
                 );
@@ -1167,20 +1265,33 @@ fn resolve_base_symbol(
 }
 
 fn type_reference_symbol(
+    child_type_references: &omega_core::arena::Arena<omega_resolved_trees::types::TypeReference>,
     type_reference: &omega_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference(reference) => {
-            type_reference_symbol(&reference.referee)
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(reference.referee),
+            )
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
-            type_reference_symbol(&constrained.base_type)
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(constrained.base_type),
+            )
         }
         omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
-            type_reference_symbol(&fixed_array.element_type)
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(fixed_array.element_type),
+            )
         }
         omega_resolved_trees::types::TypeReference::Slice(slice) => {
-            type_reference_symbol(&slice.element_type)
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(slice.element_type),
+            )
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_symbol,
         omega_resolved_trees::types::TypeReference::Named { symbol, .. } => *symbol,
@@ -1191,12 +1302,13 @@ fn type_reference_symbol(
 
 fn call_target_for_type_reference(
     symbols: &SymbolTable,
+    child_type_references: &omega_core::arena::Arena<omega_resolved_trees::types::TypeReference>,
     type_reference: &omega_resolved_trees::types::TypeReference,
     target_name: &str,
 ) -> SymbolHandle {
     child_symbol_by_kinds(
         symbols,
-        type_reference_symbol(type_reference),
+        type_reference_symbol(child_type_references, type_reference),
         &[SymbolKind::State],
         target_name,
     )
@@ -1204,7 +1316,7 @@ fn call_target_for_type_reference(
 
 fn assign_type_reference_symbol_with_self_type(
     symbols: &SymbolTable,
-    type_reference_arguments: &mut omega_core::arena::Arena<
+    child_type_references: &mut omega_core::arena::Arena<
         omega_resolved_trees::types::TypeReference,
     >,
     self_type_symbol: SymbolHandle,
@@ -1212,7 +1324,7 @@ fn assign_type_reference_symbol_with_self_type(
 ) {
     assign_type_reference_symbol_with_context(
         symbols,
-        type_reference_arguments,
+        child_type_references,
         &[],
         self_type_symbol,
         type_reference,
@@ -1221,7 +1333,7 @@ fn assign_type_reference_symbol_with_self_type(
 
 fn assign_type_reference_symbol_with_locals(
     symbols: &SymbolTable,
-    type_reference_arguments: &mut omega_core::arena::Arena<
+    child_type_references: &mut omega_core::arena::Arena<
         omega_resolved_trees::types::TypeReference,
     >,
     local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
@@ -1229,7 +1341,7 @@ fn assign_type_reference_symbol_with_locals(
 ) {
     assign_type_reference_symbol_with_context(
         symbols,
-        type_reference_arguments,
+        child_type_references,
         local_type_parameters,
         SymbolHandle::invalid(),
         type_reference,
@@ -1238,7 +1350,7 @@ fn assign_type_reference_symbol_with_locals(
 
 fn assign_type_reference_symbol_with_context(
     symbols: &SymbolTable,
-    type_reference_arguments: &mut omega_core::arena::Arena<
+    child_type_references: &mut omega_core::arena::Arena<
         omega_resolved_trees::types::TypeReference,
     >,
     local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
@@ -1247,39 +1359,39 @@ fn assign_type_reference_symbol_with_context(
 ) {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference(reference) => {
-            assign_type_reference_symbol_with_context(
+            assign_type_reference_handle_symbol_with_context(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 local_type_parameters,
                 self_type_symbol,
-                &mut reference.referee,
+                reference.referee,
             );
         }
         omega_resolved_trees::types::TypeReference::Constrained(constrained) => {
-            assign_type_reference_symbol_with_context(
+            assign_type_reference_handle_symbol_with_context(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 local_type_parameters,
                 self_type_symbol,
-                &mut constrained.base_type,
+                constrained.base_type,
             );
         }
         omega_resolved_trees::types::TypeReference::FixedArray(fixed_array) => {
-            assign_type_reference_symbol_with_context(
+            assign_type_reference_handle_symbol_with_context(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 local_type_parameters,
                 self_type_symbol,
-                &mut fixed_array.element_type,
+                fixed_array.element_type,
             );
         }
         omega_resolved_trees::types::TypeReference::Slice(slice) => {
-            assign_type_reference_symbol_with_context(
+            assign_type_reference_handle_symbol_with_context(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 local_type_parameters,
                 self_type_symbol,
-                &mut slice.element_type,
+                slice.element_type,
             );
         }
         omega_resolved_trees::types::TypeReference::Generic(generic) => {
@@ -1288,7 +1400,7 @@ fn assign_type_reference_symbol_with_context(
 
             assign_type_reference_argument_symbols(
                 symbols,
-                type_reference_arguments,
+                child_type_references,
                 local_type_parameters,
                 self_type_symbol,
                 generic.arguments,
@@ -1304,9 +1416,27 @@ fn assign_type_reference_symbol_with_context(
     }
 }
 
+fn assign_type_reference_handle_symbol_with_context(
+    symbols: &SymbolTable,
+    child_type_references: &mut Arena<omega_resolved_trees::types::TypeReference>,
+    local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
+    self_type_symbol: SymbolHandle,
+    handle: Handle<omega_resolved_trees::types::TypeReference>,
+) {
+    let mut type_reference = std::mem::take(child_type_references.get_mut(handle));
+    assign_type_reference_symbol_with_context(
+        symbols,
+        child_type_references,
+        local_type_parameters,
+        self_type_symbol,
+        &mut type_reference,
+    );
+    *child_type_references.get_mut(handle) = type_reference;
+}
+
 fn assign_type_reference_argument_symbols(
     symbols: &SymbolTable,
-    type_reference_arguments: &mut Arena<omega_resolved_trees::types::TypeReference>,
+    child_type_references: &mut Arena<omega_resolved_trees::types::TypeReference>,
     local_type_parameters: &[omega_resolved_trees::data::TypeParameter],
     self_type_symbol: SymbolHandle,
     arguments: HandleSpan<omega_resolved_trees::types::TypeReference>,
@@ -1322,15 +1452,15 @@ fn assign_type_reference_argument_symbols(
                 .expect("type reference argument handle overflow"),
             generation,
         );
-        let mut argument = std::mem::take(type_reference_arguments.get_mut(handle));
+        let mut argument = std::mem::take(child_type_references.get_mut(handle));
         assign_type_reference_symbol_with_context(
             symbols,
-            type_reference_arguments,
+            child_type_references,
             local_type_parameters,
             self_type_symbol,
             &mut argument,
         );
-        *type_reference_arguments.get_mut(handle) = argument;
+        *child_type_references.get_mut(handle) = argument;
     }
 }
 
