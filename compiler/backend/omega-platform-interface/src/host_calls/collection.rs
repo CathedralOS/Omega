@@ -23,7 +23,7 @@ pub(super) fn collect_machine_host_calls(
     machine: &Machine,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    for state in &machine.states {
+    for state in program.machine_states(machine) {
         collect_state_host_calls(program, target, host_abi, machine, state, plan)?;
     }
 

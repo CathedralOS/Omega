@@ -1,6 +1,6 @@
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{Expression, ExpressionTable};
-use crate::machine::{Machine, OwnedData};
+use crate::machine::OwnedData;
 use crate::signature::StateSignature;
 use crate::state::State;
 use crate::statement::{Statement, StatementTable};
@@ -36,8 +36,8 @@ impl TypedProgramTables {
 
         for machine in typed_trees.machines() {
             tables.insert_machine(
-                machine,
                 typed_trees.machine_owned_data(machine),
+                typed_trees.machine_states(machine),
                 &typed_trees.type_constraints,
             );
         }
@@ -55,6 +55,7 @@ impl TypedProgramTables {
             root_machines,
             machines,
             machine_owned_data,
+            machine_states,
             root_platforms,
             platforms,
             platform_state_signatures,
@@ -79,8 +80,8 @@ impl TypedProgramTables {
 
         for machine in machines.span_mut_or_empty(*root_machines) {
             tables.insert_machine_with_state_spans(
-                machine,
                 machine_owned_data.span_or_empty(machine.owned_data),
+                machine_states.span_mut_or_empty(machine.states),
                 type_constraints,
             );
         }
@@ -112,30 +113,30 @@ impl TypedProgramTables {
 
     fn insert_machine(
         &mut self,
-        machine: &Machine,
         owned_data: &[OwnedData],
+        states: &[State],
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
-        for state in &machine.states {
+        for state in states {
             self.insert_state(state, type_constraints);
         }
     }
 
     fn insert_machine_with_state_spans(
         &mut self,
-        machine: &mut Machine,
         owned_data: &[OwnedData],
+        states: &mut [State],
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
-        for state in &mut machine.states {
+        for state in states {
             self.insert_state_with_statement_span(state, type_constraints);
         }
     }
@@ -262,12 +263,16 @@ mod tests {
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
         let mut typed_trees = TypedTrees::default();
-        typed_trees.push_machine(Machine {
+        let mut machine = Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![State {
+            states: Default::default(),
+        };
+        typed_trees.push_machine_state(
+            &mut machine,
+            State {
                 symbol: SymbolHandle::invalid(),
                 name: ProgramName::generated("entry"),
                 parameters: Vec::new(),
@@ -281,14 +286,20 @@ mod tests {
                     guard: TransitionGuard::When(Expression::Integer(1)),
                 })],
                 statement_nodes: HandleSpan::empty(),
-            }],
-        });
+            },
+        );
+        typed_trees.push_machine(machine);
 
         typed_trees.rebuild_tables();
 
         assert_eq!(typed_trees.type_reference_table.type_reference_count(), 1);
         assert_eq!(typed_trees.expression_table.expression_count(), 1);
         assert_eq!(typed_trees.statement_table.statement_count(), 1);
-        assert_eq!(typed_trees.machines()[0].states[0].statement_nodes.count(), 1);
+        assert_eq!(
+            typed_trees.machine_states(&typed_trees.machines()[0])[0]
+                .statement_nodes
+                .count(),
+            1
+        );
     }
 }

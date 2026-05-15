@@ -137,7 +137,7 @@ fn build_borrow_facts(program: &omega_typed_trees::TypedTrees) -> BorrowFacts {
     let mut states = omega_core::arena::Arena::new();
 
     for machine in program.machines() {
-        for state in &machine.states {
+        for state in program.machine_states(machine) {
             let state_writable_roots = program
                 .machine_owned_data(machine)
                 .iter()
@@ -602,7 +602,7 @@ fn resolve_state_call_target(
     _target_state: &ProgramName,
 ) -> Option<SymbolHandle> {
     if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
-        return resolve_state_symbol_in_machine(machine, target_symbol);
+        return resolve_state_symbol_in_machine(program, machine, target_symbol);
     }
 
     if !receiver_symbol.is_valid() {
@@ -615,11 +615,13 @@ fn resolve_state_call_target(
         .find(|contained| contained.symbol == receiver_symbol)
     {
         return machine_by_symbol(program, contained.type_symbol)
-            .and_then(|target_machine| resolve_state_symbol_in_machine(target_machine, target_symbol));
+            .and_then(|target_machine| {
+                resolve_state_symbol_in_machine(program, target_machine, target_symbol)
+            });
     }
 
     if let Some(target_machine) = machine_by_symbol(program, receiver_symbol) {
-        return resolve_state_symbol_in_machine(target_machine, target_symbol);
+        return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
     if let Some(type_symbol) = state
@@ -629,14 +631,14 @@ fn resolve_state_call_target(
         .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
         && let Some(target_machine) = machine_by_symbol(program, type_symbol)
     {
-        return resolve_state_symbol_in_machine(target_machine, target_symbol);
+        return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
     if target_symbol.is_valid()
         && program
             .machines()
             .iter()
-            .flat_map(|machine| machine.states.iter())
+            .flat_map(|machine| program.machine_states(machine).iter())
             .any(|state| state.symbol == target_symbol)
     {
         return Some(target_symbol);
@@ -679,6 +681,7 @@ fn receiver_can_dispatch_to_machine(
 }
 
 fn resolve_state_symbol_in_machine(
+    program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state_symbol: SymbolHandle,
 ) -> Option<SymbolHandle> {
@@ -686,8 +689,8 @@ fn resolve_state_symbol_in_machine(
         return None;
     }
 
-    machine
-        .states
+    program
+        .machine_states(machine)
         .iter()
         .find(|state| state.symbol == state_symbol)
         .map(|state| state.symbol)
@@ -864,51 +867,60 @@ mod tests {
         }));
 
         let mut program = omega_typed_trees::TypedTrees::default();
-        program.push_machine(Machine {
+        let mut machine = Machine {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
             contains: Default::default(),
             owned_data: Default::default(),
-            states: vec![
-                State {
-                    symbol: entry_symbol,
-                    name: ProgramName::generated("entry"),
-                    parameters: vec![StateParameter {
-                        symbol: item_symbol,
-                        name: ProgramName::generated("item"),
-                        type_reference: TypeReference::Unit,
-                        is_const: false,
-                        is_mutable: true,
-                        is_self: false,
-                    }],
-                    return_type: None,
-                    statements: vec![Statement::Call(Call {
-                        receiver_symbol: SymbolHandle::invalid(),
-                        target_symbol: outer_symbol,
-                        receiver: None,
-                        target: ProgramName::generated("outer"),
-                        arguments: vec![nested_call],
-                    })],
-                    statement_nodes: Default::default(),
-                },
-                State {
-                    symbol: outer_symbol,
-                    name: ProgramName::generated("outer"),
-                    parameters: Vec::new(),
-                    return_type: None,
-                    statements: Vec::new(),
-                    statement_nodes: Default::default(),
-                },
-                State {
-                    symbol: inner_symbol,
-                    name: ProgramName::generated("inner"),
-                    parameters: Vec::new(),
-                    return_type: None,
-                    statements: Vec::new(),
-                    statement_nodes: Default::default(),
-                },
-            ],
-        });
+            states: Default::default(),
+        };
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: entry_symbol,
+                name: ProgramName::generated("entry"),
+                parameters: vec![StateParameter {
+                    symbol: item_symbol,
+                    name: ProgramName::generated("item"),
+                    type_reference: TypeReference::Unit,
+                    is_const: false,
+                    is_mutable: true,
+                    is_self: false,
+                }],
+                return_type: None,
+                statements: vec![Statement::Call(Call {
+                    receiver_symbol: SymbolHandle::invalid(),
+                    target_symbol: outer_symbol,
+                    receiver: None,
+                    target: ProgramName::generated("outer"),
+                    arguments: vec![nested_call],
+                })],
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: outer_symbol,
+                name: ProgramName::generated("outer"),
+                parameters: Vec::new(),
+                return_type: None,
+                statements: Vec::new(),
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine_state(
+            &mut machine,
+            State {
+                symbol: inner_symbol,
+                name: ProgramName::generated("inner"),
+                parameters: Vec::new(),
+                return_type: None,
+                statements: Vec::new(),
+                statement_nodes: Default::default(),
+            },
+        );
+        program.push_machine(machine);
         program.rebuild_tables();
 
         let facts = build_borrow_facts(&program);

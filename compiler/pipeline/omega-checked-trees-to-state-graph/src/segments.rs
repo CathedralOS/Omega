@@ -354,13 +354,13 @@ fn branch_call_target_with_visited<'program>(
     };
 
     let target_state = if call.target_symbol.is_valid() {
-        target_machine
-            .states
+        program
+            .machine_states(target_machine)
             .iter()
             .find(|state| state.symbol == call.target_symbol)
     } else {
-        target_machine
-            .states
+        program
+            .machine_states(target_machine)
             .iter()
             .find(|state| state.name == call.target)
     }?;

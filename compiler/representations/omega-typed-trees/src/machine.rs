@@ -11,7 +11,7 @@ pub struct Machine {
     pub name: ProgramName,
     pub contains: HandleSpan<ContainedObject>,
     pub owned_data: HandleSpan<OwnedData>,
-    pub states: Vec<State>,
+    pub states: HandleSpan<State>,
 }
 
 impl Default for Machine {
@@ -21,7 +21,7 @@ impl Default for Machine {
             name: ProgramName::default(),
             contains: HandleSpan::empty(),
             owned_data: HandleSpan::empty(),
-            states: Vec::new(),
+            states: HandleSpan::empty(),
         }
     }
 }

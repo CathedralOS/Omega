@@ -156,7 +156,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
             }
         }
 
-        for state in &machine.states {
+        for state in program.machine_states(machine) {
             for parameter in &state.parameters {
                 collect_bounded_value_obligation(
                     program,
@@ -539,7 +539,7 @@ fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State>
     program
         .machines()
         .iter()
-        .flat_map(|machine| machine.states.iter())
+        .flat_map(|machine| program.machine_states(machine).iter())
         .find(|state| state.symbol == symbol)
 }
 
@@ -550,7 +550,7 @@ fn incoming_state_guard(
 ) -> Option<TransitionGuard> {
     let mut guard: Option<TransitionGuard> = None;
 
-    for source_state in &machine.states {
+    for source_state in program.machine_states(machine) {
         for statement in &source_state.statements {
             let omega_typed_trees::statement::Statement::Transition(transition) = statement else {
                 continue;
@@ -1299,7 +1299,7 @@ fn callable_return_type_by_symbol(
     program
         .machines()
         .iter()
-        .flat_map(|machine| machine.states.iter())
+        .flat_map(|machine| program.machine_states(machine).iter())
         .find(|candidate| candidate.symbol == target_symbol)
         .and_then(|candidate| candidate.return_type.as_ref())
         .or_else(|| {

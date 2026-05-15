@@ -13,3 +13,16 @@ pub struct State {
     pub statements: Vec<Statement>,
     pub statement_nodes: HandleSpan<StatementNode>,
 }
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            parameters: Vec::new(),
+            return_type: None,
+            statements: Vec::new(),
+            statement_nodes: HandleSpan::empty(),
+        }
+    }
+}

@@ -88,7 +88,10 @@ mod tests {
 
         assert_eq!(typed_trees.data_definitions().len(), 1);
         assert_eq!(typed_trees.machines().len(), 1);
-        assert_eq!(typed_trees.machines()[0].states.len(), 1);
+        assert_eq!(
+            typed_trees.machine_states(&typed_trees.machines()[0]).len(),
+            1
+        );
         assert!(
             typed_trees
                 .symbols

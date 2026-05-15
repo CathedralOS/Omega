@@ -15,7 +15,7 @@ pub(crate) fn lower_machine(
         name: crate::name::lower_name(&machine.name),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
-        states: Vec::new(),
+        states: omega_core::arena::HandleSpan::empty(),
     };
 
     for contained_object in lowerer
@@ -57,7 +57,10 @@ pub(crate) fn lower_machine(
         .machine_state_handles(machine.states)
     {
         let state = lowerer.source_program.machine_state(*state);
-        typed_machine.states.push(lower_state(lowerer, state)?);
+        let state = lower_state(lowerer, state)?;
+        lowerer
+            .typed_trees
+            .push_machine_state(&mut typed_machine, state);
     }
 
     Ok(typed_machine)
