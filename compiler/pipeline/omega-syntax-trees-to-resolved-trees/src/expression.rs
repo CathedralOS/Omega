@@ -4,6 +4,7 @@ use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::expression::{
     BinaryExpression, BinaryOperator, CallExpression, CallExpressionStorage, CastExpression,
     Expression, FloatLiteral, IndexedExpression, MemberExpression, StructLiteral,
+    StructLiteralStorage,
     StructLiteralField,
 };
 use omega_syntax_trees as syntax;
@@ -104,18 +105,20 @@ fn lower_expression_node(
         }
         syntax::expression::ExpressionNode::StructLiteral(struct_literal) => {
             Ok(Expression::StructLiteral(StructLiteral {
-                type_name: lower_name(&struct_literal.type_name),
-                fields: syntax_trees
-                    .expressions
-                    .struct_fields(struct_literal.fields)
-                    .iter()
-                    .map(|field| {
-                        Ok(StructLiteralField {
-                            name: lower_name(&field.name),
-                            value: lower_expression_handle(syntax_trees, field.value)?,
+                storage: StructLiteralStorage {
+                    type_name: lower_name(&struct_literal.type_name),
+                    fields: syntax_trees
+                        .expressions
+                        .struct_fields(struct_literal.fields)
+                        .iter()
+                        .map(|field| {
+                            Ok(StructLiteralField {
+                                name: lower_name(&field.name),
+                                value: lower_expression_handle(syntax_trees, field.value)?,
+                            })
                         })
-                    })
-                    .collect::<Result<Vec<_>, Diagnostic>>()?,
+                        .collect::<Result<Vec<_>, Diagnostic>>()?,
+                },
             }))
         }
     }
