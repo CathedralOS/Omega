@@ -336,6 +336,10 @@ impl ExpressionTable {
         self.nodes.expressions.get(handle)
     }
 
+    pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
+        self.nodes.expressions.get_mut(handle)
+    }
+
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.spans.expression_handles.span_or_empty(span)
     }
