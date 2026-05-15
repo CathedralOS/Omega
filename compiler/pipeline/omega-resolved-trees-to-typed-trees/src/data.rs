@@ -8,8 +8,9 @@ pub(crate) fn lower_data_definition(
     lowerer: &mut Lowerer,
     data_definition: &resolved::data::DataDefinition,
 ) -> Result<typed::data::DataDefinition, Diagnostic> {
-    let members = data_definition
-        .members
+    let members = lowerer
+        .source_program
+        .data_members(data_definition.members)
         .iter()
         .map(|member| lower_data_member(lowerer, member))
         .collect::<Result<Vec<_>, _>>()?;
@@ -17,8 +18,9 @@ pub(crate) fn lower_data_definition(
     Ok(typed::data::DataDefinition {
         symbol: data_definition.symbol,
         name: crate::name::lower_name(&data_definition.name),
-        type_parameters: data_definition
-            .type_parameters
+        type_parameters: lowerer
+            .source_program
+            .data_type_parameters(data_definition.type_parameters)
             .iter()
             .map(|parameter| typed::data::TypeParameter {
                 symbol: parameter.symbol,

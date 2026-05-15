@@ -1,5 +1,5 @@
 use crate::SymbolResolvedTrees;
-use crate::data::{DataDefinition, DataMember};
+use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
@@ -38,7 +38,10 @@ impl SymbolResolvedTreeTables {
         }
 
         for data_definition in &symbol_resolved_trees.data_definitions {
-            tables.insert_data_definition(data_definition, &type_constraints);
+            tables.insert_data_definition(
+                symbol_resolved_trees.data_members(data_definition.members),
+                &type_constraints,
+            );
         }
 
         for platform in &symbol_resolved_trees.platforms {
@@ -54,10 +57,10 @@ impl SymbolResolvedTreeTables {
 
     fn insert_data_definition(
         &mut self,
-        data_definition: &DataDefinition,
+        members: &[DataMember],
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for member in &data_definition.members {
+        for member in members {
             if let DataMember::Field(field) = member {
                 self.insert_type_reference(&field.type_reference, type_constraints);
             }
