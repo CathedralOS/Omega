@@ -246,8 +246,7 @@ impl TypeReferenceTable {
         source_generic_arguments: &Arena<TypeReference>,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for type_reference in type_references {
             let type_reference = self.insert_tree(
@@ -256,20 +255,12 @@ impl TypeReferenceTable {
                 source_generic_arguments,
                 source_constraints,
             );
-            let handle = self.spans.type_reference_handles.append(type_reference);
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type reference handle span count overflow");
+            self.spans
+                .type_reference_handles
+                .append_to_span(&mut span, type_reference);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     fn insert_constraint_span_from_tree(
@@ -278,27 +269,17 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeConstraintNode> {
-        let mut start = Handle::invalid();
-        let mut count = 0u32;
+        let mut span = HandleSpan::empty();
 
         for constraint in source_constraints.span_or_empty(constraints) {
             let handle = self
                 .spans
                 .constraints
                 .append(TypeConstraintNode::from_tree(constraint, expressions));
-            if count == 0 {
-                start = handle;
-            }
-            count = count
-                .checked_add(1)
-                .expect("type constraint span count overflow");
+            span.push_contiguous(handle);
         }
 
-        if count == 0 {
-            HandleSpan::empty()
-        } else {
-            HandleSpan::from_parts(start, count)
-        }
+        span
     }
 
     pub fn type_reference(&self, handle: TypeReferenceHandle) -> &TypeReferenceNode {
