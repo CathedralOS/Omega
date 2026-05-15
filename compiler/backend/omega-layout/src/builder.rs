@@ -131,9 +131,9 @@ impl<'program> LayoutBuilder<'program> {
         &mut self,
         definition: &DataDefinition,
     ) -> Result<DataLayout, Diagnostic> {
-        if definition.shape_kind() == DataShapeKind::Enum {
-            let variants = definition
-                .members
+        let members = self.program.data_members(definition);
+        if DataDefinition::shape_kind_from_members(members) == DataShapeKind::Enum {
+            let variants = members
                 .iter()
                 .filter_map(|member| match member {
                     DataMember::Variant(variant) => Some(VariantLayout {
@@ -155,8 +155,7 @@ impl<'program> LayoutBuilder<'program> {
             });
         }
 
-        let fields = definition
-            .members
+        let fields = members
             .iter()
             .filter_map(|member| match member {
                 DataMember::Field(field) => Some(field),
@@ -194,7 +193,7 @@ impl<'program> LayoutBuilder<'program> {
             .iter()
             .find(|definition| definition.name == machine.name)
         {
-            for member in &data_definition.members {
+            for member in self.program.data_members(data_definition) {
                 let DataMember::Field(field) = member else {
                     continue;
                 };
@@ -282,7 +281,8 @@ impl<'program> LayoutBuilder<'program> {
 
                 if base_symbol.is_valid()
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
-                    && definition.shape_kind() == DataShapeKind::Enum
+                    && DataDefinition::shape_kind_from_members(self.program.data_members(definition))
+                        == DataShapeKind::Enum
                 {
                     return self.layout_data_definition(*base_symbol);
                 }

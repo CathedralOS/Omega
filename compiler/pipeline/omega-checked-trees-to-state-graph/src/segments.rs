@@ -329,7 +329,7 @@ fn branch_call_target_with_visited<'program>(
                     .iter()
                     .find(|data_definition| data_definition.name == current_machine.name)
                     .and_then(|data_definition| {
-                        data_definition.members.iter().find_map(|member| {
+                        program.data_members(data_definition).iter().find_map(|member| {
                             let omega_checked_trees::data::DataMember::Field(field) = member else {
                                 return None;
                             };

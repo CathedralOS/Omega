@@ -1,4 +1,4 @@
-use crate::data::{DataDefinition, DataMember};
+use crate::data::DataMember;
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::OwnedData;
 use crate::signature::StateSignature;
@@ -24,7 +24,10 @@ impl TypedProgramTables {
         }
 
         for data_definition in typed_trees.data_definitions() {
-            tables.insert_data_definition(data_definition, &typed_trees.type_constraints);
+            tables.insert_data_definition(
+                typed_trees.data_members(data_definition),
+                &typed_trees.type_constraints,
+            );
         }
 
         for platform in typed_trees.platforms() {
@@ -50,6 +53,7 @@ impl TypedProgramTables {
         let TypedTrees {
             root_data_definitions,
             data_definitions,
+            data_members,
             root_invariants,
             invariant_definitions,
             root_machines,
@@ -68,7 +72,10 @@ impl TypedProgramTables {
         }
 
         for data_definition in data_definitions.span_or_empty(*root_data_definitions) {
-            tables.insert_data_definition(data_definition, type_constraints);
+            tables.insert_data_definition(
+                data_members.span_or_empty(data_definition.members),
+                type_constraints,
+            );
         }
 
         for platform in platforms.span_or_empty(*root_platforms) {
@@ -91,10 +98,10 @@ impl TypedProgramTables {
 
     fn insert_data_definition(
         &mut self,
-        data_definition: &DataDefinition,
+        members: &[DataMember],
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for member in &data_definition.members {
+        for member in members {
             if let DataMember::Field(field) = member {
                 self.insert_type_reference(&field.type_reference, type_constraints);
             }

@@ -52,7 +52,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
 
     for data_definition in typed_trees.data_definitions() {
         count_declaration_name(&data_definition.name, &mut counts);
-        for member in &data_definition.members {
+        for member in typed_trees.data_members(data_definition) {
             match member {
                 DataMember::Field(field) => {
                     count_declaration_name(&field.name, &mut counts);

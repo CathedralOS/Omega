@@ -323,7 +323,7 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
         return contains;
     };
 
-    for member in &data_definition.members {
+    for member in program.data_members(data_definition) {
         let omega_checked_trees::data::DataMember::Field(field) = member else {
             continue;
         };

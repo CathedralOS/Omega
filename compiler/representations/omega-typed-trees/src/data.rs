@@ -1,5 +1,6 @@
 use crate::name::ProgramName;
 use crate::types::TypeReference;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7,7 +8,7 @@ pub struct DataDefinition {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub type_parameters: Vec<TypeParameter>,
-    pub members: Vec<DataMember>,
+    pub members: HandleSpan<DataMember>,
 }
 
 impl Default for DataDefinition {
@@ -16,17 +17,17 @@ impl Default for DataDefinition {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             type_parameters: Vec::new(),
-            members: Vec::new(),
+            members: HandleSpan::empty(),
         }
     }
 }
 
 impl DataDefinition {
-    pub fn shape_kind(&self) -> DataShapeKind {
+    pub fn shape_kind_from_members(members: &[DataMember]) -> DataShapeKind {
         let mut has_fields = false;
         let mut has_variants = false;
 
-        for member in &self.members {
+        for member in members {
             match member {
                 DataMember::Field(_) => has_fields = true,
                 DataMember::Variant(_) => has_variants = true,
@@ -56,6 +57,12 @@ pub enum DataMember {
     Variant(DataVariant),
 }
 
+impl Default for DataMember {
+    fn default() -> Self {
+        Self::Variant(DataVariant::default())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
@@ -69,8 +76,27 @@ pub struct DataField {
     pub type_reference: TypeReference,
 }
 
+impl Default for DataField {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            type_reference: TypeReference::Unit,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
+}
+
+impl Default for DataVariant {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+        }
+    }
 }
