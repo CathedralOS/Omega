@@ -133,64 +133,85 @@ fn local_symbol_definitions<'program>(
 }
 
 fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
+    let mut root_children = child_handles(symbols, symbols.root()).into_iter();
+
+    for _ in 0..builtin_type_symbol_definitions().len() {
+        let _ = root_children.next();
+    }
+
     for invariant in &mut program.invariant_definitions {
-        invariant.symbol = top_level_symbol(symbols, SymbolKind::Invariant, invariant.name.as_str());
+        invariant.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Invariant);
     }
 
     for data_definition in &mut program.data_definitions {
-        data_definition.symbol = top_level_symbol(symbols, SymbolKind::Data, data_definition.name.as_str());
+        data_definition.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Data);
         let data_symbol = data_definition.symbol;
+        let mut data_children = child_handles(symbols, data_symbol).into_iter();
 
         for type_parameter in &mut data_definition.type_parameters {
-            type_parameter.symbol = child_symbol_by_kinds(
-                symbols,
-                data_symbol,
-                &[SymbolKind::TypeParameter],
-                type_parameter.name.as_str(),
-            );
+            type_parameter.symbol =
+                next_child_of_kind(&mut data_children, symbols, SymbolKind::TypeParameter);
         }
 
         for member in &mut data_definition.members {
             match member {
                 omega_resolved_trees::data::DataMember::Field(field) => {
-                    field.symbol = child_symbol(symbols, data_symbol, field.name.as_str());
+                    field.symbol = next_child_of_kind(&mut data_children, symbols, SymbolKind::Field);
                 }
                 omega_resolved_trees::data::DataMember::Variant(variant) => {
-                    variant.symbol = child_symbol(symbols, data_symbol, variant.name.as_str());
+                    variant.symbol =
+                        next_child_of_kind(&mut data_children, symbols, SymbolKind::Variant);
                 }
             }
         }
     }
 
-    for machine in &mut program.machines {
-        machine.symbol = top_level_symbol(symbols, SymbolKind::Machine, machine.name.as_str());
+    let inherited_field_counts = program
+        .machines
+        .iter()
+        .map(|machine| inherited_field_count(&program.data_definitions, &machine.name))
+        .collect::<Vec<_>>();
+
+    for (machine, inherited_field_count) in program
+        .machines
+        .iter_mut()
+        .zip(inherited_field_counts.into_iter())
+    {
+        machine.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Machine);
         let machine_symbol = machine.symbol;
+        let mut machine_children = child_handles(symbols, machine_symbol).into_iter();
+
+        for _ in 0..inherited_field_count {
+            let _ = machine_children.next();
+        }
 
         for contained_object in &mut machine.contains {
             contained_object.symbol =
-                child_symbol(symbols, machine_symbol, contained_object.name.as_str());
+                next_child_of_kind(&mut machine_children, symbols, SymbolKind::Object);
             contained_object.type_symbol =
                 top_level_symbol(symbols, SymbolKind::Machine, contained_object.type_name.as_str());
         }
 
         for owned_data in &mut machine.owned_data {
-            owned_data.symbol = child_symbol(symbols, machine_symbol, owned_data.name.as_str());
+            owned_data.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
             assign_type_reference_symbol(symbols, &mut owned_data.type_reference);
         }
 
         for state in &mut machine.states {
-            state.symbol = child_symbol(symbols, machine_symbol, state.name.as_str());
+            state.symbol = next_child_of_kind(&mut machine_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
+            let mut state_children = child_handles(symbols, state_symbol).into_iter();
 
             for parameter in &mut state.parameters {
-                parameter.symbol = child_symbol(symbols, state_symbol, parameter.name.as_str());
+                parameter.symbol =
+                    next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol(symbols, &mut parameter.type_reference);
             }
 
             for statement in &mut state.statements {
                 if let omega_resolved_trees::statement::Statement::LocalData(local_data) = statement {
                     local_data.symbol =
-                        child_symbol(symbols, state_symbol, local_data.name.as_str());
+                        next_child_of_kind(&mut state_children, symbols, SymbolKind::Local);
                 }
             }
 
@@ -201,15 +222,18 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
     }
 
     for platform in &mut program.platforms {
-        platform.symbol = top_level_symbol(symbols, SymbolKind::Platform, platform.name.as_str());
+        platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
         let platform_symbol = platform.symbol;
+        let mut platform_children = child_handles(symbols, platform_symbol).into_iter();
 
         for state in &mut platform.states {
-            state.symbol = child_symbol(symbols, platform_symbol, state.name.as_str());
+            state.symbol = next_child_of_kind(&mut platform_children, symbols, SymbolKind::State);
             let state_symbol = state.symbol;
+            let mut state_children = child_handles(symbols, state_symbol).into_iter();
 
             for parameter in &mut state.parameters {
-                parameter.symbol = child_symbol(symbols, state_symbol, parameter.name.as_str());
+                parameter.symbol =
+                    next_child_of_kind(&mut state_children, symbols, SymbolKind::Parameter);
                 assign_type_reference_symbol(symbols, &mut parameter.type_reference);
             }
 
@@ -218,6 +242,49 @@ fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) 
             }
         }
     }
+}
+
+fn child_handles(symbols: &SymbolTable, parent: SymbolHandle) -> Vec<SymbolHandle> {
+    symbols
+        .child_handles(parent)
+        .into_iter()
+        .flatten()
+        .collect()
+}
+
+fn next_child_of_kind(
+    children: &mut impl Iterator<Item = SymbolHandle>,
+    symbols: &SymbolTable,
+    kind: SymbolKind,
+) -> SymbolHandle {
+    let Some(child) = children.next() else {
+        return SymbolHandle::invalid();
+    };
+
+    if symbols.get(child).kind == kind {
+        child
+    } else {
+        SymbolHandle::invalid()
+    }
+}
+
+fn inherited_field_count(
+    data_definitions: &[omega_resolved_trees::data::DataDefinition],
+    machine_name: &omega_resolved_trees::name::ProgramName,
+) -> usize {
+    data_definitions
+        .iter()
+        .find(|data_definition| data_definition.name == *machine_name)
+        .map(|data_definition| {
+            data_definition
+                .members
+                .iter()
+                .filter(|member| {
+                    matches!(member, omega_resolved_trees::data::DataMember::Field(_))
+                })
+                .count()
+        })
+        .unwrap_or(0)
 }
 
 fn assign_type_reference_symbols(
@@ -1014,23 +1081,6 @@ fn top_level_type_symbol(symbols: &SymbolTable, name: &str) -> SymbolHandle {
             SymbolKind::Machine,
             SymbolKind::Platform,
             SymbolKind::Invariant,
-        ],
-        name,
-    )
-}
-
-fn child_symbol(symbols: &SymbolTable, parent: SymbolHandle, name: &str) -> SymbolHandle {
-    child_symbol_by_kinds(
-        symbols,
-        parent,
-        &[
-            SymbolKind::Field,
-            SymbolKind::Variant,
-            SymbolKind::State,
-            SymbolKind::Parameter,
-            SymbolKind::TypeParameter,
-            SymbolKind::Local,
-            SymbolKind::Object,
         ],
         name,
     )
