@@ -2,7 +2,7 @@ use crate::name::lower_name;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::expression::{
+use omega_symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, FloatLiteral,
     TableBinaryExpression, TableCallExpression, TableCastExpression, TableIndexedExpression,
     TableMemberExpression, TableNamePath, TableStructLiteral, TableStructLiteralField,
@@ -138,7 +138,7 @@ fn lower_expression_node_into_table(
             let mut members = HandleSpan::empty();
             expressions.push_name_path_member(
                 &mut members,
-                omega_resolved_trees::name::DiagnosticName::generated_static("self"),
+                omega_symbol_resolved_trees::name::DiagnosticName::generated_static("self"),
             );
             Ok(expressions.insert(ExpressionNode::Name(TableNamePath {
                 members,

@@ -1,7 +1,7 @@
 use crate::item::lower_item;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceMap;
-use omega_resolved_trees::SymbolResolvedTrees;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_syntax_trees::SyntaxTrees;
 use std::sync::Arc;
 
@@ -171,7 +171,7 @@ mod tests {
             .first()
             .expect("self parameter");
 
-        let omega_resolved_trees::types::TypeReference::SelfType { symbol } =
+        let omega_symbol_resolved_trees::types::TypeReference::SelfType { symbol } =
             &parameter.type_reference
         else {
             panic!("self parameter type should stay explicit");

@@ -3,7 +3,7 @@ use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::types::{
+use omega_symbol_resolved_trees::types::{
     ConstrainedTypeReference, ConstrainedTypeReferenceStorage, FixedArrayTypeReference,
     FixedArrayTypeReferenceStorage, GenericTypeReference, GenericTypeReferenceStorage,
     ReferenceTypeReference, ReferenceTypeReferenceStorage, SliceTypeReference,

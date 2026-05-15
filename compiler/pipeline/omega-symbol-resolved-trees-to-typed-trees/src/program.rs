@@ -3,7 +3,7 @@ use crate::invariant::lower_invariant_definition;
 use crate::machine::lower_machine;
 use crate::platform::lower_platform;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees::SymbolResolvedTrees;
+use omega_symbol_resolved_trees::SymbolResolvedTrees;
 use omega_typed_trees::TypedTrees;
 
 pub fn lower_symbol_resolved_trees(
@@ -56,7 +56,7 @@ impl Lowerer<'_> {
 mod tests {
     use super::lower_symbol_resolved_trees;
     use omega_source_files_to_tokens::Lexer;
-    use omega_syntax_trees_to_resolved_trees::lower_syntax_trees;
+    use omega_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
     use omega_tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]

@@ -3,8 +3,8 @@ use crate::state::lower_state_signature_node;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_resolved_trees::platform::{Platform, PlatformStorage};
-use omega_resolved_trees::signature::StateSignature;
+use omega_symbol_resolved_trees::platform::{Platform, PlatformStorage};
+use omega_symbol_resolved_trees::signature::StateSignature;
 use omega_syntax_trees::{self as syntax, SyntaxTrees};
 
 pub(crate) fn lower_platform(

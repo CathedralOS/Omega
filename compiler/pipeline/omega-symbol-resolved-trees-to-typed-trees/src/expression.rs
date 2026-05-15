@@ -1,6 +1,6 @@
 use crate::name::lower_name;
 use omega_core::diagnostics::Diagnostic;
-use omega_resolved_trees as resolved;
+use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
 
 pub(crate) fn lower_expression_from_table(

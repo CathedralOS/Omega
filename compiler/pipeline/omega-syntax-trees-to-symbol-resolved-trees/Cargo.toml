@@ -1,19 +1,18 @@
 [package]
-name = "omega-resolved-trees-to-typed-trees"
+name = "omega-syntax-trees-to-symbol-resolved-trees"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [lib]
-name = "omega_resolved_trees_to_typed_trees"
+name = "omega_syntax_trees_to_symbol_resolved_trees"
 path = "src/lib.rs"
 
 [dependencies]
-omega-typed-trees = { path = "../../representations/omega-typed-trees" }
+omega-syntax-trees = { path = "../../representations/omega-syntax-trees" }
 omega-core = { path = "../../foundation/omega-core" }
-omega-resolved-trees = { path = "../../representations/omega-resolved-trees" }
+omega-symbol-resolved-trees = { path = "../../representations/omega-symbol-resolved-trees" }
 
 [dev-dependencies]
 omega-source-files-to-tokens = { path = "../omega-source-files-to-tokens" }
 omega-tokens-to-syntax-trees = { path = "../omega-tokens-to-syntax-trees" }
-omega-syntax-trees-to-resolved-trees = { path = "../omega-syntax-trees-to-resolved-trees" }
