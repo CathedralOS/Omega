@@ -546,7 +546,7 @@ fn resolve_state_call_target(
     }
 
     let receiver_name = receiver.and_then(|receiver| receiver.last());
-    if let Some(contained) = machine.contains.iter().find(|contained| {
+    if let Some(contained) = control_flow.machine_contains(machine).iter().find(|contained| {
         (receiver_symbol.is_valid() && contained.symbol == receiver_symbol)
             || receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name)
     }) {
@@ -647,15 +647,15 @@ fn receiver_can_dispatch_to_machine(
 
     if !receiver_symbol.is_valid() {
         let receiver_name = receiver.and_then(|receiver| receiver.last());
-        return machine
-            .contains
+        return control_flow
+            .machine_contains(machine)
             .iter()
             .any(|contained| receiver_name.is_some_and(|receiver_name| contained.name == *receiver_name));
     }
 
     let receiver_name = receiver.and_then(|receiver| receiver.last());
-    if machine
-        .contains
+    if control_flow
+        .machine_contains(machine)
         .iter()
         .any(|contained| {
             contained.symbol == receiver_symbol

@@ -9,6 +9,7 @@ use omega_typed_trees::statement::TransitionGuard;
 pub struct ControlFlowPlan {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineFlow>,
+    pub contained_machines: Arena<ContainedFlow>,
     pub states: Arena<StateFlow>,
     pub state_parameters: Arena<StateParameterFlow>,
     pub proof_obligations: Arena<ProofObligationFact>,
@@ -40,6 +41,10 @@ impl ControlFlowPlan {
             .iter()
             .find(|(_, machine)| machine.symbol == machine_symbol)
             .map(|(_, machine)| machine)
+    }
+
+    pub fn machine_contains(&self, machine: &MachineFlow) -> &[ContainedFlow] {
+        self.contained_machines.span_or_empty(machine.contains)
     }
 
     pub fn state_by_key(&self, key: StateKey) -> Option<&StateFlow> {
@@ -102,7 +107,7 @@ impl StateKey {
 pub struct MachineFlow {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub contains: Vec<ContainedFlow>,
+    pub contains: HandleSpan<ContainedFlow>,
     pub states: HandleSpan<StateFlow>,
 }
 
@@ -111,7 +116,7 @@ impl Default for MachineFlow {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            contains: Vec::new(),
+            contains: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }

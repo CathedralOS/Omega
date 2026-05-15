@@ -124,7 +124,16 @@ fn merge_machine_graph(
 ) {
     let states = append_remapped_states(target, source, machine_graph.states);
 
+    let contains = target.contained_machines.insert_many(
+        source
+            .contained_machines
+            .span_or_empty(machine_graph.contains)
+            .iter()
+            .cloned(),
+    );
+
     target.machines.insert(MachineGraph {
+        contains,
         states,
         ..machine_graph.clone()
     });
@@ -302,22 +311,28 @@ fn build_machine_graph(
     Ok(MachineGraph {
         symbol: machine_symbol,
         name: machine.name.clone(),
-        contains: machine_contains(program, machine),
+        contains: machine_contains(state_graph, program, machine),
         states,
     })
 }
 
-fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph> {
-    let mut contains = program
-        .machine_contained_objects(machine)
-        .iter()
-        .map(|contained| ContainedGraph {
-            symbol: contained.symbol,
-            name: contained.name.clone(),
-            type_symbol: contained.type_symbol,
-            type_name: contained.type_name.clone(),
-        })
-        .collect::<Vec<_>>();
+fn machine_contains(
+    state_graph: &mut StateGraph,
+    program: &Program,
+    machine: &Machine,
+) -> HandleSpan<ContainedGraph> {
+    let mut contains = HandleSpan::empty();
+    for contained in program.machine_contained_objects(machine) {
+        state_graph.contained_machines.append_to_span(
+            &mut contains,
+            ContainedGraph {
+                symbol: contained.symbol,
+                name: contained.name.clone(),
+                type_symbol: contained.type_symbol,
+                type_name: contained.type_name.clone(),
+            },
+        );
+    }
 
     let Some(data_definition) = program
         .data_definitions()
@@ -341,16 +356,24 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
             continue;
         };
 
-        if contains.iter().any(|contained| contained.symbol == field.symbol) {
+        if state_graph
+            .contained_machines
+            .span_or_empty(contains)
+            .iter()
+            .any(|contained| contained.symbol == field.symbol)
+        {
             continue;
         }
 
-        contains.push(ContainedGraph {
-            symbol: field.symbol,
-            name: field.name.clone(),
-            type_symbol: target_machine.symbol,
-            type_name: target_machine.name.clone(),
-        });
+        state_graph.contained_machines.append_to_span(
+            &mut contains,
+            ContainedGraph {
+                symbol: field.symbol,
+                name: field.name.clone(),
+                type_symbol: target_machine.symbol,
+                type_name: target_machine.name.clone(),
+            },
+        );
     }
 
     contains

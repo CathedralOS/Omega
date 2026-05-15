@@ -16,6 +16,7 @@ pub use runtime_flow::{
 pub struct StateGraph {
     pub expressions: ExpressionTable,
     pub machines: Arena<MachineGraph>,
+    pub contained_machines: Arena<ContainedGraph>,
     pub states: Arena<StateNode>,
     pub state_parameters: Arena<StateParameterNode>,
     pub proof_obligations: Arena<ProofObligationFact>,
@@ -47,6 +48,10 @@ impl StateGraph {
             .iter()
             .find(|(_, machine)| machine.symbol == machine_symbol)
             .map(|(_, machine)| machine)
+    }
+
+    pub fn machine_contains(&self, machine: &MachineGraph) -> &[ContainedGraph] {
+        self.contained_machines.span_or_empty(machine.contains)
     }
 
     pub fn state_by_key(&self, key: StateKey) -> Option<&StateNode> {
@@ -109,7 +114,7 @@ impl StateKey {
 pub struct MachineGraph {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub contains: Vec<ContainedGraph>,
+    pub contains: HandleSpan<ContainedGraph>,
     pub states: HandleSpan<StateNode>,
 }
 
@@ -118,7 +123,7 @@ impl Default for MachineGraph {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            contains: Vec::new(),
+            contains: HandleSpan::empty(),
             states: HandleSpan::empty(),
         }
     }

@@ -110,8 +110,9 @@ fn runtime_transition_target(
             receiver,
             state,
             ..
-        } => machine
-            .contains
+        } => context
+            .control_flow
+            .machine_contains(machine)
             .iter()
             .find(|contained| receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)
             .and_then(|contained| {
