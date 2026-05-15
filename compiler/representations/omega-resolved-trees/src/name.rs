@@ -1,6 +1,8 @@
 use std::fmt;
 use std::ops::Deref;
 
+use omega_core::source::SourceSpan;
+
 /// Diagnostic spelling wrapper.
 ///
 /// This is deliberately owned text. Source-backed identifiers must not survive
@@ -9,6 +11,7 @@ use std::ops::Deref;
 #[derive(Clone, Default, Eq)]
 pub struct DiagnosticName {
     text: DiagnosticNameText,
+    source_span: SourceSpan,
 }
 
 #[derive(Clone, Default, PartialEq, Eq)]
@@ -19,9 +22,17 @@ enum DiagnosticNameText {
 }
 
 impl DiagnosticName {
+    pub fn new(text: impl Into<String>, source_span: SourceSpan) -> Self {
+        Self {
+            text: DiagnosticNameText::Generated(text.into()),
+            source_span,
+        }
+    }
+
     pub fn generated(text: impl Into<String>) -> Self {
         Self {
             text: DiagnosticNameText::Generated(text.into()),
+            source_span: SourceSpan::default(),
         }
     }
 
@@ -30,6 +41,14 @@ impl DiagnosticName {
             DiagnosticNameText::Missing => "",
             DiagnosticNameText::Generated(text) => text.as_str(),
         }
+    }
+
+    pub fn source_span(&self) -> SourceSpan {
+        self.source_span
+    }
+
+    pub fn is_source_backed(&self) -> bool {
+        self.source_span.span.start != self.source_span.span.end
     }
 }
 

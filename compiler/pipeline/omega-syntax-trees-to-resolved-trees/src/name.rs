@@ -3,7 +3,7 @@ use omega_resolved_trees::name::DiagnosticName;
 use omega_syntax_trees as syntax;
 
 pub(crate) fn lower_name(name: &syntax::identifier::Identifier) -> DiagnosticName {
-    DiagnosticName::generated(name.as_str())
+    DiagnosticName::new(name.as_str(), name.source_span())
 }
 
 pub(crate) fn lower_name_members<'name>(
