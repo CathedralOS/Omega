@@ -1,6 +1,6 @@
 use crate::program::Lowerer;
 use crate::state::lower_state_signature_node;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::platform::{Platform, PlatformStorage};
@@ -26,8 +26,7 @@ fn lower_platform_state_signatures(
     syntax_trees: &SyntaxTrees,
     states: HandleSpan<syntax::item::StateSignatureHandle>,
 ) -> Result<HandleSpan<StateSignature>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for signature in syntax_trees.items.state_signatures(states) {
         let signature = lower_state_signature_node(
@@ -35,23 +34,13 @@ fn lower_platform_state_signatures(
             syntax_trees,
             syntax_trees.items.state_signature(*signature),
         )?;
-        let signature = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .platform_state_signatures
-            .append(signature);
-        if count == 0 {
-            start = signature;
-        }
-        count = count
-            .checked_add(1)
-            .expect("platform state signature span count overflow");
+            .append_to_span(&mut span, signature);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }

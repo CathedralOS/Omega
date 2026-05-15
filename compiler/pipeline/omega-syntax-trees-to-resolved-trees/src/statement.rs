@@ -2,7 +2,7 @@ use crate::expression::lower_expression_handle;
 use crate::name::lower_name_members;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
@@ -100,30 +100,19 @@ fn lower_statement_expressions(
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
 ) -> Result<HandleSpan<omega_resolved_trees::expression::Expression>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for expression in syntax_trees.statements.expression_handles(expressions) {
         let expression = lower_expression_handle(syntax_trees, *expression)?;
-        let expression = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .state_statement_expressions
-            .append(expression);
-        if count == 0 {
-            start = expression;
-        }
-        count = count
-            .checked_add(1)
-            .expect("statement expression span count overflow");
+            .append_to_span(&mut span, expression);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }
 
 fn lower_transition_guard_node(

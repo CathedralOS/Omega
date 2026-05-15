@@ -1,7 +1,7 @@
 use crate::program::Lowerer;
 use crate::statement::lower_statement_handle;
 use crate::type_reference::lower_type_reference_handle;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::signature::{StateParameter, StateSignature, StateSignatureStorage};
@@ -93,30 +93,19 @@ fn lower_state_statements(
     syntax_trees: &SyntaxTrees,
     statements: HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for statement in syntax_trees.items.statements(statements) {
         let statement = lower_statement_handle(lowerer, syntax_trees, *statement)?;
-        let statement = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .state_statements
-            .append(statement);
-        if count == 0 {
-            start = statement;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state statement span count overflow");
+            .append_to_span(&mut span, statement);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }
 
 fn lower_state_parameters(
@@ -124,30 +113,19 @@ fn lower_state_parameters(
     syntax_trees: &SyntaxTrees,
     parameters: HandleSpan<syntax::item::StateParameterHandle>,
 ) -> Result<HandleSpan<StateParameter>, Diagnostic> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
+    let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;
-        let parameter = lowerer
+        lowerer
             .program
             .tables
             .declarations
             .state_parameters
-            .append(parameter);
-        if count == 0 {
-            start = parameter;
-        }
-        count = count
-            .checked_add(1)
-            .expect("state parameter span count overflow");
+            .append_to_span(&mut span, parameter);
     }
 
-    if count == 0 {
-        Ok(HandleSpan::empty())
-    } else {
-        Ok(HandleSpan::from_parts(start, count))
-    }
+    Ok(span)
 }
 
 fn lower_state_parameter(
