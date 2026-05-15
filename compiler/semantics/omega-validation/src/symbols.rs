@@ -50,7 +50,7 @@ impl<'program> ProgramSymbols<'program> {
             types: builtin_type_symbols(program),
         };
 
-        for data_definition in &program.data_definitions {
+        for data_definition in program.data_definitions() {
             if symbols
                 .data_definition_symbol(data_definition.name.as_str())
                 .is_valid()
@@ -226,7 +226,7 @@ impl<'program> MachineSymbols<'program> {
         };
 
         if let Some(data_definition) = program
-            .data_definitions
+            .data_definitions()
             .iter()
             .find(|definition| definition.name == machine.name)
         {

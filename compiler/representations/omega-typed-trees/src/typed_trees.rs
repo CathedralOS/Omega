@@ -4,7 +4,8 @@ use omega_core::symbols::SymbolTable;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TypedTrees {
-    pub data_definitions: Vec<data::DataDefinition>,
+    pub root_data_definitions: HandleSpan<data::DataDefinition>,
+    pub data_definitions: Arena<data::DataDefinition>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub machines: Vec<machine::Machine>,
@@ -17,6 +18,16 @@ pub struct TypedTrees {
 }
 
 impl TypedTrees {
+    pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
+        self.data_definitions
+            .append_to_span(&mut self.root_data_definitions, data_definition);
+    }
+
+    pub fn data_definitions(&self) -> &[data::DataDefinition] {
+        self.data_definitions
+            .span_or_empty(self.root_data_definitions)
+    }
+
     pub fn push_invariant_definition(
         &mut self,
         invariant_definition: invariant::InvariantDefinition,

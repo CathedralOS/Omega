@@ -370,7 +370,7 @@ fn validate_data_field_types(
     symbols: &ProgramSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for data_definition in &program.data_definitions {
+    for data_definition in program.data_definitions() {
         validate_data_member_names(data_definition, diagnostics);
         validate_data_shape(data_definition, diagnostics);
 

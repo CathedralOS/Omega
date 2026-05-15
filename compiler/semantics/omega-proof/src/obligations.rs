@@ -1001,7 +1001,7 @@ fn type_reference_for_symbol<'program>(
                 .map(|owned_data| &owned_data.type_reference)
         })
         .or_else(|| {
-            program.data_definitions.iter().find_map(|data_definition| {
+            program.data_definitions().iter().find_map(|data_definition| {
                 data_definition.members.iter().find_map(|member| {
                     let omega_typed_trees::data::DataMember::Field(field) = member else {
                         return None;
@@ -1049,7 +1049,7 @@ fn data_definition_by_symbol_or_name<'program>(
     symbol: SymbolHandle,
     name: &ProgramName,
 ) -> Option<&'program omega_typed_trees::data::DataDefinition> {
-    program.data_definitions.iter().find(|data_definition| {
+    program.data_definitions().iter().find(|data_definition| {
         (symbol.is_valid() && data_definition.symbol == symbol) || data_definition.name == *name
     })
 }
