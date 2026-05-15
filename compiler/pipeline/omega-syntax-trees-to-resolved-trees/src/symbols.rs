@@ -295,7 +295,7 @@ fn next_child_of_kind(
 
 fn inherited_field_count(
     data_definitions: &[omega_resolved_trees::data::DataDefinition],
-    machine_name: &omega_resolved_trees::name::ProgramName,
+    machine_name: &omega_resolved_trees::name::DiagnosticName,
 ) -> usize {
     data_definitions
         .iter()
@@ -359,21 +359,21 @@ struct MachineScope {
 #[derive(Clone)]
 struct FieldBinding {
     symbol: SymbolHandle,
-    type_name: omega_resolved_trees::name::ProgramName,
+    type_name: omega_resolved_trees::name::DiagnosticName,
     type_symbol: SymbolHandle,
 }
 
 #[derive(Clone)]
 struct ParameterBinding {
     symbol: SymbolHandle,
-    type_name: omega_resolved_trees::name::ProgramName,
+    type_name: omega_resolved_trees::name::DiagnosticName,
     type_symbol: SymbolHandle,
 }
 
 #[derive(Clone)]
 struct TypeParameterBinding {
     symbol: SymbolHandle,
-    name: omega_resolved_trees::name::ProgramName,
+    name: omega_resolved_trees::name::DiagnosticName,
 }
 
 fn assign_statement_symbols(
@@ -639,7 +639,7 @@ fn expression_name_path(
             };
             let mut path = expression_name_path(&indexed.collection)?;
             let last_segment = path.last_mut()?;
-            *last_segment = omega_resolved_trees::name::ProgramName::generated(format!(
+            *last_segment = omega_resolved_trees::name::DiagnosticName::generated(format!(
                 "{last_segment}[{index}]"
             ));
             Some(path)
@@ -853,7 +853,7 @@ fn resolve_base_symbol(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    member: &omega_resolved_trees::name::ProgramName,
+    member: &omega_resolved_trees::name::DiagnosticName,
 ) -> Option<SymbolHandle> {
     if state_symbol.is_valid() {
         let parameter_symbol = child_symbol_by_kinds(
@@ -975,7 +975,7 @@ fn type_reference_symbol(
 
 fn type_reference_name(
     type_reference: &omega_resolved_trees::types::TypeReference,
-) -> omega_resolved_trees::name::ProgramName {
+) -> omega_resolved_trees::name::DiagnosticName {
     match type_reference {
         omega_resolved_trees::types::TypeReference::Reference(reference) => {
             type_reference_name(&reference.referee)
@@ -992,10 +992,10 @@ fn type_reference_name(
         omega_resolved_trees::types::TypeReference::Generic(generic) => generic.base_name.clone(),
         omega_resolved_trees::types::TypeReference::Named { name, .. } => name.clone(),
         omega_resolved_trees::types::TypeReference::SelfType { .. } => {
-            omega_resolved_trees::name::ProgramName::generated("Self")
+            omega_resolved_trees::name::DiagnosticName::generated("Self")
         }
         omega_resolved_trees::types::TypeReference::Unit => {
-            omega_resolved_trees::name::ProgramName::default()
+            omega_resolved_trees::name::DiagnosticName::default()
         }
     }
 }
@@ -1086,7 +1086,7 @@ fn assign_type_reference_symbol_with_context(
 fn resolve_type_symbol(
     symbols: &SymbolTable,
     local_type_parameters: &[TypeParameterBinding],
-    name: &omega_resolved_trees::name::ProgramName,
+    name: &omega_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
     local_type_parameters
         .iter()

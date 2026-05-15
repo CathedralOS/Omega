@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use crate::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: StateSignatureStorage,
 }
 
@@ -33,7 +33,7 @@ impl DerefMut for StateSignature {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub type_reference: TypeReference,
     pub is_const: bool,
     pub is_mutable: bool,

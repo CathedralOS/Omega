@@ -1,9 +1,9 @@
 use omega_resolved_trees::expression::NamePath;
-use omega_resolved_trees::name::ProgramName;
+use omega_resolved_trees::name::DiagnosticName;
 use omega_syntax_trees as syntax;
 
-pub(crate) fn lower_name(name: &syntax::identifier::Identifier) -> ProgramName {
-    ProgramName::generated(name.as_str())
+pub(crate) fn lower_name(name: &syntax::identifier::Identifier) -> DiagnosticName {
+    DiagnosticName::generated(name.as_str())
 }
 
 pub(crate) fn lower_name_members<'name>(

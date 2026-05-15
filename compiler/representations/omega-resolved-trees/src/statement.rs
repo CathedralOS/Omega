@@ -1,5 +1,5 @@
 use crate::expression::{Expression, NamePath};
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
@@ -25,7 +25,7 @@ pub struct Assignment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalData {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: LocalDataStorage,
 }
 
@@ -62,7 +62,7 @@ impl DerefMut for LocalData {
 pub struct Call {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub target: ProgramName,
+    pub target: DiagnosticName,
     pub storage: CallStorage,
 }
 
@@ -147,7 +147,7 @@ struct StatementNodeStorage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StatementPathStorage {
     expression_handles: Arena<crate::expression::ExpressionHandle>,
-    name_path_members: Arena<ProgramName>,
+    name_path_members: Arena<DiagnosticName>,
 }
 
 impl StatementTable {
@@ -183,7 +183,7 @@ impl StatementTable {
         self.paths.expression_handles.span_or_empty(span)
     }
 
-    pub fn name_path_members(&self, span: HandleSpan<ProgramName>) -> &[ProgramName] {
+    pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.paths.name_path_members.span_or_empty(span)
     }
 
@@ -298,7 +298,7 @@ impl StatementTable {
         }
     }
 
-    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<ProgramName> {
+    fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
         let mut start = Handle::invalid();
         let mut count = 0u32;
 
@@ -376,8 +376,8 @@ pub struct TableAssignment {
 pub struct TableCall {
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
-    pub receiver: HandleSpan<ProgramName>,
-    pub target: ProgramName,
+    pub receiver: HandleSpan<DiagnosticName>,
+    pub target: DiagnosticName,
     pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
@@ -387,7 +387,7 @@ impl Default for TableCall {
             receiver_symbol: SymbolHandle::invalid(),
             target_symbol: SymbolHandle::invalid(),
             receiver: HandleSpan::empty(),
-            target: ProgramName::default(),
+            target: DiagnosticName::default(),
             arguments: HandleSpan::empty(),
         }
     }
@@ -396,7 +396,7 @@ impl Default for TableCall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableLocalData {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub type_reference: crate::types::TypeReferenceHandle,
     pub initial_value: crate::expression::ExpressionHandle,
 }
@@ -405,7 +405,7 @@ impl Default for TableLocalData {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: ProgramName::default(),
+            name: DiagnosticName::default(),
             type_reference: crate::types::TypeReferenceHandle::invalid(),
             initial_value: crate::expression::ExpressionHandle::invalid(),
         }
@@ -454,7 +454,7 @@ impl Default for TransitionTargetNode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TableNamePath {
-    pub members: HandleSpan<ProgramName>,
+    pub members: HandleSpan<DiagnosticName>,
     pub head_symbol: SymbolHandle,
     pub symbol: SymbolHandle,
 }
@@ -466,7 +466,7 @@ mod tests {
         StatementTable, Transition, TransitionGuard, TransitionTarget, TransitionTargetNode,
     };
     use crate::expression::{Expression, ExpressionTable, NamePath};
-    use crate::name::ProgramName;
+    use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
     use omega_core::arena::Arena;
     use omega_core::symbols::SymbolHandle;
@@ -478,7 +478,7 @@ mod tests {
             target: TransitionTarget::Named(NamedTransitionTarget {
                 storage: NamedTransitionTargetStorage {
                     path: NamePath::resolved(
-                        vec![ProgramName::generated("next")],
+                        vec![DiagnosticName::generated("next")],
                         target_symbol,
                         target_symbol,
                     ),

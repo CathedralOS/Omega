@@ -123,7 +123,7 @@ fn lower_expression_node(
         ))),
         syntax::expression::ExpressionNode::SelfValue => Ok(Expression::Name(
             omega_resolved_trees::expression::NamePath::unresolved(vec![
-                omega_resolved_trees::name::ProgramName::generated("self"),
+                omega_resolved_trees::name::DiagnosticName::generated("self"),
             ]),
         )),
         syntax::expression::ExpressionNode::String(value) => {

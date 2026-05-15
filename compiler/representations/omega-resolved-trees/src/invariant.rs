@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvariantDefinition {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: InvariantDefinitionStorage,
 }
 

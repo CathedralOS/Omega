@@ -1,4 +1,4 @@
-use crate::name::ProgramName;
+use crate::name::DiagnosticName;
 use crate::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
 use std::ops::{Deref, DerefMut};
@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataDefinition {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub storage: DataDefinitionStorage,
 }
 
@@ -68,18 +68,18 @@ pub enum DataMember {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypeParameter {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataField {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
     pub type_reference: TypeReference,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataVariant {
     pub symbol: SymbolHandle,
-    pub name: ProgramName,
+    pub name: DiagnosticName,
 }
