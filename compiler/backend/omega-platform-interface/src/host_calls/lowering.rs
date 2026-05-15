@@ -24,7 +24,7 @@ pub(crate) fn platform_call_receiver_type(
         .map(|contained_object| contained_object.type_symbol)
         .or_else(|| {
             program
-                .data_definitions
+                .data_definitions()
                 .iter()
                 .find(|data_definition| data_definition.name == machine.name)
                 .and_then(|data_definition| {

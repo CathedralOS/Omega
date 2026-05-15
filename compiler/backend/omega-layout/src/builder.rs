@@ -19,7 +19,7 @@ pub fn build_layout_plan(
 ) -> Result<LayoutPlan, Diagnostic> {
     let mut builder = LayoutBuilder::new(program, target);
 
-    for data_definition in &program.data_definitions {
+    for data_definition in program.data_definitions() {
         builder.layout_data_definition(data_definition.symbol)?;
     }
 
@@ -46,7 +46,7 @@ struct LayoutBuilder<'program> {
 impl<'program> LayoutBuilder<'program> {
     fn new(program: &'program Program, target: NativeTarget) -> Self {
         Self {
-            data_definitions: &program.data_definitions,
+            data_definitions: program.data_definitions(),
             data_layouts: Arena::new(),
             data_visiting: Vec::new(),
             fields: Arena::new(),

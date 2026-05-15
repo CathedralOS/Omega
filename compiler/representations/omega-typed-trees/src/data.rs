@@ -10,6 +10,17 @@ pub struct DataDefinition {
     pub members: Vec<DataMember>,
 }
 
+impl Default for DataDefinition {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            type_parameters: Vec::new(),
+            members: Vec::new(),
+        }
+    }
+}
+
 impl DataDefinition {
     pub fn shape_kind(&self) -> DataShapeKind {
         let mut has_fields = false;

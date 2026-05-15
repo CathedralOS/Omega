@@ -316,7 +316,7 @@ fn machine_contains(program: &Program, machine: &Machine) -> Vec<ContainedGraph>
         .collect::<Vec<_>>();
 
     let Some(data_definition) = program
-        .data_definitions
+        .data_definitions()
         .iter()
         .find(|data_definition| data_definition.name == machine.name)
     else {

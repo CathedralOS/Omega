@@ -325,7 +325,7 @@ fn branch_call_target_with_visited<'program>(
             .map(|contained| contained.type_symbol)
             .or_else(|| {
                 program
-                    .data_definitions
+                    .data_definitions()
                     .iter()
                     .find(|data_definition| data_definition.name == current_machine.name)
                     .and_then(|data_definition| {

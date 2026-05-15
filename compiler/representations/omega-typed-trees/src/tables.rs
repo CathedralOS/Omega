@@ -24,7 +24,7 @@ impl TypedProgramTables {
             tables.insert_type_constraints(invariant.constraints, &typed_trees.type_constraints);
         }
 
-        for data_definition in &typed_trees.data_definitions {
+        for data_definition in typed_trees.data_definitions() {
             tables.insert_data_definition(data_definition, &typed_trees.type_constraints);
         }
 
@@ -47,7 +47,7 @@ impl TypedProgramTables {
             tables.insert_type_constraints(invariant.constraints, type_constraints);
         }
 
-        for data_definition in &typed_trees.data_definitions {
+        for data_definition in typed_trees.data_definitions() {
             tables.insert_data_definition(data_definition, type_constraints);
         }
 

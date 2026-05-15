@@ -678,7 +678,7 @@ fn expression_match_condition_with_stack(
 
 fn none_expression(program: &Program) -> Expression {
     let Some(option) = program
-        .data_definitions
+        .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Option")
     else {
