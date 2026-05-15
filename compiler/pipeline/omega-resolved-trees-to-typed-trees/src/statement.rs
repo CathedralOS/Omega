@@ -1,8 +1,7 @@
-use crate::expression::lower_expression;
+use crate::expression::lower_expression_from_table;
 use crate::name::lower_name_path;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference;
-use omega_core::arena::Handle;
 use omega_core::diagnostics::Diagnostic;
 use omega_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -22,9 +21,12 @@ pub(crate) fn lower_statement(
             let mut arguments = omega_core::arena::HandleSpan::empty();
             for argument in lowerer
                 .source_trees
-                .state_statement_expressions(call.arguments)
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(call.arguments)
             {
-                let argument = lower_expression(argument)?;
+                let argument = lower_statement_expression(lowerer, *argument)?;
                 lowerer
                     .typed_trees
                     .push_statement_expression(&mut arguments, argument);
@@ -72,9 +74,9 @@ pub(crate) fn lower_statement(
 
 fn lower_statement_expression(
     lowerer: &Lowerer,
-    expression: Handle<resolved::expression::Expression>,
+    expression: resolved::expression::ExpressionHandle,
 ) -> Result<typed::expression::Expression, Diagnostic> {
-    lower_expression(lowerer.source_trees.state_statement_expression(expression))
+    lower_expression_from_table(&lowerer.source_trees.tables.bodies.expressions, expression)
 }
 
 fn lower_transition_guard(
@@ -102,9 +104,12 @@ fn lower_transition_target(
             let mut arguments = omega_core::arena::HandleSpan::empty();
             for argument in lowerer
                 .source_trees
-                .state_statement_expressions(named.arguments)
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(named.arguments)
             {
-                let argument = lower_expression(argument)?;
+                let argument = lower_statement_expression(lowerer, *argument)?;
                 lowerer
                     .typed_trees
                     .push_statement_expression(&mut arguments, argument);

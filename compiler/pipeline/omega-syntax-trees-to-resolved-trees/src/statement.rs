@@ -1,8 +1,8 @@
-use crate::expression::lower_expression_handle;
+use crate::expression::lower_expression_into_table;
 use crate::name::lower_name_members;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference_handle;
-use omega_core::arena::{Handle, HandleSpan};
+use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_resolved_trees::statement::{
@@ -100,31 +100,33 @@ fn lower_statement_expression(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expression: syntax::expression::ExpressionHandle,
-) -> Result<Handle<omega_resolved_trees::expression::Expression>, Diagnostic> {
-    let expression = lower_expression_handle(syntax_trees, expression)?;
-    Ok(lowerer
-        .symbol_resolved_trees
-        .tables
-        .declarations
-        .state_statement_expressions
-        .append(expression))
+) -> Result<omega_resolved_trees::expression::ExpressionHandle, Diagnostic> {
+    lower_expression_into_table(
+        syntax_trees,
+        &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+        expression,
+    )
 }
 
 fn lower_statement_expressions(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     expressions: HandleSpan<syntax::expression::ExpressionHandle>,
-) -> Result<HandleSpan<omega_resolved_trees::expression::Expression>, Diagnostic> {
+) -> Result<HandleSpan<omega_resolved_trees::expression::ExpressionHandle>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for expression in syntax_trees.statements.expression_handles(expressions) {
-        let expression = lower_expression_handle(syntax_trees, *expression)?;
+        let expression = lower_expression_into_table(
+            syntax_trees,
+            &mut lowerer.symbol_resolved_trees.tables.bodies.expressions,
+            *expression,
+        )?;
         lowerer
             .symbol_resolved_trees
             .tables
-            .declarations
-            .state_statement_expressions
-            .append_to_span(&mut span, expression);
+            .bodies
+            .expressions
+            .push_expression_handle(&mut span, expression);
     }
 
     Ok(span)

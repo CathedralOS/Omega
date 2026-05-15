@@ -37,6 +37,7 @@ impl SymbolResolvedTreeTables {
         } = symbol_resolved_trees;
         let type_constraints = &source_tables.types.constraints;
         let source_expressions = &source_tables.bodies.expressions;
+        tables.bodies.expressions = source_expressions.clone();
         let SymbolResolvedDeclarationStorage {
             data_members,
             machine_owned_data,
@@ -45,7 +46,6 @@ impl SymbolResolvedTreeTables {
             machine_states,
             platform_state_signatures,
             state_parameters,
-            state_statement_expressions,
             state_statements,
             child_type_references,
             ..
@@ -86,7 +86,6 @@ impl SymbolResolvedTreeTables {
                 machine_state_handles,
                 machine_states,
                 state_parameters,
-                state_statement_expressions,
                 state_statements,
                 child_type_references,
                 type_constraints,
@@ -143,7 +142,6 @@ impl SymbolResolvedTreeTables {
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
-        state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
@@ -168,7 +166,6 @@ impl SymbolResolvedTreeTables {
             self.insert_state_with_statement_span(
                 state,
                 state_parameters,
-                state_statement_expressions,
                 state_statements,
                 child_type_references,
                 type_constraints,
@@ -201,7 +198,6 @@ impl SymbolResolvedTreeTables {
         &mut self,
         state: &mut State,
         state_parameters: &Arena<StateParameter>,
-        state_statement_expressions: &Arena<Expression>,
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
@@ -229,12 +225,13 @@ impl SymbolResolvedTreeTables {
         for statement in state_statements.span_or_empty(state.statements) {
             let statement = self.bodies.statements.insert_tree(
                 statement,
-                state_statement_expressions,
+                source_expressions,
                 &mut self.bodies.expressions,
                 &mut self.types.references,
                 child_type_references,
                 type_constraints,
                 source_expressions,
+                false,
             );
             statement_nodes.push_contiguous(statement);
         }
@@ -310,7 +307,7 @@ impl SymbolResolvedTreeTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::Expression;
+    use crate::expression::ExpressionNode;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
@@ -325,9 +322,9 @@ mod tests {
         let mut program = SymbolResolvedTrees::default();
         let guard = program
             .tables
-            .declarations
-            .state_statement_expressions
-            .append(Expression::Integer(1));
+            .bodies
+            .expressions
+            .insert(ExpressionNode::Integer(1));
         let statements =
             program
                 .tables

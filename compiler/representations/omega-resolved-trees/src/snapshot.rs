@@ -467,9 +467,12 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             receiver: call.receiver.as_ref().map(name_path_snapshot),
             target: call.target.to_string(),
             arguments: program
-                .state_statement_expressions(call.arguments)
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(call.arguments)
                 .iter()
-                .map(expression_snapshot)
+                .map(|expression| table_expression_snapshot(program, *expression))
                 .collect(),
         },
         Statement::Expression(expression) => StatementSnapshot::Expression {
@@ -513,9 +516,12 @@ fn transition_target_snapshot(
         TransitionTarget::Named(named) => TransitionTargetSnapshot::Named {
             path: name_path_snapshot(&named.path),
             arguments: program
-                .state_statement_expressions(named.arguments)
+                .tables
+                .bodies
+                .expressions
+                .expression_handles(named.arguments)
                 .iter()
-                .map(expression_snapshot)
+                .map(|expression| table_expression_snapshot(program, *expression))
                 .collect(),
         },
         TransitionTarget::Value(expression) => TransitionTargetSnapshot::Value {
@@ -528,9 +534,9 @@ fn transition_target_snapshot(
 
 fn statement_expression_snapshot(
     program: &SymbolResolvedTrees,
-    expression: omega_core::arena::Handle<Expression>,
+    expression: ExpressionHandle,
 ) -> ExpressionSnapshot {
-    expression_snapshot(program.state_statement_expression(expression))
+    table_expression_snapshot(program, expression)
 }
 
 fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
@@ -778,7 +784,7 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::SymbolResolvedTreesSnapshot;
-    use crate::expression::Expression;
+    use crate::expression::ExpressionNode;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
@@ -793,9 +799,9 @@ mod tests {
         let mut program = SymbolResolvedTrees::default();
         let guard = program
             .tables
-            .declarations
-            .state_statement_expressions
-            .append(Expression::Integer(1));
+            .bodies
+            .expressions
+            .insert(ExpressionNode::Integer(1));
         let statements =
             program
                 .tables

@@ -1,4 +1,4 @@
-use crate::expression::{Expression, NamePath};
+use crate::expression::NamePath;
 use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::symbols::SymbolHandle;
@@ -11,7 +11,7 @@ pub type TransitionTargetHandle = Handle<TransitionTargetNode>;
 pub enum Statement {
     Assignment(Assignment),
     Call(Call),
-    Expression(Handle<Expression>),
+    Expression(crate::expression::ExpressionHandle),
     LocalData(LocalData),
     Transition(Transition),
 }
@@ -24,8 +24,8 @@ impl Default for Statement {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
-    pub target: Handle<Expression>,
-    pub value: Handle<Expression>,
+    pub target: crate::expression::ExpressionHandle,
+    pub value: crate::expression::ExpressionHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +38,7 @@ pub struct LocalData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalDataStorage {
     pub type_reference: crate::types::TypeReference,
-    pub initial_value: Option<Handle<Expression>>,
+    pub initial_value: Option<crate::expression::ExpressionHandle>,
 }
 
 impl Default for LocalDataStorage {
@@ -75,7 +75,7 @@ pub struct Call {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CallStorage {
     pub receiver: Option<NamePath>,
-    pub arguments: HandleSpan<Expression>,
+    pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
 impl Deref for Call {
@@ -102,13 +102,13 @@ pub struct Transition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionGuard {
     Always,
-    When(Handle<Expression>),
+    When(crate::expression::ExpressionHandle),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TransitionTarget {
     Named(NamedTransitionTarget),
-    Value(Handle<Expression>),
+    Value(crate::expression::ExpressionHandle),
     SelfTarget,
     Terminal,
 }
@@ -121,7 +121,7 @@ pub struct NamedTransitionTarget {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamedTransitionTargetStorage {
     pub path: NamePath,
-    pub arguments: HandleSpan<Expression>,
+    pub arguments: HandleSpan<crate::expression::ExpressionHandle>,
 }
 
 impl Deref for NamedTransitionTarget {
@@ -208,23 +208,36 @@ impl StatementTable {
     pub fn insert_tree(
         &mut self,
         statement: &Statement,
-        source_expressions: &Arena<Expression>,
+        source_expressions: &crate::expression::ExpressionTable,
         expressions: &mut crate::expression::ExpressionTable,
         type_references: &mut crate::types::TypeReferenceTable,
         source_child_type_references: &Arena<crate::types::TypeReference>,
         source_constraints: &Arena<crate::types::TypeConstraint>,
         source_expression_table: &crate::expression::ExpressionTable,
+        copy_expression_handles: bool,
     ) -> StatementHandle {
         match statement {
             Statement::Assignment(assignment) => {
-                let target = expressions.insert_tree(source_expressions.get(assignment.target));
-                let value = expressions.insert_tree(source_expressions.get(assignment.value));
+                let target = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    assignment.target,
+                    copy_expression_handles,
+                );
+                let value = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    assignment.value,
+                    copy_expression_handles,
+                );
                 self.insert(StatementNode::Assignment(TableAssignment { target, value }))
             }
             Statement::Call(call) => {
                 let arguments = self.insert_expression_handle_span_from_trees(
-                    source_expressions.span_or_empty(call.arguments),
+                    source_expressions,
+                    call.arguments,
                     expressions,
+                    copy_expression_handles,
                 );
                 let receiver = call
                     .receiver
@@ -240,7 +253,12 @@ impl StatementTable {
                 }))
             }
             Statement::Expression(expression) => {
-                let expression = expressions.insert_tree(source_expressions.get(*expression));
+                let expression = expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    *expression,
+                    copy_expression_handles,
+                );
                 self.insert(StatementNode::Expression(expression))
             }
             Statement::LocalData(local_data) => {
@@ -254,7 +272,14 @@ impl StatementTable {
                 let initial_value = local_data
                     .initial_value
                     .filter(|value| value.is_valid())
-                    .map(|value| expressions.insert_tree(source_expressions.get(value)))
+                    .map(|value| {
+                        expression_handle_from_tree(
+                            source_expressions,
+                            expressions,
+                            value,
+                            copy_expression_handles,
+                        )
+                    })
                     .unwrap_or_else(crate::expression::ExpressionHandle::invalid);
                 self.insert(StatementNode::LocalData(TableLocalData {
                     symbol: local_data.symbol,
@@ -268,19 +293,30 @@ impl StatementTable {
                     &transition.target,
                     source_expressions,
                     expressions,
+                    copy_expression_handles,
                 );
                 let continuation = transition
                     .continuation
                     .as_ref()
                     .map(|target| {
-                        self.insert_transition_target_tree(target, source_expressions, expressions)
+                        self.insert_transition_target_tree(
+                            target,
+                            source_expressions,
+                            expressions,
+                            copy_expression_handles,
+                        )
                     })
                     .unwrap_or_else(TransitionTargetHandle::invalid);
                 let guard = match &transition.guard {
                     TransitionGuard::Always => TransitionGuardNode::Always,
-                    TransitionGuard::When(expression) => TransitionGuardNode::When(
-                        expressions.insert_tree(source_expressions.get(*expression)),
-                    ),
+                    TransitionGuard::When(expression) => {
+                        TransitionGuardNode::When(expression_handle_from_tree(
+                            source_expressions,
+                            expressions,
+                            *expression,
+                            copy_expression_handles,
+                        ))
+                    }
                 };
                 self.insert(StatementNode::Transition(TableTransition {
                     target,
@@ -293,13 +329,20 @@ impl StatementTable {
 
     fn insert_expression_handle_span_from_trees(
         &mut self,
-        arguments: &[Expression],
+        source_expressions: &crate::expression::ExpressionTable,
+        arguments: HandleSpan<crate::expression::ExpressionHandle>,
         expressions: &mut crate::expression::ExpressionTable,
+        copy_expression_handles: bool,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
         let mut span = HandleSpan::empty();
 
-        for argument in arguments {
-            let argument = expressions.insert_tree(argument);
+        for argument in source_expressions.expression_handles(arguments) {
+            let argument = expression_handle_from_tree(
+                source_expressions,
+                expressions,
+                *argument,
+                copy_expression_handles,
+            );
             self.paths
                 .expression_handles
                 .append_to_span(&mut span, argument);
@@ -323,8 +366,9 @@ impl StatementTable {
     fn insert_transition_target_tree(
         &mut self,
         target: &TransitionTarget,
-        source_expressions: &Arena<Expression>,
+        source_expressions: &crate::expression::ExpressionTable,
         expressions: &mut crate::expression::ExpressionTable,
+        copy_expression_handles: bool,
     ) -> TransitionTargetHandle {
         let target = match target {
             TransitionTarget::Named(named) => TransitionTargetNode::Named {
@@ -334,18 +378,38 @@ impl StatementTable {
                     symbol: named.path.symbol(),
                 },
                 arguments: self.insert_expression_handle_span_from_trees(
-                    source_expressions.span_or_empty(named.arguments),
+                    source_expressions,
+                    named.arguments,
                     expressions,
+                    copy_expression_handles,
                 ),
             },
-            TransitionTarget::Value(expression) => TransitionTargetNode::Value(
-                expressions.insert_tree(source_expressions.get(*expression)),
-            ),
+            TransitionTarget::Value(expression) => {
+                TransitionTargetNode::Value(expression_handle_from_tree(
+                    source_expressions,
+                    expressions,
+                    *expression,
+                    copy_expression_handles,
+                ))
+            }
             TransitionTarget::SelfTarget => TransitionTargetNode::SelfTarget,
             TransitionTarget::Terminal => TransitionTargetNode::Terminal,
         };
 
         self.nodes.transition_targets.insert(target)
+    }
+}
+
+fn expression_handle_from_tree(
+    source_expressions: &crate::expression::ExpressionTable,
+    expressions: &mut crate::expression::ExpressionTable,
+    expression: crate::expression::ExpressionHandle,
+    copy_expression_handles: bool,
+) -> crate::expression::ExpressionHandle {
+    if copy_expression_handles {
+        expressions.copy_from(source_expressions, expression)
+    } else {
+        expression
     }
 }
 
@@ -469,7 +533,7 @@ mod tests {
         NamedTransitionTarget, NamedTransitionTargetStorage, Statement, StatementNode,
         StatementTable, Transition, TransitionGuard, TransitionTarget, TransitionTargetNode,
     };
-    use crate::expression::{Expression, ExpressionTable, NamePath};
+    use crate::expression::{ExpressionNode, ExpressionTable, NamePath};
     use crate::name::DiagnosticName;
     use crate::types::TypeReferenceTable;
     use omega_core::arena::Arena;
@@ -478,10 +542,13 @@ mod tests {
     #[test]
     fn statement_table_stores_transition_payloads_as_handles() {
         let target_symbol = SymbolHandle::from_arena_index(7);
-        let mut source_expressions = Arena::new();
-        let arguments =
-            source_expressions.insert_many([Expression::Integer(1), Expression::Integer(2)]);
-        let guard = source_expressions.append(Expression::Boolean(true));
+        let mut source_expressions = ExpressionTable::new();
+        let mut arguments = omega_core::arena::HandleSpan::empty();
+        let first_argument = source_expressions.insert(ExpressionNode::Integer(1));
+        source_expressions.push_expression_handle(&mut arguments, first_argument);
+        let second_argument = source_expressions.insert(ExpressionNode::Integer(2));
+        source_expressions.push_expression_handle(&mut arguments, second_argument);
+        let guard = source_expressions.insert(ExpressionNode::Boolean(true));
         let statement = Statement::Transition(Transition {
             target: TransitionTarget::Named(NamedTransitionTarget {
                 storage: NamedTransitionTargetStorage {
@@ -502,7 +569,6 @@ mod tests {
         let mut type_references = TypeReferenceTable::new();
         let child_type_references = Arena::new();
         let type_constraints = Arena::new();
-        let source_expression_table = ExpressionTable::new();
         let statement = statements.insert_tree(
             &statement,
             &source_expressions,
@@ -510,7 +576,8 @@ mod tests {
             &mut type_references,
             &child_type_references,
             &type_constraints,
-            &source_expression_table,
+            &source_expressions,
+            true,
         );
 
         let StatementNode::Transition(transition) = statements.statement(statement) else {
