@@ -33,6 +33,7 @@ impl TypedProgramTables {
         for platform in typed_trees.platforms() {
             tables.insert_platform(
                 typed_trees.platform_state_signatures(platform),
+                typed_trees,
                 &typed_trees.type_constraints,
             );
         }
@@ -81,8 +82,9 @@ impl TypedProgramTables {
         }
 
         for platform in platforms.span_or_empty(*root_platforms) {
-            tables.insert_platform(
+            tables.insert_platform_with_parameter_arena(
                 platform_state_signatures.span_or_empty(platform.states),
+                state_parameters,
                 type_constraints,
             );
         }
@@ -114,10 +116,30 @@ impl TypedProgramTables {
     fn insert_platform(
         &mut self,
         states: &[StateSignature],
+        typed_trees: &TypedTrees,
         type_constraints: &Arena<TypeConstraint>,
     ) {
         for state in states {
-            self.insert_state_signature(state, type_constraints);
+            self.insert_state_signature(
+                state,
+                typed_trees.state_signature_parameters(state),
+                type_constraints,
+            );
+        }
+    }
+
+    fn insert_platform_with_parameter_arena(
+        &mut self,
+        states: &[StateSignature],
+        state_parameters: &Arena<StateParameter>,
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for state in states {
+            self.insert_state_signature(
+                state,
+                state_parameters.span_or_empty(state.parameters),
+                type_constraints,
+            );
         }
     }
 
@@ -223,9 +245,10 @@ impl TypedProgramTables {
     fn insert_state_signature(
         &mut self,
         signature: &StateSignature,
+        parameters: &[StateParameter],
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for parameter in &signature.parameters {
+        for parameter in parameters {
             self.insert_type_reference(&parameter.type_reference, type_constraints);
         }
 

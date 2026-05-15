@@ -185,6 +185,22 @@ impl TypedTrees {
         self.state_parameters.span_or_empty(state.parameters)
     }
 
+    pub fn push_state_signature_parameter(
+        &mut self,
+        signature: &mut signature::StateSignature,
+        parameter: signature::StateParameter,
+    ) {
+        self.state_parameters
+            .append_to_span(&mut signature.parameters, parameter);
+    }
+
+    pub fn state_signature_parameters(
+        &self,
+        signature: &signature::StateSignature,
+    ) -> &[signature::StateParameter] {
+        self.state_parameters.span_or_empty(signature.parameters)
+    }
+
     pub fn rebuild_tables(&mut self) {
         let tables = tables::TypedProgramTables::from_typed_trees_with_state_spans(self);
         self.expression_table = tables.expressions;

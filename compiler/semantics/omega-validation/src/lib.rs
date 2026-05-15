@@ -272,7 +272,7 @@ fn validate_callable_state_signatures(
         validate_state_signature_types(
             platform_states.iter().map(|state| StateSignatureView {
                 name: state.name.as_str(),
-                parameters: &state.parameters,
+                parameters: program.state_signature_parameters(state),
                 return_type: state.return_type.as_ref(),
             }),
             program,
@@ -759,7 +759,7 @@ fn validate_call(
             program,
             &call.arguments,
             &state_signature.name,
-            &state_signature.parameters,
+            program.state_signature_parameters(state_signature),
             writable_roots,
             diagnostics,
         );

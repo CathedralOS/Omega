@@ -1,12 +1,13 @@
 use crate::name::ProgramName;
 use crate::types::TypeReference;
+use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateSignature {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub parameters: Vec<StateParameter>,
+    pub parameters: HandleSpan<StateParameter>,
     pub return_type: Option<TypeReference>,
 }
 
@@ -15,7 +16,7 @@ impl Default for StateSignature {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            parameters: Vec::new(),
+            parameters: HandleSpan::empty(),
             return_type: None,
         }
     }
