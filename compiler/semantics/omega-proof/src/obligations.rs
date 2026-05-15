@@ -1272,99 +1272,35 @@ fn derived_range_call_constraints(
 
 fn call_expression_return_type<'program>(
     program: &'program Program,
-    machine: &'program Machine,
-    state: &'program State,
+    _machine: &'program Machine,
+    _state: &'program State,
     call: &'program omega_typed_trees::expression::CallExpression,
 ) -> Option<&'program TypeReference> {
-    let receiver_path = call.receiver.as_deref().and_then(expression_name_path);
+    callable_return_type_by_symbol(program, call.target_symbol)
+}
 
-    if receiver_path.is_none() || receiver_path.as_deref().is_some_and(|path| path == ["self"]) {
-        return machine
-            .states
-            .iter()
-            .find(|candidate| {
-                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
-                    || candidate.name == call.target
-            })
-            .and_then(|candidate| candidate.return_type.as_ref());
+fn callable_return_type_by_symbol(
+    program: &Program,
+    target_symbol: SymbolHandle,
+) -> Option<&TypeReference> {
+    if !target_symbol.is_valid() {
+        return None;
     }
 
-    let receiver_path = receiver_path?;
-    let receiver_symbol = receiver_symbol(call.receiver.as_deref())?;
-
-    if let Some(contained) = machine.contains.iter().find(|contained| {
-        contained.symbol == receiver_symbol
-            || receiver_path
-                .last()
-                .is_some_and(|receiver_name| contained.name == *receiver_name)
-    }) {
-        if let Some(target_machine) = program
-            .machines
-            .iter()
-            .find(|candidate| candidate.symbol == contained.type_symbol)
-        {
-            return target_machine
-                .states
-                .iter()
-                .find(|candidate| {
-                    (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
-                        || candidate.name == call.target
-                })
-                .and_then(|candidate| candidate.return_type.as_ref());
-        }
-    }
-
-    if let Some(target_machine) = program
+    program
         .machines
         .iter()
-        .find(|candidate| candidate.symbol == receiver_symbol)
-    {
-        return target_machine
-            .states
-            .iter()
-            .find(|candidate| {
-                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
-                    || candidate.name == call.target
-            })
-            .and_then(|candidate| candidate.return_type.as_ref());
-    }
-
-    if let Some(target_platform) = program
-        .platforms
-        .iter()
-        .find(|candidate| candidate.symbol == receiver_symbol)
-    {
-        return target_platform
-            .states
-            .iter()
-            .find(|candidate| {
-                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
-                    || candidate.name == call.target
-            })
-            .and_then(|candidate| candidate.return_type.as_ref());
-    }
-
-    if let Some(parameter_machine_symbol) = state
-        .parameters
-        .iter()
-        .find(|parameter| parameter.symbol == receiver_symbol)
-        .and_then(|parameter| machine_symbol_from_type_reference(&parameter.type_reference))
-        && let Some(target_machine) = program
-            .machines
-            .iter()
-            .find(|candidate| candidate.symbol == parameter_machine_symbol)
-    {
-        return target_machine
-            .states
-            .iter()
-            .find(|candidate| {
-                (call.target_symbol.is_valid() && candidate.symbol == call.target_symbol)
-                    || candidate.name == call.target
-            })
-            .and_then(|candidate| candidate.return_type.as_ref());
-    }
-
-    None
+        .flat_map(|machine| machine.states.iter())
+        .find(|candidate| candidate.symbol == target_symbol)
+        .and_then(|candidate| candidate.return_type.as_ref())
+        .or_else(|| {
+            program
+                .platforms
+                .iter()
+                .flat_map(|platform| platform.states.iter())
+                .find(|candidate| candidate.symbol == target_symbol)
+                .and_then(|candidate| candidate.return_type.as_ref())
+        })
 }
 
 fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> bool {
@@ -1373,45 +1309,6 @@ fn is_real_from_call(receiver: Option<&Expression>, target: &ProgramName) -> boo
             receiver,
             Some(Expression::Name(path)) if path.as_slice() == ["Real"]
         )
-}
-
-fn expression_name_path(expression: &Expression) -> Option<Vec<ProgramName>> {
-    expression_name_path_owned(expression)
-}
-
-fn receiver_symbol(receiver: Option<&Expression>) -> Option<SymbolHandle> {
-    match receiver? {
-        Expression::Name(path) => Some(path.symbol()),
-        Expression::Member(member) => Some(member.member_symbol),
-        Expression::Mutable(inner) => receiver_symbol(Some(inner)),
-        _ => None,
-    }
-}
-
-fn expression_name_path_owned(expression: &Expression) -> Option<Vec<ProgramName>> {
-    match expression {
-        Expression::Name(path) => Some(path.as_slice().to_vec()),
-        Expression::Member(member) => {
-            let mut path = expression_name_path_owned(&member.receiver)?;
-            path.push(member.member.clone());
-            Some(path)
-        }
-        Expression::Mutable(inner) => expression_name_path_owned(inner),
-        _ => None,
-    }
-}
-
-fn machine_symbol_from_type_reference(type_reference: &TypeReference) -> Option<SymbolHandle> {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => machine_symbol_from_type_reference(referee),
-        TypeReference::Constrained { base_type, .. } => {
-            machine_symbol_from_type_reference(base_type)
-        }
-        TypeReference::Generic { base_symbol, .. } | TypeReference::Named { symbol: base_symbol, .. } => {
-            base_symbol.is_valid().then_some(*base_symbol)
-        }
-        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => None,
-    }
 }
 
 fn augment_constraints_with_named_facts(constraints: &mut Vec<TypeConstraint>) {
