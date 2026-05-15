@@ -230,7 +230,7 @@ impl<'program> MachineSymbols<'program> {
             .iter()
             .find(|definition| definition.name == machine.name)
         {
-            for member in &data_definition.members {
+            for member in program.data_members(data_definition) {
                 let DataMember::Field(field) = member else {
                     continue;
                 };

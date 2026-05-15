@@ -1002,7 +1002,7 @@ fn type_reference_for_symbol<'program>(
         })
         .or_else(|| {
             program.data_definitions().iter().find_map(|data_definition| {
-                data_definition.members.iter().find_map(|member| {
+                program.data_members(data_definition).iter().find_map(|member| {
                     let omega_typed_trees::data::DataMember::Field(field) = member else {
                         return None;
                     };
@@ -1031,11 +1031,13 @@ fn data_field_type_reference<'program>(
             base_name,
             ..
         } => data_definition_by_symbol_or_name(program, *base_symbol, base_name).and_then(
-            |data_definition| data_field_in_definition(data_definition, member_symbol, member_name),
+            |data_definition| {
+                data_field_in_definition(program, data_definition, member_symbol, member_name)
+            },
         ),
         TypeReference::Named { symbol, name } => {
             data_definition_by_symbol_or_name(program, *symbol, name).and_then(|data_definition| {
-                data_field_in_definition(data_definition, member_symbol, member_name)
+                data_field_in_definition(program, data_definition, member_symbol, member_name)
             })
         }
         TypeReference::FixedArray { .. } | TypeReference::Slice { .. } | TypeReference::Unit => {
@@ -1055,11 +1057,12 @@ fn data_definition_by_symbol_or_name<'program>(
 }
 
 fn data_field_in_definition<'program>(
+    program: &'program TypedTrees,
     data_definition: &'program omega_typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
 ) -> Option<&'program TypeReference> {
-    data_definition.members.iter().find_map(|member| {
+    program.data_members(data_definition).iter().find_map(|member| {
         let omega_typed_trees::data::DataMember::Field(field) = member else {
             return None;
         };

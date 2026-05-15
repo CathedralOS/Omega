@@ -373,10 +373,11 @@ fn validate_data_field_types(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for data_definition in program.data_definitions() {
-        validate_data_member_names(data_definition, diagnostics);
-        validate_data_shape(data_definition, diagnostics);
+        let data_members = program.data_members(data_definition);
+        validate_data_member_names(data_definition, data_members, diagnostics);
+        validate_data_shape(data_definition, data_members, diagnostics);
 
-        for member in &data_definition.members {
+        for member in data_members {
             let DataMember::Field(field) = member else {
                 continue;
             };
@@ -394,9 +395,10 @@ fn validate_data_field_types(
 
 fn validate_data_shape(
     data_definition: &omega_typed_trees::data::DataDefinition,
+    data_members: &[DataMember],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    match data_definition.shape_kind() {
+    match omega_typed_trees::data::DataDefinition::shape_kind_from_members(data_members) {
         DataShapeKind::Empty => {}
         DataShapeKind::Mixed => diagnostics.push(Diagnostic::error(format!(
             "data `{}` mixes fields and variants; split record data from enum-like data",
@@ -408,11 +410,12 @@ fn validate_data_shape(
 
 fn validate_data_member_names(
     data_definition: &omega_typed_trees::data::DataDefinition,
+    data_members: &[DataMember],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut member_names = Vec::new();
 
-    for member in &data_definition.members {
+    for member in data_members {
         let member_name = match member {
             DataMember::Field(field) => field.name.as_str(),
             DataMember::Variant(variant) => variant.name.as_str(),

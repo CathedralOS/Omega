@@ -686,12 +686,18 @@ fn none_expression(program: &Program) -> Expression {
         return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
     };
 
-    let Some(variant) = option.members.iter().find_map(|member| match member {
-        omega_checked_trees::data::DataMember::Variant(variant) if variant.name.as_str() == "None" => {
-            Some(variant)
-        }
-        _ => None,
-    }) else {
+    let Some(variant) = program
+        .data_members(option)
+        .iter()
+        .find_map(|member| match member {
+            omega_checked_trees::data::DataMember::Variant(variant)
+                if variant.name.as_str() == "None" =>
+            {
+                Some(variant)
+            }
+            _ => None,
+        })
+    else {
         return Expression::Name(NamePath::unresolved(vec![ProgramName::from("None")]));
     };
 

@@ -6,6 +6,7 @@ use omega_core::symbols::SymbolTable;
 pub struct TypedTrees {
     pub root_data_definitions: HandleSpan<data::DataDefinition>,
     pub data_definitions: Arena<data::DataDefinition>,
+    pub data_members: Arena<data::DataMember>,
     pub root_invariants: HandleSpan<invariant::InvariantDefinition>,
     pub invariant_definitions: Arena<invariant::InvariantDefinition>,
     pub root_machines: HandleSpan<machine::Machine>,
@@ -32,6 +33,19 @@ impl TypedTrees {
     pub fn data_definitions(&self) -> &[data::DataDefinition] {
         self.data_definitions
             .span_or_empty(self.root_data_definitions)
+    }
+
+    pub fn push_data_member(
+        &mut self,
+        data_definition: &mut data::DataDefinition,
+        member: data::DataMember,
+    ) {
+        self.data_members
+            .append_to_span(&mut data_definition.members, member);
+    }
+
+    pub fn data_members(&self, data_definition: &data::DataDefinition) -> &[data::DataMember] {
+        self.data_members.span_or_empty(data_definition.members)
     }
 
     pub fn push_invariant_definition(

@@ -28,7 +28,7 @@ pub(crate) fn platform_call_receiver_type(
                 .iter()
                 .find(|data_definition| data_definition.name == machine.name)
                 .and_then(|data_definition| {
-                    data_definition.members.iter().find_map(|member| match member {
+                    program.data_members(data_definition).iter().find_map(|member| match member {
                         omega_checked_trees::data::DataMember::Field(field)
                             if field.symbol == call.receiver_symbol =>
                         {
