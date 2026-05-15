@@ -38,7 +38,7 @@ fn collect_state_host_calls(
     state: &State,
     plan: &mut HostCallPlan,
 ) -> Result<(), Diagnostic> {
-    let mut static_values = initial_static_values(machine);
+    let mut static_values = initial_static_values(program, machine);
 
     for (statement_index, statement) in state.statements.iter().enumerate() {
         match statement {

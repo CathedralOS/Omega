@@ -1330,7 +1330,7 @@ mod tests {
             symbol: machine_symbol,
             name: "RoomEvents".into(),
             contains: Default::default(),
-            owned_data: vec![],
+            owned_data: Default::default(),
             states: vec![helper],
         };
         let program = checked_program_with_machines(vec![machine.clone()]);
@@ -1438,7 +1438,7 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: "main".into(),
             contains: Default::default(),
-            owned_data: vec![],
+            owned_data: Default::default(),
             states: vec![],
         };
         let program = Program::default();
@@ -1504,7 +1504,7 @@ mod tests {
             symbol: machine_symbol,
             name: "InventorySystem".into(),
             contains: Default::default(),
-            owned_data: vec![],
+            owned_data: Default::default(),
             states: vec![find],
         };
         let program = checked_program_with_machines(vec![machine.clone()]);

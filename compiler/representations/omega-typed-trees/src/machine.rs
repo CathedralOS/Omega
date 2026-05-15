@@ -10,7 +10,7 @@ pub struct Machine {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
     pub contains: HandleSpan<ContainedObject>,
-    pub owned_data: Vec<OwnedData>,
+    pub owned_data: HandleSpan<OwnedData>,
     pub states: Vec<State>,
 }
 
@@ -20,7 +20,7 @@ impl Default for Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
             contains: HandleSpan::empty(),
-            owned_data: Vec::new(),
+            owned_data: HandleSpan::empty(),
             states: Vec::new(),
         }
     }
@@ -51,4 +51,15 @@ pub struct OwnedData {
     pub name: ProgramName,
     pub type_reference: TypeReference,
     pub initial_value: Option<Expression>,
+}
+
+impl Default for OwnedData {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: ProgramName::default(),
+            type_reference: TypeReference::Unit,
+            initial_value: None,
+        }
+    }
 }

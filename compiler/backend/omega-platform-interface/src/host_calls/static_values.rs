@@ -2,6 +2,7 @@ use crate::place_keys::PlaceKey;
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::statement::Call;
+use omega_checked_trees::Program;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum StaticValue {
@@ -10,9 +11,12 @@ pub(crate) enum StaticValue {
     Text(String),
 }
 
-pub(crate) fn initial_static_values(machine: &Machine) -> Vec<(PlaceKey, StaticValue)> {
-    machine
-        .owned_data
+pub(crate) fn initial_static_values(
+    program: &Program,
+    machine: &Machine,
+) -> Vec<(PlaceKey, StaticValue)> {
+    program
+        .machine_owned_data(machine)
         .iter()
         .filter_map(|owned_data| {
             let value = match owned_data.initial_value.as_ref()? {

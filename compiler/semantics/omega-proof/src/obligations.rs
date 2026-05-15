@@ -132,7 +132,7 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
     let mut proof_plan = ProofPlan::default();
 
     for machine in program.machines() {
-        for owned_data in &machine.owned_data {
+        for owned_data in program.machine_owned_data(machine) {
             collect_bounded_value_obligation(
                 program,
                 format!(
@@ -739,8 +739,8 @@ fn expression_type_reference<'program>(
                     })
                 })
                 .or_else(|| {
-                    machine
-                        .owned_data
+                    program
+                        .machine_owned_data(machine)
                         .iter()
                         .find(|owned_data| owned_data.name == *name)
                         .map(|owned_data| &owned_data.type_reference)
@@ -889,8 +889,8 @@ fn collection_length_for_binding(
             })
         })
         .or_else(|| {
-            machine
-                .owned_data
+            program
+                .machine_owned_data(machine)
                 .iter()
                 .find(|owned_data| owned_data.name == *name)
                 .and_then(|owned_data| {
@@ -994,8 +994,8 @@ fn type_reference_for_symbol<'program>(
             })
         })
         .or_else(|| {
-            machine
-                .owned_data
+            program
+                .machine_owned_data(machine)
                 .iter()
                 .find(|owned_data| owned_data.symbol == symbol)
                 .map(|owned_data| &owned_data.type_reference)

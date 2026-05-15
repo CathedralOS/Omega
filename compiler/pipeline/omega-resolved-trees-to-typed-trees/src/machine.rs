@@ -14,7 +14,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         contains: omega_core::arena::HandleSpan::empty(),
-        owned_data: Vec::new(),
+        owned_data: omega_core::arena::HandleSpan::empty(),
         states: Vec::new(),
     };
 
@@ -37,7 +37,7 @@ pub(crate) fn lower_machine(
         .source_program
         .machine_owned_data(machine.owned_data)
     {
-        typed_machine.owned_data.push(typed::machine::OwnedData {
+        let owned_data = typed::machine::OwnedData {
             symbol: owned_data.symbol,
             name: crate::name::lower_name(&owned_data.name),
             type_reference: lower_type_reference(lowerer, &owned_data.type_reference)?,
@@ -46,7 +46,10 @@ pub(crate) fn lower_machine(
                 .as_ref()
                 .map(lower_expression)
                 .transpose()?,
-        });
+        };
+        lowerer
+            .typed_trees
+            .push_machine_owned_data(&mut typed_machine, owned_data);
     }
 
     for state in lowerer

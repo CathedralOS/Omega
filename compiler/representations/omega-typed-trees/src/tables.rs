@@ -35,7 +35,11 @@ impl TypedProgramTables {
         }
 
         for machine in typed_trees.machines() {
-            tables.insert_machine(machine, &typed_trees.type_constraints);
+            tables.insert_machine(
+                machine,
+                typed_trees.machine_owned_data(machine),
+                &typed_trees.type_constraints,
+            );
         }
 
         tables
@@ -50,6 +54,7 @@ impl TypedProgramTables {
             invariant_definitions,
             root_machines,
             machines,
+            machine_owned_data,
             root_platforms,
             platforms,
             platform_state_signatures,
@@ -73,7 +78,11 @@ impl TypedProgramTables {
         }
 
         for machine in machines.span_mut_or_empty(*root_machines) {
-            tables.insert_machine_with_state_spans(machine, type_constraints);
+            tables.insert_machine_with_state_spans(
+                machine,
+                machine_owned_data.span_or_empty(machine.owned_data),
+                type_constraints,
+            );
         }
 
         tables
@@ -101,8 +110,13 @@ impl TypedProgramTables {
         }
     }
 
-    fn insert_machine(&mut self, machine: &Machine, type_constraints: &Arena<TypeConstraint>) {
-        for owned_data in &machine.owned_data {
+    fn insert_machine(
+        &mut self,
+        machine: &Machine,
+        owned_data: &[OwnedData],
+        type_constraints: &Arena<TypeConstraint>,
+    ) {
+        for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
@@ -114,9 +128,10 @@ impl TypedProgramTables {
     fn insert_machine_with_state_spans(
         &mut self,
         machine: &mut Machine,
+        owned_data: &[OwnedData],
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        for owned_data in &machine.owned_data {
+        for owned_data in owned_data {
             self.insert_owned_data(owned_data, type_constraints);
         }
 
@@ -251,7 +266,7 @@ mod tests {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),
             contains: Default::default(),
-            owned_data: Vec::new(),
+            owned_data: Default::default(),
             states: vec![State {
                 symbol: SymbolHandle::invalid(),
                 name: ProgramName::generated("entry"),
