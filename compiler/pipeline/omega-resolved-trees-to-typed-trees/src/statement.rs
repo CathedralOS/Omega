@@ -18,12 +18,15 @@ pub(crate) fn lower_statement(
             }),
         ),
         resolved::statement::Statement::Call(call) => {
-            let mut arguments = Vec::new();
+            let mut arguments = omega_core::arena::HandleSpan::empty();
             for argument in lowerer
                 .source_trees
                 .state_statement_expressions(call.arguments)
             {
-                arguments.push(lower_expression(argument)?);
+                let argument = lower_expression(argument)?;
+                lowerer
+                    .typed_trees
+                    .push_statement_expression(&mut arguments, argument);
             }
 
             Ok(typed::statement::Statement::Call(typed::statement::Call {
@@ -82,12 +85,15 @@ fn lower_transition_target(
 ) -> Result<typed::statement::TransitionTarget, Diagnostic> {
     match target {
         resolved::statement::TransitionTarget::Named(named) => {
-            let mut arguments = Vec::new();
+            let mut arguments = omega_core::arena::HandleSpan::empty();
             for argument in lowerer
                 .source_trees
                 .state_statement_expressions(named.arguments)
             {
-                arguments.push(lower_expression(argument)?);
+                let argument = lower_expression(argument)?;
+                lowerer
+                    .typed_trees
+                    .push_statement_expression(&mut arguments, argument);
             }
 
             Ok(typed::statement::TransitionTarget::Named {

@@ -17,6 +17,7 @@ pub struct TypedTrees {
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
     pub state_statements: Arena<crate::statement::Statement>,
+    pub statement_expressions: Arena<expression::Expression>,
     pub type_reference_arguments: Arena<types::TypeReference>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
@@ -217,6 +218,41 @@ impl TypedTrees {
         state: &crate::state::State,
     ) -> &[crate::statement::Statement] {
         self.state_statements.span_or_empty(state.statements)
+    }
+
+    pub fn push_statement_expression(
+        &mut self,
+        expressions: &mut HandleSpan<expression::Expression>,
+        expression: expression::Expression,
+    ) {
+        self.statement_expressions
+            .append_to_span(expressions, expression);
+    }
+
+    pub fn statement_expressions(
+        &self,
+        expressions: HandleSpan<expression::Expression>,
+    ) -> &[expression::Expression] {
+        self.statement_expressions.span_or_empty(expressions)
+    }
+
+    pub fn call_arguments(
+        &self,
+        call: &crate::statement::Call,
+    ) -> &[expression::Expression] {
+        self.statement_expressions(call.arguments)
+    }
+
+    pub fn transition_target_arguments(
+        &self,
+        target: &crate::statement::TransitionTarget,
+    ) -> &[expression::Expression] {
+        match target {
+            crate::statement::TransitionTarget::Named { arguments, .. } => {
+                self.statement_expressions(*arguments)
+            }
+            _ => &[],
+        }
     }
 
     pub fn push_type_reference_argument(

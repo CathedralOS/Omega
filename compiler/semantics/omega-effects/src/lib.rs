@@ -96,7 +96,7 @@ fn infer_call_effect(
     machine: &omega_typed_trees::machine::Machine,
     call: &omega_typed_trees::statement::Call,
 ) -> Effect {
-    if call.arguments.iter().any(|argument| {
+    if program.call_arguments(call).iter().any(|argument| {
         matches!(
             argument,
             omega_typed_trees::expression::Expression::Mutable(_)
@@ -110,13 +110,13 @@ fn infer_call_effect(
     };
 
     let receiver = receiver_path
-        .as_slice()
+        .members()
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
 
-    let Some(receiver_type) = machine
-        .contains
+    let Some(receiver_type) = program
+        .machine_contained_objects(machine)
         .iter()
         .find(|contained_object| contained_object.name == receiver)
         .map(|contained_object| contained_object.type_name.as_str())

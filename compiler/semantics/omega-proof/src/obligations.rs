@@ -429,7 +429,7 @@ fn collect_bounded_call_argument_obligations(
     for (parameter, argument) in parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
-        .zip(call.arguments.iter())
+        .zip(program.call_arguments(call).iter())
     {
         let TypeReference::Constrained {
             base_type,
@@ -523,13 +523,13 @@ fn transition_target_state_and_arguments<'program>(
     state: &'program State,
     target: &'program TransitionTarget,
 ) -> Option<(&'program State, &'program [Expression])> {
-    let TransitionTarget::Named { path, arguments } = target else {
+    let TransitionTarget::Named { path, .. } = target else {
         return None;
     };
 
     state_by_symbol(program, path.symbol())
         .or_else(|| (path.members() == ["self"]).then_some(state))
-        .map(|target_state| (target_state, arguments.as_slice()))
+        .map(|target_state| (target_state, program.transition_target_arguments(target)))
 }
 
 fn state_by_symbol(program: &TypedTrees, symbol: SymbolHandle) -> Option<&State> {

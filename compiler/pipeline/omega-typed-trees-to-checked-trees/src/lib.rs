@@ -269,12 +269,12 @@ fn collect_statement_borrow_calls(
                     target_symbol: call.target_symbol,
                     receiver: call.receiver.clone(),
                     target: call.target.clone(),
-                    accesses: collect_call_argument_accesses(&call.arguments),
+                    accesses: collect_call_argument_accesses(program.call_arguments(call)),
                 });
                 *call_ordinal += 1;
             }
 
-            for argument in &call.arguments {
+            for argument in program.call_arguments(call) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
@@ -356,8 +356,8 @@ fn collect_transition_target_borrow_calls(
     calls: &mut Vec<BorrowCallDraft>,
 ) {
     match target {
-        TransitionTarget::Named { arguments, .. } => {
-            for argument in arguments {
+        TransitionTarget::Named { .. } => {
+            for argument in program.transition_target_arguments(target) {
                 collect_expression_borrow_calls(
                     program,
                     machine,
@@ -869,6 +869,8 @@ mod tests {
         }));
 
         let mut program = omega_typed_trees::TypedTrees::default();
+        let mut outer_arguments = Default::default();
+        program.push_statement_expression(&mut outer_arguments, nested_call);
         let mut machine = Machine {
             symbol: machine_symbol,
             name: ProgramName::generated("Game"),
@@ -891,7 +893,7 @@ mod tests {
                 target_symbol: outer_symbol,
                 receiver: None,
                 target: ProgramName::generated("outer"),
-                arguments: vec![nested_call],
+                arguments: outer_arguments,
             }),
         );
         program.push_state_parameter(
