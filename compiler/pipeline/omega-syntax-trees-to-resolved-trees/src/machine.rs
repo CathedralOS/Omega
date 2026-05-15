@@ -21,8 +21,7 @@ pub(crate) fn lower_machine_into(
     if let Some(existing_machine) = lowerer
         .program
         .machines
-        .iter_mut()
-        .find(|existing_machine| existing_machine.name == machine_name)
+        .find_mut(|existing_machine| existing_machine.name == machine_name)
     {
         existing_machine.states.extend(states);
         return Ok(());

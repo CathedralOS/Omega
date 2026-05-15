@@ -270,12 +270,13 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
         }
     });
 
-    for machine_index in 0..program.machines.len() {
-        let inherited_field_count = {
-            let machine_name = &program.machines[machine_index].name;
-            inherited_field_count(program.data_definitions.iter(), machine_name)
-        };
-        let machine = &mut program.machines[machine_index];
+    let omega_resolved_trees::SymbolResolvedRoots {
+        data_definitions,
+        machines,
+        ..
+    } = &mut program.roots;
+    machines.for_each_mut(|machine| {
+        let inherited_field_count = inherited_field_count(data_definitions.iter(), &machine.name);
         machine.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Machine);
         let machine_symbol = machine.symbol;
         let mut machine_children = symbols.child_handles(machine_symbol).into_iter().flatten();
@@ -331,7 +332,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 assign_type_reference_symbol_with_self_type(symbols, machine_symbol, return_type);
             }
         }
-    }
+    });
 
     for platform in &mut program.platforms {
         platform.symbol = next_child_of_kind(&mut root_children, symbols, SymbolKind::Platform);
@@ -419,7 +420,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
             },
         ..
     } = program;
-    for machine in machines {
+    machines.for_each_mut(|machine| {
         let machine_symbol = machine.symbol;
         let data_definition = data_definitions
             .iter()
@@ -448,7 +449,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                 );
             }
         }
-    }
+    });
 }
 
 struct MachineScope<'program> {
