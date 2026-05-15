@@ -8,16 +8,17 @@ pub(crate) fn lower_platform(
     lowerer: &mut Lowerer,
     platform: &resolved::platform::Platform,
 ) -> Result<typed::platform::Platform, Diagnostic> {
-    let states = lowerer
-        .source_program
-        .platform_state_signatures(platform.states)
-        .iter()
-        .map(|signature| lower_state_signature(lowerer, signature))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(typed::platform::Platform {
+    let mut typed_platform = typed::platform::Platform {
         symbol: platform.symbol,
         name: crate::name::lower_name(&platform.name),
-        states,
-    })
+        states: Vec::new(),
+    };
+
+    for signature in lowerer.source_program.platform_state_signatures(platform.states) {
+        typed_platform
+            .states
+            .push(lower_state_signature(lowerer, signature)?);
+    }
+
+    Ok(typed_platform)
 }
