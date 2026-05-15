@@ -30,8 +30,9 @@ impl RuntimeFlowBuilder<'_> {
                 receiver,
                 state,
                 ..
-            } => machine
-                .contains
+            } => self
+                .control_flow
+                .machine_contains(machine)
                 .iter()
                 .find(|contained| {
                     (receiver_symbol.is_valid() && contained.symbol == *receiver_symbol)

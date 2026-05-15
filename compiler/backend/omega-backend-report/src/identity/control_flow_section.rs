@@ -12,7 +12,7 @@ pub(in crate::identity) fn count_control_flow_strings(
 ) {
     for (_, machine) in backend_plan.control_flow.machines.iter() {
         storage.count_program_name_identity(&machine.name);
-        for contained in &machine.contains {
+        for contained in backend_plan.control_flow.machine_contains(machine) {
             storage.count_program_name_identity(&contained.name);
             storage.count_program_name_identity(&contained.type_name);
         }

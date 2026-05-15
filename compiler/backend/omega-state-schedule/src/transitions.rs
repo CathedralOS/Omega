@@ -43,8 +43,9 @@ pub(super) fn next_state(
             receiver,
             state: nested_state,
         } => {
-            let nested_machine_symbol = machine
-                .contains
+            let nested_machine_symbol = context
+                .control_flow
+                .machine_contains(machine)
                 .iter()
                 .find(|contained| {
                     receiver_symbol.is_valid() && contained.symbol == *receiver_symbol

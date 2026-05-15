@@ -12,11 +12,13 @@ use omega_state_graph::{
 };
 
 pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPlan, Diagnostic> {
+    let (machines, contained_machines) = remap_machines(state_graph);
     let (states, state_parameters) = remap_states(state_graph);
 
     Ok(ControlFlowPlan {
         expressions: state_graph.expressions.clone(),
-        machines: remap_machines(state_graph),
+        machines,
+        contained_machines,
         states,
         state_parameters,
         proof_obligations: remap_proof_obligations(state_graph),
@@ -29,23 +31,34 @@ pub fn build_control_flow_plan(state_graph: &StateGraph) -> Result<ControlFlowPl
     })
 }
 
-fn remap_machines(state_graph: &StateGraph) -> Arena<MachineFlow> {
+fn remap_machines(state_graph: &StateGraph) -> (Arena<MachineFlow>, Arena<ContainedFlow>) {
     let mut machines = Arena::default();
+    let mut contained_machines = Arena::default();
 
     for (_, machine) in state_graph.machines.iter() {
-        machines.append(remap_machine(machine));
+        machines.append(remap_machine(state_graph, machine, &mut contained_machines));
     }
 
-    machines
+    (machines, contained_machines)
 }
 
-fn remap_machine(machine: &MachineGraph) -> MachineFlow {
-    MachineFlow {
+fn remap_machine(
+    state_graph: &StateGraph,
+    machine: &MachineGraph,
+    contained_machines: &mut Arena<ContainedFlow>,
+) -> MachineFlow {
+    let mut machine_flow = MachineFlow {
         symbol: machine.symbol,
         name: machine.name.clone(),
-        contains: machine.contains.iter().map(remap_contained).collect(),
+        contains: HandleSpan::empty(),
         states: remap_state_span(machine.states),
+    };
+
+    for contained in state_graph.machine_contains(machine) {
+        contained_machines.append_to_span(&mut machine_flow.contains, remap_contained(contained));
     }
+
+    machine_flow
 }
 
 fn remap_contained(contained: &ContainedGraph) -> ContainedFlow {
