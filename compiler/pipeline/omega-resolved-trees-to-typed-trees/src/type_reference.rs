@@ -17,13 +17,12 @@ pub(crate) fn lower_type_reference(
             referee: Box::new(lower_type_reference(lowerer, referee)?),
             is_mutable: *is_mutable,
         }),
-        resolved::types::TypeReference::Constrained {
-            base_type,
-            constraints,
-        } => Ok(typed::types::TypeReference::Constrained {
-            base_type: Box::new(lower_type_reference(lowerer, base_type)?),
-            constraints: lower_type_constraints(lowerer, *constraints)?,
-        }),
+        resolved::types::TypeReference::Constrained(constrained) => {
+            Ok(typed::types::TypeReference::Constrained {
+                base_type: Box::new(lower_type_reference(lowerer, &constrained.base_type)?),
+                constraints: lower_type_constraints(lowerer, constrained.constraints)?,
+            })
+        }
         resolved::types::TypeReference::FixedArray {
             element_type,
             length,
@@ -36,18 +35,17 @@ pub(crate) fn lower_type_reference(
                 element_type: Box::new(lower_type_reference(lowerer, element_type)?),
             })
         }
-        resolved::types::TypeReference::Generic {
-            base_symbol,
-            base_name,
-            arguments,
-        } => Ok(typed::types::TypeReference::Generic {
-            base_symbol: *base_symbol,
-            base_name: crate::name::lower_name(base_name),
-            arguments: arguments
-                .iter()
-                .map(|argument| lower_type_reference(lowerer, argument))
-                .collect::<Result<Vec<_>, _>>()?,
-        }),
+        resolved::types::TypeReference::Generic(generic) => {
+            Ok(typed::types::TypeReference::Generic {
+                base_symbol: generic.base_symbol,
+                base_name: crate::name::lower_name(&generic.base_name),
+                arguments: generic
+                    .arguments
+                    .iter()
+                    .map(|argument| lower_type_reference(lowerer, argument))
+                    .collect::<Result<Vec<_>, _>>()?,
+            })
+        }
         resolved::types::TypeReference::Named { symbol, name } => {
             Ok(typed::types::TypeReference::Named {
                 symbol: *symbol,
