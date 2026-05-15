@@ -6,9 +6,9 @@ use crate::{lexer, parser};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::source::SourceId;
+use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::Item;
-use omega_syntax_trees::SyntaxTrees;
 use omega_tokens::{Token, TokenStream, TokenText};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -128,7 +128,8 @@ pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnosti
 pub fn parse_sources(lexed: LexedSources) -> Result<ParsedSources, Vec<Diagnostic>> {
     let mut parsed_sources = Arena::new();
     let batch = parsed_sources.insert_many(
-        lexed.sources
+        lexed
+            .sources
             .span_or_empty(lexed.batch)
             .iter()
             .map(|lexed_source| {
@@ -198,10 +199,8 @@ pub fn discover_imports(
                             .items
                             .identifier_path_members(host.provider);
                         if is_bundled_omega_path(provider) {
-                            imports.push(normalize_path(&resolve_source_path(
-                                &root_dir,
-                                provider,
-                            ))?);
+                            imports
+                                .push(normalize_path(&resolve_source_path(&root_dir, provider))?);
                         }
                     }
 
@@ -277,16 +276,15 @@ fn resolve_source_path(root_dir: &Path, source_path: &[Identifier]) -> PathBuf {
 }
 
 fn is_bundled_omega_path(path: &[Identifier]) -> bool {
-    path.first().is_some_and(|segment| segment.as_str() == "omega")
+    path.first()
+        .is_some_and(|segment| segment.as_str() == "omega")
 }
 
 fn bundled_omega_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../../omega")
         .canonicalize()
-        .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../omega")
-        })
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../omega"))
 }
 
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {

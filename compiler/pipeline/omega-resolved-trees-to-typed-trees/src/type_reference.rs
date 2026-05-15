@@ -72,9 +72,9 @@ fn lower_type_constraint(
     constraint: &resolved::types::TypeConstraint,
 ) -> Result<typed::types::TypeConstraint, Diagnostic> {
     match constraint {
-        resolved::types::TypeConstraint::Named(name) => {
-            Ok(typed::types::TypeConstraint::Named(crate::name::lower_name(name)))
-        }
+        resolved::types::TypeConstraint::Named(name) => Ok(typed::types::TypeConstraint::Named(
+            crate::name::lower_name(name),
+        )),
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
             Ok(typed::types::TypeConstraint::Range {
                 minimum: lower_expression(minimum)?,

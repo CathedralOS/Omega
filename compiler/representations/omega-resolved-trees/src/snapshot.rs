@@ -1,4 +1,4 @@
-use crate::ResolvedTrees;
+use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{BinaryOperator, Expression, NamePath};
 use crate::invariant::InvariantDefinition;
@@ -11,41 +11,55 @@ use crate::types::{TypeConstraint, TypeReference};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ResolvedTreesSnapshot {
-    pub roots: ResolvedRootsSnapshot,
+pub struct SymbolResolvedTreesSnapshot {
+    pub roots: SymbolResolvedRootsSnapshot,
     pub tables: ResolvedTableSnapshot,
 }
 
-impl ResolvedTreesSnapshot {
-    pub fn from_resolved_trees(resolved_trees: &ResolvedTrees) -> Self {
+impl SymbolResolvedTreesSnapshot {
+    pub fn from_symbol_resolved_trees(symbol_resolved_trees: &SymbolResolvedTrees) -> Self {
         Self {
-            roots: ResolvedRootsSnapshot {
-                data_definitions: resolved_trees
+            roots: SymbolResolvedRootsSnapshot {
+                data_definitions: symbol_resolved_trees
                     .data_definitions
                     .iter()
-                    .map(|data| data_definition_snapshot(resolved_trees, data))
+                    .map(|data| data_definition_snapshot(symbol_resolved_trees, data))
                     .collect(),
-                invariant_definitions: resolved_trees
+                invariant_definitions: symbol_resolved_trees
                     .invariant_definitions
                     .iter()
-                    .map(|invariant| invariant_definition_snapshot(resolved_trees, invariant))
+                    .map(|invariant| {
+                        invariant_definition_snapshot(symbol_resolved_trees, invariant)
+                    })
                     .collect(),
-                machines: resolved_trees
+                machines: symbol_resolved_trees
                     .machines
                     .iter()
-                    .map(|machine| machine_snapshot(resolved_trees, machine))
+                    .map(|machine| machine_snapshot(symbol_resolved_trees, machine))
                     .collect(),
-                platforms: resolved_trees
+                platforms: symbol_resolved_trees
                     .platforms
                     .iter()
-                    .map(|platform| platform_snapshot(resolved_trees, platform))
+                    .map(|platform| platform_snapshot(symbol_resolved_trees, platform))
                     .collect(),
             },
             tables: ResolvedTableSnapshot {
-                type_constraint_count: resolved_trees.tables.types.constraints.len(),
-                expression_count: resolved_trees.tables.bodies.expressions.expression_count(),
-                statement_count: resolved_trees.tables.bodies.statements.statement_count(),
-                type_reference_count: resolved_trees.tables.types.references.type_reference_count(),
+                type_constraint_count: symbol_resolved_trees.tables.types.constraints.len(),
+                expression_count: symbol_resolved_trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression_count(),
+                statement_count: symbol_resolved_trees
+                    .tables
+                    .bodies
+                    .statements
+                    .statement_count(),
+                type_reference_count: symbol_resolved_trees
+                    .tables
+                    .types
+                    .references
+                    .type_reference_count(),
             },
         }
     }
@@ -60,7 +74,7 @@ impl ResolvedTreesSnapshot {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ResolvedRootsSnapshot {
+pub struct SymbolResolvedRootsSnapshot {
     pub data_definitions: Vec<DataDefinitionSnapshot>,
     pub invariant_definitions: Vec<InvariantDefinitionSnapshot>,
     pub machines: Vec<MachineSnapshot>,
@@ -202,13 +216,17 @@ pub enum TransitionTargetSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ExpressionSnapshot {
-    ArrayLiteral { values: Vec<ExpressionSnapshot> },
+    ArrayLiteral {
+        values: Vec<ExpressionSnapshot>,
+    },
     Binary {
         left: Box<ExpressionSnapshot>,
         operator: &'static str,
         right: Box<ExpressionSnapshot>,
     },
-    Boolean { value: bool },
+    Boolean {
+        value: bool,
+    },
     Cast {
         value: Box<ExpressionSnapshot>,
         target_type: Vec<String>,
@@ -218,23 +236,33 @@ pub enum ExpressionSnapshot {
         target: String,
         arguments: Vec<ExpressionSnapshot>,
     },
-    Float { value: String },
+    Float {
+        value: String,
+    },
     Indexed {
         collection: Box<ExpressionSnapshot>,
         index: Box<ExpressionSnapshot>,
     },
-    Integer { value: i64 },
+    Integer {
+        value: i64,
+    },
     Member {
         receiver: Box<ExpressionSnapshot>,
         member: String,
     },
-    Mutable { value: Box<ExpressionSnapshot> },
-    Name { path: Vec<String> },
+    Mutable {
+        value: Box<ExpressionSnapshot>,
+    },
+    Name {
+        path: Vec<String>,
+    },
     StructLiteral {
         type_name: String,
         fields: Vec<StructLiteralFieldSnapshot>,
     },
-    String { value: String },
+    String {
+        value: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -274,14 +302,19 @@ pub enum TypeReferenceSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TypeConstraintSnapshot {
-    Named { name: String },
+    Named {
+        name: String,
+    },
     Range {
         minimum: ExpressionSnapshot,
         maximum: ExpressionSnapshot,
     },
 }
 
-fn data_definition_snapshot(program: &ResolvedTrees, data: &DataDefinition) -> DataDefinitionSnapshot {
+fn data_definition_snapshot(
+    program: &SymbolResolvedTrees,
+    data: &DataDefinition,
+) -> DataDefinitionSnapshot {
     DataDefinitionSnapshot {
         name: data.name.to_string(),
         type_parameters: data
@@ -297,7 +330,7 @@ fn data_definition_snapshot(program: &ResolvedTrees, data: &DataDefinition) -> D
     }
 }
 
-fn data_member_snapshot(program: &ResolvedTrees, member: &DataMember) -> DataMemberSnapshot {
+fn data_member_snapshot(program: &SymbolResolvedTrees, member: &DataMember) -> DataMemberSnapshot {
     match member {
         DataMember::Field(field) => DataMemberSnapshot::Field {
             name: field.name.to_string(),
@@ -310,7 +343,7 @@ fn data_member_snapshot(program: &ResolvedTrees, member: &DataMember) -> DataMem
 }
 
 fn invariant_definition_snapshot(
-    program: &ResolvedTrees,
+    program: &SymbolResolvedTrees,
     invariant: &InvariantDefinition,
 ) -> InvariantDefinitionSnapshot {
     InvariantDefinitionSnapshot {
@@ -326,7 +359,7 @@ fn invariant_definition_snapshot(
     }
 }
 
-fn machine_snapshot(program: &ResolvedTrees, machine: &Machine) -> MachineSnapshot {
+fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> MachineSnapshot {
     MachineSnapshot {
         name: machine.name.to_string(),
         contains: machine
@@ -350,7 +383,7 @@ fn machine_snapshot(program: &ResolvedTrees, machine: &Machine) -> MachineSnapsh
     }
 }
 
-fn owned_data_snapshot(program: &ResolvedTrees, owned: &OwnedData) -> OwnedDataSnapshot {
+fn owned_data_snapshot(program: &SymbolResolvedTrees, owned: &OwnedData) -> OwnedDataSnapshot {
     OwnedDataSnapshot {
         name: owned.name.to_string(),
         type_reference: type_reference_snapshot(program, &owned.type_reference),
@@ -358,7 +391,7 @@ fn owned_data_snapshot(program: &ResolvedTrees, owned: &OwnedData) -> OwnedDataS
     }
 }
 
-fn platform_snapshot(program: &ResolvedTrees, platform: &Platform) -> PlatformSnapshot {
+fn platform_snapshot(program: &SymbolResolvedTrees, platform: &Platform) -> PlatformSnapshot {
     PlatformSnapshot {
         name: platform.name.to_string(),
         states: platform
@@ -369,7 +402,7 @@ fn platform_snapshot(program: &ResolvedTrees, platform: &Platform) -> PlatformSn
     }
 }
 
-fn state_snapshot(program: &ResolvedTrees, state: &State) -> StateSnapshot {
+fn state_snapshot(program: &SymbolResolvedTrees, state: &State) -> StateSnapshot {
     StateSnapshot {
         name: state.name.to_string(),
         parameters: state
@@ -390,7 +423,10 @@ fn state_snapshot(program: &ResolvedTrees, state: &State) -> StateSnapshot {
     }
 }
 
-fn state_signature_snapshot(program: &ResolvedTrees, signature: &StateSignature) -> StateSignatureSnapshot {
+fn state_signature_snapshot(
+    program: &SymbolResolvedTrees,
+    signature: &StateSignature,
+) -> StateSignatureSnapshot {
     StateSignatureSnapshot {
         name: signature.name.to_string(),
         parameters: signature
@@ -405,7 +441,10 @@ fn state_signature_snapshot(program: &ResolvedTrees, signature: &StateSignature)
     }
 }
 
-fn state_parameter_snapshot(program: &ResolvedTrees, parameter: &StateParameter) -> StateParameterSnapshot {
+fn state_parameter_snapshot(
+    program: &SymbolResolvedTrees,
+    parameter: &StateParameter,
+) -> StateParameterSnapshot {
     StateParameterSnapshot {
         name: parameter.name.to_string(),
         type_reference: type_reference_snapshot(program, &parameter.type_reference),
@@ -414,7 +453,7 @@ fn state_parameter_snapshot(program: &ResolvedTrees, parameter: &StateParameter)
     }
 }
 
-fn statement_snapshot(program: &ResolvedTrees, statement: &Statement) -> StatementSnapshot {
+fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> StatementSnapshot {
     match statement {
         Statement::Assignment(assignment) => StatementSnapshot::Assignment {
             target: expression_snapshot(&assignment.target),
@@ -470,7 +509,11 @@ fn transition_target_snapshot(target: &TransitionTarget) -> TransitionTargetSnap
 fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
     match expression {
         Expression::ArrayLiteral(array_literal) => ExpressionSnapshot::ArrayLiteral {
-            values: array_literal.values.iter().map(expression_snapshot).collect(),
+            values: array_literal
+                .values
+                .iter()
+                .map(expression_snapshot)
+                .collect(),
         },
         Expression::Binary(binary) => ExpressionSnapshot::Binary {
             left: Box::new(expression_snapshot(&binary.left)),
@@ -483,7 +526,10 @@ fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
             target_type: name_path_snapshot(&cast.target_type),
         },
         Expression::Call(call) => ExpressionSnapshot::Call {
-            receiver: call.receiver.as_ref().map(|receiver| Box::new(expression_snapshot(receiver))),
+            receiver: call
+                .receiver
+                .as_ref()
+                .map(|receiver| Box::new(expression_snapshot(receiver))),
             target: call.target.to_string(),
             arguments: call.arguments.iter().map(expression_snapshot).collect(),
         },
@@ -522,7 +568,10 @@ fn expression_snapshot(expression: &Expression) -> ExpressionSnapshot {
     }
 }
 
-fn type_reference_snapshot(program: &ResolvedTrees, type_reference: &TypeReference) -> TypeReferenceSnapshot {
+fn type_reference_snapshot(
+    program: &SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> TypeReferenceSnapshot {
     type_reference_snapshot_from_constraints(type_reference, |constraints| {
         program
             .tables
@@ -537,7 +586,10 @@ fn type_reference_snapshot(program: &ResolvedTrees, type_reference: &TypeReferen
 
 fn type_reference_snapshot_from_constraints(
     type_reference: &TypeReference,
-    resolve_constraints: impl Fn(&omega_core::arena::HandleSpan<TypeConstraint>) -> Vec<TypeConstraintSnapshot> + Copy,
+    resolve_constraints: impl Fn(
+        &omega_core::arena::HandleSpan<TypeConstraint>,
+    ) -> Vec<TypeConstraintSnapshot>
+    + Copy,
 ) -> TypeReferenceSnapshot {
     match type_reference {
         TypeReference::Reference(reference) => TypeReferenceSnapshot::Reference {
@@ -622,8 +674,8 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::ResolvedTreesSnapshot;
-    use crate::ResolvedTrees;
+    use super::SymbolResolvedTreesSnapshot;
+    use crate::SymbolResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
@@ -635,7 +687,7 @@ mod tests {
 
     #[test]
     fn snapshots_materialize_resolved_roots_and_table_counts() {
-        let mut program = ResolvedTrees::default();
+        let mut program = SymbolResolvedTrees::default();
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),
@@ -663,7 +715,7 @@ mod tests {
         }];
         program.rebuild_tables();
 
-        let snapshot = ResolvedTreesSnapshot::from_resolved_trees(&program);
+        let snapshot = SymbolResolvedTreesSnapshot::from_symbol_resolved_trees(&program);
         assert_eq!(snapshot.roots.machines.len(), 1);
         assert_eq!(snapshot.roots.machines[0].states.len(), 1);
         assert_eq!(snapshot.tables.statement_count, 1);

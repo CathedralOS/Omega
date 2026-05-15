@@ -1,9 +1,9 @@
 use omega_core::symbols::{
     SymbolDefinition, SymbolHandle, SymbolKind, SymbolTable, builtin_type_symbol_definitions,
 };
-use omega_resolved_trees::ResolvedTrees;
+use omega_resolved_trees::SymbolResolvedTrees;
 
-pub(crate) fn assign_symbols(program: &mut ResolvedTrees) {
+pub(crate) fn assign_symbols(program: &mut SymbolResolvedTrees) {
     program.symbols = build_symbol_table(program);
     let symbols = program.symbols.clone();
     assign_top_level_symbols(program, &symbols);
@@ -11,7 +11,7 @@ pub(crate) fn assign_symbols(program: &mut ResolvedTrees) {
     assign_statement_call_symbols(program, &symbols);
 }
 
-fn build_symbol_table(program: &ResolvedTrees) -> SymbolTable {
+fn build_symbol_table(program: &SymbolResolvedTrees) -> SymbolTable {
     let mut children = builtin_type_symbol_definitions().to_vec();
 
     children.extend(
@@ -59,7 +59,7 @@ fn data_symbol_definition<'program>(
 }
 
 fn machine_symbol_definition<'program>(
-    program: &'program ResolvedTrees,
+    program: &'program SymbolResolvedTrees,
     machine: &'program omega_resolved_trees::machine::Machine,
 ) -> SymbolDefinition<'program> {
     let inherited_data_members = program
@@ -139,7 +139,7 @@ fn local_symbol_definitions<'program>(
     })
 }
 
-fn assign_top_level_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
+fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let mut root_children = child_handles(symbols, symbols.root()).into_iter();
 
     for _ in 0..builtin_type_symbol_definitions().len() {
@@ -310,7 +310,7 @@ fn inherited_field_count(
         .unwrap_or(0)
 }
 
-fn assign_type_reference_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
+fn assign_type_reference_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     for data_definition in &mut program.data_definitions {
         let type_parameter_bindings = data_type_parameter_bindings(data_definition);
         for member in &mut data_definition.members {
@@ -325,7 +325,7 @@ fn assign_type_reference_symbols(program: &mut ResolvedTrees, symbols: &SymbolTa
     }
 }
 
-fn assign_statement_call_symbols(program: &mut ResolvedTrees, symbols: &SymbolTable) {
+fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
     let data_definitions = program.data_definitions.clone();
     for machine in &mut program.machines {
         let machine_scope = MachineScope {

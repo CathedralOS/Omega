@@ -188,8 +188,8 @@ Omega/
 |   |   |-- [CRATE] omega-source-files/                 # Discovered and loaded source files with stable source identity.
 |   |   |-- [CRATE] omega-tokens/                       # Per-file token streams and token-set ownership.
 |   |   |-- [CRATE] omega-syntax-trees/                 # Parsed source structure before names and symbols are resolved.
-|   |   |-- [CRATE] omega-resolved-trees/               # Syntax trees with names, imports, and symbol references resolved.
-|   |   |-- [CRATE] omega-typed-trees/                  # Resolved trees with type/effect information attached.
+|   |   |-- [CRATE] omega-resolved-trees/               # SymbolResolvedTrees: syntax shape with declaration/reference symbols resolved.
+|   |   |-- [CRATE] omega-typed-trees/                  # Symbol-resolved trees with type/effect information attached.
 |   |   |-- [CRATE] omega-checked-trees/                # Typed trees plus checked semantic facts after validation/proof-facing checks.
 |   |   |-- [CRATE] omega-state-graph/                  # Explicit machine/state graph for proof and scheduling.
 |   |   |-- [CRATE] omega-control-flow/                 # Control-flow/data-flow graph.
@@ -200,8 +200,8 @@ Omega/
 |   |-- pipeline/
 |   |   |-- [CRATE] omega-source-files-to-tokens/               # Source files to per-file token streams.
 |   |   |-- [CRATE] omega-tokens-to-syntax-trees/               # Token streams to parsed syntax trees.
-|   |   |-- [CRATE] omega-syntax-trees-to-resolved-trees/       # Syntax trees to resolved trees with symbol/name meaning attached.
-|   |   |-- [CRATE] omega-resolved-trees-to-typed-trees/        # Resolved trees to typed/effect-annotated trees.
+|   |   |-- [CRATE] omega-syntax-trees-to-resolved-trees/       # Syntax trees to SymbolResolvedTrees with symbol identity attached.
+|   |   |-- [CRATE] omega-resolved-trees-to-typed-trees/        # SymbolResolvedTrees to typed/effect-annotated trees.
 |   |   |-- [CRATE] omega-typed-trees-to-checked-trees/         # Typed trees to validated/proof-checked trees with semantic facts.
 |   |   |-- [CRATE] omega-checked-trees-to-state-graph/         # Checked trees to explicit machine/state graph.
 |   |   |-- [CRATE] omega-state-graph-to-control-flow/          # State graph to control-flow/data-flow graph.
@@ -328,11 +328,11 @@ These are the current rules of thumb. They are allowed to evolve, but the README
 - `frontend/` owns syntax definitions and source-preserving structure only. The durable per-file outputs of frontend work belong in `representations/`. Name resolution, type facts, and control-flow meaning belong in `semantics/`.
 - `omega-syntax-trees` should be table-shaped, not a long-lived recursive heap tree. Recursive syntax edges should be `Handle<T>` and repeated children should be `HandleSpan<T>` so parser output does not normalize tiny allocations into the rest of the compiler.
 - `packages/` owns manifests, dependency graphs, and source loading. It should not grow semantic rules for the language itself.
-- `omega-resolved-trees` is the first representation where source spelling has been disambiguated into symbol/name meaning. Parser conveniences and concrete syntax trivia do not belong there.
+- `omega-resolved-trees` exports `SymbolResolvedTrees`, the first representation where source spelling has been disambiguated into symbol handles. Parser conveniences and concrete syntax trivia do not belong there; names are diagnostic payload, not semantic equality.
 - `semantics/` proves and reports what the program means. `representations/` decides how that meaning is shaped for optimization and code generation.
 - `omega-borrow` answers who may read or mutate. `omega-invariants` answers what remains true. `omega-contracts` answers what a callable or machine requires or promises. `omega-proof` is where those obligations are discharged.
 - `omega-graph` and `omega-proof` stay semantic/proof-facing first. Do not bury language-level state-machine reasoning inside machine-code crates.
-- `omega-resolved-trees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-target-operations`, `omega-machine-program`, and `omega-machine-bytes` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, LIR, and final encoded machine output.
+- `omega-resolved-trees`/`SymbolResolvedTrees`, `omega-typed-trees`, `omega-state-graph`, `omega-control-flow`, `omega-target-operations`, `omega-machine-program`, and `omega-machine-bytes` are long-lived boundaries. Do not skip straight from source-shaped structures to ad hoc backend structs once the compiler grows. These cover the territory other compilers often call HIR, MIR, LIR, and final encoded machine output.
 - `representations/` owns the durable structs and arena data, including frontend products like source files, token streams, and syntax trees. `pipeline/` crates transform from one representation to the next, depend on both sides, and should not become owners of shared helper structures.
 - `omega-target-operations-to-machine-program` is a pipeline crate only if it produces a symbolic machine program. It may consume pure target/ISA/calling-convention facts, but it must not emit final bytes, own relocation records, or commit to final physical registers/stack offsets/branch displacements. If it starts doing those things, split that work into backend crates instead of letting the pipeline layer become a printer.
 - `backend/instruction_set_architectures/*` owns architecture-specific instruction definitions and encoding. Shared lowering policy belongs in `omega-instruction-selection`, not duplicated per architecture unless the target really demands it.

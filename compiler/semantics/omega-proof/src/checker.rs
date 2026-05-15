@@ -292,10 +292,11 @@ fn guarded_integer_range_for_transition_argument(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
 ) -> IntegerRange {
-    let base = integer_range_for_transition_argument(proof_plan, obligation).unwrap_or(IntegerRange {
-        minimum: i64::MIN,
-        maximum: i64::MAX,
-    });
+    let base =
+        integer_range_for_transition_argument(proof_plan, obligation).unwrap_or(IntegerRange {
+            minimum: i64::MIN,
+            maximum: i64::MAX,
+        });
 
     apply_guard(base, &obligation.argument, &obligation.guard)
 }
@@ -613,25 +614,26 @@ fn apply_assignment_guard(
         return range;
     };
 
-    let lower_bound = if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.left)
-        && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.right)
-    {
-        match condition_binary.operator {
-            BinaryOperator::Greater => Some(1),
-            BinaryOperator::GreaterOrEqual => Some(0),
-            _ => None,
-        }
-    } else if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.right)
-        && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.left)
-    {
-        match condition_binary.operator {
-            BinaryOperator::Less => Some(1),
-            BinaryOperator::LessOrEqual => Some(0),
-            _ => None,
-        }
-    } else {
-        None
-    };
+    let lower_bound =
+        if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.left)
+            && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.right)
+        {
+            match condition_binary.operator {
+                BinaryOperator::Greater => Some(1),
+                BinaryOperator::GreaterOrEqual => Some(0),
+                _ => None,
+            }
+        } else if expressions_equivalent_for_proof(&value_binary.left, &condition_binary.right)
+            && expressions_equivalent_for_proof(&value_binary.right, &condition_binary.left)
+        {
+            match condition_binary.operator {
+                BinaryOperator::Less => Some(1),
+                BinaryOperator::LessOrEqual => Some(0),
+                _ => None,
+            }
+        } else {
+            None
+        };
 
     let Some(lower_bound) = lower_bound else {
         return range;
@@ -715,13 +717,11 @@ fn expressions_equivalent_for_proof(left: &Expression, right: &Expression) -> bo
                     (None, None) => true,
                     _ => false,
                 }
-                && left
-                    .arguments
-                    .iter()
-                    .zip(&right.arguments)
-                    .all(|(left_argument, right_argument)| {
+                && left.arguments.iter().zip(&right.arguments).all(
+                    |(left_argument, right_argument)| {
                         expressions_equivalent_for_proof(left_argument, right_argument)
-                    })
+                    },
+                )
         }
         (Expression::Member(left), Expression::Member(right)) => {
             left.member == right.member
@@ -820,11 +820,7 @@ fn check_assignment_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !assignment_satisfies_named_constraint(
-            proof_plan,
-            obligation,
-            constraint,
-        ) {
+        if !assignment_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_assignment_named_constraint(
                 obligation, constraint,
             ));
@@ -838,11 +834,7 @@ fn check_transition_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
-        if !transition_argument_satisfies_named_constraint(
-            proof_plan,
-            obligation,
-            constraint,
-        ) {
+        if !transition_argument_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_transition_named_constraint(
                 obligation, constraint,
             ));
@@ -920,8 +912,7 @@ fn transition_argument_satisfies_named_constraint(
         return true;
     }
 
-    if matches!(constraint, "positive" | "non_negative")
-    {
+    if matches!(constraint, "positive" | "non_negative") {
         let range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
         return match constraint {
             "positive" => range.minimum > 0,
@@ -1018,10 +1009,7 @@ fn initializer_satisfies_named_constraint(
     constraints_satisfy_named_constraint(&derived_constraints, constraint)
 }
 
-fn constraints_satisfy_named_constraint(
-    constraints: &[TypeConstraint],
-    constraint: &str,
-) -> bool {
+fn constraints_satisfy_named_constraint(constraints: &[TypeConstraint], constraint: &str) -> bool {
     if constraints.iter().any(|argument_constraint| {
         matches!(
             argument_constraint,
@@ -1037,10 +1025,12 @@ fn constraints_satisfy_named_constraint(
             integer_range_from_constraints(constraints).is_some()
                 || float_range_from_constraints(constraints).is_some()
         }
-        "non_negative" => integer_range_from_constraints(constraints)
-            .is_some_and(|range| range.minimum >= 0),
-        "positive" => integer_range_from_constraints(constraints)
-            .is_some_and(|range| range.minimum > 0),
+        "non_negative" => {
+            integer_range_from_constraints(constraints).is_some_and(|range| range.minimum >= 0)
+        }
+        "positive" => {
+            integer_range_from_constraints(constraints).is_some_and(|range| range.minimum > 0)
+        }
         "wrapping" => false,
         _ => false,
     }

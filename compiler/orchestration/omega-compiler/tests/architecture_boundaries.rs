@@ -5,7 +5,11 @@ use std::path::{Path, PathBuf};
 fn backend_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
     let backend_root = repo_root.join("compiler/backend");
-    let forbidden = ["omega-syntax-trees", "omega-tokens-to-syntax-trees", "omega-source-files-to-tokens"];
+    let forbidden = [
+        "omega-syntax-trees",
+        "omega-tokens-to-syntax-trees",
+        "omega-source-files-to-tokens",
+    ];
 
     for cargo_toml in cargo_tomls_under(&backend_root) {
         let contents = fs::read_to_string(&cargo_toml)
@@ -42,7 +46,11 @@ fn backend_crates_do_not_depend_on_lowering_crates() {
 fn representation_crates_do_not_depend_on_frontend_crates() {
     let repo_root = repo_root();
     let representations_root = repo_root.join("compiler/representations");
-    let forbidden = ["omega-syntax-trees", "omega-tokens-to-syntax-trees", "omega-source-files-to-tokens"];
+    let forbidden = [
+        "omega-syntax-trees",
+        "omega-tokens-to-syntax-trees",
+        "omega-source-files-to-tokens",
+    ];
 
     for cargo_toml in cargo_tomls_under(&representations_root) {
         let contents = fs::read_to_string(&cargo_toml)

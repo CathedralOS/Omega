@@ -1,4 +1,4 @@
-use crate::ResolvedTrees;
+use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::expression::{Expression, ExpressionTable};
 use crate::machine::{Machine, OwnedData};
@@ -10,7 +10,7 @@ use crate::types::{TypeConstraint, TypeReference, TypeReferenceTable};
 use omega_core::arena::{Arena, Handle, HandleSpan};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ResolvedTreeTables {
+pub struct SymbolResolvedTreeTables {
     pub bodies: ResolvedBodyTables,
     pub types: ResolvedTypeTables,
 }
@@ -26,24 +26,26 @@ pub struct ResolvedTypeTables {
     pub references: TypeReferenceTable,
 }
 
-impl ResolvedTreeTables {
-    pub fn from_resolved_trees_with_state_spans(resolved_trees: &mut ResolvedTrees) -> Self {
+impl SymbolResolvedTreeTables {
+    pub fn from_symbol_resolved_trees_with_state_spans(
+        symbol_resolved_trees: &mut SymbolResolvedTrees,
+    ) -> Self {
         let mut tables = Self::default();
-        let type_constraints = resolved_trees.tables.types.constraints.clone();
+        let type_constraints = symbol_resolved_trees.tables.types.constraints.clone();
 
-        for invariant in &resolved_trees.invariant_definitions {
+        for invariant in &symbol_resolved_trees.invariant_definitions {
             tables.insert_type_constraints(invariant.constraints, &type_constraints);
         }
 
-        for data_definition in &resolved_trees.data_definitions {
+        for data_definition in &symbol_resolved_trees.data_definitions {
             tables.insert_data_definition(data_definition, &type_constraints);
         }
 
-        for platform in &resolved_trees.platforms {
+        for platform in &symbol_resolved_trees.platforms {
             tables.insert_platform(platform, &type_constraints);
         }
 
-        for machine in &mut resolved_trees.machines {
+        for machine in &mut symbol_resolved_trees.machines {
             tables.insert_machine_with_state_spans(machine, &type_constraints);
         }
 
@@ -148,9 +150,11 @@ impl ResolvedTreeTables {
         type_reference: &TypeReference,
         type_constraints: &Arena<TypeConstraint>,
     ) {
-        self.types
-            .references
-            .insert_tree(type_reference, &mut self.bodies.expressions, type_constraints);
+        self.types.references.insert_tree(
+            type_reference,
+            &mut self.bodies.expressions,
+            type_constraints,
+        );
     }
 
     fn insert_type_constraints(
@@ -173,7 +177,7 @@ impl ResolvedTreeTables {
 
 #[cfg(test)]
 mod tests {
-    use crate::ResolvedTrees;
+    use crate::SymbolResolvedTrees;
     use crate::expression::Expression;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::ProgramName;
@@ -185,7 +189,7 @@ mod tests {
 
     #[test]
     fn rebuild_tables_collects_typed_program_payloads() {
-        let mut program = ResolvedTrees::default();
+        let mut program = SymbolResolvedTrees::default();
         program.machines = vec![Machine {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::generated("main"),

@@ -218,7 +218,9 @@ impl TypeReferenceTable {
         &mut self,
         type_references: impl IntoIterator<Item = TypeReferenceHandle>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        self.spans.type_reference_handles.insert_many(type_references)
+        self.spans
+            .type_reference_handles
+            .insert_many(type_references)
     }
 
     pub fn insert_constraints(
@@ -315,8 +317,7 @@ impl TypeReferenceTable {
     ) -> TypeReferenceHandle {
         match type_reference {
             TypeReference::Reference(reference) => {
-                let referee =
-                    self.insert_tree(&reference.referee, expressions, source_constraints);
+                let referee = self.insert_tree(&reference.referee, expressions, source_constraints);
                 self.insert(TypeReferenceNode::Reference {
                     referee,
                     is_mutable: reference.is_mutable,
@@ -519,11 +520,14 @@ impl TypeReference {
                 )
             }
             TypeReference::Constrained(constrained) => {
-                let constraints =
-                    type_constraints.span(constrained.constraints).unwrap_or(&[]);
+                let constraints = type_constraints
+                    .span(constrained.constraints)
+                    .unwrap_or(&[]);
                 format!(
                     "{}[{}]",
-                    constrained.base_type.display_name_with_constraints(type_constraints),
+                    constrained
+                        .base_type
+                        .display_name_with_constraints(type_constraints),
                     comma_join_display(constraints.iter(), TypeConstraint::display_name)
                 )
             }
@@ -539,7 +543,9 @@ impl TypeReference {
             TypeReference::Slice(slice) => {
                 format!(
                     "[{}]",
-                    slice.element_type.display_name_with_constraints(type_constraints)
+                    slice
+                        .element_type
+                        .display_name_with_constraints(type_constraints)
                 )
             }
             TypeReference::Generic(generic) => {
