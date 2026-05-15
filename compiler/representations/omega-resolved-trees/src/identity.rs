@@ -77,11 +77,11 @@ pub fn count_identity_storage(program: &SymbolResolvedTrees) -> IdentityStorageC
 
     for machine in &program.machines {
         count_declaration_name(&machine.name, &mut counts);
-        for contained in &machine.contains {
+        for contained in program.machine_contained_objects(machine.contains) {
             count_declaration_name(&contained.name, &mut counts);
             count_type_name(&contained.type_name, &mut counts);
         }
-        for owned_data in &machine.owned_data {
+        for owned_data in program.machine_owned_data(machine.owned_data) {
             count_declaration_name(&owned_data.name, &mut counts);
             count_type_reference(&owned_data.type_reference, &mut counts);
             count_optional_expression(owned_data.initial_value.as_ref(), &mut counts);

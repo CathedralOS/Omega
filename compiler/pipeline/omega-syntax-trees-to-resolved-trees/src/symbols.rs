@@ -126,33 +126,42 @@ fn insert_machine_symbol_children(
     has_sources: bool,
 ) {
     let inherited_field_count = inherited_data_field_symbols(program, machine, has_sources).count();
-    let machine_children =
-        builder.insert_children(
-            machine_symbol,
-            inherited_data_field_symbols(program, machine, has_sources)
-                .chain(machine.contains.iter().map(|contained_object| {
-                    symbol_seed(SymbolKind::Object, &contained_object.name, has_sources)
-                }))
-                .chain(machine.owned_data.iter().map(|owned_data| {
-                    symbol_seed(SymbolKind::Field, &owned_data.name, has_sources)
-                }))
-                .chain(
-                    program
-                        .machine_state_handles(machine.states)
-                        .iter()
-                        .map(|state| program.machine_state(*state))
-                        .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
-                ),
-        );
+    let machine_children = builder.insert_children(
+        machine_symbol,
+        inherited_data_field_symbols(program, machine, has_sources)
+            .chain(
+                program
+                    .machine_contained_objects(machine.contains)
+                    .iter()
+                    .map(|contained_object| {
+                        symbol_seed(SymbolKind::Object, &contained_object.name, has_sources)
+                    }),
+            )
+            .chain(
+                program
+                    .machine_owned_data(machine.owned_data)
+                    .iter()
+                    .map(|owned_data| {
+                        symbol_seed(SymbolKind::Field, &owned_data.name, has_sources)
+                    }),
+            )
+            .chain(
+                program
+                    .machine_state_handles(machine.states)
+                    .iter()
+                    .map(|state| program.machine_state(*state))
+                    .map(|state| symbol_seed(SymbolKind::State, &state.name, has_sources)),
+            ),
+    );
     let mut machine_children = SymbolTableBuilder::child_handles(machine_children);
 
     for _ in 0..inherited_field_count {
         let _ = machine_children.next();
     }
-    for _ in &machine.contains {
+    for _ in program.machine_contained_objects(machine.contains) {
         let _ = machine_children.next();
     }
-    for _ in &machine.owned_data {
+    for _ in program.machine_owned_data(machine.owned_data) {
         let _ = machine_children.next();
     }
     for state in program.machine_state_handles(machine.states) {
@@ -300,6 +309,8 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
 
     let declarations = &mut program.tables.declarations;
     let data_members = &declarations.data_members;
+    let machine_contained_objects = &mut declarations.machine_contained_objects;
+    let machine_owned_data = &mut declarations.machine_owned_data;
     let machine_state_handles = &declarations.machine_state_handles;
     let machine_states = &mut declarations.machine_states;
     let state_parameters = &mut declarations.state_parameters;
@@ -319,7 +330,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             let _ = machine_children.next();
         }
 
-        for contained_object in &mut machine.contains {
+        for contained_object in machine_contained_objects.span_mut_or_empty(machine.contains) {
             contained_object.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Object);
             contained_object.type_symbol = top_level_symbol(
@@ -329,7 +340,7 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
             );
         }
 
-        for owned_data in &mut machine.owned_data {
+        for owned_data in machine_owned_data.span_mut_or_empty(machine.owned_data) {
             owned_data.symbol =
                 next_child_of_kind(&mut machine_children, symbols, SymbolKind::Field);
             assign_type_reference_symbol_with_self_type(
@@ -469,6 +480,8 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         ..
     } = program;
     let data_members = &tables.declarations.data_members;
+    let machine_contained_objects = &tables.declarations.machine_contained_objects;
+    let machine_owned_data = &tables.declarations.machine_owned_data;
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &tables.declarations.state_parameters;
@@ -486,9 +499,9 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
         } = &mut machine.storage;
         let machine_scope = MachineScope {
             symbol: machine_symbol,
-            contains: contains.as_slice(),
+            contains: machine_contained_objects.span_or_empty(*contains),
             inherited_data_members,
-            owned_data: owned_data.as_slice(),
+            owned_data: machine_owned_data.span_or_empty(*owned_data),
         };
         for state in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state);

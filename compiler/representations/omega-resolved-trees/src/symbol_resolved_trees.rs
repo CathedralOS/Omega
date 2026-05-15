@@ -149,6 +149,8 @@ pub struct SymbolResolvedTableStorage {
 pub struct SymbolResolvedDeclarationStorage {
     pub data_members: Arena<data::DataMember>,
     pub data_type_parameters: Arena<data::TypeParameter>,
+    pub machine_contained_objects: Arena<crate::machine::ContainedObject>,
+    pub machine_owned_data: Arena<crate::machine::OwnedData>,
     pub machine_state_handles: Arena<Handle<state::State>>,
     pub machine_states: Arena<state::State>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
@@ -214,6 +216,26 @@ impl SymbolResolvedTrees {
 
     pub fn machine_state(&self, handle: Handle<state::State>) -> &state::State {
         self.tables.declarations.machine_states.get(handle)
+    }
+
+    pub fn machine_contained_objects(
+        &self,
+        span: HandleSpan<crate::machine::ContainedObject>,
+    ) -> &[crate::machine::ContainedObject] {
+        self.tables
+            .declarations
+            .machine_contained_objects
+            .span_or_empty(span)
+    }
+
+    pub fn machine_owned_data(
+        &self,
+        span: HandleSpan<crate::machine::OwnedData>,
+    ) -> &[crate::machine::OwnedData] {
+        self.tables
+            .declarations
+            .machine_owned_data
+            .span_or_empty(span)
     }
 
     pub fn rebuild_tables(&mut self) {
