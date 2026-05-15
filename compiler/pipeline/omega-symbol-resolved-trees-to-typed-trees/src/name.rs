@@ -5,9 +5,14 @@ pub(crate) fn lower_name(name: &resolved::name::DiagnosticName) -> typed::name::
     typed::name::ProgramName::generated(name.as_str())
 }
 
-pub(crate) fn lower_name_path(
-    path: &resolved::expression::NamePath,
+pub(crate) fn lower_statement_name_path(
+    members: &[resolved::name::DiagnosticName],
+    head_symbol: omega_core::symbols::SymbolHandle,
+    symbol: omega_core::symbols::SymbolHandle,
 ) -> typed::expression::NamePath {
-    let members = path.members().iter().map(lower_name).collect();
-    typed::expression::NamePath::resolved(members, path.head_symbol(), path.symbol())
+    typed::expression::NamePath::resolved(
+        members.iter().map(lower_name).collect(),
+        head_symbol,
+        symbol,
+    )
 }

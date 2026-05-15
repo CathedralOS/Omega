@@ -3,7 +3,7 @@ use std::sync::Arc;
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_core::source::SourceMap;
 use omega_core::symbols::{
-    builtin_type_symbols, SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder,
+    SymbolHandle, SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder, builtin_type_symbols,
 };
 use omega_symbol_resolved_trees::SymbolResolvedTrees;
 
@@ -246,11 +246,9 @@ fn local_symbol_seeds<'program>(
     statements
         .iter()
         .filter_map(move |statement| match statement {
-            omega_symbol_resolved_trees::statement::Statement::LocalData(local_data) => Some(symbol_seed(
-                SymbolKind::Local,
-                &local_data.name,
-                has_sources,
-            )),
+            omega_symbol_resolved_trees::statement::Statement::LocalData(local_data) => Some(
+                symbol_seed(SymbolKind::Local, &local_data.name, has_sources),
+            ),
             _ => None,
         })
 }
@@ -398,7 +396,8 @@ fn assign_top_level_symbols(program: &mut SymbolResolvedTrees, symbols: &SymbolT
                 .state_statements
                 .span_mut_or_empty(state.statements)
             {
-                if let omega_symbol_resolved_trees::statement::Statement::LocalData(local_data) = statement
+                if let omega_symbol_resolved_trees::statement::Statement::LocalData(local_data) =
+                    statement
                 {
                     local_data.symbol =
                         next_child_of_kind(&mut state_children, symbols, SymbolKind::Local);
@@ -481,7 +480,12 @@ fn inherited_field_count<'data>(
             data_members
                 .span_or_empty(data_definition.members)
                 .iter()
-                .filter(|member| matches!(member, omega_symbol_resolved_trees::data::DataMember::Field(_)))
+                .filter(|member| {
+                    matches!(
+                        member,
+                        omega_symbol_resolved_trees::data::DataMember::Field(_)
+                    )
+                })
                 .count()
         })
         .unwrap_or(0)
@@ -527,6 +531,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
     let machine_state_handles = &tables.declarations.machine_state_handles;
     let machine_states = &mut tables.declarations.machine_states;
     let state_parameters = &tables.declarations.state_parameters;
+    let statement_path_members = &tables.declarations.statement_path_members;
     let expression_table = &mut tables.bodies.expressions;
     let state_statements = &mut tables.declarations.state_statements;
     let child_type_references = &mut tables.declarations.child_type_references;
@@ -559,6 +564,7 @@ fn assign_statement_call_symbols(program: &mut SymbolResolvedTrees, symbols: &Sy
                     state_symbol,
                     expression_table,
                     child_type_references,
+                    statement_path_members,
                     statement,
                     symbols,
                 );
@@ -605,6 +611,7 @@ fn assign_statement_symbols(
     child_type_references: &mut omega_core::arena::Arena<
         omega_symbol_resolved_trees::types::TypeReference,
     >,
+    statement_path_members: &Arena<omega_symbol_resolved_trees::name::DiagnosticName>,
     statement: &mut omega_symbol_resolved_trees::statement::Statement,
     symbols: &SymbolTable,
 ) {
@@ -639,11 +646,14 @@ fn assign_statement_symbols(
                 child_type_references,
                 call.arguments,
             );
-            if let Some(receiver) = &mut call.receiver {
-                if let Some((head_symbol, symbol)) =
-                    resolve_state_scoped_path(symbols, machine.symbol, state_symbol, receiver)
-                {
-                    receiver.set_symbols(head_symbol, symbol);
+            if !call.receiver.is_empty() {
+                if let Some((head_symbol, symbol)) = resolve_state_scoped_members(
+                    symbols,
+                    machine.symbol,
+                    state_symbol,
+                    statement_path_members.span_or_empty(call.receiver),
+                ) {
+                    let _ = head_symbol;
                     call.receiver_symbol = symbol;
                 }
             }
@@ -651,7 +661,7 @@ fn assign_statement_symbols(
             call.target_symbol = resolve_call_target_symbol(
                 machine,
                 parameters,
-                call.receiver.is_some(),
+                !call.receiver.is_empty(),
                 call.receiver_symbol,
                 &call.target,
                 child_type_references,
@@ -708,6 +718,7 @@ fn assign_statement_symbols(
                 state_symbol,
                 expression_table,
                 child_type_references,
+                statement_path_members,
                 &mut transition.target,
                 symbols,
             );
@@ -718,6 +729,7 @@ fn assign_statement_symbols(
                     state_symbol,
                     expression_table,
                     child_type_references,
+                    statement_path_members,
                     continuation,
                     symbols,
                 );
@@ -1058,7 +1070,9 @@ fn resolve_expression_table_call_target_symbol(
     state_symbol: SymbolHandle,
     call: &omega_symbol_resolved_trees::expression::TableCallExpression,
     expression_table: &omega_symbol_resolved_trees::expression::ExpressionTable,
-    child_type_references: &omega_core::arena::Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &omega_core::arena::Arena<
+        omega_symbol_resolved_trees::types::TypeReference,
+    >,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if call.receiver.is_valid() {
@@ -1467,11 +1481,13 @@ fn assign_transition_target_symbols(
     child_type_references: &mut omega_core::arena::Arena<
         omega_symbol_resolved_trees::types::TypeReference,
     >,
+    statement_path_members: &Arena<omega_symbol_resolved_trees::name::DiagnosticName>,
     target: &mut omega_symbol_resolved_trees::statement::TransitionTarget,
     symbols: &SymbolTable,
 ) {
     let omega_symbol_resolved_trees::statement::TransitionTarget::Named(named) = target else {
-        if let omega_symbol_resolved_trees::statement::TransitionTarget::Value(expression) = target {
+        if let omega_symbol_resolved_trees::statement::TransitionTarget::Value(expression) = target
+        {
             assign_statement_expression_symbols(
                 symbols,
                 machine,
@@ -1495,12 +1511,13 @@ fn assign_transition_target_symbols(
         named.arguments,
     );
 
-    let path = &mut named.path;
+    let path = statement_path_members.span_or_empty(named.path);
     let target_name = path.last().cloned();
     if let Some((head_symbol, symbol)) =
-        resolve_state_scoped_path(symbols, machine.symbol, state_symbol, path)
+        resolve_state_scoped_members(symbols, machine.symbol, state_symbol, path)
     {
-        path.set_symbols(head_symbol, symbol);
+        named.head_symbol = head_symbol;
+        named.symbol = symbol;
         return;
     }
 
@@ -1516,7 +1533,8 @@ fn assign_transition_target_symbols(
             target_name.as_str(),
         );
         if target_symbol.is_valid() {
-            path.set_symbols(target_symbol, target_symbol);
+            named.head_symbol = target_symbol;
+            named.symbol = target_symbol;
         }
     }
 }
@@ -1527,7 +1545,9 @@ fn resolve_call_target_symbol(
     has_receiver: bool,
     receiver_symbol: SymbolHandle,
     target: &omega_symbol_resolved_trees::name::DiagnosticName,
-    child_type_references: &omega_core::arena::Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &omega_core::arena::Arena<
+        omega_symbol_resolved_trees::types::TypeReference,
+    >,
     symbols: &SymbolTable,
 ) -> SymbolHandle {
     if has_receiver {
@@ -1589,13 +1609,12 @@ fn resolve_call_target_symbol(
     )
 }
 
-fn resolve_state_scoped_path(
+fn resolve_state_scoped_members(
     symbols: &SymbolTable,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
-    path: &omega_symbol_resolved_trees::expression::NamePath,
+    members: &[omega_symbol_resolved_trees::name::DiagnosticName],
 ) -> Option<(SymbolHandle, SymbolHandle)> {
-    let members = path.members();
     if members.is_empty() {
         return None;
     }
@@ -1698,14 +1717,18 @@ fn resolve_base_symbol(
 }
 
 fn type_reference_symbol(
-    child_type_references: &omega_core::arena::Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &omega_core::arena::Arena<
+        omega_symbol_resolved_trees::types::TypeReference,
+    >,
     type_reference: &omega_symbol_resolved_trees::types::TypeReference,
 ) -> SymbolHandle {
     match type_reference {
-        omega_symbol_resolved_trees::types::TypeReference::Reference(reference) => type_reference_symbol(
-            child_type_references,
-            child_type_references.get(reference.referee),
-        ),
+        omega_symbol_resolved_trees::types::TypeReference::Reference(reference) => {
+            type_reference_symbol(
+                child_type_references,
+                child_type_references.get(reference.referee),
+            )
+        }
         omega_symbol_resolved_trees::types::TypeReference::Constrained(constrained) => {
             type_reference_symbol(
                 child_type_references,
@@ -1731,7 +1754,9 @@ fn type_reference_symbol(
 
 fn call_target_for_type_reference(
     symbols: &SymbolTable,
-    child_type_references: &omega_core::arena::Arena<omega_symbol_resolved_trees::types::TypeReference>,
+    child_type_references: &omega_core::arena::Arena<
+        omega_symbol_resolved_trees::types::TypeReference,
+    >,
     type_reference: &omega_symbol_resolved_trees::types::TypeReference,
     target_name: &str,
 ) -> SymbolHandle {

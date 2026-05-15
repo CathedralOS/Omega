@@ -1,5 +1,6 @@
+use crate::SymbolResolvedTrees;
 use crate::data::{DataDefinition, DataMember};
-use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, NamePath};
+use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use crate::invariant::InvariantDefinition;
 use crate::machine::{Machine, OwnedData};
 use crate::platform::Platform;
@@ -7,7 +8,6 @@ use crate::signature::{StateParameter, StateSignature};
 use crate::state::State;
 use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
 use crate::types::{TypeConstraint, TypeReference};
-use crate::SymbolResolvedTrees;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -464,7 +464,15 @@ fn statement_snapshot(program: &SymbolResolvedTrees, statement: &Statement) -> S
             value: statement_expression_snapshot(program, assignment.value),
         },
         Statement::Call(call) => StatementSnapshot::Call {
-            receiver: call.receiver.as_ref().map(name_path_snapshot),
+            receiver: (!call.receiver.is_empty()).then(|| {
+                diagnostic_name_span_snapshot(
+                    program
+                        .tables
+                        .declarations
+                        .statement_path_members
+                        .span_or_empty(call.receiver),
+                )
+            }),
             target: call.target.to_string(),
             arguments: program
                 .tables
@@ -514,7 +522,13 @@ fn transition_target_snapshot(
 ) -> TransitionTargetSnapshot {
     match target {
         TransitionTarget::Named(named) => TransitionTargetSnapshot::Named {
-            path: name_path_snapshot(&named.path),
+            path: diagnostic_name_span_snapshot(
+                program
+                    .tables
+                    .declarations
+                    .statement_path_members
+                    .span_or_empty(named.path),
+            ),
             arguments: program
                 .tables
                 .bodies
@@ -695,8 +709,8 @@ fn type_constraint_snapshot(
     }
 }
 
-fn name_path_snapshot(path: &NamePath) -> Vec<String> {
-    path.members().iter().map(ToString::to_string).collect()
+fn diagnostic_name_span_snapshot(path: &[crate::name::DiagnosticName]) -> Vec<String> {
+    path.iter().map(ToString::to_string).collect()
 }
 
 fn binary_operator_name(operator: BinaryOperator) -> &'static str {
@@ -722,13 +736,13 @@ fn binary_operator_name(operator: BinaryOperator) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::SymbolResolvedTreesSnapshot;
+    use crate::SymbolResolvedTrees;
     use crate::expression::ExpressionNode;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
-    use crate::SymbolResolvedTrees;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 

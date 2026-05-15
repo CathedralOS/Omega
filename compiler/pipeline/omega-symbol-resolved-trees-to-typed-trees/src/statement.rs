@@ -1,5 +1,5 @@
 use crate::expression::lower_expression_from_table;
-use crate::name::lower_name_path;
+use crate::name::lower_statement_name_path;
 use crate::program::Lowerer;
 use crate::type_reference::lower_type_reference;
 use omega_core::diagnostics::Diagnostic;
@@ -35,7 +35,18 @@ pub(crate) fn lower_statement(
             Ok(typed::statement::Statement::Call(typed::statement::Call {
                 receiver_symbol: call.receiver_symbol,
                 target_symbol: call.target_symbol,
-                receiver: call.receiver.as_ref().map(lower_name_path),
+                receiver: (!call.receiver.is_empty()).then(|| {
+                    lower_statement_name_path(
+                        lowerer
+                            .source_trees
+                            .tables
+                            .declarations
+                            .statement_path_members
+                            .span_or_empty(call.receiver),
+                        call.receiver_symbol,
+                        call.receiver_symbol,
+                    )
+                }),
                 target: crate::name::lower_name(&call.target),
                 arguments,
             }))
@@ -116,7 +127,16 @@ fn lower_transition_target(
             }
 
             Ok(typed::statement::TransitionTarget::Named {
-                path: lower_name_path(&named.path),
+                path: lower_statement_name_path(
+                    lowerer
+                        .source_trees
+                        .tables
+                        .declarations
+                        .statement_path_members
+                        .span_or_empty(named.path),
+                    named.head_symbol,
+                    named.symbol,
+                ),
                 arguments,
             })
         }

@@ -45,6 +45,7 @@ impl SymbolResolvedTreeTables {
             machine_states,
             platform_state_signatures,
             state_parameters,
+            statement_path_members,
             state_statements,
             child_type_references,
             ..
@@ -76,6 +77,7 @@ impl SymbolResolvedTreeTables {
                 machine_state_handles,
                 machine_states,
                 state_parameters,
+                statement_path_members,
                 state_statements,
                 child_type_references,
                 type_constraints,
@@ -131,6 +133,7 @@ impl SymbolResolvedTreeTables {
         machine_state_handles: &Arena<omega_core::arena::Handle<State>>,
         machine_states: &mut Arena<State>,
         state_parameters: &Arena<StateParameter>,
+        statement_path_members: &Arena<crate::name::DiagnosticName>,
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
@@ -154,6 +157,7 @@ impl SymbolResolvedTreeTables {
             self.insert_state_with_statement_span(
                 state,
                 state_parameters,
+                statement_path_members,
                 state_statements,
                 child_type_references,
                 type_constraints,
@@ -181,6 +185,7 @@ impl SymbolResolvedTreeTables {
         &mut self,
         state: &mut State,
         state_parameters: &Arena<StateParameter>,
+        statement_path_members: &Arena<crate::name::DiagnosticName>,
         state_statements: &Arena<Statement>,
         child_type_references: &Arena<TypeReference>,
         type_constraints: &Arena<TypeConstraint>,
@@ -214,6 +219,7 @@ impl SymbolResolvedTreeTables {
                 child_type_references,
                 type_constraints,
                 source_expressions,
+                statement_path_members,
                 false,
             );
             statement_nodes.push_contiguous(statement);
@@ -268,13 +274,13 @@ impl SymbolResolvedTreeTables {
 
 #[cfg(test)]
 mod tests {
+    use crate::SymbolResolvedTrees;
     use crate::expression::ExpressionNode;
     use crate::machine::{Machine, MachineStorage};
     use crate::name::DiagnosticName;
     use crate::state::{State, StateStorage};
     use crate::statement::{Statement, Transition, TransitionGuard, TransitionTarget};
     use crate::types::TypeReference;
-    use crate::SymbolResolvedTrees;
     use omega_core::arena::HandleSpan;
     use omega_core::symbols::SymbolHandle;
 
