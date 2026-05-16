@@ -205,6 +205,61 @@ impl ExpressionTable {
         copied
     }
 
+    fn copy_own_name_path_members(
+        &mut self,
+        members: HandleSpan<ProgramName>,
+    ) -> HandleSpan<ProgramName> {
+        let mut copied = HandleSpan::empty();
+
+        for offset in 0..members.count() {
+            let member = self.name_path_member_at_offset(members, offset).clone();
+            self.name_path_members.append_to_span(&mut copied, member);
+        }
+
+        copied
+    }
+
+    fn copy_own_name_path_members_with_index_suffix(
+        &mut self,
+        members: HandleSpan<ProgramName>,
+        index: i64,
+    ) -> Option<HandleSpan<ProgramName>> {
+        if members.is_empty() {
+            return None;
+        }
+
+        let mut copied = HandleSpan::empty();
+        let last_offset = members.count() - 1;
+
+        for offset in 0..members.count() {
+            let member = self.name_path_member_at_offset(members, offset);
+            let member = if offset == last_offset {
+                ProgramName::generated(format!("{member}[{index}]"))
+            } else {
+                member.clone()
+            };
+
+            self.name_path_members.append_to_span(&mut copied, member);
+        }
+
+        Some(copied)
+    }
+
+    fn name_path_member_at_offset(
+        &self,
+        members: HandleSpan<ProgramName>,
+        offset: u32,
+    ) -> &ProgramName {
+        self.name_path_members.get(Handle::from_parts(
+            members
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member index overflow"),
+            members.start().generation(),
+        ))
+    }
+
     fn copy_struct_literal_fields(
         &mut self,
         source: &ExpressionTable,
@@ -224,6 +279,73 @@ impl ExpressionTable {
         }
 
         copied
+    }
+
+    fn copy_own_expression_handles(
+        &mut self,
+        expressions: HandleSpan<ExpressionHandle>,
+    ) -> HandleSpan<ExpressionHandle> {
+        let mut copied = HandleSpan::empty();
+
+        for offset in 0..expressions.count() {
+            let expression = *self.expression_handle_at_offset(expressions, offset);
+            let expression = self.insert_copy(expression);
+            self.expression_handles
+                .append_to_span(&mut copied, expression);
+        }
+
+        copied
+    }
+
+    fn copy_own_struct_literal_fields(
+        &mut self,
+        fields: HandleSpan<TableStructLiteralField>,
+    ) -> HandleSpan<TableStructLiteralField> {
+        let mut copied = HandleSpan::empty();
+
+        for offset in 0..fields.count() {
+            let field = self.struct_field_at_offset(fields, offset).clone();
+            let value = self.insert_copy(field.value);
+            self.struct_fields.append_to_span(
+                &mut copied,
+                TableStructLiteralField {
+                    name: field.name,
+                    value,
+                },
+            );
+        }
+
+        copied
+    }
+
+    fn expression_handle_at_offset(
+        &self,
+        expressions: HandleSpan<ExpressionHandle>,
+        offset: u32,
+    ) -> &ExpressionHandle {
+        self.expression_handles.get(Handle::from_parts(
+            expressions
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("expression handle index overflow"),
+            expressions.start().generation(),
+        ))
+    }
+
+    fn struct_field_at_offset(
+        &self,
+        fields: HandleSpan<TableStructLiteralField>,
+        offset: u32,
+    ) -> &TableStructLiteralField {
+        self.struct_fields.get(Handle::from_parts(
+            fields
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("struct literal field index overflow"),
+            fields.start().generation(),
+        ))
     }
 
     fn insert_expression_handle_span_from_trees<'expression>(
@@ -379,15 +501,128 @@ impl ExpressionTable {
                 );
                 self.insert(ExpressionNode::Mutable(target))
             }
-            _ => {
-                let expression = self.to_tree_with_place_suffix_members(
-                    expression,
-                    suffix_members,
-                    suffix_start_offset,
-                );
-                self.insert_tree(&expression)
+            ExpressionNode::Indexed(indexed) => {
+                if let Some(path) = self.copy_indexed_expression_path(indexed) {
+                    let members = self.copy_name_path_members_with_member_suffix(
+                        path.members,
+                        suffix_members,
+                        suffix_start_offset,
+                    );
+                    self.insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        head_symbol: path.head_symbol,
+                        symbol: SymbolHandle::invalid(),
+                    }))
+                } else {
+                    self.insert_copy(expression)
+                }
             }
+            _ => self.insert_copy(expression),
         }
+    }
+
+    pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+        match self.expression(expression).clone() {
+            ExpressionNode::ArrayLiteral(values) => {
+                let values = self.copy_own_expression_handles(values);
+                self.insert(ExpressionNode::ArrayLiteral(values))
+            }
+            ExpressionNode::Binary(binary) => {
+                let left = self.insert_copy(binary.left);
+                let right = self.insert_copy(binary.right);
+                self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }))
+            }
+            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
+            ExpressionNode::Cast(cast) => {
+                let value = self.insert_copy(cast.value);
+                let target_type = self.copy_own_name_path_members(cast.target_type);
+                self.insert(ExpressionNode::Cast(TableCastExpression {
+                    value,
+                    target_type,
+                }))
+            }
+            ExpressionNode::Call(call) => {
+                let receiver = call
+                    .receiver
+                    .is_valid()
+                    .then(|| self.insert_copy(call.receiver))
+                    .unwrap_or_else(ExpressionHandle::invalid);
+                let arguments = self.copy_own_expression_handles(call.arguments);
+                self.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    arguments,
+                }))
+            }
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.insert_copy(indexed.collection);
+                let index = self.insert_copy(indexed.index);
+                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection,
+                    index,
+                }))
+            }
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
+            ExpressionNode::Member(member) => {
+                let receiver = self.insert_copy(member.receiver);
+                self.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                }))
+            }
+            ExpressionNode::Mutable(inner_expression) => {
+                let inner_expression = self.insert_copy(inner_expression);
+                self.insert(ExpressionNode::Mutable(inner_expression))
+            }
+            ExpressionNode::Name(path) => {
+                let members = self.copy_own_name_path_members(path.members);
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: path.head_symbol,
+                    symbol: path.symbol,
+                }))
+            }
+            ExpressionNode::StructLiteral(struct_literal) => {
+                let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
+                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_name: struct_literal.type_name,
+                    fields,
+                }))
+            }
+            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
+        }
+    }
+
+    fn copy_indexed_expression_path(
+        &mut self,
+        indexed: TableIndexedExpression,
+    ) -> Option<TableNamePath> {
+        let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
+            return None;
+        };
+        let index = *index;
+
+        let base = match self.expression(indexed.collection).clone() {
+            ExpressionNode::Name(path) => path,
+            ExpressionNode::Indexed(inner_indexed) => {
+                self.copy_indexed_expression_path(inner_indexed)?
+            }
+            _ => return None,
+        };
+        let members = self.copy_own_name_path_members_with_index_suffix(base.members, index)?;
+
+        Some(TableNamePath {
+            members,
+            head_symbol: base.head_symbol,
+            symbol: SymbolHandle::invalid(),
+        })
     }
 
     pub fn expression_count(&self) -> usize {
