@@ -143,13 +143,7 @@ impl ExpressionTable {
     ) -> ExpressionHandle {
         match source.expression(expression) {
             ExpressionNode::ArrayLiteral(source_values) => {
-                let mut values = HandleSpan::empty();
-
-                for value in source.expression_handles(*source_values) {
-                    let value = self.copy_from(source, *value);
-                    self.expression_handles.append_to_span(&mut values, value);
-                }
-
+                let values = self.copy_expression_handles_from(source, *source_values);
                 self.insert(ExpressionNode::ArrayLiteral(values))
             }
             ExpressionNode::Binary(binary) => {
