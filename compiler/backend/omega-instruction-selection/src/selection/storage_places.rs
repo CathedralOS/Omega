@@ -14,7 +14,7 @@ use crate::InstructionSelectionInput;
 use expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
-use nested_fields::resolve_nested_field_layout;
+use nested_fields::resolve_nested_field_layout_with_symbols;
 use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
 };
@@ -86,7 +86,10 @@ pub(super) fn resolve_runtime_storage_place(
             alignment: slot.alignment,
         },
     };
-    let (byte_offset, layout) = resolve_nested_field_layout(&input.layouts, &root_field, suffix)?;
+    let (byte_offset, layout) =
+        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
+            path.member_symbol(index + 1)
+        })?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
@@ -248,7 +251,10 @@ pub(super) fn resolve_runtime_storage_place_in_table(
             alignment: slot.alignment,
         },
     };
-    let (byte_offset, layout) = resolve_nested_field_layout(&input.layouts, &root_field, suffix)?;
+    let (byte_offset, layout) =
+        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
+            path.member_symbol(index + 1)
+        })?;
 
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::RuntimeFrame,
@@ -295,7 +301,18 @@ pub(super) fn resolve_runtime_frame_indexed_target(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout(&input.layouts, &root_field, &indexed.suffix)?
+        resolve_nested_field_layout_with_symbols(
+            &input.layouts,
+            &root_field,
+            &indexed.suffix,
+            |index| {
+                indexed
+                    .suffix_symbols
+                    .get(index)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid)
+            },
+        )?
     };
 
     Some(RuntimeFrameIndexedTarget {
@@ -349,7 +366,9 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
             type_name: pointee_type_name.to_owned(),
             layout: pointee_layout,
         };
-        resolve_nested_field_layout(&input.layouts, &root_field, suffix)?
+        resolve_nested_field_layout_with_symbols(&input.layouts, &root_field, suffix, |index| {
+            path.member_symbol(index + 1)
+        })?
     };
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
         pointer_byte_offset: place.byte_offset,
@@ -472,7 +491,18 @@ fn resolve_runtime_fixed_indexed_place(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout(&input.layouts, &root_field, &fixed.suffix)?
+        resolve_nested_field_layout_with_symbols(
+            &input.layouts,
+            &root_field,
+            &fixed.suffix,
+            |index| {
+                fixed
+                    .suffix_symbols
+                    .get(index)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid)
+            },
+        )?
     };
 
     Some(RuntimeStoragePlace {
@@ -515,7 +545,18 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             type_name: element_type_name.to_owned(),
             layout: element_layout,
         };
-        resolve_nested_field_layout(&input.layouts, &root_field, &fixed.suffix)?
+        resolve_nested_field_layout_with_symbols(
+            &input.layouts,
+            &root_field,
+            &fixed.suffix,
+            |index| {
+                fixed
+                    .suffix_symbols
+                    .get(index)
+                    .copied()
+                    .unwrap_or_else(SymbolHandle::invalid)
+            },
+        )?
     };
 
     Some(RuntimeStoragePlace {
@@ -533,6 +574,7 @@ struct FixedIndexedTargetPath {
     collection: Expression,
     index: i64,
     suffix: Vec<ProgramName>,
+    suffix_symbols: Vec<SymbolHandle>,
 }
 
 #[derive(Debug, Clone)]
@@ -540,6 +582,7 @@ struct TableFixedIndexedTargetPath {
     collection: ExpressionHandle,
     index: i64,
     suffix: Vec<ProgramName>,
+    suffix_symbols: Vec<SymbolHandle>,
 }
 
 fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTargetPath> {
@@ -548,6 +591,7 @@ fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTarg
         Expression::Member(member) => {
             let mut path = fixed_indexed_target_path(&member.receiver)?;
             path.suffix.push(member.member.clone());
+            path.suffix_symbols.push(member.member_symbol);
             Some(path)
         }
         Expression::Indexed(indexed) => {
@@ -558,6 +602,7 @@ fn fixed_indexed_target_path(expression: &Expression) -> Option<FixedIndexedTarg
                 collection: indexed.collection.clone(),
                 index: *index,
                 suffix: Vec::new(),
+                suffix_symbols: Vec::new(),
             })
         }
         _ => None,
@@ -573,6 +618,7 @@ fn fixed_indexed_target_path_in_table(
         ExpressionNode::Member(member) => {
             let mut path = fixed_indexed_target_path_in_table(table, member.receiver)?;
             path.suffix.push(member.member.clone());
+            path.suffix_symbols.push(member.member_symbol);
             Some(path)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -583,6 +629,7 @@ fn fixed_indexed_target_path_in_table(
                 collection: indexed.collection,
                 index: *index,
                 suffix: Vec::new(),
+                suffix_symbols: Vec::new(),
             })
         }
         _ => None,
@@ -595,12 +642,14 @@ fn indexed_target_path(expression: &Expression) -> Option<IndexedTargetPath> {
         Expression::Member(member) => {
             let mut path = indexed_target_path(&member.receiver)?;
             path.suffix.push(member.member.clone());
+            path.suffix_symbols.push(member.member_symbol);
             Some(path)
         }
         Expression::Indexed(indexed) => Some(IndexedTargetPath {
             collection: indexed.collection.clone(),
             index: indexed.index.clone(),
             suffix: Vec::new(),
+            suffix_symbols: Vec::new(),
         }),
         _ => None,
     }
