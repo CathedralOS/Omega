@@ -59,7 +59,6 @@ pub fn simplify_state_expression_for_role(
 #[derive(Debug, Clone)]
 struct Binding {
     symbol: SymbolHandle,
-    name: Option<ProgramName>,
     value: Expression,
 }
 
@@ -67,7 +66,6 @@ impl Default for Binding {
     fn default() -> Self {
         Self {
             symbol: SymbolHandle::invalid(),
-            name: None,
             value: Expression::Integer(0),
         }
     }
@@ -109,15 +107,9 @@ impl<Parent: BindingScope + ?Sized> BindingScope for ScopedBindings<'_, Parent> 
 }
 
 fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
-    (binding.symbol.is_valid()
+    binding.symbol.is_valid()
         && path.head_symbol().is_valid()
-        && binding.symbol == path.head_symbol())
-        || (!path.head_symbol().is_valid()
-            && path.len() == 1
-            && binding
-                .name
-                .as_ref()
-                .is_some_and(|name| path.first().is_some_and(|segment| segment == name)))
+        && binding.symbol == path.head_symbol()
 }
 
 fn simple_local_bindings(
@@ -145,7 +137,6 @@ fn simple_local_bindings(
         };
         bindings.insert(Binding {
             symbol: local_data.symbol,
-            name: Some(local_data.name.clone()),
             value,
         });
     }
@@ -440,7 +431,6 @@ fn simplify_call_expression(
         {
             argument_bindings.insert(Binding {
                 symbol: parameter.symbol,
-                name: Some(parameter.name.clone()),
                 value: argument.clone(),
             });
         }
@@ -530,7 +520,6 @@ fn simplify_helper_call_comparison(
     {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
-            name: Some(parameter.name.clone()),
             value: argument.clone(),
         });
     }
@@ -727,7 +716,6 @@ fn expression_match_condition_with_stack(
     {
         argument_bindings.insert(Binding {
             symbol: parameter.symbol,
-            name: Some(parameter.name.clone()),
             value: argument.clone(),
         });
     }
@@ -807,7 +795,6 @@ fn helper_state_model(
                 );
                 local_bindings.insert(Binding {
                     symbol: local.symbol,
-                    name: Some(local.name.clone()),
                     value,
                 });
             }
