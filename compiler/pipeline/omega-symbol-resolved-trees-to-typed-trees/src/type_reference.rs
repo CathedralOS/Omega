@@ -1,4 +1,4 @@
-use crate::expression::lower_expression_from_table;
+use crate::expression::lower_expression_handle_from_table;
 use crate::program::Lowerer;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -10,87 +10,113 @@ pub(crate) fn lower_type_reference(
     lowerer: &mut Lowerer,
     type_reference: &resolved::types::TypeReference,
 ) -> Result<typed::types::TypeReference, Diagnostic> {
-    lower_type_reference_with_context(
+    let type_reference = lower_type_reference_handle_with_context(
         lowerer.source_trees,
         &mut lowerer.typed_trees,
         type_reference,
-    )
+    )?;
+
+    Ok(lowerer.typed_trees.type_reference_table.to_tree(
+        type_reference,
+        &lowerer.typed_trees.expression_table,
+        &mut lowerer.typed_trees.type_constraints,
+        &mut lowerer.typed_trees.type_reference_arguments,
+    ))
 }
 
-fn lower_type_reference_with_context(
+fn lower_type_reference_handle_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     type_reference: &resolved::types::TypeReference,
-) -> Result<typed::types::TypeReference, Diagnostic> {
+) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     match type_reference {
         resolved::types::TypeReference::Reference(reference) => {
-            Ok(typed::types::TypeReference::Reference {
-                referee: Box::new(lower_type_reference_with_context(
-                    source_trees,
-                    typed_trees,
-                    source_trees.child_type_reference(reference.referee),
-                )?),
-                is_mutable: reference.is_mutable,
-            })
+            let referee = lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                source_trees.child_type_reference(reference.referee),
+            )?;
+            Ok(typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::Reference {
+                    referee,
+                    is_mutable: reference.is_mutable,
+                },
+            ))
         }
         resolved::types::TypeReference::Constrained(constrained) => {
-            Ok(typed::types::TypeReference::Constrained {
-                base_type: Box::new(lower_type_reference_with_context(
-                    source_trees,
-                    typed_trees,
-                    source_trees.child_type_reference(constrained.base_type),
-                )?),
-                constraints: lower_type_constraints_with_context(
-                    source_trees,
-                    typed_trees,
-                    constrained.constraints,
-                )?,
-            })
+            let base_type = lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                source_trees.child_type_reference(constrained.base_type),
+            )?;
+            let constraints = lower_type_constraint_node_span_with_context(
+                source_trees,
+                typed_trees,
+                constrained.constraints,
+            )?;
+            Ok(typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                },
+            ))
         }
         resolved::types::TypeReference::FixedArray(fixed_array) => {
-            Ok(typed::types::TypeReference::FixedArray {
-                element_type: Box::new(lower_type_reference_with_context(
-                    source_trees,
-                    typed_trees,
-                    source_trees.child_type_reference(fixed_array.element_type),
-                )?),
-                length: fixed_array.length,
-            })
+            let element_type = lower_type_reference_handle_with_context(
+                source_trees,
+                typed_trees,
+                source_trees.child_type_reference(fixed_array.element_type),
+            )?;
+            Ok(typed_trees.type_reference_table.insert(
+                typed::types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: fixed_array.length,
+                },
+            ))
         }
-        resolved::types::TypeReference::Slice(slice) => Ok(typed::types::TypeReference::Slice {
-            element_type: Box::new(lower_type_reference_with_context(
+        resolved::types::TypeReference::Slice(slice) => {
+            let element_type = lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(slice.element_type),
-            )?),
-        }),
+            )?;
+            Ok(typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::Slice { element_type }))
+        }
         resolved::types::TypeReference::Generic(generic) => {
             let mut arguments = HandleSpan::empty();
             for argument in source_trees.child_type_references(generic.arguments) {
                 let argument =
-                    lower_type_reference_with_context(source_trees, typed_trees, argument)?;
-                typed_trees.push_type_reference_argument(&mut arguments, argument);
+                    lower_type_reference_handle_with_context(source_trees, typed_trees, argument)?;
+                typed_trees
+                    .type_reference_table
+                    .push_type_reference_handle(&mut arguments, argument);
             }
 
-            Ok(typed::types::TypeReference::Generic {
-                base_symbol: generic.base_symbol,
-                base_name: crate::name::lower_name(&generic.base_name),
-                arguments,
-            })
+            Ok(typed_trees
+                .type_reference_table
+                .insert(typed::types::TypeReferenceNode::Generic {
+                    base_symbol: generic.base_symbol,
+                    base_name: crate::name::lower_name(&generic.base_name),
+                    arguments,
+                }))
         }
-        resolved::types::TypeReference::Named { symbol, name } => {
-            Ok(typed::types::TypeReference::Named {
+        resolved::types::TypeReference::Named { symbol, name } => Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: crate::name::lower_name(name),
-            })
-        }
-        resolved::types::TypeReference::SelfType { symbol } => {
-            Ok(typed::types::TypeReference::Named {
+            })),
+        resolved::types::TypeReference::SelfType { symbol } => Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
                 symbol: *symbol,
                 name: typed::name::ProgramName::generated("Self"),
-            })
-        }
-        resolved::types::TypeReference::Unit => Ok(typed::types::TypeReference::Unit),
+            })),
+        resolved::types::TypeReference::Unit => Ok(typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Unit)),
     }
 }
 
@@ -114,7 +140,9 @@ fn lower_type_constraints_with_context(
         .constraints
         .span_or_empty(constraints)
     {
-        let constraint = lower_type_constraint(source_trees, constraint)?;
+        let constraint =
+            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        let constraint = constraint.to_tree(&typed_trees.expression_table);
         typed_trees
             .type_constraints
             .append_to_span(&mut span, constraint);
@@ -123,22 +151,48 @@ fn lower_type_constraints_with_context(
     Ok(span)
 }
 
-fn lower_type_constraint(
+fn lower_type_constraint_node_span_with_context(
     source_trees: &SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
+    constraints: HandleSpan<resolved::types::TypeConstraint>,
+) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
+    let mut span = HandleSpan::empty();
+
+    for constraint in source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constraints)
+    {
+        let constraint =
+            lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
+        typed_trees
+            .type_reference_table
+            .push_constraint(&mut span, constraint);
+    }
+
+    Ok(span)
+}
+
+fn lower_type_constraint_node_with_context(
+    source_trees: &SymbolResolvedTrees,
+    typed_trees: &mut typed::TypedTrees,
     constraint: &resolved::types::TypeConstraint,
-) -> Result<typed::types::TypeConstraint, Diagnostic> {
+) -> Result<typed::types::TypeConstraintNode, Diagnostic> {
     match constraint {
-        resolved::types::TypeConstraint::Named(name) => Ok(typed::types::TypeConstraint::Named(
-            crate::name::lower_name(name),
-        )),
+        resolved::types::TypeConstraint::Named(name) => Ok(
+            typed::types::TypeConstraintNode::Named(crate::name::lower_name(name)),
+        ),
         resolved::types::TypeConstraint::Range { minimum, maximum } => {
-            Ok(typed::types::TypeConstraint::Range {
-                minimum: lower_expression_from_table(
+            Ok(typed::types::TypeConstraintNode::Range {
+                minimum: lower_expression_handle_from_table(
                     &source_trees.tables.bodies.expressions,
+                    &mut typed_trees.expression_table,
                     *minimum,
                 )?,
-                maximum: lower_expression_from_table(
+                maximum: lower_expression_handle_from_table(
                     &source_trees.tables.bodies.expressions,
+                    &mut typed_trees.expression_table,
                     *maximum,
                 )?,
             })
