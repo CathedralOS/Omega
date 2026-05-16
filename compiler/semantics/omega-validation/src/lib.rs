@@ -4,10 +4,15 @@ use crate::symbols::{MachineSymbols, ProgramSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
-use omega_typed_trees::expression::Expression;
+use omega_typed_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::signature::StateParameter;
-use omega_typed_trees::statement::{Statement, StatementNode, TransitionTarget};
-use omega_typed_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
+use omega_typed_trees::statement::{
+    StatementNode, TableCall, TransitionTargetHandle, TransitionTargetNode,
+};
+use omega_typed_trees::types::{
+    PrimitiveType, TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceHandle,
+    TypeReferenceNode,
+};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -38,8 +43,8 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 parameters: program.state_parameters(state),
             };
 
-            for statement in program.state_statements(state) {
-                validate_state_statement(
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                validate_state_statement_node(
                     program,
                     machine,
                     &state.name,
@@ -139,24 +144,25 @@ fn validate_local_data_names(
     }
 }
 
-fn validate_state_statement(
+fn validate_state_statement_node(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state_name: &str,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
-    statement: &Statement,
+    statement: &StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match statement {
-        Statement::Assignment(assignment) => validate_assignment_target(
-            &assignment.target,
+        StatementNode::Assignment(assignment) => validate_assignment_target_handle(
+            program,
+            assignment.target,
             writable_roots,
             diagnostics,
             format!("machine `{}` state `{state_name}` assignment", machine.name),
         ),
-        Statement::Call(call) => validate_call(
+        StatementNode::Call(call) => validate_call_node(
             program,
             call,
             machine,
@@ -165,7 +171,7 @@ fn validate_state_statement(
             writable_roots,
             diagnostics,
         ),
-        Statement::Expression(expression) => {
+        StatementNode::Expression(expression) => {
             let Some(state) = machine_symbols.state(state_name) else {
                 return;
             };
@@ -178,9 +184,9 @@ fn validate_state_statement(
                 return;
             };
 
-            validate_expression_type(
+            validate_expression_type_handle(
                 program,
-                expression,
+                *expression,
                 return_type,
                 diagnostics,
                 format!(
@@ -189,9 +195,9 @@ fn validate_state_statement(
                 ),
             );
         }
-        Statement::LocalData(local_data) => validate_type_reference(
+        StatementNode::LocalData(local_data) => validate_type_reference_handle(
             program,
-            &local_data.type_reference,
+            local_data.type_reference,
             symbols,
             diagnostics,
             format!(
@@ -199,20 +205,20 @@ fn validate_state_statement(
                 machine.name, local_data.name
             ),
         ),
-        Statement::Transition(transition) => {
-            validate_transition_target(
+        StatementNode::Transition(transition) => {
+            validate_transition_target_node(
                 program,
-                &transition.target,
+                transition.target,
                 machine_symbols,
                 symbols,
                 writable_roots,
                 diagnostics,
             );
 
-            if let Some(continuation) = &transition.continuation {
-                validate_transition_target(
+            if transition.continuation.is_valid() {
+                validate_transition_target_node(
                     program,
-                    continuation,
+                    transition.continuation,
                     machine_symbols,
                     symbols,
                     writable_roots,
@@ -223,20 +229,21 @@ fn validate_state_statement(
     }
 }
 
-fn validate_assignment_target(
-    target: &Expression,
+fn validate_assignment_target_handle(
+    program: &TypedTrees,
+    target: ExpressionHandle,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
-    if !is_mutable_place(target) {
+    if !is_mutable_place_handle(program, target) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} target must be a named place"
         )));
         return;
     }
 
-    let Some(root_name) = expression_root_name(target) else {
+    let Some(root_name) = expression_root_name_handle(program, target) else {
         return;
     };
 
@@ -489,6 +496,73 @@ fn validate_type_reference(
     }
 }
 
+fn validate_type_reference_handle(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+    symbols: &ProgramSymbols<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            validate_type_reference_handle(program, *referee, symbols, diagnostics, owner);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            validate_type_reference_handle(
+                program,
+                *base_type,
+                symbols,
+                diagnostics,
+                owner.clone(),
+            );
+            validate_type_constraints_node(program, *base_type, *constraints, diagnostics, owner);
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            validate_type_reference_handle(program, *element_type, symbols, diagnostics, owner);
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            validate_type_reference_handle(program, *element_type, symbols, diagnostics, owner);
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } => {
+            if !symbols.has_type(base_name) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown generic type `{base_name}`"
+                )));
+            }
+
+            if base_name != "IndexOf" {
+                for argument in program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)
+                {
+                    validate_type_reference_handle(
+                        program,
+                        *argument,
+                        symbols,
+                        diagnostics,
+                        format!("{owner} generic argument"),
+                    );
+                }
+            }
+        }
+        TypeReferenceNode::Named { name, .. } => {
+            if !symbols.has_type(name) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} references unknown data type `{name}`"
+                )));
+            }
+        }
+        TypeReferenceNode::Unit => {}
+    }
+}
+
 fn validate_type_constraints(
     program: &TypedTrees,
     base_type: &TypeReference,
@@ -520,6 +594,46 @@ fn validate_type_constraints(
             }
             TypeConstraint::Named(_) => {}
             TypeConstraint::Range { .. } => {
+                let Some(primitive_type) = primitive_type else {
+                    continue;
+                };
+
+                if !primitive_type.accepts_range_constraint() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
+                        primitive_type.name()
+                    )));
+                }
+            }
+        }
+    }
+}
+
+fn validate_type_constraints_node(
+    program: &TypedTrees,
+    base_type: TypeReferenceHandle,
+    constraints: omega_core::arena::HandleSpan<TypeConstraintNode>,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: String,
+) {
+    let primitive_type = program.type_reference_table.primitive_type(base_type);
+
+    for constraint in program.type_reference_table.constraints(constraints) {
+        match constraint {
+            TypeConstraintNode::Named(name) if name == "finite" => {
+                let Some(primitive_type) = primitive_type else {
+                    continue;
+                };
+
+                if !primitive_type.accepts_finite_constraint() {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} uses `finite` on `{}`, but `finite` is only valid on floats",
+                        primitive_type.name()
+                    )));
+                }
+            }
+            TypeConstraintNode::Named(_) => {}
+            TypeConstraintNode::Range { .. } => {
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };
@@ -616,13 +730,21 @@ mod tests {
             .find(|state| state.name.as_str() == "entry")
             .expect("entry state");
         let call_argument_count = typed
-            .state_statements(entry)
+            .statement_table
+            .statements(entry.statement_nodes)
             .iter()
             .find_map(|statement| match statement {
-                omega_typed_trees::statement::Statement::Call(call) => Some(call.arguments.len()),
-                omega_typed_trees::statement::Statement::Expression(
-                    omega_typed_trees::expression::Expression::Call(call),
-                ) => Some(call.arguments.len()),
+                omega_typed_trees::statement::StatementNode::Call(call) => {
+                    Some(call.arguments.len())
+                }
+                omega_typed_trees::statement::StatementNode::Expression(expression) => {
+                    let omega_typed_trees::expression::ExpressionNode::Call(call) =
+                        typed.expression_table.expression(*expression)
+                    else {
+                        return None;
+                    };
+                    Some(call.arguments.len())
+                }
                 _ => None,
             })
             .expect("expected call statement");
@@ -696,18 +818,19 @@ fn validate_initial_value(
     }
 }
 
-fn validate_call(
+fn validate_call_node(
     program: &TypedTrees,
-    call: &omega_typed_trees::statement::Call,
+    call: &TableCall,
     current_machine: &omega_typed_trees::machine::Machine,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let receiver_members = program.statement_path_members(call.receiver);
+    let receiver_members = program.statement_table.name_path_members(call.receiver);
+    let arguments = program.statement_table.expression_handles(call.arguments);
 
-    if receiver_members.is_empty() {
+    if receiver_members.is_empty() || receiver_members == ["self"] {
         let Some(state) = machine_symbols.state(&call.target) else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` has no local state `{}`",
@@ -716,29 +839,9 @@ fn validate_call(
             return;
         };
 
-        validate_call_arguments(
+        validate_call_arguments_handles(
             program,
-            program.call_arguments(call),
-            state.name.as_str(),
-            program.state_parameters(state),
-            writable_roots,
-            diagnostics,
-        );
-        return;
-    }
-
-    if receiver_members == ["self"] {
-        let Some(state) = machine_symbols.state(&call.target) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` has no local state `{}`",
-                current_machine.name, call.target
-            )));
-            return;
-        };
-
-        validate_call_arguments(
-            program,
-            program.call_arguments(call),
+            arguments,
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -766,9 +869,9 @@ fn validate_call(
             return;
         };
 
-        validate_call_arguments(
+        validate_call_arguments_handles(
             program,
-            program.call_arguments(call),
+            arguments,
             &state_signature.name,
             program.state_signature_parameters(state_signature),
             writable_roots,
@@ -786,9 +889,9 @@ fn validate_call(
             .iter()
             .find(|state| state.name == call.target)
         {
-            validate_call_arguments(
+            validate_call_arguments_handles(
                 program,
-                program.call_arguments(call),
+                arguments,
                 &state.name,
                 program.state_parameters(state),
                 writable_roots,
@@ -807,15 +910,15 @@ fn validate_call(
     let _ = diagnostics;
 }
 
-fn validate_call_arguments(
+fn validate_call_arguments_handles(
     program: &TypedTrees,
-    arguments: &[Expression],
+    arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_argument_borrows(arguments, target_name, writable_roots, diagnostics);
+    validate_argument_borrows_handles(program, arguments, target_name, writable_roots, diagnostics);
 
     let callable_parameter_count = parameters
         .iter()
@@ -836,11 +939,16 @@ fn validate_call_arguments(
         .iter()
         .zip(parameters.iter().filter(|parameter| !parameter.is_self))
     {
-        if parameter.is_mutable && !matches!(argument, Expression::Mutable(_)) {
+        let is_mutable = matches!(
+            program.expression_table.expression(*argument),
+            ExpressionNode::Mutable(_)
+        );
+
+        if parameter.is_mutable && !is_mutable {
             continue;
         }
 
-        if !parameter.is_mutable && matches!(argument, Expression::Mutable(_)) {
+        if !parameter.is_mutable && is_mutable {
             continue;
         }
 
@@ -848,13 +956,13 @@ fn validate_call_arguments(
             .type_reference
             .display_name_with_constraints(&program.type_constraints);
 
-        if !argument_matches_type(argument, &parameter.type_reference) {
+        if !argument_matches_type_handle(program, *argument, &parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
                 "argument `{}` for state `{}` expects `{}`, got `{}`",
                 parameter.name,
                 target_name,
                 expected_type,
-                expression_type_name(argument)
+                expression_type_name_handle(program, *argument)
             )));
         }
     }
@@ -874,8 +982,9 @@ struct ArgumentAccess<'expression> {
     kind: ArgumentAccessKind,
 }
 
-fn validate_argument_borrows(
-    arguments: &[Expression],
+fn validate_argument_borrows_handles(
+    program: &TypedTrees,
+    arguments: &[ExpressionHandle],
     target_name: &str,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -883,8 +992,9 @@ fn validate_argument_borrows(
     let mut accesses = Vec::new();
 
     for argument in arguments {
-        collect_argument_accesses(
-            argument,
+        collect_argument_accesses_handle(
+            program,
+            *argument,
             target_name,
             writable_roots,
             &mut accesses,
@@ -916,23 +1026,24 @@ fn validate_argument_borrows(
     }
 }
 
-fn collect_argument_accesses<'expression>(
-    expression: &'expression Expression,
+fn collect_argument_accesses_handle<'expression>(
+    program: &'expression TypedTrees,
+    expression: ExpressionHandle,
     target_name: &str,
     writable_roots: &WritableRoots<'_, '_>,
     accesses: &mut Vec<ArgumentAccess<'expression>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    match expression {
-        Expression::Mutable(inner_expression) => {
-            if !is_mutable_place(inner_expression) {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner_expression) => {
+            if !is_mutable_place_handle(program, *inner_expression) {
                 diagnostics.push(Diagnostic::error(format!(
                     "mutable argument for state `{target_name}` must be a named place"
                 )));
                 return;
             }
 
-            if let Some(root_name) = expression_root_name(inner_expression) {
+            if let Some(root_name) = expression_root_name_handle(program, *inner_expression) {
                 if !writable_roots.contains(root_name) {
                     diagnostics.push(Diagnostic::error(format!(
                         "mutable argument `{root_name}` for state `{target_name}` is not writable in this state"
@@ -945,87 +1056,112 @@ fn collect_argument_accesses<'expression>(
                 });
             }
         }
-        other_expression => collect_read_accesses(other_expression, accesses),
+        _ => collect_read_accesses_handle(program, expression, accesses),
     }
 }
 
-fn collect_read_accesses<'expression>(
-    expression: &'expression Expression,
+fn collect_read_accesses_handle<'expression>(
+    program: &'expression TypedTrees,
+    expression: ExpressionHandle,
     accesses: &mut Vec<ArgumentAccess<'expression>>,
 ) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                collect_read_accesses(value, accesses);
+    match program.expression_table.expression(expression) {
+        ExpressionNode::ArrayLiteral(values) => {
+            for value in program.expression_table.expression_handles(*values) {
+                collect_read_accesses_handle(program, *value, accesses);
             }
         }
-        Expression::Binary(binary) => {
-            collect_read_accesses(&binary.left, accesses);
-            collect_read_accesses(&binary.right, accesses);
+        ExpressionNode::Binary(binary) => {
+            collect_read_accesses_handle(program, binary.left, accesses);
+            collect_read_accesses_handle(program, binary.right, accesses);
         }
-        Expression::Call(call) => {
-            if let Some(receiver) = &call.receiver {
-                collect_read_accesses(receiver, accesses);
+        ExpressionNode::Call(call) => {
+            if call.receiver.is_valid() {
+                collect_read_accesses_handle(program, call.receiver, accesses);
             }
 
-            for argument in &call.arguments {
-                collect_read_accesses(argument, accesses);
+            for argument in program.expression_table.expression_handles(call.arguments) {
+                collect_read_accesses_handle(program, *argument, accesses);
             }
         }
-        Expression::Cast(cast) => collect_read_accesses(&cast.value, accesses),
-        Expression::Indexed(indexed) => {
-            if let Some(root_name) = expression_root_name(&indexed.collection) {
+        ExpressionNode::Cast(cast) => collect_read_accesses_handle(program, cast.value, accesses),
+        ExpressionNode::Indexed(indexed) => {
+            if let Some(root_name) = expression_root_name_handle(program, indexed.collection) {
                 accesses.push(ArgumentAccess {
                     root_name,
                     kind: ArgumentAccessKind::Read,
                 });
             }
 
-            collect_read_accesses(&indexed.index, accesses);
+            collect_read_accesses_handle(program, indexed.index, accesses);
         }
-        Expression::Member(member) => collect_read_accesses(&member.receiver, accesses),
-        Expression::Name(path) => {
-            if let Some(root_name) = path.first() {
+        ExpressionNode::Member(member) => {
+            collect_read_accesses_handle(program, member.receiver, accesses)
+        }
+        ExpressionNode::Name(path) => {
+            if let Some(root_name) = program
+                .expression_table
+                .name_path_members(path.members)
+                .first()
+            {
                 accesses.push(ArgumentAccess {
-                    root_name,
+                    root_name: root_name.as_str(),
                     kind: ArgumentAccessKind::Read,
                 });
             }
         }
-        Expression::Mutable(inner_expression) => collect_read_accesses(inner_expression, accesses),
-        Expression::StructLiteral(struct_literal) => {
-            for field in &struct_literal.fields {
-                collect_read_accesses(&field.value, accesses);
+        ExpressionNode::Mutable(inner_expression) => {
+            collect_read_accesses_handle(program, *inner_expression, accesses)
+        }
+        ExpressionNode::StructLiteral(struct_literal) => {
+            for field in program
+                .expression_table
+                .struct_fields(struct_literal.fields)
+            {
+                collect_read_accesses_handle(program, field.value, accesses);
             }
         }
-        Expression::Boolean(_)
-        | Expression::Float(_)
-        | Expression::Integer(_)
-        | Expression::String(_) => {}
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::String(_) => {}
     }
 }
 
-fn is_mutable_place(expression: &Expression) -> bool {
-    match expression {
-        Expression::Indexed(indexed) => is_mutable_place(&indexed.collection),
-        Expression::Member(member) => is_mutable_place(&member.receiver),
-        Expression::Name(_) => true,
+fn is_mutable_place_handle(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Indexed(indexed) => is_mutable_place_handle(program, indexed.collection),
+        ExpressionNode::Member(member) => is_mutable_place_handle(program, member.receiver),
+        ExpressionNode::Name(_) => true,
         _ => false,
     }
 }
 
-fn expression_root_name(expression: &Expression) -> Option<&str> {
-    match expression {
-        Expression::Indexed(indexed) => expression_root_name(&indexed.collection),
-        Expression::Member(member) => match &member.receiver {
-            Expression::Name(path)
-                if path.len() == 1 && path.first().is_some_and(|name| name.as_str() == "self") =>
-            {
-                Some(member.member.as_str())
+fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Indexed(indexed) => {
+            expression_root_name_handle(program, indexed.collection)
+        }
+        ExpressionNode::Member(member) => {
+            match program.expression_table.expression(member.receiver) {
+                ExpressionNode::Name(path)
+                    if path.members.count() == 1
+                        && program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .first()
+                            .is_some_and(|name| name.as_str() == "self") =>
+                {
+                    Some(member.member.as_str())
+                }
+                _ => expression_root_name_handle(program, member.receiver),
             }
-            other => expression_root_name(other),
-        },
-        Expression::Name(path) => path.first().map(|name| name.as_str()),
+        }
+        ExpressionNode::Name(path) => program
+            .expression_table
+            .name_path_members(path.members)
+            .first()
+            .map(|name| name.as_str()),
         _ => None,
     }
 }
@@ -1112,18 +1248,111 @@ fn argument_matches_type(argument: &Expression, type_reference: &TypeReference) 
     }
 }
 
-fn validate_expression_type(
+fn argument_matches_type_handle(
     program: &TypedTrees,
-    expression: &Expression,
+    argument: ExpressionHandle,
+    type_reference: &TypeReference,
+) -> bool {
+    if let ExpressionNode::Mutable(inner_expression) = program.expression_table.expression(argument)
+    {
+        return argument_matches_type_handle(program, *inner_expression, type_reference);
+    }
+
+    let argument_node = program.expression_table.expression(argument);
+
+    match type_reference {
+        TypeReference::Reference { referee, .. } => {
+            argument_matches_type_handle(program, argument, referee)
+        }
+        TypeReference::Constrained { base_type, .. } => {
+            argument_matches_type_handle(program, argument, base_type)
+        }
+        TypeReference::FixedArray { .. } => matches!(
+            argument_node,
+            ExpressionNode::ArrayLiteral(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+        ),
+        TypeReference::Slice { .. } => matches!(
+            argument_node,
+            ExpressionNode::Call(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+        ),
+        TypeReference::Generic { base_name, .. } if base_name == "IndexOf" => {
+            matches!(
+                argument_node,
+                ExpressionNode::Integer(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
+            )
+        }
+        TypeReference::Generic { .. } => matches!(
+            argument_node,
+            ExpressionNode::Binary(_)
+                | ExpressionNode::Call(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::StructLiteral(_)
+        ),
+        TypeReference::Named {
+            name: type_name, ..
+        } => {
+            if let Some(primitive_type) = PrimitiveType::from_name(type_name) {
+                return matches!(argument_node, ExpressionNode::Boolean(_))
+                    && primitive_type == PrimitiveType::Bool
+                    || matches!(argument_node, ExpressionNode::String(_))
+                        && primitive_type == PrimitiveType::String
+                    || matches!(argument_node, ExpressionNode::Float(_))
+                        && primitive_type.accepts_float_literal()
+                    || matches!(argument_node, ExpressionNode::Integer(_))
+                        && primitive_type.accepts_integer_literal()
+                    || matches!(
+                        argument_node,
+                        ExpressionNode::Binary(_)
+                            | ExpressionNode::Call(_)
+                            | ExpressionNode::Cast(_)
+                            | ExpressionNode::Indexed(_)
+                            | ExpressionNode::Member(_)
+                            | ExpressionNode::Name(_)
+                            | ExpressionNode::StructLiteral(_)
+                    );
+            }
+
+            matches!(
+                argument_node,
+                ExpressionNode::Binary(_)
+                    | ExpressionNode::Call(_)
+                    | ExpressionNode::Cast(_)
+                    | ExpressionNode::Indexed(_)
+                    | ExpressionNode::Member(_)
+                    | ExpressionNode::Name(_)
+                    | ExpressionNode::StructLiteral(_)
+            )
+        }
+        TypeReference::Unit => false,
+    }
+}
+
+fn validate_expression_type_handle(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
     type_reference: &TypeReference,
     diagnostics: &mut Vec<Diagnostic>,
     owner: String,
 ) {
-    if !argument_matches_type(expression, type_reference) {
+    if !argument_matches_type_handle(program, expression, type_reference) {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} expects `{}`, got `{}`",
             type_reference.display_name_with_constraints(&program.type_constraints),
-            expression_type_name(expression)
+            expression_type_name_handle(program, expression)
         )));
     }
 }
@@ -1146,34 +1375,51 @@ fn expression_type_name(argument: &Expression) -> &'static str {
     }
 }
 
-fn validate_transition_target(
+fn expression_type_name_handle(program: &TypedTrees, argument: ExpressionHandle) -> &'static str {
+    match program.expression_table.expression(argument) {
+        ExpressionNode::ArrayLiteral(_) => "array literal",
+        ExpressionNode::Binary(_) => "binary expression",
+        ExpressionNode::Boolean(_) => "bool",
+        ExpressionNode::Call(_) => "call expression",
+        ExpressionNode::Cast(_) => "cast expression",
+        ExpressionNode::Float(_) => "float literal",
+        ExpressionNode::Indexed(_) => "indexed value",
+        ExpressionNode::Integer(_) => "integer literal",
+        ExpressionNode::Member(_) => "member access",
+        ExpressionNode::Mutable(inner_expression) => {
+            expression_type_name_handle(program, *inner_expression)
+        }
+        ExpressionNode::Name(_) => "named value",
+        ExpressionNode::StructLiteral(_) => "struct literal",
+        ExpressionNode::String(_) => "String",
+    }
+}
+
+fn validate_transition_target_node(
     program: &TypedTrees,
-    target: &TransitionTarget,
+    target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &ProgramSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let TransitionTarget::Named {
-        path, arguments, ..
-    } = target
+    let TransitionTargetNode::Named { path, arguments } =
+        program.statement_table.transition_target(target)
     else {
         return;
     };
 
-    let path = program.statement_path_members(*path);
+    let path = program.statement_table.name_path_members(path.members);
+    let arguments = program.statement_table.expression_handles(*arguments);
 
     if path.len() == 1 {
         let Some(state) = machine_symbols.state(path[0].as_str()) else {
-            if machine_symbols.has_member(path[0].as_str()) {
-                return;
-            }
             return;
         };
 
-        validate_transition_arguments(
+        validate_transition_arguments_handles(
             program,
-            program.statement_expressions(*arguments),
+            arguments,
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -1185,15 +1431,12 @@ fn validate_transition_target(
 
     if path.len() == 2 && path[0] == "self" {
         let Some(state) = machine_symbols.state(path[1].as_str()) else {
-            if machine_symbols.has_member(path[1].as_str()) {
-                return;
-            }
             return;
         };
 
-        validate_transition_arguments(
+        validate_transition_arguments_handles(
             program,
-            program.statement_expressions(*arguments),
+            arguments,
             state.name.as_str(),
             program.state_parameters(state),
             writable_roots,
@@ -1223,9 +1466,9 @@ fn validate_transition_target(
             return;
         };
 
-        validate_transition_arguments(
+        validate_transition_arguments_handles(
             program,
-            program.statement_expressions(*arguments),
+            arguments,
             &state.name,
             program.state_parameters(state),
             writable_roots,
@@ -1234,15 +1477,15 @@ fn validate_transition_target(
     }
 }
 
-fn validate_transition_arguments(
+fn validate_transition_arguments_handles(
     program: &TypedTrees,
-    arguments: &[Expression],
+    arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    validate_call_arguments(
+    validate_call_arguments_handles(
         program,
         arguments,
         target_name,
