@@ -11,7 +11,9 @@ use omega_target_operations::RuntimeStorageRegion;
 pub(super) use static_values::{enum_variant_value, static_integer_value};
 
 use crate::InstructionSelectionInput;
-use expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
+use expressions::{
+    StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
+};
 use nested_fields::resolve_nested_field_layout;
 use omega_checked_trees::expression::{
     CallExpression, Expression, ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
@@ -231,12 +233,12 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         .find(|(_, slot)| {
             slot.dispatch_index == dispatch_index
                 && slot.source_key == source_key
-                && slot_matches_path(slot.symbol, &path, slot.name.as_str())
+                && slot_matches_table_path(slot.symbol, &path, slot.name.as_str())
         })
         .or_else(|| {
             input.runtime_storage.frame_slots.iter().find(|(_, slot)| {
                 slot.dispatch_index == dispatch_index
-                    && slot_matches_path(slot.symbol, &path, slot.name.as_str())
+                    && slot_matches_table_path(slot.symbol, &path, slot.name.as_str())
             })
         })
         .map(|(_, slot)| slot)?;
@@ -371,6 +373,19 @@ pub(super) struct RuntimePointeeTarget {
 }
 
 fn slot_matches_path(slot_symbol: SymbolHandle, path: &NamePath, slot_name: &str) -> bool {
+    if slot_symbol.is_valid() && path.head_symbol().is_valid() {
+        return slot_symbol == path.head_symbol();
+    }
+
+    path.first()
+        .is_some_and(|root_name| root_name.as_str() == slot_name)
+}
+
+fn slot_matches_table_path(
+    slot_symbol: SymbolHandle,
+    path: &StorageNamePath<'_>,
+    slot_name: &str,
+) -> bool {
     if slot_symbol.is_valid() && path.head_symbol().is_valid() {
         return slot_symbol == path.head_symbol();
     }

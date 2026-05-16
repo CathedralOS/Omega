@@ -1,4 +1,6 @@
-use super::expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
+use super::expressions::{
+    StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
+};
 use super::nested_fields::resolve_nested_field_layout;
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::ProgramName;
@@ -31,10 +33,25 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
 ) -> Option<(usize, usize)> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
     let (machine_base_offset, root_field, suffix) =
-        root_machine_field_layout_from_path(layouts, entry_machine, source_machine, &path)?;
+        root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
     let (field_offset, field_layout) = resolve_nested_field_layout(layouts, root_field, suffix)?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+fn root_machine_field_layout_from_table_path<'path, 'layout>(
+    layouts: &'layout LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    path: &'path StorageNamePath<'_>,
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
+    root_machine_field_layout_from_parts(
+        layouts,
+        entry_machine,
+        source_machine,
+        path.members(),
+        path.head_symbol(),
+    )
 }
 
 fn root_machine_field_layout_from_path<'path, 'layout>(
@@ -43,7 +60,23 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
     source_machine: SymbolHandle,
     path: &'path NamePath,
 ) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
-    let [root_name, suffix @ ..] = path.members() else {
+    root_machine_field_layout_from_parts(
+        layouts,
+        entry_machine,
+        source_machine,
+        path.members(),
+        path.head_symbol(),
+    )
+}
+
+fn root_machine_field_layout_from_parts<'path, 'layout>(
+    layouts: &'layout LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    members: &'path [ProgramName],
+    root_symbol: SymbolHandle,
+) -> Option<(usize, &'layout FieldLayout, &'path [ProgramName])> {
+    let [root_name, suffix @ ..] = members else {
         return None;
     };
 
@@ -65,7 +98,6 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
         return Some((machine_base_offset, root_field, rest));
     }
 
-    let root_symbol = path.head_symbol();
     let (machine_base_offset, root_field) = root_machine_field_layout(
         layouts,
         entry_machine,
