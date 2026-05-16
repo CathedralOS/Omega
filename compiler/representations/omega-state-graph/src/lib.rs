@@ -1,11 +1,11 @@
 mod runtime_flow;
 
+use omega_checked_trees::statement::TransitionGuard;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::expression::NamePath;
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_typed_trees::name::ProgramName;
-use omega_typed_trees::statement::TransitionGuard;
 
 pub use runtime_flow::{
     RuntimeCycle, RuntimeEdge, RuntimeFlowPlan, RuntimeState, RuntimeTransitionTarget,
