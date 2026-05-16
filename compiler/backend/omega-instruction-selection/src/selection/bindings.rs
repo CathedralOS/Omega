@@ -630,30 +630,17 @@ pub(super) fn resolve_branch_prelude_binding_expression(
 }
 
 fn alias_matches_path(alias: &RuntimeAliasBinding, path: &NamePath) -> bool {
-    if symbol_matches_path(alias.parameter_symbol, path) {
-        return true;
-    }
-
-    path.first()
-        .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
+    symbol_matches_path(alias.parameter_symbol, path)
 }
 
 fn alias_matches_table_path(
     alias: &RuntimeAliasBinding,
-    table: &ExpressionTable,
+    _table: &ExpressionTable,
     path: &TableNamePath,
 ) -> bool {
-    if alias.parameter_symbol.is_valid()
+    alias.parameter_symbol.is_valid()
         && path.head_symbol.is_valid()
         && alias.parameter_symbol == path.head_symbol
-    {
-        return true;
-    }
-
-    table
-        .name_path_members(path.members)
-        .first()
-        .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
 }
 
 fn leaf_binding_matches_path(binding: &RuntimeLeafBranchBinding, path: &NamePath) -> bool {

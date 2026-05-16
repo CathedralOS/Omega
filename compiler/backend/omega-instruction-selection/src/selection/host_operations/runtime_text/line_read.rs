@@ -210,13 +210,7 @@ fn resolve_host_call_alias_expression(
 }
 
 fn alias_matches_path(alias: &omega_state_calls::AliasBinding, path: &NamePath) -> bool {
-    if alias.parameter_symbol.is_valid()
+    alias.parameter_symbol.is_valid()
         && path.head_symbol().is_valid()
         && alias.parameter_symbol == path.head_symbol()
-    {
-        return true;
-    }
-
-    path.first()
-        .is_some_and(|root_name| root_name.as_str() == alias.parameter_name.as_str())
 }
