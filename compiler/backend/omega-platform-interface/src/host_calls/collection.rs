@@ -104,9 +104,7 @@ fn collect_call_host_lowering(
             )
         })
         .unwrap_or_else(HandleSpan::empty);
-    let arguments =
-        plan.arguments
-            .insert_many(lower_host_call_arguments(program, call, static_values));
+    let arguments = lower_host_call_arguments(program, call, static_values, &mut plan.arguments);
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,
