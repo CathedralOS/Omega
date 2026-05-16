@@ -1,5 +1,6 @@
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::name::ProgramName;
+use omega_core::symbols::SymbolHandle;
 use omega_target_operations::RuntimeStorageRegion;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,4 +24,5 @@ pub(in crate::selection) struct IndexedTargetPath {
     pub(in crate::selection) collection: Expression,
     pub(in crate::selection) index: Expression,
     pub(in crate::selection) suffix: Vec<ProgramName>,
+    pub(in crate::selection) suffix_symbols: Vec<SymbolHandle>,
 }

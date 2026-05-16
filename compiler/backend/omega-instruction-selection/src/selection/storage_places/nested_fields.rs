@@ -8,18 +8,34 @@ pub(in crate::selection) fn resolve_nested_field_layout(
     root_field: &FieldLayout,
     suffix: &[ProgramName],
 ) -> Option<(usize, TypeLayout)> {
+    resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |_| {
+        SymbolHandle::invalid()
+    })
+}
+
+pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
+    layouts: &LayoutPlan,
+    root_field: &FieldLayout,
+    suffix: &[ProgramName],
+    mut suffix_symbol: impl FnMut(usize) -> SymbolHandle,
+) -> Option<(usize, TypeLayout)> {
     let mut byte_offset = root_field.offset;
     let mut type_symbol = root_field.type_symbol;
     let mut type_name = root_field.type_name.as_str();
     let mut layout = root_field.layout;
 
-    for field_name in suffix {
+    for (index, field_name) in suffix.iter().enumerate() {
         let field_segment = parse_field_segment(field_name)?;
         let data_layout = data_layout(layouts, type_symbol, type_name)?;
         let DataShape::Record { fields } = &data_layout.shape else {
             return None;
         };
-        let field = field_layout(layouts, *fields, field_segment.name)?;
+        let field = field_layout_by_symbol_or_name(
+            layouts,
+            *fields,
+            suffix_symbol(index),
+            field_segment.name,
+        )?;
         byte_offset += field.offset;
         type_symbol = field.type_symbol;
         type_name = &field.type_name;
@@ -60,16 +76,19 @@ fn data_layout<'plan>(
         .map(|(_, data_layout)| data_layout)
 }
 
-pub(in crate::selection) fn field_layout<'plan>(
+fn field_layout_by_symbol_or_name<'plan>(
     layouts: &'plan LayoutPlan,
     fields: HandleSpan<FieldLayout>,
+    field_symbol: SymbolHandle,
     field_name: &str,
 ) -> Option<&'plan FieldLayout> {
-    layouts
-        .fields
-        .span(fields)?
-        .iter()
-        .find(|field| field.name.as_str() == field_name)
+    layouts.fields.span(fields)?.iter().find(|field| {
+        if field_symbol.is_valid() {
+            field.symbol == field_symbol
+        } else {
+            field.name.as_str() == field_name
+        }
+    })
 }
 
 struct FieldSegment<'name> {
