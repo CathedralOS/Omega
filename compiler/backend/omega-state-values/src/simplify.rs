@@ -8,6 +8,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use omega_core::arena::Arena;
 use omega_core::symbols::SymbolHandle;
 
 pub fn simplify_expression(
@@ -553,7 +554,7 @@ fn helper_state_value(
     bindings: &[Binding],
 ) -> Option<Expression> {
     let helper = helper_state_model(state, program, machine, bindings)?;
-    let mut transitions = helper.transitions.iter();
+    let mut transitions = helper.transitions.iter().map(|(_, transition)| transition);
     let transition = transitions.next()?;
     if transitions.next().is_some() {
         return None;
@@ -609,7 +610,7 @@ fn helper_state_match_condition_with_stack(
     let mut covered = Expression::Boolean(false);
     let mut matched = Expression::Boolean(false);
 
-    for transition in &helper.transitions {
+    for (_, transition) in helper.transitions.iter() {
         let effective_guard = boolean_and(boolean_not(covered.clone()), transition.guard.clone());
         if let Some(value_matches) = expression_match_condition_with_stack(
             program,
@@ -715,7 +716,7 @@ fn helper_state_model(
     bindings: &[Binding],
 ) -> Option<HelperStateModel> {
     let mut bindings = bindings.to_vec();
-    let mut transitions = Vec::new();
+    let mut transitions = Arena::new();
     let mut saw_terminal_expression = false;
 
     for statement in program.statement_table.statements(state.statement_nodes) {
@@ -769,7 +770,7 @@ fn helper_state_model(
                 let value = program.expression_table.to_tree(*value);
                 let value =
                     simplify_expression_with_bindings(program, machine, &value, &bindings, false);
-                transitions.push(HelperTransition { guard, value });
+                transitions.insert(HelperTransition { guard, value });
             }
             StatementNode::Expression(expression) => {
                 let expression = program.expression_table.to_tree(*expression);
@@ -780,7 +781,7 @@ fn helper_state_model(
                     &bindings,
                     false,
                 );
-                transitions.push(HelperTransition {
+                transitions.insert(HelperTransition {
                     guard: Expression::Boolean(true),
                     value,
                 });
@@ -818,13 +819,22 @@ fn append_name_suffix(
 
 #[derive(Debug, Clone)]
 struct HelperStateModel {
-    transitions: Vec<HelperTransition>,
+    transitions: Arena<HelperTransition>,
 }
 
 #[derive(Debug, Clone)]
 struct HelperTransition {
     guard: Expression,
     value: Expression,
+}
+
+impl Default for HelperTransition {
+    fn default() -> Self {
+        Self {
+            guard: Expression::Boolean(true),
+            value: Expression::Integer(0),
+        }
+    }
 }
 
 fn fold_binary_expression(
