@@ -391,127 +391,6 @@ impl TypeReferenceTable {
         copied
     }
 
-    pub fn to_tree(
-        &self,
-        type_reference: TypeReferenceHandle,
-        expressions: &crate::expression::ExpressionTable,
-        output_constraints: &mut Arena<TypeConstraint>,
-        output_arguments: &mut Arena<TypeReference>,
-    ) -> TypeReference {
-        match self.type_reference(type_reference) {
-            TypeReferenceNode::Reference {
-                referee,
-                is_mutable,
-            } => TypeReference::Reference {
-                referee: Box::new(self.to_tree(
-                    *referee,
-                    expressions,
-                    output_constraints,
-                    output_arguments,
-                )),
-                is_mutable: *is_mutable,
-            },
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => TypeReference::Constrained {
-                base_type: Box::new(self.to_tree(
-                    *base_type,
-                    expressions,
-                    output_constraints,
-                    output_arguments,
-                )),
-                constraints: self.to_constraint_tree_span(
-                    *constraints,
-                    expressions,
-                    output_constraints,
-                ),
-            },
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => TypeReference::FixedArray {
-                element_type: Box::new(self.to_tree(
-                    *element_type,
-                    expressions,
-                    output_constraints,
-                    output_arguments,
-                )),
-                length: *length,
-            },
-            TypeReferenceNode::Slice { element_type } => TypeReference::Slice {
-                element_type: Box::new(self.to_tree(
-                    *element_type,
-                    expressions,
-                    output_constraints,
-                    output_arguments,
-                )),
-            },
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-            } => {
-                let arguments = self.type_reference_handles(*arguments);
-                let argument_trees = output_arguments.insert_many(
-                    std::iter::repeat_with(TypeReference::default).take(arguments.len()),
-                );
-
-                for (offset, argument) in arguments.iter().enumerate() {
-                    let argument =
-                        self.to_tree(*argument, expressions, output_constraints, output_arguments);
-                    *output_arguments.get_mut(Handle::from_parts(
-                        argument_trees
-                            .start()
-                            .arena_index()
-                            .checked_add(
-                                offset
-                                    .try_into()
-                                    .expect("type reference argument index overflow"),
-                            )
-                            .expect("type reference argument index overflow"),
-                        argument_trees.start().generation(),
-                    )) = argument;
-                }
-
-                TypeReference::Generic {
-                    base_symbol: *base_symbol,
-                    base_name: base_name.clone(),
-                    arguments: argument_trees,
-                }
-            }
-            TypeReferenceNode::Named { symbol, name } => TypeReference::Named {
-                symbol: *symbol,
-                name: name.clone(),
-            },
-            TypeReferenceNode::Unit => TypeReference::Unit,
-        }
-    }
-
-    fn to_constraint_tree_span(
-        &self,
-        constraints: HandleSpan<TypeConstraintNode>,
-        expressions: &crate::expression::ExpressionTable,
-        output_constraints: &mut Arena<TypeConstraint>,
-    ) -> HandleSpan<TypeConstraint> {
-        let constraints = self.constraints(constraints);
-        let constraint_trees = output_constraints
-            .insert_many(std::iter::repeat_with(TypeConstraint::default).take(constraints.len()));
-
-        for (offset, constraint) in constraints.iter().enumerate() {
-            *output_constraints.get_mut(Handle::from_parts(
-                constraint_trees
-                    .start()
-                    .arena_index()
-                    .checked_add(offset.try_into().expect("type constraint index overflow"))
-                    .expect("type constraint index overflow"),
-                constraint_trees.start().generation(),
-            )) = constraint.to_tree(expressions);
-        }
-
-        constraint_trees
-    }
-
     pub fn insert_tree(
         &mut self,
         type_reference: &TypeReference,
@@ -798,6 +677,12 @@ pub enum TypeConstraint {
     },
 }
 
+impl Default for TypeConstraint {
+    fn default() -> Self {
+        Self::Named(ProgramName::default())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraintNode {
     Named(ProgramName),
@@ -860,12 +745,6 @@ impl TypeConstraintNode {
 }
 
 impl Default for TypeConstraintNode {
-    fn default() -> Self {
-        Self::Named(ProgramName::default())
-    }
-}
-
-impl Default for TypeConstraint {
     fn default() -> Self {
         Self::Named(ProgramName::default())
     }
