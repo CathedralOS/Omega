@@ -1,7 +1,7 @@
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{BinaryOperator, Expression, FloatLiteral};
+use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionHandle, FloatLiteral};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
@@ -14,13 +14,22 @@ use omega_typed_trees::types::{
     TypeConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ProofPlan {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProofPlan<'program> {
+    pub program: &'program TypedTrees,
     pub obligations: Arena<ProofObligation>,
     pub type_constraints: Arena<TypeConstraint>,
 }
 
-impl ProofPlan {
+impl<'program> ProofPlan<'program> {
+    fn new(program: &'program TypedTrees) -> Self {
+        Self {
+            program,
+            obligations: Arena::new(),
+            type_constraints: Arena::new(),
+        }
+    }
+
     fn push_obligation(&mut self, obligation: ProofObligation) {
         self.obligations.append(obligation);
     }
@@ -115,7 +124,7 @@ pub struct BoundedCallArgumentObligation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundedInitializerObligation {
     pub owner: String,
-    pub value: Expression,
+    pub value: ExpressionHandle,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
 }
@@ -159,8 +168,8 @@ struct FloatRange {
     maximum: f64,
 }
 
-pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
-    let mut proof_plan = ProofPlan::default();
+pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan<'_> {
+    let mut proof_plan = ProofPlan::new(program);
 
     for machine in program.machines() {
         for owned_data in program.machine_owned_data(machine) {
@@ -175,12 +184,11 @@ pub fn build_proof_plan(program: &TypedTrees) -> ProofPlan {
                 &mut proof_plan,
             );
             if owned_data.initial_value.is_valid() {
-                let initial_value = program.expression_table.to_tree(owned_data.initial_value);
                 collect_bounded_initializer_obligation(
                     program,
                     owner,
                     owned_data.type_reference,
-                    &initial_value,
+                    owned_data.initial_value,
                     &mut proof_plan,
                 );
             }
@@ -280,7 +288,7 @@ fn collect_bounded_value_obligation(
     program: &TypedTrees,
     owner: String,
     type_reference: TypeReferenceHandle,
-    proof_plan: &mut ProofPlan,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -320,8 +328,8 @@ fn collect_bounded_initializer_obligation(
     program: &TypedTrees,
     owner: String,
     type_reference: TypeReferenceHandle,
-    value: &Expression,
-    proof_plan: &mut ProofPlan,
+    value: ExpressionHandle,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference { referee, .. } => {
@@ -335,7 +343,7 @@ fn collect_bounded_initializer_obligation(
             proof_plan.push_obligation(ProofObligation::BoundedInitializer(
                 BoundedInitializerObligation {
                     owner,
-                    value: value.clone(),
+                    value,
                     base_type: *base_type,
                     constraints,
                 },
@@ -383,7 +391,7 @@ fn collect_bounded_assignment_obligation(
     machine: &Machine,
     state: &State,
     assignment: &TableAssignment,
-    proof_plan: &mut ProofPlan,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     let target = program.expression_table.to_tree(assignment.target);
     let Some((base_type, constraints)) =
@@ -422,7 +430,7 @@ fn collect_bounded_transition_argument_obligations(
     transition_target: TransitionTarget,
     transition_guard: TransitionGuard,
     table_statement: Option<&StatementNode>,
-    proof_plan: &mut ProofPlan,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     let Some(StatementNode::Transition(table_transition)) = table_statement else {
         return;
@@ -468,7 +476,7 @@ fn collect_bounded_call_argument_obligations(
     machine: &Machine,
     state: &State,
     call: &TableCall,
-    proof_plan: &mut ProofPlan,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     let Some(parameters) = call_target_parameters(program, call.target_symbol) else {
         return;
@@ -519,7 +527,7 @@ fn collect_bounded_state_return_obligation(
     machine: &Machine,
     state: &State,
     return_type: TypeReferenceHandle,
-    proof_plan: &mut ProofPlan,
+    proof_plan: &mut ProofPlan<'_>,
 ) {
     let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
         return;

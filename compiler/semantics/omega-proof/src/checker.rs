@@ -4,7 +4,7 @@ use crate::obligations::{
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::expression::{BinaryOperator, Expression};
+use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::TransitionGuard;
 use omega_typed_trees::types::TypeConstraint;
 
@@ -109,8 +109,9 @@ fn check_bounded_initializer(
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = integer_range_for_initializer(obligation) else {
+        let Some(value_range) = integer_range_for_initializer(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_initializer_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -120,6 +121,7 @@ fn check_bounded_initializer(
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_initializer_integer(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -129,8 +131,9 @@ fn check_bounded_initializer(
     if let Some(target_range) =
         float_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
-        let Some(value_range) = float_range_for_initializer(obligation) else {
+        let Some(value_range) = float_range_for_initializer(proof_plan, obligation) else {
             diagnostics.push(cannot_prove_bounded_initializer_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -140,6 +143,7 @@ fn check_bounded_initializer(
         if value_range.minimum < target_range.minimum || value_range.maximum > target_range.maximum
         {
             diagnostics.push(cannot_prove_bounded_initializer_float(
+                proof_plan,
                 obligation,
                 target_range,
             ));
@@ -375,9 +379,16 @@ fn float_range_for_return_value(
     }
 }
 
-fn float_range_for_initializer(obligation: &BoundedInitializerObligation) -> Option<FloatRange> {
-    match &obligation.value {
-        Expression::Float(value) => {
+fn float_range_for_initializer(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedInitializerObligation,
+) -> Option<FloatRange> {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Float(value) => {
             let value = finite_float_literal(*value)?;
             Some(FloatRange {
                 minimum: value,
@@ -450,10 +461,15 @@ fn integer_range_for_return_value(
 }
 
 fn integer_range_for_initializer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
 ) -> Option<IntegerRange> {
-    match &obligation.value {
-        Expression::Integer(value) => Some(IntegerRange {
+    match proof_plan
+        .program
+        .expression_table
+        .expression(obligation.value)
+    {
+        ExpressionNode::Integer(value) => Some(IntegerRange {
             minimum: *value,
             maximum: *value,
         }),
@@ -520,10 +536,10 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
     range
 }
 
-fn type_constraints(
-    proof_plan: &ProofPlan,
+fn type_constraints<'proof>(
+    proof_plan: &'proof ProofPlan<'_>,
     constraints: HandleSpan<TypeConstraint>,
-) -> &[TypeConstraint] {
+) -> &'proof [TypeConstraint] {
     proof_plan.type_constraints.span(constraints).unwrap_or(&[])
 }
 
@@ -867,7 +883,7 @@ fn check_initializer_named_constraints(
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if !initializer_satisfies_named_constraint(proof_plan, obligation, constraint) {
             diagnostics.push(cannot_prove_initializer_named_constraint(
-                obligation, constraint,
+                proof_plan, obligation, constraint,
             ));
         }
     }
@@ -973,40 +989,23 @@ fn assignment_satisfies_named_constraint(
 }
 
 fn initializer_satisfies_named_constraint(
-    _proof_plan: &ProofPlan,
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     constraint: &str,
 ) -> bool {
-    let derived_constraints = match &obligation.value {
-        Expression::Float(value) => vec![
-            TypeConstraint::Named("finite".into()),
-            TypeConstraint::Range {
-                minimum: Expression::Float(*value),
-                maximum: Expression::Float(*value),
-            },
-        ],
-        Expression::Integer(value) => {
-            let mut constraints = vec![
-                TypeConstraint::Named("exact".into()),
-                TypeConstraint::Range {
-                    minimum: Expression::Integer(*value),
-                    maximum: Expression::Integer(*value),
-                },
-            ];
-
-            if *value >= 0 {
-                constraints.push(TypeConstraint::Named("non_negative".into()));
-            }
-            if *value > 0 {
-                constraints.push(TypeConstraint::Named("positive".into()));
-            }
-
-            constraints
-        }
-        _ => Vec::new(),
-    };
-
-    constraints_satisfy_named_constraint(&derived_constraints, constraint)
+    match (
+        constraint,
+        proof_plan
+            .program
+            .expression_table
+            .expression(obligation.value),
+    ) {
+        ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
+        ("exact", ExpressionNode::Integer(_)) => true,
+        ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
+        ("positive", ExpressionNode::Integer(value)) => *value > 0,
+        _ => false,
+    }
 }
 
 fn constraints_satisfy_named_constraint(constraints: &[TypeConstraint], constraint: &str) -> bool {
@@ -1089,12 +1088,13 @@ fn cannot_prove_bounded_return_integer(
 }
 
 fn cannot_prove_bounded_initializer_integer(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     target_range: IntegerRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         target_range.minimum,
         target_range.maximum
@@ -1146,12 +1146,13 @@ fn cannot_prove_bounded_return_float(
 }
 
 fn cannot_prove_bounded_initializer_float(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     target_range: FloatRange,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove initializer `{}` satisfies bounded value `{}`; expected range<{}, {}>",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         obligation.owner,
         target_range.minimum,
         target_range.maximum
@@ -1200,15 +1201,20 @@ fn cannot_prove_return_named_constraint(
 }
 
 fn cannot_prove_initializer_named_constraint(
+    proof_plan: &ProofPlan,
     obligation: &BoundedInitializerObligation,
     constraint: &str,
 ) -> Diagnostic {
     Diagnostic::error(format!(
         "cannot prove initializer `{}` satisfies `{}` for bounded value `{}`",
-        obligation.value.display_name(),
+        expression_display_name(proof_plan, obligation.value),
         constraint,
         obligation.owner
     ))
+}
+
+fn expression_display_name(proof_plan: &ProofPlan, expression: ExpressionHandle) -> String {
+    proof_plan.program.expression_table.display_name(expression)
 }
 
 fn cannot_prove_bounded_call_integer(
