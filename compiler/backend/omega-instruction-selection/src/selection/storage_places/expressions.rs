@@ -184,10 +184,6 @@ impl<'table> StorageNamePath<'table> {
         }
     }
 
-    pub(in crate::selection) fn first(&self) -> Option<&ProgramName> {
-        self.members().first()
-    }
-
     pub(in crate::selection) fn member_symbol(&self, index: usize) -> SymbolHandle {
         match self {
             Self::Borrowed {
