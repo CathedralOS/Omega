@@ -3,16 +3,6 @@ use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 use omega_layout::{DataShape, FieldLayout, LayoutPlan, TypeLayout};
 
-pub(in crate::selection) fn resolve_nested_field_layout(
-    layouts: &LayoutPlan,
-    root_field: &FieldLayout,
-    suffix: &[ProgramName],
-) -> Option<(usize, TypeLayout)> {
-    resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |_| {
-        SymbolHandle::invalid()
-    })
-}
-
 pub(in crate::selection) fn resolve_nested_field_layout_with_symbols(
     layouts: &LayoutPlan,
     root_field: &FieldLayout,
