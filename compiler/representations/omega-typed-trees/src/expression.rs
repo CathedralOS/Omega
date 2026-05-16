@@ -752,8 +752,8 @@ impl ExpressionTable {
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
             ExpressionNode::Cast(cast) => Expression::Cast(Box::new(CastExpression {
                 value: self.to_tree(cast.value),
-                target_type: NamePath::unresolved(
-                    self.name_path_members(cast.target_type).to_vec(),
+                target_type: NamePath::unresolved_from_iter(
+                    self.name_path_members(cast.target_type).iter().cloned(),
                 ),
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
@@ -783,8 +783,8 @@ impl ExpressionTable {
             ExpressionNode::Mutable(inner_expression) => {
                 Expression::Mutable(Box::new(self.to_tree(*inner_expression)))
             }
-            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved(
-                self.name_path_members(path.members).to_vec(),
+            ExpressionNode::Name(path) => Expression::Name(NamePath::resolved_from_iter(
+                self.name_path_members(path.members).iter().cloned(),
                 path.head_symbol,
                 path.symbol,
             )),
@@ -836,8 +836,8 @@ impl ExpressionTable {
     }
 
     fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
-        NamePath::resolved(
-            self.name_path_members(path.members).to_vec(),
+        NamePath::resolved_from_iter(
+            self.name_path_members(path.members).iter().cloned(),
             path.head_symbol,
             path.symbol,
         )
@@ -1008,6 +1008,10 @@ impl NamePath {
         }
     }
 
+    pub fn unresolved_from_iter(members: impl IntoIterator<Item = ProgramName>) -> Self {
+        Self::unresolved(members.into_iter().collect())
+    }
+
     pub fn resolved(
         members: Vec<ProgramName>,
         head_symbol: SymbolHandle,
@@ -1018,6 +1022,14 @@ impl NamePath {
             head_symbol,
             symbol,
         }
+    }
+
+    pub fn resolved_from_iter(
+        members: impl IntoIterator<Item = ProgramName>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Self {
+        Self::resolved(members.into_iter().collect(), head_symbol, symbol)
     }
 
     pub fn members(&self) -> &[ProgramName] {

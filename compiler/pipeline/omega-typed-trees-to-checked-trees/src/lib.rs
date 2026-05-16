@@ -649,8 +649,8 @@ fn statement_call_receiver_path(
 ) -> Option<NamePath> {
     let members = statement_call_receiver_members(program, call)?;
 
-    Some(NamePath::resolved(
-        members.iter().cloned().collect(),
+    Some(NamePath::resolved_from_iter(
+        members.iter().cloned(),
         call.receiver_symbol,
         call.receiver_symbol,
     ))
