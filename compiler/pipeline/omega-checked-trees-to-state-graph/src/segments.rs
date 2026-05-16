@@ -1,10 +1,12 @@
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable, NamePath};
+use omega_checked_trees::expression::{
+    ExpressionHandle, ExpressionNode, ExpressionTable, NamePath,
+};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::name::ProgramName;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{
-    Assignment, Statement, StatementNode, TableCall, TableTransition, Transition, TransitionGuard,
+    StatementNode, TableAssignment, TableCall, TableTransition, TransitionGuard,
     TransitionGuardNode,
 };
 use omega_checked_trees::types::TypeReference;
@@ -16,19 +18,19 @@ use omega_state_graph::{
 };
 
 #[derive(Debug, Clone)]
-pub(super) struct StateSegment<'program> {
+pub(super) struct StateSegment {
     pub key: StateKey,
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameterNode>,
     pub operations: Vec<Operation>,
-    pub transitions: Vec<SegmentTransition<'program>>,
+    pub transitions: Vec<SegmentTransition>,
     pub next_segment_name: Option<ProgramName>,
 }
 
 #[derive(Debug, Clone)]
-pub(super) enum SegmentTransition<'program> {
+pub(super) enum SegmentTransition {
     Tree {
-        tree: &'program Transition,
+        guard: TransitionGuard,
         table: TableTransition,
     },
     BranchCall {
@@ -37,12 +39,12 @@ pub(super) enum SegmentTransition<'program> {
     },
 }
 
-pub(super) fn split_state_segments<'program>(
-    machine: &'program Machine,
-    state: &'program State,
-    program: &'program Program,
+pub(super) fn split_state_segments(
+    machine: &Machine,
+    state: &State,
+    program: &Program,
     state_graph: &mut StateGraph,
-) -> Vec<StateSegment<'program>> {
+) -> Vec<StateSegment> {
     let machine_symbol = machine.symbol;
     let state_symbol = state.symbol;
     let mut segments = Vec::new();
@@ -53,22 +55,17 @@ pub(super) fn split_state_segments<'program>(
 
     let table_statements = program.statement_table.statements(state.statement_nodes);
 
-    let state_statements = program.state_statements(state);
-    for (statement_index, statement) in state_statements.iter().enumerate() {
-        let table_statement = table_statements.get(statement_index);
-        if let Statement::Transition(transition) = statement {
+    for (statement_index, table_statement) in table_statements.iter().enumerate() {
+        if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
-            if let Some(StatementNode::Transition(table)) = table_statement {
-                transitions.push(SegmentTransition::Tree {
-                    tree: transition,
-                    table: *table,
-                });
-            }
+            transitions.push(SegmentTransition::Tree {
+                guard: transition_guard_from_table(program, *table),
+                table: *table,
+            });
             continue;
         }
 
-        if let Statement::Call(_) = statement
-            && let Some(StatementNode::Call(table_call)) = table_statement
+        if let StatementNode::Call(table_call) = table_statement
             && branch_call_target(program, machine, table_call).is_some()
         {
             segments.push(StateSegment {
@@ -87,7 +84,7 @@ pub(super) fn split_state_segments<'program>(
                 operations,
                 transitions: vec![SegmentTransition::BranchCall {
                     table: table_call.clone(),
-                    has_continuation_segment: statement_index + 1 < state_statements.len(),
+                    has_continuation_segment: statement_index + 1 < table_statements.len(),
                 }],
                 next_segment_name: None,
             });
@@ -126,17 +123,13 @@ pub(super) fn split_state_segments<'program>(
 
         operations.push(Operation {
             statement_index,
-            kind: operation_kind(program, statement, table_statement),
-            expressions: table_statement
-                .map(|statement| {
-                    operation_expression_refs(
-                        statement,
-                        &program.expression_table,
-                        state_graph,
-                        &program.statement_table,
-                    )
-                })
-                .unwrap_or_default(),
+            kind: operation_kind(program, table_statement),
+            expressions: operation_expression_refs(
+                table_statement,
+                &program.expression_table,
+                state_graph,
+                &program.statement_table,
+            ),
         });
     }
 
@@ -163,12 +156,12 @@ pub(super) fn split_state_segments<'program>(
     segments
 }
 
-pub(super) fn segment_has_unconditional_transition(segment: &StateSegment<'_>) -> bool {
+pub(super) fn segment_has_unconditional_transition(segment: &StateSegment) -> bool {
     segment
         .transitions
         .iter()
         .any(|transition| match transition {
-            SegmentTransition::Tree { tree, .. } => tree.guard == TransitionGuard::Always,
+            SegmentTransition::Tree { guard, .. } => *guard == TransitionGuard::Always,
             SegmentTransition::BranchCall { .. } => true,
         })
 }
@@ -218,39 +211,26 @@ fn state_parameters_for_segment(
     parameters
 }
 
-fn operation_kind(
-    program: &Program,
-    statement: &Statement,
-    table_statement: Option<&StatementNode>,
-) -> OperationKind {
-    match statement {
-        Statement::Assignment(assignment) if is_static_assignment(assignment) => {
+fn operation_kind(program: &Program, table_statement: &StatementNode) -> OperationKind {
+    match table_statement {
+        StatementNode::Assignment(assignment) if is_static_assignment(program, *assignment) => {
             OperationKind::StaticAssignment
         }
-        Statement::Assignment(assignment) if is_constant_integer_assignment(assignment) => {
+        StatementNode::Assignment(assignment)
+            if is_constant_integer_assignment(program, *assignment) =>
+        {
             OperationKind::ConstantIntegerAssignment
         }
-        Statement::Assignment(_) => OperationKind::Assignment,
-        Statement::Call(call) => {
-            if let Some(StatementNode::Call(table_call)) = table_statement {
-                return OperationKind::Call {
-                    receiver_symbol: table_call.receiver_symbol,
-                    target_symbol: table_call.target_symbol,
-                    receiver: statement_call_receiver_path(program, table_call),
-                    target: table_call.target.clone(),
-                };
-            }
-
-            OperationKind::Call {
-                receiver_symbol: call.receiver_symbol,
-                target_symbol: call.target_symbol,
-                receiver: None,
-                target: call.target.clone(),
-            }
-        }
-        Statement::Expression(_) => OperationKind::Expression,
-        Statement::LocalData(_) => OperationKind::LocalData,
-        Statement::Transition(_) => unreachable!("transitions are not operations"),
+        StatementNode::Assignment(_) => OperationKind::Assignment,
+        StatementNode::Call(call) => OperationKind::Call {
+            receiver_symbol: call.receiver_symbol,
+            target_symbol: call.target_symbol,
+            receiver: statement_call_receiver_path(program, call),
+            target: call.target.clone(),
+        },
+        StatementNode::Expression(_) => OperationKind::Expression,
+        StatementNode::LocalData(_) => OperationKind::LocalData,
+        StatementNode::Transition(_) => unreachable!("transitions are not operations"),
     }
 }
 
@@ -311,21 +291,36 @@ pub(super) fn copy_statement_expression_span(
     )
 }
 
-fn is_static_assignment(assignment: &Assignment) -> bool {
-    use omega_checked_trees::expression::Expression;
-
+fn is_static_assignment(program: &Program, assignment: TableAssignment) -> bool {
     let target_is_place = matches!(
-        assignment.target,
-        Expression::Name(_) | Expression::Indexed(_)
+        program.expression_table.expression(assignment.target),
+        ExpressionNode::Name(_) | ExpressionNode::Indexed(_)
     );
-    let value_is_static = match &assignment.value {
-        Expression::Integer(_) | Expression::String(_) | Expression::StructLiteral(_) => true,
-        Expression::Indexed(_) => true,
-        Expression::Name(path) => path.len() > 1,
+    let value_is_static = match program.expression_table.expression(assignment.value) {
+        ExpressionNode::Integer(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_) => true,
+        ExpressionNode::Indexed(_) => true,
+        ExpressionNode::Name(path) => {
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .len()
+                > 1
+        }
         _ => false,
     };
 
     target_is_place && value_is_static
+}
+
+fn transition_guard_from_table(program: &Program, transition: TableTransition) -> TransitionGuard {
+    match transition.guard {
+        TransitionGuardNode::Always => TransitionGuard::Always,
+        TransitionGuardNode::When(expression) => {
+            TransitionGuard::When(program.expression_table.to_tree(expression))
+        }
+    }
 }
 
 pub(super) fn table_transition_guard_expression(
@@ -337,11 +332,13 @@ pub(super) fn table_transition_guard_expression(
     }
 }
 
-fn is_constant_integer_assignment(assignment: &Assignment) -> bool {
+fn is_constant_integer_assignment(program: &Program, assignment: TableAssignment) -> bool {
     matches!(
-        (&assignment.target, &assignment.value),
-        (omega_checked_trees::expression::Expression::Name(path), omega_checked_trees::expression::Expression::Integer(_))
-            if path.len() == 1
+        program.expression_table.expression(assignment.target),
+        ExpressionNode::Name(path) if program.expression_table.name_path_members(path.members).len() == 1
+    ) && matches!(
+        program.expression_table.expression(assignment.value),
+        ExpressionNode::Integer(_)
     )
 }
 
