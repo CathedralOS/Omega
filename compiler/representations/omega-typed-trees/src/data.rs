@@ -1,5 +1,5 @@
 use crate::name::ProgramName;
-use crate::types::TypeReference;
+use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
@@ -82,7 +82,7 @@ impl Default for TypeParameter {
 pub struct DataField {
     pub symbol: SymbolHandle,
     pub name: ProgramName,
-    pub type_reference: TypeReference,
+    pub type_reference: TypeReferenceHandle,
 }
 
 impl Default for DataField {
@@ -90,7 +90,7 @@ impl Default for DataField {
         Self {
             symbol: SymbolHandle::invalid(),
             name: ProgramName::default(),
-            type_reference: TypeReference::Unit,
+            type_reference: TypeReferenceHandle::invalid(),
         }
     }
 }

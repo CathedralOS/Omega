@@ -5,7 +5,7 @@ use omega_typed_trees::data::DataMember;
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::platform::Platform;
 use omega_typed_trees::state::State;
-use omega_typed_trees::types::TypeReference;
+use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug)]
 pub struct ProgramSymbols<'program> {
@@ -253,7 +253,8 @@ impl<'program> MachineSymbols<'program> {
                     symbol,
                 });
 
-                if let Some(type_name) = callable_receiver_type_name(&field.type_reference) {
+                if let Some(type_name) = callable_receiver_type_name(program, field.type_reference)
+                {
                     symbols.contained_objects.push(ContainedObjectSymbol {
                         name: field.name.as_str(),
                         type_name,
@@ -396,14 +397,21 @@ impl<'program> MachineSymbols<'program> {
     }
 }
 
-fn callable_receiver_type_name(type_reference: &TypeReference) -> Option<&str> {
-    match type_reference {
-        TypeReference::Reference { referee, .. } => callable_receiver_type_name(referee),
-        TypeReference::Constrained { base_type, .. } => callable_receiver_type_name(base_type),
-        TypeReference::FixedArray { .. } | TypeReference::Slice { .. } => None,
-        TypeReference::Generic { .. } => None,
-        TypeReference::Named { name, .. } => Some(name.as_str()),
-        TypeReference::Unit => None,
+fn callable_receiver_type_name(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&str> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            callable_receiver_type_name(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            callable_receiver_type_name(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => None,
+        TypeReferenceNode::Generic { .. } => None,
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+        TypeReferenceNode::Unit => None,
     }
 }
 

@@ -7,9 +7,7 @@ use omega_checked_trees::Program;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
-use omega_checked_trees::types::{
-    PrimitiveType, TypeConstraint, TypeReference, TypeReferenceHandle, TypeReferenceNode,
-};
+use omega_checked_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -43,7 +41,6 @@ struct LayoutBuilder<'program> {
     platform_definitions: &'program [Platform],
     program: &'program Program,
     target: NativeTarget,
-    type_constraints: &'program Arena<TypeConstraint>,
 }
 
 impl<'program> LayoutBuilder<'program> {
@@ -59,7 +56,6 @@ impl<'program> LayoutBuilder<'program> {
             platform_definitions: program.platforms(),
             program,
             target,
-            type_constraints: &program.type_constraints,
         }
     }
 
@@ -164,14 +160,14 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
-                let layout = self.layout_type_reference(&field.type_reference)?;
+                let layout = self.layout_type_reference_handle(field.type_reference)?;
                 Ok(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
-                    type_symbol: self.type_reference_symbol(&field.type_reference),
-                    type_name: field
-                        .type_reference
-                        .display_name_with_constraints(self.type_constraints),
+                    type_symbol: self.program.type_reference_symbol(field.type_reference),
+                    type_name: self
+                        .program
+                        .display_type_reference_with_constraints(field.type_reference),
                     layout,
                 })
             })
@@ -202,11 +198,11 @@ impl<'program> LayoutBuilder<'program> {
                 fields.push(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
-                    type_symbol: self.type_reference_symbol(&field.type_reference),
-                    type_name: field
-                        .type_reference
-                        .display_name_with_constraints(self.type_constraints),
-                    layout: self.layout_type_reference(&field.type_reference)?,
+                    type_symbol: self.program.type_reference_symbol(field.type_reference),
+                    type_name: self
+                        .program
+                        .display_type_reference_with_constraints(field.type_reference),
+                    layout: self.layout_type_reference_handle(field.type_reference)?,
                 });
             }
         }
@@ -248,58 +244,6 @@ impl<'program> LayoutBuilder<'program> {
             fields,
             layout,
         })
-    }
-
-    fn layout_type_reference(
-        &mut self,
-        type_reference: &TypeReference,
-    ) -> Result<TypeLayout, Diagnostic> {
-        match type_reference {
-            TypeReference::Reference { .. } => Ok(TypeLayout {
-                size: self.target.pointer_size,
-                alignment: self.target.pointer_alignment,
-            }),
-            TypeReference::Constrained { base_type, .. } => self.layout_type_reference(base_type),
-            TypeReference::FixedArray {
-                element_type,
-                length,
-            } => {
-                let element_layout = self.layout_type_reference(element_type)?;
-
-                Ok(TypeLayout {
-                    size: element_layout.size * length,
-                    alignment: element_layout.alignment,
-                })
-            }
-            TypeReference::Slice { .. } => Ok(self.slice_layout()),
-            TypeReference::Generic {
-                base_symbol,
-                base_name,
-                ..
-            } => {
-                if let Some(layout) = builtin_named_layout(self.target, base_name) {
-                    return Ok(layout);
-                }
-
-                if base_symbol.is_valid()
-                    && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
-                    && DataDefinition::shape_kind_from_members(
-                        self.program.data_members(definition),
-                    ) == DataShapeKind::Enum
-                {
-                    return self.layout_data_definition(*base_symbol);
-                }
-
-                Err(Diagnostic::error(format!(
-                    "native layout for generic type `{base_name}` is not implemented yet"
-                )))
-            }
-            TypeReference::Named { symbol, name } => self.layout_named_type(*symbol, name),
-            TypeReference::Unit => Ok(TypeLayout {
-                size: 0,
-                alignment: 1,
-            }),
-        }
     }
 
     fn slice_layout(&self) -> TypeLayout {
@@ -417,36 +361,6 @@ impl<'program> LayoutBuilder<'program> {
             "unknown layout-bearing type `{name}` for symbol {}",
             symbol.arena_index()
         )))
-    }
-
-    fn type_reference_symbol(&self, type_reference: &TypeReference) -> SymbolHandle {
-        match type_reference {
-            TypeReference::Reference { referee, .. } => self.type_reference_symbol(referee),
-            TypeReference::Constrained { base_type, .. } => self.type_reference_symbol(base_type),
-            TypeReference::FixedArray { element_type, .. } => {
-                self.type_reference_symbol(element_type)
-            }
-            TypeReference::Slice { .. } => SymbolHandle::invalid(),
-            TypeReference::Generic {
-                base_symbol,
-                base_name,
-                ..
-            } => {
-                if PrimitiveType::from_name(base_name).is_some() {
-                    SymbolHandle::invalid()
-                } else {
-                    *base_symbol
-                }
-            }
-            TypeReference::Named { symbol, name } => {
-                if PrimitiveType::from_name(name).is_some() {
-                    SymbolHandle::invalid()
-                } else {
-                    *symbol
-                }
-            }
-            TypeReference::Unit => SymbolHandle::invalid(),
-        }
     }
 
     fn data_definition_by_symbol(

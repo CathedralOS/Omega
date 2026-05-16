@@ -392,9 +392,9 @@ fn validate_data_field_types(
                 continue;
             };
 
-            validate_type_reference(
+            validate_type_reference_handle(
                 program,
-                &field.type_reference,
+                field.type_reference,
                 symbols,
                 diagnostics,
                 format!("data `{}` field `{}`", data_definition.name, field.name),

@@ -835,7 +835,6 @@ fn expression_type_reference(
                         member.member_symbol,
                         &member.member,
                     )
-                    .cloned()
                 })
                 .or_else(|| {
                     type_reference_for_symbol(program, machine, state, member.member_symbol)
@@ -1114,7 +1113,9 @@ fn type_reference_for_symbol(
                                 return None;
                             };
 
-                            (field.symbol == symbol).then_some(field.type_reference.clone())
+                            (field.symbol == symbol).then(|| {
+                                table_type_reference_to_tree(program, field.type_reference)
+                            })
                         })
                 })
         })
@@ -1132,12 +1133,12 @@ fn table_type_reference_to_tree(
     )
 }
 
-fn data_field_type_reference<'program>(
-    program: &'program TypedTrees,
-    type_reference: &'program TypeReference,
+fn data_field_type_reference(
+    program: &TypedTrees,
+    type_reference: &TypeReference,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
-) -> Option<&'program TypeReference> {
+) -> Option<TypeReference> {
     match type_reference {
         TypeReference::Reference { referee, .. } => {
             data_field_type_reference(program, referee, member_symbol, member_name)
@@ -1175,12 +1176,12 @@ fn data_definition_by_symbol_or_name<'program>(
     })
 }
 
-fn data_field_in_definition<'program>(
-    program: &'program TypedTrees,
-    data_definition: &'program omega_typed_trees::data::DataDefinition,
+fn data_field_in_definition(
+    program: &TypedTrees,
+    data_definition: &omega_typed_trees::data::DataDefinition,
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
-) -> Option<&'program TypeReference> {
+) -> Option<TypeReference> {
     program
         .data_members(data_definition)
         .iter()
@@ -1191,7 +1192,7 @@ fn data_field_in_definition<'program>(
 
             ((member_symbol.is_valid() && field.symbol == member_symbol)
                 || field.name == *member_name)
-                .then_some(&field.type_reference)
+                .then(|| table_type_reference_to_tree(program, field.type_reference))
         })
 }
 

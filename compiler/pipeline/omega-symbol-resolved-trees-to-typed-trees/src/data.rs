@@ -1,5 +1,5 @@
 use crate::program::Lowerer;
-use crate::type_reference::lower_type_reference;
+use crate::type_reference::lower_type_reference_into_table;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
 use omega_typed_trees as typed;
@@ -47,7 +47,7 @@ fn lower_data_member(
             Ok(typed::data::DataMember::Field(typed::data::DataField {
                 symbol: field.symbol,
                 name: crate::name::lower_name(&field.name),
-                type_reference: lower_type_reference(lowerer, &field.type_reference)?,
+                type_reference: lower_type_reference_into_table(lowerer, &field.type_reference)?,
             }))
         }
         resolved::data::DataMember::Variant(variant) => {

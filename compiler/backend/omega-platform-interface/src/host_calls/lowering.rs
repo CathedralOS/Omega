@@ -38,7 +38,9 @@ pub(crate) fn platform_call_receiver_type(
                             omega_checked_trees::data::DataMember::Field(field)
                                 if field.symbol == call.receiver_symbol =>
                             {
-                                type_reference_symbol(&field.type_reference)
+                                let type_symbol =
+                                    program.type_reference_symbol(field.type_reference);
+                                type_symbol.is_valid().then_some(type_symbol)
                             }
                             _ => None,
                         })
@@ -80,32 +82,6 @@ pub(crate) fn platform_call_receiver_type(
         .iter()
         .find(|platform| platform.symbol == receiver_type_symbol)
         .map(|platform| platform.name.to_string())
-}
-
-fn type_reference_symbol(
-    type_reference: &omega_checked_trees::types::TypeReference,
-) -> Option<omega_core::symbols::SymbolHandle> {
-    match type_reference {
-        omega_checked_trees::types::TypeReference::Reference { referee, .. } => {
-            type_reference_symbol(referee)
-        }
-        omega_checked_trees::types::TypeReference::Constrained { base_type, .. } => {
-            type_reference_symbol(base_type)
-        }
-        omega_checked_trees::types::TypeReference::FixedArray { element_type, .. } => {
-            type_reference_symbol(element_type)
-        }
-        omega_checked_trees::types::TypeReference::Slice { element_type } => {
-            type_reference_symbol(element_type)
-        }
-        omega_checked_trees::types::TypeReference::Generic { base_symbol, .. } => {
-            base_symbol.is_valid().then_some(*base_symbol)
-        }
-        omega_checked_trees::types::TypeReference::Named { symbol, .. } => {
-            symbol.is_valid().then_some(*symbol)
-        }
-        omega_checked_trees::types::TypeReference::Unit => None,
-    }
 }
 
 pub(crate) fn find_platform_call_lowering<'abi>(
