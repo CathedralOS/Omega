@@ -54,14 +54,17 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
     let mut effect_plan = EffectPlan::default();
 
     for machine in program.machines() {
-        let states = program
-            .machine_states(machine)
-            .iter()
-            .map(|state| StateEffects {
-                name: state.name.to_string(),
-                effect: infer_state_effect(program, machine, state),
-            });
-        let states = effect_plan.states.insert_many(states);
+        let mut states = HandleSpan::empty();
+
+        for state in program.machine_states(machine) {
+            effect_plan.states.append_to_span(
+                &mut states,
+                StateEffects {
+                    name: state.name.to_string(),
+                    effect: infer_state_effect(program, machine, state),
+                },
+            );
+        }
 
         effect_plan.machines.append_to_span(
             &mut effect_plan.root_machines,
