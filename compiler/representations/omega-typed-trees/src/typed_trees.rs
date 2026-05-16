@@ -299,6 +299,13 @@ impl TypedTrees {
         self.type_reference_table.primitive_type(type_reference)
     }
 
+    pub fn type_reference_symbol(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> omega_core::symbols::SymbolHandle {
+        self.type_reference_table.type_symbol(type_reference)
+    }
+
     pub fn rebuild_tables(&mut self) {
         let tables = tables::TypedProgramTables::from_typed_trees_with_state_spans(self);
         self.expression_table = tables.expressions;
