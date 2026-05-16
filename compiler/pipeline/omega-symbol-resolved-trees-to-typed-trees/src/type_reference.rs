@@ -289,7 +289,7 @@ fn lower_type_constraint_node_span_from_table(
 pub(crate) fn lower_type_constraints(
     lowerer: &mut Lowerer,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
-) -> Result<HandleSpan<typed::types::TypeConstraint>, Diagnostic> {
+) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     lower_type_constraints_with_context(lowerer.source_trees, &mut lowerer.typed_trees, constraints)
 }
 
@@ -297,7 +297,7 @@ fn lower_type_constraints_with_context(
     source_trees: &SymbolResolvedTrees,
     typed_trees: &mut typed::TypedTrees,
     constraints: HandleSpan<resolved::types::TypeConstraint>,
-) -> Result<HandleSpan<typed::types::TypeConstraint>, Diagnostic> {
+) -> Result<HandleSpan<typed::types::TypeConstraintNode>, Diagnostic> {
     let mut span = HandleSpan::empty();
 
     for constraint in source_trees
@@ -308,7 +308,6 @@ fn lower_type_constraints_with_context(
     {
         let constraint =
             lower_type_constraint_node_with_context(source_trees, typed_trees, constraint)?;
-        let constraint = constraint.to_tree(&typed_trees.expression_table);
         typed_trees
             .type_constraints
             .append_to_span(&mut span, constraint);

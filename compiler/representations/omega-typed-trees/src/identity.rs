@@ -1,9 +1,11 @@
 use crate::data::DataMember;
-use crate::expression::{Expression, ExpressionHandle, ExpressionNode, ExpressionTable};
+use crate::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use crate::name::ProgramName;
 use crate::statement::{StatementNode, StatementTable, TransitionGuardNode, TransitionTargetNode};
 use crate::typed_trees::TypedTrees;
-use crate::types::{TypeConstraint, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable};
+use crate::types::{
+    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypeReferenceTable,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityStorageCounts {
@@ -141,7 +143,7 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
     }
 
     for (_, constraint) in typed_trees.type_constraints.iter() {
-        count_type_constraint(constraint, &mut counts);
+        count_type_constraint(&typed_trees.expression_table, constraint, &mut counts);
     }
 
     counts
@@ -340,69 +342,16 @@ fn count_expression_node(
     }
 }
 
-fn count_expression(expression: &Expression, counts: &mut IdentityStorageCounts) {
-    match expression {
-        Expression::ArrayLiteral(values) => {
-            for value in values {
-                count_expression(value, counts);
-            }
-        }
-        Expression::Binary(binary) => {
-            count_expression(&binary.left, counts);
-            count_expression(&binary.right, counts);
-        }
-        Expression::Cast(cast) => {
-            count_expression(&cast.value, counts);
-            for name in cast.target_type.members() {
-                count_expression_path_member(name, counts);
-            }
-        }
-        Expression::Call(call) => {
-            count_call_name(&call.target, counts);
-            if let Some(receiver) = &call.receiver {
-                count_expression(receiver, counts);
-            }
-            for argument in &call.arguments {
-                count_expression(argument, counts);
-            }
-        }
-        Expression::Boolean(_) | Expression::Integer(_) => {}
-        Expression::Float(value) => {
-            counts.float_literals += 1;
-            let _ = value;
-            counts.parsed_float_literals += 1;
-        }
-        Expression::Indexed(indexed) => {
-            count_expression(&indexed.collection, counts);
-            count_expression(&indexed.index, counts);
-        }
-        Expression::Member(member) => {
-            count_expression(&member.receiver, counts);
-            count_expression_path_member(&member.member, counts);
-        }
-        Expression::Mutable(expression) => count_expression(expression, counts),
-        Expression::Name(path) => {
-            for name in path.members() {
-                count_expression_path_member(name, counts);
-            }
-        }
-        Expression::StructLiteral(struct_literal) => {
-            count_struct_literal_name(&struct_literal.type_name, counts);
-            for field in &struct_literal.fields {
-                count_struct_literal_name(&field.name, counts);
-                count_expression(&field.value, counts);
-            }
-        }
-        Expression::String(_) => counts.string_literals += 1,
-    }
-}
-
-fn count_type_constraint(constraint: &TypeConstraint, counts: &mut IdentityStorageCounts) {
+fn count_type_constraint(
+    expressions: &ExpressionTable,
+    constraint: &TypeConstraintNode,
+    counts: &mut IdentityStorageCounts,
+) {
     match constraint {
-        TypeConstraint::Named(name) => count_type_name(name, counts),
-        TypeConstraint::Range { minimum, maximum } => {
-            count_expression(minimum, counts);
-            count_expression(maximum, counts);
+        TypeConstraintNode::Named(name) => count_type_name(name, counts),
+        TypeConstraintNode::Range { minimum, maximum } => {
+            count_expression_handle(expressions, *minimum, counts);
+            count_expression_handle(expressions, *maximum, counts);
         }
     }
 }

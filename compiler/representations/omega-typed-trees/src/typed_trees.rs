@@ -19,7 +19,7 @@ pub struct TypedTrees {
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
     pub platform_state_signatures: Arena<signature::StateSignature>,
-    pub type_constraints: Arena<types::TypeConstraint>,
+    pub type_constraints: Arena<types::TypeConstraintNode>,
     pub expression_table: expression::ExpressionTable,
     pub statement_table: crate::statement::StatementTable,
     pub type_reference_table: types::TypeReferenceTable,
