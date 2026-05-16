@@ -32,7 +32,7 @@ fn member_expression_path(member: &MemberExpression) -> Option<NamePath> {
         }
         _ => return None,
     };
-    path.push(member.member.clone());
+    path.push_resolved(member.member.clone(), member.member_symbol);
     Some(path)
 }
 

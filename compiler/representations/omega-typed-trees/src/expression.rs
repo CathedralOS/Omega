@@ -1063,14 +1063,17 @@ impl Default for Expression {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NamePath {
     members: Vec<ProgramName>,
+    member_symbols: Vec<SymbolHandle>,
     head_symbol: SymbolHandle,
     symbol: SymbolHandle,
 }
 
 impl NamePath {
     pub fn unresolved(members: Vec<ProgramName>) -> Self {
+        let member_symbols = vec![SymbolHandle::invalid(); members.len()];
         Self {
             members,
+            member_symbols,
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }
@@ -1085,8 +1088,16 @@ impl NamePath {
         head_symbol: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Self {
+        let mut member_symbols = vec![SymbolHandle::invalid(); members.len()];
+        if let Some(first_symbol) = member_symbols.first_mut() {
+            *first_symbol = head_symbol;
+        }
+        if let Some(last_symbol) = member_symbols.last_mut() {
+            *last_symbol = symbol;
+        }
         Self {
             members,
+            member_symbols,
             head_symbol,
             symbol,
         }
@@ -1102,6 +1113,17 @@ impl NamePath {
 
     pub fn members(&self) -> &[ProgramName] {
         &self.members
+    }
+
+    pub fn member_symbols(&self) -> &[SymbolHandle] {
+        &self.member_symbols
+    }
+
+    pub fn member_symbol(&self, index: usize) -> SymbolHandle {
+        self.member_symbols
+            .get(index)
+            .copied()
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     pub fn len(&self) -> usize {
@@ -1122,17 +1144,29 @@ impl NamePath {
 
     pub fn last_mut(&mut self) -> Option<&mut ProgramName> {
         self.symbol = SymbolHandle::invalid();
+        if let Some(last_symbol) = self.member_symbols.last_mut() {
+            *last_symbol = SymbolHandle::invalid();
+        }
         self.members.last_mut()
     }
 
     pub fn push(&mut self, member: ProgramName) {
         self.members.push(member);
+        self.member_symbols.push(SymbolHandle::invalid());
         self.symbol = SymbolHandle::invalid();
+    }
+
+    pub fn push_resolved(&mut self, member: ProgramName, symbol: SymbolHandle) {
+        self.members.push(member);
+        self.member_symbols.push(symbol);
+        self.symbol = symbol;
     }
 
     pub fn extend_from_slice(&mut self, members: &[ProgramName]) {
         let mut path = std::mem::take(&mut self.members);
         path.extend_from_slice(members);
+        self.member_symbols
+            .extend(std::iter::repeat_with(SymbolHandle::invalid).take(members.len()));
         self.members = path;
         self.symbol = SymbolHandle::invalid();
     }
@@ -1148,6 +1182,12 @@ impl NamePath {
     pub fn with_symbols(mut self, head_symbol: SymbolHandle, symbol: SymbolHandle) -> Self {
         self.head_symbol = head_symbol;
         self.symbol = symbol;
+        if let Some(first_symbol) = self.member_symbols.first_mut() {
+            *first_symbol = head_symbol;
+        }
+        if let Some(last_symbol) = self.member_symbols.last_mut() {
+            *last_symbol = symbol;
+        }
         self
     }
 }

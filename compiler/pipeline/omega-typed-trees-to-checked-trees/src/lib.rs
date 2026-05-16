@@ -702,7 +702,7 @@ fn call_receiver_parts(
         ExpressionNode::Member(member) => {
             let (_, path) = call_receiver_parts(program, member.receiver);
             let mut path = path.unwrap_or_default();
-            path.push(member.member.clone());
+            path.push_resolved(member.member.clone(), member.member_symbol);
             (member.member_symbol, Some(path))
         }
         _ => (SymbolHandle::invalid(), None),
