@@ -811,44 +811,6 @@ impl ExpressionTable {
         }
     }
 
-    pub fn to_tree_with_place_suffix_members(
-        &self,
-        expression: ExpressionHandle,
-        suffix_members: HandleSpan<ProgramName>,
-        suffix_start_offset: u32,
-    ) -> Expression {
-        if suffix_start_offset >= suffix_members.count() {
-            return self.to_tree(expression);
-        }
-
-        let suffix_start = usize::try_from(suffix_start_offset).expect("suffix offset overflow");
-        let suffix = &self.name_path_members(suffix_members)[suffix_start..];
-
-        match self.expression(expression) {
-            ExpressionNode::Name(path) => {
-                let mut resolved_path = self.name_path_to_tree(path);
-                resolved_path.extend_from_slice(suffix);
-                Expression::Name(resolved_path)
-            }
-            ExpressionNode::Indexed(indexed) => {
-                if let Some(mut indexed_path) = self.indexed_expression_path(indexed) {
-                    indexed_path.extend_from_slice(suffix);
-                    Expression::Name(indexed_path)
-                } else {
-                    self.to_tree(expression)
-                }
-            }
-            ExpressionNode::Mutable(target) => {
-                Expression::Mutable(Box::new(self.to_tree_with_place_suffix_members(
-                    *target,
-                    suffix_members,
-                    suffix_start_offset,
-                )))
-            }
-            _ => self.to_tree(expression),
-        }
-    }
-
     fn name_path_to_tree(&self, path: &TableNamePath) -> NamePath {
         NamePath::resolved(
             self.name_path_members(path.members).to_vec(),
