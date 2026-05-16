@@ -494,11 +494,19 @@ impl TypeReferenceTable {
         expressions: &crate::expression::ExpressionTable,
         output_constraints: &mut Arena<TypeConstraint>,
     ) -> HandleSpan<TypeConstraint> {
-        let mut constraint_trees = HandleSpan::empty();
+        let constraints = self.constraints(constraints);
+        let constraint_trees = output_constraints
+            .insert_many(std::iter::repeat_with(TypeConstraint::default).take(constraints.len()));
 
-        for constraint in self.constraints(constraints) {
-            output_constraints
-                .append_to_span(&mut constraint_trees, constraint.to_tree(expressions));
+        for (offset, constraint) in constraints.iter().enumerate() {
+            *output_constraints.get_mut(Handle::from_parts(
+                constraint_trees
+                    .start()
+                    .arena_index()
+                    .checked_add(offset.try_into().expect("type constraint index overflow"))
+                    .expect("type constraint index overflow"),
+                constraint_trees.start().generation(),
+            )) = constraint.to_tree(expressions);
         }
 
         constraint_trees
