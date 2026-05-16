@@ -84,8 +84,12 @@ impl TypeReferenceTable {
         let mut handles = HandleSpan::empty();
 
         for type_reference in type_references {
-            let type_reference =
-                self.insert_tree(type_reference, expressions, source_constraints, source_arguments);
+            let type_reference = self.insert_tree(
+                type_reference,
+                expressions,
+                source_constraints,
+                source_arguments,
+            );
             self.type_reference_handles
                 .append_to_span(&mut handles, type_reference);
         }
@@ -134,6 +138,23 @@ impl TypeReferenceTable {
         self.constraints.len()
     }
 
+    pub fn display_name(&self, handle: TypeReferenceHandle) -> String {
+        self.type_reference(handle).display_name(self)
+    }
+
+    pub fn display_name_with_constraints(
+        &self,
+        handle: TypeReferenceHandle,
+        expressions: &crate::expression::ExpressionTable,
+    ) -> String {
+        self.type_reference(handle)
+            .display_name_with_constraints(self, expressions)
+    }
+
+    pub fn primitive_type(&self, handle: TypeReferenceHandle) -> Option<PrimitiveType> {
+        self.type_reference(handle).primitive_type(self)
+    }
+
     pub fn insert_tree(
         &mut self,
         type_reference: &TypeReference,
@@ -173,16 +194,24 @@ impl TypeReferenceTable {
                 element_type,
                 length,
             } => {
-                let element_type =
-                    self.insert_tree(element_type, expressions, source_constraints, source_arguments);
+                let element_type = self.insert_tree(
+                    element_type,
+                    expressions,
+                    source_constraints,
+                    source_arguments,
+                );
                 self.insert(TypeReferenceNode::FixedArray {
                     element_type,
                     length: *length,
                 })
             }
             TypeReference::Slice { element_type } => {
-                let element_type =
-                    self.insert_tree(element_type, expressions, source_constraints, source_arguments);
+                let element_type = self.insert_tree(
+                    element_type,
+                    expressions,
+                    source_constraints,
+                    source_arguments,
+                );
                 self.insert(TypeReferenceNode::Slice { element_type })
             }
             TypeReference::Generic {
@@ -252,6 +281,129 @@ impl Default for TypeReferenceNode {
     }
 }
 
+impl TypeReferenceNode {
+    pub fn display_name(&self, table: &TypeReferenceTable) -> String {
+        match self {
+            TypeReferenceNode::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let qualifier = if *is_mutable { "mut " } else { "" };
+                format!("&{qualifier}{}", table.display_name(*referee))
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                format!(
+                    "{}[{}]",
+                    table.display_name(*base_type),
+                    match constraints.count() {
+                        1 => "1 constraint".to_owned(),
+                        count => format!("{count} constraints"),
+                    }
+                )
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                format!("[{}; {}]", table.display_name(*element_type), length)
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                format!("[{}]", table.display_name(*element_type))
+            }
+            TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+                ..
+            } => {
+                format!(
+                    "{base_name}<{}>",
+                    comma_join_display(table.type_reference_handles(*arguments), |argument| {
+                        table.display_name(*argument)
+                    })
+                )
+            }
+            TypeReferenceNode::Named { name, .. } => name.to_string(),
+            TypeReferenceNode::Unit => "()".to_owned(),
+        }
+    }
+
+    pub fn display_name_with_constraints(
+        &self,
+        table: &TypeReferenceTable,
+        expressions: &crate::expression::ExpressionTable,
+    ) -> String {
+        match self {
+            TypeReferenceNode::Reference {
+                referee,
+                is_mutable,
+            } => {
+                let qualifier = if *is_mutable { "mut " } else { "" };
+                format!(
+                    "&{qualifier}{}",
+                    table.display_name_with_constraints(*referee, expressions)
+                )
+            }
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                format!(
+                    "{}[{}]",
+                    table.display_name_with_constraints(*base_type, expressions),
+                    comma_join_display(table.constraints(*constraints), |constraint| {
+                        constraint.display_name(expressions)
+                    })
+                )
+            }
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                format!(
+                    "[{}; {}]",
+                    table.display_name_with_constraints(*element_type, expressions),
+                    length
+                )
+            }
+            TypeReferenceNode::Slice { element_type } => {
+                format!(
+                    "[{}]",
+                    table.display_name_with_constraints(*element_type, expressions)
+                )
+            }
+            TypeReferenceNode::Generic {
+                base_name,
+                arguments,
+                ..
+            } => {
+                format!(
+                    "{base_name}<{}>",
+                    comma_join_display(table.type_reference_handles(*arguments), |argument| {
+                        table.display_name_with_constraints(*argument, expressions)
+                    })
+                )
+            }
+            TypeReferenceNode::Named { name, .. } => name.to_string(),
+            TypeReferenceNode::Unit => "()".to_owned(),
+        }
+    }
+
+    pub fn primitive_type(&self, table: &TypeReferenceTable) -> Option<PrimitiveType> {
+        match self {
+            TypeReferenceNode::Reference { .. } => None,
+            TypeReferenceNode::Constrained { base_type, .. } => table.primitive_type(*base_type),
+            TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name),
+            TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::Unit => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TypeConstraint {
     Named(ProgramName),
@@ -281,6 +433,19 @@ impl TypeConstraintNode {
                 minimum: expressions.insert_tree(minimum),
                 maximum: expressions.insert_tree(maximum),
             },
+        }
+    }
+
+    pub fn display_name(&self, expressions: &crate::expression::ExpressionTable) -> String {
+        match self {
+            TypeConstraintNode::Named(name) => name.to_string(),
+            TypeConstraintNode::Range { minimum, maximum } => {
+                format!(
+                    "range<{}, {}>",
+                    expressions.display_name(*minimum),
+                    expressions.display_name(*maximum)
+                )
+            }
         }
     }
 }
@@ -510,7 +675,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode, TypeReferenceTable,
+        PrimitiveType, TypeConstraint, TypeConstraintNode, TypeReference, TypeReferenceNode,
+        TypeReferenceTable,
     };
     use crate::expression::{Expression, ExpressionTable};
     use crate::name::ProgramName;
@@ -555,6 +721,7 @@ mod tests {
         };
 
         assert_eq!(arguments.count(), 2);
+        assert_eq!(types.display_name(root), "Result<usize, [u8; 16]>");
     }
 
     #[test]
@@ -595,5 +762,10 @@ mod tests {
 
         assert!(minimum.is_valid());
         assert!(maximum.is_valid());
+        assert_eq!(
+            types.display_name_with_constraints(root, &expressions),
+            "i32[range<0, 10>]"
+        );
+        assert_eq!(types.primitive_type(root), Some(PrimitiveType::I32));
     }
 }
