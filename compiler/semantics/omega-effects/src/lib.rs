@@ -1,4 +1,5 @@
 use omega_core::arena::{Arena, HandleSpan};
+use omega_core::symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Effect {
@@ -22,14 +23,14 @@ impl EffectPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffects {
-    pub name: String,
+    pub symbol: SymbolHandle,
     pub states: HandleSpan<StateEffects>,
 }
 
 impl Default for MachineEffects {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            symbol: SymbolHandle::invalid(),
             states: HandleSpan::empty(),
         }
     }
@@ -37,14 +38,14 @@ impl Default for MachineEffects {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateEffects {
-    pub name: String,
+    pub symbol: SymbolHandle,
     pub effect: Effect,
 }
 
 impl Default for StateEffects {
     fn default() -> Self {
         Self {
-            name: String::new(),
+            symbol: SymbolHandle::invalid(),
             effect: Effect::Pure,
         }
     }
@@ -60,7 +61,7 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
             effect_plan.states.append_to_span(
                 &mut states,
                 StateEffects {
-                    name: state.name.to_string(),
+                    symbol: state.symbol,
                     effect: infer_state_effect(program, machine, state),
                 },
             );
@@ -69,7 +70,7 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
         effect_plan.machines.append_to_span(
             &mut effect_plan.root_machines,
             MachineEffects {
-                name: machine.name.to_string(),
+                symbol: machine.symbol,
                 states,
             },
         );
@@ -85,7 +86,7 @@ fn infer_state_effect(
 ) -> Effect {
     let mut effect = Effect::Pure;
 
-    for statement in program.state_statements(state) {
+    for statement in program.statement_table.statements(state.statement_nodes) {
         let statement_effect = infer_statement_effect(program, machine, statement);
 
         if statement_effect == Effect::Platform {
@@ -103,48 +104,52 @@ fn infer_state_effect(
 fn infer_statement_effect(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
-    statement: &omega_typed_trees::statement::Statement,
+    statement: &omega_typed_trees::statement::StatementNode,
 ) -> Effect {
     match statement {
-        omega_typed_trees::statement::Statement::Assignment(_) => Effect::Mutates,
-        omega_typed_trees::statement::Statement::Call(call) => {
+        omega_typed_trees::statement::StatementNode::Assignment(_) => Effect::Mutates,
+        omega_typed_trees::statement::StatementNode::Call(call) => {
             infer_call_effect(program, machine, call)
         }
-        omega_typed_trees::statement::Statement::Expression(_)
-        | omega_typed_trees::statement::Statement::LocalData(_)
-        | omega_typed_trees::statement::Statement::Transition(_) => Effect::Pure,
+        omega_typed_trees::statement::StatementNode::Expression(_)
+        | omega_typed_trees::statement::StatementNode::LocalData(_)
+        | omega_typed_trees::statement::StatementNode::Transition(_) => Effect::Pure,
     }
 }
 
 fn infer_call_effect(
     program: &omega_typed_trees::TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
-    call: &omega_typed_trees::statement::Call,
+    call: &omega_typed_trees::statement::TableCall,
 ) -> Effect {
-    if program.call_arguments(call).iter().any(|argument| {
-        matches!(
-            argument,
-            omega_typed_trees::expression::Expression::Mutable(_)
-        )
-    }) {
+    if program
+        .statement_table
+        .expression_handles(call.arguments)
+        .iter()
+        .any(|argument| {
+            matches!(
+                program.expression_table.expression(*argument),
+                omega_typed_trees::expression::ExpressionNode::Mutable(_)
+            )
+        })
+    {
         return Effect::Mutates;
     }
 
-    let receiver_path = program.statement_path_members(call.receiver);
+    let receiver_path = program.statement_table.name_path_members(call.receiver);
     if receiver_path.is_empty() {
         return Effect::Pure;
     }
 
-    let receiver = receiver_path
-        .last()
-        .map(|member| member.as_str())
-        .unwrap_or_default();
+    let Some(receiver) = receiver_path.last() else {
+        return Effect::Pure;
+    };
 
     let Some(receiver_type) = program
         .machine_contained_objects(machine)
         .iter()
-        .find(|contained_object| contained_object.name == receiver)
-        .map(|contained_object| contained_object.type_name.as_str())
+        .find(|contained_object| contained_object.name == *receiver)
+        .map(|contained_object| contained_object.type_symbol)
     else {
         return Effect::Pure;
     };
@@ -152,7 +157,7 @@ fn infer_call_effect(
     if program
         .platforms()
         .iter()
-        .any(|platform| platform.name == receiver_type)
+        .any(|platform| platform.symbol == receiver_type)
     {
         Effect::Platform
     } else {
