@@ -115,7 +115,7 @@ pub struct BoundedCallArgumentObligation {
     pub receiver: Option<String>,
     pub target: String,
     pub parameter: String,
-    pub argument: Expression,
+    pub argument: ExpressionHandle,
     pub argument_constraints: HandleSpan<TypeConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<TypeConstraint>,
@@ -498,8 +498,9 @@ fn collect_bounded_call_argument_obligations(
             continue;
         };
 
-        let argument = program.expression_table.to_tree(*argument);
-        let argument_constraints = expression_constraints(program, machine, state, &argument);
+        let argument = *argument;
+        let argument_tree = program.expression_table.to_tree(argument);
+        let argument_constraints = expression_constraints(program, machine, state, &argument_tree);
         let argument_constraints = proof_plan.store_constraints(&argument_constraints);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
         let receiver = program.statement_table.name_path_members(call.receiver);
