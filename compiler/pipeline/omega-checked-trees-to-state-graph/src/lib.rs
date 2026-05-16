@@ -366,11 +366,16 @@ fn machine_contains(
             continue;
         };
 
+        let contained_symbol = program
+            .symbols
+            .find_child_by_name(machine.symbol, field.name.as_str())
+            .unwrap_or(field.symbol);
+
         if state_graph
             .contained_machines
             .span_or_empty(contains)
             .iter()
-            .any(|contained| contained.symbol == field.symbol)
+            .any(|contained| contained.symbol == contained_symbol)
         {
             continue;
         }
@@ -378,7 +383,7 @@ fn machine_contains(
         state_graph.contained_machines.append_to_span(
             &mut contains,
             ContainedGraph {
-                symbol: field.symbol,
+                symbol: contained_symbol,
                 name: field.name.clone(),
                 type_symbol: target_machine.symbol,
                 type_name: target_machine.name.clone(),
