@@ -21,12 +21,14 @@ fn member_expression_path(member: &MemberExpression) -> Option<NamePath> {
         Expression::Name(path) => path.clone(),
         Expression::Indexed(indexed) => indexed_expression_path(indexed)?,
         Expression::Member(inner_member) => member_expression_path(inner_member)?,
-        Expression::Mutable(target) => normalized_storage_expression(target).and_then(|normalized| {
-            let Expression::Name(path) = normalized else {
-                return None;
-            };
-            Some(path)
-        })?,
+        Expression::Mutable(target) => {
+            normalized_storage_expression(target).and_then(|normalized| {
+                let Expression::Name(path) = normalized else {
+                    return None;
+                };
+                Some(path)
+            })?
+        }
         _ => return None,
     };
     path.push(member.member.clone());
@@ -77,7 +79,9 @@ fn member_expression_path_in_table(
             path.symbol,
         ),
         ExpressionNode::Indexed(indexed) => indexed_expression_path_in_table(table, indexed)?,
-        ExpressionNode::Member(inner_member) => member_expression_path_in_table(table, inner_member)?,
+        ExpressionNode::Member(inner_member) => {
+            member_expression_path_in_table(table, inner_member)?
+        }
         ExpressionNode::Mutable(target) => normalized_storage_name_path_in_table(table, *target)?,
         _ => return None,
     };

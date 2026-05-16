@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{Expression, ExpressionTable};
+use omega_control_flow::StateKey;
 
 use super::super::super::bindings::{
     RuntimeAliasBinding, resolve_runtime_alias_expression, strip_mutable_expression,
@@ -22,14 +22,24 @@ pub(super) fn resolve_runtime_static_integer_value(
         Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
             resolve_runtime_resolved_static_integer_value(
                 input,
-                resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions),
+                resolve_runtime_alias_expression(
+                    expression,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                ),
                 static_values,
             )
         }),
         Expression::Indexed(_) | Expression::Member(_) | Expression::Mutable(_) => {
             resolve_runtime_resolved_static_integer_value(
                 input,
-                resolve_runtime_alias_expression(expression, source_key, aliases, alias_expressions),
+                resolve_runtime_alias_expression(
+                    expression,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                ),
                 static_values,
             )
         }
@@ -53,14 +63,14 @@ fn resolve_runtime_resolved_static_integer_value(
     match expression {
         Expression::Integer(value) => Some(value),
         Expression::Boolean(value) => Some(i64::from(value)),
-        Expression::Name(_)
-        | Expression::Indexed(_)
-        | Expression::Member(_) => enum_variant_value(&input.layouts, &expression).or_else(|| {
-            static_values
-                .iter()
-                .find(|(target, _)| target == &expression)
-                .map(|(_, value)| *value)
-        }),
+        Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
+            enum_variant_value(&input.layouts, &expression).or_else(|| {
+                static_values
+                    .iter()
+                    .find(|(target, _)| target == &expression)
+                    .map(|(_, value)| *value)
+            })
+        }
         Expression::Mutable(_)
         | Expression::ArrayLiteral(_)
         | Expression::Binary(_)

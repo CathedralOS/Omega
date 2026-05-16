@@ -102,12 +102,14 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_pointee(
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_place_append_to_runtime_pointee(
-            buffer_offset,
-            source_offset,
-            pointer_byte_offset,
-            field_byte_offset,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_stored_place_append_to_runtime_pointee(
+                buffer_offset,
+                source_offset,
+                pointer_byte_offset,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -122,14 +124,16 @@ pub fn encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
-            buffer_offset,
-            source_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_stored_place_append_to_runtime_frame_indexed(
+                buffer_offset,
+                source_offset,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -176,14 +180,16 @@ pub fn encode_runtime_text_literal_append_to_runtime_frame_indexed(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_literal_append_to_runtime_frame_indexed(
-            buffer_offset,
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-            literal,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_literal_append_to_runtime_frame_indexed(
+                buffer_offset,
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                literal,
+            )
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }
@@ -222,12 +228,14 @@ pub fn encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
     field_byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
-            descriptor_offset,
-            index_offset,
-            element_byte_size,
-            field_byte_offset,
-        ),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_text_buffer_materialize_to_runtime_frame_indexed(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
         Architecture::X86_64 => Ok(Vec::new()),
     }
 }

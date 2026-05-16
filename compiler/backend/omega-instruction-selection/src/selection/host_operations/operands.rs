@@ -78,13 +78,8 @@ pub(super) fn select_host_operation_operands(
 
             if let Some(data_object) = find_runtime_text_input_buffer_data_object(input, host_call)
                 && let Some(literal) = runtime_text_literal_for_host_call(input, host_call)
-                && runtime_string_descriptor_place(
-                    input,
-                    host_call,
-                    dispatch_index,
-                    alias_context,
-                )
-                .is_none()
+                && runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
+                    .is_none()
             {
                 return stdout_operands(
                     operands,
@@ -96,12 +91,8 @@ pub(super) fn select_host_operation_operands(
                 );
             }
 
-            if let Some(place) = runtime_string_descriptor_place(
-                input,
-                host_call,
-                dispatch_index,
-                alias_context,
-            )
+            if let Some(place) =
+                runtime_string_descriptor_place(input, host_call, dispatch_index, alias_context)
             {
                 return stdout_operands(
                     operands,

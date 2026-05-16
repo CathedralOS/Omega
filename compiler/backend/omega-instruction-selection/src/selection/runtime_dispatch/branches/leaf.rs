@@ -1,9 +1,9 @@
 use crate::InstructionSelectionInput;
-use omega_runtime_bodies::RuntimeDispatchBodyOperation;
-use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_checked_trees::expression::Expression;
 use omega_checked_trees::expression::NamePath;
 use omega_checked_trees::name::ProgramName;
+use omega_runtime_bodies::RuntimeDispatchBodyOperation;
+use omega_runtime_branching::{RuntimeLeafBranchExpansion, RuntimeLeafBranchOperationKind};
 use omega_state_calls::StateCallRole;
 
 use super::super::super::bindings::resolve_leaf_binding_expression;
@@ -11,8 +11,8 @@ use super::super::super::storage_places::{resolve_machine_owned_place, static_in
 use super::super::guards::select_runtime_leaf_branch_guard;
 use super::super::text_writes::runtime_text_builder_write_with_resolver_emit;
 use super::super::writes::runtime_storage_copy;
-use crate::selection::instruction_sink::SelectedInstructionSink;
 use super::mutation::select_runtime_resolved_mutation_write;
+use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_target_operations::{SelectedInstruction, SelectedInstructionKind};
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {

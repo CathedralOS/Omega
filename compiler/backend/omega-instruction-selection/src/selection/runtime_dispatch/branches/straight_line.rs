@@ -1,19 +1,19 @@
 use crate::InstructionSelectionInput;
+use omega_checked_trees::expression::{Expression, NamePath};
+use omega_checked_trees::name::ProgramName;
 use omega_control_flow::StateKey;
 use omega_runtime_bodies::RuntimeDispatchBodyOperation;
 use omega_runtime_branching::{
     RuntimeStraightLineBranchBinding, RuntimeStraightLineBranchExpansion,
     RuntimeStraightLineBranchOperation, RuntimeStraightLineBranchOperationKind,
 };
-use omega_checked_trees::expression::{Expression, NamePath};
-use omega_checked_trees::name::ProgramName;
 
 use super::super::super::bindings::{
     append_place_suffix, resolve_straight_line_binding_expression,
 };
 use super::super::super::lookups::{
-    state_assignment_value_call, state_assignment_value_call_by_ordinal,
-    state_call_for_statement, state_mutation_for_statement, state_operations, state_parameters,
+    state_assignment_value_call, state_assignment_value_call_by_ordinal, state_call_for_statement,
+    state_mutation_for_statement, state_operations, state_parameters,
     state_transition_argument_call, state_transition_argument_call_by_ordinal,
 };
 use super::super::guards::select_runtime_straight_line_branch_guard;
@@ -149,16 +149,15 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         StateCallRole::Statement => {
             state_call_for_statement(input, operation.source_key, operation.statement_index)
         }
-        StateCallRole::AssignmentValue => {
-            state_assignment_value_call_by_ordinal(
-                input,
-                operation.source_key,
-                operation.statement_index,
-                call_ordinal,
-            ).or_else(|| {
-                state_assignment_value_call(input, operation.source_key, operation.statement_index)
-            })
-        }
+        StateCallRole::AssignmentValue => state_assignment_value_call_by_ordinal(
+            input,
+            operation.source_key,
+            operation.statement_index,
+            call_ordinal,
+        )
+        .or_else(|| {
+            state_assignment_value_call(input, operation.source_key, operation.statement_index)
+        }),
         StateCallRole::TransitionArgument => state_transition_argument_call_by_ordinal(
             input,
             operation.source_key,
@@ -170,8 +169,7 @@ fn select_runtime_straight_line_leaf_state_call_writes(
         }),
         _ => None,
     };
-    let Some(state_call) = state_call
-    else {
+    let Some(state_call) = state_call else {
         return;
     };
     let Some(arguments) = input.state_calls.arguments.span(state_call.arguments) else {
@@ -267,8 +265,8 @@ fn resolve_leaf_call_expression(
                 ),
             },
         )),
-        Expression::Call(call) => Expression::Call(Box::new(
-            omega_checked_trees::expression::CallExpression {
+        Expression::Call(call) => {
+            Expression::Call(Box::new(omega_checked_trees::expression::CallExpression {
                 receiver: call.receiver.as_ref().map(|receiver| {
                     Box::new(resolve_leaf_call_expression(
                         input,
@@ -295,8 +293,8 @@ fn resolve_leaf_call_expression(
                         )
                     })
                     .collect(),
-            },
-        )),
+            }))
+        }
         Expression::Member(member) => Expression::Member(Box::new(
             omega_checked_trees::expression::MemberExpression {
                 receiver: resolve_leaf_call_expression(
@@ -331,26 +329,28 @@ fn resolve_leaf_call_expression(
                 ),
             },
         )),
-        Expression::StructLiteral(struct_literal) => Expression::StructLiteral(
-            omega_checked_trees::expression::StructLiteral {
+        Expression::StructLiteral(struct_literal) => {
+            Expression::StructLiteral(omega_checked_trees::expression::StructLiteral {
                 type_name: struct_literal.type_name.clone(),
                 fields: struct_literal
                     .fields
                     .iter()
-                    .map(|field| omega_checked_trees::expression::StructLiteralField {
-                        name: field.name.clone(),
-                        value: resolve_leaf_call_expression(
-                            input,
-                            target_key,
-                            &field.value,
-                            leaf_parameters,
-                            arguments,
-                            straight_line_bindings,
-                        ),
-                    })
+                    .map(
+                        |field| omega_checked_trees::expression::StructLiteralField {
+                            name: field.name.clone(),
+                            value: resolve_leaf_call_expression(
+                                input,
+                                target_key,
+                                &field.value,
+                                leaf_parameters,
+                                arguments,
+                                straight_line_bindings,
+                            ),
+                        },
+                    )
                     .collect(),
-            },
-        ),
+            })
+        }
         Expression::Name(path) if !path.is_empty() => resolve_leaf_call_name(
             input,
             target_key,
@@ -415,7 +415,10 @@ fn leaf_local_initializer(
         .machine_states(machine)
         .iter()
         .find(|state| state.symbol == target_key.state)?;
-    let statements = input.program.statement_table.statements(state.statement_nodes);
+    let statements = input
+        .program
+        .statement_table
+        .statements(state.statement_nodes);
     statements.iter().find_map(|statement| {
         let omega_checked_trees::statement::StatementNode::LocalData(local_data) = statement else {
             return None;
@@ -425,8 +428,12 @@ fn leaf_local_initializer(
         let matches_name = path
             .first()
             .is_some_and(|name| local_data.name.as_str() == name.as_str());
-        (local_data.initial_value.is_valid() && (matches_symbol || matches_name))
-            .then(|| input.program.expression_table.to_tree(local_data.initial_value))
+        (local_data.initial_value.is_valid() && (matches_symbol || matches_name)).then(|| {
+            input
+                .program
+                .expression_table
+                .to_tree(local_data.initial_value)
+        })
     })
 }
 

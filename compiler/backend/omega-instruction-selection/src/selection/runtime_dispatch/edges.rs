@@ -1,16 +1,18 @@
-use crate::InstructionSelectionInput;
 use super::guards::select_runtime_dispatch_expression_guard;
+use crate::InstructionSelectionInput;
 use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_transition_argument_call_result_place,
 };
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionNode};
-use omega_control_flow::StateParameterFlow;
 use omega_control_flow::StateKey;
+use omega_control_flow::StateParameterFlow;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
-use omega_target_operations::{RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardLowering};
+use omega_target_operations::{
+    RuntimeStorageRegion, SelectedInstruction, SelectedInstructionKind, StateGuardLowering,
+};
 
 pub(super) fn select_runtime_dispatch_edge(
     input: &InstructionSelectionInput<'_>,
@@ -71,10 +73,8 @@ fn select_dispatch_guard_instructions(
         )
     {
         for clause in clauses {
-            let kind = if matches!(
-                clause.lowering,
-                StateGuardLowering::CompareRuntimeValue
-            ) && clause.has_storage
+            let kind = if matches!(clause.lowering, StateGuardLowering::CompareRuntimeValue)
+                && clause.has_storage
                 && clause.has_right_storage
             {
                 SelectedInstructionKind::CompareRuntimeStorage {
@@ -123,7 +123,9 @@ fn select_dispatch_guard_instructions(
     }
 
     let guard_instruction = match edge.guard_lowering {
-        StateGuardLowering::CompareRuntimeValue if edge.guard_has_storage && edge.guard_has_right_storage => {
+        StateGuardLowering::CompareRuntimeValue
+            if edge.guard_has_storage && edge.guard_has_right_storage =>
+        {
             SelectedInstructionKind::CompareRuntimeStorage {
                 left_region: guard_storage_region(edge.guard_storage),
                 left_offset: edge.guard_byte_offset,
@@ -302,16 +304,27 @@ fn static_runtime_argument_value(expression: &ExpressionNode) -> Option<i64> {
     }
 }
 
-fn dispatch_key_for_index(input: &InstructionSelectionInput<'_>, dispatch_index: u32) -> Option<StateKey> {
-    input.runtime_dispatch_loop.cases.iter().find_map(|(_, case)| {
-        (case.dispatch_index == dispatch_index).then_some(case.key)
-    })
+fn dispatch_key_for_index(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+) -> Option<StateKey> {
+    input
+        .runtime_dispatch_loop
+        .cases
+        .iter()
+        .find_map(|(_, case)| (case.dispatch_index == dispatch_index).then_some(case.key))
 }
 
-fn target_dispatch_index_for_source(input: &InstructionSelectionInput<'_>, source_key: StateKey) -> u32 {
-    input.runtime_dispatch_loop.cases.iter().find_map(|(_, case)| {
-        (case.key == source_key).then_some(case.dispatch_index)
-    }).unwrap_or_default()
+fn target_dispatch_index_for_source(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+) -> u32 {
+    input
+        .runtime_dispatch_loop
+        .cases
+        .iter()
+        .find_map(|(_, case)| (case.key == source_key).then_some(case.dispatch_index))
+        .unwrap_or_default()
 }
 
 fn runtime_parameter_slot<'a>(
@@ -319,8 +332,12 @@ fn runtime_parameter_slot<'a>(
     target_dispatch_index: u32,
     parameter: &StateParameterFlow,
 ) -> Option<&'a omega_runtime_storage::RuntimeFrameSlot> {
-    input.runtime_storage.frame_slots.iter().find_map(|(_, slot)| {
-        (slot.dispatch_index == target_dispatch_index && slot.symbol == parameter.symbol)
-            .then_some(slot)
-    })
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == target_dispatch_index && slot.symbol == parameter.symbol)
+                .then_some(slot)
+        })
 }

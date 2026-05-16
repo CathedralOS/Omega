@@ -1,8 +1,8 @@
 use crate::InstructionSelectionInput;
-use omega_core::arena::Arena;
-use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
-use omega_state_schedule::ScheduledState;
 use omega_checked_trees::expression::ExpressionTable;
+use omega_control_flow::{OperationKind, PlannedTransitionTarget, StateKey};
+use omega_core::arena::Arena;
+use omega_state_schedule::ScheduledState;
 
 use super::bindings::{
     RuntimeAliasBinding, RuntimeAliasBuffer, RuntimeAliasResolutionContext,
@@ -11,10 +11,12 @@ use super::bindings::{
 };
 use super::host_operations::select_host_call;
 use super::instruction_sink::SelectedInstructionSink;
-use super::lookups::{host_call_for_statement, state_call_for_statement, state_mutation_for_statement};
+use super::lookups::{
+    host_call_for_statement, state_call_for_statement, state_mutation_for_statement,
+};
 use super::runtime_dispatch::select_runtime_resolved_mutation_write;
-use omega_target_operations::InstructionOperand;
 use omega_state_calls::StateCall;
+use omega_target_operations::InstructionOperand;
 
 pub(super) fn select_state_body_instructions(
     input: &InstructionSelectionInput<'_>,
@@ -40,7 +42,10 @@ pub(super) fn select_state_body_instructions(
         visiting.pop();
         return;
     };
-    let transitions = input.control_flow.transitions.span_or_empty(state.transitions);
+    let transitions = input
+        .control_flow
+        .transitions
+        .span_or_empty(state.transitions);
 
     for operation in operations {
         if let Some(host_call) =
@@ -77,9 +82,11 @@ pub(super) fn select_state_body_instructions(
                 aliases.bindings(),
                 alias_expressions,
             );
-            if let Some(dispatch_index) = dispatch_index_for_state(input, state.key).or(dispatch_index)
+            if let Some(dispatch_index) =
+                dispatch_index_for_state(input, state.key).or(dispatch_index)
             {
-                let (machine_name, state_name) = input.control_flow.state_names_by_key_cloned(state.key);
+                let (machine_name, state_name) =
+                    input.control_flow.state_names_by_key_cloned(state.key);
                 select_runtime_resolved_mutation_write(
                     input,
                     dispatch_index,
@@ -243,15 +250,13 @@ fn bind_state_call_aliases(
         );
         let expression =
             strip_mutable_expression_handle(alias_expressions, resolved_expression.expression);
-        aliases.set_alias(
-            RuntimeAliasBinding {
-                source_key: state_call.target_key,
-                parameter_symbol: argument.parameter_symbol,
-                parameter_name: argument.parameter_name.clone(),
-                expression_source_key: resolved_expression.source_key,
-                expression,
-            },
-        );
+        aliases.set_alias(RuntimeAliasBinding {
+            source_key: state_call.target_key,
+            parameter_symbol: argument.parameter_symbol,
+            parameter_name: argument.parameter_name.clone(),
+            expression_source_key: resolved_expression.source_key,
+            expression,
+        });
     }
 }
 

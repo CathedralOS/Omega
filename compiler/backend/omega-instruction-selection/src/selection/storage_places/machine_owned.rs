@@ -1,9 +1,9 @@
 use super::expressions::{normalized_storage_expression, normalized_storage_name_path_in_table};
 use super::nested_fields::resolve_nested_field_layout;
-use omega_core::symbols::SymbolHandle;
-use omega_layout::{FieldLayout, LayoutPlan};
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::ProgramName;
+use omega_core::symbols::SymbolHandle;
+use omega_layout::{FieldLayout, LayoutPlan};
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
@@ -127,7 +127,8 @@ fn root_machine_field_layout_in_machine<'plan>(
         .span(machine_layout.fields)?
         .iter()
         .find(|field| {
-            (root_symbol.is_valid() && field.symbol == root_symbol) || field.name.as_str() == root_name
+            (root_symbol.is_valid() && field.symbol == root_symbol)
+                || field.name.as_str() == root_name
         })?;
     Some((machine_base_offset, root_field))
 }
@@ -185,7 +186,8 @@ fn nested_machine_storage_offset(
     for field in fields {
         let field_offset = base_offset + field.offset;
 
-        let nested_machine_layout = field_machine_layout(layouts, field.type_symbol, &field.type_name);
+        let nested_machine_layout =
+            field_machine_layout(layouts, field.type_symbol, &field.type_name);
 
         if nested_machine_layout
             .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
