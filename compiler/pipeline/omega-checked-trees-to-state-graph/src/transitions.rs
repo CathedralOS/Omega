@@ -41,11 +41,18 @@ pub(super) fn plan_transition(
             });
 
             Ok(TransitionEdge {
-                target: plan_transition_target(state_indexes, table.target, program)?,
+                target: plan_transition_target(source_key, state_indexes, table.target, program)?,
                 continuation: table
                     .continuation
                     .is_valid()
-                    .then(|| plan_transition_target(state_indexes, table.continuation, program))
+                    .then(|| {
+                        plan_transition_target(
+                            source_key,
+                            state_indexes,
+                            table.continuation,
+                            program,
+                        )
+                    })
                     .transpose()?,
                 guard: transition_guard_from_table(program, *table),
                 expressions: TransitionExpressionRefs {
@@ -61,7 +68,7 @@ pub(super) fn plan_transition(
             table,
             has_continuation_segment,
         } => Ok(TransitionEdge {
-            target: plan_call_target(state_indexes, table, program)?,
+            target: plan_call_target(source_key, state_indexes, table, program)?,
             continuation: has_continuation_segment
                 .then(|| next_segment_target(source_key, state_indexes))
                 .transpose()?,
@@ -128,6 +135,7 @@ fn table_transition_target_value(
 }
 
 fn plan_transition_target(
+    source_key: StateKey,
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     target: TransitionTargetHandle,
     program: &Program,
@@ -139,7 +147,9 @@ fn plan_transition_target(
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Named { path, arguments: _ }
             if is_local_transition_path(
+                source_key,
                 program.statement_table.name_path_members(path.members),
+                path.head_symbol,
             ) =>
         {
             let members = program.statement_table.name_path_members(path.members);
@@ -195,13 +205,14 @@ fn plan_transition_target(
 }
 
 fn plan_call_target(
+    source_key: StateKey,
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     call: &TableCall,
     program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     let receiver = program.statement_table.name_path_members(call.receiver);
 
-    if receiver.is_empty() || receiver.len() == 1 && receiver[0] == "self" {
+    if receiver.is_empty() || call.receiver_symbol == source_key.machine {
         let name = call.target.clone();
         let symbol = call.target_symbol;
         let target = symbol
@@ -236,8 +247,12 @@ fn plan_call_target(
     })
 }
 
-fn is_local_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> bool {
-    path.len() == 1 || path.len() == 2 && path[0] == "self"
+fn is_local_transition_path(
+    source_key: StateKey,
+    path: &[omega_checked_trees::name::ProgramName],
+    head_symbol: omega_core::symbols::SymbolHandle,
+) -> bool {
+    path.len() == 1 || path.len() == 2 && head_symbol == source_key.machine
 }
 
 fn display_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> String {
