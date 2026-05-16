@@ -390,15 +390,9 @@ impl StatementTable {
     }
 
     fn insert_name_path_members(&mut self, path: &[DiagnosticName]) -> HandleSpan<DiagnosticName> {
-        let mut span = HandleSpan::empty();
-
-        for member in path {
-            self.paths
-                .name_path_members
-                .append_to_span(&mut span, member.clone());
-        }
-
-        span
+        self.paths
+            .name_path_members
+            .insert_many(path.iter().cloned())
     }
 
     fn insert_transition_target_tree(

@@ -177,6 +177,29 @@ impl ExpressionTable {
         self.spans.name_path_members.append_to_span(span, member);
     }
 
+    pub fn reserve_name_path_members(&mut self, count: u32) -> HandleSpan<DiagnosticName> {
+        self.spans.name_path_members.insert_many(
+            std::iter::repeat_with(DiagnosticName::default)
+                .take(usize::try_from(count).expect("name path member span count overflow")),
+        )
+    }
+
+    pub fn set_name_path_member_at_offset(
+        &mut self,
+        members: HandleSpan<DiagnosticName>,
+        offset: u32,
+        member: DiagnosticName,
+    ) {
+        *self.spans.name_path_members.get_mut(Handle::from_parts(
+            members
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("name path member index overflow"),
+            members.start().generation(),
+        )) = member;
+    }
+
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
@@ -302,15 +325,9 @@ impl ExpressionTable {
     }
 
     fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<DiagnosticName> {
-        let mut span = HandleSpan::empty();
-
-        for member in path.members() {
-            self.spans
-                .name_path_members
-                .append_to_span(&mut span, member.clone());
-        }
-
-        span
+        self.spans
+            .name_path_members
+            .insert_many(path.members().iter().cloned())
     }
 
     fn copy_name_path_members(
@@ -318,15 +335,9 @@ impl ExpressionTable {
         source: &ExpressionTable,
         members: HandleSpan<DiagnosticName>,
     ) -> HandleSpan<DiagnosticName> {
-        let mut span = HandleSpan::empty();
-
-        for member in source.name_path_members(members) {
-            self.spans
-                .name_path_members
-                .append_to_span(&mut span, member.clone());
-        }
-
-        span
+        self.spans
+            .name_path_members
+            .insert_many(source.name_path_members(members).iter().cloned())
     }
 
     fn copy_struct_literal_fields(
@@ -463,7 +474,12 @@ impl ExpressionTable {
         members: HandleSpan<DiagnosticName>,
         suffix: DiagnosticName,
     ) -> HandleSpan<DiagnosticName> {
-        let mut span = HandleSpan::empty();
+        let span = self.reserve_name_path_members(
+            members
+                .count()
+                .checked_add(1)
+                .expect("name path member span count overflow"),
+        );
 
         for offset in 0..members.count() {
             let member = self
@@ -478,14 +494,10 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            self.spans
-                .name_path_members
-                .append_to_span(&mut span, member);
+            self.set_name_path_member_at_offset(span, offset, member);
         }
 
-        self.spans
-            .name_path_members
-            .append_to_span(&mut span, suffix);
+        self.set_name_path_member_at_offset(span, members.count(), suffix);
 
         span
     }
@@ -496,7 +508,13 @@ impl ExpressionTable {
         suffix_members: HandleSpan<DiagnosticName>,
         suffix_start_offset: u32,
     ) -> HandleSpan<DiagnosticName> {
-        let mut span = HandleSpan::empty();
+        let suffix_count = suffix_members.count().saturating_sub(suffix_start_offset);
+        let span = self.reserve_name_path_members(
+            members
+                .count()
+                .checked_add(suffix_count)
+                .expect("name path member span count overflow"),
+        );
 
         for offset in 0..members.count() {
             let member = self
@@ -511,12 +529,10 @@ impl ExpressionTable {
                     members.start().generation(),
                 ))
                 .clone();
-            self.spans
-                .name_path_members
-                .append_to_span(&mut span, member);
+            self.set_name_path_member_at_offset(span, offset, member);
         }
 
-        for offset in suffix_start_offset..suffix_members.count() {
+        for (target_offset, offset) in (suffix_start_offset..suffix_members.count()).enumerate() {
             let member = self
                 .spans
                 .name_path_members
@@ -529,9 +545,18 @@ impl ExpressionTable {
                     suffix_members.start().generation(),
                 ))
                 .clone();
-            self.spans
-                .name_path_members
-                .append_to_span(&mut span, member);
+            self.set_name_path_member_at_offset(
+                span,
+                members
+                    .count()
+                    .checked_add(
+                        target_offset
+                            .try_into()
+                            .expect("name path member span count overflow"),
+                    )
+                    .expect("name path member span count overflow"),
+                member,
+            );
         }
 
         span
