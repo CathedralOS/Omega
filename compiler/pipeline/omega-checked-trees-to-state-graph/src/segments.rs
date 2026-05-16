@@ -12,7 +12,7 @@ use omega_checked_trees::statement::{
 use omega_checked_trees::types::TypeReference;
 use omega_core::symbols::SymbolHandle;
 
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::{
     Operation, OperationExpressionRefs, OperationKind, StateGraph, StateKey, StateParameterNode,
 };
@@ -22,8 +22,8 @@ pub(super) struct StateSegment {
     pub key: StateKey,
     pub name: ProgramName,
     pub parameters: HandleSpan<StateParameterNode>,
-    pub operations: Vec<Operation>,
-    pub transitions: Vec<SegmentTransition>,
+    pub operations: Arena<Operation>,
+    pub transitions: Arena<SegmentTransition>,
     pub next_segment_name: Option<ProgramName>,
 }
 
@@ -39,6 +39,15 @@ pub(super) enum SegmentTransition {
     },
 }
 
+impl Default for SegmentTransition {
+    fn default() -> Self {
+        Self::Tree {
+            guard: TransitionGuard::Always,
+            table: TableTransition::default(),
+        }
+    }
+}
+
 pub(super) fn split_state_segments(
     machine: &Machine,
     state: &State,
@@ -48,8 +57,8 @@ pub(super) fn split_state_segments(
     let machine_symbol = machine.symbol;
     let state_symbol = state.symbol;
     let mut segments = Vec::new();
-    let mut operations = Vec::new();
-    let mut transitions = Vec::new();
+    let mut operations = Arena::new();
+    let mut transitions = Arena::new();
     let mut segment_index = 0usize;
     let mut transition_section_started = false;
 
@@ -58,7 +67,7 @@ pub(super) fn split_state_segments(
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
-            transitions.push(SegmentTransition::Tree {
+            transitions.insert(SegmentTransition::Tree {
                 guard: transition_guard_from_table(program, *table),
                 table: *table,
             });
@@ -82,15 +91,15 @@ pub(super) fn split_state_segments(
                     segment_index,
                 ),
                 operations,
-                transitions: vec![SegmentTransition::BranchCall {
-                    table: table_call.clone(),
-                    has_continuation_segment: statement_index + 1 < table_statements.len(),
-                }],
+                transitions: branch_call_transitions(
+                    table_call.clone(),
+                    statement_index + 1 < table_statements.len(),
+                ),
                 next_segment_name: None,
             });
 
-            operations = Vec::new();
-            transitions = Vec::new();
+            operations = Arena::new();
+            transitions = Arena::new();
             segment_index += 1;
             transition_section_started = false;
             continue;
@@ -115,13 +124,13 @@ pub(super) fn split_state_segments(
                 next_segment_name: None,
             });
 
-            operations = Vec::new();
-            transitions = Vec::new();
+            operations = Arena::new();
+            transitions = Arena::new();
             segment_index += 1;
             transition_section_started = false;
         }
 
-        operations.push(Operation {
+        operations.insert(Operation {
             statement_index,
             kind: operation_kind(program, table_statement),
             expressions: operation_expression_refs(
@@ -156,10 +165,23 @@ pub(super) fn split_state_segments(
     segments
 }
 
+fn branch_call_transitions(
+    table: TableCall,
+    has_continuation_segment: bool,
+) -> Arena<SegmentTransition> {
+    let mut transitions = Arena::new();
+    transitions.insert(SegmentTransition::BranchCall {
+        table,
+        has_continuation_segment,
+    });
+    transitions
+}
+
 pub(super) fn segment_has_unconditional_transition(segment: &StateSegment) -> bool {
     segment
         .transitions
         .iter()
+        .map(|(_, transition)| transition)
         .any(|transition| match transition {
             SegmentTransition::Tree { guard, .. } => *guard == TransitionGuard::Always,
             SegmentTransition::BranchCall { .. } => true,

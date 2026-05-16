@@ -428,7 +428,7 @@ fn append_machine_states(
         .enumerate()
     {
         let mut operations = HandleSpan::empty();
-        for operation in &segment.operations {
+        for (_, operation) in segment.operations.iter() {
             state_graph
                 .operations
                 .append_to_span(&mut operations, operation.clone());
@@ -558,7 +558,7 @@ fn append_segment_transitions(
     let mut start = Handle::invalid();
     let mut count = 0u32;
 
-    for transition in &segment.transitions {
+    for (_, transition) in segment.transitions.iter() {
         let transition =
             plan_transition(segment.key, state_indexes, transition, program, state_graph)?;
         append_transition(state_graph, transition, &mut start, &mut count);
