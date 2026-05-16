@@ -16,7 +16,8 @@ pub fn simplify_expression(
     machine: &Machine,
     expression: &Expression,
 ) -> Expression {
-    simplify_expression_with_bindings(program, machine, expression, &[], false)
+    let bindings: &[Binding] = &[];
+    simplify_expression_with_bindings(program, machine, expression, bindings, false)
 }
 
 pub fn simplify_state_expression(
@@ -60,6 +61,61 @@ struct Binding {
     symbol: SymbolHandle,
     name: Option<ProgramName>,
     value: Expression,
+}
+
+impl Default for Binding {
+    fn default() -> Self {
+        Self {
+            symbol: SymbolHandle::invalid(),
+            name: None,
+            value: Expression::Integer(0),
+        }
+    }
+}
+
+trait BindingScope {
+    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding>;
+}
+
+impl BindingScope for [Binding] {
+    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
+        self.iter()
+            .find(|binding| binding_matches_path(binding, path))
+    }
+}
+
+impl BindingScope for Vec<Binding> {
+    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
+        self.as_slice().find_path_binding(path)
+    }
+}
+
+struct ScopedBindings<'scope, Parent: BindingScope + ?Sized> {
+    parent: &'scope Parent,
+    locals: &'scope Arena<Binding>,
+}
+
+impl<Parent: BindingScope + ?Sized> BindingScope for ScopedBindings<'_, Parent> {
+    fn find_path_binding(&self, path: &NamePath) -> Option<&Binding> {
+        self.parent.find_path_binding(path).or_else(|| {
+            self.locals
+                .iter()
+                .map(|(_, binding)| binding)
+                .find(|binding| binding_matches_path(binding, path))
+        })
+    }
+}
+
+fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
+    (binding.symbol.is_valid()
+        && path.head_symbol().is_valid()
+        && binding.symbol == path.head_symbol())
+        || (!path.head_symbol().is_valid()
+            && path.len() == 1
+            && binding
+                .name
+                .as_ref()
+                .is_some_and(|name| path.first().is_some_and(|segment| segment == name)))
 }
 
 fn simple_local_bindings(program: &Program, state: &State, statement_index: usize) -> Vec<Binding> {
@@ -134,7 +190,7 @@ fn simplify_expression_with_bindings(
     program: &Program,
     machine: &Machine,
     expression: &Expression,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
 ) -> Expression {
     match expression {
@@ -211,17 +267,7 @@ fn simplify_expression_with_bindings(
             )))
         }
         Expression::Name(path) => bindings
-            .iter()
-            .find(|binding| {
-                (binding.symbol.is_valid()
-                    && path.head_symbol().is_valid()
-                    && binding.symbol == path.head_symbol())
-                    || (!path.head_symbol().is_valid()
-                        && path.len() == 1
-                        && binding.name.as_ref().is_some_and(|name| {
-                            path.first().is_some_and(|segment| segment == name)
-                        }))
-            })
+            .find_path_binding(path)
             .and_then(|binding| {
                 if preserve_call_locals && matches!(binding.value, Expression::Call(_)) {
                     return None;
@@ -253,7 +299,7 @@ fn simplify_binary_expression(
     program: &Program,
     machine: &Machine,
     binary: &BinaryExpression,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
 ) -> Expression {
     let left = simplify_expression_with_bindings(
@@ -295,7 +341,7 @@ fn simplify_call_expression(
     program: &Program,
     machine: &Machine,
     call: &CallExpression,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
     preserve_call_locals: bool,
 ) -> Expression {
     let receiver = call.receiver.as_ref().map(|receiver| {
@@ -410,7 +456,7 @@ fn simplify_guarded_helper_comparison(
     operator: omega_checked_trees::expression::BinaryOperator,
     left: &Expression,
     right: &Expression,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
 ) -> Option<Expression> {
     use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
 
@@ -448,7 +494,7 @@ fn simplify_helper_call_comparison(
     machine: &Machine,
     call: &CallExpression,
     expected: &Expression,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
 ) -> Option<Expression> {
     let receiver = call.receiver.as_ref().map(|receiver| {
         simplify_expression_with_bindings(program, machine, receiver, bindings, false)
@@ -551,7 +597,7 @@ fn helper_state_value(
     state: &State,
     program: &Program,
     machine: &Machine,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
 ) -> Option<Expression> {
     let helper = helper_state_model(state, program, machine, bindings)?;
     let mut transitions = helper.transitions.iter().map(|(_, transition)| transition);
@@ -569,7 +615,7 @@ fn helper_state_match_condition(
     state: &State,
     program: &Program,
     machine: &Machine,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
 ) -> Option<Expression> {
     helper_state_match_condition_with_stack(
@@ -586,7 +632,7 @@ fn helper_state_match_condition_with_stack(
     state: &State,
     program: &Program,
     machine: &Machine,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
     expected: &Expression,
     stack: &mut Vec<SymbolHandle>,
 ) -> Option<Expression> {
@@ -713,13 +759,18 @@ fn helper_state_model(
     state: &State,
     program: &Program,
     machine: &Machine,
-    bindings: &[Binding],
+    bindings: &(impl BindingScope + ?Sized),
 ) -> Option<HelperStateModel> {
-    let mut bindings = bindings.to_vec();
+    let mut local_bindings = Arena::new();
     let mut transitions = Arena::new();
     let mut saw_terminal_expression = false;
 
     for statement in program.statement_table.statements(state.statement_nodes) {
+        let scoped_bindings = ScopedBindings {
+            parent: bindings,
+            locals: &local_bindings,
+        };
+
         match statement {
             StatementNode::LocalData(local) => {
                 if saw_terminal_expression {
@@ -733,10 +784,10 @@ fn helper_state_model(
                     program,
                     machine,
                     &initial_value,
-                    &bindings,
+                    &scoped_bindings,
                     false,
                 );
-                bindings.push(Binding {
+                local_bindings.insert(Binding {
                     symbol: local.symbol,
                     name: Some(local.name.clone()),
                     value,
@@ -757,7 +808,7 @@ fn helper_state_model(
                             program,
                             machine,
                             &expression,
-                            &bindings,
+                            &scoped_bindings,
                             false,
                         )
                     }
@@ -768,8 +819,13 @@ fn helper_state_model(
                     return None;
                 };
                 let value = program.expression_table.to_tree(*value);
-                let value =
-                    simplify_expression_with_bindings(program, machine, &value, &bindings, false);
+                let value = simplify_expression_with_bindings(
+                    program,
+                    machine,
+                    &value,
+                    &scoped_bindings,
+                    false,
+                );
                 transitions.insert(HelperTransition { guard, value });
             }
             StatementNode::Expression(expression) => {
@@ -778,7 +834,7 @@ fn helper_state_model(
                     program,
                     machine,
                     &expression,
-                    &bindings,
+                    &scoped_bindings,
                     false,
                 );
                 transitions.insert(HelperTransition {
