@@ -155,6 +155,10 @@ impl TypeReferenceTable {
         self.type_reference(handle).primitive_type(self)
     }
 
+    pub fn type_symbol(&self, handle: TypeReferenceHandle) -> SymbolHandle {
+        self.type_reference(handle).type_symbol(self)
+    }
+
     pub fn insert_tree(
         &mut self,
         type_reference: &TypeReference,
@@ -400,6 +404,34 @@ impl TypeReferenceNode {
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::Unit => None,
+        }
+    }
+
+    pub fn type_symbol(&self, table: &TypeReferenceTable) -> SymbolHandle {
+        match self {
+            TypeReferenceNode::Reference { referee, .. } => table.type_symbol(*referee),
+            TypeReferenceNode::Constrained { base_type, .. } => table.type_symbol(*base_type),
+            TypeReferenceNode::FixedArray { element_type, .. } => table.type_symbol(*element_type),
+            TypeReferenceNode::Slice { element_type } => table.type_symbol(*element_type),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => {
+                if PrimitiveType::from_name(base_name.as_str()).is_some() {
+                    SymbolHandle::invalid()
+                } else {
+                    *base_symbol
+                }
+            }
+            TypeReferenceNode::Named { symbol, name } => {
+                if PrimitiveType::from_name(name.as_str()).is_some() {
+                    SymbolHandle::invalid()
+                } else {
+                    *symbol
+                }
+            }
+            TypeReferenceNode::Unit => SymbolHandle::invalid(),
         }
     }
 }
@@ -767,5 +799,6 @@ mod tests {
             "i32[range<0, 10>]"
         );
         assert_eq!(types.primitive_type(root), Some(PrimitiveType::I32));
+        assert_eq!(types.type_symbol(root), SymbolHandle::invalid());
     }
 }
