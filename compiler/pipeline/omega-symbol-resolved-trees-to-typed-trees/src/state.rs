@@ -1,5 +1,5 @@
 use crate::program::Lowerer;
-use crate::statement::lower_statement;
+use crate::statement::lower_statement_node;
 use crate::type_reference::lower_type_reference;
 use omega_core::diagnostics::Diagnostic;
 use omega_symbol_resolved_trees as resolved;
@@ -29,11 +29,18 @@ pub(crate) fn lower_state(
             .push_state_parameter(&mut typed_state, parameter);
     }
 
-    for statement in lowerer.source_trees.state_statements(state.statements) {
-        let statement = lower_statement(lowerer, statement)?;
+    for statement in lowerer
+        .source_trees
+        .tables
+        .bodies
+        .statements
+        .statements(state.statement_nodes)
+    {
+        let statement = lower_statement_node(lowerer, statement)?;
         lowerer
             .typed_trees
-            .push_state_statement(&mut typed_state, statement);
+            .statement_table
+            .push_statement(&mut typed_state.statement_nodes, statement);
     }
 
     Ok(typed_state)
