@@ -67,6 +67,32 @@ impl TypeReferenceTable {
         self.type_reference_handles.insert_many(type_references)
     }
 
+    pub fn reserve_type_reference_handles(
+        &mut self,
+        count: u32,
+    ) -> HandleSpan<TypeReferenceHandle> {
+        self.type_reference_handles.insert_many(
+            std::iter::repeat_with(TypeReferenceHandle::invalid)
+                .take(usize::try_from(count).expect("type reference handle span count overflow")),
+        )
+    }
+
+    pub fn set_type_reference_handle_at_offset(
+        &mut self,
+        type_references: HandleSpan<TypeReferenceHandle>,
+        offset: u32,
+        type_reference: TypeReferenceHandle,
+    ) {
+        *self.type_reference_handles.get_mut(Handle::from_parts(
+            type_references
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("type reference handle index overflow"),
+            type_references.start().generation(),
+        )) = type_reference;
+    }
+
     pub fn push_type_reference_handle(
         &mut self,
         span: &mut HandleSpan<TypeReferenceHandle>,
@@ -83,6 +109,29 @@ impl TypeReferenceTable {
         self.constraints.insert_many(constraints)
     }
 
+    pub fn reserve_constraints(&mut self, count: u32) -> HandleSpan<TypeConstraintNode> {
+        self.constraints.insert_many(
+            std::iter::repeat_with(TypeConstraintNode::default)
+                .take(usize::try_from(count).expect("type constraint span count overflow")),
+        )
+    }
+
+    pub fn set_constraint_at_offset(
+        &mut self,
+        constraints: HandleSpan<TypeConstraintNode>,
+        offset: u32,
+        constraint: TypeConstraintNode,
+    ) {
+        *self.constraints.get_mut(Handle::from_parts(
+            constraints
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("type constraint index overflow"),
+            constraints.start().generation(),
+        )) = constraint;
+    }
+
     pub fn push_constraint(
         &mut self,
         span: &mut HandleSpan<TypeConstraintNode>,
@@ -91,24 +140,34 @@ impl TypeReferenceTable {
         self.constraints.append_to_span(span, constraint);
     }
 
-    fn insert_type_reference_handle_span_from_trees<'type_reference>(
+    fn insert_type_reference_handle_span_from_trees(
         &mut self,
-        type_references: impl IntoIterator<Item = &'type_reference TypeReference>,
+        type_references: &[TypeReference],
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
         source_arguments: &Arena<TypeReference>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        let mut handles = HandleSpan::empty();
+        let handles = self.reserve_type_reference_handles(
+            type_references
+                .len()
+                .try_into()
+                .expect("type reference handle span count overflow"),
+        );
 
-        for type_reference in type_references {
+        for (offset, type_reference) in type_references.iter().enumerate() {
             let type_reference = self.insert_tree(
                 type_reference,
                 expressions,
                 source_constraints,
                 source_arguments,
             );
-            self.type_reference_handles
-                .append_to_span(&mut handles, type_reference);
+            self.set_type_reference_handle_at_offset(
+                handles,
+                offset
+                    .try_into()
+                    .expect("type reference handle span count overflow"),
+                type_reference,
+            );
         }
 
         handles
@@ -120,11 +179,20 @@ impl TypeReferenceTable {
         expressions: &mut crate::expression::ExpressionTable,
         source_constraints: &Arena<TypeConstraint>,
     ) -> HandleSpan<TypeConstraintNode> {
-        let mut nodes = HandleSpan::empty();
+        let source = source_constraints.span_or_empty(constraints);
+        let nodes = self.reserve_constraints(
+            source
+                .len()
+                .try_into()
+                .expect("type constraint span count overflow"),
+        );
 
-        for constraint in source_constraints.span_or_empty(constraints) {
-            self.constraints.append_to_span(
-                &mut nodes,
+        for (offset, constraint) in source.iter().enumerate() {
+            self.set_constraint_at_offset(
+                nodes,
+                offset
+                    .try_into()
+                    .expect("type constraint span count overflow"),
                 TypeConstraintNode::from_tree(constraint, expressions),
             );
         }
@@ -268,17 +336,28 @@ impl TypeReferenceTable {
         target_expressions: &mut crate::expression::ExpressionTable,
         type_references: HandleSpan<TypeReferenceHandle>,
     ) -> HandleSpan<TypeReferenceHandle> {
-        let mut copied = HandleSpan::empty();
+        let source_type_references = source.type_reference_handles(type_references);
+        let copied = self.reserve_type_reference_handles(
+            source_type_references
+                .len()
+                .try_into()
+                .expect("type reference handle span count overflow"),
+        );
 
-        for type_reference in source.type_reference_handles(type_references) {
+        for (offset, type_reference) in source_type_references.iter().enumerate() {
             let type_reference = self.copy_from(
                 source,
                 source_expressions,
                 target_expressions,
                 *type_reference,
             );
-            self.type_reference_handles
-                .append_to_span(&mut copied, type_reference);
+            self.set_type_reference_handle_at_offset(
+                copied,
+                offset
+                    .try_into()
+                    .expect("type reference handle span count overflow"),
+                type_reference,
+            );
         }
 
         copied
@@ -291,11 +370,20 @@ impl TypeReferenceTable {
         target_expressions: &mut crate::expression::ExpressionTable,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<TypeConstraintNode> {
-        let mut copied = HandleSpan::empty();
+        let source_constraints = source.constraints(constraints);
+        let copied = self.reserve_constraints(
+            source_constraints
+                .len()
+                .try_into()
+                .expect("type constraint span count overflow"),
+        );
 
-        for constraint in source.constraints(constraints) {
-            self.constraints.append_to_span(
-                &mut copied,
+        for (offset, constraint) in source_constraints.iter().enumerate() {
+            self.set_constraint_at_offset(
+                copied,
+                offset
+                    .try_into()
+                    .expect("type constraint span count overflow"),
                 constraint.copy_from(source_expressions, target_expressions),
             );
         }
@@ -364,12 +452,26 @@ impl TypeReferenceTable {
                 base_name,
                 arguments,
             } => {
-                let mut argument_trees = HandleSpan::empty();
+                let arguments = self.type_reference_handles(*arguments);
+                let argument_trees = output_arguments.insert_many(
+                    std::iter::repeat_with(TypeReference::default).take(arguments.len()),
+                );
 
-                for argument in self.type_reference_handles(*arguments) {
+                for (offset, argument) in arguments.iter().enumerate() {
                     let argument =
                         self.to_tree(*argument, expressions, output_constraints, output_arguments);
-                    output_arguments.append_to_span(&mut argument_trees, argument);
+                    *output_arguments.get_mut(Handle::from_parts(
+                        argument_trees
+                            .start()
+                            .arena_index()
+                            .checked_add(
+                                offset
+                                    .try_into()
+                                    .expect("type reference argument index overflow"),
+                            )
+                            .expect("type reference argument index overflow"),
+                        argument_trees.start().generation(),
+                    )) = argument;
                 }
 
                 TypeReference::Generic {
