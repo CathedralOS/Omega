@@ -425,10 +425,7 @@ fn leaf_local_initializer(
         };
         let matches_symbol =
             path.head_symbol().is_valid() && local_data.symbol == path.head_symbol();
-        let matches_name = path
-            .first()
-            .is_some_and(|name| local_data.name.as_str() == name.as_str());
-        (local_data.initial_value.is_valid() && (matches_symbol || matches_name)).then(|| {
+        (local_data.initial_value.is_valid() && matches_symbol).then(|| {
             input
                 .program
                 .expression_table
