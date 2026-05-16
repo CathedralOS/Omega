@@ -97,7 +97,11 @@ fn select_runtime_leaf_branch_terminal_value_write(
         &input.runtime_branching_calls.expressions.to_tree(value),
         bindings,
     );
-    let target = Expression::Name(NamePath::unresolved(vec![slot.name.clone()]));
+    let target = Expression::Name(NamePath::resolved(
+        vec![slot.name.clone()],
+        slot.symbol,
+        slot.symbol,
+    ));
     let (source_machine, source_state) = state_names(input, expansion.source_key);
     select_runtime_resolved_mutation_write(
         input,

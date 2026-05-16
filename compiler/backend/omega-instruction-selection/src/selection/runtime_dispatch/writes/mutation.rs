@@ -119,7 +119,11 @@ pub(super) fn select_runtime_state_call_result_write(
     let (value_machine, value_state) = input
         .control_flow
         .state_names_by_key_cloned(value_source_key);
-    let target = Expression::Name(NamePath::unresolved(vec![slot.name.clone()]));
+    let target = Expression::Name(NamePath::resolved(
+        vec![slot.name.clone()],
+        slot.symbol,
+        slot.symbol,
+    ));
     let value = input.runtime_bodies.expressions.to_tree(value);
 
     select_runtime_resolved_target_value_source_mutation_writes(
