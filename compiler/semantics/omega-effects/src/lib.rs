@@ -9,14 +9,30 @@ pub enum Effect {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EffectPlan {
-    pub machines: Vec<MachineEffects>,
+    pub root_machines: HandleSpan<MachineEffects>,
+    pub machines: Arena<MachineEffects>,
     pub states: Arena<StateEffects>,
+}
+
+impl EffectPlan {
+    pub fn machines(&self) -> &[MachineEffects] {
+        self.machines.span_or_empty(self.root_machines)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MachineEffects {
     pub name: String,
     pub states: HandleSpan<StateEffects>,
+}
+
+impl Default for MachineEffects {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            states: HandleSpan::empty(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,10 +63,13 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
             });
         let states = effect_plan.states.insert_many(states);
 
-        effect_plan.machines.push(MachineEffects {
-            name: machine.name.to_string(),
-            states,
-        });
+        effect_plan.machines.append_to_span(
+            &mut effect_plan.root_machines,
+            MachineEffects {
+                name: machine.name.to_string(),
+                states,
+            },
+        );
     }
 
     effect_plan
