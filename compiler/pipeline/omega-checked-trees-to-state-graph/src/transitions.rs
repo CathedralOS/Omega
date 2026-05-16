@@ -4,6 +4,7 @@ use omega_core::diagnostics::Diagnostic;
 
 use crate::segments::{
     SegmentTransition, copy_statement_expression_span, table_transition_guard_expression,
+    transition_guard_from_table,
 };
 use omega_state_graph::{
     PlannedTransitionTarget, StateGraph, StateKey, TransitionEdge, TransitionExpressionRefs,
@@ -17,7 +18,7 @@ pub(super) fn plan_transition(
     state_graph: &mut StateGraph,
 ) -> Result<TransitionEdge, Diagnostic> {
     match transition {
-        SegmentTransition::Tree { guard, table } => {
+        SegmentTransition::Tree { table } => {
             let target_arguments =
                 table_transition_target_arguments(table.target, program, state_graph);
             let target_value = table_transition_target_value(table.target, program, state_graph);
@@ -46,7 +47,7 @@ pub(super) fn plan_transition(
                     .is_valid()
                     .then(|| plan_transition_target(state_indexes, table.continuation, program))
                     .transpose()?,
-                guard: guard.clone(),
+                guard: transition_guard_from_table(program, *table),
                 expressions: TransitionExpressionRefs {
                     target_arguments,
                     target_value,
