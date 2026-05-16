@@ -30,7 +30,6 @@ pub(super) struct StateSegment {
 #[derive(Debug, Clone)]
 pub(super) enum SegmentTransition {
     Tree {
-        guard: TransitionGuard,
         table: TableTransition,
     },
     BranchCall {
@@ -42,7 +41,6 @@ pub(super) enum SegmentTransition {
 impl Default for SegmentTransition {
     fn default() -> Self {
         Self::Tree {
-            guard: TransitionGuard::Always,
             table: TableTransition::default(),
         }
     }
@@ -67,10 +65,7 @@ pub(super) fn split_state_segments(
     for (statement_index, table_statement) in table_statements.iter().enumerate() {
         if let StatementNode::Transition(table) = table_statement {
             transition_section_started = true;
-            transitions.insert(SegmentTransition::Tree {
-                guard: transition_guard_from_table(program, *table),
-                table: *table,
-            });
+            transitions.insert(SegmentTransition::Tree { table: *table });
             continue;
         }
 
@@ -183,7 +178,7 @@ pub(super) fn segment_has_unconditional_transition(segment: &StateSegment) -> bo
         .iter()
         .map(|(_, transition)| transition)
         .any(|transition| match transition {
-            SegmentTransition::Tree { guard, .. } => *guard == TransitionGuard::Always,
+            SegmentTransition::Tree { table } => matches!(table.guard, TransitionGuardNode::Always),
             SegmentTransition::BranchCall { .. } => true,
         })
 }
@@ -336,7 +331,10 @@ fn is_static_assignment(program: &Program, assignment: TableAssignment) -> bool 
     target_is_place && value_is_static
 }
 
-fn transition_guard_from_table(program: &Program, transition: TableTransition) -> TransitionGuard {
+pub(super) fn transition_guard_from_table(
+    program: &Program,
+    transition: TableTransition,
+) -> TransitionGuard {
     match transition.guard {
         TransitionGuardNode::Always => TransitionGuard::Always,
         TransitionGuardNode::When(expression) => {
