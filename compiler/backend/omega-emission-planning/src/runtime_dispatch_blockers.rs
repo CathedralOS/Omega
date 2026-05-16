@@ -1,10 +1,12 @@
 use crate::EmissionPlanningInput;
+use omega_checked_trees::expression::{BinaryOperator, Expression};
+use omega_checked_trees::statement::TransitionGuard;
+use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardLowering, StateGuardOperator, lower_guard_conjunction};
-use omega_checked_trees::expression::{BinaryOperator, Expression};
-use omega_checked_trees::statement::TransitionGuard;
 use omega_state_schedule::ScheduledState;
+use std::collections::HashSet;
 
 use super::{
     EmissionBlocker, blocker,
@@ -15,17 +17,18 @@ pub(super) fn runtime_and_required_states(
     input: &EmissionPlanningInput<'_>,
 ) -> Vec<ScheduledState> {
     let mut states = Vec::new();
+    let mut state_set = HashSet::new();
 
     for (_, state) in input.runtime_flow.states.iter() {
-        push_scheduled_state_key(&mut states, state.key);
+        push_scheduled_state_key(&mut states, &mut state_set, state.key);
     }
 
     for (_, state_call) in input.state_calls.calls.iter() {
         if state_call.required {
-            push_scheduled_state_key(&mut states, state_call.source_key);
+            push_scheduled_state_key(&mut states, &mut state_set, state_call.source_key);
 
             if state_call.target_key.is_valid() {
-                push_scheduled_state_key(&mut states, state_call.target_key);
+                push_scheduled_state_key(&mut states, &mut state_set, state_call.target_key);
             }
         }
     }
@@ -33,15 +36,24 @@ pub(super) fn runtime_and_required_states(
     states
 }
 
-fn push_scheduled_state_key(states: &mut Vec<ScheduledState>, key: omega_control_flow::StateKey) {
-    if states
-        .iter()
-        .any(|scheduled_state| scheduled_state.key == key)
-    {
-        return;
+fn push_scheduled_state_key(
+    states: &mut Vec<ScheduledState>,
+    state_set: &mut HashSet<StateKeyId>,
+    key: StateKey,
+) {
+    if state_set.insert(state_key_id(key)) {
+        states.push(ScheduledState { key });
     }
+}
 
-    states.push(ScheduledState { key });
+type StateKeyId = (u32, u32, usize);
+
+fn state_key_id(key: StateKey) -> StateKeyId {
+    (
+        key.machine.arena_index(),
+        key.state.arena_index(),
+        key.segment_index,
+    )
 }
 
 pub(super) fn collect_runtime_dispatch_blockers(
@@ -333,22 +345,24 @@ fn runtime_value_expression_can_emit(
     expression: &Expression,
 ) -> bool {
     match expression {
-        Expression::Binary(binary) => matches!(
-            binary.operator,
-            BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
-        ) && runtime_value_expression_can_emit(
-            input,
-            source_key,
-            source_dispatch_index,
-            statement_index,
-            &binary.left,
-        ) && runtime_value_expression_can_emit(
-            input,
-            source_key,
-            source_dispatch_index,
-            statement_index,
-            &binary.right,
-        ),
+        Expression::Binary(binary) => {
+            matches!(
+                binary.operator,
+                BinaryOperator::Add | BinaryOperator::Multiply | BinaryOperator::Subtract
+            ) && runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                &binary.left,
+            ) && runtime_value_expression_can_emit(
+                input,
+                source_key,
+                source_dispatch_index,
+                statement_index,
+                &binary.right,
+            )
+        }
         Expression::Name(_)
         | Expression::Member(_)
         | Expression::Indexed(_)
