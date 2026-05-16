@@ -549,11 +549,9 @@ fn build_call_expression_handle(
             let receiver = if members.len() <= 1 {
                 ExpressionHandle::invalid()
             } else {
-                let receiver_members = members[..members.len() - 1].to_vec();
-                let receiver_path = insert_identifier_members_slice_handle(
-                    &mut syntax_trees.expressions,
-                    &receiver_members,
-                );
+                let receiver_path = syntax_trees
+                    .expressions
+                    .copy_identifier_path_prefix(path, members.len() - 1);
                 syntax_trees
                     .expressions
                     .insert(ExpressionNode::Name(receiver_path))
@@ -579,30 +577,6 @@ fn build_call_expression_handle(
         _ => Err(ParseError::new(
             "call target must be a path or member access",
         )),
-    }
-}
-
-fn insert_identifier_members_slice_handle(
-    expressions: &mut omega_syntax_trees::expression::ExpressionTable,
-    members: &[Identifier],
-) -> HandleSpan<Identifier> {
-    let mut start = Handle::invalid();
-    let mut count = 0u32;
-
-    for member in members {
-        let handle = expressions.append_identifier_path_member(member.clone());
-        if count == 0 {
-            start = handle;
-        }
-        count = count
-            .checked_add(1)
-            .expect("identifier path member span count overflow");
-    }
-
-    if count == 0 {
-        HandleSpan::empty()
-    } else {
-        HandleSpan::from_parts(start, count)
     }
 }
 

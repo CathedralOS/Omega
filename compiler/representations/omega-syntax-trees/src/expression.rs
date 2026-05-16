@@ -58,6 +58,22 @@ impl ExpressionTable {
         self.identifier_path_members.append(member)
     }
 
+    pub fn copy_identifier_path_prefix(
+        &mut self,
+        span: HandleSpan<Identifier>,
+        count: usize,
+    ) -> HandleSpan<Identifier> {
+        let count = count.min(span.len());
+        if count == 0 {
+            return HandleSpan::empty();
+        }
+
+        self.identifier_path_members.copy_span_pair(
+            HandleSpan::from_parts(span.start(), count as u32),
+            HandleSpan::empty(),
+        )
+    }
+
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }
