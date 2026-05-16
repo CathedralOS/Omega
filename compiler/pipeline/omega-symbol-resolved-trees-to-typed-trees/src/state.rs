@@ -18,7 +18,6 @@ pub(crate) fn lower_state(
             .as_ref()
             .map(|type_reference| lower_type_reference(lowerer, type_reference))
             .transpose()?,
-        statements: Default::default(),
         statement_nodes: Default::default(),
     };
 

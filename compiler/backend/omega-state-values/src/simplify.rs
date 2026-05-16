@@ -1382,7 +1382,6 @@ mod tests {
             name: "event_action".into(),
             parameters: Default::default(),
             return_type: None,
-            statements: Default::default(),
             statement_nodes: Default::default(),
         };
 
@@ -1622,7 +1621,6 @@ mod tests {
             name: "find_item".into(),
             parameters: Default::default(),
             return_type: None,
-            statements: Default::default(),
             statement_nodes: Default::default(),
         };
 
@@ -1694,6 +1692,9 @@ mod tests {
         state: &mut State,
         statements: [Statement; N],
     ) {
+        let source_statement_expressions = omega_core::arena::Arena::new();
+        let source_statement_path_members = omega_core::arena::Arena::new();
+
         for statement in statements {
             let statement_node = program.typed.statement_table.insert_tree(
                 &statement,
@@ -1701,11 +1702,10 @@ mod tests {
                 &mut program.typed.type_reference_table,
                 &program.typed.type_constraints,
                 &program.typed.type_reference_arguments,
-                &program.typed.statement_expressions,
-                &program.typed.statement_path_members,
+                &source_statement_expressions,
+                &source_statement_path_members,
             );
             state.statement_nodes.push_contiguous(statement_node);
-            program.typed.push_state_statement(state, statement);
         }
     }
 

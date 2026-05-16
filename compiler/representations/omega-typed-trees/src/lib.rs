@@ -8,7 +8,6 @@ pub mod platform;
 pub mod signature;
 pub mod state;
 pub mod statement;
-pub mod tables;
 pub mod typed_trees;
 pub mod types;
 

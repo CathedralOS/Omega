@@ -1,4 +1,4 @@
-use crate::{data, expression, invariant, machine, platform, signature, tables, types};
+use crate::{data, expression, invariant, machine, platform, signature, types};
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolTable;
 
@@ -16,9 +16,6 @@ pub struct TypedTrees {
     pub machine_owned_data: Arena<machine::OwnedData>,
     pub machine_states: Arena<crate::state::State>,
     pub state_parameters: Arena<signature::StateParameter>,
-    pub state_statements: Arena<crate::statement::Statement>,
-    pub statement_expressions: Arena<expression::Expression>,
-    pub statement_path_members: Arena<crate::name::ProgramName>,
     pub type_reference_arguments: Arena<types::TypeReference>,
     pub root_platforms: HandleSpan<platform::Platform>,
     pub platforms: Arena<platform::Platform>,
@@ -199,46 +196,6 @@ impl TypedTrees {
         self.state_parameters.span_or_empty(signature.parameters)
     }
 
-    pub fn push_state_statement(
-        &mut self,
-        state: &mut crate::state::State,
-        statement: crate::statement::Statement,
-    ) {
-        self.state_statements
-            .append_to_span(&mut state.statements, statement);
-    }
-
-    pub fn push_statement_expression(
-        &mut self,
-        expressions: &mut HandleSpan<expression::Expression>,
-        expression: expression::Expression,
-    ) {
-        self.statement_expressions
-            .append_to_span(expressions, expression);
-    }
-
-    pub fn statement_expressions(
-        &self,
-        expressions: HandleSpan<expression::Expression>,
-    ) -> &[expression::Expression] {
-        self.statement_expressions.span_or_empty(expressions)
-    }
-
-    pub fn push_statement_path_member(
-        &mut self,
-        path: &mut HandleSpan<crate::name::ProgramName>,
-        member: crate::name::ProgramName,
-    ) {
-        self.statement_path_members.append_to_span(path, member);
-    }
-
-    pub fn statement_path_members(
-        &self,
-        path: HandleSpan<crate::name::ProgramName>,
-    ) -> &[crate::name::ProgramName] {
-        self.statement_path_members.span_or_empty(path)
-    }
-
     pub fn push_type_reference_argument(
         &mut self,
         arguments: &mut HandleSpan<types::TypeReference>,
@@ -284,12 +241,5 @@ impl TypedTrees {
         type_reference: types::TypeReferenceHandle,
     ) -> omega_core::symbols::SymbolHandle {
         self.type_reference_table.type_symbol(type_reference)
-    }
-
-    pub fn rebuild_tables(&mut self) {
-        let tables = tables::TypedProgramTables::from_typed_trees_with_state_spans(self);
-        self.expression_table = tables.expressions;
-        self.statement_table = tables.statements;
-        self.type_reference_table = tables.type_references;
     }
 }
