@@ -1388,7 +1388,8 @@ mod tests {
     use omega_checked_trees::statement::{
         StatementNode, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
-    use omega_checked_trees::types::TypeReference;
+    use omega_checked_trees::types::{TypeReference, TypeReferenceHandle};
+    use omega_core::arena::Arena;
     use omega_core::symbols::SymbolHandle;
 
     #[test]
@@ -1404,7 +1405,7 @@ mod tests {
             symbol: helper_symbol,
             name: "event_action".into(),
             parameters: Default::default(),
-            return_type: None,
+            return_type: TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
         };
 
@@ -1477,15 +1478,13 @@ mod tests {
                 },
             ],
         );
+        let roll_type = named_type_reference(&mut program, "u32");
         program.typed.push_state_parameter(
             &mut helper,
             StateParameter {
                 symbol: roll_symbol,
                 name: "roll".into(),
-                type_reference: TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: "u32".into(),
-                },
+                type_reference: roll_type,
                 is_const: true,
                 is_mutable: false,
                 is_self: false,
@@ -1633,7 +1632,7 @@ mod tests {
             symbol: find_symbol,
             name: "find_item".into(),
             parameters: Default::default(),
-            return_type: None,
+            return_type: TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
         };
 
@@ -1659,15 +1658,13 @@ mod tests {
                 },
             ],
         );
+        let found_type = named_type_reference(&mut program, "bool");
         program.typed.push_state_parameter(
             &mut find,
             StateParameter {
                 symbol: found_symbol,
                 name: "found".into(),
-                type_reference: TypeReference::Named {
-                    symbol: SymbolHandle::invalid(),
-                    name: "bool".into(),
-                },
+                type_reference: found_type,
                 is_const: true,
                 is_mutable: false,
                 is_self: false,
@@ -1728,7 +1725,7 @@ mod tests {
                         &type_reference,
                         &mut program.typed.expression_table,
                         &program.typed.type_constraints,
-                        &program.typed.type_reference_arguments,
+                        &Arena::new(),
                     );
                     let initial_value = initial_value
                         .as_ref()
@@ -1774,6 +1771,18 @@ mod tests {
 
     fn name(name: &str, symbol: SymbolHandle) -> Expression {
         Expression::Name(NamePath::resolved(vec![name.into()], symbol, symbol))
+    }
+
+    fn named_type_reference(program: &mut Program, name: &str) -> TypeReferenceHandle {
+        program.typed.type_reference_table.insert_tree(
+            &TypeReference::Named {
+                symbol: SymbolHandle::invalid(),
+                name: name.into(),
+            },
+            &mut program.typed.expression_table,
+            &program.typed.type_constraints,
+            &Arena::new(),
+        )
     }
 
     fn path_expression(segments: &[&str]) -> Expression {
