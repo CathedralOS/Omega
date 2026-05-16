@@ -190,6 +190,32 @@ impl StatementTable {
         self.paths.expression_handles.span_or_empty(span)
     }
 
+    pub fn reserve_expression_handles(
+        &mut self,
+        count: u32,
+    ) -> HandleSpan<crate::expression::ExpressionHandle> {
+        self.paths.expression_handles.insert_many(
+            std::iter::repeat_with(crate::expression::ExpressionHandle::invalid)
+                .take(usize::try_from(count).expect("expression handle span count overflow")),
+        )
+    }
+
+    pub fn set_expression_handle_at_offset(
+        &mut self,
+        expressions: HandleSpan<crate::expression::ExpressionHandle>,
+        offset: u32,
+        expression: crate::expression::ExpressionHandle,
+    ) {
+        *self.paths.expression_handles.get_mut(Handle::from_parts(
+            expressions
+                .start()
+                .arena_index()
+                .checked_add(offset)
+                .expect("expression handle index overflow"),
+            expressions.start().generation(),
+        )) = expression;
+    }
+
     pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.paths.name_path_members.span_or_empty(span)
     }
@@ -336,18 +362,28 @@ impl StatementTable {
         expressions: &mut crate::expression::ExpressionTable,
         copy_expression_handles: bool,
     ) -> HandleSpan<crate::expression::ExpressionHandle> {
-        let mut span = HandleSpan::empty();
+        let source = source_expressions.expression_handles(arguments);
+        let span = self.reserve_expression_handles(
+            source
+                .len()
+                .try_into()
+                .expect("expression handle span count overflow"),
+        );
 
-        for argument in source_expressions.expression_handles(arguments) {
+        for (offset, argument) in source.iter().enumerate() {
             let argument = expression_handle_from_tree(
                 source_expressions,
                 expressions,
                 *argument,
                 copy_expression_handles,
             );
-            self.paths
-                .expression_handles
-                .append_to_span(&mut span, argument);
+            self.set_expression_handle_at_offset(
+                span,
+                offset
+                    .try_into()
+                    .expect("expression handle span count overflow"),
+                argument,
+            );
         }
 
         span
