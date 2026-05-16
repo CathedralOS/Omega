@@ -3,11 +3,11 @@ use crate::sizing::primitive_type_layout;
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout, VariantLayout,
 };
+use omega_checked_trees::Program;
 use omega_checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::platform::Platform;
 use omega_checked_trees::types::{PrimitiveType, TypeConstraint, TypeReference};
-use omega_checked_trees::Program;
 use omega_core::arena::Arena;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
@@ -174,8 +174,7 @@ impl<'program> LayoutBuilder<'program> {
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let (fields, layout) = pack_fields(fields);
-        let fields = self.fields.insert_many(fields);
+        let (fields, layout) = pack_fields(&mut self.fields, fields);
 
         Ok(DataLayout {
             symbol: definition.symbol,
@@ -237,8 +236,7 @@ impl<'program> LayoutBuilder<'program> {
             }
         }
 
-        let (fields, layout) = pack_fields(fields);
-        let fields = self.fields.insert_many(fields);
+        let (fields, layout) = pack_fields(&mut self.fields, fields);
 
         Ok(MachineLayout {
             symbol: machine.symbol,
@@ -281,8 +279,9 @@ impl<'program> LayoutBuilder<'program> {
 
                 if base_symbol.is_valid()
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
-                    && DataDefinition::shape_kind_from_members(self.program.data_members(definition))
-                        == DataShapeKind::Enum
+                    && DataDefinition::shape_kind_from_members(
+                        self.program.data_members(definition),
+                    ) == DataShapeKind::Enum
                 {
                     return self.layout_data_definition(*base_symbol);
                 }
