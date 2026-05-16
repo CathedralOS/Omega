@@ -1,8 +1,8 @@
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_state_graph::RuntimeTransitionTarget;
 use omega_target_operations::{StateGuardLowering, StateGuardOperator};
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StateGuardPlan {
@@ -19,10 +19,7 @@ impl StateGuardPlan {
     ) -> Option<&StateGuard> {
         self.guards
             .iter()
-            .find(|(_, guard)| {
-                guard.source == source
-                    && guard.statement_order == statement_order
-            })
+            .find(|(_, guard)| guard.source == source && guard.statement_order == statement_order)
             .map(|(_, guard)| guard)
     }
 
