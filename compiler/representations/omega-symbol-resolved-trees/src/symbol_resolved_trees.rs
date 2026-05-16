@@ -1,5 +1,6 @@
 use crate::{data, expression, signature, snapshot, state, statement, tables, types};
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::diagnostics::PhaseSnapshot;
 use omega_core::symbols::SymbolTable;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index};
@@ -274,6 +275,14 @@ impl SymbolResolvedTrees {
 
     pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
         self.snapshot().to_json_pretty()
+    }
+}
+
+impl PhaseSnapshot for SymbolResolvedTrees {
+    type Snapshot = snapshot::SymbolResolvedTreesSnapshot;
+
+    fn snapshot(&self) -> Self::Snapshot {
+        SymbolResolvedTrees::snapshot(self)
     }
 }
 

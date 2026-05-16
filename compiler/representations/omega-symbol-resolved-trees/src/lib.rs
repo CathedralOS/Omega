@@ -13,6 +13,7 @@ pub mod symbol_resolved_trees;
 pub mod tables;
 pub mod types;
 
+pub use snapshot::SymbolResolvedTreesSnapshot;
 pub use symbol_resolved_trees::{
     OrderedRootArena, SymbolResolvedBodyStorage, SymbolResolvedDeclarationStorage,
     SymbolResolvedRoots, SymbolResolvedTableStorage, SymbolResolvedTrees,
