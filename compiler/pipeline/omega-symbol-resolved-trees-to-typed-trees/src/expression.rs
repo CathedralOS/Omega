@@ -166,15 +166,6 @@ fn lower_table_name_path_node_into_table(
     }
 }
 
-pub(crate) fn lower_expression_from_table(
-    table: &resolved::expression::ExpressionTable,
-    expression: resolved::expression::ExpressionHandle,
-) -> Result<typed::expression::Expression, Diagnostic> {
-    let mut expressions = typed::expression::ExpressionTable::new();
-    let expression = lower_expression_handle_from_table(table, &mut expressions, expression)?;
-    Ok(expressions.to_tree(expression))
-}
-
 fn lower_binary_operator(
     operator: resolved::expression::BinaryOperator,
 ) -> typed::expression::BinaryOperator {

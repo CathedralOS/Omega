@@ -47,7 +47,6 @@ pub(crate) struct Lowerer<'source> {
 impl Lowerer<'_> {
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
-        self.typed_trees.rebuild_tables();
         Ok(self.typed_trees)
     }
 }
