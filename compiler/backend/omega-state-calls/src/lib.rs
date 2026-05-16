@@ -19,8 +19,7 @@ use std::sync::Arc;
 pub use alias_flow::{AliasBinding, AliasFlowPlan, build_alias_flow_plan};
 pub use model::{
     StateCall, StateCallArgument, StateCallArgumentKind, StateCallLowering, StateCallPlan,
-    StateCallRole,
-    StateCallResolution,
+    StateCallResolution, StateCallRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -31,12 +30,8 @@ pub struct StateCallPlanningContext {
 }
 
 impl StateCallPlanningContext {
-    fn state_key_matches_statement_source(
-        expected: StateKey,
-        actual: StateKey,
-    ) -> bool {
-        expected == actual
-            || (expected.machine == actual.machine && expected.state == actual.state)
+    fn state_key_matches_statement_source(expected: StateKey, actual: StateKey) -> bool {
+        expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
 
     pub fn runtime_state_is_reachable_by_key(&self, state_key: StateKey) -> bool {
@@ -87,8 +82,7 @@ impl StateCallPlanningContext {
             operation.statement_index == statement_index
                 && matches!(
                     operation.kind,
-                    OperationKind::ConstantIntegerAssignment
-                        | OperationKind::StaticAssignment
+                    OperationKind::ConstantIntegerAssignment | OperationKind::StaticAssignment
                 )
         })
     }
