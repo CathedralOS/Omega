@@ -1363,7 +1363,7 @@ mod tests {
     use omega_checked_trees::signature::StateParameter;
     use omega_checked_trees::state::State;
     use omega_checked_trees::statement::{
-        LocalData, Statement, Transition, TransitionGuard, TransitionTarget,
+        StatementNode, TableLocalData, TableTransition, TransitionGuardNode, TransitionTargetNode,
     };
     use omega_checked_trees::types::TypeReference;
     use omega_core::symbols::SymbolHandle;
@@ -1397,7 +1397,7 @@ mod tests {
             &mut program,
             &mut helper,
             [
-                Statement::LocalData(LocalData {
+                TestStatement::LocalData {
                     symbol: is_quiet_symbol,
                     name: "is_quiet".into(),
                     type_reference: TypeReference::Named {
@@ -1409,8 +1409,8 @@ mod tests {
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(20),
                     }))),
-                }),
-                Statement::LocalData(LocalData {
+                },
+                TestStatement::LocalData {
                     symbol: is_fountain_symbol,
                     name: "is_fountain".into(),
                     type_reference: TypeReference::Named {
@@ -1422,8 +1422,8 @@ mod tests {
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(30),
                     }))),
-                }),
-                Statement::LocalData(LocalData {
+                },
+                TestStatement::LocalData {
                     symbol: is_reward_symbol,
                     name: "is_reward".into(),
                     type_reference: TypeReference::Named {
@@ -1435,33 +1435,23 @@ mod tests {
                         operator: BinaryOperator::Less,
                         right: Expression::Integer(60),
                     }))),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Quiet"])),
-                    continuation: None,
-                    guard: TransitionGuard::When(name("is_quiet", is_quiet_symbol)),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&[
-                        "RoomEventAction",
-                        "Fountain",
-                    ])),
-                    continuation: None,
-                    guard: TransitionGuard::When(name("is_fountain", is_fountain_symbol)),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&[
-                        "RoomEventAction",
-                        "Reward",
-                    ])),
-                    continuation: None,
-                    guard: TransitionGuard::When(name("is_reward", is_reward_symbol)),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["RoomEventAction", "Enemy"])),
-                    continuation: None,
-                    guard: TransitionGuard::Always,
-                }),
+                },
+                TestStatement::TransitionValue {
+                    target: path_expression(&["RoomEventAction", "Quiet"]),
+                    guard: Some(name("is_quiet", is_quiet_symbol)),
+                },
+                TestStatement::TransitionValue {
+                    target: path_expression(&["RoomEventAction", "Fountain"]),
+                    guard: Some(name("is_fountain", is_fountain_symbol)),
+                },
+                TestStatement::TransitionValue {
+                    target: path_expression(&["RoomEventAction", "Reward"]),
+                    guard: Some(name("is_reward", is_reward_symbol)),
+                },
+                TestStatement::TransitionValue {
+                    target: path_expression(&["RoomEventAction", "Enemy"]),
+                    guard: None,
+                },
             ],
         );
         program.typed.push_state_parameter(
@@ -1636,16 +1626,14 @@ mod tests {
             &mut program,
             &mut find,
             [
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(Expression::Integer(1)),
-                    continuation: None,
-                    guard: TransitionGuard::When(name("found", found_symbol)),
-                }),
-                Statement::Transition(Transition {
-                    target: TransitionTarget::Value(path_expression(&["None"])),
-                    continuation: None,
-                    guard: TransitionGuard::Always,
-                }),
+                TestStatement::TransitionValue {
+                    target: Expression::Integer(1),
+                    guard: Some(name("found", found_symbol)),
+                },
+                TestStatement::TransitionValue {
+                    target: path_expression(&["None"]),
+                    guard: None,
+                },
             ],
         );
         program.typed.push_state_parameter(
@@ -1687,25 +1675,77 @@ mod tests {
         );
     }
 
+    enum TestStatement {
+        LocalData {
+            symbol: SymbolHandle,
+            name: ProgramName,
+            type_reference: TypeReference,
+            initial_value: Option<Expression>,
+        },
+        TransitionValue {
+            target: Expression,
+            guard: Option<Expression>,
+        },
+    }
+
     fn push_state_statements<const N: usize>(
         program: &mut Program,
         state: &mut State,
-        statements: [Statement; N],
+        statements: [TestStatement; N],
     ) {
-        let source_statement_expressions = omega_core::arena::Arena::new();
-        let source_statement_path_members = omega_core::arena::Arena::new();
-
         for statement in statements {
-            let statement_node = program.typed.statement_table.insert_tree(
-                &statement,
-                &mut program.typed.expression_table,
-                &mut program.typed.type_reference_table,
-                &program.typed.type_constraints,
-                &program.typed.type_reference_arguments,
-                &source_statement_expressions,
-                &source_statement_path_members,
-            );
-            state.statement_nodes.push_contiguous(statement_node);
+            let statement = match statement {
+                TestStatement::LocalData {
+                    symbol,
+                    name,
+                    type_reference,
+                    initial_value,
+                } => {
+                    let type_reference = program.typed.type_reference_table.insert_tree(
+                        &type_reference,
+                        &mut program.typed.expression_table,
+                        &program.typed.type_constraints,
+                        &program.typed.type_reference_arguments,
+                    );
+                    let initial_value = initial_value
+                        .as_ref()
+                        .map(|value| program.typed.expression_table.insert_tree(value))
+                        .unwrap_or_else(omega_checked_trees::expression::ExpressionHandle::invalid);
+
+                    StatementNode::LocalData(TableLocalData {
+                        symbol,
+                        name,
+                        type_reference,
+                        initial_value,
+                    })
+                }
+                TestStatement::TransitionValue { target, guard } => {
+                    let target = program.typed.expression_table.insert_tree(&target);
+                    let target = program
+                        .typed
+                        .statement_table
+                        .insert_transition_target(TransitionTargetNode::Value(target));
+                    let guard = guard
+                        .as_ref()
+                        .map(|guard| {
+                            TransitionGuardNode::When(
+                                program.typed.expression_table.insert_tree(guard),
+                            )
+                        })
+                        .unwrap_or(TransitionGuardNode::Always);
+
+                    StatementNode::Transition(TableTransition {
+                        target,
+                        continuation:
+                            omega_checked_trees::statement::TransitionTargetHandle::invalid(),
+                        guard,
+                    })
+                }
+            };
+            program
+                .typed
+                .statement_table
+                .push_statement(&mut state.statement_nodes, statement);
         }
     }
 
