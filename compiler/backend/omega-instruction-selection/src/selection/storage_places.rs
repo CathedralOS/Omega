@@ -718,13 +718,6 @@ fn pointee_type_layout(
         };
     }
 
-    if type_name == "Option" || type_name.starts_with("Option<") {
-        return TypeLayout {
-            size: input.target.pointer_size * 2,
-            alignment: input.target.pointer_alignment,
-        };
-    }
-
     if type_name == "Uint" {
         return TypeLayout {
             size: input.target.pointer_size,
