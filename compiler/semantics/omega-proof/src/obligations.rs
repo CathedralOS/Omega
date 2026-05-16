@@ -491,13 +491,16 @@ fn collect_bounded_state_return_obligation(
     else {
         return;
     };
-    let Some(omega_typed_trees::statement::Statement::Expression(value)) =
-        program.state_statements(state).last()
+    let Some(omega_typed_trees::statement::StatementNode::Expression(value)) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
     else {
         return;
     };
+    let value = program.expression_table.to_tree(*value);
 
-    let value_constraints = expression_constraints(program, machine, state, value);
+    let value_constraints = expression_constraints(program, machine, state, &value);
     let value_constraints = proof_plan.store_constraints(&value_constraints);
     let constraints = proof_plan.store_constraints(type_constraints(program, *constraints));
 
@@ -507,7 +510,7 @@ fn collect_bounded_state_return_obligation(
             machine: machine.name.to_string(),
             state_symbol: state.symbol,
             state: state.name.to_string(),
-            value: value.clone(),
+            value,
             value_constraints,
             base_type: base_type.as_ref().clone(),
             constraints,
