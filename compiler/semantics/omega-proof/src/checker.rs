@@ -1,12 +1,12 @@
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofObligation, ProofPlan,
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofConstraint,
+    ProofObligation, ProofPlan,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::expression::{BinaryOperator, Expression, ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::TransitionGuardNode;
-use omega_typed_trees::types::TypeConstraint;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct IntegerRange {
@@ -542,21 +542,17 @@ fn integer_range_for_initializer(
     }
 }
 
-fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<IntegerRange> {
+fn integer_range_from_constraints(constraints: &[ProofConstraint]) -> Option<IntegerRange> {
     let mut range: Option<IntegerRange> = None;
 
     for constraint in constraints {
-        let TypeConstraint::Range { minimum, maximum } = constraint else {
+        let ProofConstraint::IntegerRange { minimum, maximum } = constraint else {
             continue;
         };
 
-        let Some(candidate) = (|| {
-            Some(IntegerRange {
-                minimum: integer_literal(minimum)?,
-                maximum: integer_literal(maximum)?,
-            })
-        })() else {
-            continue;
+        let candidate = IntegerRange {
+            minimum: *minimum,
+            maximum: *maximum,
         };
 
         range = Some(match range {
@@ -569,7 +565,7 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
     }
 
     for constraint in constraints {
-        let TypeConstraint::Named(name) = constraint else {
+        let ProofConstraint::Named(name) = constraint else {
             continue;
         };
 
@@ -603,29 +599,22 @@ fn integer_range_from_constraints(constraints: &[TypeConstraint]) -> Option<Inte
 
 fn type_constraints<'proof>(
     proof_plan: &'proof ProofPlan<'_>,
-    constraints: HandleSpan<TypeConstraint>,
-) -> &'proof [TypeConstraint] {
+    constraints: HandleSpan<ProofConstraint>,
+) -> &'proof [ProofConstraint] {
     proof_plan.type_constraints.span(constraints).unwrap_or(&[])
 }
 
-fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatRange> {
+fn float_range_from_constraints(constraints: &[ProofConstraint]) -> Option<FloatRange> {
     let mut range: Option<FloatRange> = None;
 
     for constraint in constraints {
-        let TypeConstraint::Range { minimum, maximum } = constraint else {
+        let ProofConstraint::FloatRange { minimum, maximum } = constraint else {
             continue;
         };
-        if !matches!(minimum, Expression::Float(_)) && !matches!(maximum, Expression::Float(_)) {
-            continue;
-        }
 
-        let Some(candidate) = (|| {
-            Some(FloatRange {
-                minimum: float_literal_expression(minimum)?,
-                maximum: float_literal_expression(maximum)?,
-            })
-        })() else {
-            continue;
+        let candidate = FloatRange {
+            minimum: minimum.value(),
+            maximum: maximum.value(),
         };
 
         range = Some(match range {
@@ -638,23 +627,6 @@ fn float_range_from_constraints(constraints: &[TypeConstraint]) -> Option<FloatR
     }
 
     range
-}
-
-fn integer_literal(expression: &Expression) -> Option<i64> {
-    match expression {
-        Expression::Integer(value) => Some(*value),
-        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as i64),
-        _ => None,
-    }
-}
-
-fn float_literal_expression(expression: &Expression) -> Option<f64> {
-    match expression {
-        Expression::Float(value) => finite_float_literal(*value),
-        Expression::Integer(value) => Some(*value as f64),
-        Expression::Name(path) if path.members() == ["u32", "MAX"] => Some(u32::MAX as f64),
-        _ => None,
-    }
 }
 
 fn finite_float_literal(value: omega_typed_trees::expression::FloatLiteral) -> Option<f64> {
@@ -1047,9 +1019,9 @@ fn check_initializer_named_constraints(
     }
 }
 
-fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &str> {
+fn named_constraints(constraints: &[ProofConstraint]) -> impl Iterator<Item = &str> {
     constraints.iter().filter_map(|constraint| {
-        let TypeConstraint::Named(name) = constraint else {
+        let ProofConstraint::Named(name) = constraint else {
             return None;
         };
 
@@ -1060,7 +1032,7 @@ fn named_constraints(constraints: &[TypeConstraint]) -> impl Iterator<Item = &st
 fn argument_handle_satisfies_named_constraint(
     proof_plan: &ProofPlan,
     argument: ExpressionHandle,
-    argument_constraints: HandleSpan<TypeConstraint>,
+    argument_constraints: HandleSpan<ProofConstraint>,
     constraint: &str,
 ) -> bool {
     let constraints = type_constraints(proof_plan, argument_constraints);
@@ -1170,11 +1142,11 @@ fn initializer_satisfies_named_constraint(
     }
 }
 
-fn constraints_satisfy_named_constraint(constraints: &[TypeConstraint], constraint: &str) -> bool {
+fn constraints_satisfy_named_constraint(constraints: &[ProofConstraint], constraint: &str) -> bool {
     if constraints.iter().any(|argument_constraint| {
         matches!(
             argument_constraint,
-            TypeConstraint::Named(argument_constraint) if argument_constraint == constraint
+            ProofConstraint::Named(argument_constraint) if argument_constraint == constraint
         )
     }) {
         return true;
