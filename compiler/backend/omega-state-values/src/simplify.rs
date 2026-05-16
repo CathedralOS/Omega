@@ -1270,11 +1270,8 @@ fn boolean_not(expression: Expression) -> Expression {
 }
 
 fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
-    if let (Some(left_path), Some(right_path)) = (
-        expression_path_segments(left),
-        expression_path_segments(right),
-    ) {
-        return left_path == right_path;
+    if let Some(are_equivalent) = expression_paths_equivalent(left, right) {
+        return are_equivalent;
     }
 
     match (left, right) {
@@ -1339,13 +1336,39 @@ fn expressions_equivalent(left: &Expression, right: &Expression) -> bool {
     }
 }
 
-fn expression_path_segments(expression: &Expression) -> Option<Vec<String>> {
+fn expression_paths_equivalent(left: &Expression, right: &Expression) -> Option<bool> {
+    let left_count = expression_path_segment_count(left)?;
+    let right_count = expression_path_segment_count(right)?;
+
+    if left_count != right_count {
+        return Some(false);
+    }
+
+    Some(
+        (0..left_count).all(|index| {
+            expression_path_segment(left, index) == expression_path_segment(right, index)
+        }),
+    )
+}
+
+fn expression_path_segment_count(expression: &Expression) -> Option<usize> {
     match expression {
-        Expression::Name(path) => Some(path.iter().map(|segment| segment.to_string()).collect()),
+        Expression::Name(path) => Some(path.len()),
+        Expression::Member(member) => Some(expression_path_segment_count(&member.receiver)? + 1),
+        _ => None,
+    }
+}
+
+fn expression_path_segment(expression: &Expression, index: usize) -> Option<&ProgramName> {
+    match expression {
+        Expression::Name(path) => path.get(index),
         Expression::Member(member) => {
-            let mut path = expression_path_segments(&member.receiver)?;
-            path.push(member.member.to_string());
-            Some(path)
+            let receiver_count = expression_path_segment_count(&member.receiver)?;
+            if index == receiver_count {
+                Some(&member.member)
+            } else {
+                expression_path_segment(&member.receiver, index)
+            }
         }
         _ => None,
     }
