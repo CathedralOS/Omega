@@ -7,7 +7,8 @@ use omega_typed_trees::name::ProgramName;
 use omega_typed_trees::signature::StateParameter;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    Assignment, TableCall, Transition, TransitionGuard, TransitionTarget,
+    Assignment, StatementNode, TableCall, TableTransition, Transition, TransitionGuard,
+    TransitionGuardNode, TransitionTarget, TransitionTargetHandle, TransitionTargetNode,
 };
 use omega_typed_trees::types::{TypeConstraint, TypeReference};
 
@@ -573,14 +574,19 @@ fn incoming_state_guard(
     let mut guard: Option<TransitionGuard> = None;
 
     for source_state in program.machine_states(machine) {
-        for statement in program.state_statements(source_state) {
-            let omega_typed_trees::statement::Statement::Transition(transition) = statement else {
+        for statement in program
+            .statement_table
+            .statements(source_state.statement_nodes)
+        {
+            let StatementNode::Transition(transition) = statement else {
                 continue;
             };
 
-            let Some((resolved_target, _)) =
-                transition_target_state_and_arguments(program, source_state, &transition.target)
-            else {
+            let Some((resolved_target, _)) = table_transition_target_state_and_arguments(
+                program,
+                source_state,
+                transition.target,
+            ) else {
                 continue;
             };
 
@@ -588,23 +594,58 @@ fn incoming_state_guard(
                 continue;
             }
 
-            let TransitionGuard::When(_) = &transition.guard else {
+            let transition_guard = table_transition_guard(program, *transition);
+            let TransitionGuard::When(_) = &transition_guard else {
                 return None;
             };
 
             match &guard {
                 Some(existing)
-                    if !guards_equivalent_for_precondition(existing, &transition.guard) =>
+                    if !guards_equivalent_for_precondition(existing, &transition_guard) =>
                 {
                     return None;
                 }
                 Some(_) => {}
-                None => guard = Some(transition.guard.clone()),
+                None => guard = Some(transition_guard),
             }
         }
     }
 
     guard
+}
+
+fn table_transition_guard(program: &TypedTrees, transition: TableTransition) -> TransitionGuard {
+    match transition.guard {
+        TransitionGuardNode::Always => TransitionGuard::Always,
+        TransitionGuardNode::When(expression) => {
+            TransitionGuard::When(program.expression_table.to_tree(expression))
+        }
+    }
+}
+
+fn table_transition_target_state_and_arguments<'program>(
+    program: &'program TypedTrees,
+    state: &'program State,
+    target: TransitionTargetHandle,
+) -> Option<(
+    &'program State,
+    &'program [omega_typed_trees::expression::ExpressionHandle],
+)> {
+    let TransitionTargetNode::Named { path, arguments } =
+        program.statement_table.transition_target(target)
+    else {
+        return None;
+    };
+    let path_members = program.statement_table.name_path_members(path.members);
+
+    state_by_symbol(program, path.symbol)
+        .or_else(|| (path_members == ["self"]).then_some(state))
+        .map(|target_state| {
+            (
+                target_state,
+                program.statement_table.expression_handles(*arguments),
+            )
+        })
 }
 
 fn guards_equivalent_for_precondition(left: &TransitionGuard, right: &TransitionGuard) -> bool {
