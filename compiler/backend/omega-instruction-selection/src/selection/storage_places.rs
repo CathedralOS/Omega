@@ -460,6 +460,27 @@ fn runtime_frame_slot_for_expression<'plan>(
         })
 }
 
+fn runtime_frame_slot_for_expression_in_table<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && slot.source_key == source_key
+                && slot_matches_table_path(slot.symbol, &path, slot.name.as_str()))
+            .then_some(slot)
+        })
+}
+
 fn resolve_runtime_fixed_indexed_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -505,8 +526,13 @@ fn resolve_runtime_fixed_indexed_place_in_table(
     expression: ExpressionHandle,
 ) -> Option<RuntimeStoragePlace> {
     let fixed = fixed_indexed_target_path_in_table(expressions, expression)?;
-    let collection = expressions.to_tree(fixed.collection);
-    let slot = runtime_frame_slot_for_expression(input, dispatch_index, source_key, &collection)?;
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        fixed.collection,
+    )?;
     let element_layout = indexed_element_layout(input, slot.type_symbol)?;
     let element_type_name = indexed_element_type_name(&slot.type_name)?;
     let index = usize::try_from(fixed.index).ok()?;
