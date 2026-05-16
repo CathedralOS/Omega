@@ -41,21 +41,6 @@ impl StateStoragePlanningContext {
             .map(|root| root.kind.clone())
     }
 
-    pub fn borrow_root_kind_by_name(
-        &self,
-        state_key: StateKey,
-        root_name: &str,
-    ) -> Option<omega_control_flow::StateBorrowRootKind> {
-        self.state_flow_by_key(state_key)
-            .and_then(|state| {
-                self.control_flow
-                    .borrow_writable_roots
-                    .span(state.borrow.writable_roots)
-            })
-            .and_then(|roots| roots.iter().find(|root| root.name.as_str() == root_name))
-            .map(|root| root.kind.clone())
-    }
-
     pub fn state_is_required_by_key(&self, state_key: StateKey) -> bool {
         self.runtime_flow
             .states

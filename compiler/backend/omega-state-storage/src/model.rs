@@ -1,6 +1,6 @@
-use omega_control_flow::StateKey;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionTable};
 use omega_checked_trees::name::ProgramName;
+use omega_control_flow::StateKey;
 use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
