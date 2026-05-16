@@ -718,7 +718,7 @@ fn resolve_state_call_target(
     receiver: Option<&[ProgramName]>,
     _target_state: &ProgramName,
 ) -> Option<SymbolHandle> {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+    if receiver.is_none() || receiver_symbol == machine.symbol {
         return resolve_state_symbol_in_machine(program, machine, target_symbol);
     }
 
@@ -772,7 +772,7 @@ fn receiver_can_dispatch_to_machine(
     receiver_symbol: SymbolHandle,
     receiver: Option<&[ProgramName]>,
 ) -> bool {
-    if receiver.is_none() || receiver.is_some_and(|receiver| receiver == ["self"]) {
+    if receiver.is_none() || receiver_symbol == machine.symbol {
         return true;
     }
 
@@ -1028,7 +1028,7 @@ mod tests {
             symbol: entry_symbol,
             name: ProgramName::generated("entry"),
             parameters: Default::default(),
-            return_type: None,
+            return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
             statement_nodes: Default::default(),
         };
         program.statement_table.push_statement(
@@ -1059,7 +1059,7 @@ mod tests {
                 symbol: outer_symbol,
                 name: ProgramName::generated("outer"),
                 parameters: Default::default(),
-                return_type: None,
+                return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
                 statement_nodes: Default::default(),
             },
         );
@@ -1069,7 +1069,7 @@ mod tests {
                 symbol: inner_symbol,
                 name: ProgramName::generated("inner"),
                 parameters: Default::default(),
-                return_type: None,
+                return_type: omega_typed_trees::types::TypeReferenceHandle::invalid(),
                 statement_nodes: Default::default(),
             },
         );
