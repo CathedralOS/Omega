@@ -7,10 +7,10 @@ use crate::host_calls::static_values::{
 };
 use crate::{HostCall, HostCallPlan, PlaceKey, UnsupportedHostCall};
 use omega_calling_conventions::HostAbiPlan;
+use omega_checked_trees::Program;
 use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{Call, Statement};
-use omega_checked_trees::Program;
 use omega_control_flow::StateKey;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -83,7 +83,7 @@ fn collect_call_host_lowering(
     };
 
     let Some(lowering) = find_platform_call_lowering(host_abi, &platform_name, call) else {
-        let platform_call = platform_call_name(call);
+        let platform_call = platform_call_name(program, call);
         plan.unsupported_calls.insert(UnsupportedHostCall {
             source_key: state_key(machine, state),
             statement_index,
@@ -104,13 +104,13 @@ fn collect_call_host_lowering(
             )
         })
         .unwrap_or_else(HandleSpan::empty);
-    let arguments = plan
-        .arguments
-        .insert_many(lower_host_call_arguments(program, call, static_values));
+    let arguments =
+        plan.arguments
+            .insert_many(lower_host_call_arguments(program, call, static_values));
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),
         statement_index,
-        platform_call: platform_call_name(call),
+        platform_call: platform_call_name(program, call),
         data: lowering.data,
         operations,
         arguments,

@@ -451,7 +451,8 @@ fn collect_bounded_call_argument_obligations(
                     machine: machine.name.to_string(),
                     state_symbol: state.symbol,
                     state: state.name.to_string(),
-                    receiver: call.receiver.as_ref().map(display_name_path),
+                    receiver: (!call.receiver.is_empty())
+                        .then(|| display_name_path(program.statement_path_members(call.receiver))),
                     target: call.target.to_string(),
                     parameter: parameter.name.to_string(),
                     argument: argument.clone(),
@@ -510,12 +511,17 @@ fn call_target_parameters<'program>(
     state_by_symbol(program, call.target_symbol).map(|state| program.state_parameters(state))
 }
 
-fn display_name_path(path: &omega_typed_trees::expression::NamePath) -> String {
-    path.members()
-        .iter()
-        .map(|member| member.as_str())
-        .collect::<Vec<_>>()
-        .join(".")
+fn display_name_path(path: &[ProgramName]) -> String {
+    let mut display = String::new();
+
+    for member in path {
+        if !display.is_empty() {
+            display.push('.');
+        }
+        display.push_str(member.as_str());
+    }
+
+    display
 }
 
 fn transition_target_state_and_arguments<'program>(
@@ -523,12 +529,13 @@ fn transition_target_state_and_arguments<'program>(
     state: &'program State,
     target: &'program TransitionTarget,
 ) -> Option<(&'program State, &'program [Expression])> {
-    let TransitionTarget::Named { path, .. } = target else {
+    let TransitionTarget::Named { path, symbol, .. } = target else {
         return None;
     };
+    let path = program.statement_path_members(*path);
 
-    state_by_symbol(program, path.symbol())
-        .or_else(|| (path.members() == ["self"]).then_some(state))
+    state_by_symbol(program, *symbol)
+        .or_else(|| (path == ["self"]).then_some(state))
         .map(|target_state| (target_state, program.transition_target_arguments(target)))
 }
 
@@ -732,15 +739,18 @@ fn expression_type_reference<'program>(
                 .find(|parameter| parameter.name == *name)
                 .map(|parameter| &parameter.type_reference)
                 .or_else(|| {
-                    program.state_statements(state).iter().find_map(|statement| {
-                        let omega_typed_trees::statement::Statement::LocalData(local_data) =
-                            statement
-                        else {
-                            return None;
-                        };
+                    program
+                        .state_statements(state)
+                        .iter()
+                        .find_map(|statement| {
+                            let omega_typed_trees::statement::Statement::LocalData(local_data) =
+                                statement
+                            else {
+                                return None;
+                            };
 
-                        (local_data.name == *name).then_some(&local_data.type_reference)
-                    })
+                            (local_data.name == *name).then_some(&local_data.type_reference)
+                        })
                 })
                 .or_else(|| {
                     program
@@ -768,7 +778,10 @@ fn expression_type_reference<'program>(
     }
 }
 
-fn collect_constraints(program: &TypedTrees, type_reference: &TypeReference) -> Vec<TypeConstraint> {
+fn collect_constraints(
+    program: &TypedTrees,
+    type_reference: &TypeReference,
+) -> Vec<TypeConstraint> {
     match type_reference {
         TypeReference::Reference { referee, .. } => collect_constraints(program, referee),
         TypeReference::Constrained {
@@ -813,8 +826,7 @@ fn index_of_constraints(
     state: &State,
     type_reference: &TypeReference,
 ) -> Option<Vec<TypeConstraint>> {
-    let TypeReference::Generic { base_name, .. } = type_reference
-    else {
+    let TypeReference::Generic { base_name, .. } = type_reference else {
         return None;
     };
 
@@ -863,31 +875,34 @@ fn collection_length_for_binding(
             )
         })
         .or_else(|| {
-            program.state_statements(state).iter().find_map(|statement| {
-                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
-                else {
-                    return None;
-                };
+            program
+                .state_statements(state)
+                .iter()
+                .find_map(|statement| {
+                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
+                    else {
+                        return None;
+                    };
 
-                if local_data.name != *name {
-                    return None;
-                }
+                    if local_data.name != *name {
+                        return None;
+                    }
 
-                local_data
-                    .initial_value
-                    .as_ref()
-                    .and_then(|value| {
-                        collection_length_from_expression(program, machine, state, value)
-                    })
-                    .or_else(|| {
-                        collection_length_from_type_reference(
-                            program,
-                            machine,
-                            state,
-                            &local_data.type_reference,
-                        )
-                    })
-            })
+                    local_data
+                        .initial_value
+                        .as_ref()
+                        .and_then(|value| {
+                            collection_length_from_expression(program, machine, state, value)
+                        })
+                        .or_else(|| {
+                            collection_length_from_type_reference(
+                                program,
+                                machine,
+                                state,
+                                &local_data.type_reference,
+                            )
+                        })
+                })
         })
         .or_else(|| {
             program
@@ -985,14 +1000,17 @@ fn type_reference_for_symbol<'program>(
         .find(|parameter| parameter.symbol == symbol)
         .map(|parameter| &parameter.type_reference)
         .or_else(|| {
-            program.state_statements(state).iter().find_map(|statement| {
-                let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
-                else {
-                    return None;
-                };
+            program
+                .state_statements(state)
+                .iter()
+                .find_map(|statement| {
+                    let omega_typed_trees::statement::Statement::LocalData(local_data) = statement
+                    else {
+                        return None;
+                    };
 
-                (local_data.symbol == symbol).then_some(&local_data.type_reference)
-            })
+                    (local_data.symbol == symbol).then_some(&local_data.type_reference)
+                })
         })
         .or_else(|| {
             program
@@ -1002,15 +1020,21 @@ fn type_reference_for_symbol<'program>(
                 .map(|owned_data| &owned_data.type_reference)
         })
         .or_else(|| {
-            program.data_definitions().iter().find_map(|data_definition| {
-                program.data_members(data_definition).iter().find_map(|member| {
-                    let omega_typed_trees::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
+            program
+                .data_definitions()
+                .iter()
+                .find_map(|data_definition| {
+                    program
+                        .data_members(data_definition)
+                        .iter()
+                        .find_map(|member| {
+                            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                                return None;
+                            };
 
-                    (field.symbol == symbol).then_some(&field.type_reference)
+                            (field.symbol == symbol).then_some(&field.type_reference)
+                        })
                 })
-            })
         })
 }
 
@@ -1063,14 +1087,18 @@ fn data_field_in_definition<'program>(
     member_symbol: SymbolHandle,
     member_name: &ProgramName,
 ) -> Option<&'program TypeReference> {
-    program.data_members(data_definition).iter().find_map(|member| {
-        let omega_typed_trees::data::DataMember::Field(field) = member else {
-            return None;
-        };
+    program
+        .data_members(data_definition)
+        .iter()
+        .find_map(|member| {
+            let omega_typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
 
-        ((member_symbol.is_valid() && field.symbol == member_symbol) || field.name == *member_name)
-            .then_some(&field.type_reference)
-    })
+            ((member_symbol.is_valid() && field.symbol == member_symbol)
+                || field.name == *member_name)
+                .then_some(&field.type_reference)
+        })
 }
 
 fn integer_literal_constraints(value: i64) -> Vec<TypeConstraint> {

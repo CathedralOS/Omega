@@ -38,10 +38,13 @@ pub fn infer_effects(program: &omega_typed_trees::TypedTrees) -> EffectPlan {
     let mut effect_plan = EffectPlan::default();
 
     for machine in program.machines() {
-        let states = program.machine_states(machine).iter().map(|state| StateEffects {
-            name: state.name.to_string(),
-            effect: infer_state_effect(program, machine, state),
-        });
+        let states = program
+            .machine_states(machine)
+            .iter()
+            .map(|state| StateEffects {
+                name: state.name.to_string(),
+                effect: infer_state_effect(program, machine, state),
+            });
         let states = effect_plan.states.insert_many(states);
 
         effect_plan.machines.push(MachineEffects {
@@ -105,12 +108,12 @@ fn infer_call_effect(
         return Effect::Mutates;
     }
 
-    let Some(receiver_path) = call.receiver.as_ref() else {
+    let receiver_path = program.statement_path_members(call.receiver);
+    if receiver_path.is_empty() {
         return Effect::Pure;
-    };
+    }
 
     let receiver = receiver_path
-        .members()
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();

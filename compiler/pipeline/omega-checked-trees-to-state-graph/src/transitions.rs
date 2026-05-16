@@ -1,7 +1,6 @@
-use omega_core::diagnostics::Diagnostic;
 use omega_checked_trees::Program;
-use omega_checked_trees::expression::display_name_path;
 use omega_checked_trees::statement::{Call, TransitionTarget};
+use omega_core::diagnostics::Diagnostic;
 
 use crate::segments::{
     SegmentTransition, copy_statement_expression_span, table_transition_guard_expression,
@@ -41,11 +40,11 @@ pub(super) fn plan_transition(
             });
 
             Ok(TransitionEdge {
-                target: plan_transition_target(state_indexes, &tree.target, state_graph)?,
+                target: plan_transition_target(state_indexes, &tree.target, program)?,
                 continuation: tree
                     .continuation
                     .as_ref()
-                    .map(|target| plan_transition_target(state_indexes, target, state_graph))
+                    .map(|target| plan_transition_target(state_indexes, target, program))
                     .transpose()?,
                 guard: tree.guard.clone(),
                 expressions: TransitionExpressionRefs {
@@ -62,7 +61,7 @@ pub(super) fn plan_transition(
             table,
             has_continuation_segment,
         } => Ok(TransitionEdge {
-            target: plan_call_target(state_indexes, call)?,
+            target: plan_call_target(state_indexes, call, program)?,
             continuation: has_continuation_segment
                 .then(|| next_segment_target(source_key, state_indexes))
                 .transpose()?,
@@ -131,23 +130,34 @@ fn table_transition_target_value(
 fn plan_transition_target(
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     target: &TransitionTarget,
-    _state_graph: &StateGraph,
+    program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
     match target {
         TransitionTarget::Named {
-            path, arguments, ..
-        } if path.len() == 1 || path.len() == 2 && path[0] == "self" => {
-            let name = path.last().expect("named transition has a state").clone();
-            let symbol = path.symbol();
-            let target = symbol.is_valid().then(|| {
-                state_indexes
-                    .iter()
-                    .find(|(key, _, _)| key.state == symbol && key.segment_index == 0)
-            }).flatten().or_else(|| {
-                state_indexes.iter().find(|(key, _, state_name)| {
-                    key.segment_index == 0 && *state_name == name
+            path,
+            symbol,
+            arguments: _,
+            ..
+        } if is_local_transition_path(program.statement_path_members(*path)) => {
+            let members = program.statement_path_members(*path);
+            let name = members
+                .last()
+                .expect("named transition has a state")
+                .clone();
+            let symbol = *symbol;
+            let target = symbol
+                .is_valid()
+                .then(|| {
+                    state_indexes
+                        .iter()
+                        .find(|(key, _, _)| key.state == symbol && key.segment_index == 0)
                 })
-            });
+                .flatten()
+                .or_else(|| {
+                    state_indexes
+                        .iter()
+                        .find(|(key, _, state_name)| key.segment_index == 0 && *state_name == name)
+                });
             let (key, index, _) = target.ok_or_else(|| {
                 Diagnostic::error(format!("unknown state transition target `{name}`"))
             })?;
@@ -159,32 +169,42 @@ fn plan_transition_target(
             })
         }
         TransitionTarget::Named {
-            path, arguments: _, ..
-        } if path.len() == 2 => Ok(PlannedTransitionTarget::Nested {
-            receiver_symbol: path.head_symbol(),
-            state_symbol: path.symbol(),
-            receiver: path[0].clone(),
-            state: path[1].clone(),
-        }),
-        TransitionTarget::Named { path, .. } => Err(Diagnostic::error(format!(
-            "unsupported transition target `{}`",
-            display_name_path(path, ".")
-        ))),
+            path,
+            head_symbol,
+            symbol,
+            arguments: _,
+            ..
+        } => {
+            let members = program.statement_path_members(*path);
+            if members.len() == 2 {
+                return Ok(PlannedTransitionTarget::Nested {
+                    receiver_symbol: *head_symbol,
+                    state_symbol: *symbol,
+                    receiver: members[0].clone(),
+                    state: members[1].clone(),
+                });
+            }
+
+            Err(Diagnostic::error(format!(
+                "unsupported transition target `{}`",
+                display_transition_path(members)
+            )))
+        }
         TransitionTarget::SelfTarget => Ok(PlannedTransitionTarget::SelfTarget),
-        TransitionTarget::Terminal | TransitionTarget::Value(_) => Ok(PlannedTransitionTarget::Terminal),
+        TransitionTarget::Terminal | TransitionTarget::Value(_) => {
+            Ok(PlannedTransitionTarget::Terminal)
+        }
     }
 }
 
 fn plan_call_target(
     state_indexes: &[(StateKey, usize, omega_checked_trees::name::ProgramName)],
     call: &Call,
+    program: &Program,
 ) -> Result<PlannedTransitionTarget, Diagnostic> {
-    if call.receiver.is_none()
-        || call
-            .receiver
-            .as_ref()
-            .is_some_and(|receiver| receiver.len() == 1 && receiver[0] == "self")
-    {
+    let receiver = program.statement_path_members(call.receiver);
+
+    if receiver.is_empty() || receiver.len() == 1 && receiver[0] == "self" {
         let name = call.target.clone();
         let symbol = call.target_symbol;
         let target = symbol
@@ -196,12 +216,12 @@ fn plan_call_target(
             })
             .flatten()
             .or_else(|| {
-                state_indexes.iter().find(|(key, _, state_name)| {
-                    key.segment_index == 0 && *state_name == name
-                })
+                state_indexes
+                    .iter()
+                    .find(|(key, _, state_name)| key.segment_index == 0 && *state_name == name)
             });
-        let (key, index, _) =
-            target.ok_or_else(|| Diagnostic::error(format!("unknown state call target `{name}`")))?;
+        let (key, index, _) = target
+            .ok_or_else(|| Diagnostic::error(format!("unknown state call target `{name}`")))?;
 
         return Ok(PlannedTransitionTarget::State {
             index: *index,
@@ -210,18 +230,30 @@ fn plan_call_target(
         });
     }
 
-    let receiver = call
-        .receiver
-        .as_ref()
-        .and_then(|receiver| receiver.last())
-        .cloned()
-        .unwrap_or_default();
+    let receiver = receiver.last().cloned().unwrap_or_default();
     Ok(PlannedTransitionTarget::Nested {
         receiver_symbol: call.receiver_symbol,
         state_symbol: call.target_symbol,
         receiver,
         state: call.target.clone(),
     })
+}
+
+fn is_local_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> bool {
+    path.len() == 1 || path.len() == 2 && path[0] == "self"
+}
+
+fn display_transition_path(path: &[omega_checked_trees::name::ProgramName]) -> String {
+    let mut display = String::new();
+
+    for member in path {
+        if !display.is_empty() {
+            display.push('.');
+        }
+        display.push_str(member.as_str());
+    }
+
+    display
 }
 
 fn next_segment_target(
@@ -235,7 +267,9 @@ fn next_segment_target(
     let (key, index, name) = state_indexes
         .iter()
         .find(|(key, _, _)| *key == next_key)
-        .ok_or_else(|| Diagnostic::error("internal state-call continuation segment was not indexed"))?;
+        .ok_or_else(|| {
+            Diagnostic::error("internal state-call continuation segment was not indexed")
+        })?;
 
     Ok(PlannedTransitionTarget::State {
         index: *index,
