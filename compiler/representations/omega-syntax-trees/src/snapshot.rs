@@ -9,6 +9,7 @@ use crate::item::{
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use crate::syntax_trees::SyntaxTrees;
 use crate::types::{TypeConstraintNode, TypeReferenceNode};
+use omega_core::diagnostics::PhaseSnapshot;
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -361,6 +362,14 @@ impl SyntaxTrees {
 
     pub fn snapshot_json(&self) -> Result<String, serde_json::Error> {
         self.snapshot().to_json()
+    }
+}
+
+impl PhaseSnapshot for SyntaxTrees {
+    type Snapshot = SyntaxTreesSnapshot;
+
+    fn snapshot(&self) -> Self::Snapshot {
+        SyntaxTrees::snapshot(self)
     }
 }
 
